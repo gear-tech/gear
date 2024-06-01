@@ -21,7 +21,7 @@
 use core::mem;
 
 use crate::{
-    code::{errors::*, instrumented::SectionSizes, GENERIC_OS_PAGE_SIZE},
+    code::{errors::*, instrumented::InstantiatedSectionSizes, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
@@ -558,7 +558,7 @@ pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSection
 }
 
 /// Used for migration.
-pub fn migration_get_section_sizes(code: &[u8]) -> Result<SectionSizes, CodeError> {
+pub fn migration_get_section_sizes(code: &[u8]) -> Result<InstantiatedSectionSizes, CodeError> {
     let module = parity_wasm::deserialize_buffer(code).map_err(CodecError::Decode)?;
 
     let CodeTypeSectionSizes {
@@ -571,7 +571,7 @@ pub fn migration_get_section_sizes(code: &[u8]) -> Result<SectionSizes, CodeErro
     let table_section_size = get_table_section_size(&module)?;
     let element_section_size = get_element_section_size(&module)?;
 
-    Ok(SectionSizes {
+    Ok(InstantiatedSectionSizes {
         code_section,
         data_section: data_section_size,
         global_section: global_section_size,

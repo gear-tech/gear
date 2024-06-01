@@ -21,7 +21,7 @@ use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
-use gear_core::code::{migration_get_section_sizes, InstrumentedCode, SectionSizes};
+use gear_core::code::{migration_get_section_sizes, InstantiatedSectionSizes, InstrumentedCode};
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -65,7 +65,7 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
                 let section_sizes = migration_get_section_sizes(&code.code).unwrap_or_else(|err| {
                     log::error!("❌ Failed to get section sizes for code with id {code_id:?}, error: {err:?}");
                     // Fallback, should never happen.
-                    SectionSizes {
+                    InstantiatedSectionSizes {
                         code_section: code.code.len() as u32,
                         data_section: 0,
                         global_section: 0,
@@ -249,7 +249,7 @@ mod test {
             assert_eq!(new_code.stack_end(), None);
 
             assert_eq!(new_code.section_sizes(),
-                &SectionSizes {
+                &InstantiatedSectionSizes {
                     code_section: 11,
                     data_section: 4096,
                     global_section: 16,

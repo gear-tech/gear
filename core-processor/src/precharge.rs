@@ -28,7 +28,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use gear_core::{
-    code::{SectionName, SectionSizes},
+    code::{InstantiatedSectionSizes, SectionName},
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
@@ -344,7 +344,7 @@ pub fn precharge_for_instrumentation(
 pub fn precharge_for_module_instantiation(
     block_config: &BlockConfig,
     mut context: ContextChargedForInstrumentation,
-    section_sizes: &SectionSizes,
+    section_sizes: &InstantiatedSectionSizes,
 ) -> PrechargeResult<ContextChargedForMemory> {
     let ContextChargedForInstrumentation {
         data:

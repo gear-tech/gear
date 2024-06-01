@@ -43,7 +43,10 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId, SectionSizes},
+    code::{
+        self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
+        InstrumentedCodeAndId,
+    },
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -6301,7 +6304,7 @@ fn terminated_locking_funds() {
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let gas_for_module_instantiation = {
-            let SectionSizes {
+            let InstantiatedSectionSizes {
                 code_section: code_section_bytes,
                 data_section: data_section_bytes,
                 global_section: global_section_bytes,
@@ -7529,7 +7532,7 @@ fn gas_spent_precalculated() {
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
 
-            let SectionSizes {
+            let InstantiatedSectionSizes {
                 code_section: code_section_bytes,
                 data_section: data_section_bytes,
                 global_section: global_section_bytes,

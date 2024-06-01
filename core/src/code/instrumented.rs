@@ -30,9 +30,9 @@ use scale_info::{
     TypeInfo,
 };
 
-/// Section sizes used for charging during module instantiation.
+/// Section sizes calculated after instantiation used for charging during module instantiation.
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
-pub struct SectionSizes {
+pub struct InstantiatedSectionSizes {
     /// Code section size in bytes.
     pub code_section: u32,
     /// Data section size in bytes based on the number of OS pages
@@ -56,7 +56,7 @@ pub struct InstrumentedCode {
     pub(crate) exports: BTreeSet<DispatchKind>,
     pub(crate) static_pages: WasmPagesAmount,
     pub(crate) stack_end: Option<WasmPage>,
-    pub(crate) section_sizes: SectionSizes,
+    pub(crate) section_sizes: InstantiatedSectionSizes,
     pub(crate) version: u32,
 }
 
@@ -72,7 +72,7 @@ impl InstrumentedCode {
         exports: BTreeSet<DispatchKind>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
-        section_sizes: SectionSizes,
+        section_sizes: InstantiatedSectionSizes,
         version: u32,
     ) -> Self {
         Self {
@@ -117,7 +117,7 @@ impl InstrumentedCode {
     }
 
     /// Returns section sizes used for charging during module instantiation.
-    pub fn section_sizes(&self) -> &SectionSizes {
+    pub fn section_sizes(&self) -> &InstantiatedSectionSizes {
         &self.section_sizes
     }
 

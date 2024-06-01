@@ -61,7 +61,7 @@ pub struct Code {
     /// Instruction weights version.
     instruction_weights_version: u32,
     /// Section sizes used for charging during module instantiation.
-    section_sizes: SectionSizes,
+    section_sizes: InstantiatedSectionSizes,
 }
 
 /// Configuration for `Code::try_new_mock_`.
@@ -209,7 +209,7 @@ impl Code {
             static_pages,
             stack_end,
             instruction_weights_version: config.version,
-            section_sizes: SectionSizes {
+            section_sizes: InstantiatedSectionSizes {
                 code_section,
                 data_section: data_section_size,
                 global_section: global_section_size,
