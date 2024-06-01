@@ -10,7 +10,7 @@ contract Router {
     mapping(bytes32 => bool) public codeIds;
 
     struct CreateProgramData {
-        bytes32 salt;
+        bytes salt;
         bytes32 codeId;
         bytes32 stateHash;
     }

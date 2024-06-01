@@ -1,0 +1,274 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "codeIds",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "commit",
+    "inputs": [
+      {
+        "name": "commitData",
+        "type": "tuple",
+        "internalType": "struct Router.CommitData",
+        "components": [
+          {
+            "name": "codeIdsArray",
+            "type": "bytes32[]",
+            "internalType": "bytes32[]"
+          },
+          {
+            "name": "createProgramsArray",
+            "type": "tuple[]",
+            "internalType": "struct Router.CreateProgramData[]",
+            "components": [
+              {
+                "name": "salt",
+                "type": "bytes",
+                "internalType": "bytes"
+              },
+              {
+                "name": "codeId",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "stateHash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "name": "updateProgramsArray",
+            "type": "tuple[]",
+            "internalType": "struct Router.UpdateProgramData[]",
+            "components": [
+              {
+                "name": "program",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "stateHash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createProgram",
+    "inputs": [
+      {
+        "name": "codeId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "salt",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "initPayload",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "gasLimit",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "value",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "program",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setProgram",
+    "inputs": [
+      {
+        "name": "_program",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "uploadCode",
+    "inputs": [
+      {
+        "name": "codeId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "blobTx",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "CreateProgram",
+    "inputs": [
+      {
+        "name": "origin",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "codeId",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "salt",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "initPayload",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "gasLimit",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "value",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreatedProgram",
+    "inputs": [
+      {
+        "name": "actorId",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "UploadCode",
+    "inputs": [
+      {
+        "name": "origin",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "codeId",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "blobTx",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "UploadedCode",
+    "inputs": [
+      {
+        "name": "codeId",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ERC1167FailedCreateClone",
+    "inputs": []
+  }
+]

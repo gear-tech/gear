@@ -21,7 +21,16 @@
 use crate::config::Config;
 use anyhow::Result;
 use futures::{future, stream::StreamExt};
-use hypercore_observer::Event;
+use hypercore_observer::{
+    alloy::{
+        primitives::address,
+        providers::{ProviderBuilder, RootProvider},
+        pubsub::PubSubFrontend,
+        rpc::client::WsConnect,
+        transports::Transport,
+    },
+    Event,
+};
 use std::time::Duration;
 use tokio::signal;
 
@@ -29,16 +38,22 @@ use tokio::signal;
 pub struct Service {
     db: Box<dyn hypercore_db::Database>,
     network: hypercore_network::Network,
-    observer: hypercore_observer::Observer,
+    observer: hypercore_observer::Observer<PubSubFrontend, RootProvider<PubSubFrontend>>,
     processor: hypercore_processor::Processor,
 }
 
 impl Service {
-    pub fn new(config: &Config) -> Result<Self> {
-        let db: Box<dyn hypercore_db::Database> = Box::new(hypercore_db::MemDb::new());
+    pub async fn new(config: &Config) -> Result<Self> {
+        let db: Box<dyn hypercore_db::Database> = Box::new(hypercore_db::RocksDatabase::open(
+            config.database_path.clone(),
+        )?);
         let network = hypercore_network::Network::start()?;
-        let observer =
-            hypercore_observer::Observer::new(config.ethereum_rpc.clone(), db.clone_boxed())?;
+        let ws = WsConnect::new(config.ethereum_rpc.clone());
+        let provider = ProviderBuilder::new().on_ws(ws).await?;
+        let observer = hypercore_observer::Observer::new(
+            provider,
+            address!("9F1291e0DE8F29CC7bF16f7a8cb39e7Aebf33B9b"),
+        );
         let processor = hypercore_processor::Processor::new(db.clone_boxed());
 
         Ok(Self {
@@ -57,7 +72,8 @@ impl Service {
             mut processor,
         } = self;
 
-        let mut observer_events = observer.listen();
+        let observer_events = observer.listen();
+        futures::pin_mut!(observer_events);
 
         loop {
             tokio::select! {
@@ -68,16 +84,7 @@ impl Service {
                 (Some(event), ()) = future::join(observer_events.next(), tokio::time::sleep(Duration::from_secs(1))) => {
                     log::debug!("Received [ETH]: {event:?}");
 
-
-                    match event {
-                        Event::NewHead { hash: chain_head, programs, messages } => {
-                            processor.run(chain_head, programs, messages)?
-                        }
-                        Event::NewCode { hash, code } => {
-                            // TODO: handle if was set.
-                            processor.new_code(hash, code)?;
-                        }
-                    }
+                    //TODO
                 }
             }
         }
@@ -92,14 +99,16 @@ mod tests {
     use super::Service;
     use crate::config::Config;
 
-    #[test]
-    fn basics() {
+    #[tokio::test]
+    async fn basics() {
         let service = Service::new(&Config {
             database_path: "/tmp/db".into(),
-            ethereum_rpc: "http://localhost:8545".into(),
+            ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
+            ethereum_beacon_rpc: "http://localhost:5052".into(),
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
-        });
+        })
+        .await;
 
         assert!(service.is_ok());
     }

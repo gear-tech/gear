@@ -18,52 +18,16 @@
 
 //! Ethereum state observer for Hypercore.
 
-use anyhow::Result;
-use gear_core::ids::ProgramId;
-use hypercore_db::Message;
-use primitive_types::H256;
-use std::{collections::HashMap, time::Duration};
+pub use alloy;
 
-/// Ethereum state observer.
-///
-/// Generally, it should exist in single state and should not be cloned.
-pub struct Observer {
-    ethereum_rpc: String,
-    db: Box<dyn hypercore_db::Database>,
-}
+pub mod consts;
+pub mod eip1167;
+mod event;
+mod observer;
+mod program;
+mod router;
 
-#[derive(Debug)]
-pub enum Event {
-    /// New chain head is known.
-    NewHead {
-        hash: H256,
-        programs: Vec<ProgramId>,
-        // TODO: replace `Message` with `StoredDispatch` with gas from `gear-core`
-        messages: HashMap<ProgramId, Vec<Message>>,
-    },
-    /// New code was submitted.
-    NewCode { hash: H256, code: Vec<u8> },
-}
-
-impl Observer {
-    pub fn new(ethereum_rpc: String, db: Box<dyn hypercore_db::Database>) -> Result<Self> {
-        Ok(Self { ethereum_rpc, db })
-    }
-
-    pub fn listen(self) -> impl futures::Stream<Item = Event> {
-        use futures::{stream::poll_fn, task::Poll};
-
-        futures::stream::poll_fn(move |_| {
-            let hash = rand::random::<[u8; 32]>().into();
-            let program_id = rand::random::<[u8; 32]>().into();
-
-            let res = Event::NewHead {
-                hash,
-                programs: vec![],
-                messages: [(program_id, vec![])].into_iter().collect(),
-            };
-
-            Poll::Ready(Some(res))
-        })
-    }
-}
+pub use event::Event;
+pub use observer::Observer;
+pub use program::Program;
+pub use router::Router;

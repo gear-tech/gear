@@ -7,12 +7,31 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow.workspace = true
-hypercore-db.workspace = true
-futures = { workspace = true, features = ["alloc"] }
-primitive-types.workspace = true
+alloy = { workspace = true, features = [
+    "consensus",
+    "contract",
+    "eips",
+    "network",
+    "providers",
+    "provider-ws",
+    "pubsub",
+    "rpc",
+    "json-rpc",
+    "rpc-client",
+    "rpc-client-ws",
+    "rpc-types",
+    "rpc-types-eth",
+    "rpc-types-beacon",
+    "signers",
+    "signer-wallet",
+    "sol-types",
+    "kzg",
+] }
+async-stream.workspace = true
+tokio = { workspace = true, features = ["fs"] }
+futures.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+log.workspace = true
 gear-core.workspace = true
-rand = { workspace = true, features = ["std", "std_rng"] }
