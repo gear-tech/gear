@@ -36,24 +36,3 @@ pub(crate) mod utils {
         i64::from_le_bytes(res)
     }
 }
-
-// TODO: remove me
-pub(crate) mod program_ri {
-    use gprimitives::ActorId as ProgramId;
-
-    mod sys {
-        extern "C" {
-            pub fn program_id(program_id_ptr: *mut [u8; 32]);
-        }
-    }
-
-    pub fn program_id() -> ProgramId {
-        let mut buffer = [0; 32];
-
-        unsafe {
-            sys::program_id(buffer.as_mut_ptr() as _);
-        }
-
-        buffer.into()
-    }
-}

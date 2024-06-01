@@ -16,21 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod greet;
-mod read_code;
 mod verify;
 
 #[no_mangle]
-extern "C" fn greet() {
-    greet::greet();
-}
-
-#[no_mangle]
-extern "C" fn read_code() {
-    read_code::read_code();
-}
-
-#[no_mangle]
-extern "C" fn verify() {
-    verify::verify();
+extern "C" fn verify(code_len: i32) -> i32 {
+    (!verify::verify(code_len as usize) as i32)
 }

@@ -17,94 +17,72 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use context::VerifierContext;
 use gear_core::ids::{CodeId, ProgramId};
 use log::Level;
 use runtime::Runtime;
 use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Module, Store};
 
 mod calls;
+mod context;
 mod runtime;
 
 pub(crate) mod utils;
 
-pub struct HostState {
-    program_id: ProgramId,
-    code_id: CodeId,
-    db: Box<dyn hypercore_db::Database>,
-}
-
-pub struct Executor {
-    store: Store<HostState>,
+pub struct Executor<T> {
+    store: Store<T>,
     instance: Instance,
 }
 
-impl Executor {
-    // TODO: impl different context for different executions.
-    pub fn new(
-        program_id: ProgramId,
-        code_id: CodeId,
-        db: Box<dyn hypercore_db::Database>,
-    ) -> Result<Self> {
+impl<T: 'static> Executor<T> {
+    fn new(state: T, linking_fn: impl Fn(&mut Linker<T>) -> Result<()>) -> Result<Self> {
         let mut runtime = Runtime::new();
-
         runtime.add_start_section();
 
-        let mut store: Store<HostState> = Store::new(
-            &Engine::default(),
-            HostState {
-                program_id,
-                code_id,
-                db,
-            },
-        );
+        let mut store = Store::new(&Engine::default(), state);
+
         let module = Module::new(store.engine(), runtime.into_bytes())?;
 
         let mut linker = Linker::new(store.engine());
 
         // Logging host module.
-        linker.func_wrap("env", "logging_log_v1", calls::logging::log)?;
-        linker.func_wrap("env", "logging_max_level_v1", calls::logging::max_level)?;
+        calls::logging::link(&mut linker)?;
 
-        // Code host module.
-        linker.func_wrap("env", "code_len_v1", calls::code::len)?;
-        linker.func_wrap("env", "code_read_v1", calls::code::read)?;
-        linker.func_wrap("env", "code_id_v1", calls::code::id)?;
-
-        // Tmp host module.
-        linker.func_wrap("env", "program_id", calls::program_id)?;
+        linking_fn(&mut linker)?;
 
         let instance = linker.instantiate(&mut store, &module)?;
 
         Ok(Self { store, instance })
     }
 
-    pub fn greet(&mut self) -> Result<()> {
-        let func = self
-            .instance
-            .get_typed_func::<(), ()>(&mut self.store, "greet")?;
+    pub fn into_store(self) -> Store<T> {
+        self.store
+    }
+}
 
-        func.call(&mut self.store, ())?;
+impl Executor<VerifierContext> {
+    pub fn verifier(code: Vec<u8>) -> Result<Self> {
+        let state = VerifierContext { code };
 
-        Ok(())
+        let linking_fn = |linker: &mut Linker<VerifierContext>| {
+            // Code host module.
+            calls::code::link(linker)?;
+
+            Ok(())
+        };
+
+        Self::new(state, linking_fn)
     }
 
-    pub fn read_code(&mut self) -> Result<()> {
+    pub fn verify(&mut self) -> Result<bool> {
         let func = self
             .instance
-            .get_typed_func::<(), ()>(&mut self.store, "read_code")?;
+            .get_typed_func::<i32, i32>(&mut self.store, "verify")?;
 
-        func.call(&mut self.store, ())?;
+        let len = self.store.data().code.len() as i32;
 
-        Ok(())
-    }
+        let res = func.call(&mut self.store, len)?;
 
-    pub fn verify(&mut self) -> Result<()> {
-        let func = self
-            .instance
-            .get_typed_func::<(), ()>(&mut self.store, "verify")?;
-
-        func.call(&mut self.store, ())?;
-
-        Ok(())
+        Ok(res == 0)
     }
 }

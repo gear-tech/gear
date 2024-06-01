@@ -18,19 +18,22 @@
 
 //! TODO: impl error handling.
 
-use super::HostState;
 use crate::host::utils;
+use anyhow::Result;
 use log::Level;
-use wasmtime::{AsContextMut, Caller, Memory};
-
-fn mem_of(caller: &mut Caller<'_, HostState>) -> Memory {
-    caller.get_export("memory").unwrap().into_memory().unwrap()
-}
+use wasmtime::{AsContextMut, Caller, Linker, Memory};
 
 pub mod logging {
     use super::*;
 
-    pub fn log(mut caller: Caller<'_, HostState>, level: i32, target: i64, message: i64) {
+    pub fn link<T: 'static>(linker: &mut Linker<T>) -> Result<()> {
+        linker.func_wrap("env", "logging_log_v1", log::<T>)?;
+        linker.func_wrap("env", "logging_max_level_v1", max_level::<T>)?;
+
+        Ok(())
+    }
+
+    fn log<C>(mut caller: Caller<'_, C>, level: i32, target: i64, message: i64) {
         let level = match level {
             1 => Level::Error,
             2 => Level::Warn,
@@ -39,7 +42,7 @@ pub mod logging {
             _ => Level::Trace,
         };
 
-        let mem = mem_of(&mut caller);
+        let mem = utils::mem_of(&mut caller);
 
         let target = utils::read_ri_slice(&mem, &mut caller, target);
         let target = core::str::from_utf8(&target).unwrap_or_default();
@@ -50,62 +53,27 @@ pub mod logging {
         log::log!(target: target, level, "{message}");
     }
 
-    pub fn max_level(_: Caller<'_, HostState>) -> i32 {
+    fn max_level<C>(_: Caller<'_, C>) -> i32 {
         log::max_level() as usize as i32
     }
 }
 
-pub fn program_id(mut caller: Caller<'_, HostState>, ptr: i32) {
-    let program_id = caller.data().program_id;
-
-    let mem = mem_of(&mut caller);
-
-    mem.write(caller, ptr as usize, program_id.as_ref())
-        .unwrap();
-}
-
 pub mod code {
     use super::*;
+    use crate::host::context::{CodeContext, DbContext};
 
-    pub fn len(mut caller: Caller<'_, HostState>, code_id_ptr: i32) -> i32 {
-        let mem = mem_of(&mut caller);
+    pub fn link<T: 'static + CodeContext>(linker: &mut Linker<T>) -> Result<()> {
+        linker.func_wrap("env", "code_load_v1", load::<T>)?;
 
-        let mut code_bytes = [0; 32];
-
-        mem.read(&caller, code_id_ptr as usize, &mut code_bytes)
-            .unwrap();
-
-        caller
-            .data_mut()
-            .db
-            .read_code(code_bytes.into())
-            .map(|v| v.0.len() as i32)
-            .unwrap_or_default()
+        Ok(())
     }
 
-    pub fn read(mut caller: Caller<'_, HostState>, code_id_ptr: i32, buffer_ptr: i32) {
-        let mem = mem_of(&mut caller);
+    fn load<T: CodeContext>(mut caller: Caller<'_, T>, buffer_ptr: i32) {
+        let mem = utils::mem_of(&mut caller);
+        // TODO: set/take here to avoid mut borrowing.
+        let code = caller.data().code().to_vec();
 
-        let mut code_bytes = [0; 32];
-
-        mem.read(&caller, code_id_ptr as usize, &mut code_bytes)
+        mem.write(&mut caller, buffer_ptr as usize, code.as_ref())
             .unwrap();
-
-        let code = caller
-            .data_mut()
-            .db
-            .read_code(code_bytes.into())
-            .map(|v| v.0)
-            .unwrap();
-
-        mem.write(caller, buffer_ptr as usize, &code).unwrap();
-    }
-
-    pub fn id(mut caller: Caller<'_, HostState>, ptr: i32) {
-        let code_id = caller.data().code_id;
-
-        let mem = mem_of(&mut caller);
-
-        mem.write(caller, ptr as usize, code_id.as_ref()).unwrap();
     }
 }
