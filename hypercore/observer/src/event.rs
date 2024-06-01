@@ -1,5 +1,7 @@
 use crate::{Program, Router};
 
+use alloy::primitives::B256;
+
 #[derive(Debug)]
 pub enum Event {
     UploadCode(Router::UploadCode),
@@ -7,4 +9,11 @@ pub enum Event {
     SendMessage(Program::SendMessage),
     SendReply(Program::SendReply),
     ClaimValue(Program::ClaimValue),
+}
+
+#[derive(Debug)]
+
+pub struct EventsBlock {
+    pub block_hash: B256,
+    pub events: Vec<Event>,
 }
