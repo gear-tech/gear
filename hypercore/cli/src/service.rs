@@ -81,10 +81,18 @@ impl Service {
                     log::info!("Received SIGINT, shutting down...");
                     break;
                 }
-                (Some(event), ()) = future::join(observer_events.next(), tokio::time::sleep(Duration::from_secs(1))) => {
-                    log::debug!("Received [ETH]: {event:?}");
-
-                    //TODO
+                block_events = observer_events.next() => {
+                    if let Some(block_events) = block_events {
+                        match block_events {
+                            Ok(block_events) => { processor.process_block_events(block_events)?; },
+                            Err(e) => {
+                                log::error!("Error while observing blocks: {}", e);
+                            },
+                        }
+                    } else {
+                        log::debug!("[ETH] Observer is down, shutting down...");
+                        break;
+                    }
                 }
             }
         }
