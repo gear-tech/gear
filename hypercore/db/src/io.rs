@@ -24,6 +24,7 @@ pub trait Database {
     fn write_state(&self, state: &State);
     fn read_code(&self, code_hash: H256) -> Option<Code>;
     fn write_code(&self, code: &Code);
+    fn remove_code(&self, code_hash: H256);
     fn clone_boxed(&self) -> Box<dyn Database>;
 }
 
@@ -42,6 +43,10 @@ impl Database for crate::RocksDatabase {
 
     fn write_code(&self, code: &Code) {
         self.write_code(code);
+    }
+
+    fn remove_code(&self, code_hash: H256) {
+        self.remove_code(code_hash)
     }
 
     fn clone_boxed(&self) -> Box<dyn Database> {

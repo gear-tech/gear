@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use gear_core::ids::ProgramId;
+use gear_core::ids::{CodeId, ProgramId};
 use log::Level;
 use runtime::Runtime;
 use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Module, Store};
@@ -29,6 +29,7 @@ pub(crate) mod utils;
 
 pub struct HostState {
     program_id: ProgramId,
+    code_id: CodeId,
     db: Box<dyn hypercore_db::Database>,
 }
 
@@ -38,13 +39,24 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new(program_id: ProgramId, db: Box<dyn hypercore_db::Database>) -> Result<Self> {
+    // TODO: impl different context for different executions.
+    pub fn new(
+        program_id: ProgramId,
+        code_id: CodeId,
+        db: Box<dyn hypercore_db::Database>,
+    ) -> Result<Self> {
         let mut runtime = Runtime::new();
 
         runtime.add_start_section();
 
-        let mut store: Store<HostState> =
-            Store::new(&Engine::default(), HostState { program_id, db });
+        let mut store: Store<HostState> = Store::new(
+            &Engine::default(),
+            HostState {
+                program_id,
+                code_id,
+                db,
+            },
+        );
         let module = Module::new(store.engine(), runtime.into_bytes())?;
 
         let mut linker = Linker::new(store.engine());
@@ -56,6 +68,7 @@ impl Executor {
         // Code host module.
         linker.func_wrap("env", "code_len_v1", calls::code::len)?;
         linker.func_wrap("env", "code_read_v1", calls::code::read)?;
+        linker.func_wrap("env", "code_id_v1", calls::code::id)?;
 
         // Tmp host module.
         linker.func_wrap("env", "program_id", calls::program_id)?;
@@ -79,6 +92,16 @@ impl Executor {
         let func = self
             .instance
             .get_typed_func::<(), ()>(&mut self.store, "read_code")?;
+
+        func.call(&mut self.store, ())?;
+
+        Ok(())
+    }
+
+    pub fn verify(&mut self) -> Result<()> {
+        let func = self
+            .instance
+            .get_typed_func::<(), ()>(&mut self.store, "verify")?;
 
         func.call(&mut self.store, ())?;
 

@@ -41,6 +41,8 @@ pub enum Event {
         // TODO: replace `Message` with `StoredDispatch` with gas from `gear-core`
         messages: HashMap<ProgramId, Vec<Message>>,
     },
+    /// New code was submitted.
+    NewCode { hash: H256, code: Vec<u8> },
 }
 
 impl Observer {

@@ -6313,6 +6313,7 @@ name = "hypercore-processor"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "env_logger",
  "gear-core",
  "hypercore-db",
  "hypercore-runtime",
@@ -6320,6 +6321,7 @@ dependencies = [
  "parity-wasm",
  "primitive-types",
  "rand 0.8.5",
+ "wabt",
  "wasmtime",
 ]
 
@@ -6328,7 +6330,9 @@ name = "hypercore-runtime"
 version = "1.4.2"
 dependencies = [
  "dlmalloc",
+ "gear-core",
  "gear-wasm-builder",
+ "gear-wasm-instrument",
  "gprimitives",
  "log",
 ]

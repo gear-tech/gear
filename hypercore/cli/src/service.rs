@@ -73,6 +73,10 @@ impl Service {
                         Event::NewHead { hash: chain_head, programs, messages } => {
                             processor.run(chain_head, programs, messages)?
                         }
+                        Event::NewCode { hash, code } => {
+                            // TODO: handle if was set.
+                            processor.new_code(hash, code)?;
+                        }
                     }
                 }
             }

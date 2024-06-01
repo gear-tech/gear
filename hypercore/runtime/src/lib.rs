@@ -44,7 +44,8 @@ mod wasm {
     pub static ALLOC: dlmalloc_rs::GlobalDlmalloc = dlmalloc_rs::GlobalDlmalloc;
 
     #[panic_handler]
-    fn panic_handler(_: &PanicInfo) -> ! {
+    fn panic_handler(info: &PanicInfo) -> ! {
+        log::error!("{info}");
         core::arch::wasm32::unreachable()
     }
 

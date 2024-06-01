@@ -8,6 +8,8 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gear-core.workspace = true
+gear-wasm-instrument.workspace = true
 gprimitives.workspace = true
 log.workspace = true
 dlmalloc-rs = { workspace = true, features = ["global"] }
