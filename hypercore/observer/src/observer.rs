@@ -1,4 +1,8 @@
-use crate::{consts::*, event::*, Program, Router};
+use crate::{
+    consts::{BEACON_BLOCK_TIME, BEACON_GENESIS_BLOCK_TIME, BEACON_RPC_URL},
+    event::{Event, EventsBlock},
+    Program, Router,
+};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
@@ -43,7 +47,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
         }
     }
 
-    pub fn listen(mut self) -> impl Stream<Item = Result<Vec<(Event, Log)>>> {
+    pub fn listen(mut self) -> impl Stream<Item = Result<EventsBlock>> {
         async_stream::try_stream! {
             let block_subscription = self.provider.subscribe_blocks().await?;
             let mut block_stream = block_subscription.into_stream();
@@ -65,9 +69,12 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                     }
 
                     if let Some(events) = events_result? {
-                        yield events;
+                        yield EventsBlock {
+                            block_hash,
+                            events: events.into_iter().map(|(event, _)| event).collect(),
+                        }
                     }
-                }
+                } else { break; }
             }
         }
     }
