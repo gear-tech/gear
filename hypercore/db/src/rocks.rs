@@ -43,6 +43,10 @@ impl RocksDatabase {
         unimplemented!()
     }
 
+    pub fn remove_code(&self, code_hash: H256) {
+        unimplemented!()
+    }
+
     pub fn write_code(&self, code: &Code) {
         unimplemented!()
     }

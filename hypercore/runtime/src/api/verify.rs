@@ -17,14 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::interface::{code_ri, program_ri};
+use gear_core::code::Code;
+use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
-pub fn read_code() {
-    log::info!("You're calling 'read_code()'");
+pub fn verify() {
+    let code_id = code_ri::id();
 
-    let program_id = program_ri::program_id();
-    let code_id = program_id.into_bytes().into();
+    log::info!("You're calling 'verify({code_id:.4})'");
 
     let code = code_ri::read(code_id);
 
-    log::debug!("Just read code with len = {}", code.len());
+    assert!(
+        Code::try_new(code, 42, |_| CustomConstantCostRules::default(), None, None,).is_ok(),
+        "Submitted code is invalid"
+    );
 }

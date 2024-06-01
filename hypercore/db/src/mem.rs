@@ -74,6 +74,10 @@ impl Database for MemDb {
         self.data.read().unwrap().codes.get(&code_hash).cloned()
     }
 
+    fn remove_code(&self, code_hash: H256) {
+        self.data.write().unwrap().codes.remove(&code_hash);
+    }
+
     fn write_code(&self, code: &Code) {
         self.data
             .write()

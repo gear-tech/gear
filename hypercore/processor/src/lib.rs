@@ -20,7 +20,7 @@
 
 use anyhow::Result;
 use gear_core::ids::ProgramId;
-use hypercore_db::Message;
+use hypercore_db::{Code, Message};
 use log::Level;
 use parity_wasm::elements::{Internal as PwasmInternal, Module as PwasmModule};
 use primitive_types::H256;
@@ -41,6 +41,27 @@ impl Processor {
         Self { db }
     }
 
+    pub fn new_code(&mut self, hash: H256, code: Vec<u8>) -> Result<bool> {
+        let code = Code(code);
+        let code_hash = code.hash();
+
+        if code_hash != hash {
+            return Ok(false);
+        }
+
+        self.db.write_code(&code);
+
+        let mut executor =
+            host::Executor::new(Default::default(), code_hash.into(), self.db.clone_boxed())?;
+
+        if executor.verify().is_err() {
+            self.db.remove_code(code_hash);
+            Ok(false)
+        } else {
+            Ok(true)
+        }
+    }
+
     // TODO: use proper `Dispatch` type here instead of db's.
     pub fn run(
         &mut self,
@@ -48,22 +69,78 @@ impl Processor {
         programs: Vec<ProgramId>,
         messages: HashMap<ProgramId, Vec<Message>>,
     ) -> Result<()> {
-        use rand::Rng as _;
-        let len = rand::random::<u8>();
-        let mut v = vec![0u8; len as usize];
-        rand::thread_rng().fill(&mut v[..]);
-
-        let code = hypercore_db::Code(v);
-        let code_hash = code.hash();
-        let program_id = code_hash.to_fixed_bytes().into();
-
-        self.db.write_code(&code);
-
-        let mut executor = host::Executor::new(program_id, self.db.clone_boxed())?;
+        let mut executor = host::Executor::new(
+            rand::random::<[u8; 32]>().into(),
+            rand::random::<[u8; 32]>().into(),
+            self.db.clone_boxed(),
+        )?;
 
         executor.greet()?;
-        executor.read_code()?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hypercore_db::{Database, MemDb};
+    use wabt::wat2wasm;
+
+    fn valid_code() -> Code {
+        let wat = r#"
+            (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                (call $reply (i32.const 0) (i32.const 32) (i32.const 222) (i32.const 333))
+            )
+        )"#;
+
+        Code(wat2wasm(wat).unwrap())
+    }
+
+    fn init_logger() {
+        let _ = env_logger::Builder::from_default_env()
+            .format_module_path(false)
+            .format_level(true)
+            .try_init();
+    }
+
+    #[test]
+    fn verify_code() {
+        init_logger();
+
+        let db = MemDb::new();
+        let mut processor = Processor::new(db.clone_boxed());
+
+        let valid = valid_code();
+        let valid_hash = valid.hash();
+
+        assert!(db.read_code(valid_hash).is_none());
+        assert!(processor.new_code(valid_hash, valid.0).unwrap());
+        assert!(db.read_code(valid_hash).is_some());
+
+        let invalid = Code(vec![0; 42]);
+        let invalid_hash = invalid.hash();
+
+        assert!(db.read_code(invalid_hash).is_none());
+        assert!(!processor.new_code(invalid_hash, invalid.0).unwrap());
+        assert!(db.read_code(invalid_hash).is_none());
+    }
+
+    #[test]
+    fn bad_hash() {
+        init_logger();
+
+        let db = MemDb::new();
+        let mut processor = Processor::new(db.clone_boxed());
+
+        let valid = valid_code();
+        let valid_hash = valid.hash();
+
+        assert!(processor.new_code(valid_hash, valid.0.clone()).unwrap());
+        assert!(!processor.new_code(H256::zero(), valid.0).unwrap());
     }
 }

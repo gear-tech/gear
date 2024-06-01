@@ -18,6 +18,7 @@
 
 mod greet;
 mod read_code;
+mod verify;
 
 #[no_mangle]
 extern "C" fn greet() {
@@ -27,4 +28,9 @@ extern "C" fn greet() {
 #[no_mangle]
 extern "C" fn read_code() {
     read_code::read_code();
+}
+
+#[no_mangle]
+extern "C" fn verify() {
+    verify::verify();
 }

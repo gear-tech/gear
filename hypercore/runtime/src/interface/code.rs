@@ -27,19 +27,31 @@ mod sys {
         pub fn code_len_v1(code_id: *const [u8; 32]) -> i32;
 
         pub fn code_read_v1(code_id: *const [u8; 32], buffer: *mut u8);
+
+        pub fn code_id_v1(code_id: *mut [u8; 32]);
     }
 }
 
-pub fn code_len(code_id: CodeId) -> usize {
+pub fn len(code_id: CodeId) -> usize {
     unsafe { sys::code_len_v1(code_id.into_bytes().as_ptr() as _) as usize }
 }
 
-pub fn code_read(code_id: CodeId) -> Vec<u8> {
-    let code_len = code_len(code_id);
+pub fn read(code_id: CodeId) -> Vec<u8> {
+    let code_len = len(code_id);
 
     let mut buffer = vec![0; code_len];
 
     unsafe { sys::code_read_v1(code_id.into_bytes().as_ptr() as _, buffer.as_mut_ptr() as _) }
 
     buffer
+}
+
+pub fn id() -> CodeId {
+    let mut buffer = [0; 32];
+
+    unsafe {
+        sys::code_id_v1(buffer.as_mut_ptr() as _);
+    }
+
+    buffer.into()
 }

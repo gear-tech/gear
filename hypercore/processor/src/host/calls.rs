@@ -100,4 +100,12 @@ pub mod code {
 
         mem.write(caller, buffer_ptr as usize, &code).unwrap();
     }
+
+    pub fn id(mut caller: Caller<'_, HostState>, ptr: i32) {
+        let code_id = caller.data().code_id;
+
+        let mem = mem_of(&mut caller);
+
+        mem.write(caller, ptr as usize, code_id.as_ref()).unwrap();
+    }
 }
