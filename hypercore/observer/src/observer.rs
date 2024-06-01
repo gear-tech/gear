@@ -60,19 +60,18 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                 log::debug!("block {block_number}, hash {block_hash}");
 
                 let events_result = self.read_events(block_hash).await;
-                if let Err(ref err) = events_result {
-                    log::error!("failed to handle events: {err}")
-                }
-
-                if let Some(events) = events_result? {
-                    let block_hash = H256(block_hash.0);
-                    yield EventsBlock { block_hash, events }
+                match events_result {
+                    Ok(events) => {
+                        let block_hash = H256(block_hash.0);
+                        yield EventsBlock { block_hash, events };
+                    }
+                    Err(err) => { log::error!("failed to handle events: {err}"); }
                 }
             }
         }
     }
 
-    async fn read_events(&mut self, block_hash: B256) -> Result<Option<Vec<Event>>> {
+    async fn read_events(&mut self, block_hash: B256) -> Result<Vec<Event>> {
         let [router_filter, program_filter] = self.event_filters(block_hash);
 
         let mut logs = self.provider.get_logs(&router_filter).await?;
@@ -80,7 +79,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
         logs.append(&mut logs1);
 
         if logs.is_empty() {
-            return Ok(None);
+            return Ok(vec![]);
         }
 
         logs.sort_unstable_by_key(|log| (log.block_timestamp, log.log_index));
@@ -166,7 +165,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
             })
             .collect();
 
-        Ok(if logs.is_empty() { None } else { Some(logs) })
+        Ok(logs)
     }
 
     fn event_filters(&self, block_hash: B256) -> [Filter; 2] {
