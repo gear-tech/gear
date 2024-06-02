@@ -128,7 +128,7 @@ impl Observer {
                             None => break,
                         }
                     }
-                    future = futures.next() => {
+                    future = futures.next(), if !futures.is_empty() => {
                         match future {
                             Some(future) => {
                                 match future {
@@ -141,7 +141,7 @@ impl Observer {
                             None => continue,
                         }
                     }
-                }
+                };
             }
         }
     }
