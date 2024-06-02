@@ -26,13 +26,14 @@ use clap::Parser;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-
     let mut optional_cfg = std::env::current_dir()?;
     optional_cfg.push(".hypercore.toml");
-    let args:Args = if std::fs::metadata(&optional_cfg).is_ok() {
+    let args: Args = if std::fs::metadata(&optional_cfg).is_ok() {
         let text = std::fs::read_to_string(optional_cfg)?;
         toml::from_str(&text)?
-    } else { Args::parse() };
+    } else {
+        Args::parse()
+    };
 
     let config =
         Config::try_from(args.clone()).with_context(|| "Failed to create configuration")?;
