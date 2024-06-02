@@ -28,4 +28,5 @@ hypercore-db.workspace = true
 hypercore-network.workspace = true
 hypercore-observer.workspace = true
 hypercore-processor.workspace = true
-hypercore-signer = { path = "../signer"}
+hypercore-signer = { path = "../signer" }
+hypercore-sequencer = { path = "../sequencer" }

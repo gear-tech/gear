@@ -18,10 +18,9 @@
 
 //! Main service in hypercore node.
 
-use crate::config::Config;
+use crate::config::{Config, SequencerConfig};
 use anyhow::Result;
 use futures::{future, stream::StreamExt};
-use hypercore_observer::BlockEvent;
 use std::time::Duration;
 use tokio::signal;
 
@@ -31,6 +30,8 @@ pub struct Service {
     network: hypercore_network::Network,
     observer: hypercore_observer::Observer,
     processor: hypercore_processor::Processor,
+    signer: hypercore_signer::Signer,
+    sequencer: Option<hypercore_sequencer::Sequencer>,
 }
 
 impl Service {
@@ -46,13 +47,43 @@ impl Service {
         )
         .await?;
         let processor = hypercore_processor::Processor::new(db.clone_boxed());
+        let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
+
+        let sequencer = match config.sequencer {
+            SequencerConfig::Enabled(ref sign_tx_public) => {
+                Some(hypercore_sequencer::Sequencer::new(
+                    &hypercore_sequencer::Config {
+                        ethereum_rpc: config.ethereum_rpc.clone(),
+                        sign_tx_public: sign_tx_public.clone(),
+                    },
+                    signer.clone(),
+                ))
+            }
+            SequencerConfig::Disabled => None,
+        };
 
         Ok(Self {
             db,
             network,
             observer,
             processor,
+            sequencer,
+            signer,
         })
+    }
+
+    async fn process_observer_event(
+        processor: &mut hypercore_processor::Processor,
+        maybe_sequencer: &mut Option<hypercore_sequencer::Sequencer>,
+        observer_event: &hypercore_observer::Event,
+    ) -> Result<()> {
+        processor.process_observer_event(observer_event)?;
+
+        if let Some(sequencer) = maybe_sequencer {
+            sequencer.process_observer_event(observer_event)?;
+        }
+
+        Ok(())
     }
 
     pub async fn run(self) -> Result<()> {
@@ -61,6 +92,8 @@ impl Service {
             network,
             mut observer,
             mut processor,
+            mut sequencer,
+            signer,
         } = self;
 
         let observer_events = observer.events();
@@ -74,9 +107,13 @@ impl Service {
                 }
                 observer_event = observer_events.next() => {
                     if let Some(observer_event) = observer_event {
-                        processor.process_observer_event(observer_event)?
+                        Self::process_observer_event(
+                            &mut processor,
+                            &mut sequencer,
+                            &observer_event
+                        ).await?;
                     } else {
-                        log::debug!("[ETH] Observer is down, shutting down...");
+                        log::info!("Observer stream ended, shutting down...");
                         break;
                     }
                 }
@@ -103,6 +140,7 @@ mod tests {
             ethereum_program_address: "0x23a4FC5f430a7c3736193B852Ad5191c7EC01037".into(),
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
+            sequencer: Default::default(),
         })
         .await;
 
