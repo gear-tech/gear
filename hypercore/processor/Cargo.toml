@@ -19,6 +19,7 @@ wasmtime.workspace = true
 log.workspace = true
 parity-wasm.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
+parity-scale-codec = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 wabt.workspace = true

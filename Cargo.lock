@@ -7071,6 +7071,7 @@ dependencies = [
  "hypercore-observer",
  "hypercore-runtime",
  "log",
+ "parity-scale-codec",
  "parity-wasm",
  "primitive-types",
  "rand 0.8.5",
@@ -7088,6 +7089,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gprimitives",
  "log",
+ "parity-scale-codec",
 ]
 
 [[package]]

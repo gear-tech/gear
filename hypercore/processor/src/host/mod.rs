@@ -18,10 +18,14 @@
 
 use anyhow::Result;
 use context::VerifierContext;
-use gear_core::ids::{CodeId, ProgramId};
+use gear_core::{
+    code::InstrumentedCode,
+    ids::{CodeId, ProgramId},
+};
 use log::Level;
+use parity_scale_codec::Decode;
 use runtime::Runtime;
-use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Module, Store};
+use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Memory, Module, Store};
 
 mod calls;
 mod runtime;
@@ -55,6 +59,14 @@ impl<T: 'static> Executor<T> {
         Ok(Self { store, instance })
     }
 
+    pub fn memory(&mut self) -> Memory {
+        self.instance
+            .get_export(&mut self.store, "memory")
+            .unwrap()
+            .into_memory()
+            .unwrap()
+    }
+
     pub fn into_store(self) -> Store<T> {
         self.store
     }
@@ -84,5 +96,33 @@ impl Executor<VerifierContext> {
         let res = func.call(&mut self.store, len)?;
 
         Ok(res == 0)
+    }
+
+    pub fn instrument(&mut self) -> Result<Option<InstrumentedCode>> {
+        let func = self
+            .instance
+            .get_typed_func::<i32, i64>(&mut self.store, "instrument")?;
+
+        let len = self.store.data().code.len() as i32;
+
+        let res = func.call(&mut self.store, len)?;
+
+        if res == 0 {
+            return Ok(None);
+        }
+
+        let [ptr, len]: [i32; 2] = unsafe { core::mem::transmute(res) };
+
+        let mut buffer = vec![0; len as usize];
+
+        let memory = self.memory();
+
+        memory
+            .read(&mut self.store, ptr as usize, &mut buffer)
+            .unwrap();
+
+        let instrumented = Decode::decode(&mut buffer.as_ref())?;
+
+        Ok(Some(instrumented))
     }
 }
