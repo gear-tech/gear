@@ -7026,7 +7026,9 @@ dependencies = [
  "hypercore-processor",
  "hypercore-signer",
  "log",
+ "serde",
  "tokio",
+ "toml 0.8.13",
 ]
 
 [[package]]

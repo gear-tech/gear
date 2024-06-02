@@ -21,6 +21,8 @@ directories.workspace  = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["signal", "macros", "rt", "rt-multi-thread", "time"] }
 futures.workspace = true
+serde = { workspace = true, features = ["derive"] }
+toml.workspace = true
 
 hypercore-db.workspace = true
 hypercore-network.workspace = true
