@@ -19,8 +19,8 @@
 //! CLI arguments in one place.
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
 use serde::Deserialize;
+use std::path::PathBuf;
 
 use crate::config;
 
