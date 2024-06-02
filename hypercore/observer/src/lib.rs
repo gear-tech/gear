@@ -26,7 +26,7 @@ mod observer;
 mod program;
 mod router;
 
-pub use event::{Event, EventsBlock};
+pub use event::{BlockEvent, Event};
 pub use observer::Observer;
 pub(crate) use program::Program;
 pub(crate) use router::Router;

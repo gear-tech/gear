@@ -22,7 +22,7 @@ use anyhow::Result;
 use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
 use host::context::CodeContext;
 use hypercore_db::Message;
-use hypercore_observer::EventsBlock;
+use hypercore_observer::Event;
 use log::Level;
 use parity_wasm::elements::{Internal as PwasmInternal, Module as PwasmModule};
 use primitive_types::H256;
@@ -86,8 +86,18 @@ impl Processor {
         Ok(())
     }
 
-    pub fn process_block_events(&mut self, events: EventsBlock) -> Result<()> {
-        log::debug!("Processing events for {:?}", events.block_hash);
+    pub fn process_observer_event(&mut self, event: Event) -> Result<()> {
+        match event {
+            Event::UploadCode { code_id, .. } => {
+                log::debug!("Processing upload code {code_id:?}");
+            }
+            Event::Block {
+                block_hash,
+                events: _,
+            } => {
+                log::debug!("Processing events for {block_hash:?}");
+            }
+        }
 
         Ok(())
     }
