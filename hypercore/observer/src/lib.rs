@@ -18,8 +18,6 @@
 
 //! Ethereum state observer for Hypercore.
 
-pub use alloy;
-
 pub mod eip1167;
 mod event;
 mod observer;
