@@ -23,6 +23,7 @@ extern crate alloc;
 pub use inner::{spawn, JoinHandle};
 
 use alloc::vec::Vec;
+use sc_executor::GearVersionedRuntimeExt;
 use sp_externalities::ExternalitiesExt;
 use sp_runtime_interface::runtime_interface;
 
@@ -31,7 +32,7 @@ use sp_runtime_interface::runtime_interface;
 pub trait RuntimeTasks {
     fn init() {
         sp_externalities::with_externalities(|mut ext| {
-            ext.register_extension(inner::TaskSpawnerExt(inner::TaskSpawner::new()))
+            ext.register_extension(inner::TaskSpawnerExt::default())
                 .expect("`RuntimeTasks` initialized twice");
         })
         .expect("`RuntimeTasks::spawn`: called outside of externalities context")
@@ -39,10 +40,15 @@ pub trait RuntimeTasks {
 
     fn spawn(dispatcher_ref: u32, entry: u32, payload: Vec<u8>) -> u64 {
         sp_externalities::with_externalities(|mut ext| {
+            let runtime = ext
+                .extension::<GearVersionedRuntimeExt>()
+                .expect("`GearVersionedRuntimeExt` is not set")
+                .clone();
+
             let spawner = ext
                 .extension::<inner::TaskSpawnerExt>()
                 .expect("Cannot spawn without dynamic runtime dispatcher (TaskSpawnerExt)");
-            let handle = spawner.spawn_via_dispatcher(dispatcher_ref, entry, payload);
+            let handle = spawner.spawn_via_dispatcher(runtime, dispatcher_ref, entry, payload);
             handle.inner
         })
         .expect("`RuntimeTasks::spawn`: called outside of externalities context")
@@ -64,19 +70,181 @@ mod inner {
     use super::*;
 
     use futures_executor::ThreadPool;
-    use sc_executor::GearVersionedRuntimeExt;
+    use sc_executor::VersionedRuntime;
     use sc_executor_common::wasm_runtime::InvokeMethod;
+    use sp_externalities::{Error, Extension, ExtensionStore, Externalities, MultiRemovalResults};
     use std::{
+        any::{Any, TypeId},
         collections::HashMap,
         sync::{
             atomic::{AtomicU64, Ordering},
-            mpsc,
+            mpsc, Arc,
         },
     };
 
     const TASKS_AMOUNT: usize = 4;
 
+    struct NoStorageExternalities;
+
+    impl Externalities for NoStorageExternalities {
+        fn set_offchain_storage(&mut self, _key: &[u8], _value: Option<&[u8]>) {
+            panic!("`Externalities::set_offchain_storage()` is not supported")
+        }
+
+        fn storage(&self, _key: &[u8]) -> Option<Vec<u8>> {
+            panic!("`Externalities::storage()` is not supported")
+        }
+
+        fn storage_hash(&self, _key: &[u8]) -> Option<Vec<u8>> {
+            panic!("`Externalities::storage_hash()` is not supported")
+        }
+
+        fn child_storage_hash(
+            &self,
+            _child_info: &sp_storage::ChildInfo,
+            _key: &[u8],
+        ) -> Option<Vec<u8>> {
+            panic!("`Externalities::child_storage_hash()` is not supported")
+        }
+
+        fn child_storage(
+            &self,
+            _child_info: &sp_storage::ChildInfo,
+            _key: &[u8],
+        ) -> Option<Vec<u8>> {
+            panic!("`Externalities::child_storage()` is not supported")
+        }
+
+        fn next_storage_key(&self, _key: &[u8]) -> Option<Vec<u8>> {
+            panic!("`Externalities::next_storage_key()` is not supported")
+        }
+
+        fn next_child_storage_key(
+            &self,
+            _child_info: &sp_storage::ChildInfo,
+            _key: &[u8],
+        ) -> Option<Vec<u8>> {
+            panic!("`Externalities::next_child_storage_key()` is not supported")
+        }
+
+        fn kill_child_storage(
+            &mut self,
+            _child_info: &sp_storage::ChildInfo,
+            _maybe_limit: Option<u32>,
+            _maybe_cursor: Option<&[u8]>,
+        ) -> MultiRemovalResults {
+            panic!("`Externalities::kill_child_storage()` is not supported")
+        }
+
+        fn clear_prefix(
+            &mut self,
+            _prefix: &[u8],
+            _maybe_limit: Option<u32>,
+            _maybe_cursor: Option<&[u8]>,
+        ) -> MultiRemovalResults {
+            panic!("`Externalities::clear_prefix()` is not supported")
+        }
+
+        fn clear_child_prefix(
+            &mut self,
+            _child_info: &sp_storage::ChildInfo,
+            _prefix: &[u8],
+            _maybe_limit: Option<u32>,
+            _maybe_cursor: Option<&[u8]>,
+        ) -> MultiRemovalResults {
+            panic!("`Externalities::clear_child_prefix()` is not supported")
+        }
+
+        fn place_storage(&mut self, _key: Vec<u8>, _value: Option<Vec<u8>>) {
+            panic!("`Externalities::place_storage()` is not supported")
+        }
+
+        fn place_child_storage(
+            &mut self,
+            _child_info: &sp_storage::ChildInfo,
+            _key: Vec<u8>,
+            _value: Option<Vec<u8>>,
+        ) {
+            panic!("`Externalities::place_child_storage()` is not supported")
+        }
+
+        fn storage_root(&mut self, _state_version: sp_storage::StateVersion) -> Vec<u8> {
+            panic!("`Externalities::storage_root()` is not supported")
+        }
+
+        fn child_storage_root(
+            &mut self,
+            _child_info: &sp_storage::ChildInfo,
+            _state_version: sp_storage::StateVersion,
+        ) -> Vec<u8> {
+            panic!("`Externalities::child_storage_root()` is not supported")
+        }
+
+        fn storage_append(&mut self, _key: Vec<u8>, _value: Vec<u8>) {
+            panic!("`Externalities::storage_append()` is not supported")
+        }
+
+        fn storage_start_transaction(&mut self) {
+            panic!("`Externalities::storage_start_transaction()` is not supported")
+        }
+
+        fn storage_rollback_transaction(&mut self) -> Result<(), ()> {
+            panic!("`Externalities::storage_rollback_transaction()` is not supported")
+        }
+
+        fn storage_commit_transaction(&mut self) -> Result<(), ()> {
+            panic!("`Externalities::storage_commit_transaction()` is not supported")
+        }
+
+        fn wipe(&mut self) {
+            panic!("`Externalities::wipe()` is not supported")
+        }
+
+        fn commit(&mut self) {
+            panic!("`Externalities::commit()` is not supported")
+        }
+
+        fn read_write_count(&self) -> (u32, u32, u32, u32) {
+            panic!("`Externalities::read_write_count()` is not supported")
+        }
+
+        fn reset_read_write_count(&mut self) {
+            panic!("`Externalities::reset_read_write_count()` is not supported")
+        }
+
+        fn get_whitelist(&self) -> Vec<sp_storage::TrackedStorageKey> {
+            panic!("`Externalities::get_whitelist()` is not supported")
+        }
+
+        fn set_whitelist(&mut self, _new: Vec<sp_storage::TrackedStorageKey>) {
+            panic!("`Externalities::set_whitelist()` is not supported")
+        }
+
+        fn get_read_and_written_keys(&self) -> Vec<(Vec<u8>, u32, u32, bool)> {
+            panic!("`Externalities::get_read_and_written_keys()` is not supported")
+        }
+    }
+
+    impl ExtensionStore for NoStorageExternalities {
+        fn extension_by_type_id(&mut self, _type_id: TypeId) -> Option<&mut dyn Any> {
+            panic!("`ExternalitiesStore::extension_by_type_id()` is not supported")
+        }
+
+        fn register_extension_with_type_id(
+            &mut self,
+            _type_id: TypeId,
+            _extension: Box<dyn Extension>,
+        ) -> Result<(), Error> {
+            panic!("`ExternalitiesStore::register_extension_with_type_id()` is not supported")
+        }
+
+        fn deregister_extension_by_type_id(&mut self, _type_id: TypeId) -> Result<(), Error> {
+            panic!("`ExternalitiesStore::deregister_extension_by_type_id()` is not supported")
+        }
+    }
+
     sp_externalities::decl_extension! {
+        #[derive(Default)]
         pub struct TaskSpawnerExt(TaskSpawner);
     }
 
@@ -86,8 +254,8 @@ mod inner {
         tasks: HashMap<u64, mpsc::Receiver<Vec<u8>>>,
     }
 
-    impl TaskSpawner {
-        pub fn new() -> Self {
+    impl Default for TaskSpawner {
+        fn default() -> Self {
             Self {
                 thread_pool: ThreadPool::builder()
                     .pool_size(TASKS_AMOUNT)
@@ -98,7 +266,9 @@ mod inner {
                 tasks: HashMap::new(),
             }
         }
+    }
 
+    impl TaskSpawner {
         fn spawn_inner(
             &mut self,
             f: impl FnOnce(Vec<u8>) -> Vec<u8> + Send + 'static,
@@ -121,35 +291,35 @@ mod inner {
 
         pub(crate) fn spawn_via_dispatcher(
             &mut self,
+            runtime: Arc<VersionedRuntime>,
             dispatcher_ref: u32,
             entry: u32,
             payload: Vec<u8>,
         ) -> JoinHandle {
             self.spawn_inner(
                 move |payload| {
-                    sp_externalities::with_externalities(|mut ext| {
-                        let runtime = ext
-                            .extension::<GearVersionedRuntimeExt>()
-                            .expect("`GearVersionedRuntimeExt` is not set")
-                            .clone();
-                        runtime
-                            .with_instance(ext, |_module, instance, _version, _ext| {
-                                let payload = instance
-                                    .call(
-                                        InvokeMethod::TableWithWrapper {
-                                            dispatcher_ref,
-                                            func: entry,
-                                        },
-                                        &payload,
-                                    )
-                                    .expect("WASM execution failed");
-                                Ok(payload)
+                    sp_externalities::set_and_run_with_externalities(
+                        &mut NoStorageExternalities,
+                        || {
+                            sp_externalities::with_externalities(|ext| {
+                                runtime
+                                    .with_instance(ext, |_module, instance, _version, _ext| {
+                                        let payload = instance
+                                            .call(
+                                                InvokeMethod::TableWithWrapper {
+                                                    dispatcher_ref,
+                                                    func: entry,
+                                                },
+                                                &payload,
+                                            )
+                                            .expect("WASM execution failed");
+                                        Ok(payload)
+                                    })
+                                    .expect("Instantiation failed")
                             })
-                            .expect("Instantiation failed")
-                    })
-                        .expect(
-                            "`TaskSpawner::spawn_via_dispatcher`: called outside of externalities context",
-                        )
+                            .expect("Externalities are set above; qed")
+                        },
+                    )
                 },
                 payload,
             )
@@ -199,8 +369,7 @@ mod inner {
         fn new_test_ext() -> sp_io::TestExternalities {
             let mut ext = sp_io::TestExternalities::new_empty();
 
-            let spawner = TaskSpawnerExt(TaskSpawner::new());
-            ext.register_extension::<TaskSpawnerExt>(spawner);
+            ext.register_extension(TaskSpawnerExt::default());
 
             ext
         }

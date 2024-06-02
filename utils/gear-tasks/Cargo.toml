@@ -12,6 +12,7 @@ sc-executor = { workspace = true, optional = true }
 sc-executor-common = { workspace = true, optional = true }
 sp-runtime-interface.workspace = true
 sp-externalities.workspace = true
+sp-storage.workspace = true
 
 futures-executor = { version = "0.3.30", default-features = false, optional = true }
 log.workspace = true
