@@ -31,6 +31,12 @@ pub struct Config {
     /// RPC of the Ethereum Beacon endpoint
     pub ethereum_beacon_rpc: String,
 
+    /// Address of Ethereum Router contract
+    pub ethereum_router_address: String,
+
+    /// Address of Ethereum Program contract
+    pub ethereum_program_address: String,
+
     /// Path of the state database
     pub database_path: PathBuf,
 
@@ -57,6 +63,8 @@ impl TryFrom<Args> for Config {
         Ok(Config {
             ethereum_rpc: args.ethereum_rpc,
             ethereum_beacon_rpc: args.ethereum_beacon_rpc,
+            ethereum_router_address: args.ethereum_router_address,
+            ethereum_program_address: args.ethereum_program_address,
             database_path: base_path.join("db"),
             network_path: base_path.join("net"),
             key_path: base_path.join("key"),

@@ -3,20 +3,23 @@ use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
     primitives::{Address, LogData, TxHash, B256},
-    providers::Provider,
-    rpc::types::{
-        beacon::sidecar::BeaconBlobBundle,
-        eth::{Filter, Log, Topic},
+    providers::{Provider, ProviderBuilder, RootProvider},
+    pubsub::PubSubFrontend,
+    rpc::{
+        client::WsConnect,
+        types::{
+            beacon::sidecar::BeaconBlobBundle,
+            eth::{Filter, Log, Topic},
+        },
     },
     sol_types::{self, SolEvent},
-    transports::Transport,
 };
 use anyhow::{anyhow, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::{prelude::*, ActorId, CodeId, MessageId};
 use gprimitives::H256;
 use reqwest::Client;
-use std::{collections::HashSet, hash::RandomState, marker::PhantomData};
+use std::{collections::HashSet, hash::RandomState};
 use tokio::time::{self, Duration};
 
 #[derive(Debug)]
@@ -37,14 +40,16 @@ impl PendingUploadCode {
     }
 }
 
-pub struct Observer<T, P> {
-    provider: P,
+pub(crate) type ObserverProvider = RootProvider<PubSubFrontend>;
+
+pub struct Observer {
+    provider: ObserverProvider,
+    ethereum_beacon_rpc: String,
     http_client: Client,
     router_address: Address,
-    phantom: PhantomData<T>,
 }
 
-impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
+impl Observer {
     const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 2] = [
         <Router::UploadCode as SolEvent>::SIGNATURE_HASH,
         <Router::CreateProgram as SolEvent>::SIGNATURE_HASH,
@@ -55,13 +60,19 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
         <Program::ClaimValue as SolEvent>::SIGNATURE_HASH,
     ];
 
-    pub fn new(provider: P, router_address: Address) -> Self {
-        Self {
-            provider,
+    pub async fn new(
+        ethereum_rpc: String,
+        ethereum_beacon_rpc: String,
+        router_address: String,
+    ) -> Result<Self> {
+        Ok(Self {
+            provider: ProviderBuilder::new()
+                .on_ws(WsConnect::new(ethereum_rpc))
+                .await?,
+            ethereum_beacon_rpc,
             http_client: Client::new(),
-            router_address,
-            phantom: PhantomData,
-        }
+            router_address: Address::parse_checksummed(router_address, None)?,
+        })
     }
 
     pub fn events(&mut self) -> impl Stream<Item = Event> + '_ {
@@ -89,7 +100,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                                         for pending_upload_code in pending_upload_codes {
                                             let provider = self.provider.clone();
                                             let http_client = self.http_client.clone();
-                                            let beacon_rpc_url = "https://eth-holesky-beacon.public.blastapi.io";
+                                            let beacon_rpc_url = self.ethereum_beacon_rpc.clone();
                                             let origin = pending_upload_code.origin;
                                             let tx_hash = pending_upload_code.blob_tx();
                                             let attempts = Some(3);
@@ -99,7 +110,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                                                 Self::read_code_from_tx_hash(
                                                     provider,
                                                     http_client,
-                                                    beacon_rpc_url,
+                                                    &beacon_rpc_url,
                                                     origin,
                                                     tx_hash,
                                                     attempts,
@@ -253,7 +264,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
     }
 
     async fn read_code_from_tx_hash(
-        provider: P,
+        provider: ObserverProvider,
         http_client: Client,
         beacon_rpc_url: &str,
         origin: ActorId,
@@ -274,7 +285,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
     }
 
     async fn read_blob_from_tx_hash(
-        provider: P,
+        provider: ObserverProvider,
         http_client: Client,
         beacon_rpc_url: &str,
         tx_hash: TxHash,

@@ -21,16 +21,7 @@
 use crate::config::Config;
 use anyhow::Result;
 use futures::{future, stream::StreamExt};
-use hypercore_observer::{
-    alloy::{
-        primitives::address,
-        providers::{ProviderBuilder, RootProvider},
-        pubsub::PubSubFrontend,
-        rpc::client::WsConnect,
-        transports::Transport,
-    },
-    BlockEvent,
-};
+use hypercore_observer::BlockEvent;
 use std::time::Duration;
 use tokio::signal;
 
@@ -38,7 +29,7 @@ use tokio::signal;
 pub struct Service {
     db: Box<dyn hypercore_db::Database>,
     network: hypercore_network::Network,
-    observer: hypercore_observer::Observer<PubSubFrontend, RootProvider<PubSubFrontend>>,
+    observer: hypercore_observer::Observer,
     processor: hypercore_processor::Processor,
 }
 
@@ -48,12 +39,12 @@ impl Service {
             config.database_path.clone(),
         )?);
         let network = hypercore_network::Network::start()?;
-        let ws = WsConnect::new(config.ethereum_rpc.clone());
-        let provider = ProviderBuilder::new().on_ws(ws).await?;
         let observer = hypercore_observer::Observer::new(
-            provider,
-            address!("9F1291e0DE8F29CC7bF16f7a8cb39e7Aebf33B9b"),
-        );
+            config.ethereum_rpc.clone(),
+            config.ethereum_beacon_rpc.clone(),
+            config.ethereum_router_address.clone(),
+        )
+        .await?;
         let processor = hypercore_processor::Processor::new(db.clone_boxed());
 
         Ok(Self {
@@ -108,6 +99,8 @@ mod tests {
             database_path: "/tmp/db".into(),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
+            ethereum_router_address: "0x9F1291e0DE8F29CC7bF16f7a8cb39e7Aebf33B9b".into(),
+            ethereum_program_address: "0x23a4FC5f430a7c3736193B852Ad5191c7EC01037".into(),
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
         })
