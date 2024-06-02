@@ -60,7 +60,7 @@ pub mod logging {
 
 pub mod code {
     use super::*;
-    use crate::host::context::{CodeContext, DbContext};
+    use crate::host::context::CodeContext;
 
     pub fn link<T: 'static + CodeContext>(linker: &mut Linker<T>) -> Result<()> {
         linker.func_wrap("env", "code_load_v1", load::<T>)?;

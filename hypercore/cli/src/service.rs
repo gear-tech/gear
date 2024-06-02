@@ -26,7 +26,7 @@ use tokio::signal;
 
 /// Hypercore service.
 pub struct Service {
-    db: Box<dyn hypercore_db::Database>,
+    db: Box<dyn hypercore_db::CASDatabase>,
     network: hypercore_network::Network,
     observer: hypercore_observer::Observer,
     processor: hypercore_processor::Processor,
@@ -36,7 +36,7 @@ pub struct Service {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let db: Box<dyn hypercore_db::Database> = Box::new(hypercore_db::RocksDatabase::open(
+        let db: Box<dyn hypercore_db::CASDatabase> = Box::new(hypercore_db::RocksDatabase::open(
             config.database_path.clone(),
         )?);
         let network = hypercore_network::Network::start()?;

@@ -13,7 +13,8 @@ repository.workspace = true
 anyhow.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
-blake2.workspace = true
+dashmap = "5.5.3"
+parity-scale-codec.workspace = true
 
 # TODO: jemalloc is not stable for OpenBSD and MSVC.
 rocksdb = { version = "0.21", features = ["snappy", "jemalloc"] }

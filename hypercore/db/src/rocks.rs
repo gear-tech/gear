@@ -16,56 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{CASDatabase, Database, State};
+use crate::CASDatabase;
 use anyhow::Result;
-use gear_core::{code::InstrumentedCode, ids};
-use gprimitives::{CodeId, H256};
+use gprimitives::H256;
 use rocksdb::{Options, DB};
 use std::{path::PathBuf, sync::Arc};
 
 /// Database for storing states and codes in memory.
 #[derive(Debug, Clone)]
-pub struct RocksDatabase(Arc<DB>);
+pub struct RocksDatabase {
+    inner: Arc<DB>,
+}
 
 impl RocksDatabase {
-    fn hash(data: &[u8]) -> H256 {
-        H256::from(ids::hash(data))
-    }
-
     /// Open database at specified
     pub fn open(path: PathBuf) -> Result<Self> {
         let db = DB::open(&configure_rocksdb(), path)?;
-        Ok(Self(Arc::new(db)))
-    }
-}
-
-impl Database for RocksDatabase {
-    fn clone_boxed(&self) -> Box<dyn Database> {
-        Box::new(self.clone())
-    }
-
-    fn read_code(&self, _code_id: CodeId) -> Option<Vec<u8>> {
-        unimplemented!()
-    }
-
-    fn write_code(&self, _code_id: CodeId, _code: &[u8]) {
-        unimplemented!()
-    }
-
-    fn read_instrumented_code(&self, _code_id: CodeId) -> Option<InstrumentedCode> {
-        unimplemented!()
-    }
-
-    fn write_instrumented_code(&self, _code_id: CodeId, _code: &InstrumentedCode) {
-        unimplemented!()
-    }
-
-    fn read_state(&self, _hash: H256) -> Option<State> {
-        unimplemented!()
-    }
-
-    fn write_state(&self, _state: &State) {
-        unimplemented!()
+        Ok(Self {
+            inner: Arc::new(db),
+        })
     }
 }
 
@@ -75,17 +44,16 @@ impl CASDatabase for RocksDatabase {
     }
 
     fn read(&self, hash: &H256) -> Option<Vec<u8>> {
-        self.0
+        self.inner
             .get(hash.as_bytes())
             .expect("Failed to read data, database is not in valid state")
     }
 
-    fn write(&self, data: &[u8]) -> H256 {
-        let hash = Self::hash(data);
-        self.0
+    fn write_by_hash(&self, hash: &H256, data: &[u8]) {
+        debug_assert_eq!(*hash, crate::hash(data));
+        self.inner
             .put(hash.as_bytes(), data)
             .expect("Failed to write data, database is not in valid state");
-        hash
     }
 }
 
@@ -105,7 +73,7 @@ fn configure_rocksdb() -> Options {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread::{self};
+    use std::thread;
     use tempfile::TempDir;
 
     fn with_database<F>(f: F)
@@ -121,7 +89,10 @@ mod tests {
             },
         );
 
-        f(RocksDatabase::open(temp_dir.path().to_path_buf()).expect("Failed to open database"));
+        let db =
+            RocksDatabase::open(temp_dir.path().to_path_buf()).expect("Failed to open database");
+
+        f(db);
     }
 
     #[test]
@@ -174,9 +145,9 @@ mod tests {
             handler2.join().unwrap();
 
             for x in 0u32..amount * 2 {
-                let data = to_big_vec(x);
-                let hash = db.read(&RocksDatabase::hash(data.as_slice()));
-                assert_eq!(hash, Some(data));
+                let expected = to_big_vec(x);
+                let data = db.read(&crate::hash(expected.as_slice()));
+                assert_eq!(data, Some(expected));
             }
         })
     }

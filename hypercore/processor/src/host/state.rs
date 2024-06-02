@@ -18,10 +18,11 @@
 
 //! State-related data structures.
 
-use gear_core::ids::{self, ProgramId};
+use gear_core::ids::ProgramId;
 use gprimitives::H256;
+use parity_scale_codec::{Decode, Encode};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Message {
     pub sender: ProgramId,
     pub gas_limit: u64,
@@ -29,56 +30,19 @@ pub struct Message {
     pub data: Vec<u8>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Page {
     pub index: u32,
     pub data: Vec<u8>,
 }
 
 /// Hypercore program state.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub struct State {
     /// Program ID.
     pub program_id: ProgramId,
     pub queue: Vec<Message>,
     pub pages: Vec<Page>,
-}
-
-impl State {
-    pub fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        array.extend_from_slice(self.program_id.as_ref());
-
-        for queue_item in &self.queue {
-            array.extend_from_slice(&queue_item.hash().0);
-        }
-
-        for page in &self.pages {
-            array.extend_from_slice(&page.hash().0);
-        }
-
-        ids::hash(&array).into()
-    }
-}
-
-impl Page {
-    pub fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        array.extend_from_slice(&self.data);
-        array.extend_from_slice(&self.index.to_le_bytes());
-
-        ids::hash(&array).into()
-    }
-}
-
-impl Message {
-    pub fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        array.extend_from_slice(self.sender.as_ref());
-        array.extend_from_slice(&self.gas_limit.to_le_bytes());
-        array.extend_from_slice(&self.value.to_le_bytes());
-        array.extend_from_slice(&self.data);
-
-        ids::hash(&array).into()
-    }
+    pub original_code_hash: H256,
+    pub instrumented_code_hash: H256,
 }

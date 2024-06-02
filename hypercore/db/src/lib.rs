@@ -18,38 +18,17 @@
 
 //! Database library for hypercore.
 
+use gear_core::ids;
+use gprimitives::H256;
+
 mod mem;
 mod rocks;
-mod state;
 
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
-pub use state::{Message, State};
 
-use gear_core::code::InstrumentedCode;
-use gprimitives::{CodeId, H256};
-
-pub trait Database {
-    /// Clone ref to database instance.
-    fn clone_boxed(&self) -> Box<dyn Database>;
-
-    /// Read code section.
-    fn read_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
-
-    /// Write code section.
-    fn write_code(&self, code_id: CodeId, code: &[u8]);
-
-    /// Read instrumented code.
-    fn read_instrumented_code(&self, code_id: CodeId) -> Option<InstrumentedCode>;
-
-    /// Write instrumented code.
-    fn write_instrumented_code(&self, code_id: CodeId, code: &InstrumentedCode);
-
-    /// Read program state.
-    fn read_state(&self, hash: H256) -> Option<State>;
-
-    /// Write program state.
-    fn write_state(&self, state: &State);
+pub fn hash(data: &[u8]) -> H256 {
+    ids::hash(data).into()
 }
 
 /// Content-addressable storage database.
@@ -61,5 +40,13 @@ pub trait CASDatabase: Send {
     fn read(&self, hash: &H256) -> Option<Vec<u8>>;
 
     /// Write data, returns data hash.
-    fn write(&self, data: &[u8]) -> H256;
+    fn write(&self, data: &[u8]) -> H256 {
+        let hash = hash(data);
+        self.write_by_hash(&hash, data);
+        hash
+    }
+
+    /// Write data when hash is known.
+    /// Note: should have debug check for hash match.
+    fn write_by_hash(&self, hash: &H256, data: &[u8]);
 }
