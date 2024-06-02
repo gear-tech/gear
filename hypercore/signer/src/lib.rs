@@ -104,7 +104,7 @@ impl From<RecoverableSignature> for Signature {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Signer {
     key_store: PathBuf,
 }

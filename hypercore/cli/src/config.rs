@@ -24,6 +24,13 @@ use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
 use std::path::PathBuf;
 
+#[derive(Default)]
+pub enum SequencerConfig {
+    Enabled(String),
+    #[default]
+    Disabled,
+}
+
 pub struct Config {
     /// RPC of the Ethereum endpoint
     pub ethereum_rpc: String,
@@ -45,6 +52,9 @@ pub struct Config {
 
     /// Signer key storage path
     pub key_path: PathBuf,
+
+    /// Is this role a sequencer
+    pub sequencer: SequencerConfig,
 }
 
 impl TryFrom<Args> for Config {
@@ -68,6 +78,10 @@ impl TryFrom<Args> for Config {
             database_path: base_path.join("db"),
             network_path: base_path.join("net"),
             key_path: base_path.join("key"),
+            sequencer: match args.sequencer_key {
+                Some(key) => SequencerConfig::Enabled(key),
+                None => SequencerConfig::Disabled,
+            },
         })
     }
 }

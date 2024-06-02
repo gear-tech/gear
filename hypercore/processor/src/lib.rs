@@ -86,13 +86,13 @@ impl Processor {
         Ok(())
     }
 
-    pub fn process_observer_event(&mut self, event: Event) -> Result<()> {
+    pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::UploadCode { code_id, .. } => {
                 log::debug!("Processing upload code {code_id:?}");
             }
             Event::Block {
-                block_hash,
+                ref block_hash,
                 events: _,
             } => {
                 log::debug!("Processing events for {block_hash:?}");
