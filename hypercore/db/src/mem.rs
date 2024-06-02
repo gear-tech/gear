@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Database, State};
-use gear_core::{code::InstrumentedCode, ids::prelude::CodeIdExt};
+use gear_core::code::InstrumentedCode;
 use gprimitives::{CodeId, H256};
 use std::{
     collections::HashMap,

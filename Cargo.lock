@@ -7034,8 +7034,12 @@ name = "hypercore-db"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "blake2 0.10.6",
  "gear-core",
  "gprimitives",
+ "rocksdb",
+ "scopeguard",
+ "tempfile",
 ]
 
 [[package]]
@@ -8297,7 +8301,9 @@ dependencies = [
  "glob 0.3.1",
  "libc",
  "libz-sys",
+ "lz4-sys",
  "tikv-jemalloc-sys",
+ "zstd-sys",
 ]
 
 [[package]]

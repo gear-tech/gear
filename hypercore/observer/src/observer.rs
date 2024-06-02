@@ -66,8 +66,8 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                         yield EventsBlock { block_hash, events };
                     }
                     Err(err) => { log::error!("failed to handle events: {err}"); }
-                }
-            }
+              }
+          }
         }
     }
 
