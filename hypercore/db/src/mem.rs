@@ -16,98 +16,89 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Database, State};
-use gear_core::code::InstrumentedCode;
-use gprimitives::{CodeId, H256};
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use crate::CASDatabase;
+use dashmap::DashMap;
+use gprimitives::H256;
+use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct MemDb {
-    data: Arc<RwLock<MemDbData>>,
+    inner: Arc<DashMap<H256, Vec<u8>>>,
 }
 
-impl Default for MemDb {
-    fn default() -> Self {
-        Self::new()
+impl CASDatabase for MemDb {
+    fn clone_boxed(&self) -> Box<dyn CASDatabase> {
+        Box::new(self.clone())
+    }
+
+    fn read(&self, hash: &H256) -> Option<Vec<u8>> {
+        self.inner.get(hash).map(|v| v.value().clone())
+    }
+
+    fn write_by_hash(&self, hash: &H256, data: &[u8]) {
+        debug_assert_eq!(*hash, crate::hash(data));
+        self.inner.insert(*hash, data.to_vec());
     }
 }
 
-#[derive(Clone, Debug)]
-struct MemDbData {
-    states: HashMap<H256, State>,
-    original_codes: HashMap<CodeId, Vec<u8>>,
-    instrumented_codes: HashMap<CodeId, InstrumentedCode>,
-}
+// TODO: Join tests for MemDb and RocksDb, making general tests for dyn CASDatabase.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread;
 
-impl MemDb {
-    pub fn new() -> Self {
-        Self {
-            data: Arc::new(RwLock::new(MemDbData {
-                states: HashMap::new(),
-                original_codes: HashMap::new(),
-                instrumented_codes: HashMap::new(),
-            })),
+    #[test]
+    fn is_clonable() {
+        let db = MemDb::default();
+        let _ = db.clone();
+    }
+
+    #[test]
+    fn read_write() {
+        let db = MemDb::default();
+        let data = b"Hello, world!";
+        let hash = db.write(data);
+
+        assert_eq!(db.read(&hash), Some(data.to_vec()));
+    }
+
+    #[test]
+    fn multi_thread() {
+        let amount = 10;
+
+        let to_big_vec = |x: u32| -> Vec<u8> {
+            let bytes = x.to_le_bytes();
+            bytes
+                .iter()
+                .cycle()
+                .take(1024 * 1024)
+                .copied()
+                .collect::<Vec<_>>()
+        };
+
+        let db = MemDb::default();
+
+        let db_clone = CASDatabase::clone_boxed(&db);
+        let handler1 = thread::spawn(move || {
+            for x in 0u32..amount {
+                db_clone.write(to_big_vec(x).as_slice());
+            }
+        });
+
+        let db_clone = CASDatabase::clone_boxed(&db);
+        let handler2 = thread::spawn(move || {
+            for x in amount..amount * 2 {
+                db_clone.write(to_big_vec(x).as_slice());
+            }
+        });
+
+        handler1.join().unwrap();
+        handler2.join().unwrap();
+
+        for x in 0u32..amount * 2 {
+            let data = to_big_vec(x);
+            let hash = db.read(&crate::hash(data.as_slice()));
+            assert_eq!(hash, Some(data));
         }
-    }
-
-    pub fn ref_clone(&self) -> Self {
-        Self {
-            data: self.data.clone(),
-        }
-    }
-}
-
-impl Database for MemDb {
-    fn clone_boxed(&self) -> Box<dyn Database> {
-        Box::new(self.ref_clone())
-    }
-
-    fn read_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        self.data
-            .read()
-            .unwrap()
-            .original_codes
-            .get(&code_id)
-            .cloned()
-    }
-
-    fn write_code(&self, code_id: CodeId, code: &[u8]) {
-        self.data
-            .write()
-            .unwrap()
-            .original_codes
-            .insert(code_id, code.to_vec());
-    }
-
-    fn read_instrumented_code(&self, code_id: CodeId) -> Option<InstrumentedCode> {
-        self.data
-            .read()
-            .unwrap()
-            .instrumented_codes
-            .get(&code_id)
-            .cloned()
-    }
-
-    fn write_instrumented_code(&self, code_id: CodeId, code: &InstrumentedCode) {
-        self.data
-            .write()
-            .unwrap()
-            .instrumented_codes
-            .insert(code_id, code.clone());
-    }
-
-    fn read_state(&self, hash: H256) -> Option<State> {
-        self.data.read().unwrap().states.get(&hash).cloned()
-    }
-
-    fn write_state(&self, state: &State) {
-        self.data
-            .write()
-            .unwrap()
-            .states
-            .insert(state.hash(), state.clone());
     }
 }

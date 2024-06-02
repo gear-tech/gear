@@ -17,11 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
-use hypercore_db::Database;
-
-pub trait DbContext {
-    fn db(&self) -> Box<dyn Database>;
-}
 
 pub trait CodeContext {
     fn code(&self) -> &[u8];

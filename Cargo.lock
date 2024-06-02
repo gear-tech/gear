@@ -7038,9 +7038,10 @@ name = "hypercore-db"
 version = "1.4.2"
 dependencies = [
  "anyhow",
- "blake2 0.10.6",
+ "dashmap",
  "gear-core",
  "gprimitives",
+ "parity-scale-codec",
  "rocksdb",
  "scopeguard",
  "tempfile",
@@ -7075,6 +7076,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "gear-core",
+ "gprimitives",
  "hypercore-db",
  "hypercore-observer",
  "hypercore-runtime",

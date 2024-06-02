@@ -18,10 +18,11 @@
 
 //! Program's execution service for eGPU.
 
+use crate::host::{db::Database, state::Message};
 use anyhow::Result;
 use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
 use host::context::CodeContext;
-use hypercore_db::Message;
+use hypercore_db::CASDatabase;
 use hypercore_observer::Event;
 use log::Level;
 use parity_wasm::elements::{Internal as PwasmInternal, Module as PwasmModule};
@@ -35,12 +36,14 @@ use wasmtime::{
 mod host;
 
 pub struct Processor {
-    db: Box<dyn hypercore_db::Database>,
+    db: Database,
 }
 
 impl Processor {
-    pub fn new(db: Box<dyn hypercore_db::Database>) -> Self {
-        Self { db }
+    pub fn new(db: Box<dyn CASDatabase>) -> Self {
+        Self {
+            db: Database::new(db),
+        }
     }
 
     pub fn new_code(&mut self, hash: CodeId, code: Vec<u8>) -> Result<bool> {
@@ -61,18 +64,17 @@ impl Processor {
         Ok(res)
     }
 
-    pub fn instrument_code(&mut self, code_id: CodeId) -> Result<bool> {
+    pub fn instrument_code(&mut self, code_id: CodeId) -> Result<Option<H256>> {
         let code = self.db.read_code(code_id).unwrap();
 
         let mut executor = host::Executor::verifier(code)?;
 
         if let Some(instrumented) = executor.instrument()? {
-            // TODO: replace with code id (hash) of instrumented.
-            self.db.write_instrumented_code(code_id, &instrumented);
+            let hash = self.db.write_instrumented_code(&instrumented);
 
-            Ok(true)
+            Ok(Some(hash))
         } else {
-            Ok(false)
+            Ok(None)
         }
     }
 
@@ -98,7 +100,6 @@ impl Processor {
                 log::debug!("Processing events for {block_hash:?}");
             }
         }
-
         Ok(())
     }
 }
@@ -106,7 +107,7 @@ impl Processor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hypercore_db::{Database, MemDb};
+    use hypercore_db::MemDb;
     use wabt::wat2wasm;
 
     fn valid_code() -> Vec<u8> {
@@ -134,29 +135,29 @@ mod tests {
     fn verify_code() {
         init_logger();
 
-        let db = MemDb::new();
+        let db = MemDb::default();
         let mut processor = Processor::new(db.clone_boxed());
 
         let valid = valid_code();
         let valid_id = CodeId::generate(&valid);
 
-        assert!(db.read_code(valid_id).is_none());
+        assert!(processor.db.read_code(valid_id).is_none());
         assert!(processor.new_code(valid_id, valid).unwrap());
-        assert!(db.read_code(valid_id).is_some());
+        assert!(processor.db.read_code(valid_id).is_some());
 
         let invalid = vec![0; 42];
         let invalid_id = CodeId::generate(&invalid);
 
-        assert!(db.read_code(invalid_id).is_none());
+        assert!(processor.db.read_code(invalid_id).is_none());
         assert!(!processor.new_code(invalid_id, invalid).unwrap());
-        assert!(db.read_code(invalid_id).is_none());
+        assert!(processor.db.read_code(invalid_id).is_none());
     }
 
     #[test]
     fn bad_hash() {
         init_logger();
 
-        let db = MemDb::new();
+        let db = MemDb::default();
         let mut processor = Processor::new(db.clone_boxed());
 
         let valid = valid_code();
@@ -170,24 +171,19 @@ mod tests {
     fn instrument_code() {
         init_logger();
 
-        let db = MemDb::new();
+        let db = MemDb::default();
         let mut processor = Processor::new(db.clone_boxed());
 
         let code = valid_code();
         let code_len = code.len();
         let id = CodeId::generate(&code);
 
-        assert!(processor.new_code(id, code.clone()).unwrap());
+        assert!(processor.new_code(id, code).unwrap());
 
-        assert!(db.read_instrumented_code(id).is_none());
-        assert!(processor.instrument_code(id).unwrap());
-
-        let instrumented = db.read_instrumented_code(id).unwrap();
+        let hash = processor.instrument_code(id).unwrap().unwrap();
+        let instrumented = processor.db.read_instrumented_code(hash).unwrap();
 
         assert_eq!(instrumented.original_code_len() as usize, code_len);
         assert!(instrumented.code().len() > code_len);
-        let valid_hash = CodeId::generate(&code.clone()).into_bytes().into();
-
-        assert!(processor.new_code(valid_hash, code).unwrap());
     }
 }
