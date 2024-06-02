@@ -61,6 +61,21 @@ impl Processor {
         Ok(res)
     }
 
+    pub fn instrument_code(&mut self, code_id: CodeId) -> Result<bool> {
+        let code = self.db.read_code(code_id).unwrap();
+
+        let mut executor = host::Executor::verifier(code)?;
+
+        if let Some(instrumented) = executor.instrument()? {
+            // TODO: replace with code id (hash) of instrumented.
+            self.db.write_instrumented_code(code_id, &instrumented);
+
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     // TODO: use proper `Dispatch` type here instead of db's.
     pub fn run(
         &mut self,
@@ -139,5 +154,27 @@ mod tests {
 
         assert!(processor.new_code(valid_id, valid.clone()).unwrap());
         assert!(!processor.new_code(H256::zero().into(), valid).unwrap());
+    }
+
+    #[test]
+    fn instrument_code() {
+        init_logger();
+
+        let db = MemDb::new();
+        let mut processor = Processor::new(db.clone_boxed());
+
+        let code = valid_code();
+        let code_len = code.len();
+        let id = CodeId::generate(&code);
+
+        assert!(processor.new_code(id, code).unwrap());
+
+        assert!(db.read_instrumented_code(id).is_none());
+        assert!(processor.instrument_code(id).unwrap());
+
+        let instrumented = db.read_instrumented_code(id).unwrap();
+
+        assert_eq!(instrumented.original_code_len() as usize, code_len);
+        assert!(instrumented.code().len() > code_len);
     }
 }

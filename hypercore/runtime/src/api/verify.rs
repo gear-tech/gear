@@ -18,13 +18,21 @@
 
 use crate::interface::code_ri;
 use gear_core::code::{Code, CodeAndId};
-use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
+use gear_wasm_instrument::gas_metering::{CustomConstantCostRules, Schedule};
 
 pub fn verify(code_len: usize) -> bool {
     log::info!("You're calling 'verify(code_len={code_len})'");
 
+    let schedule = Schedule::default();
+
+    if code_len > schedule.limits.code_len as usize {
+        log::debug!("Code is too big!");
+        return false;
+    }
+
     let code = code_ri::load(code_len);
 
+    // TODO: only check code here.
     match Code::try_new(code, 42, |_| CustomConstantCostRules::default(), None, None) {
         Ok(code) => {
             let code_id = CodeAndId::new(code).code_id();

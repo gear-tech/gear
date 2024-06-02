@@ -16,9 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod instrument;
 mod verify;
 
 #[no_mangle]
+extern "C" fn instrument(code_len: i32) -> i64 {
+    instrument::instrument(code_len as usize)
+}
+
+#[no_mangle]
 extern "C" fn verify(code_len: i32) -> i32 {
-    (!verify::verify(code_len as usize) as i32)
+    !verify::verify(code_len as usize) as i32
 }

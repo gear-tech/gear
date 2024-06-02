@@ -13,6 +13,7 @@ gear-wasm-instrument.workspace = true
 gprimitives.workspace = true
 log.workspace = true
 dlmalloc-rs = { workspace = true, features = ["global"] }
+parity-scale-codec.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

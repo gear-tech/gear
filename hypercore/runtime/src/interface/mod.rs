@@ -29,10 +29,6 @@ pub(crate) mod utils {
         let ptr = slice.as_ptr() as i32;
         let len = slice.len() as i32;
 
-        let mut res = [0u8; 8];
-        res[..4].copy_from_slice(&ptr.to_le_bytes());
-        res[4..].copy_from_slice(&len.to_le_bytes());
-
-        i64::from_le_bytes(res)
+        unsafe { core::mem::transmute([ptr, len]) }
     }
 }
