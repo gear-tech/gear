@@ -20,10 +20,11 @@
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use serde::Deserialize;
 
 use crate::config;
 
-#[derive(Clone, Debug, Parser)]
+#[derive(Clone, Debug, Parser, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// URL of Ethereum RPC endpoint
@@ -66,7 +67,7 @@ pub struct Args {
     pub extra_command: Option<ExtraCommands>,
 }
 
-#[derive(Clone, Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand, Deserialize)]
 pub enum ExtraCommands {
     GenerateKey,
     ListKeys,
@@ -74,7 +75,7 @@ pub enum ExtraCommands {
     Sign(SigningArgs),
 }
 
-#[derive(Clone, Debug, Parser)]
+#[derive(Clone, Debug, Deserialize, Parser)]
 pub struct SigningArgs {
     message: String,
 }
