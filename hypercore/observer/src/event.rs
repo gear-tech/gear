@@ -2,12 +2,7 @@ use gear_core::ids::{ActorId, CodeId, MessageId};
 use gprimitives::H256;
 
 #[derive(Debug)]
-pub enum Event {
-    UploadCode {
-        origin: ActorId,
-        code_id: CodeId,
-        blob_tx: H256,
-    },
+pub enum BlockEvent {
     CreateProgram {
         origin: ActorId,
         code_id: CodeId,
@@ -37,7 +32,14 @@ pub enum Event {
 }
 
 #[derive(Debug)]
-pub struct EventsBlock {
-    pub block_hash: H256,
-    pub events: Vec<Event>,
+pub enum Event {
+    UploadCode {
+        origin: ActorId,
+        code_id: CodeId,
+        code: Vec<u8>,
+    },
+    Block {
+        block_hash: H256,
+        events: Vec<BlockEvent>,
+    },
 }

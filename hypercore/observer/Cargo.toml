@@ -32,7 +32,7 @@ alloy = { workspace = true, features = [
 async-stream.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 futures.workspace = true
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["default-tls", "json"] }
 log.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true

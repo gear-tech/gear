@@ -1,8 +1,8 @@
-use crate::{Event, EventsBlock, Program, Router};
+use crate::{BlockEvent, Event, Program, Router};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
-    primitives::{Address, FixedBytes, LogData, TxHash, B256},
+    primitives::{Address, LogData, TxHash, B256},
     providers::Provider,
     rpc::types::{
         beacon::sidecar::BeaconBlobBundle,
@@ -19,9 +19,18 @@ use reqwest::Client;
 use std::{collections::HashSet, hash::RandomState, marker::PhantomData};
 use tokio::time::{self, Duration};
 
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub(crate) struct PendingUploadCode {
+    origin: ActorId,
+    code_id: CodeId,
+    blob_tx: H256,
+    tx_hash: TxHash,
+}
+
 pub struct Observer<T, P> {
     provider: P,
     router_address: Address,
+    pending_upload_codes: HashSet<PendingUploadCode>,
     phantom: PhantomData<T>,
 }
 
@@ -39,49 +48,44 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
     pub fn new(provider: P, router_address: Address) -> Self {
         Self {
             provider,
+            pending_upload_codes: HashSet::new(),
             router_address,
             phantom: PhantomData,
         }
     }
 
-    pub fn listen(mut self) -> impl Stream<Item = Result<EventsBlock>> {
-        async_stream::try_stream! {
-            let block_subscription = self.provider.subscribe_blocks().await?;
+    pub fn events(&mut self) -> impl Stream<Item = Event> + '_ {
+        async_stream::stream! {
+            let block_subscription = self
+                .provider
+                .subscribe_blocks()
+                .await
+                .expect("failed to subscribe to blocks");
             let mut block_stream = block_subscription.into_stream();
 
             while let Some(block) = block_stream.next().await {
                 let block_header = block.header;
-                let block_number = block_header
-                    .number
-                    .ok_or_else(|| anyhow!("failed to get block number"))?;
-                let block_hash = block_header
-                    .hash
-                    .ok_or_else(|| anyhow!("failed to get block hash"))?;
+                let block_number = block_header.number.expect("failed to get block number");
+                let block_hash = block_header.hash.expect("failed to get block hash");
                 log::debug!("block {block_number}, hash {block_hash}");
 
-                let events_result = self.read_events(block_hash).await;
-                match events_result {
+                match self.read_events(block_hash).await {
                     Ok(events) => {
                         let block_hash = H256(block_hash.0);
-                        yield EventsBlock { block_hash, events };
+                        yield Event::Block { block_hash, events };
                     }
-                    Err(err) => { log::error!("failed to handle events: {err}"); }
-              }
-          }
+                    Err(err) => log::error!("failed to read events: {err}"),
+                }
+            }
         }
     }
 
-    async fn read_events(&mut self, block_hash: B256) -> Result<Vec<Event>> {
+    async fn read_events(&mut self, block_hash: B256) -> Result<Vec<BlockEvent>> {
         let [router_filter, program_filter] = self.event_filters(block_hash);
 
         let mut logs = self.provider.get_logs(&router_filter).await?;
         let mut logs1 = self.provider.get_logs(&program_filter).await?;
         logs.append(&mut logs1);
-
-        if logs.is_empty() {
-            return Ok(vec![]);
-        }
-
         logs.sort_unstable_by_key(|log| (log.block_timestamp, log.log_index));
 
         let logs: Vec<_> = logs
@@ -93,12 +97,16 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                     let origin = ActorId::new(event.origin.into_word().0);
                     let code_id = CodeId::new(event.codeId.0);
                     let blob_tx = H256(event.blobTx.0);
+                    let tx_hash = log.transaction_hash?;
 
-                    Some(Event::UploadCode {
+                    self.pending_upload_codes.insert(PendingUploadCode {
                         origin,
                         code_id,
                         blob_tx,
-                    })
+                        tx_hash,
+                    });
+
+                    None
                 }
                 Some(<Router::CreateProgram as SolEvent>::SIGNATURE_HASH) => {
                     let event = Self::decode_log::<Router::CreateProgram>(&log).ok()?;
@@ -110,7 +118,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                     let gas_limit = event.gasLimit;
                     let value = event.value;
 
-                    Some(Event::CreateProgram {
+                    Some(BlockEvent::CreateProgram {
                         origin,
                         code_id,
                         salt,
@@ -128,7 +136,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                     let gas_limit = event.gasLimit;
                     let value = event.value;
 
-                    Some(Event::SendMessage {
+                    Some(BlockEvent::SendMessage {
                         origin,
                         destination,
                         payload,
@@ -145,7 +153,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                     let gas_limit = event.gasLimit;
                     let value = event.value;
 
-                    Some(Event::SendReply {
+                    Some(BlockEvent::SendReply {
                         origin,
                         reply_to_id,
                         payload,
@@ -159,7 +167,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                     let origin = ActorId::new(event.origin.into_word().0);
                     let message_id = MessageId::new(event.messageId.0);
 
-                    Some(Event::ClaimValue { origin, message_id })
+                    Some(BlockEvent::ClaimValue { origin, message_id })
                 }
                 _ => None,
             })
@@ -185,20 +193,20 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
         E::decode_raw_log(log_data.topics().iter().copied(), &log_data.data, false)
     }
 
-    pub async fn read_code_from_tx_hash(
+    async fn read_code_from_tx_hash(
         provider: P,
         http_client: Client,
         beacon_rpc_url: &str,
         tx_hash: TxHash,
         attempts: Option<u8>,
-        expected_code_id: FixedBytes<32>,
+        expected_code_id: CodeId,
     ) -> Result<Vec<u8>> {
         let code =
             Self::read_blob_from_tx_hash(provider, http_client, beacon_rpc_url, tx_hash, attempts)
                 .await
                 .map_err(|err| anyhow!("failed to read blob: {err}"))?;
 
-        (CodeId::generate(&code).into_bytes() == expected_code_id)
+        (CodeId::generate(&code) == expected_code_id)
             .then_some(())
             .ok_or_else(|| anyhow!("unexpected code id"))?;
 

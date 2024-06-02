@@ -29,7 +29,7 @@ use hypercore_observer::{
         rpc::client::WsConnect,
         transports::Transport,
     },
-    Event,
+    BlockEvent,
 };
 use std::time::Duration;
 use tokio::signal;
@@ -68,11 +68,11 @@ impl Service {
         let Service {
             db,
             network,
-            observer,
+            mut observer,
             mut processor,
         } = self;
 
-        let observer_events = observer.listen();
+        let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
         loop {
@@ -81,14 +81,9 @@ impl Service {
                     log::info!("Received SIGINT, shutting down...");
                     break;
                 }
-                block_events = observer_events.next() => {
-                    if let Some(block_events) = block_events {
-                        match block_events {
-                            Ok(block_events) => { processor.process_block_events(block_events)?; },
-                            Err(e) => {
-                                log::error!("Error while observing blocks: {}", e);
-                            },
-                        }
+                observer_event = observer_events.next() => {
+                    if let Some(observer_event) = observer_event {
+                        processor.process_observer_event(observer_event)?
                     } else {
                         log::debug!("[ETH] Observer is down, shutting down...");
                         break;
