@@ -18,9 +18,6 @@
 
 //! Database library for hypercore.
 
-use gear_core::code::InstrumentedCode;
-use gprimitives::{CodeId, H256};
-
 mod mem;
 mod rocks;
 mod state;
@@ -29,22 +26,40 @@ pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 pub use state::{Message, State};
 
+use gear_core::code::InstrumentedCode;
+use gprimitives::{CodeId, H256};
+
 pub trait Database {
-    // General section.
+    /// Clone ref to database instance.
     fn clone_boxed(&self) -> Box<dyn Database>;
 
-    // Original code section.
+    /// Read code section.
     fn read_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
 
+    /// Write code section.
     fn write_code(&self, code_id: CodeId, code: &[u8]);
 
-    // Instrumented code section.
+    /// Read instrumented code.
     fn read_instrumented_code(&self, code_id: CodeId) -> Option<InstrumentedCode>;
 
+    /// Write instrumented code.
     fn write_instrumented_code(&self, code_id: CodeId, code: &InstrumentedCode);
 
-    // State section.
+    /// Read program state.
     fn read_state(&self, hash: H256) -> Option<State>;
 
+    /// Write program state.
     fn write_state(&self, state: &State);
+}
+
+/// Content-addressable storage database.
+pub trait CASDatabase: Send {
+    /// Clone ref to database instance.
+    fn clone_boxed(&self) -> Box<dyn CASDatabase>;
+
+    /// Read data by hash.
+    fn read(&self, hash: &H256) -> Option<Vec<u8>>;
+
+    /// Write data, returns data hash.
+    fn write(&self, data: &[u8]) -> H256;
 }

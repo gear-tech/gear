@@ -167,7 +167,7 @@ mod tests {
         let code_len = code.len();
         let id = CodeId::generate(&code);
 
-        assert!(processor.new_code(id, code).unwrap());
+        assert!(processor.new_code(id, code.clone()).unwrap());
 
         assert!(db.read_instrumented_code(id).is_none());
         assert!(processor.instrument_code(id).unwrap());
@@ -176,5 +176,8 @@ mod tests {
 
         assert_eq!(instrumented.original_code_len() as usize, code_len);
         assert!(instrumented.code().len() > code_len);
+        let valid_hash = CodeId::generate(&code.clone()).into_bytes().into();
+
+        assert!(processor.new_code(valid_hash, code).unwrap());
     }
 }
