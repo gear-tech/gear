@@ -94,12 +94,14 @@ use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashingFor;
+#[cfg(not(feature = "dev"))]
+use sp_runtime::traits::OpaqueKeys;
 use sp_runtime::{
     codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
-        IdentityLookup, NumberFor, One, OpaqueKeys, SignedExtension,
+        IdentityLookup, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
@@ -404,6 +406,13 @@ impl_opaque_keys! {
     }
 }
 
+// First 4 pallets are expand from <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+#[cfg(feature = "dev")]
+type VaraSessionHandler = (Babe, Grandpa, ImOnline, AuthorityDiscovery, GearBridge);
+
+#[cfg(not(feature = "dev"))]
+type VaraSessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
@@ -411,7 +420,7 @@ impl pallet_session::Config for Runtime {
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
     type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
-    type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+    type SessionHandler = VaraSessionHandler;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
 }
@@ -1090,9 +1099,11 @@ impl pallet_gear_messenger::Config for Runtime {
     type CurrentBlockNumber = Gear;
 }
 
+// TODO (breathx): impl trait builtin collection without tuple.
 /// Builtin actors arranged in a tuple.
 #[cfg(not(feature = "dev"))]
-pub type BuiltinActors = (pallet_gear_builtin::bls12_381::Actor<Runtime>);
+pub type BuiltinActors = (pallet_gear_builtin::bls12_381::Actor<Runtime>,);
+
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
     pallet_gear_builtin::bls12_381::Actor<Runtime>,
@@ -1484,7 +1495,10 @@ impl_runtime_apis_plus_common! {
         fn merkle_proof(hash: H256) -> Option<pallet_gear_bridge_rpc_runtime_api::Proof> {
             match () {
                 #[cfg(not(feature = "dev"))]
-                () => None,
+                () => {
+                    let _ = hash;
+                    None
+                },
                 #[cfg(feature = "dev")]
                 () => GearBridge::merkle_proof(hash),
             }
