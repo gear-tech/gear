@@ -105,8 +105,6 @@ impl System {
     pub fn new() -> Self {
         let ext_manager = ExtManager::new();
 
-        let actors = ext_manager.actors.clone();
-        let pages_storage = PagesStorage { actors };
         gear_lazy_pages::init(
             LazyPagesVersion::Version1,
             LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
