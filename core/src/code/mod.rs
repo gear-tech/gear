@@ -60,8 +60,8 @@ pub struct Code {
     stack_end: Option<WasmPage>,
     /// Instruction weights version.
     instruction_weights_version: u32,
-    /// Section sizes used for charging during module instantiation.
-    section_sizes: InstantiatedSectionSizes,
+    /// Instantiated section sizes used for charging during module instantiation.
+    instantiated_section_sizes: InstantiatedSectionSizes,
 }
 
 /// Configuration for `Code::try_new_mock_`.
@@ -190,9 +190,9 @@ impl Code {
 
         // Use instrumented module to get section sizes.
         let data_section_size = utils::get_data_section_size(&module)?;
-        let global_section_size = utils::get_global_section_size(&module)?;
-        let table_section_size = utils::get_table_section_size(&module)?;
-        let element_section_size = utils::get_element_section_size(&module)?;
+        let global_section_size = utils::get_instantiated_global_section_size(&module)?;
+        let table_section_size = utils::get_instantiated_table_section_size(&module)?;
+        let element_section_size = utils::get_instantiated_element_section_size(&module)?;
 
         let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
 
@@ -209,7 +209,7 @@ impl Code {
             static_pages,
             stack_end,
             instruction_weights_version: config.version,
-            section_sizes: InstantiatedSectionSizes {
+            instantiated_section_sizes: InstantiatedSectionSizes {
                 code_section,
                 data_section: data_section_size,
                 global_section: global_section_size,
@@ -379,7 +379,7 @@ impl Code {
                 exports: self.exports,
                 static_pages: self.static_pages,
                 stack_end: self.stack_end,
-                section_sizes: self.section_sizes,
+                instantiated_section_sizes: self.instantiated_section_sizes,
                 version: self.instruction_weights_version,
             },
             self.original_code,
@@ -891,7 +891,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             GENERIC_OS_PAGE_SIZE,
         );
@@ -910,7 +910,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             GENERIC_OS_PAGE_SIZE * 2,
         );
@@ -929,7 +929,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             GENERIC_OS_PAGE_SIZE * 2,
         );
@@ -948,7 +948,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             0,
         );
@@ -967,7 +967,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             GENERIC_OS_PAGE_SIZE,
         );
@@ -988,7 +988,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             GENERIC_OS_PAGE_SIZE * 2,
         );
@@ -1011,7 +1011,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             GENERIC_OS_PAGE_SIZE * 4,
         );
@@ -1034,7 +1034,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .data_section,
             GENERIC_OS_PAGE_SIZE * 4,
         );
@@ -1060,7 +1060,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .code_section,
             INSTRUMENTATION_CODE_SIZE + 11,
         );
@@ -1084,7 +1084,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .global_section,
             (INSTRUMENTATION_GLOBALS_SIZE + mem::size_of::<i32>() * 2 + mem::size_of::<i64>())
                 as u32,
@@ -1108,7 +1108,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .table_section,
             40 * REF_TYPE_SIZE,
         );
@@ -1116,7 +1116,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .element_section,
             0,
         );
@@ -1137,7 +1137,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .table_section,
             10 * REF_TYPE_SIZE,
         );
@@ -1145,7 +1145,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .element_section,
             REF_TYPE_SIZE * 4,
         );
@@ -1166,7 +1166,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .section_sizes
+                .instantiated_section_sizes
                 .type_section,
             50,
         );

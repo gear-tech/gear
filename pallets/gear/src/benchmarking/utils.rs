@@ -243,7 +243,7 @@ where
     let context = core_processor::precharge_for_module_instantiation(
         &block_config,
         ContextChargedForInstrumentation::from(context),
-        code.section_sizes(),
+        code.instantiated_section_sizes(),
     )
     .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
 

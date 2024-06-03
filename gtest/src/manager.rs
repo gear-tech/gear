@@ -955,7 +955,7 @@ impl ExtManager {
         let context = match core_processor::precharge_for_module_instantiation(
             &block_config,
             context,
-            code.section_sizes(),
+            code.instantiated_section_sizes(),
         ) {
             Ok(c) => c,
             Err(journal) => {

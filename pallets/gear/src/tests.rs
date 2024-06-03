@@ -6311,7 +6311,7 @@ fn terminated_locking_funds() {
                 table_section: table_section_bytes,
                 element_section: element_section_bytes,
                 type_section: type_section_bytes,
-            } = *code.section_sizes();
+            } = *code.instantiated_section_sizes();
 
             let mut gas_for_code_instantiation = schedule
                 .code_section_instantiation_per_byte
@@ -7539,7 +7539,7 @@ fn gas_spent_precalculated() {
                 table_section: table_section_bytes,
                 element_section: element_section_bytes,
                 type_section: type_section_bytes,
-            } = instrumented_prog.section_sizes();
+            } = instrumented_prog.instantiated_section_sizes();
 
             let mut gas_for_code_instantiation = schedule
                 .code_section_instantiation_per_byte

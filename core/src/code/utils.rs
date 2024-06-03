@@ -466,7 +466,7 @@ pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
 }
 
 /// Calculates the amount of bytes in the global section will be initialized during module instantiation.
-pub fn get_global_section_size(module: &Module) -> Result<u32, CodeError> {
+pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, CodeError> {
     let Some(global_section) = module.global_section() else {
         // No element section
         return Ok(0);
@@ -485,7 +485,7 @@ pub fn get_global_section_size(module: &Module) -> Result<u32, CodeError> {
 }
 
 /// Calculates the amount of bytes in the table section that will be allocated during module instantiation.
-pub fn get_table_section_size(module: &Module) -> Result<u32, CodeError> {
+pub fn get_instantiated_table_section_size(module: &Module) -> Result<u32, CodeError> {
     let Some(table_section) = module.table_section() else {
         return Ok(0);
     };
@@ -501,7 +501,7 @@ pub fn get_table_section_size(module: &Module) -> Result<u32, CodeError> {
 }
 
 /// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.
-pub fn get_element_section_size(module: &Module) -> Result<u32, CodeError> {
+pub fn get_instantiated_element_section_size(module: &Module) -> Result<u32, CodeError> {
     if module.table_section().is_none() {
         return Ok(0);
     }
@@ -567,9 +567,9 @@ pub fn migration_get_section_sizes(code: &[u8]) -> Result<InstantiatedSectionSiz
     } = get_code_type_sections_sizes(code)?;
 
     let data_section_size = get_data_section_size(&module)?;
-    let global_section_size = get_global_section_size(&module)?;
-    let table_section_size = get_table_section_size(&module)?;
-    let element_section_size = get_element_section_size(&module)?;
+    let global_section_size = get_instantiated_global_section_size(&module)?;
+    let table_section_size = get_instantiated_table_section_size(&module)?;
+    let element_section_size = get_instantiated_element_section_size(&module)?;
 
     Ok(InstantiatedSectionSizes {
         code_section,

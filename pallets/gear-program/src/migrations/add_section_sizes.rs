@@ -248,7 +248,7 @@ mod test {
             assert_eq!(new_code.instruction_weights_version(), code.version);
             assert_eq!(new_code.stack_end(), None);
 
-            assert_eq!(new_code.section_sizes(),
+            assert_eq!(new_code.instantiated_section_sizes(),
                 &InstantiatedSectionSizes {
                     code_section: 11,
                     data_section: 4096,
