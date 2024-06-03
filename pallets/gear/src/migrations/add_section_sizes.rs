@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{CodeStorage, Config, Pallet};
+use crate::Config;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
@@ -40,16 +40,16 @@ const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 7;
 
 pub struct AddSectionSizesMigration<T: Config>(PhantomData<T>);
 
-impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
+impl<T: pallet_gear_program::Config + Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
     fn on_runtime_upgrade() -> Weight {
-        let onchain = Pallet::<T>::on_chain_storage_version();
+        let onchain = pallet_gear_program::Pallet::<T>::on_chain_storage_version();
 
         // 1 read for onchain storage version
         let mut weight = T::DbWeight::get().reads(1);
         let mut counter = 0;
 
         if onchain == MIGRATE_FROM_VERSION {
-            let current = Pallet::<T>::current_storage_version();
+            let current = pallet_gear_program::Pallet::<T>::current_storage_version();
             if current != ALLOWED_CURRENT_STORAGE_VERSION {
                 log::error!("❌ Migration is not allowed for current storage version {current:?}.");
                 return weight;
@@ -58,11 +58,25 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            CodeStorage::<T>::translate(|code_id, code: v6::InstrumentedCode| {
-                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                counter += 1;
+            let instrumentation_cost = T::Schedule::get().process_costs().instrumentation;
+            let instrumentation_cost_per_byte =
+                T::Schedule::get().process_costs().instrumentation_per_byte;
 
-                let section_sizes = migration_get_section_sizes(&code.code).unwrap_or_else(|err| {
+            pallet_gear_program::CodeStorage::<T>::translate(
+                |code_id, code: v6::InstrumentedCode| {
+                    // Charge for re-instrumentation
+                    weight = weight.saturating_add(
+                        instrumentation_cost
+                            .cost_for_with_bytes(
+                                instrumentation_cost_per_byte,
+                                code.original_code_len.into(),
+                            )
+                            .into(),
+                    );
+
+                    counter += 1;
+
+                    let section_sizes = migration_get_section_sizes(&code.code).unwrap_or_else(|err| {
                     log::error!("❌ Failed to get section sizes for code with id {code_id:?}, error: {err:?}");
                     // Fallback, should never happen.
                     InstantiatedSectionSizes {
@@ -75,25 +89,26 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
                     }
                 });
 
-                let code = unsafe {
-                    InstrumentedCode::new_unchecked(
-                        code.code,
-                        code.original_code_len,
-                        code.exports,
-                        code.static_pages,
-                        code.stack_end,
-                        section_sizes,
-                        code.version,
-                    )
-                };
+                    let code = unsafe {
+                        InstrumentedCode::new_unchecked(
+                            code.code,
+                            code.original_code_len,
+                            code.exports,
+                            code.static_pages,
+                            code.stack_end,
+                            section_sizes,
+                            code.version,
+                        )
+                    };
 
-                Some(code)
-            });
+                    Some(code)
+                },
+            );
 
             // Put new storage version
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
-            update_to.put::<Pallet<T>>();
+            update_to.put::<pallet_gear_program::Pallet<T>>();
 
             log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
         } else {
@@ -105,8 +120,8 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let current = Pallet::<T>::current_storage_version();
-        let onchain = Pallet::<T>::on_chain_storage_version();
+        let current = pallet_gear_program::Pallet::<T>::current_storage_version();
+        let onchain = pallet_gear_program::Pallet::<T>::on_chain_storage_version();
 
         let res = if onchain == MIGRATE_FROM_VERSION {
             ensure!(
@@ -127,7 +142,7 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
         if let Some(old_count) = Option::<u64>::decode(&mut state.as_ref())
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
-            let count = CodeStorage::<T>::iter_keys().count() as u64;
+            let count = pallet_gear_program::CodeStorage::<T>::iter_keys().count() as u64;
             ensure!(old_count == count, "incorrect count of elements");
         }
 
@@ -158,13 +173,13 @@ mod v6 {
 
     #[cfg(feature = "try-runtime")]
     use {
-        crate::{Config, Pallet},
         frame_support::{
             storage::types::StorageMap,
             traits::{PalletInfo, StorageInstance},
             Identity,
         },
         gear_core::ids::CodeId,
+        pallet_gear_program::{Config, Pallet},
         sp_std::marker::PhantomData,
     };
 
@@ -240,7 +255,7 @@ mod test {
             assert!(!w.is_zero());
             AddSectionSizesMigration::<Test>::post_upgrade(state).unwrap();
 
-            let new_code = CodeStorage::<Test>::get(CodeId::from(1u64)).unwrap();
+            let new_code = pallet_gear_program::CodeStorage::<Test>::get(CodeId::from(1u64)).unwrap();
             assert_eq!(new_code.code(), code.code.as_slice());
             assert_eq!(new_code.original_code_len(), code.original_code_len);
             assert_eq!(new_code.exports(), &code.exports);

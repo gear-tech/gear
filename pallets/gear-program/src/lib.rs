@@ -239,7 +239,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
+    pub type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
 
     common::wrap_storage_map!(
         storage: CodeStorage,
