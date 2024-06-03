@@ -303,19 +303,19 @@ impl BackendAllocSyscallError for AllocExtError {
     }
 }
 
-struct LazyGrowHandler<L: LazyPagesInterface> {
+struct LazyGrowHandler<LP: LazyPagesInterface> {
     old_mem_addr: Option<u64>,
     old_mem_size: WasmPagesAmount,
-    _phantom: PhantomData<L>,
+    _phantom: PhantomData<LP>,
 }
 
-impl<Context, L: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L> {
+impl<Context, LP: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<LP> {
     fn before_grow_action(ctx: &mut Context, mem: &mut impl Memory<Context>) -> Self {
         // New pages allocation may change wasm memory buffer location.
         // So we remove protections from lazy-pages
         // and then in `after_grow_action` we set protection back for new wasm memory buffer.
         let old_mem_addr = mem.get_buffer_host_addr(ctx);
-        L::remove_lazy_pages_prot(ctx, mem);
+        LP::remove_lazy_pages_prot(ctx, mem);
         Self {
             old_mem_addr,
             old_mem_size: mem.size(ctx),
@@ -329,7 +329,7 @@ impl<Context, L: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L>
         let new_mem_addr = mem.get_buffer_host_addr(ctx).unwrap_or_else(|| {
             unreachable!("Memory size cannot be zero after grow is applied for memory")
         });
-        L::update_lazy_pages_and_protect_again(
+        LP::update_lazy_pages_and_protect_again(
             ctx,
             mem,
             self.old_mem_addr,
@@ -340,7 +340,7 @@ impl<Context, L: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L>
 }
 
 /// Structure providing externalities for running host functions.
-pub struct Ext<L: LazyPagesInterface> {
+pub struct Ext<LP: LazyPagesInterface> {
     /// Processor context.
     pub context: ProcessorContext,
     /// Actual gas counter type within wasm module's global.
@@ -349,11 +349,11 @@ pub struct Ext<L: LazyPagesInterface> {
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
     outgoing_gasless: u64,
-    phantom: PhantomData<L>,
+    _phantom: PhantomData<LP>,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
-impl<L: LazyPagesInterface> ProcessorExternalities for Ext<L> {
+impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
     fn new(context: ProcessorContext) -> Self {
         let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
         {
@@ -366,7 +366,7 @@ impl<L: LazyPagesInterface> ProcessorExternalities for Ext<L> {
             context,
             current_counter,
             outgoing_gasless: 0,
-            phantom: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -388,7 +388,7 @@ impl<L: LazyPagesInterface> ProcessorExternalities for Ext<L> {
         let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
 
         // Accessed pages are all pages, that had been released and are in allocations set or static.
-        let mut accessed_pages = L::get_write_accessed_pages();
+        let mut accessed_pages = LP::get_write_accessed_pages();
         accessed_pages.retain(|p| {
             let wasm_page: WasmPage = p.to_page();
             wasm_page < static_pages || allocations.contains(wasm_page)
@@ -445,7 +445,7 @@ impl<L: LazyPagesInterface> ProcessorExternalities for Ext<L> {
         globals_config: GlobalsAccessConfig,
         lazy_pages_costs: LazyPagesCosts,
     ) {
-        L::init_for_program(
+        LP::init_for_program(
             ctx,
             mem,
             prog_id,
@@ -460,15 +460,15 @@ impl<L: LazyPagesInterface> ProcessorExternalities for Ext<L> {
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,
     ) {
-        L::remove_lazy_pages_prot(ctx, mem);
+        LP::remove_lazy_pages_prot(ctx, mem);
     }
 
     fn lazy_pages_status() -> Status {
-        L::get_status()
+        LP::get_status()
     }
 }
 
-impl<L: LazyPagesInterface> BackendExternalities for Ext<L> {
+impl<LP: LazyPagesInterface> BackendExternalities for Ext<LP> {
     fn gas_amount(&self) -> GasAmount {
         self.context.gas_counter.to_amount()
     }
@@ -479,11 +479,11 @@ impl<L: LazyPagesInterface> BackendExternalities for Ext<L> {
         writes: &[MemoryInterval],
         gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        L::pre_process_memory_accesses(reads, writes, gas_counter)
+        LP::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 
-impl<L: LazyPagesInterface> Ext<L> {
+impl<LP: LazyPagesInterface> Ext<LP> {
     fn check_message_value(&mut self, message_value: u128) -> Result<(), FallibleExtError> {
         let existential_deposit = self.context.existential_deposit;
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
@@ -689,7 +689,7 @@ impl<L: LazyPagesInterface> Ext<L> {
     }
 }
 
-impl<L: LazyPagesInterface> CountersOwner for Ext<L> {
+impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
     fn charge_gas_for_token(&mut self, token: CostToken) -> Result<(), ChargeError> {
         let amount = self.context.costs.syscalls.cost_for_token(token);
         let common_charge = self.context.gas_counter.charge(amount);
@@ -767,7 +767,7 @@ impl<L: LazyPagesInterface> CountersOwner for Ext<L> {
     }
 }
 
-impl<L: LazyPagesInterface> Externalities for Ext<L> {
+impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     type UnrecoverableError = UnrecoverableExtError;
     type FallibleError = FallibleExtError;
     type AllocError = AllocExtError;
@@ -783,7 +783,7 @@ impl<L: LazyPagesInterface> Externalities for Ext<L> {
 
         self.context
             .allocations_context
-            .alloc::<Context, LazyGrowHandler<L>>(ctx, mem, pages, |pages| {
+            .alloc::<Context, LazyGrowHandler<LP>>(ctx, mem, pages, |pages| {
                 let gas_for_call = self.context.costs.mem_grow.cost_for_one();
                 let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
                 Self::charge_gas_if_enough(
