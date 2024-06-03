@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::marker::PhantomData;
-
 use crate::{
     configs::{BlockInfo, ExtCosts},
     context::SystemReservationContext,
@@ -26,6 +24,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
+use core::marker::PhantomData;
 use gear_core::{
     costs::CostToken,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -307,7 +306,7 @@ impl BackendAllocSyscallError for AllocExtError {
 struct LazyGrowHandler<L: LazyPagesInterface> {
     old_mem_addr: Option<u64>,
     old_mem_size: WasmPagesAmount,
-    phantom: PhantomData<L>,
+    _phantom: PhantomData<L>,
 }
 
 impl<Context, L: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L> {
@@ -320,7 +319,7 @@ impl<Context, L: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L>
         Self {
             old_mem_addr,
             old_mem_size: mem.size(ctx),
-            phantom: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
