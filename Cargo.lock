@@ -7107,6 +7107,7 @@ name = "hypercore-sequencer"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "gear-core",
  "gprimitives",
  "hypercore-observer",
  "hypercore-signer",
@@ -7119,6 +7120,7 @@ version = "1.4.2"
 dependencies = [
  "anyhow",
  "ethers",
+ "gprimitives",
  "hex",
  "secp256k1 0.29.0",
  "sha3",

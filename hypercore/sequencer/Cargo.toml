@@ -15,3 +15,4 @@ log.workspace = true
 anyhow.workspace = true
 hypercore-signer = { path = "../signer" }
 hypercore-observer.workspace = true
+gear-core.workspace = true

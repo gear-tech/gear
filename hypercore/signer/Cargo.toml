@@ -14,6 +14,7 @@ secp256k1 = { version = "0.29", features = ["rand", "global-context", "hashes-st
 anyhow.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 sha3 = { version = "0.10.0", default-features = false }
+gprimitives = { workspace = true, features = ["codec"] }
 
 [dev-dependencies]
 ethers = "2"

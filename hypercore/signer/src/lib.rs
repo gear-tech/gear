@@ -19,11 +19,7 @@
 //! Signer library for hypercore.
 
 use anyhow::{Context as _, Result};
-use secp256k1::{
-    ecdsa::RecoverableSignature,
-    hashes::{sha256, Hash},
-    Message,
-};
+use secp256k1::{ecdsa::RecoverableSignature, Message};
 use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf};
 
@@ -32,8 +28,23 @@ pub struct PublicKey(pub [u8; 33]);
 
 pub struct PrivateKey(pub [u8; 32]);
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Address(pub [u8; 20]);
+
 #[derive(Debug, Clone)]
 pub struct Signature([u8; 65]);
+
+pub struct Hash([u8; 32]);
+
+impl From<Hash> for gprimitives::H256 {
+    fn from(source: Hash) -> gprimitives::H256 {
+        gprimitives::H256::from_slice(&source.0)
+    }
+}
+
+pub fn hash(data: &[u8]) -> gprimitives::H256 {
+    Hash(<[u8; 32]>::from(sha3::Keccak256::digest(data))).into()
+}
 
 impl PublicKey {
     pub fn from_bytes(bytes: [u8; 33]) -> Self {
@@ -44,18 +55,16 @@ impl PublicKey {
         hex::encode(self.0)
     }
 
-    pub fn to_address(&self) -> String {
-        // Skip the first byte (0x04 for uncompressed, or compression flag for compressed)
+    pub fn to_address(&self) -> Address {
         let public_key_uncompressed = secp256k1::PublicKey::from_slice(&self.0)
             .expect("Invalid public key")
             .serialize_uncompressed();
 
-        // Keccak256 hash of the uncompressed public key (excluding the first byte)
+        let mut address = Address::default();
         let hash = sha3::Keccak256::digest(&public_key_uncompressed[1..]);
+        address.0[..20].copy_from_slice(&hash[12..]);
 
-        // Last 20 bytes of the hash
-        let address = hex::encode(&hash[12..]);
-        format!("0x{}", address)
+        address
     }
 
     pub fn from_hex(s: &str) -> Result<Self> {
@@ -76,9 +85,21 @@ impl Signature {
     }
 }
 
+impl From<[u8; 65]> for Signature {
+    fn from(bytes: [u8; 65]) -> Self {
+        Self(bytes)
+    }
+}
+
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_hex())
+    }
+}
+
+impl fmt::Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
     }
 }
 
@@ -201,10 +222,6 @@ mod tests {
     use super::*;
 
     use ethers::utils::keccak256;
-    use secp256k1::{
-        ecdsa::RecoverableSignature, generate_keypair, rand::rngs::OsRng, Message, Secp256k1,
-    };
-    use std::str::FromStr;
 
     #[test]
     fn test_signer_with_known_vectors() {
