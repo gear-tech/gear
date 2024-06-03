@@ -63,9 +63,13 @@ pub struct Args {
     #[arg(long = "base-path")]
     pub base_path: Option<PathBuf>,
 
-    /// Base path where application settings are stored
+    /// Sequencer key, if intended to run node in sequencer mode.
     #[arg(long = "sequencer-key")]
     pub sequencer_key: Option<String>,
+
+    /// Validator (processor) key, if intended to run node in validator mode.
+    #[arg(long = "sequencer-key")]
+    pub validator_key: Option<String>,
 
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,
