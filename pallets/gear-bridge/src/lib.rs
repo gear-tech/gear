@@ -22,11 +22,12 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+mod builtin;
 mod internal;
 
-pub use pallet::*;
-
 pub use crate::internal::Proof;
+pub use builtin::Actor;
+pub use pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -34,7 +35,7 @@ pub mod pallet {
     use common::Origin;
     use frame_support::{pallet_prelude::*, traits::StorageVersion, StorageHasher};
     use frame_system::pallet_prelude::*;
-    use gear_core::message::PayloadSizeError;
+    use gear_core::message::{Payload, PayloadSizeError};
     use primitive_types::{H160, H256, U256};
     use sp_runtime::{key_types, traits::OpaqueKeys};
     use sp_staking::SessionIndex;
@@ -70,6 +71,7 @@ pub mod pallet {
         ValidatorsSetUpdated(H256),
     }
 
+    // TODO (breathx): NonZeroValue for builtin actor
     #[pallet::error]
     pub enum Error<T> {
         BridgePaused,
@@ -134,19 +136,12 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            ensure!(!Paused::<T>::get(), Error::<T>::BridgePaused);
-
+            // TODO (breathx): avoid here double payload wrapping for builtin.
             let payload = payload
                 .try_into()
                 .map_err(|e: PayloadSizeError| DispatchError::Other(e.into()))?;
 
-            let nonce = Self::fetch_inc_nonce();
-            let source = who.into_origin();
-            let data = EthMessageData::new(destination, payload);
-
-            let message = EthMessage::from_data(nonce, source, data);
-
-            Self::queue(&message)?;
+            let _ = Self::send_impl(who.cast(), destination, payload)?;
 
             Ok(().into())
         }
@@ -232,6 +227,21 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        pub(crate) fn send_impl(
+            source: H256,
+            destination: H160,
+            payload: Payload,
+        ) -> Result<(U256, H256), Error<T>> {
+            ensure!(!Paused::<T>::get(), Error::<T>::BridgePaused);
+
+            let nonce = Self::fetch_inc_nonce();
+            let data = EthMessageData::new(destination, payload);
+
+            let message = EthMessage::from_data(nonce, source, data);
+
+            Self::queue(&message)
+        }
+
         fn fetch_inc_nonce() -> U256 {
             NextNonce::<T>::mutate(|v| {
                 let nonce = *v;
@@ -240,7 +250,7 @@ pub mod pallet {
             })
         }
 
-        fn queue(message: &EthMessage) -> Result<(), Error<T>> {
+        fn queue(message: &EthMessage) -> Result<(U256, H256), Error<T>> {
             let hash = Queue::<T>::mutate(|v| {
                 (v.len() < T::QueueLimit::get() as usize)
                     .then(|| {
@@ -255,12 +265,11 @@ pub mod pallet {
 
             QueueChanged::<T>::put(true);
 
-            Self::deposit_event(Event::<T>::MessageQueued {
-                nonce: message.nonce(),
-                hash,
-            });
+            let nonce = message.nonce();
 
-            Ok(())
+            Self::deposit_event(Event::<T>::MessageQueued { nonce, hash });
+
+            Ok((nonce, hash))
         }
 
         fn update_validators_set(weight: &mut Weight) {

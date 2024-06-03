@@ -18,6 +18,8 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
+pallet-gear-builtin.workspace = true
+gbuiltin-bridge.workspace = true
 
 # Internal deps
 common.workspace = true
@@ -66,16 +68,19 @@ std = [
 	"sp-session/std",
 	"sp-staking/std",
 	"sp-consensus-grandpa/std",
+	"pallet-gear-builtin/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
+	"pallet-gear-builtin/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-support/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-gear-builtin/try-runtime",
 ]

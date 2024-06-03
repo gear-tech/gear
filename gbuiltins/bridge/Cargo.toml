@@ -1,0 +1,13 @@
+[package]
+name = "gbuiltin-bridge"
+description = "Entities for working with Gear builtin actor providing bridge functionality"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codec = { workspace = true, features = ["derive"] }
+derive_more.workspace = true
+gprimitives.workspace = true
+gear-core.workspace = true

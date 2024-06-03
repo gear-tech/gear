@@ -74,6 +74,7 @@ members = [
     "examples/wat",
     "galloc",
     "gbuiltins/bls381",
+    "gbuiltins/bridge",
     "gcli",
     "gclient",
     "gcore",
@@ -193,6 +194,7 @@ common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
+gbuiltin-bridge = { path = "gbuiltins/bridge", default-features = false }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }

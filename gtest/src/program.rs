@@ -789,7 +789,7 @@ pub mod gbuild {
         let manifest_path = etc::find_up("Cargo.toml")
             .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?;
         let manifest = Manifest::from_path(&manifest_path)
-            .map_err(|_| Error::GbuildArtifactNotFound("Could not parse mainfest".into()))?;
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not parse manifest".into()))?;
         let target = etc::find_up("target").unwrap_or(
             manifest_path
                 .parent()
