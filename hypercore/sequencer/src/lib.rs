@@ -18,8 +18,9 @@
 
 //! Sequencer for hypercore.
 
+mod agro;
+
 use anyhow::Result;
-use gprimitives::H256;
 use hypercore_observer::Event;
 use hypercore_signer::Signer;
 
