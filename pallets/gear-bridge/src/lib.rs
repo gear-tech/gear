@@ -283,13 +283,7 @@ pub mod pallet {
     impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
         type Key = sp_consensus_grandpa::AuthorityId;
 
-        // TODO (breathx): consider impl.
-        fn on_genesis_session<'a, I: 'a>(validators: I)
-        where
-            I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
-        {
-            Self::update_validators_set(validators);
-        }
+        fn on_genesis_session<'a, I: 'a>(_validators: I) {}
 
         fn on_new_session<'a, I: 'a>(changed: bool, _validators: I, queued_validators: I)
         where
