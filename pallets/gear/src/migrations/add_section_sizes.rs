@@ -65,14 +65,13 @@ impl<T: pallet_gear_program::Config + Config> OnRuntimeUpgrade for AddSectionSiz
             pallet_gear_program::CodeStorage::<T>::translate(
                 |code_id, code: v6::InstrumentedCode| {
                     // Charge for re-instrumentation
-                    weight = weight.saturating_add(
-                        instrumentation_cost
-                            .cost_for_with_bytes(
-                                instrumentation_cost_per_byte,
-                                code.original_code_len.into(),
-                            )
-                            .into(),
-                    );
+                    weight = weight.saturating_add(Weight::from_parts(
+                        instrumentation_cost.cost_for_with_bytes(
+                            instrumentation_cost_per_byte,
+                            code.original_code_len.into(),
+                        ),
+                        0,
+                    ));
 
                     counter += 1;
 
