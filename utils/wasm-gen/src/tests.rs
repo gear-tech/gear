@@ -33,6 +33,9 @@ use gear_core_backend::{
     error::{ActorTerminationReason, TerminationReason, TrapExplanation},
 };
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
+use gear_lazy_pages::LazyPagesVersion;
+use gear_lazy_pages_common::LazyPagesInitContext;
+use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     gas_metering::CustomConstantCostRules,
@@ -43,6 +46,8 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::num::{NonZeroU32, NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
+
+type Ext = gear_core_processor::Ext<LazyPagesNative>;
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
@@ -804,13 +809,16 @@ fn execute_wasm_with_custom_configs(
     imitate_reply: bool,
     value: u128,
     gas: u64,
-) -> BackendReport<gear_core_processor::Ext> {
+) -> BackendReport<Ext> {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
     const INITIAL_PAGES: u16 = 1;
 
-    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-        PROGRAM_STORAGE_PREFIX
-    ));
+    gear_lazy_pages::init(
+        LazyPagesVersion::Version1,
+        LazyPagesInitContext::new(PROGRAM_STORAGE_PREFIX),
+        (),
+    )
+    .expect("Failed to init lazy-pages");
 
     let gear_config = (
         GearWasmGeneratorConfigBuilder::new()
@@ -871,7 +879,7 @@ fn execute_wasm_with_custom_configs(
         ..ProcessorContext::new_mock()
     };
 
-    let ext = gear_core_processor::Ext::new(processor_context);
+    let ext = Ext::new(processor_context);
     let env = Environment::new(
         ext,
         code.code(),
@@ -882,7 +890,7 @@ fn execute_wasm_with_custom_configs(
     .expect("Failed to create environment");
 
     env.execute(|ctx, mem, globals_config| {
-        gear_core_processor::Ext::lazy_pages_init_for_program(
+        Ext::lazy_pages_init_for_program(
             ctx,
             mem,
             program_id,

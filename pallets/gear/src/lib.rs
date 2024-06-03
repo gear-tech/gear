@@ -66,7 +66,6 @@ use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
-    Ext,
 };
 use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
@@ -86,6 +85,8 @@ use gear_core::{
     percent::Percent,
     program::Program,
 };
+use gear_lazy_pages_common::LazyPagesInterface;
+use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
 use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
@@ -98,6 +99,8 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
+
+pub type Ext = core_processor::Ext<LazyPagesRuntimeInterface>;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
@@ -1054,7 +1057,7 @@ pub mod pallet {
 
         pub(crate) fn enable_lazy_pages() {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !gear_lazy_pages_interface::try_to_enable_lazy_pages(prefix) {
+            if !LazyPagesRuntimeInterface::try_to_enable_lazy_pages(prefix) {
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }

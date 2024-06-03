@@ -4534,7 +4534,6 @@ dependencies = [
  "gear-core-backend",
  "gear-core-errors",
  "gear-lazy-pages-common",
- "gear-lazy-pages-interface",
  "gear-wasm-instrument",
  "gsys",
  "log",
@@ -4604,6 +4603,16 @@ dependencies = [
  "gear-runtime-interface",
  "log",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
+]
+
+[[package]]
+name = "gear-lazy-pages-native-interface"
+version = "1.4.2"
+dependencies = [
+ "gear-core",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
+ "gear-wasm-instrument",
 ]
 
 [[package]]
@@ -4976,7 +4985,9 @@ dependencies = [
  "gear-core",
  "gear-core-backend",
  "gear-core-processor",
- "gear-lazy-pages-interface",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
+ "gear-lazy-pages-native-interface",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -5360,6 +5371,7 @@ dependencies = [
  "gear-core-processor",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-native-interface",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
