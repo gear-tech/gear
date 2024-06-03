@@ -26,6 +26,16 @@ contract Router {
         UpdateProgramData[] updateProgramsArray;
     }
 
+    struct ValidatorSign {
+        bytes publicKey;
+        bytes signature;
+    }
+
+    struct SignedCommitData {
+        CommitData commitData;
+        ValidatorSign[] signatures;
+    }
+
     event UploadCode(address origin, bytes32 codeId, bytes32 blobTx);
 
     event UploadedCode(bytes32 codeId);
@@ -59,7 +69,11 @@ contract Router {
         program = _program;
     }
 
-    function commit(CommitData calldata commitData) external {
+    function commit(SignedCommitData calldata signedCommitData) external {
+        CommitData calldata commitData = signedCommitData.commitData;
+
+        // TODO: Verify signatures.
+
         for (uint256 i = 0; i < commitData.codeIdsArray.length; i++) {
             bytes32 codeId = commitData.codeIdsArray[i];
             codeIds[codeId] = true;

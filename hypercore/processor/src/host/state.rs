@@ -20,7 +20,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use gear_core::{ids::ProgramId, pages::GearPage, code::InstrumentedCode};
+use gear_core::{code::InstrumentedCode, ids::ProgramId, pages::GearPage};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
@@ -52,5 +52,3 @@ pub struct MessageQueue(pub Vec<Message>);
 /// Memory pages table, mapping gear page number to page data bytes hash.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct MemoryPages(pub BTreeMap<GearPage, H256>);
-
-

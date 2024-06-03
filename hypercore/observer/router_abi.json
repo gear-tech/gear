@@ -28,51 +28,75 @@
     "name": "commit",
     "inputs": [
       {
-        "name": "commitData",
+        "name": "signedCommitData",
         "type": "tuple",
-        "internalType": "struct Router.CommitData",
+        "internalType": "struct Router.SignedCommitData",
         "components": [
           {
-            "name": "codeIdsArray",
-            "type": "bytes32[]",
-            "internalType": "bytes32[]"
-          },
-          {
-            "name": "createProgramsArray",
-            "type": "tuple[]",
-            "internalType": "struct Router.CreateProgramData[]",
+            "name": "commitData",
+            "type": "tuple",
+            "internalType": "struct Router.CommitData",
             "components": [
               {
-                "name": "salt",
-                "type": "bytes",
-                "internalType": "bytes"
+                "name": "codeIdsArray",
+                "type": "bytes32[]",
+                "internalType": "bytes32[]"
               },
               {
-                "name": "codeId",
-                "type": "bytes32",
-                "internalType": "bytes32"
+                "name": "createProgramsArray",
+                "type": "tuple[]",
+                "internalType": "struct Router.CreateProgramData[]",
+                "components": [
+                  {
+                    "name": "salt",
+                    "type": "bytes",
+                    "internalType": "bytes"
+                  },
+                  {
+                    "name": "codeId",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "stateHash",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  }
+                ]
               },
               {
-                "name": "stateHash",
-                "type": "bytes32",
-                "internalType": "bytes32"
+                "name": "updateProgramsArray",
+                "type": "tuple[]",
+                "internalType": "struct Router.UpdateProgramData[]",
+                "components": [
+                  {
+                    "name": "program",
+                    "type": "address",
+                    "internalType": "address"
+                  },
+                  {
+                    "name": "stateHash",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  }
+                ]
               }
             ]
           },
           {
-            "name": "updateProgramsArray",
+            "name": "signatures",
             "type": "tuple[]",
-            "internalType": "struct Router.UpdateProgramData[]",
+            "internalType": "struct Router.ValidatorSign[]",
             "components": [
               {
-                "name": "program",
-                "type": "address",
-                "internalType": "address"
+                "name": "publicKey",
+                "type": "bytes",
+                "internalType": "bytes"
               },
               {
-                "name": "stateHash",
-                "type": "bytes32",
-                "internalType": "bytes32"
+                "name": "signature",
+                "type": "bytes",
+                "internalType": "bytes"
               }
             ]
           }
