@@ -22,7 +22,8 @@ use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf,
+    Config, LazyPagesInterface, LazyPagesRuntimeInterface, MailboxOf, Pallet as Gear,
+    ProgramStorageOf, QueueOf,
 };
 use common::{storage::*, CodeStorage, Origin, ProgramStorage};
 use core_processor::{
@@ -70,9 +71,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-        ProgramStorageOf::<T>::pages_final_prefix()
-    ));
+    let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+    assert!(LazyPagesRuntimeInterface::try_to_enable_lazy_pages(prefix));
 
     // to see logs in bench tests
     #[cfg(feature = "std")]

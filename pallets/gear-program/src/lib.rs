@@ -148,7 +148,7 @@ pub mod pallet {
         paused_program_storage::{ResumeSession, SessionId},
         scheduler::*,
         storage::*,
-        CodeMetadata, Program,
+        CodeMetadata,
     };
     use frame_support::{
         pallet_prelude::*,
@@ -162,7 +162,7 @@ pub mod pallet {
         ids::{CodeId, ProgramId},
         memory::PageBuf,
         pages::GearPage,
-        program::MemoryInfix,
+        program::{MemoryInfix, Program},
     };
     use primitive_types::H256;
     use sp_runtime::DispatchError;

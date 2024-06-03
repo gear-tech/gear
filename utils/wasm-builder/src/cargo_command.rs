@@ -23,6 +23,7 @@ use std::{env, path::PathBuf, process::Command};
 use crate::builder_error::BuilderError;
 
 /// Helper to deal with the `cargo` command.
+#[derive(Clone)]
 pub struct CargoCommand {
     path: String,
     manifest_path: PathBuf,

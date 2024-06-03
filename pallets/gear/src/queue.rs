@@ -18,6 +18,7 @@
 
 use super::*;
 use core_processor::ContextChargedForInstrumentation;
+use gear_core::program::ProgramState;
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,

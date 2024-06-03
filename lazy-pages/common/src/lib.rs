@@ -27,8 +27,10 @@ use codec::{Decode, Encode};
 use core::{any::Any, fmt::Debug};
 use gear_core::{
     costs::CostOf,
-    memory::HostPointer,
-    pages::{GearPage, GearPagesAmount, WasmPage},
+    ids::ProgramId,
+    memory::{HostPointer, Memory, MemoryInterval},
+    pages::{GearPage, GearPagesAmount, WasmPage, WasmPagesAmount},
+    program::MemoryInfix,
     str::LimitedStr,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -152,5 +154,95 @@ impl LazyPagesInitContext {
             global_names: vec![LimitedStr::from_small_str(GLOBAL_NAME_GAS)],
             pages_storage_prefix: prefix.to_vec(),
         }
+    }
+}
+
+pub trait LazyPagesInterface {
+    /// Try to enable and initialize lazy pages env
+    fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool;
+
+    /// Protect and save storage keys for pages which has no data
+    fn init_for_program<Context>(
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        stack_end: Option<WasmPage>,
+        globals_config: GlobalsAccessConfig,
+        costs: LazyPagesCosts,
+    );
+
+    /// Remove lazy-pages protection, returns wasm memory begin addr
+    fn remove_lazy_pages_prot<Context>(ctx: &mut Context, mem: &mut impl Memory<Context>);
+
+    /// Protect lazy-pages and set new wasm mem addr and size,
+    /// if they have been changed.
+    fn update_lazy_pages_and_protect_again<Context>(
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
+        old_mem_addr: Option<HostPointer>,
+        old_mem_size: WasmPagesAmount,
+        new_mem_addr: HostPointer,
+    );
+
+    /// Returns list of released pages numbers.
+    fn get_write_accessed_pages() -> Vec<GearPage>;
+
+    /// Returns lazy pages actual status.
+    fn get_status() -> Status;
+
+    /// Pre-process memory access in syscalls in lazy-pages.
+    fn pre_process_memory_accesses(
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        gas_counter: &mut u64,
+    ) -> Result<(), ProcessAccessError>;
+}
+
+impl LazyPagesInterface for () {
+    fn try_to_enable_lazy_pages(_prefix: [u8; 32]) -> bool {
+        unimplemented!()
+    }
+
+    fn init_for_program<Context>(
+        _ctx: &mut Context,
+        _mem: &mut impl Memory<Context>,
+        _program_id: ProgramId,
+        _memory_infix: MemoryInfix,
+        _stack_end: Option<WasmPage>,
+        _globals_config: GlobalsAccessConfig,
+        _costs: LazyPagesCosts,
+    ) {
+        unimplemented!()
+    }
+
+    fn remove_lazy_pages_prot<Context>(_ctx: &mut Context, _mem: &mut impl Memory<Context>) {
+        unimplemented!()
+    }
+
+    fn update_lazy_pages_and_protect_again<Context>(
+        _ctx: &mut Context,
+        _mem: &mut impl Memory<Context>,
+        _old_mem_addr: Option<HostPointer>,
+        _old_mem_size: WasmPagesAmount,
+        _new_mem_addr: HostPointer,
+    ) {
+        unimplemented!()
+    }
+
+    fn get_write_accessed_pages() -> Vec<GearPage> {
+        unimplemented!()
+    }
+
+    fn get_status() -> Status {
+        unimplemented!()
+    }
+
+    fn pre_process_memory_accesses(
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+        _gas_counter: &mut u64,
+    ) -> Result<(), ProcessAccessError> {
+        unimplemented!()
     }
 }
