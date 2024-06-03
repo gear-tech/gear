@@ -33,12 +33,15 @@ pub use pallet::*;
 pub mod pallet {
     use crate::internal::{EthMessage, EthMessageData, Proof};
     use common::Origin;
-    use frame_support::{pallet_prelude::*, traits::StorageVersion, StorageHasher};
+    use frame_support::{
+        pallet_prelude::*,
+        traits::{OneSessionHandler, StorageVersion},
+        StorageHasher,
+    };
     use frame_system::pallet_prelude::*;
     use gear_core::message::{Payload, PayloadSizeError};
     use primitive_types::{H160, H256, U256};
-    use sp_runtime::{key_types, traits::OpaqueKeys};
-    use sp_staking::SessionIndex;
+    use sp_runtime::{traits::One, BoundToRuntimeAppPublic, Saturating};
     use sp_std::vec::Vec;
 
     pub(crate) use binary_merkle_tree as merkle_tree;
@@ -49,6 +52,7 @@ pub mod pallet {
 
     pub const BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
+    // TODO (breathx): rm session and staking bound.
     #[pallet::config]
     pub trait Config:
         frame_system::Config + pallet_session::Config + pallet_staking::Config
@@ -85,10 +89,6 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type NextNonce<T> = StorageValue<_, U256, ValueQuery>;
 
-    // TODO (breathx): impl migrations for me.
-    #[pallet::storage]
-    pub(crate) type ParentSessionIdx<T> = StorageValue<_, SessionIndex, ValueQuery>;
-
     // TODO (breathx): consider what pause should stop: incoming requests vs whole workflow
     #[pallet::storage]
     pub(crate) type Paused<T> = StorageValue<_, bool, ValueQuery>;
@@ -104,7 +104,10 @@ pub mod pallet {
     pub(crate) type QueueRoot<T> = StorageValue<_, H256>;
 
     #[pallet::storage]
-    pub(crate) type ResetOnSessionChange<T> = StorageValue<_, bool, ValueQuery>;
+    pub(crate) type ResetOnInitOf<T> = StorageValue<_, BlockNumberFor<T>>;
+
+    #[pallet::storage]
+    pub(crate) type UpdatedRecently<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
     pub(crate) type ValidatorsSet<T> = StorageValue<_, H256>;
@@ -153,52 +156,25 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         // TODO (breathx): add max weight of root calculation
-        fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+        fn on_initialize(n: BlockNumberFor<T>) -> Weight {
             let mut weight = Weight::zero();
 
-            weight = weight.saturating_add(T::DbWeight::get().writes(1));
             QueueChanged::<T>::kill();
+            weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
-            weight = weight.saturating_add(T::DbWeight::get().reads(2));
-            let current_session_idx = <pallet_session::Pallet<T>>::current_index();
-            let parent_session_idx = ParentSessionIdx::<T>::get();
+            if ResetOnInitOf::<T>::get() == Some(n) {
+                ResetOnInitOf::<T>::kill();
+                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-            if parent_session_idx != current_session_idx {
-                weight = weight.saturating_add(T::DbWeight::get().writes(1));
-                ParentSessionIdx::<T>::put(current_session_idx);
+                Queue::<T>::kill();
+                QueueRoot::<T>::put(H256::zero());
+                ValidatorsSet::<T>::kill();
+                weight = weight.saturating_add(T::DbWeight::get().writes(3));
 
-                weight = weight.saturating_add(T::DbWeight::get().reads(2));
-                let active_era = <pallet_staking::Pallet<T>>::active_era()
-                    .map(|info| info.index)
-                    .unwrap_or_else(|| {
-                        // TODO (breathx): should we panic here?
-                        log::error!("Active era wasn't found");
-                        Default::default()
-                    });
-                let current_era = <pallet_staking::Pallet<T>>::current_era().unwrap_or_else(|| {
-                    // TODO (breathx): should we panic here?
-                    log::error!("Current era wasn't found");
-                    Default::default()
-                });
-
-                if active_era != current_era {
-                    Self::update_validators_set(&mut weight);
-
-                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
-                    ResetOnSessionChange::<T>::put(true);
-                } else {
-                    weight = weight.saturating_add(T::DbWeight::get().reads(1));
-                    if ResetOnSessionChange::<T>::get() {
-                        weight = weight.saturating_add(T::DbWeight::get().writes(4));
-                        ResetOnSessionChange::<T>::kill();
-                        Queue::<T>::kill();
-                        QueueRoot::<T>::kill();
-                        ValidatorsSet::<T>::kill();
-
-                        Self::deposit_event(Event::<T>::Reset);
-                    }
-                }
-            }
+                Self::deposit_event(Event::<T>::Reset);
+            } else {
+                weight = weight.saturating_add(T::DbWeight::get().reads(1));
+            };
 
             weight
         }
@@ -272,31 +248,6 @@ pub mod pallet {
             Ok((nonce, hash))
         }
 
-        fn update_validators_set(weight: &mut Weight) {
-            *weight = weight.saturating_add(T::DbWeight::get().reads(1));
-            let queued_keys = <pallet_session::Pallet<T>>::queued_keys();
-
-            let concat_grandpa_keys: Vec<_> = queued_keys
-                .into_iter()
-                .flat_map(|(_, keys)| {
-                    keys.get(key_types::GRANDPA)
-                        .map(|v: sp_consensus_grandpa::AuthorityId| v.into_inner().0)
-                        .unwrap_or_else(|| {
-                            // TODO (breathx): should we panic here?
-                            log::error!("Grandpa keys weren't found");
-                            Default::default()
-                        })
-                })
-                .collect();
-
-            let validators_set_hash = Blake2_256::hash(&concat_grandpa_keys).into();
-
-            *weight = weight.saturating_add(T::DbWeight::get().writes(1));
-            ValidatorsSet::<T>::put(validators_set_hash);
-
-            Self::deposit_event(Event::<T>::ValidatorsSetUpdated(validators_set_hash));
-        }
-
         pub fn merkle_proof(hash: H256) -> Option<Proof> {
             let queue = Queue::<T>::get();
 
@@ -306,5 +257,54 @@ pub mod pallet {
 
             Some(proof.into())
         }
+    }
+
+    impl<T: Config> Pallet<T> {
+        fn update_validators_set<'a, I: 'a>(validators: I)
+        where
+            I: Iterator<Item = (&'a T::AccountId, sp_consensus_grandpa::AuthorityId)>,
+        {
+            let concat_grandpa_keys: Vec<_> = validators
+                .flat_map(|(_, key)| key.clone().into_inner().0)
+                .collect();
+
+            let validators_set_hash = Blake2_256::hash(&concat_grandpa_keys).into();
+
+            ValidatorsSet::<T>::put(validators_set_hash);
+
+            Self::deposit_event(Event::<T>::ValidatorsSetUpdated(validators_set_hash));
+        }
+    }
+
+    impl<T: Config> BoundToRuntimeAppPublic for Pallet<T> {
+        type Public = sp_consensus_grandpa::AuthorityId;
+    }
+
+    impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
+        type Key = sp_consensus_grandpa::AuthorityId;
+
+        // TODO (breathx): consider impl.
+        fn on_genesis_session<'a, I: 'a>(validators: I)
+        where
+            I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
+        {
+            Self::update_validators_set(validators);
+        }
+
+        fn on_new_session<'a, I: 'a>(changed: bool, _validators: I, queued_validators: I)
+        where
+            I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
+        {
+            if changed {
+                Self::update_validators_set(queued_validators);
+                UpdatedRecently::<T>::put(true);
+            } else if UpdatedRecently::<T>::take() {
+                // ATTENTION: this algo needs to call init function before pallet session!
+                ResetOnInitOf::<T>::put(
+                    frame_system::Pallet::<T>::block_number().saturating_add(One::one()),
+                )
+            }
+        }
+        fn on_disabled(_validator_index: u32) {}
     }
 }
