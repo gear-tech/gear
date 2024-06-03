@@ -50,9 +50,6 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::{gas::GasInfo, message::ReplyInfo, program::ProgramState};
-pub use weights::WeightInfo;
-
 use alloc::{
     format,
     string::{String, ToString},
@@ -86,6 +83,9 @@ use gear_core::{
     percent::Percent,
     program::Program,
 };
+pub use gear_core::{gas::GasInfo, message::ReplyInfo, program::ProgramState};
+pub use gear_lazy_pages_common::LazyPagesInterface;
+pub use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
 use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
@@ -98,6 +98,7 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
+pub use weights::WeightInfo;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
@@ -1054,7 +1055,7 @@ pub mod pallet {
 
         pub(crate) fn enable_lazy_pages() {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !gear_lazy_pages_interface::try_to_enable_lazy_pages(prefix) {
+            if !LazyPagesRuntimeInterface::try_to_enable_lazy_pages(prefix) {
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }

@@ -19,6 +19,7 @@
 use super::*;
 use core_processor::ContextChargedForInstrumentation;
 use gear_core::program::ProgramState;
+use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
@@ -162,7 +163,7 @@ where
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
-        core_processor::process::<Ext>(
+        core_processor::process::<Ext<LazyPagesRuntimeInterface>>(
             block_config,
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),

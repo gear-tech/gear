@@ -19,6 +19,10 @@ members = [
     "core-backend",
     "core-processor",
     "core-errors",
+    "lazy-pages",
+    "lazy-pages/common",
+    "lazy-pages/interface",
+    "lazy-pages/native-interface",
     "examples/async",
     "examples/async-critical",
     "examples/async-custom-entry",
@@ -217,6 +221,7 @@ gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
+gear-lazy-pages-native-interface = { path = "lazy-pages/native-interface" }
 gear-node-testing = { path = "node/testing" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
