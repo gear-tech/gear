@@ -4609,12 +4609,10 @@ dependencies = [
 name = "gear-lazy-pages-native-interface"
 version = "1.4.2"
 dependencies = [
- "byteorder",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-wasm-instrument",
- "log",
 ]
 
 [[package]]
@@ -4987,6 +4985,7 @@ dependencies = [
  "gear-core",
  "gear-core-backend",
  "gear-core-processor",
+ "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
  "gear-utils",

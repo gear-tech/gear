@@ -33,7 +33,8 @@ use gear_core_backend::{
     error::{ActorTerminationReason, TerminationReason, TrapExplanation},
 };
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
-use gear_lazy_pages_common::LazyPagesInterface;
+use gear_lazy_pages::LazyPagesVersion;
+use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
@@ -812,9 +813,12 @@ fn execute_wasm_with_custom_configs(
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
     const INITIAL_PAGES: u16 = 1;
 
-    assert!(LazyPagesNative::try_to_enable_lazy_pages(
-        PROGRAM_STORAGE_PREFIX
-    ));
+    gear_lazy_pages::init(
+        LazyPagesVersion::Version1,
+        LazyPagesInitContext::new(PROGRAM_STORAGE_PREFIX),
+        (),
+    )
+    .expect("Failed to init lazy-pages");
 
     let gear_config = (
         GearWasmGeneratorConfigBuilder::new()
