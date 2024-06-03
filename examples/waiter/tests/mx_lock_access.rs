@@ -32,7 +32,7 @@ fn deref_mut_mx_lock_guard_from_different_msg_fails() {
 fn access_mx_lock_guard_from_different_msg_fails(
     lock_access_subcommand: LockStaticAccessSubcommand,
 ) {
-    let system = System::new().expect("single instance");
+    let system = System::new();
     let (program, lock_msg_id) = init_fixture(&system);
 
     let lock_access_result =
