@@ -32,7 +32,7 @@ use super::*;
 use crate::{BlockGasLimitOf, CurrencyOf, Event, String, WaitlistOf};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
-use gear_core::ids::{CodeId, ReservationId};
+use gear_core::ids::{prelude::*, CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SyscallName;
 use pallet_timestamp::Pallet as TimestampPallet;
@@ -595,9 +595,9 @@ where
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
         let salt = 10u64;
         let expected_pid = ProgramId::generate_from_program(
+            next_user_mid,
             simplest_gear_wasm::<T>().hash,
             &salt.to_le_bytes(),
-            next_user_mid,
         );
 
         let mp = vec![Kind::CreateProgram(

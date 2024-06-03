@@ -23,6 +23,12 @@ on:
       number:
         type: string
         description: "Pull request number that triggers this workflow"
+      release:
+        type: boolean
+        default: false
+      production:
+        type: boolean
+        default: false
 
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 

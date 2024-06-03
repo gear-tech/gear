@@ -21,7 +21,7 @@ use super::{
     VALUE_SIZE,
 };
 use gear_call_gen::{GearCall, UploadProgramArgs};
-use gear_core::ids::{CodeId, ProgramId};
+use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     wasm_gen_arbitrary::{Result, Unstructured},
@@ -31,8 +31,13 @@ use gear_wasm_gen::{
 use runtime_primitives::Balance;
 use vara_runtime::EXISTENTIAL_DEPOSIT;
 
-pub(crate) type UploadProgramRuntimeData<'a> =
-    (&'a str, Option<&'a NonEmpty<ProgramId>>, u64, Balance);
+pub(crate) type UploadProgramRuntimeData<'a> = (
+    &'a str,
+    Option<&'a NonEmpty<ProgramId>>,
+    Option<&'a NonEmpty<CodeId>>,
+    u64,
+    Balance,
+);
 
 pub(super) const fn data_requirement() -> usize {
     MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
@@ -43,6 +48,7 @@ impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
         (
             env.corpus_id,
             env.programs,
+            env.codes,
             env.max_gas,
             env.current_balance,
         )
@@ -51,7 +57,7 @@ impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    (corpus_id, programs, gas, current_balance): UploadProgramRuntimeData,
+    (corpus_id, programs, codes, gas, current_balance): UploadProgramRuntimeData,
 ) -> Result<GearCall> {
     log::trace!("New gear-wasm generation");
     log::trace!("Random data before wasm gen {}", unstructured.len());
@@ -60,6 +66,7 @@ pub(crate) fn generate(
         unstructured,
         config(
             programs,
+            codes,
             Some(format!("Generated program from corpus - {corpus_id}")),
             current_balance,
         ),
@@ -94,6 +101,7 @@ fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
 
 fn config(
     programs: Option<&NonEmpty<ProgramId>>,
+    codes: Option<&NonEmpty<CodeId>>,
     log_info: Option<String>,
     current_balance: Balance,
 ) -> StandardGearWasmConfigsBundle {
@@ -146,6 +154,8 @@ fn config(
         .map(ActorKind::ExistingAddresses)
         .unwrap_or(ActorKind::Source);
 
+    let code_ids = codes.and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().cloned()));
+
     log::trace!("Messages destination config: {:?}", actor_kind);
 
     params_config = params_config
@@ -162,6 +172,13 @@ fn config(
             range: EXISTENTIAL_DEPOSIT..=max_value,
         })
         .with_ptr_rule(PtrParamAllowedValues::ReservationId);
+
+    if let Some(code_ids) = code_ids {
+        params_config = params_config.with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
+            code_ids,
+            range: EXISTENTIAL_DEPOSIT..=max_value,
+        });
+    }
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,

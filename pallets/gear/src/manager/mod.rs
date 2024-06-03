@@ -59,7 +59,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    ActiveProgram, CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -70,7 +70,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
-    program::MemoryInfix,
+    program::{ActiveProgram, MemoryInfix, Program, ProgramState},
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -81,7 +81,6 @@ use sp_runtime::{
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryInto,
     marker::PhantomData,
     prelude::*,
 };
@@ -138,8 +137,6 @@ pub struct ExtManager<T: Config> {
     users: BTreeSet<ProgramId>,
     /// Ids checked that they are programs.
     programs: BTreeSet<ProgramId>,
-    /// Ids of programs which memory pages have been loaded earlier during processing a block.
-    program_loaded_pages: BTreeSet<ProgramId>,
     /// Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
@@ -178,7 +175,6 @@ where
             _phantom: PhantomData,
             users: Default::default(),
             programs: Default::default(),
-            program_loaded_pages: Default::default(),
             dispatch_statuses: Default::default(),
             state_changes: Default::default(),
             builtins,
@@ -210,18 +206,6 @@ where
         !self.check_program_id(id)
     }
 
-    /// Checks if memory pages of a program were loaded.
-    pub fn program_pages_loaded(&self, id: &ProgramId) -> bool {
-        self.program_loaded_pages.contains(id)
-    }
-
-    /// Adds program's id to the collection of programs with
-    /// loaded memory pages.
-    pub fn insert_program_id_loaded_pages(&mut self, id: ProgramId) {
-        debug_assert!(self.check_program_id(&id));
-
-        self.program_loaded_pages.insert(id);
-    }
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
@@ -261,13 +245,13 @@ where
         );
 
         // An empty program has been just constructed: it contains no mem allocations.
-        let program = common::ActiveProgram {
+        let program = ActiveProgram {
             allocations: Default::default(),
             pages_with_data: Default::default(),
             code_hash: code_info.id,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
-            state: common::ProgramState::Uninitialized { message_id },
+            state: ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
             expiration_block,
             memory_infix: Default::default(),

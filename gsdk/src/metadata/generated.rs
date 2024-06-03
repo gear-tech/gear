@@ -424,7 +424,7 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     Handle,
                     #[codec(index = 2)]
-                    Reply(runtime_types::gear_core::ids::MessageId),
+                    Reply(runtime_types::gprimitives::MessageId),
                     #[codec(index = 3)]
                     Signal,
                 }
@@ -571,10 +571,10 @@ pub mod runtime_types {
                 pub struct ResumeSession<_0, _1> {
                     pub page_count: ::core::primitive::u32,
                     pub user: _0,
-                    pub program_id: runtime_types::gear_core::ids::ProgramId,
+                    pub program_id: runtime_types::gprimitives::ActorId,
                     pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::Page2>,
                     pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::Page>,
-                    pub code_hash: runtime_types::gear_core::ids::CodeId,
+                    pub code_hash: runtime_types::gprimitives::CodeId,
                     pub end_block: _1,
                 }
             }
@@ -587,34 +587,34 @@ pub mod runtime_types {
                     )]
                     pub enum ScheduledTask<_0> {
                         #[codec(index = 0)]
-                        PauseProgram(runtime_types::gear_core::ids::ProgramId),
+                        PauseProgram(runtime_types::gprimitives::ActorId),
                         #[codec(index = 1)]
-                        RemoveCode(runtime_types::gear_core::ids::CodeId),
+                        RemoveCode(runtime_types::gprimitives::CodeId),
                         #[codec(index = 2)]
-                        RemoveFromMailbox(_0, runtime_types::gear_core::ids::MessageId),
+                        RemoveFromMailbox(_0, runtime_types::gprimitives::MessageId),
                         #[codec(index = 3)]
                         RemoveFromWaitlist(
-                            runtime_types::gear_core::ids::ProgramId,
-                            runtime_types::gear_core::ids::MessageId,
+                            runtime_types::gprimitives::ActorId,
+                            runtime_types::gprimitives::MessageId,
                         ),
                         #[codec(index = 4)]
-                        RemovePausedProgram(runtime_types::gear_core::ids::ProgramId),
+                        RemovePausedProgram(runtime_types::gprimitives::ActorId),
                         #[codec(index = 5)]
                         WakeMessage(
-                            runtime_types::gear_core::ids::ProgramId,
-                            runtime_types::gear_core::ids::MessageId,
+                            runtime_types::gprimitives::ActorId,
+                            runtime_types::gprimitives::MessageId,
                         ),
                         #[codec(index = 6)]
-                        SendDispatch(runtime_types::gear_core::ids::MessageId),
+                        SendDispatch(runtime_types::gprimitives::MessageId),
                         #[codec(index = 7)]
                         SendUserMessage {
-                            message_id: runtime_types::gear_core::ids::MessageId,
+                            message_id: runtime_types::gprimitives::MessageId,
                             to_mailbox: ::core::primitive::bool,
                         },
                         #[codec(index = 8)]
                         RemoveGasReservation(
-                            runtime_types::gear_core::ids::ProgramId,
-                            runtime_types::gear_core::ids::ReservationId,
+                            runtime_types::gprimitives::ActorId,
+                            runtime_types::gprimitives::ReservationId,
                         ),
                         #[codec(index = 9)]
                         RemoveResumeSession(::core::primitive::u32),
@@ -648,25 +648,6 @@ pub mod runtime_types {
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct ActiveProgram<_0> {
-                pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                    runtime_types::gear_core::pages::Page2,
-                >,
-                pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                    runtime_types::gear_core::pages::Page,
-                >,
-                pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
-                pub gas_reservation_map: ::subxt::utils::KeyedVec<
-                    runtime_types::gear_core::ids::ReservationId,
-                    runtime_types::gear_core::reservation::GasReservationSlot,
-                >,
-                pub code_hash: ::subxt::utils::H256,
-                pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                pub static_pages: runtime_types::gear_core::pages::PagesAmount,
-                pub state: runtime_types::gear_common::ProgramState,
-                pub expiration_block: _0,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct CodeMetadata {
                 pub author: ::subxt::utils::H256,
                 #[codec(compact)]
@@ -678,24 +659,6 @@ pub mod runtime_types {
                 ValuePerGas(_0),
                 #[codec(index = 1)]
                 GasPerValue(_1),
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum Program<_0> {
-                #[codec(index = 0)]
-                Active(runtime_types::gear_common::ActiveProgram<_0>),
-                #[codec(index = 1)]
-                Exited(runtime_types::gear_core::ids::ProgramId),
-                #[codec(index = 2)]
-                Terminated(runtime_types::gear_core::ids::ProgramId),
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum ProgramState {
-                #[codec(index = 0)]
-                Uninitialized {
-                    message_id: runtime_types::gear_core::ids::MessageId,
-                },
-                #[codec(index = 1)]
-                Initialized,
             }
         }
         pub mod gear_core {
@@ -727,25 +690,6 @@ pub mod runtime_types {
                     }
                 }
             }
-            pub mod ids {
-                use super::runtime_types;
-                #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
-                )]
-                pub struct CodeId(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
-                )]
-                pub struct MessageId(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
-                )]
-                pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
-                )]
-                pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
-            }
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -770,14 +714,14 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct ReplyDetails {
-                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub to: runtime_types::gprimitives::MessageId,
                         pub code: runtime_types::gear_core_errors::simple::ReplyCode,
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct SignalDetails {
-                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub to: runtime_types::gprimitives::MessageId,
                         pub code: runtime_types::gear_core_errors::simple::SignalCode,
                     }
                 }
@@ -802,7 +746,7 @@ pub mod runtime_types {
                                 runtime_types::gear_core::message::PayloadSizeError,
                             >,
                         >,
-                        pub initialized: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                        pub initialized: ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
                         pub reservation_nonce:
                             runtime_types::gear_core::reservation::ReservationNonce,
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,
@@ -831,9 +775,9 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct StoredMessage {
-                        pub id: runtime_types::gear_core::ids::MessageId,
-                        pub source: runtime_types::gear_core::ids::ProgramId,
-                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub id: runtime_types::gprimitives::MessageId,
+                        pub source: runtime_types::gprimitives::ActorId,
+                        pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
                             runtime_types::gear_core::message::PayloadSizeError,
@@ -851,9 +795,9 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct UserMessage {
-                        pub id: runtime_types::gear_core::ids::MessageId,
-                        pub source: runtime_types::gear_core::ids::ProgramId,
-                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub id: runtime_types::gprimitives::MessageId,
+                        pub source: runtime_types::gprimitives::ActorId,
+                        pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
                             runtime_types::gear_core::message::PayloadSizeError,
@@ -868,9 +812,9 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct UserStoredMessage {
-                        pub id: runtime_types::gear_core::ids::MessageId,
-                        pub source: runtime_types::gear_core::ids::ProgramId,
-                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub id: runtime_types::gprimitives::MessageId,
+                        pub source: runtime_types::gprimitives::ActorId,
+                        pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
                             runtime_types::gear_core::message::PayloadSizeError,
@@ -933,6 +877,26 @@ pub mod runtime_types {
             }
             pub mod program {
                 use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct ActiveProgram<_0> {
+                    pub allocations: runtime_types::numerated::tree::IntervalsTree<
+                        runtime_types::gear_core::pages::Page2,
+                    >,
+                    pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
+                        runtime_types::gear_core::pages::Page,
+                    >,
+                    pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
+                    pub gas_reservation_map: ::subxt::utils::KeyedVec<
+                        runtime_types::gprimitives::ReservationId,
+                        runtime_types::gear_core::reservation::GasReservationSlot,
+                    >,
+                    pub code_hash: ::subxt::utils::H256,
+                    pub code_exports:
+                        ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
+                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
+                    pub state: runtime_types::gear_core::program::ProgramState,
+                    pub expiration_block: _0,
+                }
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
                     Debug,
@@ -941,6 +905,24 @@ pub mod runtime_types {
                     crate::gp::Encode,
                 )]
                 pub struct MemoryInfix(pub ::core::primitive::u32);
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum Program<_0> {
+                    #[codec(index = 0)]
+                    Active(runtime_types::gear_core::program::ActiveProgram<_0>),
+                    #[codec(index = 1)]
+                    Exited(runtime_types::gprimitives::ActorId),
+                    #[codec(index = 2)]
+                    Terminated(runtime_types::gprimitives::ActorId),
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum ProgramState {
+                    #[codec(index = 0)]
+                    Uninitialized {
+                        message_id: runtime_types::gprimitives::MessageId,
+                    },
+                    #[codec(index = 1)]
+                    Initialized,
+                }
             }
             pub mod reservation {
                 use super::runtime_types;
@@ -1031,6 +1013,25 @@ pub mod runtime_types {
                     Unsupported,
                 }
             }
+        }
+        pub mod gprimitives {
+            use super::runtime_types;
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
+            pub struct ActorId(pub [::core::primitive::u8; 32usize]);
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
+            pub struct CodeId(pub [::core::primitive::u8; 32usize]);
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
+            pub struct MessageId(pub [::core::primitive::u8; 32usize]);
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
+            pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
         }
         pub mod numerated {
             use super::runtime_types;
@@ -2149,7 +2150,7 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::create_program`]."]
                     create_program {
-                        code_id: runtime_types::gear_core::ids::CodeId,
+                        code_id: runtime_types::gprimitives::CodeId,
                         salt: ::std::vec::Vec<::core::primitive::u8>,
                         init_payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
@@ -2159,7 +2160,7 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::send_message`]."]
                     send_message {
-                        destination: runtime_types::gear_core::ids::ProgramId,
+                        destination: runtime_types::gprimitives::ActorId,
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
@@ -2168,7 +2169,7 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::send_reply`]."]
                     send_reply {
-                        reply_to_id: runtime_types::gear_core::ids::MessageId,
+                        reply_to_id: runtime_types::gprimitives::MessageId,
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
@@ -2177,7 +2178,7 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::claim_value`]."]
                     claim_value {
-                        message_id: runtime_types::gear_core::ids::MessageId,
+                        message_id: runtime_types::gprimitives::MessageId,
                     },
                     #[codec(index = 6)]
                     #[doc = "See [`Pallet::run`]."]
@@ -2262,9 +2263,9 @@ pub mod runtime_types {
                     #[doc = "User sends message to program, which was successfully"]
                     #[doc = "added to the Gear message queue."]
                     MessageQueued {
-                        id: runtime_types::gear_core::ids::MessageId,
+                        id: runtime_types::gprimitives::MessageId,
                         source: ::subxt::utils::AccountId32,
-                        destination: runtime_types::gear_core::ids::ProgramId,
+                        destination: runtime_types::gprimitives::ActorId,
                         entry: runtime_types::gear_common::event::MessageEntry,
                     },
                     #[codec(index = 1)]
@@ -2278,7 +2279,7 @@ pub mod runtime_types {
                     #[doc = "This event only affects messages that were"]
                     #[doc = "already inserted in `Mailbox`."]
                     UserMessageRead {
-                        id: runtime_types::gear_core::ids::MessageId,
+                        id: runtime_types::gprimitives::MessageId,
                         reason: runtime_types::gear_common::event::Reason<
                             runtime_types::gear_common::event::UserMessageReadRuntimeReason,
                             runtime_types::gear_common::event::UserMessageReadSystemReason,
@@ -2289,20 +2290,20 @@ pub mod runtime_types {
                     MessagesDispatched {
                         total: ::core::primitive::u32,
                         statuses: ::subxt::utils::KeyedVec<
-                            runtime_types::gear_core::ids::MessageId,
+                            runtime_types::gprimitives::MessageId,
                             runtime_types::gear_common::event::DispatchStatus,
                         >,
-                        state_changes: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                        state_changes: ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
                     },
                     #[codec(index = 4)]
                     #[doc = "Messages execution delayed (waited) and successfully"]
                     #[doc = "added to gear waitlist."]
                     MessageWaited {
-                        id: runtime_types::gear_core::ids::MessageId,
+                        id: runtime_types::gprimitives::MessageId,
                         origin: ::core::option::Option<
                             runtime_types::gear_common::gas_provider::node::GasNodeId<
-                                runtime_types::gear_core::ids::MessageId,
-                                runtime_types::gear_core::ids::ReservationId,
+                                runtime_types::gprimitives::MessageId,
+                                runtime_types::gprimitives::ReservationId,
                             >,
                         >,
                         reason: runtime_types::gear_common::event::Reason<
@@ -2315,7 +2316,7 @@ pub mod runtime_types {
                     #[doc = "Message is ready to continue its execution"]
                     #[doc = "and was removed from `Waitlist`."]
                     MessageWoken {
-                        id: runtime_types::gear_core::ids::MessageId,
+                        id: runtime_types::gprimitives::MessageId,
                         reason: runtime_types::gear_common::event::Reason<
                             runtime_types::gear_common::event::MessageWokenRuntimeReason,
                             runtime_types::gear_common::event::MessageWokenSystemReason,
@@ -2324,7 +2325,7 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     #[doc = "Any data related to program codes changed."]
                     CodeChanged {
-                        id: runtime_types::gear_core::ids::CodeId,
+                        id: runtime_types::gprimitives::CodeId,
                         change: runtime_types::gear_common::event::CodeChangeKind<
                             ::core::primitive::u32,
                         >,
@@ -2332,7 +2333,7 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "Any data related to programs changed."]
                     ProgramChanged {
-                        id: runtime_types::gear_core::ids::ProgramId,
+                        id: runtime_types::gprimitives::ActorId,
                         change: runtime_types::gear_common::event::ProgramChangeKind<
                             ::core::primitive::u32,
                         >,
@@ -2345,7 +2346,7 @@ pub mod runtime_types {
                     ProgramResumeSessionStarted {
                         session_id: ::core::primitive::u32,
                         account_id: ::subxt::utils::AccountId32,
-                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        program_id: runtime_types::gprimitives::ActorId,
                         session_end_block: ::core::primitive::u32,
                     },
                 }
@@ -2639,7 +2640,7 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ProgramDetails {
-                    pub id: runtime_types::gear_core::ids::ProgramId,
+                    pub id: runtime_types::gprimitives::ActorId,
                     pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2889,7 +2890,7 @@ pub mod runtime_types {
                 pub enum PrepaidCall<_0> {
                     #[codec(index = 0)]
                     SendMessage {
-                        destination: runtime_types::gear_core::ids::ProgramId,
+                        destination: runtime_types::gprimitives::ActorId,
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: _0,
@@ -2897,7 +2898,7 @@ pub mod runtime_types {
                     },
                     #[codec(index = 1)]
                     SendReply {
-                        reply_to_id: runtime_types::gear_core::ids::MessageId,
+                        reply_to_id: runtime_types::gprimitives::MessageId,
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: _0,
@@ -2916,7 +2917,7 @@ pub mod runtime_types {
                 pub struct VoucherInfo<_0, _1> {
                     pub owner: _0,
                     pub programs: ::core::option::Option<
-                        ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                        ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
                     >,
                     pub code_uploading: ::core::primitive::bool,
                     pub expiry: _1,
@@ -2933,7 +2934,7 @@ pub mod runtime_types {
                         spender: ::subxt::utils::AccountId32,
                         balance: ::core::primitive::u128,
                         programs: ::core::option::Option<
-                            ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                            ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
                         >,
                         code_uploading: ::core::primitive::bool,
                         duration: ::core::primitive::u32,
@@ -2961,7 +2962,7 @@ pub mod runtime_types {
                         balance_top_up: ::core::option::Option<::core::primitive::u128>,
                         append_programs: ::core::option::Option<
                             ::core::option::Option<
-                                ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                                ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
                             >,
                         >,
                         code_uploading: ::core::option::Option<::core::primitive::bool>,

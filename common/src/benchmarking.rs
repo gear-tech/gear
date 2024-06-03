@@ -18,7 +18,11 @@
 
 use super::*;
 
-use gear_core::{pages::WasmPage, program::MemoryInfix};
+use gear_core::{
+    ids::prelude::*,
+    pages::{WasmPage, WasmPagesAmount},
+    program::{MemoryInfix, ProgramState},
+};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
