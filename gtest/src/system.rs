@@ -106,7 +106,7 @@ impl LazyPagesStorage for PagesStorage {
 /// use gtest::System;
 ///
 /// // Create a new testing environment.
-/// let system = System::new().expect("single instance");
+/// let system = System::new();
 ///
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
@@ -366,23 +366,31 @@ mod tests {
 
     #[test]
 <<<<<<< HEAD
+<<<<<<< HEAD
     #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
     fn test_system_being_singleton() {
         let _first_instance = System::new();
 
         let _second_instance = System::new();
 =======
+=======
+    #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
+>>>>>>> fd4a6b094 (Make `System` panic on second instance creation, adjust test)
     fn test_system_being_singleton() {
-        let first_instance = System::new();
-        assert!(first_instance.is_some());
+        let _first_instance = System::new();
 
+<<<<<<< HEAD
         let second_instance = System::new();
         assert!(second_instance.is_none());
 >>>>>>> 98c15e321 (Fix CI, introduce `System` singleton)
+=======
+        let _second_instance = System::new();
+>>>>>>> fd4a6b094 (Make `System` panic on second instance creation, adjust test)
     }
 
     #[test]
     fn test_multithread_copy_singleton() {
+<<<<<<< HEAD
 <<<<<<< HEAD
         let first_instance = System::new();
         first_instance.spend_blocks(5);
@@ -401,12 +409,22 @@ mod tests {
         let h = std::thread::spawn(|| {
             let thread_inst_1 = System::new();
             assert!(thread_inst_1.is_some());
+=======
+        let first_instance = System::new();
+        first_instance.spend_blocks(5);
+>>>>>>> fd4a6b094 (Make `System` panic on second instance creation, adjust test)
 
-            let thread_inst_2 = System::new();
-            assert!(thread_inst_2.is_none());
+        assert_eq!(first_instance.block_height(), 5);
+
+        let h = std::thread::spawn(|| {
+            let second_instance = System::new();
+
+            second_instance.spend_blocks(10);
+            assert_eq!(second_instance.block_height(), 10);
         });
 
         h.join().expect("internal error failed joining thread");
+<<<<<<< HEAD
 
         let inst1 = System::new();
         assert!(inst1.is_some());
@@ -414,5 +432,7 @@ mod tests {
         let inst2 = System::new();
         assert!(inst2.is_none());
 >>>>>>> 98c15e321 (Fix CI, introduce `System` singleton)
+=======
+>>>>>>> fd4a6b094 (Make `System` panic on second instance creation, adjust test)
     }
 }

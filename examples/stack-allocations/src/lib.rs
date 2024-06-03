@@ -83,7 +83,7 @@ mod tests {
         const _: () = assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
 
         let from = 42;
-        let system = System::new().expect("single instance");
+        let system = System::new();
         system.init_logger();
 
         let mut rng = rand_pcg::Pcg32::seed_from_u64(42);

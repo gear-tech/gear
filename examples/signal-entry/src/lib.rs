@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn signal_can_be_sent() {
-        let system = System::new().expect("single instance");
+        let system = System::new();
         system.init_logger();
 
         let program = Program::current(&system);
