@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn program_can_be_initialized() {
-        let system = System::new().expect("single instance");
+        let system = System::new();
         system.init_logger();
 
         let program = Program::current(&system);

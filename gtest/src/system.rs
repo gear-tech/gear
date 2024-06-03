@@ -106,7 +106,7 @@ impl LazyPagesStorage for PagesStorage {
 /// use gtest::System;
 ///
 /// // Create a new testing environment.
-/// let system = System::new().expect("single instance");
+/// let system = System::new();
 ///
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
