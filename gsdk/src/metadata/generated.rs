@@ -2601,6 +2601,50 @@ pub mod runtime_types {
                 }
             }
         }
+        pub mod pallet_gear_bridge {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "See [`Pallet::set_paused`]."]
+                    set_paused { paused: ::core::primitive::bool },
+                    #[codec(index = 1)]
+                    #[doc = "See [`Pallet::send`]."]
+                    send {
+                        destination: ::subxt::utils::H160,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    BridgePaused,
+                    #[codec(index = 1)]
+                    QueueLimitExceeded,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    MessageQueued {
+                        nonce: runtime_types::primitive_types::U256,
+                        hash: ::subxt::utils::H256,
+                    },
+                    #[codec(index = 1)]
+                    Reset,
+                    #[codec(index = 2)]
+                    RootUpdated(::subxt::utils::H256),
+                    #[codec(index = 3)]
+                    SetPaused(::core::primitive::bool),
+                    #[codec(index = 4)]
+                    ValidatorsSetUpdated(::subxt::utils::H256),
+                }
+            }
+        }
         pub mod pallet_gear_debug {
             use super::runtime_types;
             pub mod pallet {
@@ -6446,6 +6490,11 @@ pub mod runtime_types {
                 }
             }
         }
+        pub mod primitive_types {
+            use super::runtime_types;
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct U256(pub [::core::primitive::u64; 4usize]);
+        }
         pub mod sp_arithmetic {
             use super::runtime_types;
             pub mod fixed_point {
@@ -7717,6 +7766,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Call),
+                #[codec(index = 110)]
+                GearBridge(runtime_types::pallet_gear_bridge::pallet::Call),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Call),
                 #[codec(index = 199)]
@@ -7792,6 +7843,8 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Error),
                 #[codec(index = 108)]
                 GearBank(runtime_types::pallet_gear_bank::pallet::Error),
+                #[codec(index = 110)]
+                GearBridge(runtime_types::pallet_gear_bridge::pallet::Error),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Error),
                 #[codec(index = 199)]
@@ -7859,6 +7912,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
+                #[codec(index = 110)]
+                GearBridge(runtime_types::pallet_gear_bridge::pallet::Event),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Event),
                 #[codec(index = 199)]
@@ -8114,6 +8169,20 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `GearBridge`."]
+    pub enum GearBridgeCall {
+        SetPaused,
+        Send,
+    }
+    impl CallInfo for GearBridgeCall {
+        const PALLET: &'static str = "GearBridge";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::SetPaused => "set_paused",
+                Self::Send => "send",
             }
         }
     }
@@ -8909,6 +8978,32 @@ pub mod storage {
             }
         }
     }
+    #[doc = "Storage of pallet `GearBridge`."]
+    pub enum GearBridgeStorage {
+        NextNonce,
+        Paused,
+        Queue,
+        QueueChanged,
+        QueueRoot,
+        ResetOnInitOf,
+        UpdatedRecently,
+        ValidatorsSet,
+    }
+    impl StorageInfo for GearBridgeStorage {
+        const PALLET: &'static str = "GearBridge";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::NextNonce => "NextNonce",
+                Self::Paused => "Paused",
+                Self::Queue => "Queue",
+                Self::QueueChanged => "QueueChanged",
+                Self::QueueRoot => "QueueRoot",
+                Self::ResetOnInitOf => "ResetOnInitOf",
+                Self::UpdatedRecently => "UpdatedRecently",
+                Self::ValidatorsSet => "ValidatorsSet",
+            }
+        }
+    }
     #[doc = "Storage of pallet `GearDebug`."]
     pub enum GearDebugStorage {
         DebugMode,
@@ -9588,6 +9683,9 @@ pub mod exports {
     }
     pub mod gear_voucher {
         pub use super::runtime_types::pallet_gear_voucher::pallet::Event;
+    }
+    pub mod gear_bridge {
+        pub use super::runtime_types::pallet_gear_bridge::pallet::Event;
     }
     pub mod sudo {
         pub use super::runtime_types::pallet_sudo::pallet::Event;
