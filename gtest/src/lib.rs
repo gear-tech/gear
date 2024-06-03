@@ -118,7 +118,7 @@
 //!     #[test]
 //!     fn test_ping_pong() {
 //!         // Initialization of the common environment for running programs.
-//!         let sys = System::new().expect("single instance");
+//!         let sys = System::new();
 //!
 //!         // Initialization of the current program structure.
 //!         let prog = Program::current(&sys);
@@ -162,7 +162,7 @@
 //!
 //! ```no_run
 //! # use gtest::System;
-//! let sys = System::new().expect("single instance");
+//! let sys = System::new();
 //! ```
 //!
 //! This emulates node's and chain's behavior. By default, the [`System::new`]
@@ -181,7 +181,7 @@
 //!
 //!     ```no_run
 //!     # use gtest::Program;
-//!     # let sys = gtest::System::new().expect("single instance");
+//!     # let sys = gtest::System::new();
 //!     let prog = Program::current(&sys);
 //!     ```
 //!
@@ -190,7 +190,7 @@
 //!
 //!     ```no_run
 //!     # use gtest::Program;
-//!     # let sys = gtest::System::new().expect("single instance");
+//!     # let sys = gtest::System::new();
 //!     let prog = Program::from_file(
 //!         &sys,
 //!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
@@ -201,7 +201,7 @@
 //!
 //!     ```no_run
 //!     # use gtest::ProgramBuilder;
-//!     # let sys = gtest::System::new().expect("single instance");
+//!     # let sys = gtest::System::new();
 //!     let prog = ProgramBuilder::from_file("your_gear_program.wasm")
 //!         .with_id(105)
 //!         .build(&sys);
@@ -227,7 +227,7 @@
 //! by id.
 //!
 //! ```no_run
-//! # let sys = gtest::System::new().expect("single instance");
+//! # let sys = gtest::System::new();
 //! let prog = sys.get_program(105).unwrap();
 //! ```
 //!
@@ -237,7 +237,7 @@
 //! default) into stdout:
 //!
 //! ```no_run
-//! # let sys = gtest::System::new().expect("single instance");
+//! # let sys = gtest::System::new();
 //! sys.init_logger();
 //! ```
 //!
@@ -272,7 +272,7 @@
 //! message.
 //!
 //! ```no_run
-//! # let sys = gtest::System::new().expect("single instance");
+//! # let sys = gtest::System::new();
 //! # let prog = gtest::Program::current(&sys);
 //! let res = prog.send_bytes(100001, "INIT MESSAGE");
 //! ```
@@ -309,7 +309,7 @@
 //!
 //! // Constructor for error reply log.
 //! let log = Log::error_builder(ErrorReplyReason::InactiveActor);
-//! # let sys = gtest::System::new().expect("single instance");
+//! # let sys = gtest::System::new();
 //! # let prog = gtest::Program::current(&sys);
 //! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
 //! let log = Log::builder()
@@ -341,7 +341,7 @@
 //! network is 3 sec duration.
 //!
 //! ```no_run
-//! # let sys = gtest::System::new().expect("single instance");
+//! # let sys = gtest::System::new();
 //! // Spend 150 blocks (7.5 mins for 3 sec block).
 //! sys.spend_blocks(150);
 //! ```
@@ -355,7 +355,7 @@
 //!
 //! ```no_run
 //! # use gtest::Program;
-//! # let sys = gtest::System::new().expect("single instance");
+//! # let sys = gtest::System::new();
 //! // If you need to send a message with value you have to mint balance for the message sender:
 //! let user_id = 42;
 //! sys.mint_to(user_id, 5000);
