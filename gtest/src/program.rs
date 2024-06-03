@@ -392,7 +392,7 @@ impl ProgramBuilder {
 /// use gtest::{System, Program};
 ///
 /// // Create a testing system.
-/// let system = System::new().expect("single instance");
+/// let system = System::new();
 ///
 /// // Get the current program of the testing system.
 /// let program = Program::current(&system);
@@ -625,7 +625,7 @@ impl<'a> Program<'a> {
     /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
     /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
     /// #  }
-    /// # let system = System::new().expect("single instance");
+    /// # let system = System::new();
     /// # let program = Program::mock(&system, MockWasm { });
     /// # let ARG_1 = 0u8;
     /// # let ARG_2 = 0u8;
@@ -688,7 +688,7 @@ impl<'a> Program<'a> {
     /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
     /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
     /// #  }
-    /// # let system = System::new().expect("single instance");
+    /// # let system = System::new();
     /// # let program = Program::mock(&system, MockWasm);
     /// # let ARG_1 = 0u8;
     /// # let ARG_2 = 0u8;
@@ -858,7 +858,7 @@ mod tests {
 
     #[test]
     fn test_handle_messages_to_failing_program() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let user_id = 100;
@@ -882,7 +882,7 @@ mod tests {
 
     #[test]
     fn simple_balance() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let user_id = 42;
@@ -905,7 +905,7 @@ mod tests {
 
     #[test]
     fn piggy_bank() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let receiver = 42;
@@ -951,7 +951,7 @@ mod tests {
         expected = "An attempt to mint value (1) less than existential deposit (1000000000000)"
     )]
     fn mint_less_than_deposit() {
-        System::new().expect("single instance").mint_to(1, 1);
+        System::new().mint_to(1, 1);
     }
 
     #[test]
@@ -959,7 +959,7 @@ mod tests {
     (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
     to send (1000000000001) value, while his balance (1000000000000)")]
     fn fails_on_insufficient_balance() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
 
         let user = 1;
         let prog = Program::from_binary_with_id(&sys, 2, demo_piggy_bank::WASM_BINARY);
@@ -973,7 +973,7 @@ mod tests {
 
     #[test]
     fn claim_zero_value() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let sender = 42;
@@ -1011,7 +1011,7 @@ mod tests {
     #[test]
     fn save_load_memory_dump() {
         use demo_custom::{InitMessage, WASM_BINARY};
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
@@ -1060,7 +1060,7 @@ mod tests {
     #[test]
     fn process_wait_for() {
         use demo_custom::{InitMessage, WASM_BINARY};
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
@@ -1091,7 +1091,7 @@ mod tests {
     #[should_panic]
     fn reservations_limit() {
         use demo_custom::{InitMessage, WASM_BINARY};
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
@@ -1116,7 +1116,7 @@ mod tests {
     fn test_handle_exit_with_zero_balance() {
         use demo_constructor::{demo_exit_handle, WASM_BINARY};
 
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
 
         let user_id = [42; 32];

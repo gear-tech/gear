@@ -99,7 +99,7 @@ impl LazyPagesStorage for PagesStorage {
 /// use gtest::System;
 ///
 /// // Create a new testing environment.
-/// let system = System::new().expect("single instance");
+/// let system = System::new();
 ///
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
@@ -112,11 +112,10 @@ impl System {
 
     /// Create a new testing environment.
     ///
-    /// If there's only one instance in the current thread of the `System`,
-    /// then `Some` is returned. Otherwise, `None` is returned.
-    /// So when one and only `System` instance is dropped, the new instance
-    /// can be created.
-    pub fn new() -> Option<Self> {
+    /// # Panics
+    /// Only one instance in the current thread of the `System` is possible to create.
+    /// Instantiation of the other one leads to runtime panic.
+    pub fn new() -> Self {
         SYSTEM_INITIALIZED
             .with(|ref_cell| ref_cell.borrow().get().is_none())
             .then(|| {
@@ -136,6 +135,7 @@ impl System {
 
                 Self(RefCell::new(ext_manager))
             })
+            .expect("Impossible to have multiple instances of the `System`.")
     }
 
     /// Init logger with "gwasm" target set to `debug` level.
@@ -356,30 +356,27 @@ mod tests {
     use super::*;
 
     #[test]
+    #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
     fn test_system_being_singleton() {
-        let first_instance = System::new();
-        assert!(first_instance.is_some());
+        let _first_instance = System::new();
 
-        let second_instance = System::new();
-        assert!(second_instance.is_none());
+        let _second_instance = System::new();
     }
 
     #[test]
     fn test_multithread_copy_singleton() {
-        let h = std::thread::spawn(|| {
-            let thread_inst_1 = System::new();
-            assert!(thread_inst_1.is_some());
+        let first_instance = System::new();
+        first_instance.spend_blocks(5);
 
-            let thread_inst_2 = System::new();
-            assert!(thread_inst_2.is_none());
+        assert_eq!(first_instance.block_height(), 5);
+
+        let h = std::thread::spawn(|| {
+            let second_instance = System::new();
+
+            second_instance.spend_blocks(10);
+            assert_eq!(second_instance.block_height(), 10);
         });
 
         h.join().expect("internal error failed joining thread");
-
-        let inst1 = System::new();
-        assert!(inst1.is_some());
-
-        let inst2 = System::new();
-        assert!(inst2.is_none());
     }
 }
