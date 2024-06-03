@@ -18,31 +18,39 @@
 
 //! State-related data structures.
 
-use gear_core::ids::ProgramId;
+use std::collections::{BTreeMap, BTreeSet};
+
+use gear_core::{ids::ProgramId, pages::GearPage, code::InstrumentedCode};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+
+/// Hypercore program state.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ProgramState {
+    /// Hash of incoming message queue, see [`MessageQueue`].
+    pub queue_hash: H256,
+    /// Hash of memory pages table, see [`MemoryPages`].
+    pub pages_hash: H256,
+    /// Hash of the original code bytes.
+    pub original_code_hash: H256,
+    /// Hash of the instrumented code, see [`InstrumentedCode`].
+    pub instrumented_code_hash: H256,
+}
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Message {
     pub sender: ProgramId,
     pub gas_limit: u64,
     pub value: u128,
-    pub data: Vec<u8>,
+    /// Hash of payload bytes.
+    pub payload_hash: H256,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
-pub struct Page {
-    pub index: u32,
-    pub data: Vec<u8>,
-}
+pub struct MessageQueue(pub Vec<Message>);
 
-/// Hypercore program state.
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct State {
-    /// Program ID.
-    pub program_id: ProgramId,
-    pub queue: Vec<Message>,
-    pub pages: Vec<Page>,
-    pub original_code_hash: H256,
-    pub instrumented_code_hash: H256,
-}
+/// Memory pages table, mapping gear page number to page data bytes hash.
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct MemoryPages(pub BTreeMap<GearPage, H256>);
+
+

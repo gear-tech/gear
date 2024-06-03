@@ -1,4 +1,4 @@
-use crate::host::state::State;
+use crate::host::state::ProgramState;
 use gear_core::{code::InstrumentedCode, ids::CodeId};
 use hypercore_db::CASDatabase;
 use parity_scale_codec::{Decode, Encode};
@@ -39,14 +39,14 @@ impl Database {
     }
 
     /// Read program state.
-    pub fn read_state(&self, hash: H256) -> Option<State> {
+    pub fn read_state(&self, hash: H256) -> Option<ProgramState> {
         self.inner
             .read(&hash)
-            .map(|data| State::decode(&mut &data[..]).expect("Failed to decode State"))
+            .map(|data| ProgramState::decode(&mut &data[..]).expect("Failed to decode State"))
     }
 
     /// Write program state.
-    pub fn write_state(&self, state: &State) -> H256 {
+    pub fn write_state(&self, state: &ProgramState) -> H256 {
         let data = state.encode();
         self.inner.write(&data)
     }
