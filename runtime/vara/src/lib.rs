@@ -406,12 +406,68 @@ impl_opaque_keys! {
     }
 }
 
-// First 4 pallets are expand from <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 #[cfg(feature = "dev")]
-type VaraSessionHandler = (Babe, Grandpa, ImOnline, AuthorityDiscovery, GearBridge);
+mod grandpa_keys_handler {
+    use super::{AccountId, GearBridge, Grandpa};
+    use frame_support::traits::OneSessionHandler;
+    use sp_runtime::BoundToRuntimeAppPublic;
+
+    pub struct GrandpaAndBridge;
+
+    impl BoundToRuntimeAppPublic for GrandpaAndBridge {
+        type Public = <Grandpa as BoundToRuntimeAppPublic>::Public;
+    }
+
+    impl OneSessionHandler<AccountId> for GrandpaAndBridge {
+        type Key = <Grandpa as OneSessionHandler<AccountId>>::Key;
+        fn on_before_session_ending() {
+            Grandpa::on_before_session_ending();
+            GearBridge::on_before_session_ending();
+        }
+        fn on_disabled(validator_index: u32) {
+            Grandpa::on_disabled(validator_index);
+            GearBridge::on_disabled(validator_index);
+        }
+        fn on_genesis_session<'a, I: 'a>(validators: I)
+        where
+            I: Iterator<Item = (&'a AccountId, Self::Key)>,
+            AccountId: 'a,
+        {
+            let validators: Vec<_> = validators.collect();
+            Grandpa::on_genesis_session(validators.clone().into_iter());
+            GearBridge::on_genesis_session(validators.into_iter());
+        }
+        fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued_validators: I)
+        where
+            I: Iterator<Item = (&'a AccountId, Self::Key)>,
+            AccountId: 'a,
+        {
+            let validators: Vec<_> = validators.collect();
+            let queued_validators: Vec<_> = queued_validators.collect();
+            Grandpa::on_new_session(
+                changed,
+                validators.clone().into_iter(),
+                queued_validators.clone().into_iter(),
+            );
+            GearBridge::on_new_session(
+                changed,
+                validators.into_iter(),
+                queued_validators.into_iter(),
+            );
+        }
+    }
+}
+
+#[cfg(feature = "dev")]
+pub type VaraSessionHandler = (
+    Babe,
+    grandpa_keys_handler::GrandpaAndBridge,
+    ImOnline,
+    AuthorityDiscovery,
+);
 
 #[cfg(not(feature = "dev"))]
-type VaraSessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+pub type VaraSessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
