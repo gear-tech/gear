@@ -31,6 +31,13 @@ pub enum SequencerConfig {
     Disabled,
 }
 
+#[derive(Default)]
+pub enum ValidatorConfig {
+    Enabled(String),
+    #[default]
+    Disabled,
+}
+
 pub struct Config {
     /// RPC of the Ethereum endpoint
     pub ethereum_rpc: String,
@@ -55,6 +62,9 @@ pub struct Config {
 
     /// Is this role a sequencer
     pub sequencer: SequencerConfig,
+
+    /// Is this role a validator
+    pub validator: ValidatorConfig,
 }
 
 impl TryFrom<Args> for Config {
@@ -81,6 +91,10 @@ impl TryFrom<Args> for Config {
             sequencer: match args.sequencer_key {
                 Some(key) => SequencerConfig::Enabled(key),
                 None => SequencerConfig::Disabled,
+            },
+            validator: match args.validator_key {
+                Some(key) => ValidatorConfig::Enabled(key),
+                None => ValidatorConfig::Disabled,
             },
         })
     }

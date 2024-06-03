@@ -141,6 +141,7 @@ mod tests {
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
             sequencer: Default::default(),
+            validator: Default::default(),
         })
         .await;
 
