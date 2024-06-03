@@ -27,10 +27,9 @@ use gear_common::{
 };
 use gear_core::ids::{MessageId, ProgramId};
 
-pub(crate) type PositiveImbalance =
-    <<AuxiliaryGasProvider as Provider>::GasTree as Tree>::PositiveImbalance;
-pub(crate) type NegativeImbalance =
-    <<AuxiliaryGasProvider as Provider>::GasTree as Tree>::NegativeImbalance;
+pub(crate) type PositiveImbalance = <GasTree as Tree>::PositiveImbalance;
+pub(crate) type NegativeImbalance = <GasTree as Tree>::NegativeImbalance;
+type GasTree = <AuxiliaryGasProvider as Provider>::GasTree;
 
 /// Gas tree manager which uses operates under the hood over
 /// [`gear_common::AuxiliaryGasProvider`].
@@ -48,7 +47,7 @@ impl GasTreeManager {
         mid: MessageId,
         amount: Option<Gas>,
     ) -> Result<PositiveImbalance, GasTreeError> {
-        <AuxiliaryGasProvider as Provider>::GasTree::create(
+        GasTree::create(
             origin.cast(),
             GAS_MULTIPLIER,
             GasNodeId::from(mid.cast::<PlainNodeId>()),
@@ -64,7 +63,7 @@ impl GasTreeManager {
         future_reply_id: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
-        <AuxiliaryGasProvider as Provider>::GasTree::create_deposit(
+        GasTree::create_deposit(
             GasNodeId::from(original_mid.cast::<PlainNodeId>()),
             GasNodeId::from(future_reply_id.cast::<PlainNodeId>()),
             amount,
@@ -80,12 +79,9 @@ impl GasTreeManager {
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
-        if !is_reply
-            && !<AuxiliaryGasProvider as Provider>::GasTree::exists_and_deposit(GasNodeId::from(
-                new_mid.cast::<PlainNodeId>(),
-            ))
+        if !is_reply && !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
         {
-            return <AuxiliaryGasProvider as Provider>::GasTree::split_with_value(
+            return GasTree::split_with_value(
                 GasNodeId::from(original_mid.cast::<PlainNodeId>()),
                 GasNodeId::from(new_mid.cast::<PlainNodeId>()),
                 amount,
@@ -102,12 +98,9 @@ impl GasTreeManager {
         original_mid: MessageId,
         new_mid: MessageId,
     ) -> Result<(), GasTreeError> {
-        if !is_reply
-            && !<AuxiliaryGasProvider as Provider>::GasTree::exists_and_deposit(GasNodeId::from(
-                new_mid.cast::<PlainNodeId>(),
-            ))
+        if !is_reply && !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
         {
-            return <AuxiliaryGasProvider as Provider>::GasTree::split(
+            return GasTree::split(
                 GasNodeId::from(original_mid.cast::<PlainNodeId>()),
                 GasNodeId::from(new_mid.cast::<PlainNodeId>()),
             );
@@ -123,7 +116,7 @@ impl GasTreeManager {
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
-        <AuxiliaryGasProvider as Provider>::GasTree::cut(
+        GasTree::cut(
             GasNodeId::from(original_mid.cast::<PlainNodeId>()),
             GasNodeId::from(new_mid.cast::<PlainNodeId>()),
             amount,
@@ -132,9 +125,7 @@ impl GasTreeManager {
 
     /// Adapted by argument types version of the gas tree `get_limit` method.
     pub(crate) fn get_limit(&self, mid: MessageId) -> Result<Gas, GasTreeError> {
-        <AuxiliaryGasProvider as Provider>::GasTree::get_limit(GasNodeId::from(
-            mid.cast::<PlainNodeId>(),
-        ))
+        GasTree::get_limit(GasNodeId::from(mid.cast::<PlainNodeId>()))
     }
 
     /// Adapted by argument types version of the gas tree `spend` method.
@@ -143,20 +134,12 @@ impl GasTreeManager {
         mid: MessageId,
         amount: Gas,
     ) -> Result<NegativeImbalance, GasTreeError> {
-        <AuxiliaryGasProvider as Provider>::GasTree::spend(
-            GasNodeId::from(mid.cast::<PlainNodeId>()),
-            amount,
-        )
+        GasTree::spend(GasNodeId::from(mid.cast::<PlainNodeId>()), amount)
     }
 
     /// Adapted by argument types version of the gas tree `consume` method.
-    pub(crate) fn consume(
-        &self,
-        mid: MessageId,
-    ) -> ConsumeResultOf<<AuxiliaryGasProvider as Provider>::GasTree> {
-        <AuxiliaryGasProvider as Provider>::GasTree::consume(GasNodeId::from(
-            mid.cast::<PlainNodeId>(),
-        ))
+    pub(crate) fn consume(&self, mid: MessageId) -> ConsumeResultOf<GasTree> {
+        GasTree::consume(GasNodeId::from(mid.cast::<PlainNodeId>()))
     }
 
     /// Adapted by argument types version of the gas tree `reset` method.

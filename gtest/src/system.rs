@@ -113,8 +113,8 @@ impl System {
     /// Create a new testing environment.
     ///
     /// # Panics
-    /// Only one instance in the current thread of the `System` is possible to create.
-    /// Instantiation of the other one leads to runtime panic.
+    /// Only one instance in the current thread of the `System` is possible to
+    /// create. Instantiation of the other one leads to runtime panic.
     pub fn new() -> Self {
         SYSTEM_INITIALIZED
             .with(|ref_cell| ref_cell.borrow().get().is_none())
