@@ -411,6 +411,7 @@ mod grandpa_keys_handler {
     use super::{AccountId, GearBridge, Grandpa};
     use frame_support::traits::OneSessionHandler;
     use sp_runtime::BoundToRuntimeAppPublic;
+    use sp_std::vec::Vec;
 
     pub struct GrandpaAndBridge;
 
@@ -895,7 +896,7 @@ impl pallet_authority_discovery::Config for Runtime {
 
 parameter_types! {
     pub const BasicDeposit: Balance = 10 * ECONOMIC_UNITS;       // 258 bytes on-chain
-    pub const FieldDeposit: Balance = 250 * ECONOMIC_CENTIUNITS;        // 66 bytes on-chain
+    pub const FieldDeposit: Balance = 250 * ECONOMIC_CENTIUNITS; // 66 bytes on-chain
     pub const SubAccountDeposit: Balance = 2 * ECONOMIC_UNITS;   // 53 bytes on-chain
     pub const MaxSubAccounts: u32 = 100;
     pub const MaxAdditionalFields: u32 = 100;
