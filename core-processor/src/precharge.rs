@@ -132,12 +132,12 @@ impl<'a> GasPrecharger<'a> {
         let instantiation_costs = &self.costs.instantiation_costs;
 
         let cost_per_byte = match section_name {
-            SectionName::Function => &instantiation_costs.code_section_instantiation_per_byte,
-            SectionName::Data => &instantiation_costs.data_section_instantiation_per_byte,
-            SectionName::Global => &instantiation_costs.global_section_instantiation_per_byte,
-            SectionName::Table => &instantiation_costs.table_section_instantiation_per_byte,
-            SectionName::Element => &instantiation_costs.element_section_instantiation_per_byte,
-            SectionName::Type => &instantiation_costs.type_section_instantiation_per_byte,
+            SectionName::Function => &instantiation_costs.code_section_per_byte,
+            SectionName::Data => &instantiation_costs.data_section_per_byte,
+            SectionName::Global => &instantiation_costs.global_section_per_byte,
+            SectionName::Table => &instantiation_costs.table_section_per_byte,
+            SectionName::Element => &instantiation_costs.element_section_per_byte,
+            SectionName::Type => &instantiation_costs.type_section_per_byte,
             _ => {
                 // TODO: change this to a system error in future
                 unimplemented!("Wrong {section_name:?} for section instantiation")

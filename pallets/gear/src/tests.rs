@@ -6313,33 +6313,35 @@ fn terminated_locking_funds() {
                 type_section: type_section_bytes,
             } = *code.instantiated_section_sizes();
 
-            let mut gas_for_code_instantiation = schedule
-                .code_section_instantiation_per_byte
+            let instantiation_weights = schedule.instantiation_weights;
+
+            let mut gas_for_code_instantiation = instantiation_weights
+                .code_section_per_byte
                 .ref_time()
                 .saturating_mul(code_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .data_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .data_section_per_byte
                 .ref_time()
                 .saturating_mul(data_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .global_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .global_section_per_byte
                 .ref_time()
                 .saturating_mul(global_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .table_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .table_section_per_byte
                 .ref_time()
                 .saturating_mul(table_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .element_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .element_section_per_byte
                 .ref_time()
                 .saturating_mul(element_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .type_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .type_section_per_byte
                 .ref_time()
                 .saturating_mul(type_section_bytes as u64);
 
@@ -7539,37 +7541,39 @@ fn gas_spent_precalculated() {
                 table_section: table_section_bytes,
                 element_section: element_section_bytes,
                 type_section: type_section_bytes,
-            } = instrumented_prog.instantiated_section_sizes();
+            } = *instrumented_prog.instantiated_section_sizes();
 
-            let mut gas_for_code_instantiation = schedule
-                .code_section_instantiation_per_byte
-                .ref_time()
-                .saturating_mul(*code_section_bytes as u64);
+            let instantiation_weights = schedule.instantiation_weights;
 
-            gas_for_code_instantiation += schedule
-                .data_section_instantiation_per_byte
+            let mut gas_for_code_instantiation = instantiation_weights
+                .code_section_per_byte
                 .ref_time()
-                .saturating_mul(*data_section_bytes as u64);
+                .saturating_mul(code_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .global_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .data_section_per_byte
                 .ref_time()
-                .saturating_mul(*global_section_bytes as u64);
+                .saturating_mul(data_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .table_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .global_section_per_byte
                 .ref_time()
-                .saturating_mul(*table_section_bytes as u64);
+                .saturating_mul(global_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .element_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .table_section_per_byte
                 .ref_time()
-                .saturating_mul(*element_section_bytes as u64);
+                .saturating_mul(table_section_bytes as u64);
 
-            gas_for_code_instantiation += schedule
-                .type_section_instantiation_per_byte
+            gas_for_code_instantiation += instantiation_weights
+                .element_section_per_byte
                 .ref_time()
-                .saturating_mul(*type_section_bytes as u64);
+                .saturating_mul(element_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .type_section_per_byte
+                .ref_time()
+                .saturating_mul(type_section_bytes as u64);
 
             gas_for_code_read + gas_for_code_instantiation
         };

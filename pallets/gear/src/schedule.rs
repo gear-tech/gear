@@ -126,23 +126,8 @@ pub struct Schedule<T: Config> {
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
 
-    /// WASM module code section instantiation per byte cost.
-    pub code_section_instantiation_per_byte: Weight,
-
-    /// WASM module data section instantiation per byte cost.
-    pub data_section_instantiation_per_byte: Weight,
-
-    /// WASM module global section instantiation per byte cost.
-    pub global_section_instantiation_per_byte: Weight,
-
-    /// WASM module table section instantiation per byte cost.
-    pub table_section_instantiation_per_byte: Weight,
-
-    /// WASM module element section instantiation per byte cost.
-    pub element_section_instantiation_per_byte: Weight,
-
-    /// WASM module type section instantiation per byte cost.
-    pub type_section_instantiation_per_byte: Weight,
+    /// The weights for instantiation of the module.
+    pub instantiation_weights: InstantiationWeights,
 
     /// Single db write per byte cost.
     pub db_write_per_byte: Weight,
@@ -679,6 +664,29 @@ impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
     }
 }
 
+/// Describes the weight for instantiation of the module.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct InstantiationWeights {
+    /// WASM module code section instantiation per byte cost.
+    pub code_section_per_byte: Weight,
+
+    /// WASM module data section instantiation per byte cost.
+    pub data_section_per_byte: Weight,
+
+    /// WASM module global section instantiation per byte cost.
+    pub global_section_per_byte: Weight,
+
+    /// WASM module table section instantiation per byte cost.
+    pub table_section_per_byte: Weight,
+
+    /// WASM module element section instantiation per byte cost.
+    pub element_section_per_byte: Weight,
+
+    /// WASM module type section instantiation per byte cost.
+    pub type_section_per_byte: Weight,
+}
+
 #[inline]
 fn cost(w: fn(u32) -> Weight) -> Weight {
     Weight::from_parts(w(1).saturating_sub(w(0)).ref_time(), 0)
@@ -740,24 +748,18 @@ impl<T: Config> Default for Schedule<T> {
             memory_weights: Default::default(),
             db_write_per_byte: cost_byte(W::<T>::db_write_per_kb),
             db_read_per_byte: cost_byte(W::<T>::db_read_per_kb),
-            code_section_instantiation_per_byte: cost_byte(
-                W::<T>::instantiate_module_code_section_per_kb,
-            ),
-            data_section_instantiation_per_byte: cost_byte(
-                W::<T>::instantiate_module_data_section_per_kb,
-            ),
-            global_section_instantiation_per_byte: cost_byte(
-                W::<T>::instantiate_module_global_section_per_kb,
-            ),
-            table_section_instantiation_per_byte: cost_byte(
-                W::<T>::instantiate_module_table_section_per_kb,
-            ),
-            element_section_instantiation_per_byte: cost_byte(
-                W::<T>::instantiate_module_element_section_per_kb,
-            ),
-            type_section_instantiation_per_byte: cost_byte(
-                W::<T>::instantiate_module_type_section_per_kb,
-            ),
+            instantiation_weights: InstantiationWeights {
+                code_section_per_byte: cost_byte(W::<T>::instantiate_module_code_section_per_kb),
+                data_section_per_byte: cost_byte(W::<T>::instantiate_module_data_section_per_kb),
+                global_section_per_byte: cost_byte(
+                    W::<T>::instantiate_module_global_section_per_kb,
+                ),
+                table_section_per_byte: cost_byte(W::<T>::instantiate_module_table_section_per_kb),
+                element_section_per_byte: cost_byte(
+                    W::<T>::instantiate_module_element_section_per_kb,
+                ),
+                type_section_per_byte: cost_byte(W::<T>::instantiate_module_type_section_per_kb),
+            },
             code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
             code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
         }
@@ -1184,28 +1186,34 @@ impl<T: Config> Schedule<T> {
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
             instantiation_costs: InstantiationCosts {
-                code_section_instantiation_per_byte: self
-                    .code_section_instantiation_per_byte
+                code_section_per_byte: self
+                    .instantiation_weights
+                    .code_section_per_byte
                     .ref_time()
                     .into(),
-                data_section_instantiation_per_byte: self
-                    .data_section_instantiation_per_byte
+                data_section_per_byte: self
+                    .instantiation_weights
+                    .data_section_per_byte
                     .ref_time()
                     .into(),
-                global_section_instantiation_per_byte: self
-                    .global_section_instantiation_per_byte
+                global_section_per_byte: self
+                    .instantiation_weights
+                    .global_section_per_byte
                     .ref_time()
                     .into(),
-                table_section_instantiation_per_byte: self
-                    .table_section_instantiation_per_byte
+                table_section_per_byte: self
+                    .instantiation_weights
+                    .table_section_per_byte
                     .ref_time()
                     .into(),
-                element_section_instantiation_per_byte: self
-                    .element_section_instantiation_per_byte
+                element_section_per_byte: self
+                    .instantiation_weights
+                    .element_section_per_byte
                     .ref_time()
                     .into(),
-                type_section_instantiation_per_byte: self
-                    .type_section_instantiation_per_byte
+                type_section_per_byte: self
+                    .instantiation_weights
+                    .type_section_per_byte
                     .ref_time()
                     .into(),
             },

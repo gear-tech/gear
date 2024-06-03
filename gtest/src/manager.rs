@@ -896,18 +896,12 @@ impl ExtManager {
                 instrumentation: MODULE_INSTRUMENTATION_COST.into(),
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
                 instantiation_costs: InstantiationCosts {
-                    code_section_instantiation_per_byte:
-                        MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    data_section_instantiation_per_byte:
-                        MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    global_section_instantiation_per_byte:
-                        MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    table_section_instantiation_per_byte:
-                        MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    element_section_instantiation_per_byte:
-                        MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    type_section_instantiation_per_byte:
-                        MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    code_section_per_byte: MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    data_section_per_byte: MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    global_section_per_byte: MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    table_section_per_byte: MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    element_section_per_byte: MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    type_section_per_byte: MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
                 },
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,

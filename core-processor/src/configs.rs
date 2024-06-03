@@ -66,17 +66,17 @@ pub struct ExtCosts {
 #[derive(Debug, Default, Clone)]
 pub struct InstantiationCosts {
     /// WASM module code section instantiation per byte cost.
-    pub code_section_instantiation_per_byte: CostOf<BytesAmount>,
+    pub code_section_per_byte: CostOf<BytesAmount>,
     /// WASM module data section instantiation per byte cost.
-    pub data_section_instantiation_per_byte: CostOf<BytesAmount>,
+    pub data_section_per_byte: CostOf<BytesAmount>,
     /// WASM module global section instantiation per byte cost.
-    pub global_section_instantiation_per_byte: CostOf<BytesAmount>,
+    pub global_section_per_byte: CostOf<BytesAmount>,
     /// WASM module table section instantiation per byte cost.
-    pub table_section_instantiation_per_byte: CostOf<BytesAmount>,
+    pub table_section_per_byte: CostOf<BytesAmount>,
     /// WASM module element section instantiation per byte cost.
-    pub element_section_instantiation_per_byte: CostOf<BytesAmount>,
+    pub element_section_per_byte: CostOf<BytesAmount>,
     /// WASM module type section instantiation per byte cost.
-    pub type_section_instantiation_per_byte: CostOf<BytesAmount>,
+    pub type_section_per_byte: CostOf<BytesAmount>,
 }
 
 /// Costs for message processing
