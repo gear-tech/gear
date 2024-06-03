@@ -412,8 +412,14 @@ impl ExtManager {
         }
     }
 
+    pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+        self.validate_dispatch(&dispatch);
+        self.run_dispatch(dispatch, false)
+    }
+
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
+        // TODO review after https://github.com/gear-tech/gear/pull/3961
         if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "Value greater than 0, but less than \
@@ -447,11 +453,6 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
-        self.validate_dispatch(&dispatch);
-        self.run_dispatch(dispatch, false)
-    }
-
     #[track_caller]
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch, from_task_pool: bool) -> RunResult {
         self.prepare_for(&dispatch);
@@ -460,8 +461,18 @@ impl ExtManager {
             // TODO: `gas_limit` being None is an abuse of the `run_dispatch` usage,
             // as it must be called only for user messages
             if !from_task_pool {
+                let gas_limit = matches!(dispatch.kind(), DispatchKind::Signal)
+                    .then(|| {
+                        assert!(
+                            dispatch.gas_limit().is_none(),
+                            "signals must be sent with `None` gas limit"
+                        );
+                        GAS_ALLOWANCE
+                    })
+                    .or_else(|| dispatch.gas_limit())
+                    .unwrap_or_else(|| unreachable!("message from program API has always gas"));
                 self.gas_tree
-                    .create(dispatch.source(), dispatch.id(), dispatch.gas_limit())
+                    .create(dispatch.source(), dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupter! {:?}", e));
             }
 

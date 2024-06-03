@@ -45,13 +45,13 @@ impl GasTreeManager {
         &self,
         origin: ProgramId,
         mid: MessageId,
-        amount: Option<Gas>,
+        amount: Gas,
     ) -> Result<PositiveImbalance, GasTreeError> {
         GasTree::create(
             origin.cast(),
             GAS_MULTIPLIER,
             GasNodeId::from(mid.cast::<PlainNodeId>()),
-            amount.unwrap_or(GAS_ALLOWANCE),
+            amount,
         )
     }
 
