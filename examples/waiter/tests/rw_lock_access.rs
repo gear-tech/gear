@@ -74,7 +74,7 @@ fn access_rw_lock_guard_from_different_msg_fails(
     lock_type: RwLockType,
     lock_access_subcommand: LockStaticAccessSubcommand,
 ) {
-    let system = System::new().expect("single instance");
+    let system = System::new();
     let (program, lock_msg_id) = init_fixture(&system, lock_type);
 
     let lock_access_result = program.send(

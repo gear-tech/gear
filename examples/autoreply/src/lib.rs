@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn auto_reply_received() {
-        let system = System::new().expect("single instance");
+        let system = System::new();
         system.init_logger();
 
         let prog1 = Program::current(&system);

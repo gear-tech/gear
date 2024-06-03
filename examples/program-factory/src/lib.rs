@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn test_simple() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
         let factory = prepare_factory(&sys);
 
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_duplicate() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
         let factory = prepare_factory(&sys);
 
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_non_existing_code_hash() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
         let factory = prepare_factory(&sys);
 
@@ -158,7 +158,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Program can't be constructed with provided code")]
     fn test_invalid_wasm_child() {
-        let sys = System::new().expect("single instance");
+        let sys = System::new();
         sys.init_logger();
         let factory = prepare_factory(&sys);
 
