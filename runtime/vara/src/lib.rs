@@ -1102,6 +1102,7 @@ impl pallet_gear_builtin::Config for Runtime {
     type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
+#[cfg(feature = "dev")]
 impl pallet_gear_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type QueueLimit = ConstU32<128>;
