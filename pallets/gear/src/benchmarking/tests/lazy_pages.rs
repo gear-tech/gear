@@ -25,7 +25,7 @@ use crate::{
         utils::PrepareConfig,
         Program,
     },
-    Config, HandleKind, ProgramStorageOf,
+    Config, Ext, HandleKind, LazyPagesInterface, LazyPagesRuntimeInterface, ProgramStorageOf,
 };
 use ::alloc::{collections::BTreeSet, format, vec};
 use common::{Origin, ProgramStorage};
@@ -33,10 +33,7 @@ use core::{
     fmt::{Debug, Formatter},
     mem::size_of,
 };
-use core_processor::{
-    common::{DispatchOutcome, JournalNote},
-    Ext,
-};
+use core_processor::common::{DispatchOutcome, JournalNote};
 use gear_core::{
     memory::{MemoryInterval, PageBuf},
     pages::{numerated::iterators::IntervalIterator, GearPage, GearPagesAmount},
@@ -601,7 +598,7 @@ where
             }
         }
 
-        assert_ne!(gear_lazy_pages_interface::get_status(), Status::Normal);
+        assert_ne!(LazyPagesRuntimeInterface::get_status(), Status::Normal);
     };
 
     // Check gas allowance exceeded.
@@ -635,6 +632,6 @@ where
             }
         }
 
-        assert_ne!(gear_lazy_pages_interface::get_status(), Status::Normal);
+        assert_ne!(LazyPagesRuntimeInterface::get_status(), Status::Normal);
     };
 }

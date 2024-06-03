@@ -1281,6 +1281,8 @@ mod tests {
         context_settings: ContextSettings,
     }
 
+    type Ext = super::Ext<()>;
+
     impl MessageContextBuilder {
         fn new() -> Self {
             Self {

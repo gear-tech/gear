@@ -50,6 +50,9 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
+pub use gear_core::{gas::GasInfo, message::ReplyInfo, program::ProgramState};
+pub use weights::WeightInfo;
+
 use alloc::{
     format,
     string::{String, ToString},
@@ -63,7 +66,6 @@ use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
-    Ext,
 };
 use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
@@ -83,9 +85,8 @@ use gear_core::{
     percent::Percent,
     program::Program,
 };
-pub use gear_core::{gas::GasInfo, message::ReplyInfo, program::ProgramState};
-pub use gear_lazy_pages_common::LazyPagesInterface;
-pub use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
+use gear_lazy_pages_common::LazyPagesInterface;
+use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
 use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
@@ -98,7 +99,8 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-pub use weights::WeightInfo;
+
+pub type Ext = core_processor::Ext<LazyPagesRuntimeInterface>;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
