@@ -38,7 +38,7 @@ impl From<Module> for Runtime {
 
 impl Runtime {
     pub fn new() -> Self {
-        Self::Raw(hypercore_runtime::WASM_BINARY.into())
+        Self::Raw(hypercore_runtime::WASM_BINARY_BLOATY.unwrap().into())
     }
 
     pub fn from_code(code: Vec<u8>) -> Self {

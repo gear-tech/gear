@@ -7095,11 +7095,11 @@ version = "1.4.2"
 dependencies = [
  "dlmalloc",
  "gear-core",
- "gear-wasm-builder",
  "gear-wasm-instrument",
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "substrate-wasm-builder",
 ]
 
 [[package]]

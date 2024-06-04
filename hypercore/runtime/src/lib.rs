@@ -16,41 +16,46 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "export"), no_std)]
+// TODO: Replace `feature = "cargo-clippy"` with `clippy`, once moved repo,
+// or at least `hypercore-*` crates, on stable or latest nightly in toml.
+#![no_std]
 
-#[cfg(feature = "export")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
+#[cfg(all(
+    feature = "wasm",
+    not(target_arch = "wasm32"),
+    not(feature = "cargo-clippy")
+))]
+compile_error!("Building runtime with \"-F wasm\", but not for \"wasm32\" target, is forbidden!");
 
-#[cfg(feature = "export")]
-pub use code::WASM_BINARY;
+#[cfg(any(not(feature = "wasm"), feature = "cargo-clippy"))]
+include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-#[cfg(not(feature = "export"))]
+#[cfg(all(
+    feature = "wasm",
+    any(target_arch = "wasm32", feature = "cargo-clippy")
+))]
 extern crate alloc;
 
-#[cfg(not(feature = "export"))]
-mod api;
-
-#[cfg(not(feature = "export"))]
-mod interface;
-
-#[cfg(all(not(feature = "export"), target_arch = "wasm32"))]
+#[cfg(all(
+    feature = "wasm",
+    any(target_arch = "wasm32", feature = "cargo-clippy")
+))]
 mod wasm {
-    use crate::interface::logging_ri::RuntimeLogger;
-    use core::panic::PanicInfo;
+    mod api;
+    mod interface;
 
     #[global_allocator]
     pub static ALLOC: dlmalloc_rs::GlobalDlmalloc = dlmalloc_rs::GlobalDlmalloc;
 
+    #[cfg(not(feature = "cargo-clippy"))]
     #[panic_handler]
-    fn panic_handler(info: &PanicInfo) -> ! {
+    fn panic_handler(info: &core::panic::PanicInfo) -> ! {
         log::error!("{info}");
         core::arch::wasm32::unreachable()
     }
 
     #[no_mangle]
     extern "C" fn _start() {
-        RuntimeLogger::init();
+        interface::logging_ri::RuntimeLogger::init();
     }
 }

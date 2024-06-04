@@ -16,13 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_wasm_builder::WasmBuilder;
-
 fn main() {
-    WasmBuilder::new()
-        .exclude_features(["export"].to_vec())
-        .without_code_checks()
-        .without_binpath()
-        .without_import_memory()
+    #[cfg(any(not(feature = "wasm"), feature = "cargo-clippy"))]
+    substrate_wasm_builder::WasmBuilder::new()
+        .with_current_project()
+        .disable_runtime_version_section_check()
+        .enable_feature("wasm")
         .build();
 }

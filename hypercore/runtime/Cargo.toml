@@ -8,16 +8,31 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-gear-core.workspace = true
-gear-wasm-instrument.workspace = true
-gprimitives.workspace = true
-log.workspace = true
-dlmalloc-rs = { workspace = true, features = ["global"] }
-parity-scale-codec.workspace = true
+# Once you append any dependency, make sure to put it under "wasm" feature.
+
+## Operational deps.
+dlmalloc-rs = { workspace = true, features = ["global"], optional = true }
+log = { workspace = true, optional = true }
+parity-scale-codec = { workspace = true, optional = true }
+
+## Gear deps.
+gear-core = { workspace = true, optional = true }
+gear-wasm-instrument = { workspace = true, optional = true }
+gprimitives = { workspace = true, optional = true }
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+substrate-wasm-builder.workspace = true
 
 [features]
 default = []
-export = []
+wasm = [
+    ## Operational deps.
+    "dep:dlmalloc-rs",
+    "dep:log",
+    "dep:parity-scale-codec",
+
+    # Gear deps.
+    "dep:gear-core",
+    "dep:gear-wasm-instrument",
+    "dep:gprimitives",
+]
