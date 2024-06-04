@@ -19,7 +19,8 @@
 //! Auxiliary implementation of the gas provider that can be used in non-wasm environment.
 
 use crate::{
-    gas_provider::{Error, GasNode, GasNodeId, Origin, Provider, TreeImpl},
+    Origin,
+    gas_provider::{Error, GasNode, GasNodeId, Provider, TreeImpl},
     storage::{MapStorage, ValueStorage},
 };
 use alloc::collections::BTreeMap;

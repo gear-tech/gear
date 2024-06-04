@@ -29,7 +29,7 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{BlockConfig, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -56,7 +56,6 @@ use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     convert::TryInto,
     rc::Rc,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 const OUTGOING_LIMIT: u32 = 1024;
