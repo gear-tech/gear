@@ -20,7 +20,7 @@
 
 use crate::config::{Config, SequencerConfig};
 use anyhow::Result;
-use futures::stream::StreamExt;
+use futures::{future, stream::StreamExt};
 use tokio::signal;
 
 /// Hypercore service.
