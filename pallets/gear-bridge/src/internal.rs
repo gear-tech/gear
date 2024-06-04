@@ -28,11 +28,11 @@ use sp_std::vec::Vec;
 #[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub struct Proof {
-    root: H256,
-    proof: Vec<H256>,
-    number_of_leaves: u64,
-    leaf_index: u64,
-    leaf: H256,
+    pub root: H256,
+    pub proof: Vec<H256>,
+    pub number_of_leaves: u64,
+    pub leaf_index: u64,
+    pub leaf: H256,
 }
 
 impl From<MerkleProof<H256, H256>> for Proof {
