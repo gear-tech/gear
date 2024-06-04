@@ -48,13 +48,13 @@
 //!     }
 //! }
 //!
-//! # #[cfg(target = "wasm32")]
+//! # #[cfg(target_arch = "wasm32")]
 //! #[alloc_error_handler]
 //! pub fn oom(_: core::alloc::Layout) -> ! {
 //!     core::arch::wasm32::unreachable()
 //! }
 //!
-//! # #[cfg(target = "wasm32")]
+//! # #[cfg(target_arch = "wasm32")]
 //! #[panic_handler]
 //! fn panic(_: &core::panic::PanicInfo) -> ! {
 //!     core::arch::wasm32::unreachable()
