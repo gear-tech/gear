@@ -22,6 +22,7 @@
 
 use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
+use gear_core::ids::CodeId;
 use gear_utils::NonEmpty;
 use gsys::Hash;
 use std::{collections::HashMap, ops::RangeInclusive};
@@ -125,6 +126,7 @@ impl SyscallsParamsConfig {
                 Ptr::TwoHashesWithValue(HashType::ReservationId, HashType::ActorId)
             }
             PtrParamAllowedValues::ReservationId => Ptr::Hash(HashType::ReservationId),
+            PtrParamAllowedValues::CodeIdsWithValue { .. } => Ptr::HashWithValue(HashType::CodeId),
         };
 
         self.ptr.insert(ptr, allowed_values);
@@ -265,6 +267,11 @@ pub enum PtrParamAllowedValues {
     },
     /// Variant of `Ptr::Hash` pointer type, where hash is reservation id.
     ReservationId,
+    /// Variant of `Ptr::Hash` pointer type, where hash is code id.
+    CodeIdsWithValue {
+        code_ids: NonEmpty<CodeId>,
+        range: RangeInclusive<u128>,
+    },
 }
 
 /// Actor kind, which is actually a syscall destination choice.
