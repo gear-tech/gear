@@ -18,7 +18,7 @@
 
 //! Auxiliary (for tests) gas tree management implementation for the crate.
 
-use crate::{GAS_ALLOWANCE, GAS_MULTIPLIER};
+use crate::GAS_MULTIPLIER;
 use gear_common::{
     gas_provider::{
         AuxiliaryGasProvider, ConsumeResultOf, GasNodeId, GasTreeError, PlainNodeId, Provider, Tree,
