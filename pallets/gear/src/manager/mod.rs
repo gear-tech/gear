@@ -35,7 +35,7 @@
 //!    when a message is executed, it has some context, which is set from the pallet level, and a part of the context data is program's actual balance (current balance +
 //!    value sent within the executing message). So if during execution of the original message some other messages were sent, message send call is followed
 //!    by program's balance checks. The check gives guarantee that value reservation call in
-//! 
+//!
 //! [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) for program's messages won't fail, because there is always a
 //! sufficient balance for the call.
 //!

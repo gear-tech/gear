@@ -251,7 +251,7 @@ impl LazyPagesExecutionContext {
 /// Key consists of two parts:
 /// 1) current program prefix in storage
 /// 2) page number in little endian bytes order
-/// 
+///
 /// First part is always the same, so we can copy it to buffer
 ///    once and then use it for all pages.
 #[derive(Debug)]

@@ -41,7 +41,7 @@
 //! 6. All non-external nodes have ancestor with value (for example,
 //!    [`TreeImpl::node_with_value`] procedure always return `Ok`),
 //!    however this value can be equal to 0.
-//! 
+//!
 //! This ancestor is either a parent or the node itself.
 //!
 //! 7. All nodes can't have consumed parent with zero refs (there can't be any
