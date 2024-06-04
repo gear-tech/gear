@@ -18,6 +18,7 @@
 
 use crate::{
     gas_tree::GasTreeManager,
+    block_info::BlocksManager,
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
@@ -215,10 +216,10 @@ pub(crate) enum MintMode {
     AllowDeath,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct ExtManager {
     // State metadata
-    pub(crate) block_info: BlockInfo,
+    pub(crate) blocks_manager: BlocksManager,
     pub(crate) random_data: (Vec<u8>, u32),
 
     // Messaging and programs meta
@@ -253,13 +254,7 @@ impl ExtManager {
         Self {
             msg_nonce: 1,
             id_nonce: 1,
-            block_info: BlockInfo {
-                height: 0,
-                timestamp: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_millis() as u64,
-            },
+            blocks_manager: BlocksManager::new(),
             random_data: (
                 {
                     let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
@@ -366,14 +361,15 @@ impl ExtManager {
     /// Check if the current block number should trigger new epoch and reset
     /// the provided random data.
     pub(crate) fn check_epoch(&mut self) {
-        if self.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
+        let block_height = self.blocks_manager.get().height;
+        if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
-                INITIAL_RANDOM_SEED + (self.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
+                INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64,
             );
             let mut random = [0u8; 32];
             rng.fill_bytes(&mut random);
 
-            self.random_data = (random.to_vec(), self.block_info.height + 1);
+            self.random_data = (random.to_vec(), block_height + 1);
         }
     }
 
@@ -533,7 +529,7 @@ impl ExtManager {
                 Some((*program_id, Default::default())),
                 payload,
                 GAS_ALLOWANCE,
-                self.block_info,
+                self.blocks_manager.get(),
             )
             .map_err(TestError::ReadStateError)
         } else if let Some(mut program_mock) = actor.take_mock() {
@@ -574,7 +570,7 @@ impl ExtManager {
             None,
             mapping_code_payload,
             GAS_ALLOWANCE,
-            self.block_info,
+            self.blocks_manager.get(),
         )
         .map_err(TestError::ReadStateError)
     }
@@ -683,7 +679,8 @@ impl ExtManager {
         self.main_gas_burned = Gas::zero();
         self.others_gas_burned = {
             let mut m = BTreeMap::new();
-            m.insert(self.block_info.height, Gas::zero());
+            let block_height = self.blocks_manager.get().height;
+            m.insert(block_height, Gas::zero());
 
             m
         };
@@ -853,7 +850,7 @@ impl ExtManager {
             .get_limit(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         let block_config = BlockConfig {
-            block_info: self.block_info,
+            block_info: self.blocks_manager.get(),
             performance_multiplier: gsys::Percent::new(100),
             forbidden_funcs: Default::default(),
             reserve_for: RESERVE_FOR,
@@ -969,7 +966,7 @@ impl JournalHandler for ExtManager {
             self.main_gas_burned = self.main_gas_burned.saturating_add(Gas(amount));
         } else {
             self.others_gas_burned
-                .entry(self.block_info.height)
+                .entry(self.blocks_manager.get().height)
                 .and_modify(|others_gas_burned| {
                     *others_gas_burned = others_gas_burned.saturating_add(Gas(amount))
                 });
@@ -998,7 +995,7 @@ impl JournalHandler for ExtManager {
         if bn > 0 {
             log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
 
-            self.send_delayed_dispatch(dispatch, self.block_info.height.saturating_add(bn));
+            self.send_delayed_dispatch(dispatch, self.blocks_manager.get().height.saturating_add(bn));
             return;
         }
 
@@ -1045,7 +1042,7 @@ impl JournalHandler for ExtManager {
         self.wait_list.insert((dest, id), dispatch);
         if let Some(duration) = duration {
             self.wait_list_schedules
-                .entry(self.block_info.height.saturating_add(duration))
+                .entry(self.blocks_manager.get().height.saturating_add(duration))
                 .or_default()
                 .push((dest, id));
         }
@@ -1180,7 +1177,7 @@ impl JournalHandler for ExtManager {
         // the queue.
         self.gas_allowance = Gas(GAS_ALLOWANCE);
         self.dispatches.push_front(dispatch);
-        self.block_info.height = self.block_info.height.saturating_add(1);
+        self.blocks_manager.move_blocks_by(1);
     }
 
     fn reserve_gas(
@@ -1203,7 +1200,7 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        let block_height = self.block_info.height;
+        let block_height = self.blocks_manager.get().height;
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
             .get_mut(&program_id)
