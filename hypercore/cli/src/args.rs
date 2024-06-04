@@ -22,6 +22,8 @@ use clap::{Parser, Subcommand};
 use serde::Deserialize;
 use std::path::PathBuf;
 
+use crate::params::NetworkParams;
+
 use crate::config;
 
 #[derive(Clone, Debug, Parser, Deserialize)]
@@ -70,6 +72,10 @@ pub struct Args {
     /// Validator (processor) key, if intended to run node in validator mode.
     #[arg(long = "sequencer-key")]
     pub validator_key: Option<String>,
+
+    #[allow(missing_docs)]
+    #[clap(flatten)]
+    pub network_params: NetworkParams,
 
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,

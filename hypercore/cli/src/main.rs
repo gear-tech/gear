@@ -18,6 +18,7 @@
 
 mod args;
 mod config;
+mod params;
 mod service;
 
 use crate::{args::Args, config::Config, service::Service};

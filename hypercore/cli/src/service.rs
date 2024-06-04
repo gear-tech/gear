@@ -20,8 +20,7 @@
 
 use crate::config::{Config, SequencerConfig};
 use anyhow::Result;
-use futures::{future, stream::StreamExt};
-use std::time::Duration;
+use futures::stream::StreamExt;
 use tokio::signal;
 
 /// Hypercore service.
@@ -39,7 +38,7 @@ impl Service {
         let db: Box<dyn hypercore_db::CASDatabase> = Box::new(hypercore_db::RocksDatabase::open(
             config.database_path.clone(),
         )?);
-        let network = hypercore_network::Network::start()?;
+        let network = hypercore_network::Network::new(config.net_config.clone())?;
         let observer = hypercore_observer::Observer::new(
             config.ethereum_rpc.clone(),
             config.ethereum_beacon_rpc.clone(),
@@ -99,6 +98,9 @@ impl Service {
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
+        let network_run = network.run();
+        futures::pin_mut!(network_run);
+
         loop {
             tokio::select! {
                 _ = signal::ctrl_c() => {
@@ -116,6 +118,10 @@ impl Service {
                         log::info!("Observer stream ended, shutting down...");
                         break;
                     }
+                }
+                _ = &mut network_run => {
+                    log::info!("`Network` has terminated, shutting down the network future.");
+                    break;
                 }
             }
         }
@@ -140,6 +146,7 @@ mod tests {
             ethereum_program_address: "0x23a4FC5f430a7c3736193B852Ad5191c7EC01037".into(),
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
+            net_config: hypercore_network::NetworkConfiguration::new_local(),
             sequencer: Default::default(),
             validator: Default::default(),
         })
