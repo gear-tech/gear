@@ -361,8 +361,6 @@ async fn test_program_counters() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_for_handle() -> Result<()> {
-    use parity_scale_codec::Decode;
-
     let node = dev_node();
 
     let salt = vec![];
