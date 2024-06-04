@@ -19,7 +19,10 @@
 //! RPC calls with signer
 
 use crate::{result::Result, signer::Inner, GasInfo};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId},
+    message::ReplyInfo,
+};
 use sp_core::H256;
 use std::sync::Arc;
 
@@ -129,6 +132,29 @@ impl SignerRpc {
                 payload,
                 value,
                 allow_other_panics,
+                at,
+            )
+            .await
+    }
+
+    /// gear_calculateReplyForHandle
+    pub async fn calculate_reply_for_handle(
+        &self,
+        origin: Option<H256>,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        at: Option<H256>,
+    ) -> Result<ReplyInfo> {
+        self.0
+            .api
+            .calculate_reply_for_handle(
+                origin.unwrap_or_else(|| self.source()),
+                destination,
+                payload,
+                gas_limit,
+                value,
                 at,
             )
             .await
