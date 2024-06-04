@@ -115,10 +115,10 @@ fn validate_if_has_no_attributes(
 /// # Syntax
 ///
 /// - This attribute **must** be used on the `pub`lic `mod` container with the
-/// `metafns` identifier.
+///   `metafns` identifier.
 /// - The first item in the module **must** be a `pub`lic `type` alias with the
-/// `State` identifier. The type for which `State` will be an alias **must**
-/// implement [`Decode`] trait.
+///   `State` identifier. The type for which `State` will be an alias **must**
+///   implement [`Decode`] trait.
 ///
 /// Usually the state type should be imported from the implemented associated
 /// [`Metadata::State`](../gmeta/trait.Metadata.html#associatedtype.State) type
@@ -127,19 +127,19 @@ fn validate_if_has_no_attributes(
 /// - The rest of items **must** be `pub`lic functions.
 /// - The first argument's type of metafunctions **must** be `State`.
 /// - If the first argument uses
-/// [the identifier pattern](https://doc.rust-lang.org/stable/reference/patterns.html#identifier-patterns),
-/// the identifier **must** be `state` or `_state`.
+///   [the identifier pattern](https://doc.rust-lang.org/stable/reference/patterns.html#identifier-patterns),
+///   the identifier **must** be `state` or `_state`.
 ///
 /// In addition to the mandatory first argument, functions can have additional
 /// ones.
 ///
 /// - The maximum amount of additional arguments is 18 due restrictions of the
-/// SCALE codec.
+///   SCALE codec.
 /// - All additional arguments **must** implement the [`Decode`] &
-/// [`TypeInfo`] traits.
+///   [`TypeInfo`] traits.
 /// - A function **mustn't** return `()` or nothing.
 /// - A returned type **must** implement the
-/// [`Encode`](../gmeta/trait.Encode.html) & [`TypeInfo`] traits.
+///   [`Encode`](../gmeta/trait.Encode.html) & [`TypeInfo`] traits.
 ///
 /// [`Decode`]: ../gmeta/trait.Decode.html
 /// [`TypeInfo`]: ../gmeta/trait.TypeInfo.html
@@ -166,7 +166,7 @@ fn validate_if_has_no_attributes(
 /// - For `some_function` an argument must be [`None`].
 /// - For `another_function_but_with_arg` an argument must be `Some(SomeArg)`.
 /// - For `function_with_multiple_args` an argument must be
-/// `Some((SomeArg, u16, u32))`.
+///   `Some((SomeArg, u16, u32))`.
 #[proc_macro_attribute]
 pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     process(parse_macro_input!(item)).unwrap_or_else(|error| error.into_compile_error().into())

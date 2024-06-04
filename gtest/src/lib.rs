@@ -208,7 +208,7 @@
 //!     ```
 //!
 //!     Every place in this lib, where you need to specify some ids, it requires
-//! generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
+//!   generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
 //!
 //!     `ProgramIdWrapper` may be built from:
 //!     - `u64`

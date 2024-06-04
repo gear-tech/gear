@@ -143,14 +143,14 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// Generates an export function with a `name`.
     ///
     /// Actually generating a new export function doesn't mean generating it's body
-    /// from scratch. This function chooses random internal function and calls it
-    /// from the body of the newly generated export.
+    ///    from scratch. This function chooses random internal function and calls it
+    ///    from the body of the newly generated export.
     ///
     /// # Note:
     /// 1. The method is intended to generate just exports, not only gear entry points.
     /// 2. If the generator was used to generate some export with a custom name (not gear entry point)
-    /// and then disabled, that export index can be retrieved from [`DisabledEntryPointsGenerator`], by
-    /// accessing the underlying `parity_wasm::module::Module` and iterating over it's export section.
+    ///    and then disabled, that export index can be retrieved from [`DisabledEntryPointsGenerator`], by
+    ///    accessing the underlying `parity_wasm::module::Module` and iterating over it's export section.
     pub fn generate_export(&mut self, name: &str) -> Result<GearEntryPointGenerationProof> {
         log::trace!(
             "Random data before generating {name} export - {}",

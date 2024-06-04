@@ -20,7 +20,7 @@
 //!
 //! Configs, possibly, can be instantiated 3 different ways:
 //! 1. From scratch by settings fields to corresponding values sometimes using
-//! related to these fields builders. For example, wasm module configs:
+//!    related to these fields builders. For example, wasm module configs:
 //! ```rust
 //! # use std::num::NonZeroUsize;
 //! use gear_wasm_gen::*;
@@ -68,7 +68,7 @@
 //! ```
 //!
 //! 2. By using `Default` trait.
-//! For example:
+//!    For example:
 //! ```rust
 //! use gear_wasm_gen::*;
 //! let wasm_gen_config = GearWasmGeneratorConfig::default();

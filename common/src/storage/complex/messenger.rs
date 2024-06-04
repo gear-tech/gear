@@ -81,7 +81,7 @@ pub trait Messenger {
     type DispatchStashKey;
 
     /// Amount of messages sent from outside (from users)
-    /// within the current block.
+    ///    within the current block.
     ///
     /// Used as local counter for `MessageId` generation.
     type Sent: Counter<Value = Self::Capacity>;
@@ -138,16 +138,16 @@ pub trait Messenger {
     ///
     /// Message can be inserted into waitlist only in these cases:
     /// 1. Destination program called `gr_wait` while was executing
-    /// this message, so only this program can remove and
-    /// requeue it by `gr_wake` call in any execution.
+    ///    this message, so only this program can remove and
+    ///    requeue it by `gr_wake` call in any execution.
     /// 2. The message sent to program, that hadn't finished its
-    /// initialization, and will be automatically removed once
-    /// result of initialization would be available.
+    ///    initialization, and will be automatically removed once
+    ///    result of initialization would be available.
     /// 3. Restored after resuming paused programs. On pause we
-    /// collect waitlist content addressed to the program,
-    /// removing it afterwards. On resume, user should provide
-    /// the same content to be able to unpause program, which
-    /// gonna be added into waitlist again.
+    ///    collect waitlist content addressed to the program,
+    ///    removing it afterwards. On resume, user should provide
+    ///    the same content to be able to unpause program, which
+    ///    gonna be added into waitlist again.
     ///
     /// More cases may be considered in future.
     ///

@@ -29,7 +29,7 @@ use num_traits::{One, PrimInt, Unsigned};
 ///
 /// # Examples
 /// 1) For any `T`, which max value can be get by calling some static live time function,
-/// `Option<T>`` can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
+///    `Option<T>`` can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
 ///
 /// 2) When `inner` field max value is always smaller than `inner` type max value, then we can use this variant:
 /// ```
@@ -77,14 +77,14 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     /// # Guaranties
     /// - iff `self + num` is enclosed by `self` and `other`, then returns `Some(_)`.
     /// - iff `self.add_if_enclosed_by(num, other) == Some(a)`,
-    /// then `a.sub_if_enclosed_by(num, self) == Some(self)`.
+    ///   then `a.sub_if_enclosed_by(num, self) == Some(self)`.
     fn add_if_enclosed_by(self, num: Self::Distance, other: Self) -> Option<Self>;
     /// Subtracts `num` from `self`, if `self - num` is enclosed by `self` and `other`.
     ///
     /// # Guaranties
     /// - iff `self - num` is enclosed by `self` and `other`, then returns `Some(_)`.
     /// - iff `self.sub_if_enclosed_by(num, other) == Some(a)`,
-    /// then `a.add_if_enclosed_by(num, self) == Some(self)`.
+    ///   then `a.add_if_enclosed_by(num, self) == Some(self)`.
     fn sub_if_enclosed_by(self, num: Self::Distance, other: Self) -> Option<Self>;
     /// Returns a distance between `self` and `other`
     ///
