@@ -153,6 +153,30 @@ impl Signer {
         Ok(signature.into())
     }
 
+    pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {
+        let keys = self.list_keys()?;
+
+        for key in keys {
+            if key.to_address() == address {
+                return self.sign(key, data);
+            }
+        }
+
+        anyhow::bail!("Address not found: {}", address);
+    }
+
+    pub fn has_addr(&self, address: Address) -> Result<bool> {
+        let keys = self.list_keys()?;
+
+        for key in keys {
+            if key.to_address() == address {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     pub fn has_key(&self, key: PublicKey) -> Result<bool> {
         let key_path = self.key_store.join(key.to_hex());
         let has_key = fs::metadata(key_path).is_ok();
@@ -265,4 +289,42 @@ mod tests {
         // Clean up the key store directory
         signer.clear_keys().unwrap();
     }
+
+    #[test]
+    fn test_signer_with_addr() {
+        // Create the signer with a temporary key store path
+        let key_store = PathBuf::from("/tmp/key-store-test-addr");
+        let signer = Signer::new(key_store.clone()).expect("Failed to create signer");
+
+        // Generate a new key
+        let public_key = signer.generate_key().expect("Failed to generate key");
+
+        // Ensure the key store has the key
+        assert!(signer.has_key(public_key).unwrap());
+
+        // Sign the message
+        let message = b"hello world";
+        let signature = signer
+            .sign_with_addr(public_key.to_address(), message)
+            .expect("Failed to sign message");
+
+        // Hash the message using Keccak256
+        let hash = keccak256(message);
+
+        // Recover the address using the signature
+        let ethers_sig = ethers::core::types::Signature::try_from(&signature.0[..])
+            .expect("failed to parse sig");
+
+        let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
+
+        // Verify the recovered address matches the expected address
+        assert_eq!(
+            format!("{:?}", recovered_address),
+            format!("{}", public_key.to_address())
+        );
+
+        // Clean up the key store directory
+        signer.clear_keys().unwrap();
+    }
+
 }
