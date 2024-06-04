@@ -18,7 +18,7 @@
 
 //! Block timestamp and height management.
 
-use std::{borrow::BorrowMut, cell::RefCell, time::{SystemTime, UNIX_EPOCH}};
+use std::{cell::RefCell, time::{SystemTime, UNIX_EPOCH}};
 use core_processor::configs::BlockInfo;
 
 use crate::BLOCK_DURATION_IN_MSECS;
