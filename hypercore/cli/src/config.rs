@@ -22,6 +22,7 @@ use crate::args::Args;
 
 use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
+use hypercore_network::NetworkConfiguration;
 use std::path::PathBuf;
 
 #[derive(Default)]
@@ -51,11 +52,11 @@ pub struct Config {
     /// Address of Ethereum Program contract
     pub ethereum_program_address: String,
 
+    /// Network path
+    pub network_path: PathBuf,
+
     /// Path of the state database
     pub database_path: PathBuf,
-
-    /// Path of the network configuration (keys and peers)
-    pub network_path: PathBuf,
 
     /// Signer key storage path
     pub key_path: PathBuf,
@@ -65,6 +66,9 @@ pub struct Config {
 
     /// Is this role a validator
     pub validator: ValidatorConfig,
+
+    // Network configuration
+    pub net_config: NetworkConfiguration,
 }
 
 impl TryFrom<Args> for Config {
@@ -85,6 +89,12 @@ impl TryFrom<Args> for Config {
             ethereum_beacon_rpc: args.ethereum_beacon_rpc,
             ethereum_router_address: args.ethereum_router_address,
             ethereum_program_address: args.ethereum_program_address,
+            net_config: args.network_params.network_config(
+                Some(base_path.join("net")),
+                "test",
+                Default::default(),
+                hypercore_network::DEFAULT_LISTEN_PORT,
+            ),
             database_path: base_path.join("db"),
             network_path: base_path.join("net"),
             key_path: base_path.join("key"),
