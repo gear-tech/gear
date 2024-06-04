@@ -1,5 +1,5 @@
 [toolchain]
-channel = "nightly-2024-06-04"
+channel = "nightly-2024-05-01"
 components = [ "llvm-tools" ]
 targets = [ "wasm32-unknown-unknown" ]
 profile = "default"
