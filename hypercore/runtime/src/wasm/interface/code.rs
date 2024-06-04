@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::utils;
 use alloc::{vec, vec::Vec};
-use core::fmt::{self, Write};
-use gprimitives::CodeId;
-use log::{Level, LevelFilter, Metadata, Record};
 
 mod sys {
     extern "C" {

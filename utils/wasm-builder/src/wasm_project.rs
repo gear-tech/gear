@@ -446,7 +446,7 @@ extern "C" fn metahash() {{
     ///   `target/wasm32-unknown-unknown/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
-    pub fn postprocess(&self, code_checks: bool, dump_binpath: bool) -> Result<()> {
+    pub fn postprocess(&self) -> Result<()> {
         let file_base_name = self
             .file_base_name
             .as_ref()
@@ -459,9 +459,7 @@ extern "C" fn metahash() {{
 
         fs::create_dir_all(&self.target_dir).context("Failed to create target directory")?;
 
-        if dump_binpath {
-            self.generate_bin_path(file_base_name)?;
-        }
+        self.generate_bin_path(file_base_name)?;
 
         let mut wasm_files = vec![(original_wasm_path.clone(), file_base_name.clone())];
 
@@ -522,16 +520,14 @@ extern "C" fn metahash() {{
             }
         }
 
-        if code_checks {
-            for (wasm_path, _) in wasm_files {
-                let code = fs::read(wasm_path)?;
-                let validator = CodeValidator::try_from(code)?;
+        for (wasm_path, _) in wasm_files {
+            let code = fs::read(wasm_path)?;
+            let validator = CodeValidator::try_from(code)?;
 
-                if self.project_type.is_metawasm() {
-                    validator.validate_metawasm()?;
-                } else {
-                    validator.validate_program()?;
-                }
+            if self.project_type.is_metawasm() {
+                validator.validate_metawasm()?;
+            } else {
+                validator.validate_program()?;
             }
         }
 

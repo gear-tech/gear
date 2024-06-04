@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::interface::code_ri;
+use crate::wasm::interface::code_ri;
 use alloc::boxed::Box;
-use gear_core::code::{Code, CodeAndId};
+use gear_core::code::Code;
 use gear_wasm_instrument::gas_metering::Schedule;
 use parity_scale_codec::Encode as _;
 
