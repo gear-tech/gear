@@ -18,10 +18,6 @@
 
 use wasmtime::{Caller, Memory};
 
-pub fn mem_of<T>(caller: &mut Caller<'_, T>) -> Memory {
-    caller.get_export("memory").unwrap().into_memory().unwrap()
-}
-
 pub fn read_ri_slice<T>(memory: &Memory, store: &mut Caller<'_, T>, data: i64) -> Vec<u8> {
     let data_bytes = data.to_le_bytes();
 

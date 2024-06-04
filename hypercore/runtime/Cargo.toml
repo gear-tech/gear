@@ -17,6 +17,7 @@ parity-scale-codec = { workspace = true, optional = true }
 
 ## Gear deps.
 gear-core = { workspace = true, optional = true }
+gear-sandbox = { workspace = true, optional = true }
 gear-wasm-instrument = { workspace = true, optional = true }
 gprimitives = { workspace = true, optional = true }
 
@@ -33,6 +34,8 @@ wasm = [
 
     # Gear deps.
     "dep:gear-core",
+    "dep:gear-sandbox",
     "dep:gear-wasm-instrument",
     "dep:gprimitives",
 ]
+cargo-clippy = []

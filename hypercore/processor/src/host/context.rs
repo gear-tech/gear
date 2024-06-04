@@ -17,25 +17,40 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
+use wasmtime::{Memory, Table};
 
-pub trait CodeContext {
-    fn code(&self) -> &[u8];
+pub struct HostContext {
+    pub code: Vec<u8>,
+    pub(crate) memory: Option<Memory>,
+    pub(crate) table: Option<Table>,
+}
 
-    fn id(&self) -> CodeId {
+impl HostContext {
+    pub fn new(code: Vec<u8>) -> Self {
+        Self {
+            code,
+            memory: None,
+            table: None,
+        }
+    }
+
+    pub fn code(&self) -> &[u8] {
+        &self.code
+    }
+
+    pub fn id(&self) -> CodeId {
         CodeId::generate(self.code())
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.code().len()
     }
-}
 
-pub struct VerifierContext {
-    pub code: Vec<u8>,
-}
+    pub fn memory(&self) -> Memory {
+        self.memory.unwrap()
+    }
 
-impl CodeContext for VerifierContext {
-    fn code(&self) -> &[u8] {
-        &self.code
+    pub fn table(&self) -> Table {
+        self.table.unwrap()
     }
 }

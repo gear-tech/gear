@@ -21,7 +21,7 @@
 use crate::host::{db::Database, state::Message};
 use anyhow::Result;
 use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
-use host::context::CodeContext;
+use host::context::HostContext;
 use hypercore_db::CASDatabase;
 use hypercore_observer::Event;
 use log::Level;
@@ -51,13 +51,13 @@ impl Processor {
             return Ok(false);
         }
 
-        let mut executor = host::Executor::verifier(code)?;
+        let mut executor = host::Executor::new(HostContext::new(code))?;
 
         let res = executor.verify()?;
 
         if res {
             let context = executor.into_store().into_data();
-            let code_id = CodeContext::id(&context);
+            let code_id = context.id();
             self.db.write_code(code_id, &context.code)
         }
 
@@ -67,7 +67,7 @@ impl Processor {
     pub fn instrument_code(&mut self, code_id: CodeId) -> Result<Option<H256>> {
         let code = self.db.read_code(code_id).unwrap();
 
-        let mut executor = host::Executor::verifier(code)?;
+        let mut executor = host::Executor::new(HostContext::new(code))?;
 
         if let Some(instrumented) = executor.instrument()? {
             let hash = self.db.write_instrumented_code(&instrumented);

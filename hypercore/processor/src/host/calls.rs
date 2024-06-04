@@ -24,16 +24,18 @@ use log::Level;
 use wasmtime::{AsContextMut, Caller, Linker, Memory};
 
 pub mod logging {
+    use crate::host::context::HostContext;
+
     use super::*;
 
-    pub fn link<T: 'static>(linker: &mut Linker<T>) -> Result<()> {
-        linker.func_wrap("env", "logging_log_v1", log::<T>)?;
-        linker.func_wrap("env", "logging_max_level_v1", max_level::<T>)?;
+    pub fn link(linker: &mut Linker<HostContext>) -> Result<()> {
+        linker.func_wrap("env", "logging_log_v1", log)?;
+        linker.func_wrap("env", "logging_max_level_v1", max_level)?;
 
         Ok(())
     }
 
-    fn log<C>(mut caller: Caller<'_, C>, level: i32, target: i64, message: i64) {
+    fn log(mut caller: Caller<'_, HostContext>, level: i32, target: i64, message: i64) {
         let level = match level {
             1 => Level::Error,
             2 => Level::Warn,
@@ -42,7 +44,7 @@ pub mod logging {
             _ => Level::Trace,
         };
 
-        let mem = utils::mem_of(&mut caller);
+        let mem = caller.data().memory();
 
         let target = utils::read_ri_slice(&mem, &mut caller, target);
         let target = core::str::from_utf8(&target).unwrap_or_default();
@@ -53,25 +55,26 @@ pub mod logging {
         log::log!(target: target, level, "{message}");
     }
 
-    fn max_level<C>(_: Caller<'_, C>) -> i32 {
+    fn max_level(_: Caller<'_, HostContext>) -> i32 {
         log::max_level() as usize as i32
     }
 }
 
 pub mod code {
     use super::*;
-    use crate::host::context::CodeContext;
+    use crate::host::context::HostContext;
 
-    pub fn link<T: 'static + CodeContext>(linker: &mut Linker<T>) -> Result<()> {
-        linker.func_wrap("env", "code_load_v1", load::<T>)?;
+    pub fn link(linker: &mut Linker<HostContext>) -> Result<()> {
+        linker.func_wrap("env", "code_load_v1", load)?;
 
         Ok(())
     }
 
-    fn load<T: CodeContext>(mut caller: Caller<'_, T>, buffer_ptr: i32) {
-        let mem = utils::mem_of(&mut caller);
+    fn load(mut caller: Caller<'_, HostContext>, buffer_ptr: i32) {
         // TODO: set/take here to avoid mut borrowing.
         let code = caller.data().code().to_vec();
+
+        let mem = caller.data().memory();
 
         mem.write(&mut caller, buffer_ptr as usize, code.as_ref())
             .unwrap();
