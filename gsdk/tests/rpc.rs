@@ -18,7 +18,11 @@
 
 //! Requires node to be built in release mode
 
-use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use gear_core::{
+    ids::{prelude::*, CodeId, ProgramId},
+    message::ReplyInfo,
+};
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
@@ -351,6 +355,54 @@ async fn test_program_counters() -> Result<()> {
         query_program_counters(&uri, None).await?;
     println!("elapsed = {:?}", instant.elapsed());
     println!("testnet block_hash = {block_hash}, block_number = {block_number}, count_program = {count_program}, count_active_program = {count_active_program}, count_memory_page = {count_memory_page}");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_calculate_reply_for_handle() -> Result<()> {
+    use parity_scale_codec::Decode;
+
+    let node = dev_node();
+
+    let salt = vec![];
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_ping::WASM_BINARY), &salt);
+
+    // 1. upload program.
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
+
+    signer
+        .calls
+        .upload_program(
+            demo_ping::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    assert!(
+        signer.api().gprog(pid).await.is_ok(),
+        "Program not exists on chain."
+    );
+
+    // 2. calculate reply for handle
+    let reply_info = signer
+        .rpc
+        .calculate_reply_for_handle(None, pid, b"PING".to_vec(), 100_000_000_000, 0, None)
+        .await?;
+
+    assert_eq!(
+        reply_info,
+        ReplyInfo {
+            payload: b"PONG".to_vec(),
+            value: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual)
+        }
+    );
 
     Ok(())
 }
