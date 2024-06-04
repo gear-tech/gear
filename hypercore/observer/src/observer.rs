@@ -1,23 +1,25 @@
-use crate::{BlockEvent, Event, Program, Router};
+use crate::{BlockEvent, Event};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
-    primitives::{Address, LogData, TxHash, B256},
+    primitives::{Address, LogData, B256},
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::PubSubFrontend,
     rpc::{
         client::WsConnect,
         types::{
             beacon::sidecar::BeaconBlobBundle,
-            eth::{Filter, Log, Topic},
+            eth::{Filter, Topic},
         },
     },
-    sol_types::{self, SolEvent},
 };
 use anyhow::{anyhow, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
-use gear_core::ids::{prelude::*, ActorId, CodeId, MessageId};
-use gprimitives::H256;
+use gear_core::ids::prelude::*;
+use gprimitives::{ActorId, CodeId, H256};
+use hypercore_ethereum::event::{
+    ClaimValue, CreateProgram, CreatedProgram, SendMessage, SendReply, UploadCode,
+};
 use reqwest::Client;
 use std::{collections::HashSet, hash::RandomState};
 use tokio::time::{self, Duration};
@@ -26,12 +28,12 @@ use tokio::time::{self, Duration};
 pub(crate) struct PendingUploadCode {
     origin: ActorId,
     code_id: CodeId,
-    blob_tx: TxHash,
-    tx_hash: TxHash,
+    blob_tx: H256,
+    tx_hash: H256,
 }
 
 impl PendingUploadCode {
-    fn blob_tx(&self) -> TxHash {
+    fn blob_tx(&self) -> H256 {
         if self.blob_tx.is_zero() {
             self.tx_hash
         } else {
@@ -50,14 +52,15 @@ pub struct Observer {
 }
 
 impl Observer {
-    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 2] = [
-        <Router::UploadCode as SolEvent>::SIGNATURE_HASH,
-        <Router::CreateProgram as SolEvent>::SIGNATURE_HASH,
+    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 3] = [
+        B256::new(UploadCode::SIGNATURE_HASH),
+        B256::new(CreateProgram::SIGNATURE_HASH),
+        B256::new(CreatedProgram::SIGNATURE_HASH),
     ];
     const PROGRAM_EVENT_SIGNATURE_HASHES: [B256; 3] = [
-        <Program::SendMessage as SolEvent>::SIGNATURE_HASH,
-        <Program::SendReply as SolEvent>::SIGNATURE_HASH,
-        <Program::ClaimValue as SolEvent>::SIGNATURE_HASH,
+        B256::new(SendMessage::SIGNATURE_HASH),
+        B256::new(SendReply::SIGNATURE_HASH),
+        B256::new(ClaimValue::SIGNATURE_HASH),
     ];
 
     pub async fn new(
@@ -160,86 +163,53 @@ impl Observer {
         let mut pending_upload_codes = vec![];
         let block_events: Vec<_> = logs
             .into_iter()
-            .filter_map(|log| match log.topic0().copied() {
-                Some(<Router::UploadCode as SolEvent>::SIGNATURE_HASH) => {
-                    let event = Self::decode_log::<Router::UploadCode>(&log).ok()?;
+            .filter_map(|log| {
+                let log_data: &LogData = log.as_ref();
+                let data = log_data.data.as_ref();
 
-                    let origin = ActorId::new(event.origin.into_word().0);
-                    let code_id = CodeId::new(event.codeId.0);
-                    let blob_tx = event.blobTx;
-                    let tx_hash = log.transaction_hash?;
+                match log.topic0().copied().map(|bytes| bytes.0) {
+                    Some(UploadCode::SIGNATURE_HASH) => {
+                        let UploadCode {
+                            origin,
+                            code_id,
+                            blob_tx,
+                        } = data.try_into().ok()?;
 
-                    pending_upload_codes.push(PendingUploadCode {
-                        origin,
-                        code_id,
-                        blob_tx,
-                        tx_hash,
-                    });
+                        let tx_hash = H256(log.transaction_hash?.0);
 
-                    None
+                        pending_upload_codes.push(PendingUploadCode {
+                            origin,
+                            code_id,
+                            blob_tx,
+                            tx_hash,
+                        });
+
+                        None
+                    }
+                    Some(CreateProgram::SIGNATURE_HASH) => {
+                        Some(BlockEvent::CreateProgram(data.try_into().ok()?))
+                    }
+                    Some(CreatedProgram::SIGNATURE_HASH) => {
+                        let CreatedProgram { actor_id: _ } = data.try_into().ok()?;
+
+                        // TODO: mark actor_id as known in database
+
+                        None
+                    }
+                    Some(SendMessage::SIGNATURE_HASH) => {
+                        // TODO: return None if is not known actor_id
+                        // (for send message, send reply, claim value)
+
+                        Some(BlockEvent::SendMessage(data.try_into().ok()?))
+                    }
+                    Some(SendReply::SIGNATURE_HASH) => {
+                        Some(BlockEvent::SendReply(data.try_into().ok()?))
+                    }
+                    Some(ClaimValue::SIGNATURE_HASH) => {
+                        Some(BlockEvent::ClaimValue(data.try_into().ok()?))
+                    }
+                    _ => None,
                 }
-                Some(<Router::CreateProgram as SolEvent>::SIGNATURE_HASH) => {
-                    let event = Self::decode_log::<Router::CreateProgram>(&log).ok()?;
-
-                    let origin = ActorId::new(event.origin.into_word().0);
-                    let code_id = CodeId::new(event.codeId.0);
-                    let salt = event.salt.to_vec();
-                    let init_payload = event.initPayload.to_vec();
-                    let gas_limit = event.gasLimit;
-                    let value = event.value;
-
-                    Some(BlockEvent::CreateProgram {
-                        origin,
-                        code_id,
-                        salt,
-                        init_payload,
-                        gas_limit,
-                        value,
-                    })
-                }
-                Some(<Program::SendMessage as SolEvent>::SIGNATURE_HASH) => {
-                    let event = Self::decode_log::<Program::SendMessage>(&log).ok()?;
-
-                    let origin = ActorId::new(event.origin.into_word().0);
-                    let destination = ActorId::new(event.destination.into_word().0);
-                    let payload = event.payload.to_vec();
-                    let gas_limit = event.gasLimit;
-                    let value = event.value;
-
-                    Some(BlockEvent::SendMessage {
-                        origin,
-                        destination,
-                        payload,
-                        gas_limit,
-                        value,
-                    })
-                }
-                Some(<Program::SendReply as SolEvent>::SIGNATURE_HASH) => {
-                    let event = Self::decode_log::<Program::SendReply>(&log).ok()?;
-
-                    let origin = ActorId::new(event.origin.into_word().0);
-                    let reply_to_id = MessageId::new(event.replyToId.0);
-                    let payload = event.payload.to_vec();
-                    let gas_limit = event.gasLimit;
-                    let value = event.value;
-
-                    Some(BlockEvent::SendReply {
-                        origin,
-                        reply_to_id,
-                        payload,
-                        gas_limit,
-                        value,
-                    })
-                }
-                Some(<Program::ClaimValue as SolEvent>::SIGNATURE_HASH) => {
-                    let event = Self::decode_log::<Program::ClaimValue>(&log).ok()?;
-
-                    let origin = ActorId::new(event.origin.into_word().0);
-                    let message_id = MessageId::new(event.messageId.0);
-
-                    Some(BlockEvent::ClaimValue { origin, message_id })
-                }
-                _ => None,
             })
             .collect();
 
@@ -258,17 +228,12 @@ impl Observer {
         ]
     }
 
-    fn decode_log<E: SolEvent>(log: &Log) -> sol_types::Result<E> {
-        let log_data: &LogData = log.as_ref();
-        E::decode_raw_log(log_data.topics().iter().copied(), &log_data.data, false)
-    }
-
     async fn read_code_from_tx_hash(
         provider: ObserverProvider,
         http_client: Client,
         beacon_rpc_url: &str,
         origin: ActorId,
-        tx_hash: TxHash,
+        tx_hash: H256,
         attempts: Option<u8>,
         expected_code_id: CodeId,
     ) -> Result<(ActorId, CodeId, Vec<u8>)> {
@@ -288,7 +253,7 @@ impl Observer {
         provider: ObserverProvider,
         http_client: Client,
         beacon_rpc_url: &str,
-        tx_hash: TxHash,
+        tx_hash: H256,
         attempts: Option<u8>,
     ) -> Result<Vec<u8>> {
         //TODO: read genesis from `{beacon_rpc_url}/eth/v1/beacon/genesis` with caching into some static
@@ -296,7 +261,7 @@ impl Observer {
         const BEACON_BLOCK_TIME: u64 = 12;
 
         let tx = provider
-            .get_transaction_by_hash(tx_hash)
+            .get_transaction_by_hash(tx_hash.0.into())
             .await?
             .ok_or_else(|| anyhow!("failed to get transaction"))?;
         let blob_versioned_hashes = tx

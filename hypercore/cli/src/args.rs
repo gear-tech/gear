@@ -70,7 +70,7 @@ pub struct Args {
     pub sequencer_key: Option<String>,
 
     /// Validator (processor) key, if intended to run node in validator mode.
-    #[arg(long = "sequencer-key")]
+    #[arg(long = "validator-key")]
     pub validator_key: Option<String>,
 
     #[allow(missing_docs)]
@@ -96,10 +96,10 @@ pub struct SigningArgs {
 
 impl ExtraCommands {
     pub fn run(&self, config: &config::Config) -> anyhow::Result<()> {
+        let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
+
         match self {
             ExtraCommands::GenerateKey => {
-                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
-
                 let new_pub = signer.generate_key()?;
 
                 println!("New public key stored: {}", new_pub);
@@ -107,16 +107,12 @@ impl ExtraCommands {
             }
 
             ExtraCommands::ClearKeys => {
-                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
-
                 println!("Total {} keys will be cleared: ", signer.list_keys()?.len());
                 signer.clear_keys()?;
                 println!("Total {} keys left: ", signer.list_keys()?.len());
             }
 
             ExtraCommands::ListKeys => {
-                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
-
                 let key_list = signer.list_keys()?;
 
                 for key in &key_list {
@@ -127,8 +123,6 @@ impl ExtraCommands {
             }
 
             ExtraCommands::Sign(ref signing_args) => {
-                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
-
                 let message = &signing_args.message;
 
                 let key_list = signer.list_keys()?;

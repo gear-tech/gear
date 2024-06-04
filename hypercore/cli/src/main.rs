@@ -24,14 +24,14 @@ mod service;
 use crate::{args::Args, config::Config, service::Service};
 use anyhow::Context;
 use clap::Parser;
+use std::{env, fs};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut optional_cfg = std::env::current_dir()?;
-    optional_cfg.push(".hypercore.toml");
-    let args: Args = if std::fs::metadata(&optional_cfg).is_ok() {
-        let text = std::fs::read_to_string(optional_cfg)?;
-        toml::from_str(&text)?
+    let optional_config_path = env::current_dir()?.join(".hypercore.toml");
+    let args: Args = if fs::metadata(&optional_config_path).is_ok() {
+        let str = fs::read_to_string(optional_config_path)?;
+        toml::from_str(&str)?
     } else {
         Args::parse()
     };

@@ -1,0 +1,184 @@
+use crate::{AlloyProgram, AlloyRouter};
+use alloy::sol_types::SolEvent;
+use gprimitives::{ActorId, CodeId, MessageId, H256};
+
+#[derive(Debug)]
+pub struct UploadCode {
+    pub origin: ActorId,
+    pub code_id: CodeId,
+    pub blob_tx: H256,
+}
+
+impl UploadCode {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UploadCode::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for UploadCode {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event = AlloyRouter::UploadCode::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            origin: ActorId::new(event.origin.into_word().0),
+            code_id: CodeId::new(event.codeId.0),
+            blob_tx: H256(event.blobTx.0),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct UploadedCode {
+    pub code_id: CodeId,
+}
+
+impl UploadedCode {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UploadedCode::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for UploadedCode {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event = AlloyRouter::UploadedCode::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            code_id: CodeId::new(event.codeId.0),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateProgram {
+    pub origin: ActorId,
+    pub code_id: CodeId,
+    pub salt: Vec<u8>,
+    pub init_payload: Vec<u8>,
+    pub gas_limit: u64,
+    pub value: u128,
+}
+
+impl CreateProgram {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CreateProgram::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for CreateProgram {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event =
+            AlloyRouter::CreateProgram::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            origin: ActorId::new(event.origin.into_word().0),
+            code_id: CodeId::new(event.codeId.0),
+            salt: event.salt.to_vec(),
+            init_payload: event.initPayload.to_vec(),
+            gas_limit: event.gasLimit,
+            value: event.value,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct CreatedProgram {
+    pub actor_id: ActorId,
+}
+
+impl CreatedProgram {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CreatedProgram::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for CreatedProgram {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event =
+            AlloyRouter::CreatedProgram::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            actor_id: ActorId::new(event.actorId.into_word().0),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct SendMessage {
+    origin: ActorId,
+    destination: ActorId,
+    payload: Vec<u8>,
+    gas_limit: u64,
+    value: u128,
+}
+
+impl SendMessage {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyProgram::SendMessage::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for SendMessage {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event = AlloyProgram::SendMessage::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            origin: ActorId::new(event.origin.into_word().0),
+            destination: ActorId::new(event.destination.into_word().0),
+            payload: event.payload.to_vec(),
+            gas_limit: event.gasLimit,
+            value: event.value,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct SendReply {
+    origin: ActorId,
+    reply_to_id: MessageId,
+    payload: Vec<u8>,
+    gas_limit: u64,
+    value: u128,
+}
+
+impl SendReply {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyProgram::SendReply::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for SendReply {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event = AlloyProgram::SendReply::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            origin: ActorId::new(event.origin.into_word().0),
+            reply_to_id: MessageId::new(event.replyToId.0),
+            payload: event.payload.to_vec(),
+            gas_limit: event.gasLimit,
+            value: event.value,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct ClaimValue {
+    origin: ActorId,
+    message_id: MessageId,
+}
+
+impl ClaimValue {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyProgram::ClaimValue::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for ClaimValue {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event = AlloyProgram::ClaimValue::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            origin: ActorId::new(event.origin.into_word().0),
+            message_id: MessageId::new(event.messageId.0),
+        })
+    }
+}

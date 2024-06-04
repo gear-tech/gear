@@ -13,6 +13,6 @@ repository.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
 log.workspace = true
 anyhow.workspace = true
-hypercore-signer = { path = "../signer" }
+hypercore-signer.workspace = true
 hypercore-observer.workspace = true
 gear-core.workspace = true

@@ -19,7 +19,7 @@
 //! Signer library for hypercore.
 
 use anyhow::{Context as _, Result};
-use secp256k1::{ecdsa::RecoverableSignature, Message};
+use secp256k1::Message;
 use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf};
 
@@ -32,7 +32,7 @@ pub struct PrivateKey(pub [u8; 32]);
 pub struct Address(pub [u8; 20]);
 
 #[derive(Debug, Clone)]
-pub struct Signature([u8; 65]);
+pub struct Signature(pub [u8; 65]);
 
 pub struct Hash([u8; 32]);
 
@@ -115,16 +115,6 @@ impl Default for Signature {
     }
 }
 
-impl From<RecoverableSignature> for Signature {
-    fn from(recsig: RecoverableSignature) -> Signature {
-        let mut r = Self::default();
-        let (recid, sig) = recsig.serialize_compact();
-        r.0[..64].copy_from_slice(&sig);
-        r.0[64] = 27 + recid.to_i32() as u8;
-        r
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Signer {
     key_store: PathBuf,
@@ -137,20 +127,32 @@ impl Signer {
         Ok(Self { key_store })
     }
 
-    pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
+    pub fn sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
         let secret_key = self.get_key(public_key)?;
 
         let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
             .with_context(|| "Invalid secret key format for {:?}")?;
 
-        let digest = sha3::Keccak256::digest(data);
+        let message = Message::from_digest(digest);
 
-        let message = Message::from_digest(digest.into());
-
-        let signature =
+        let recsig =
             secp256k1::global::SECP256K1.sign_ecdsa_recoverable(&message, &secp_secret_key);
 
-        Ok(signature.into())
+        let mut r = Signature::default();
+        let (recid, sig) = recsig.serialize_compact();
+        r.0[..64].copy_from_slice(&sig);
+        r.0[64] = recid.to_i32() as u8;
+
+        Ok(r)
+    }
+
+    pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
+        let digest = sha3::Keccak256::digest(data);
+
+        let mut r = self.sign_digest(public_key, digest.into())?;
+        r.0[64] += 27;
+
+        Ok(r)
     }
 
     pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {
@@ -326,5 +328,4 @@ mod tests {
         // Clean up the key store directory
         signer.clear_keys().unwrap();
     }
-
 }

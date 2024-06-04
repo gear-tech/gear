@@ -286,6 +286,9 @@ hypercore-db = { path = "hypercore/db" }
 hypercore-network = { path = "hypercore/network" }
 hypercore-processor = { path = "hypercore/processor" }
 hypercore-runtime = { path = "hypercore/runtime" }
+hypercore-signer = { path = "hypercore/signer" }
+hypercore-sequencer = { path = "hypercore/sequencer" }
+hypercore-ethereum = { path = "hypercore/ethereum" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }

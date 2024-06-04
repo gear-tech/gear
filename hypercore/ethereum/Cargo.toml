@@ -1,5 +1,5 @@
 [package]
-name = "hypercore-observer"
+name = "hypercore-ethereum"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,20 +9,18 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 alloy = { workspace = true, features = [
     "consensus",
-    "eips",
+    "contract",
+    "network",
     "provider-ws",
     "pubsub",
     "rpc-client",
-    "rpc-types-eth",
-    "rpc-types-beacon",
+    "signers",
+    "kzg",
 ] }
-async-stream.workspace = true
-tokio = { workspace = true, features = ["fs"] }
-futures.workspace = true
-reqwest = { workspace = true, features = ["default-tls", "json"] }
-log.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
-hypercore-ethereum.workspace = true
+hypercore-signer.workspace = true
+

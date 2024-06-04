@@ -139,7 +139,6 @@ dependencies = [
  "alloy-core",
  "alloy-eips",
  "alloy-genesis",
- "alloy-json-rpc",
  "alloy-network",
  "alloy-provider",
  "alloy-pubsub",
@@ -148,7 +147,6 @@ dependencies = [
  "alloy-rpc-types-beacon",
  "alloy-serde",
  "alloy-signer",
- "alloy-signer-wallet",
  "alloy-transport",
  "alloy-transport-http",
  "alloy-transport-ws",
@@ -493,21 +491,6 @@ dependencies = [
  "auto_impl",
  "elliptic-curve",
  "k256",
- "thiserror",
-]
-
-[[package]]
-name = "alloy-signer-wallet"
-version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy?branch=main#0e45df819cd4186a4cb86bfd80172e56076784a4"
-dependencies = [
- "alloy-consensus",
- "alloy-network",
- "alloy-primitives",
- "alloy-signer",
- "async-trait",
- "k256",
- "rand 0.8.5",
  "thiserror",
 ]
 
@@ -7182,6 +7165,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hypercore-ethereum"
+version = "1.4.2"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "async-trait",
+ "gear-core",
+ "gprimitives",
+ "hypercore-signer",
+]
+
+[[package]]
 name = "hypercore-network"
 version = "1.4.2"
 dependencies = [
@@ -7210,6 +7205,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
+ "hypercore-ethereum",
  "log",
  "reqwest 0.11.27",
  "tokio",
