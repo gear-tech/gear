@@ -445,7 +445,8 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// Execute an RPC call is used to figure out the reply on calling `Gear::send_message(..)`.
+    /// Execute an RPC call is used to figure out the reply on calling
+    /// `Gear::send_message(..)`.
     ///
     /// Actually sends the `gear_calculateReplyForHandle` RPC to the node. The
     /// function's parameters are:
@@ -453,7 +454,8 @@ impl GearApi {
     /// - `origin` (optional) is the caller's public address;
     /// - `destination` is the program address;
     /// - `payload` vector contains data to be processed by the program;
-    /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+    /// - `gas_limit`: maximum amount of gas the program can spend before it is
+    ///   halted.
     /// - `value` to be transferred to the program's account;
     /// - `at` (optional) allows executing the RPC at the specified block
     ///   identified by its hash.
