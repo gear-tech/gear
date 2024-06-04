@@ -19,27 +19,29 @@
 // TODO: Replace `feature = "cargo-clippy"` with `clippy`, once moved repo,
 // or at least `hypercore-*` crates, on stable or latest nightly in toml.
 #![no_std]
+#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
 
-#[cfg(all(
-    feature = "wasm",
-    not(target_arch = "wasm32"),
-    not(feature = "cargo-clippy")
-))]
+/* Error when compiling wasm module not for wasm. */
+#[cfg(all(feature = "wasm", not(target_arch = "wasm32")))]
 compile_error!("Building runtime with \"-F wasm\", but not for \"wasm32\" target, is forbidden!");
 
-#[cfg(any(not(feature = "wasm"), feature = "cargo-clippy"))]
+/* Binary exports when building as export lib in native */
+#[cfg(all(not(feature = "wasm"), not(feature = "cargo-clippy")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+
+#[cfg(all(not(feature = "wasm"), feature = "cargo-clippy"))]
+pub const WASM_BINARY: Option<&[u8]> = None;
+
+#[cfg(all(not(feature = "wasm"), feature = "cargo-clippy"))]
+pub const WASM_BINARY_BLOATY: Option<&[u8]> = None;
 
 #[cfg(all(
     feature = "wasm",
-    any(target_arch = "wasm32", feature = "cargo-clippy")
+    target_arch = "wasm32",
 ))]
 extern crate alloc;
 
-#[cfg(all(
-    feature = "wasm",
-    any(target_arch = "wasm32", feature = "cargo-clippy")
-))]
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 mod wasm {
     mod api;
     mod interface;
@@ -47,7 +49,6 @@ mod wasm {
     #[global_allocator]
     pub static ALLOC: dlmalloc_rs::GlobalDlmalloc = dlmalloc_rs::GlobalDlmalloc;
 
-    #[cfg(not(feature = "cargo-clippy"))]
     #[panic_handler]
     fn panic_handler(info: &core::panic::PanicInfo) -> ! {
         log::error!("{info}");

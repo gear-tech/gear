@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use context::VerifierContext;
+use context::HostContext;
 use gear_core::{
     code::InstrumentedCode,
     ids::{CodeId, ProgramId},
@@ -25,7 +25,7 @@ use gear_core::{
 use log::Level;
 use parity_scale_codec::Decode;
 use runtime::Runtime;
-use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Memory, Module, Store};
+use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Memory, Module, Store, Table};
 
 mod calls;
 mod runtime;
@@ -35,13 +35,13 @@ pub(crate) mod db;
 pub(crate) mod state;
 pub(crate) mod utils;
 
-pub struct Executor<T> {
-    store: Store<T>,
+pub struct Executor {
+    store: Store<HostContext>,
     instance: Instance,
 }
 
-impl<T: 'static> Executor<T> {
-    fn new(state: T, linking_fn: impl Fn(&mut Linker<T>) -> Result<()>) -> Result<Self> {
+impl Executor {
+    pub fn new(state: HostContext) -> Result<Self> {
         let mut runtime = Runtime::new();
         runtime.add_start_section();
 
@@ -51,43 +51,36 @@ impl<T: 'static> Executor<T> {
 
         let mut linker = Linker::new(store.engine());
 
-        // Logging host module.
         calls::logging::link(&mut linker)?;
-
-        linking_fn(&mut linker)?;
+        calls::code::link(&mut linker)?;
 
         let instance = linker.instantiate(&mut store, &module)?;
+
+        let memory = instance.get_memory(&mut store, "memory").unwrap();
+        let table = instance
+            .get_table(&mut store, "__indirect_function_table")
+            .unwrap();
+
+        store.data_mut().memory = Some(memory);
+        store.data_mut().table = Some(table);
 
         Ok(Self { store, instance })
     }
 
     pub fn memory(&mut self) -> Memory {
-        self.instance
-            .get_export(&mut self.store, "memory")
-            .unwrap()
-            .into_memory()
-            .unwrap()
+        self.store.data().memory()
     }
 
-    pub fn into_store(self) -> Store<T> {
+    pub fn table(&mut self) -> Table {
+        self.store.data().table()
+    }
+
+    pub fn into_store(self) -> Store<HostContext> {
         self.store
     }
 }
 
-impl Executor<VerifierContext> {
-    pub fn verifier(code: Vec<u8>) -> Result<Self> {
-        let state = VerifierContext { code };
-
-        let linking_fn = |linker: &mut Linker<VerifierContext>| {
-            // Code host module.
-            calls::code::link(linker)?;
-
-            Ok(())
-        };
-
-        Self::new(state, linking_fn)
-    }
-
+impl Executor {
     pub fn verify(&mut self) -> Result<bool> {
         let func = self
             .instance
