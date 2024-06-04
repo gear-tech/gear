@@ -135,9 +135,9 @@ impl AsRef<str> for Network {
     }
 }
 
-impl ToString for Network {
-    fn to_string(&self) -> String {
-        self.as_ref().into()
+impl fmt::Display for Network {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 

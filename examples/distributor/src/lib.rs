@@ -46,6 +46,7 @@ pub enum Reply {
     Amount(u64),
 }
 
+#[allow(dead_code)]
 #[derive(Eq, Ord, PartialEq, PartialOrd)]
 struct Program {
     handle: ActorId,

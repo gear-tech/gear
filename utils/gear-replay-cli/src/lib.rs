@@ -149,7 +149,7 @@ pub(crate) fn build_executor<H: HostFunctions>(shared: &SharedParams) -> WasmExe
         .build()
 }
 
-pub(crate) async fn fetch_block<Block: BlockT>(
+pub(crate) async fn fetch_block<Block>(
     rpc: &WsClient,
     hash: Option<HashFor<Block>>,
 ) -> sc_cli::Result<Block>

@@ -32,8 +32,6 @@
 //! the only thing they do - wasmer take them in account, when compiles wasm code.
 //! So, we suppose this instruction have weight 0.
 
-#![cfg(feature = "runtime-benchmarks")]
-
 #[allow(dead_code)]
 mod code;
 mod sandbox;

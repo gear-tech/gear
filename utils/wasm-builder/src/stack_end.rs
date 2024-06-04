@@ -49,8 +49,7 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
         .ok_or("Cannot find globals section")?;
     let global = glob_section
         .entries()
-        .iter()
-        .nth(stack_pointer_index as usize)
+        .get(stack_pointer_index as usize)
         .ok_or("there is no globals")?;
     if global.global_type().content_type() != ValueType::I32 {
         return Err("has no i32 global 0");
