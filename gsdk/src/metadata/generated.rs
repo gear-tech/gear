@@ -2603,6 +2603,16 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_bridge {
             use super::runtime_types;
+            pub mod internal {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct EthMessage {
+                    pub nonce: runtime_types::primitive_types::U256,
+                    pub source: ::subxt::utils::H256,
+                    pub destination: ::subxt::utils::H160,
+                    pub payload: ::std::vec::Vec<::core::primitive::u8>,
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2631,8 +2641,7 @@ pub mod runtime_types {
                 pub enum Event {
                     #[codec(index = 0)]
                     MessageQueued {
-                        nonce: runtime_types::primitive_types::U256,
-                        hash: ::subxt::utils::H256,
+                        message: runtime_types::pallet_gear_bridge::internal::EthMessage,
                     },
                     #[codec(index = 1)]
                     Reset,
