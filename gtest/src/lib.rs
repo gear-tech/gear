@@ -428,7 +428,7 @@ mod mailbox;
 mod manager;
 mod program;
 mod system;
-mod block_info;
+mod blocks;
 
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;

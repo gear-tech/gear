@@ -19,7 +19,7 @@
 use crate::{
     blocks::BlocksManager,
     gas_tree::GasTreeManager,
-    block_info::BlocksManager,
+    blocks::BlocksManager,
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
