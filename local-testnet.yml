@@ -1,0 +1,197 @@
+services:
+  validator-1:
+    container_name: validator-1
+    build: .
+    volumes:
+      - "validator-1:/gear-data"
+    networks:
+      - local-testnet
+    command: >
+      gear --name validator-1
+      --alice
+      --chain=vara-local
+      --base-path /gear-data/
+      --no-hardware-benchmarks
+      --no-prometheus
+      --state-pruning 256
+      --blocks-pruning 256
+      --validator
+      --node-key 0000000000000000000000000000000000000000000000000000000000000001
+      --telemetry-url 'ws://telemetry-backend-shard:8001/submit 1'
+
+  validator-2:
+    container_name: validator-2
+    build: .
+    volumes:
+      - "validator-2:/gear-data"
+    networks:
+      - local-testnet
+    command: >
+      gear --name validator-2
+      --bob
+      --chain=vara-local
+      --base-path /gear-data/
+      --no-hardware-benchmarks
+      --no-prometheus
+      --state-pruning 256
+      --blocks-pruning 256
+      --validator
+      --bootnodes '/dns4/validator-alice/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR'
+      --telemetry-url 'ws://telemetry-backend-shard:8001/submit 1'
+
+  validator-3:
+    container_name: validator-3    
+    build: .
+    volumes:
+      - "validator-3:/gear-data"
+    networks:
+      - local-testnet
+    command: >
+      gear --name validator-3
+      --charlie
+      --chain=vara-local
+      --base-path /gear-data/
+      --no-hardware-benchmarks
+      --no-prometheus
+      --state-pruning 256
+      --blocks-pruning 256
+      --validator
+      --bootnodes '/dns4/validator-alice/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR'
+      --telemetry-url 'ws://telemetry-backend-shard:8001/submit 1'
+
+  validator-4:
+    container_name: validator-4    
+    build: .
+    volumes:
+      - "validator-4:/gear-data"
+    networks:
+      - local-testnet
+    command: >
+      gear --name validator-4
+      --dave
+      --chain=vara-local
+      --base-path /gear-data/
+      --no-hardware-benchmarks
+      --no-prometheus
+      --state-pruning 256
+      --blocks-pruning 256
+      --validator
+      --bootnodes '/dns4/validator-alice/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR'
+      --telemetry-url 'ws://telemetry-backend-shard:8001/submit 1'
+
+  validator-5:
+    container_name: validator-5    
+    build: .
+    volumes:
+      - "validator-5:/gear-data"
+    networks:
+      - local-testnet
+    command: >
+      gear --name validator-5
+      --eve
+      --chain=vara-local
+      --base-path /gear-data/
+      --no-hardware-benchmarks
+      --no-prometheus
+      --state-pruning 256
+      --blocks-pruning 256
+      --validator
+      --bootnodes '/dns4/validator-alice/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR'
+      --telemetry-url 'ws://telemetry-backend-shard:8001/submit 1'
+
+  validator-6:
+    container_name: validator-6 
+    build: .
+    volumes:
+      - "validator-6:/gear-data"
+    networks:
+      - local-testnet
+    command: >
+      gear --name validator-6
+      --ferdie
+      --chain=vara-local
+      --base-path /gear-data/
+      --no-hardware-benchmarks
+      --no-prometheus
+      --state-pruning 256
+      --blocks-pruning 256
+      --validator
+      --bootnodes '/dns4/validator-alice/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR'
+      --telemetry-url 'ws://telemetry-backend-shard:8001/submit 1'
+
+  rpc:
+    container_name: rpc    
+    build: .
+    volumes:
+      - "rpc:/gear-data"
+    networks:
+      - local-testnet
+    command: >
+      gear --name rpc
+      --chain=vara-local
+      --base-path /gear-data/
+      --no-hardware-benchmarks
+      --no-prometheus
+      --state-pruning archive-canonical
+      --blocks-pruning archive-canonical
+      --rpc-port 8989
+      --rpc-external
+      --rpc-methods=unsafe
+      --rpc-cors all
+      --rpc-max-request-size 100000
+      --rpc-max-response-size 100000
+      --max-runtime-instances 32
+      --runtime-cache-size 1
+      --bootnodes '/dns4/validator-alice/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR'
+      --telemetry-url 'ws://telemetry-backend-shard:8001/submit 0'
+    ports:
+      - "8989:8989"
+
+  telemetry-backend-core:
+    container_name: telemetry-backend-core
+    image: parity/substrate-telemetry-backend:latest
+    networks:
+      - local-testnet
+    ports:
+      - 8000:8000
+    command: >
+      telemetry_core --listen 0.0.0.0:8000
+      --expose-node-details
+
+  telemetry-backend-shard:
+    container_name: telemetry-backend-shard
+    image: parity/substrate-telemetry-backend:latest
+    networks:
+      - local-testnet
+    command: >
+      telemetry_shard --listen 0.0.0.0:8001
+      --core ws://telemetry-backend-core:8000/shard_submit
+    depends_on:
+      - telemetry-backend-core
+
+  telemetry-frontend:
+    container_name: telemetry-frontend
+    image: parity/substrate-telemetry-frontend:latest
+    networks:
+      - local-testnet
+    ports:
+      - 80:8000
+    entrypoint: /bin/sh
+    command: >
+      -c 'SUBSTRATE_TELEMETRY_URL=ws://$(curl -s ifconfig.me):8000/feed/
+      && /usr/local/bin/start.sh'
+    depends_on:
+      - telemetry-backend-core
+
+volumes:
+  validator-1:
+  validator-2:
+  validator-3:
+  validator-4:
+  validator-5:
+  validator-6:
+  rpc:
+
+networks:
+  local-testnet:
+    driver: bridge
