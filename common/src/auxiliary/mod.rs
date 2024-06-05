@@ -21,3 +21,72 @@
 //! implementations can be used in a non-wasm environment.
 
 pub mod gas_provider;
+pub mod mailbox;
+
+use alloc::collections::btree_map::{BTreeMap, Entry};
+
+pub struct DoubleBTreeMap<K1, K2, V> {
+    inner: BTreeMap<K1, BTreeMap<K2, V>>,
+}
+
+impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
+    pub const fn new() -> Self {
+        Self {
+            inner: BTreeMap::new(),
+        }
+    }
+
+    pub fn contains_keys(&self, key1: &K1, key2: &K2) -> bool
+    where
+        K1: Ord,
+        K2: Ord,
+    {
+        self.inner
+            .get(key1)
+            .map(|map| map.contains_key(key2))
+            .unwrap_or_default()
+    }
+
+    pub fn get(&self, key1: &K1, key2: &K2) -> Option<&V>
+    where
+        K1: Ord,
+        K2: Ord,
+    {
+        self.inner.get(key1).and_then(|map| map.get(key2))
+    }
+
+    pub fn insert(&mut self, key1: K1, key2: K2, value: V) -> Option<V>
+    where
+        K1: Ord,
+        K2: Ord + Clone,
+    {
+        match self.inner.entry(key1) {
+            Entry::Vacant(vacant) => {
+                let mut map = BTreeMap::new();
+                map.insert(key2, value);
+                vacant.insert(map);
+
+                None
+            }
+            Entry::Occupied(mut occupied) => occupied.get_mut().insert(key2, value),
+        }
+    }
+
+    pub fn remove(&mut self, key1: K1, key2: K2) -> Option<V>
+    where
+        K1: Ord,
+        K2: Ord,
+    {
+        self.inner.get_mut(&key1).and_then(|map| map.remove(&key2))
+    }
+
+    pub fn clear(&mut self) {
+        self.inner.clear()
+    }
+}
+
+impl<K1, K2, V> Default for DoubleBTreeMap<K1, K2, V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
