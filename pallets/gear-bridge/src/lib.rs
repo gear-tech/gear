@@ -68,7 +68,7 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
-        MessageQueued { nonce: U256, hash: H256 },
+        MessageQueued { message: EthMessage },
         Reset,
         RootUpdated(H256),
         SetPaused(bool),
@@ -215,7 +215,7 @@ pub mod pallet {
 
             let message = EthMessage::from_data(nonce, source, data);
 
-            Self::queue(&message)
+            Self::queue(message)
         }
 
         fn fetch_inc_nonce() -> U256 {
@@ -226,7 +226,7 @@ pub mod pallet {
             })
         }
 
-        fn queue(message: &EthMessage) -> Result<(U256, H256), Error<T>> {
+        fn queue(message: EthMessage) -> Result<(U256, H256), Error<T>> {
             let hash = Queue::<T>::mutate(|v| {
                 (v.len() < T::QueueLimit::get() as usize)
                     .then(|| {
@@ -243,7 +243,7 @@ pub mod pallet {
 
             let nonce = message.nonce();
 
-            Self::deposit_event(Event::<T>::MessageQueued { nonce, hash });
+            Self::deposit_event(Event::<T>::MessageQueued { message });
 
             Ok((nonce, hash))
         }
