@@ -28,8 +28,6 @@ pub mod auxiliary;
 pub mod event;
 pub mod scheduler;
 pub mod storage;
-#[cfg(feature = "std")]
-pub mod auxiliary;
 
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
