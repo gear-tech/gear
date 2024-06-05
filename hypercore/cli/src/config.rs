@@ -24,6 +24,10 @@ use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
 use hypercore_network::NetworkConfiguration;
 use std::path::PathBuf;
+use tempfile::TempDir;
+
+#[static_init::dynamic(drop, lazy)]
+static mut BASE_PATH_TEMP: Option<TempDir> = None;
 
 #[derive(Default)]
 pub enum SequencerConfig {
@@ -75,12 +79,27 @@ impl TryFrom<Args> for Config {
     type Error = anyhow::Error;
 
     fn try_from(args: Args) -> Result<Self> {
-        let base_path = match args.base_path {
-            Some(path) => path,
-            None => {
-                let proj_dirs = ProjectDirs::from("com", "Gear", "Hypercore")
-                    .with_context(|| "Invalid home directory path")?;
-                proj_dirs.config_dir().to_path_buf()
+        let base_path = if args.tmp {
+            let mut temp = BASE_PATH_TEMP.write();
+
+            match &*temp {
+                Some(p) => p.path().into(),
+                None => {
+                    let temp_dir = tempfile::Builder::new().prefix("hypercore").tempdir()?;
+                    let path = PathBuf::from(temp_dir.path());
+
+                    *temp = Some(temp_dir);
+                    path
+                }
+            }
+        } else {
+            match args.base_path {
+                Some(r) => r,
+                None => {
+                    let proj_dirs = ProjectDirs::from("com", "Gear", "Hypercore")
+                        .with_context(|| "Invalid home directory path")?;
+                    proj_dirs.config_dir().to_path_buf()
+                }
             }
         };
 

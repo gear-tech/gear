@@ -62,7 +62,7 @@ pub struct Args {
     pub ethereum_program_address: String,
 
     /// Base path where application settings are stored
-    #[arg(long = "base-path")]
+    #[arg(long, short = 'd', value_name = "PATH")]
     pub base_path: Option<PathBuf>,
 
     /// Sequencer key, if intended to run node in sequencer mode.
@@ -72,6 +72,16 @@ pub struct Args {
     /// Validator (processor) key, if intended to run node in validator mode.
     #[arg(long = "validator-key")]
     pub validator_key: Option<String>,
+
+    /// Run a temporary node.
+    ///
+    /// A temporary directory will be created to store the configuration and will be deleted
+    /// at the end of the process.
+    ///
+    /// Note: the directory is random per process execution. This directory is used as base path
+    /// which includes: database, node key and keystore.
+    #[arg(long, conflicts_with = "base_path")]
+    pub tmp: bool,
 
     #[allow(missing_docs)]
     #[clap(flatten)]

@@ -7146,6 +7146,8 @@ dependencies = [
  "hypercore-signer",
  "log",
  "serde",
+ "static_init",
+ "tempfile",
  "tokio",
  "toml 0.8.14",
 ]

@@ -15,8 +15,29 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  check:
+  dynamic-profiles:
     runs-on: ubuntu-latest
+    outputs:
+      profiles: ${{ steps.set-matrix.outputs.profiles }}
+    steps:
+      - id: set-matrix
+        run: |
+          profiles='{"name": "debug", "flags": ""}'
+          if [ "${{ inputs.release }}" = "true" ]; then
+            profiles+=', {"name": "release", "flags": "--release"}'
+          fi
+          profiles="[${profiles}]"
+          echo "Profiles: ${profiles}"
+          echo "profiles=${profiles}" >> $GITHUB_OUTPUT
+
+  check:
+    runs-on: [kuberunner, github-runner-02]
+    needs: dynamic-profiles
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
+      fail-fast: false
+    name: check-linux (${{ matrix.profiles.name }})
     steps:
       - uses: actions/checkout@v4
         with:
