@@ -234,6 +234,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_list_schedules: BTreeMap<u32, Vec<(ProgramId, MessageId)>>,
     pub(crate) gas_tree: GasTreeManager,
+    pub(crate) gas_allowance: Gas,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
 
     // Last run info
@@ -243,7 +244,7 @@ pub(crate) struct ExtManager {
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
     pub(crate) main_gas_burned: Gas,
-    pub(crate) others_gas_burned: Gas,
+    pub(crate) others_gas_burned: BTreeMap<u32, Gas>,
 }
 
 impl ExtManager {
@@ -397,8 +398,14 @@ impl ExtManager {
         }
     }
 
+    pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+        self.validate_dispatch(&dispatch);
+        self.run_dispatch(dispatch, false)
+    }
+
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
+        // TODO review after https://github.com/gear-tech/gear/pull/3961
         if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "Value greater than 0, but less than \
@@ -432,11 +439,6 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
-        self.validate_dispatch(&dispatch);
-        self.run_dispatch(dispatch, false)
-    }
-
     #[track_caller]
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch, from_task_pool: bool) -> RunResult {
         self.prepare_for(&dispatch);
@@ -445,8 +447,18 @@ impl ExtManager {
             // TODO: `gas_limit` being None is an abuse of the `run_dispatch` usage,
             // as it must be called only for user messages
             if !from_task_pool {
+                let gas_limit = matches!(dispatch.kind(), DispatchKind::Signal)
+                    .then(|| {
+                        assert!(
+                            dispatch.gas_limit().is_none(),
+                            "signals must be sent with `None` gas limit"
+                        );
+                        GAS_ALLOWANCE
+                    })
+                    .or_else(|| dispatch.gas_limit())
+                    .unwrap_or_else(|| unreachable!("message from program API has always gas"));
                 self.gas_tree
-                    .create(dispatch.source(), dispatch.id(), dispatch.gas_limit())
+                    .create(dispatch.source(), dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupter! {:?}", e));
             }
 
@@ -497,7 +509,7 @@ impl ExtManager {
             message_id: self.msg_id,
             total_processed,
             main_gas_burned: self.main_gas_burned,
-            others_gas_burned: self.others_gas_burned,
+            others_gas_burned: self.others_gas_burned.clone(),
         }
     }
 
@@ -671,7 +683,13 @@ impl ExtManager {
         self.main_failed = false;
         self.others_failed = false;
         self.main_gas_burned = Gas::zero();
-        self.others_gas_burned = Gas::zero();
+        self.others_gas_burned = {
+            let mut m = BTreeMap::new();
+            m.insert(self.block_info.height, Gas::zero());
+
+            m
+        };
+        self.gas_allowance = Gas(GAS_ALLOWANCE);
     }
 
     fn mark_failed(&mut self, msg_id: MessageId) {
@@ -873,7 +891,7 @@ impl ExtManager {
         let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
             // TODO: use proper changeable value # 3977
-            GAS_ALLOWANCE,
+            self.gas_allowance.0,
             dispatch.into_incoming(gas_limit),
             dest,
         ) {
@@ -944,6 +962,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
+        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
         self.gas_tree
             .spend(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -951,7 +970,11 @@ impl JournalHandler for ExtManager {
         if self.msg_id == message_id {
             self.main_gas_burned = self.main_gas_burned.saturating_add(Gas(amount));
         } else {
-            self.others_gas_burned = self.others_gas_burned.saturating_add(Gas(amount));
+            self.others_gas_burned
+                .entry(self.block_info.height)
+                .and_modify(|others_gas_burned| {
+                    *others_gas_burned = others_gas_burned.saturating_add(Gas(amount))
+                });
         }
     }
 
@@ -965,9 +988,6 @@ impl JournalHandler for ExtManager {
         self.gas_tree
             .consume(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        if let Some(index) = self.dispatches.iter().position(|d| d.id() == message_id) {
-            self.dispatches.remove(index);
-        }
     }
 
     fn send_dispatch(
@@ -1150,8 +1170,19 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
-        unimplemented!("Processing stopped. Used for on-chain logic only.")
+    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
+        log::debug!(
+            "Not enough gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
+            dispatch.id(),
+            self.gas_allowance,
+            gas_burned,
+        );
+
+        // Update gas allowance and start a new block with the `dispatch` being first in
+        // the queue.
+        self.gas_allowance = Gas(GAS_ALLOWANCE);
+        self.dispatches.push_front(dispatch);
+        self.block_info.height = self.block_info.height.saturating_add(1);
     }
 
     fn reserve_gas(
