@@ -400,7 +400,6 @@ impl ExtManager {
 
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
-        // TODO review after https://github.com/gear-tech/gear/pull/3961
         if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "Value greater than 0, but less than \
@@ -884,7 +883,6 @@ impl ExtManager {
 
         let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
-            // TODO: use proper changeable value # 3977
             self.gas_allowance.0,
             dispatch.into_incoming(gas_limit),
             dest,
