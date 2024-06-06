@@ -17,15 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use gear_core::code::InstrumentedCode;
+
 use context::HostContext;
-use gear_core::{
-    code::InstrumentedCode,
-    ids::{CodeId, ProgramId},
-};
-use log::Level;
 use parity_scale_codec::Decode;
 use runtime::Runtime;
-use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Memory, Module, Store, Table};
+use wasmtime::{Engine, Instance, Linker, Memory, Module, Store, Table};
 
 mod calls;
 mod runtime;
