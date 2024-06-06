@@ -35,10 +35,7 @@ pub const WASM_BINARY: Option<&[u8]> = None;
 #[cfg(all(not(feature = "wasm"), feature = "cargo-clippy"))]
 pub const WASM_BINARY_BLOATY: Option<&[u8]> = None;
 
-#[cfg(all(
-    feature = "wasm",
-    target_arch = "wasm32",
-))]
+#[cfg(all(feature = "wasm", target_arch = "wasm32",))]
 extern crate alloc;
 
 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]

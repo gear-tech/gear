@@ -21,6 +21,12 @@ parity-wasm.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 parity-scale-codec = { workspace = true, features = ["std"] }
 gprimitives.workspace = true
+core-processor = { workspace = true, features = ["std"] }
+gsys.workspace = true
+gear-lazy-pages-native-interface.workspace = true
+gear-lazy-pages.workspace = true
+gear-lazy-pages-common.workspace = true
+demo-ping = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
 wabt.workspace = true

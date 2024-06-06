@@ -21,7 +21,7 @@
 use crate::host::utils;
 use anyhow::Result;
 use log::Level;
-use wasmtime::{AsContextMut, Caller, Linker, Memory};
+use wasmtime::{Caller, Linker};
 
 pub mod logging {
     use crate::host::context::HostContext;
