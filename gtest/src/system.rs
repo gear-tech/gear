@@ -35,7 +35,7 @@ use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
 use std::{
     borrow::Cow,
-    cell::{OnceCell, RefCell},
+    cell::RefCell,
     env, fs,
     io::Write,
     path::Path,
@@ -345,7 +345,7 @@ impl System {
         let actor_id = id.into().0;
         self.0
             .borrow_mut()
-            .claim_value_from_mailbox(&actor_id, message_id);
+            .claim_value_from_mailbox(actor_id, message_id);
     }
 }
 

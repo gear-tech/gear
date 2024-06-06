@@ -21,11 +21,11 @@ use codec::Encode;
 use core_processor::common::JournalHandler;
 use gear_common::{
     auxiliary::mailbox::*,
-    storage::{GetCallback, Mailbox as MB, MailboxCallbacks},
+    storage::{GetCallback, Interval, Mailbox as MailboxTrait, MailboxCallbacks},
 };
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails, StoredMessage},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use std::{cell::RefCell, convert::TryInto};
@@ -35,30 +35,30 @@ pub(crate) struct MailboxManager;
 
 impl MailboxManager {
     pub(crate) fn insert(
+        &self,
         to: ProgramId,
         from_mid: MessageId,
-        message: StoredMessage,
-    ) -> Result<(), MailboxError> {
-        let user_message = message.into();
-        <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::insert(user_message, u64::MAX)
+        message: MailboxedMessage,
+    ) -> Result<(), MailboxErrorImpl> {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::insert(message, u32::MAX)
     }
 
     pub(crate) fn remove(
         &self,
         to: ProgramId,
         from_mid: MessageId,
-    ) -> Result<(MailboxedMessage, Interval<BlockNumber>), MailboxError> {
-        <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::remove(to, from_mid)
+    ) -> Result<(MailboxedMessage, Interval<BlockNumber>), MailboxErrorImpl> {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::remove(to, from_mid)
     }
 
     pub(crate) fn reset(&self) {
-        <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::clear();
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::clear();
     }
 }
 
 pub(crate) struct MailboxCallbacksImpl;
 
-impl MailboxCallbacks<MailboxError> for MailboxCallbacksImpl {
+impl MailboxCallbacks<MailboxErrorImpl> for MailboxCallbacksImpl {
     type Value = MailboxedMessage;
     type BlockNumber = BlockNumber;
 
