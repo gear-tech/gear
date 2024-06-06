@@ -32,7 +32,6 @@ use std::collections::HashMap;
 
 pub(crate) mod db;
 pub mod host;
-pub(crate) mod state;
 
 pub struct Processor {
     db: Database,
@@ -116,8 +115,6 @@ impl Processor {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use super::*;
     use core_processor::common::JournalNote;
     use gear_core::message::{DispatchKind, Payload};
