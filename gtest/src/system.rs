@@ -33,22 +33,7 @@ use gear_core::{
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{
-    borrow::Cow,
-    cell::{OnceCell, RefCell},
-    env, fs,
-    io::Write,
-    path::Path,
-    thread,
-};
-
-thread_local! {
-    /// `System` is a singleton with a one instance and no copies returned.
-    ///
-    /// `OnceCell` is used to control one-time instantiation, while `RefCell`
-    /// is needed for interior mutability to uninitialize the global.
-    static SYSTEM_INITIALIZED: RefCell<OnceCell<()>> = const { RefCell::new(OnceCell::new()) };
-}
+use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 thread_local! {
     /// `System` is a singleton with a one instance and no copies returned.
