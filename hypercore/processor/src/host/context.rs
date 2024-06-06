@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
+use gear_core::ids::{prelude::CodeIdExt, CodeId};
 use wasmtime::{Memory, Table};
 
 pub struct HostContext {

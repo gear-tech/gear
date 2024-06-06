@@ -107,6 +107,8 @@ members = [
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/fuzz",
     "hypercore/*",
+    "hypercore/runtime/common",
+    "hypercore/runtime/native",
 ]
 
 [workspace.dependencies]
@@ -289,6 +291,8 @@ hypercore-runtime = { path = "hypercore/runtime" }
 hypercore-signer = { path = "hypercore/signer" }
 hypercore-sequencer = { path = "hypercore/sequencer" }
 hypercore-ethereum = { path = "hypercore/ethereum" }
+hypercore-runtime-common = { path = "hypercore/runtime/common" }
+hypercore-runtime-native = { path = "hypercore/runtime/native" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }
