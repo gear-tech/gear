@@ -11,7 +11,6 @@ repository.workspace = true
 # Once you append any dependency, make sure to put it under "wasm" feature.
 
 ## Operational deps.
-dlmalloc-rs = { workspace = true, features = ["global"], optional = true }
 log = { workspace = true, optional = true }
 parity-scale-codec = { workspace = true, optional = true }
 
@@ -28,7 +27,6 @@ substrate-wasm-builder.workspace = true
 default = []
 wasm = [
     ## Operational deps.
-    "dep:dlmalloc-rs",
     "dep:log",
     "dep:parity-scale-codec",
 

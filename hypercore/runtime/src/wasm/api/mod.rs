@@ -16,15 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alloc::{boxed::Box, vec::Vec};
+use parity_scale_codec::Encode;
+
 mod instrument;
 mod verify;
 
 #[no_mangle]
-extern "C" fn instrument(code_len: i32) -> i64 {
-    instrument::instrument(code_len as usize)
+extern "C" fn instrument(code_ptr: i32, code_len: i32) -> i64 {
+    let code = unsafe { Vec::from_raw_parts(code_ptr as _, code_len as usize, code_len as usize) };
+    return_val(instrument::instrument(code))
 }
 
 #[no_mangle]
-extern "C" fn verify(code_len: i32) -> i32 {
-    !verify::verify(code_len as usize) as i32
+extern "C" fn verify(code_ptr: i32, code_len: i32) -> i64 {
+    let code =
+        unsafe { Vec::from_raw_parts(code_ptr as *mut u8, code_len as usize, code_len as usize) };
+    return_val(verify::verify(code))
+}
+
+fn return_val(val: impl Encode) -> i64 {
+    let encoded = val.encode();
+    let len = encoded.len() as i32;
+    let ptr = Box::leak(Box::new(encoded)).as_ptr() as i32;
+
+    unsafe { core::mem::transmute([ptr, len]) }
 }

@@ -40,20 +40,23 @@ extern crate alloc;
 
 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 mod wasm {
+    use core::panic::PanicInfo;
+    use interface::{allocator_ri::RuntimeAllocator, logging_ri::RuntimeLogger};
+
     mod api;
     mod interface;
 
     #[global_allocator]
-    pub static ALLOC: dlmalloc_rs::GlobalDlmalloc = dlmalloc_rs::GlobalDlmalloc;
-
-    #[panic_handler]
-    fn panic_handler(info: &core::panic::PanicInfo) -> ! {
-        log::error!("{info}");
-        core::arch::wasm32::unreachable()
-    }
+    pub static ALLOCATOR: RuntimeAllocator = RuntimeAllocator;
 
     #[no_mangle]
     extern "C" fn _start() {
-        interface::logging_ri::RuntimeLogger::init();
+        RuntimeLogger::init();
+    }
+
+    #[panic_handler]
+    fn panic_handler(info: &PanicInfo) -> ! {
+        log::error!("{info}");
+        core::arch::wasm32::unreachable()
     }
 }

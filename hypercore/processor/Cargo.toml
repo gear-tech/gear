@@ -9,7 +9,7 @@ repository.workspace = true
 
 
 [dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true, features = ["std"] }
 hypercore-db.workspace = true
 primitive-types.workspace = true
 gear-core.workspace = true
@@ -22,6 +22,9 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 parity-scale-codec = { workspace = true, features = ["std"] }
 gprimitives.workspace = true
 demo-ping = { workspace = true, features = ["debug"] }
+sp-allocator = { workspace = true, features = ["std"] }
+sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
+gear-runtime-interface = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 wabt.workspace = true

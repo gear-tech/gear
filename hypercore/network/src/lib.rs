@@ -189,6 +189,8 @@ impl Network {
 
 impl Unpin for Network {}
 
+// TODO: fix me, ukint
+#[allow(clippy::result_large_err)]
 fn ensure_addresses_consistent_with_transport<'a>(
     addresses: impl Iterator<Item = &'a Multiaddr>,
     transport: &TransportConfig,

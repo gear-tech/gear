@@ -16,18 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{vec, vec::Vec};
+use core::alloc::{GlobalAlloc, Layout};
 
 mod sys {
     extern "C" {
-        pub fn code_load_v1(buffer: *mut u8);
+        pub(super) fn ext_allocator_free_version_1(ptr: *mut u8);
+        pub(super) fn ext_allocator_malloc_version_1(size: i32) -> *mut u8;
     }
 }
 
-pub fn load(len: usize) -> Vec<u8> {
-    let mut buffer = vec![0; len];
+pub fn free(ptr: *mut u8) {
+    unsafe { sys::ext_allocator_free_version_1(ptr) }
+}
 
-    unsafe { sys::code_load_v1(buffer.as_mut_ptr() as _) }
+pub fn malloc(size: usize) -> *mut u8 {
+    unsafe { sys::ext_allocator_malloc_version_1(size as _) }
+}
 
-    buffer
+pub struct RuntimeAllocator;
+
+unsafe impl GlobalAlloc for RuntimeAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        malloc(layout.size())
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, _: Layout) {
+        free(ptr)
+    }
 }
