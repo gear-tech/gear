@@ -21,6 +21,7 @@ use wasmtime::{Memory, StoreContext};
 
 pub mod allocator;
 pub mod logging;
+pub mod sandbox;
 
 pub struct MemoryWrap(Memory);
 

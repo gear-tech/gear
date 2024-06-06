@@ -58,6 +58,7 @@ impl InstanceWrapper {
 
         api::allocator::link(&mut linker)?;
         api::logging::link(&mut linker)?;
+        api::sandbox::link(&mut linker)?;
 
         let instance = linker.instantiate(&mut store, &module)?;
         let mut instance_wrapper = Self { instance, store };
@@ -71,12 +72,16 @@ impl InstanceWrapper {
         Ok(instance_wrapper)
     }
 
-    pub fn verify(&mut self, code: &Vec<u8>) -> Result<bool> {
-        self.call("verify", code)
+    pub fn instrument(&mut self, original_code: &Vec<u8>) -> Result<Option<InstrumentedCode>> {
+        self.call("instrument", original_code)
     }
 
-    pub fn instrument(&mut self, original_code: Vec<u8>) -> Result<Option<InstrumentedCode>> {
-        self.call("instrument", original_code)
+    pub fn run(&mut self, instrumented_code: &InstrumentedCode) -> Result<()> {
+        self.call("run", instrumented_code.code())
+    }
+
+    pub fn verify(&mut self, code: &Vec<u8>) -> Result<bool> {
+        self.call("verify", code)
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {

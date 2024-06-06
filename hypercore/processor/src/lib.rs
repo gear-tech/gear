@@ -18,7 +18,7 @@
 
 //! Program's execution service for eGPU.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use db::Database;
 use gear_core::{
     ids::{prelude::CodeIdExt as _, ProgramId},
@@ -66,13 +66,26 @@ impl Processor {
 
         let mut instance_wrapper = host::InstanceWrapper::new()?;
 
-        if let Some(instrumented) = instance_wrapper.instrument(code)? {
+        if let Some(instrumented) = instance_wrapper.instrument(&code)? {
             let hash = self.db.write_instrumented_code(&instrumented);
 
             Ok(Some(hash))
         } else {
             Ok(None)
         }
+    }
+
+    pub fn run_on_host(&mut self, instrumented_code_id: CodeId) -> Result<()> {
+        let instrumented_code = self
+            .db
+            .read_instrumented_code(instrumented_code_id.into_bytes().into())
+            .ok_or_else(|| anyhow!("couldn't find instrumented code"))?;
+
+        let mut instance_wrapper = host::InstanceWrapper::new()?;
+
+        instance_wrapper.run(&instrumented_code)?;
+
+        Ok(())
     }
 
     // TODO: use proper `Dispatch` type here instead of db's.
@@ -191,6 +204,25 @@ mod tests {
 
         assert_eq!(instrumented.original_code_len() as usize, code_len);
         assert!(instrumented.code().len() > code_len);
+    }
+
+    #[test]
+    fn host_sandbox() {
+        init_logger();
+
+        let db = MemDb::default();
+        let mut processor = Processor::new(db.clone_boxed());
+
+        let code = valid_code();
+        let code_len = code.len();
+        let id = CodeId::generate(&code);
+
+        assert!(processor.new_code(id, code).unwrap());
+
+        let hash = processor.instrument_code(id).unwrap().unwrap();
+        let instrumented = processor.db.read_instrumented_code(hash).unwrap();
+
+        processor.run_on_host(hash.to_fixed_bytes().into()).unwrap();
     }
 
     #[test]
