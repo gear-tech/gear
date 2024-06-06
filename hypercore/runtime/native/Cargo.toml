@@ -1,0 +1,20 @@
+[package]
+name = "hypercore-runtime-native"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+
+[dependencies]
+hypercore-runtime-common.workspace = true
+hypercore-db.workspace = true
+gprimitives.workspace = true
+gear-core.workspace = true
+gear-core-processor.workspace = true
+gear-lazy-pages.workspace = true
+gear-lazy-pages-native-interface.workspace = true
+gear-lazy-pages-common.workspace = true
+parity-scale-codec.workspace = true

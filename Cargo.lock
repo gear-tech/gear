@@ -7222,14 +7222,11 @@ dependencies = [
  "env_logger",
  "gear-core",
  "gear-core-processor",
- "gear-lazy-pages",
- "gear-lazy-pages-common",
- "gear-lazy-pages-native-interface",
  "gprimitives",
- "gsys",
  "hypercore-db",
  "hypercore-observer",
  "hypercore-runtime",
+ "hypercore-runtime-native",
  "log",
  "parity-scale-codec",
  "parity-wasm",
@@ -7251,6 +7248,34 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "substrate-wasm-builder",
+]
+
+[[package]]
+name = "hypercore-runtime-common"
+version = "1.4.2"
+dependencies = [
+ "gear-core",
+ "gear-core-processor",
+ "gear-lazy-pages-common",
+ "gprimitives",
+ "gsys",
+ "parity-scale-codec",
+ "primitive-types",
+]
+
+[[package]]
+name = "hypercore-runtime-native"
+version = "1.4.2"
+dependencies = [
+ "gear-core",
+ "gear-core-processor",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
+ "gear-lazy-pages-native-interface",
+ "gprimitives",
+ "hypercore-db",
+ "hypercore-runtime-common",
+ "parity-scale-codec",
 ]
 
 [[package]]

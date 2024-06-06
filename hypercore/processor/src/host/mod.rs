@@ -29,7 +29,6 @@ mod runtime;
 
 pub(crate) mod context;
 pub(crate) mod db;
-pub(crate) mod state;
 pub(crate) mod utils;
 
 pub struct Executor {

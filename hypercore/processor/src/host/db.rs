@@ -1,10 +1,7 @@
-use crate::host::state::ProgramState;
 use gear_core::{code::InstrumentedCode, ids::CodeId};
 use hypercore_db::CASDatabase;
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
-
-use super::state::MessageQueue;
 
 pub(crate) struct Database {
     inner: Box<dyn CASDatabase>,
@@ -53,24 +50,5 @@ impl Database {
     pub fn write_instrumented_code(&self, code: &InstrumentedCode) -> H256 {
         let data = code.encode();
         self.inner.write(&data)
-    }
-
-    /// Read program state.
-    pub fn read_state(&self, hash: H256) -> Option<ProgramState> {
-        self.inner
-            .read(&hash)
-            .map(|data| ProgramState::decode(&mut &data[..]).expect("Failed to decode State"))
-    }
-
-    /// Write program state.
-    pub fn write_state(&self, state: &ProgramState) -> H256 {
-        let data = state.encode();
-        self.inner.write(&data)
-    }
-
-    pub fn read_message_queue(&self, hash: H256) -> Option<MessageQueue> {
-        self.inner.read(&hash).map(|data| {
-            MessageQueue::decode(&mut &data[..]).expect("Failed to decode MessageQueue")
-        })
     }
 }
