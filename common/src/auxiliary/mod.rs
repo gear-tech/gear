@@ -25,17 +25,22 @@ pub mod mailbox;
 
 use alloc::collections::btree_map::{BTreeMap, Entry};
 
+/// Double key `BTreeMap`.
+///
+/// Basically is just a map fo the map.
 pub struct DoubleBTreeMap<K1, K2, V> {
     inner: BTreeMap<K1, BTreeMap<K2, V>>,
 }
 
 impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
+    /// Instantiate new empty double key map.
     pub const fn new() -> Self {
         Self {
             inner: BTreeMap::new(),
         }
     }
 
+    /// Returns `true` if the map contains a value for the specified keys.
     pub fn contains_keys(&self, key1: &K1, key2: &K2) -> bool
     where
         K1: Ord,
@@ -47,6 +52,7 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
             .unwrap_or_default()
     }
 
+    /// Returns a reference to the value corresponding to the keys.
     pub fn get(&self, key1: &K1, key2: &K2) -> Option<&V>
     where
         K1: Ord,
@@ -55,6 +61,7 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
         self.inner.get(key1).and_then(|map| map.get(key2))
     }
 
+    /// Inserts a value under provided keys in the map.
     pub fn insert(&mut self, key1: K1, key2: K2, value: V) -> Option<V>
     where
         K1: Ord,
@@ -72,6 +79,8 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
         }
     }
 
+    /// Removes keys from the map, returning the value at the keys if the keys
+    /// were previously in the map.
     pub fn remove(&mut self, key1: K1, key2: K2) -> Option<V>
     where
         K1: Ord,
@@ -80,6 +89,7 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
         self.inner.get_mut(&key1).and_then(|map| map.remove(&key2))
     }
 
+    /// Clears the map, removing all elements.
     pub fn clear(&mut self) {
         self.inner.clear()
     }

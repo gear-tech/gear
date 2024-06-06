@@ -20,9 +20,7 @@
 
 use crate::{
     auxiliary::DoubleBTreeMap,
-    storage::{
-        DoubleMapStorage, Interval, MailboxError as MailboxErrorTrait, MailboxImpl, MailboxKeyGen,
-    },
+    storage::{DoubleMapStorage, Interval, MailboxError, MailboxImpl, MailboxKeyGen},
 };
 use core::cell::RefCell;
 use gear_core::{
@@ -30,40 +28,44 @@ use gear_core::{
     message::UserStoredMessage,
 };
 
+/// Mailbox implementation that can be used in a native, non-wasm runtimes.
 pub type AuxiliaryMailbox<MailboxCallbacks> = MailboxImpl<
-    MailboxWrap,
+    MailboxStorageWrap,
     MailboxedMessage,
     BlockNumber,
-    MailboxError,
-    MailboxError,
+    MailboxErrorImpl,
+    MailboxErrorImpl,
     MailboxCallbacks,
     MailboxKeyGen<ProgramId>,
 >;
+/// Block number type.
 pub type BlockNumber = u32;
+/// Type represents message stored in the mailbox.
 pub type MailboxedMessage = UserStoredMessage;
 
 std::thread_local! {
-    // Definition of the `GasNodes` (tree `StorageMap`) global storage, accessed by the tree.
-    pub(crate) static MAILBOX: RefCell<DoubleBTreeMap<ProgramId, MessageId, (MailboxedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
+    // Definition of the mailbox (`StorageDoubleMap`) global storage, accessed by the `Mailbox` trait implementor.
+    pub(crate) static MAILBOX_STORAGE: RefCell<DoubleBTreeMap<ProgramId, MessageId, (MailboxedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
 }
 
-pub struct MailboxWrap;
+/// `Mailbox` double storage map manager.
+pub struct MailboxStorageWrap;
 
-impl DoubleMapStorage for MailboxWrap {
+impl DoubleMapStorage for MailboxStorageWrap {
     type Key1 = ProgramId;
     type Key2 = MessageId;
     type Value = (MailboxedMessage, Interval<BlockNumber>);
 
     fn contains_keys(key1: &Self::Key1, key2: &Self::Key2) -> bool {
-        MAILBOX.with_borrow(|map| map.contains_keys(key1, key2))
+        MAILBOX_STORAGE.with_borrow(|map| map.contains_keys(key1, key2))
     }
 
     fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {
-        MAILBOX.with_borrow(|map| map.get(key1, key2).cloned())
+        MAILBOX_STORAGE.with_borrow(|map| map.get(key1, key2).cloned())
     }
 
     fn insert(key1: Self::Key1, key2: Self::Key2, value: Self::Value) {
-        MAILBOX.with_borrow_mut(|map| map.insert(key1, key2, value));
+        MAILBOX_STORAGE.with_borrow_mut(|map| map.insert(key1, key2, value));
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(
@@ -83,11 +85,11 @@ impl DoubleMapStorage for MailboxWrap {
     }
 
     fn clear() {
-        MAILBOX.with_borrow_mut(|map| map.clear())
+        MAILBOX_STORAGE.with_borrow_mut(|map| map.clear())
     }
 
     fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value> {
-        MAILBOX.with_borrow_mut(|map| map.remove(key1, key2))
+        MAILBOX_STORAGE.with_borrow_mut(|map| map.remove(key1, key2))
     }
 
     fn clear_prefix(_first_key: Self::Key1) {
@@ -95,13 +97,14 @@ impl DoubleMapStorage for MailboxWrap {
     }
 }
 
+/// An implementor of the error returned from calling `Mailbox` trait functions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MailboxError {
+pub enum MailboxErrorImpl {
     DuplicateKey,
     ElementNotFound,
 }
 
-impl MailboxErrorTrait for MailboxError {
+impl MailboxError for MailboxErrorImpl {
     fn duplicate_key() -> Self {
         Self::DuplicateKey
     }

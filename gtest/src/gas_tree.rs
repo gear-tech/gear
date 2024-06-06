@@ -20,8 +20,8 @@
 
 use crate::GAS_MULTIPLIER;
 use gear_common::{
-    gas_provider::{ConsumeResultOf, GasNodeId, Provider, Tree},
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
+    gas_provider::{ConsumeResultOf, GasNodeId, Provider, Tree},
     Gas, Origin,
 };
 use gear_core::ids::{MessageId, ProgramId};
@@ -139,13 +139,6 @@ impl GasTreeManager {
     /// Adapted by argument types version of the gas tree `consume` method.
     pub(crate) fn consume(&self, mid: MessageId) -> ConsumeResultOf<GasTree> {
         GasTree::consume(GasNodeId::from(mid.cast::<PlainNodeId>()))
-    }
-
-    /// Adapted by argument types version of the gas tree `reset` method.
-    ///
-    /// *Note* Call with caution as it completely resets the storage.
-    pub(crate) fn reset(&self) {
-        <AuxiliaryGasProvider as Provider>::reset();
     }
 
     /// Adapted by argument types version of the gas tree `reset` method.

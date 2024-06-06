@@ -18,21 +18,28 @@
 
 //! Block timestamp and height management.
 
-use std::{cell::RefCell, time::{SystemTime, UNIX_EPOCH}};
 use core_processor::configs::BlockInfo;
+use std::{
+    cell::RefCell,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::BLOCK_DURATION_IN_MSECS;
 
 thread_local! {
-    static BLOCK_INFO: RefCell<Option<BlockInfo>> = const { RefCell::new(None) };
+    /// Definition of the storage value storing block info (timestamp and height).
+    static BLOCK_INFO_STORAGE: RefCell<Option<BlockInfo>> = const { RefCell::new(None) };
 }
 
+/// Block info storage manager.
 #[derive(Debug, Default)]
 pub(crate) struct BlocksManager(());
 
 impl BlocksManager {
+    /// Create block info storage manager with a further initialization of the
+    /// storage.
     pub(crate) fn new() -> Self {
-        BLOCK_INFO.with_borrow_mut(|block_info| {
+        BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
             let info = BlockInfo {
                 height: 0,
                 timestamp: now(),
@@ -44,18 +51,23 @@ impl BlocksManager {
         Self(())
     }
 
+    /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        BLOCK_INFO.with_borrow(|cell| {
-            cell.as_ref().copied().expect("must be initialized in a `BlocksManager::new`")
+        BLOCK_INFO_STORAGE.with_borrow(|cell| {
+            cell.as_ref()
+                .copied()
+                .expect("must be initialized in a `BlocksManager::new`")
         })
     }
 
+    /// Move blocks by one.
     pub(crate) fn new_block(&self) -> BlockInfo {
         self.move_blocks_by(1)
     }
 
+    /// Adjusts blocks info by moving blocks by `amount`.
     pub(crate) fn move_blocks_by(&self, amount: u32) -> BlockInfo {
-        BLOCK_INFO.with_borrow_mut(|block_info| {
+        BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
             let Some(block_info) = block_info.as_mut() else {
                 panic!("must initialized in a `BlocksManager::new`");
             };

@@ -420,6 +420,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+mod blocks;
 mod error;
 mod gas_tree;
 mod log;
@@ -427,7 +428,6 @@ mod mailbox;
 mod manager;
 mod program;
 mod system;
-mod blocks;
 
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;

@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    gas_tree::GasTreeManager,
     blocks::BlocksManager,
+    gas_tree::GasTreeManager,
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
@@ -994,7 +994,10 @@ impl JournalHandler for ExtManager {
         if bn > 0 {
             log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
 
-            self.send_delayed_dispatch(dispatch, self.blocks_manager.get().height.saturating_add(bn));
+            self.send_delayed_dispatch(
+                dispatch,
+                self.blocks_manager.get().height.saturating_add(bn),
+            );
             return;
         }
 
