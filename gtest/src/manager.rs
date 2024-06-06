@@ -444,8 +444,6 @@ impl ExtManager {
         self.prepare_for(&dispatch);
 
         if self.is_program(&dispatch.destination()) {
-            // TODO: `gas_limit` being None is an abuse of the `run_dispatch` usage,
-            // as it must be called only for user messages
             if !from_task_pool {
                 let gas_limit = matches!(dispatch.kind(), DispatchKind::Signal)
                     .then(|| {

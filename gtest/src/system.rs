@@ -34,21 +34,14 @@ use gear_core::{
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{
-    borrow::Cow,
-    cell::{OnceCell, RefCell},
-    env, fs,
-    io::Write,
-    path::Path,
-    thread,
-};
+use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 thread_local! {
     /// `System` is a singleton with a one instance and no copies returned.
     ///
     /// `OnceCell` is used to control one-time instantiation, while `RefCell`
     /// is needed for interior mutability to uninitialize the global.
-    static SYSTEM_INITIALIZED: RefCell<OnceCell<()>> = const { RefCell::new(OnceCell::new()) };
+    static SYSTEM_INITIALIZED: RefCell<bool> = const { RefCell::new(false) };
 }
 
 #[derive(Decode)]
@@ -117,26 +110,26 @@ impl System {
     /// create. Instantiation of the other one leads to runtime panic.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        SYSTEM_INITIALIZED
-            .with(|ref_cell| ref_cell.borrow().get().is_none())
-            .then(|| {
-                let ext_manager = ExtManager::new();
+        SYSTEM_INITIALIZED.with_borrow_mut(|initialized| {
+            if *initialized {
+                panic!("Impossible to have multiple instances of the `System`.");
+            }
 
-                let actors = ext_manager.actors.clone();
-                let pages_storage = PagesStorage { actors };
-                gear_lazy_pages::init(
-                    LazyPagesVersion::Version1,
-                    LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
-                    pages_storage,
-                )
-                .expect("Failed to init lazy-pages");
+            let ext_manager = ExtManager::new();
 
-                SYSTEM_INITIALIZED
-                    .with(|ref_cell| ref_cell.borrow().set(()).expect("initialized once; qed."));
+            let actors = ext_manager.actors.clone();
+            let pages_storage = PagesStorage { actors };
+            gear_lazy_pages::init(
+                LazyPagesVersion::Version1,
+                LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
+                pages_storage,
+            )
+            .expect("Failed to init lazy-pages");
 
-                Self(RefCell::new(ext_manager))
-            })
-            .expect("Impossible to have multiple instances of the `System`.")
+            *initialized = true;
+
+            Self(RefCell::new(ext_manager))
+        })
     }
 
     /// Init logger with "gwasm" target set to `debug` level.
@@ -347,7 +340,7 @@ impl System {
 impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
-        SYSTEM_INITIALIZED.with(|cell| cell.borrow_mut().take());
+        SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
         self.0.borrow().gas_tree.reset();
     }
 }

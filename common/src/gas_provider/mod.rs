@@ -35,7 +35,9 @@ mod reservable;
 mod property_tests;
 
 #[cfg(feature = "std")]
-pub use auxiliary::*;
+pub use auxiliary::{
+    AuxiliaryGasProvider, ExternalOrigin, GasTreeError, PlainNodeId, ReservationNodeId,
+};
 pub use error::Error;
 pub use internal::TreeImpl;
 pub use lockable::{LockId, LockableTree};
