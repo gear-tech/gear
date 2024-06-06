@@ -42,6 +42,14 @@ impl MailboxManager {
         let user_message = message.into();
         <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::insert(user_message, u64::MAX)
     }
+
+    pub(crate) fn remove(&self, to: ProgramId, from_mid: MessageId) -> Result<(MailboxedMessage, Interval<BlockNumber>), MailboxError> {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::remove(to, from_mid)
+    }
+
+    pub(crate) fn reset(&self) {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::clear();
+    }
 }
 
 pub(crate) struct MailboxCallbacksImpl;

@@ -26,7 +26,7 @@ use codec::{Decode, DecodeAll};
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{
-    ids::{CodeId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     message::Dispatch,
     pages::GearPage,
 };
@@ -323,6 +323,7 @@ impl System {
         if !self.0.borrow().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
+        // iter by key
         self.0.borrow_mut().mailbox.entry(program_id).or_default();
         Mailbox::new(program_id, &self.0)
     }
@@ -341,10 +342,12 @@ impl System {
         self.0.borrow().balance_of(&actor_id)
     }
 
+    // TODO add fn to claim from mailbox by mid and from all mids!
+
     /// Claim the user's value from the mailbox with given `id`.
-    pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
+    pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID, message_id: MessageId) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
+        self.0.borrow_mut().claim_value_from_mailbox(&actor_id, message_id);
     }
 }
 
@@ -353,6 +356,7 @@ impl Drop for System {
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
         self.0.borrow().gas_tree.reset();
+        self.0.borrow().mailbox.reset();
     }
 }
 
