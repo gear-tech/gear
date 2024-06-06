@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn dummy() {
-        let net = Network::new(NetworkConfiguration::new_local()).expect("failed to create network service");
-
+        let net = Network::new(NetworkConfiguration::new_local())
+            .expect("failed to create network service");
     }
 }
