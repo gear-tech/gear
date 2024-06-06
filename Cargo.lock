@@ -5261,7 +5261,6 @@ dependencies = [
  "colored",
  "demo-messenger",
  "demo-new-meta",
- "demo-ping",
  "demo-waiter",
  "futures",
  "futures-util",
