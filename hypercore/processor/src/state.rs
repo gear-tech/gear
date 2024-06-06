@@ -18,9 +18,8 @@
 
 //! State-related data structures.
 
-use core::hash;
 use gear_core::{
-    ids::{self, ProgramId},
+    ids::ProgramId,
     message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Value},
     pages::GearPage,
     program::MemoryInfix,

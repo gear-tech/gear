@@ -21,12 +21,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
-use gear_sandbox_host::sandbox::env::Instantiate;
+pub use gear_sandbox_host::sandbox::env::Instantiate;
 use sp_runtime_interface::{runtime_interface, Pointer};
 use sp_wasm_interface::HostPointer;
 
 #[cfg(feature = "std")]
-mod detail;
+pub mod detail;
 
 #[cfg(feature = "std")]
 pub use detail::init;

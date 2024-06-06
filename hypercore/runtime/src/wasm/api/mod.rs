@@ -20,12 +20,19 @@ use alloc::{boxed::Box, vec::Vec};
 use parity_scale_codec::Encode;
 
 mod instrument;
+mod run;
 mod verify;
 
 #[no_mangle]
 extern "C" fn instrument(code_ptr: i32, code_len: i32) -> i64 {
     let code = unsafe { Vec::from_raw_parts(code_ptr as _, code_len as usize, code_len as usize) };
     return_val(instrument::instrument(code))
+}
+
+#[no_mangle]
+extern "C" fn run(code_ptr: i32, code_len: i32) -> i64 {
+    let code = unsafe { Vec::from_raw_parts(code_ptr as _, code_len as usize, code_len as usize) };
+    return_val(run::run(code))
 }
 
 #[no_mangle]
