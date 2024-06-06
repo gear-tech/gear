@@ -364,7 +364,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_ping::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_new_meta::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(Some(&node_uri(&node)))
@@ -374,7 +374,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_ping::WASM_BINARY.to_vec(),
+            demo_new_meta::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,
@@ -387,16 +387,37 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
         "Program not exists on chain."
     );
 
+    let pid_h256 = H256::from_slice(pid.as_ref());
+    let initial_state = signer.api().read_state(pid_h256, vec![], None).await?;
+
+    let message_in = demo_new_meta::MessageIn {
+        id: demo_new_meta::Id {
+            decimal: 1,
+            hex: [1].to_vec(),
+        },
+    };
+
+    let message_out = demo_new_meta::MessageOut {
+        res: demo_new_meta::Wallet::test_sequence()
+            .iter()
+            .find(|w| w.id.decimal == message_in.id.decimal)
+            .cloned(),
+    };
+
     // 2. calculate reply for handle
     let reply_info = signer
         .rpc
-        .calculate_reply_for_handle(None, pid, b"PING".to_vec(), 100_000_000_000, 0, None)
+        .calculate_reply_for_handle(None, pid, message_in.encode(), 100_000_000_000, 0, None)
         .await?;
 
+    // 3. Read state
+    let new_state = signer.api().read_state(pid_h256, vec![], None).await?;
+
+    assert_eq!(initial_state, new_state);
     assert_eq!(
         reply_info,
         ReplyInfo {
-            payload: b"PONG".to_vec(),
+            payload: message_out.encode(),
             value: 0,
             code: ReplyCode::Success(SuccessReplyReason::Manual)
         }
