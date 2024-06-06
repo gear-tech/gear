@@ -21,7 +21,8 @@
 use crate::GAS_MULTIPLIER;
 use gear_common::{
     gas_provider::{
-        AuxiliaryGasProvider, ConsumeResultOf, GasNodeId, GasTreeError, PlainNodeId, Provider, Tree,
+        auxiliary::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
+        ConsumeResultOf, GasNodeId, Provider, Tree,
     },
     Gas, Origin,
 };

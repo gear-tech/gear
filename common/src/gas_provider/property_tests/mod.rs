@@ -75,7 +75,7 @@
 //!
 //! 14. Value catch can be performed only on consumed nodes (not tested).
 
-use super::{*, auxiliary::*};
+use super::{auxiliary::*, *};
 use crate::storage::MapStorage;
 use core::iter::FromIterator;
 use enum_iterator::all;

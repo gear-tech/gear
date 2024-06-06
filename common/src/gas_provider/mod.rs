@@ -22,7 +22,7 @@ use sp_runtime::{traits::Zero, RuntimeDebug};
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "std")]
-mod auxiliary;
+pub mod auxiliary;
 mod error;
 mod internal;
 mod lockable;
@@ -34,10 +34,6 @@ mod reservable;
 #[cfg(test)]
 mod property_tests;
 
-#[cfg(feature = "std")]
-pub use auxiliary::{
-    AuxiliaryGasProvider, ExternalOrigin, GasTreeError, PlainNodeId, ReservationNodeId,
-};
 pub use error::Error;
 pub use internal::TreeImpl;
 pub use lockable::{LockId, LockableTree};
