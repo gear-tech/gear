@@ -18,8 +18,11 @@
 
 //! Block timestamp and height management.
 
-use std::{cell::RefCell, time::{SystemTime, UNIX_EPOCH}};
 use core_processor::configs::BlockInfo;
+use std::{
+    cell::RefCell,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::BLOCK_DURATION_IN_MSECS;
 
@@ -46,7 +49,9 @@ impl BlocksManager {
 
     pub(crate) fn get(&self) -> BlockInfo {
         BLOCK_INFO.with_borrow(|cell| {
-            cell.as_ref().copied().expect("must be initialized in a `BlocksManager::new`")
+            cell.as_ref()
+                .copied()
+                .expect("must be initialized in a `BlocksManager::new`")
         })
     }
 

@@ -16,15 +16,53 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, CoreLog, Log, RunResult};
+use crate::{blocks::BlocksManager, manager::ExtManager, CoreLog, Log, RunResult};
 use codec::Encode;
 use core_processor::common::JournalHandler;
+use gear_common::{
+    auxiliary::mailbox::*,
+    storage::{GetCallback, Mailbox as MB, MailboxCallbacks},
+};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, StoredMessage},
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use std::{cell::RefCell, convert::TryInto};
+
+#[derive(Debug, Default)]
+pub(crate) struct MailboxManager;
+
+impl MailboxManager {
+    pub(crate) fn insert(
+        to: ProgramId,
+        from_mid: MessageId,
+        message: StoredMessage,
+    ) -> Result<(), MailboxError> {
+        let user_message = message.into();
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::insert(user_message, u64::MAX)
+    }
+}
+
+pub(crate) struct MailboxCallbacksImpl;
+
+impl MailboxCallbacks<MailboxError> for MailboxCallbacksImpl {
+    type Value = MailboxedMessage;
+    type BlockNumber = BlockNumber;
+
+    type GetBlockNumber = GetBlockNumber;
+
+    type OnInsert = ();
+    type OnRemove = ();
+}
+
+pub(crate) struct GetBlockNumber;
+
+impl GetCallback<BlockNumber> for GetBlockNumber {
+    fn call() -> BlockNumber {
+        BlocksManager::new().get().height
+    }
+}
 
 pub struct Mailbox<'a> {
     manager: &'a RefCell<ExtManager>,

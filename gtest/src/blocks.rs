@@ -27,25 +27,30 @@ use std::{
 use crate::BLOCK_DURATION_IN_MSECS;
 
 thread_local! {
-    /// Definition of the storage value storing block info (timestamp and height).
-    static BLOCK_INFO_STORAGE: RefCell<Option<BlockInfo>> = const { RefCell::new(None) };
+    static BLOCK_INFO: RefCell<Option<BlockInfo>> = const { RefCell::new(None) };
+    static INSTANCES: RefCell<u32> = const { RefCell::new(0) };
 }
 
-/// Block info storage manager.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct BlocksManager(());
 
 impl BlocksManager {
     /// Create block info storage manager with a further initialization of the
     /// storage.
     pub(crate) fn new() -> Self {
-        BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
-            let info = BlockInfo {
-                height: 0,
-                timestamp: now(),
-            };
+        INSTANCES.with_borrow_mut(|instances| {
+            *instances += 1;
+        });
 
-            block_info.replace(info);
+        BLOCK_INFO.with_borrow_mut(|block_info| {
+            if block_info.is_none() {
+                let info = BlockInfo {
+                    height: 0,
+                    timestamp: now(),
+                };
+
+                *block_info = Some(info)
+            }
         });
 
         Self(())
@@ -53,11 +58,7 @@ impl BlocksManager {
 
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        BLOCK_INFO_STORAGE.with_borrow(|cell| {
-            cell.as_ref()
-                .copied()
-                .expect("must be initialized in a `BlocksManager::new`")
-        })
+        BLOCK_INFO.with_borrow(|cell| cell.as_ref().copied().expect("instance always initialized"))
     }
 
     /// Move blocks by one.
@@ -69,7 +70,7 @@ impl BlocksManager {
     pub(crate) fn move_blocks_by(&self, amount: u32) -> BlockInfo {
         BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
             let Some(block_info) = block_info.as_mut() else {
-                panic!("must initialized in a `BlocksManager::new`");
+                panic!("instance always initialized");
             };
             block_info.height += amount;
             let duration = BLOCK_DURATION_IN_MSECS.saturating_mul(amount as u64);
@@ -77,6 +78,27 @@ impl BlocksManager {
 
             *block_info
         })
+    }
+}
+
+impl Default for BlocksManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for BlocksManager {
+    fn drop(&mut self) {
+        let remove_data = INSTANCES.with_borrow_mut(|instances| {
+            *instances = instances.saturating_sub(1);
+            *instances == 0
+        });
+
+        if remove_data {
+            BLOCK_INFO.with_borrow_mut(|block_info| {
+                *block_info = None;
+            })
+        }
     }
 }
 

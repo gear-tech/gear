@@ -19,8 +19,8 @@
 use crate::{
     blocks::BlocksManager,
     gas_tree::GasTreeManager,
-    block_info::BlocksManager,
     log::{CoreLog, RunResult},
+    mailbox::MailboxManager,
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     GAS_ALLOWANCE, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
@@ -231,7 +231,7 @@ pub(crate) struct ExtManager {
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
-    pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
+    pub(crate) mailbox: MailboxManager,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_list_schedules: BTreeMap<u32, Vec<(ProgramId, MessageId)>>,
     pub(crate) gas_tree: GasTreeManager,
@@ -299,9 +299,7 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while self.actors.contains_key(&self.id_nonce.into())
-            || self.mailbox.contains_key(&self.id_nonce.into())
-        {
+        while self.actors.contains_key(&self.id_nonce.into()) {
             self.id_nonce += 1;
         }
         self.id_nonce
@@ -460,10 +458,7 @@ impl ExtManager {
             let message = dispatch.into_parts().1.into_stored();
 
             self.mailbox
-                .entry(message.destination())
-                .or_default()
-                .push(message.clone());
-
+                .insert(message.destination(), message.id(), message.clone());
             self.log.push(message)
         }
 
