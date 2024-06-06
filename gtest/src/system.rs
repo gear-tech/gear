@@ -47,14 +47,6 @@ thread_local! {
     ///
     /// `OnceCell` is used to control one-time instantiation, while `RefCell`
     /// is needed for interior mutability to uninitialize the global.
-    static SYSTEM_INITIALIZED: RefCell<OnceCell<()>> = const { RefCell::new(OnceCell::new()) };
-}
-
-thread_local! {
-    /// `System` is a singleton with a one instance and no copies returned.
-    ///
-    /// `OnceCell` is used to control one-time instantiation, while `RefCell`
-    /// is needed for interior mutability to uninitialize the global.
     static SYSTEM_INITIALIZED: RefCell<bool> = const { RefCell::new(false) };
 }
 
@@ -345,9 +337,15 @@ impl System {
     // TODO add fn to claim from mailbox by mid and from all mids!
 
     /// Claim the user's value from the mailbox with given `id`.
-    pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID, message_id: MessageId) {
+    pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(
+        &self,
+        id: ID,
+        message_id: MessageId,
+    ) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().claim_value_from_mailbox(&actor_id, message_id);
+        self.0
+            .borrow_mut()
+            .claim_value_from_mailbox(&actor_id, message_id);
     }
 }
 

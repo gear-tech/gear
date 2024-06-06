@@ -53,7 +53,11 @@ use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
-    cell::{Ref, RefCell, RefMut}, collections::{BTreeMap, HashMap, VecDeque}, convert::TryInto, intrinsics::unreachable, rc::Rc
+    cell::{Ref, RefCell, RefMut},
+    collections::{BTreeMap, HashMap, VecDeque},
+    convert::TryInto,
+    intrinsics::unreachable,
+    rc::Rc,
 };
 
 const OUTGOING_LIMIT: u32 = 1024;
@@ -614,9 +618,7 @@ impl ExtManager {
     }
 
     pub(crate) fn claim_value_from_mailbox(&mut self, to: ProgramId, from_mid: MessageId) {
-        let (message, _) = self.mailbox
-            .remove(to, from_mid)
-            .expect("todo");
+        let (message, _) = self.mailbox.remove(to, from_mid).expect("todo");
 
         self.send_value(
             message.source(),
@@ -624,7 +626,6 @@ impl ExtManager {
             message.value(),
         );
         self.message_consumed(message.id());
-
     }
 
     #[track_caller]
@@ -1013,7 +1014,11 @@ impl JournalHandler for ExtManager {
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             self.mailbox
-                .insert(stored_message.destination(), stored_message.id(), stored_message.clone())
+                .insert(
+                    stored_message.destination(),
+                    stored_message.id(),
+                    stored_message.clone(),
+                )
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
             self.log.push(stored_message);

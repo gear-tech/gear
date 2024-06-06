@@ -43,7 +43,11 @@ impl MailboxManager {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::insert(user_message, u64::MAX)
     }
 
-    pub(crate) fn remove(&self, to: ProgramId, from_mid: MessageId) -> Result<(MailboxedMessage, Interval<BlockNumber>), MailboxError> {
+    pub(crate) fn remove(
+        &self,
+        to: ProgramId,
+        from_mid: MessageId,
+    ) -> Result<(MailboxedMessage, Interval<BlockNumber>), MailboxError> {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as MB>::remove(to, from_mid)
     }
 

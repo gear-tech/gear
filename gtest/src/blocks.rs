@@ -27,7 +27,12 @@ use std::{
 use crate::BLOCK_DURATION_IN_MSECS;
 
 thread_local! {
-    static BLOCK_INFO: RefCell<Option<BlockInfo>> = const { RefCell::new(None) };
+    /// Definition of the storage value storing block info (timestamp and height).
+    static BLOCK_INFO_STORAGE: RefCell<Option<BlockInfo>> = const { RefCell::new(None) };
+    /// `BlocksManager` instances counter.
+    ///
+    /// Used as a reference counter in order to nulify `BLOCK_INFO_STORAGE`,
+    /// if all instances are dropped.
     static INSTANCES: RefCell<u32> = const { RefCell::new(0) };
 }
 
@@ -42,7 +47,7 @@ impl BlocksManager {
             *instances += 1;
         });
 
-        BLOCK_INFO.with_borrow_mut(|block_info| {
+        BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
             if block_info.is_none() {
                 let info = BlockInfo {
                     height: 0,
@@ -58,7 +63,8 @@ impl BlocksManager {
 
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        BLOCK_INFO.with_borrow(|cell| cell.as_ref().copied().expect("instance always initialized"))
+        BLOCK_INFO_STORAGE
+            .with_borrow(|cell| cell.as_ref().copied().expect("instance always initialized"))
     }
 
     /// Move blocks by one.
@@ -95,7 +101,7 @@ impl Drop for BlocksManager {
         });
 
         if remove_data {
-            BLOCK_INFO.with_borrow_mut(|block_info| {
+            BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
                 *block_info = None;
             })
         }
