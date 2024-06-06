@@ -16,21 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::wasm::interface::code_ri;
+use alloc::vec::Vec;
 use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::{CustomConstantCostRules, Schedule};
 
-pub fn verify(code_len: usize) -> bool {
-    log::info!("You're calling 'verify(code_len={code_len})'");
+pub fn verify(code: Vec<u8>) -> bool {
+    log::info!("You're calling 'verify(..)'");
 
     let schedule = Schedule::default();
 
-    if code_len > schedule.limits.code_len as usize {
+    if code.len() > schedule.limits.code_len as usize {
         log::debug!("Code is too big!");
         return false;
     }
-
-    let code = code_ri::load(code_len);
 
     // TODO: only check code here.
     match Code::try_new(code, 42, |_| CustomConstantCostRules::default(), None, None) {

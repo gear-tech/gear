@@ -16,41 +16,50 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::ids::{prelude::CodeIdExt, CodeId};
-use wasmtime::{Memory, Table};
+use sp_wasm_interface::{FunctionContextToken, Pointer, StoreData, WordSize};
+use wasmtime::Caller;
 
-pub struct HostContext {
-    pub code: Vec<u8>,
-    pub(crate) memory: Option<Memory>,
-    pub(crate) table: Option<Table>,
+pub(crate) struct HostContext<'a> {
+    pub(crate) caller: Caller<'a, StoreData>,
 }
 
-impl HostContext {
-    pub fn new(code: Vec<u8>) -> Self {
-        Self {
-            code,
-            memory: None,
-            table: None,
-        }
+impl<'a> sp_wasm_interface::FunctionContext for HostContext<'a> {
+    fn read_memory_into(
+        &self,
+        address: Pointer<u8>,
+        dest: &mut [u8],
+    ) -> sp_wasm_interface::Result<()> {
+        sp_wasm_interface::util::read_memory_into(&self.caller, address, dest)
+            .map_err(|e| e.to_string())
     }
 
-    pub fn code(&self) -> &[u8] {
-        &self.code
+    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> sp_wasm_interface::Result<()> {
+        sp_wasm_interface::util::write_memory_from(&mut self.caller, address, data)
+            .map_err(|e| e.to_string())
     }
 
-    pub fn id(&self) -> CodeId {
-        CodeId::generate(self.code())
+    fn allocate_memory(&mut self, size: WordSize) -> sp_wasm_interface::Result<Pointer<u8>> {
+        sp_wasm_interface::util::allocate_memory(&mut self.caller, size)
     }
 
-    pub fn len(&self) -> usize {
-        self.code().len()
+    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> sp_wasm_interface::Result<()> {
+        sp_wasm_interface::util::deallocate_memory(&mut self.caller, ptr)
     }
 
-    pub fn memory(&self) -> Memory {
-        self.memory.unwrap()
+    fn register_panic_error_message(&mut self, message: &str) {
+        self.caller
+            .data_mut()
+            .host_state_mut()
+            .expect("host state is not empty when calling a function in wasm; qed")
+            .panic_message = Some(message.to_owned());
     }
 
-    pub fn table(&self) -> Table {
-        self.table.unwrap()
+    fn with_caller_mut_impl(
+        &mut self,
+        _: FunctionContextToken,
+        context: *mut (),
+        callback: fn(*mut (), &mut Caller<StoreData>),
+    ) {
+        callback(context, &mut self.caller)
     }
 }

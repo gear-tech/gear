@@ -205,18 +205,10 @@ where
 }
 
 /// Configuration for a set of nodes.
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct SetConfig {
     /// List of reserved node addresses.
     pub reserved_nodes: Vec<Multiaddr>,
-}
-
-impl Default for SetConfig {
-    fn default() -> Self {
-        Self {
-            reserved_nodes: Vec::new(),
-        }
-    }
 }
 
 /// Network service configuration.
@@ -300,9 +292,7 @@ mod tests {
             .expect("ed25519 keypair")
             .secret()
             .as_ref()
-            .iter()
-            .cloned()
-            .collect()
+            .to_vec()
     }
 
     #[test]

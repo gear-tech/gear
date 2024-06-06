@@ -16,16 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::wasm::interface::code_ri;
-use alloc::boxed::Box;
-use gear_core::code::Code;
+use alloc::vec::Vec;
+use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
 use gear_wasm_instrument::gas_metering::Schedule;
-use parity_scale_codec::Encode as _;
 
-pub fn instrument(code_len: usize) -> i64 {
-    log::info!("You're calling 'instrument(code_len={code_len})'");
-
-    let code = code_ri::load(code_len);
+// TODO: return Result here.
+pub fn instrument(code: Vec<u8>) -> Option<InstrumentedCode> {
+    log::info!("You're calling 'instrument(..)'");
 
     let schedule = Schedule::default();
 
@@ -37,24 +34,22 @@ pub fn instrument(code_len: usize) -> i64 {
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
     ) {
-        Ok(code) => {
-            let instrumented = code.into_parts().0;
-
+        Ok(instrumented) => {
             if instrumented.code().len() > schedule.limits.code_len as usize {
                 log::debug!("Code is too big!");
-                return 0;
+                return None;
             }
 
-            let encoded = instrumented.encode();
+            let code_and_id = CodeAndId::new(instrumented);
 
-            let len = encoded.len() as i32;
-            let ptr = Box::leak(Box::new(encoded)).as_ptr() as i32;
+            // TODO: fix this strange casts.
+            let instrumented = InstrumentedCodeAndId::from(code_and_id).into_parts().0;
 
-            unsafe { core::mem::transmute([ptr, len]) }
+            Some(instrumented)
         }
         Err(e) => {
             log::debug!("Bad instrumentation: {e:?}!");
-            0
+            None
         }
     }
 }

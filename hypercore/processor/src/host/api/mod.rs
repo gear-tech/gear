@@ -16,22 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use wasmtime::{Caller, Memory};
+use std::mem;
+use wasmtime::{Memory, StoreContext};
 
-pub fn read_ri_slice<T>(memory: &Memory, store: &mut Caller<'_, T>, data: i64) -> Vec<u8> {
-    let data_bytes = data.to_le_bytes();
+pub mod allocator;
+pub mod logging;
 
-    let mut ptr_bytes = [0; 4];
-    ptr_bytes.copy_from_slice(&data_bytes[..4]);
-    let ptr = i32::from_le_bytes(ptr_bytes);
+pub struct MemoryWrap(Memory);
 
-    let mut len_bytes = [0; 4];
-    len_bytes.copy_from_slice(&data_bytes[4..]);
-    let len = i32::from_le_bytes(len_bytes);
+impl MemoryWrap {
+    fn slice_by_val<'a, T: 'a>(
+        &self,
+        store: impl Into<StoreContext<'a, T>>,
+        ptr_len: i64,
+    ) -> &'a [u8] {
+        let [ptr, len]: [i32; 2] = unsafe { mem::transmute(ptr_len) };
 
-    let mut buffer = vec![0; len as usize];
+        self.slice(store, ptr as usize, len as usize)
+    }
 
-    memory.read(store, ptr as usize, &mut buffer).unwrap();
-
-    buffer
+    fn slice<'a, T: 'a>(
+        &self,
+        store: impl Into<StoreContext<'a, T>>,
+        ptr: usize,
+        len: usize,
+    ) -> &'a [u8] {
+        self.0
+            .data(store)
+            .get(ptr..)
+            .and_then(|s| s.get(..len))
+            .unwrap()
+    }
 }

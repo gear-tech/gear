@@ -179,5 +179,5 @@ pub fn process_program(
         // TODO: handle journal and store receipts
     }
 
-    return journal;
+    journal
 }

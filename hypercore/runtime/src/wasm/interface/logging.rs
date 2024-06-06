@@ -23,9 +23,9 @@ use log::{Level, LevelFilter, Metadata, Record};
 
 mod sys {
     extern "C" {
-        pub fn logging_log_v1(level: i32, target: i64, message: i64);
+        pub(super) fn ext_logging_log_v1(level: i32, target: i64, message: i64);
 
-        pub fn logging_max_level_v1() -> i32;
+        pub(super) fn ext_logging_max_level_v1() -> i32;
     }
 }
 
@@ -35,12 +35,12 @@ pub fn log(level: Level, target: &str, message: &[u8]) {
     let message = utils::repr_ri_slice(message);
 
     unsafe {
-        sys::logging_log_v1(level, target, message);
+        sys::ext_logging_log_v1(level, target, message);
     }
 }
 
 pub fn max_level() -> LevelFilter {
-    match unsafe { sys::logging_max_level_v1() } {
+    match unsafe { sys::ext_logging_max_level_v1() } {
         0 => LevelFilter::Off,
         1 => LevelFilter::Error,
         2 => LevelFilter::Warn,

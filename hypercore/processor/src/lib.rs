@@ -18,19 +18,21 @@
 
 //! Program's execution service for eGPU.
 
-use crate::host::db::Database;
 use anyhow::Result;
+use db::Database;
 use gear_core::{
-    ids::{prelude::CodeIdExt, CodeId, ProgramId},
+    ids::{prelude::CodeIdExt as _, ProgramId},
     message::IncomingMessage,
 };
-use host::context::HostContext;
+use gprimitives::{CodeId, H256};
+use host::InstanceWrapper;
 use hypercore_db::CASDatabase;
 use hypercore_observer::Event;
-use primitive_types::H256;
 use std::collections::HashMap;
 
-mod host;
+pub(crate) mod db;
+pub mod host;
+pub(crate) mod state;
 
 pub struct Processor {
     db: Database,
@@ -48,14 +50,12 @@ impl Processor {
             return Ok(false);
         }
 
-        let mut executor = host::Executor::new(HostContext::new(code))?;
+        let mut executor = InstanceWrapper::new()?;
 
-        let res = executor.verify()?;
+        let res = executor.verify(&code)?;
 
         if res {
-            let context = executor.into_store().into_data();
-            let code_id = context.id();
-            self.db.write_code(code_id, &context.code)
+            self.db.write_code(hash, &code)
         }
 
         Ok(res)
@@ -64,9 +64,9 @@ impl Processor {
     pub fn instrument_code(&mut self, code_id: CodeId) -> Result<Option<H256>> {
         let code = self.db.read_code(code_id).unwrap();
 
-        let mut executor = host::Executor::new(HostContext::new(code))?;
+        let mut instance_wrapper = host::InstanceWrapper::new()?;
 
-        if let Some(instrumented) = executor.instrument()? {
+        if let Some(instrumented) = instance_wrapper.instrument(code)? {
             let hash = self.db.write_instrumented_code(&instrumented);
 
             Ok(Some(hash))
@@ -238,15 +238,12 @@ mod tests {
         let mut ri = NativeRuntimeInterface::new(processor.db.inner());
         let journal = process_program(program_id, &program_state, &mut ri);
         for note in journal {
-            match note {
-                JournalNote::SendDispatch { dispatch, .. } => {
-                    assert_eq!(
-                        String::from_utf8(dispatch.message().payload_bytes().to_vec()),
-                        Ok("PONG".to_string())
-                    );
-                    return;
-                }
-                _ => (),
+            if let JournalNote::SendDispatch { dispatch, .. } = note {
+                assert_eq!(
+                    String::from_utf8(dispatch.message().payload_bytes().to_vec()),
+                    Ok("PONG".to_string())
+                );
+                return;
             }
         }
         panic!("No SendDispatch note found");

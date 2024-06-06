@@ -3929,17 +3929,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dlmalloc"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3264b043b8e977326c1ee9e723da2c1f8d09a99df52cacf00b4dbce5ac54414d"
-dependencies = [
- "cfg-if",
- "libc",
- "windows-sys 0.52.0",
-]
-
-[[package]]
 name = "docify"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7222,6 +7211,7 @@ dependencies = [
  "env_logger",
  "gear-core",
  "gear-core-processor",
+ "gear-runtime-interface",
  "gprimitives",
  "hypercore-db",
  "hypercore-observer",
@@ -7232,6 +7222,8 @@ dependencies = [
  "parity-wasm",
  "primitive-types",
  "rand 0.8.5",
+ "sp-allocator",
+ "sp-wasm-interface",
  "wabt",
  "wasmtime",
 ]
@@ -7240,7 +7232,6 @@ dependencies = [
 name = "hypercore-runtime"
 version = "1.4.2"
 dependencies = [
- "dlmalloc",
  "gear-core",
  "gear-sandbox",
  "gear-wasm-instrument",
