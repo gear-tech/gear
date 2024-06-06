@@ -188,7 +188,7 @@ impl System {
             .map(|_| {
                 manager.check_epoch();
 
-                let block_info = manager.blocks_manager.new_block();
+                let block_info = manager.blocks_manager.next_block();
                 let next_block_number = block_info.height;
                 let mut results = manager.process_delayed_dispatches(next_block_number);
                 results.extend(manager.process_scheduled_wait_list(next_block_number));

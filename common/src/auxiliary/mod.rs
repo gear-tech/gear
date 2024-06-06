@@ -65,7 +65,7 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
     pub fn insert(&mut self, key1: K1, key2: K2, value: V) -> Option<V>
     where
         K1: Ord,
-        K2: Ord + Clone,
+        K2: Ord,
     {
         match self.inner.entry(key1) {
             Entry::Vacant(vacant) => {

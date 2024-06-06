@@ -992,10 +992,7 @@ impl JournalHandler for ExtManager {
         if bn > 0 {
             log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
 
-            self.send_delayed_dispatch(
-                dispatch,
-                self.blocks_manager.get().height.saturating_add(bn),
-            );
+            self.send_delayed_dispatch(dispatch, self.blocks_manager.get().height + bn);
             return;
         }
 
@@ -1042,7 +1039,7 @@ impl JournalHandler for ExtManager {
         self.wait_list.insert((dest, id), dispatch);
         if let Some(duration) = duration {
             self.wait_list_schedules
-                .entry(self.blocks_manager.get().height.saturating_add(duration))
+                .entry(self.blocks_manager.get().height + duration)
                 .or_default()
                 .push((dest, id));
         }
@@ -1177,7 +1174,7 @@ impl JournalHandler for ExtManager {
         // the queue.
         self.gas_allowance = Gas(GAS_ALLOWANCE);
         self.dispatches.push_front(dispatch);
-        self.blocks_manager.move_blocks_by(1);
+        self.blocks_manager.next_block();
     }
 
     fn reserve_gas(

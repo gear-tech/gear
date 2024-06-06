@@ -61,7 +61,7 @@ impl BlocksManager {
     }
 
     /// Move blocks by one.
-    pub(crate) fn new_block(&self) -> BlockInfo {
+    pub(crate) fn next_block(&self) -> BlockInfo {
         self.move_blocks_by(1)
     }
 
@@ -71,9 +71,9 @@ impl BlocksManager {
             let Some(block_info) = block_info.as_mut() else {
                 panic!("must initialized in a `BlocksManager::new`");
             };
-            block_info.height = block_info.height.saturating_add(amount);
+            block_info.height += amount;
             let duration = BLOCK_DURATION_IN_MSECS.saturating_mul(amount as u64);
-            block_info.timestamp = block_info.timestamp.saturating_add(duration);
+            block_info.timestamp += duration;
 
             *block_info
         })
