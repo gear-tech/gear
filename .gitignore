@@ -16,4 +16,3 @@ utils/**/fuzz/coverage/*
 utils/**/fuzz/artifacts/*
 utils/**/fuzz/fuzz/*
 .hypercore.toml
-

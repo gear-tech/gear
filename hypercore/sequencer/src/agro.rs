@@ -44,6 +44,16 @@ pub struct AggregatedQueue<D: SeqHash> {
     last: H256,
 }
 
+#[derive(Debug, Clone)]
+pub struct CodeHashCommitment(H256);
+
+// identity hashing
+impl SeqHash for CodeHashCommitment {
+    fn hash(&self) -> H256 {
+        self.0
+    }
+}
+
 impl<D: SeqHash> AggregatedCommitments<D> {
     pub fn hash(&self) -> H256 {
         let mut array = Vec::new();
@@ -136,6 +146,10 @@ impl<D: SeqHash + Clone> Aggregator<D> {
             .or_insert_with(move || AggregatedQueue::new(aggregated));
 
         self.rolling = Some(hash);
+    }
+
+    pub fn len(&self) -> usize {
+        self.aggregated.len()
     }
 
     pub fn find_root(self) -> Option<MultisignedCommitments<D>> {

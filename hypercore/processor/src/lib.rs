@@ -37,6 +37,12 @@ pub struct Processor {
     db: Database,
 }
 
+/// Local changes that can be commited to the network or local signer.
+pub enum LocalOutcome {
+    /// Produced when code with specific id is recorded and available in database.
+    CodeCommitment(CodeId),
+}
+
 impl Processor {
     pub fn new(db: Box<dyn CASDatabase>) -> Self {
         Self {
@@ -97,19 +103,25 @@ impl Processor {
         Ok(())
     }
 
-    pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
+    pub fn process_observer_event(&mut self, event: &Event) -> Result<Vec<LocalOutcome>> {
         match event {
-            Event::UploadCode { code_id, .. } => {
+            Event::UploadCode { code_id, code, .. } => {
                 log::debug!("Processing upload code {code_id:?}");
+
+                if self.new_code(*code_id, code.to_vec())? {
+                    Ok(vec![LocalOutcome::CodeCommitment(*code_id)])
+                } else {
+                    Ok(vec![])
+                }
             }
             Event::Block {
                 ref block_hash,
                 events: _,
             } => {
                 log::debug!("Processing events for {block_hash:?}");
+                Ok(vec![])
             }
         }
-        Ok(())
     }
 }
 
