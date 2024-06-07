@@ -276,6 +276,36 @@ impl Router {
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }
+
+    pub async fn commit_transitions(
+        &self,
+        transitions: Vec<Transition>,
+        signatures: Vec<HypercoreSignature>,
+    ) -> Result<H256> {
+        let builder = self.0.commitTransitions(
+            transitions
+                .into_iter()
+                .map(|transition| AlloyRouter::Transition {
+                    actorId: {
+                        let mut address = Address::ZERO;
+                        address
+                            .0
+                            .copy_from_slice(&transition.actor_id.into_bytes()[12..]);
+                        address
+                    },
+                    oldStateHash: B256::new(transition.old_state_hash.to_fixed_bytes()),
+                    newStateHash: B256::new(transition.new_state_hash.to_fixed_bytes()),
+                })
+                .collect(),
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(&signature.0))
+                .collect(),
+        );
+        let tx = builder.send().await?;
+        let receipt = tx.get_receipt().await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
 }
 
 pub struct Program(AlloyProgramInstance);
