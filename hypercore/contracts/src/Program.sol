@@ -11,23 +11,21 @@ contract Program {
 
     event ClaimValue(address origin, bytes32 messageId);
 
-    function sendMessage(address destination, bytes calldata payload, uint64 gasLimit, uint128 value)
-        external
-        payable
-    {
-        emit SendMessage(tx.origin, destination, payload, gasLimit, value);
+    function sendMessage(address destination, bytes calldata payload, uint64 gasLimit) external payable {
+        emit SendMessage(tx.origin, destination, payload, gasLimit, uint128(msg.value));
     }
 
-    function sendReply(bytes32 replyToId, bytes calldata payload, uint64 gasLimit, uint128 value) external payable {
-        emit SendReply(tx.origin, replyToId, payload, gasLimit, value);
+    function sendReply(bytes32 replyToId, bytes calldata payload, uint64 gasLimit) external payable {
+        emit SendReply(tx.origin, replyToId, payload, gasLimit, uint128(msg.value));
     }
 
     function claimValue(bytes32 messageId) external {
         emit ClaimValue(tx.origin, messageId);
     }
 
-    function setStateHash(bytes32 _stateHash) external {
+    function performStateTransition(bytes32 oldStateHash, bytes32 newStateHash) external {
         require(msg.sender == OWNER, "not owner");
-        stateHash = _stateHash;
+        require(stateHash == oldStateHash, "invalid state transition");
+        stateHash = newStateHash;
     }
 }

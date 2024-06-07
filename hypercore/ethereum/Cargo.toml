@@ -23,4 +23,3 @@ alloy = { workspace = true, features = [
 gear-core.workspace = true
 gprimitives.workspace = true
 hypercore-signer.workspace = true
-

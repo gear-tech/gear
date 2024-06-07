@@ -127,7 +127,7 @@ impl Signer {
         Ok(Self { key_store })
     }
 
-    pub fn sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
+    pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
         let secret_key = self.get_key(public_key)?;
 
         let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
@@ -146,13 +146,15 @@ impl Signer {
         Ok(r)
     }
 
-    pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
-        let digest = sha3::Keccak256::digest(data);
-
-        let mut r = self.sign_digest(public_key, digest.into())?;
+    pub fn sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
+        let mut r = self.raw_sign_digest(public_key, digest)?;
         r.0[64] += 27;
 
         Ok(r)
+    }
+
+    pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
+        self.sign_digest(public_key, sha3::Keccak256::digest(data).into())
     }
 
     pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {

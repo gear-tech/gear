@@ -27,6 +27,24 @@
   },
   {
     "type": "function",
+    "name": "performStateTransition",
+    "inputs": [
+      {
+        "name": "oldStateHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "newStateHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "sendMessage",
     "inputs": [
       {
@@ -43,11 +61,6 @@
         "name": "gasLimit",
         "type": "uint64",
         "internalType": "uint64"
-      },
-      {
-        "name": "value",
-        "type": "uint128",
-        "internalType": "uint128"
       }
     ],
     "outputs": [],
@@ -71,28 +84,10 @@
         "name": "gasLimit",
         "type": "uint64",
         "internalType": "uint64"
-      },
-      {
-        "name": "value",
-        "type": "uint128",
-        "internalType": "uint128"
       }
     ],
     "outputs": [],
     "stateMutability": "payable"
-  },
-  {
-    "type": "function",
-    "name": "setStateHash",
-    "inputs": [
-      {
-        "name": "_stateHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",

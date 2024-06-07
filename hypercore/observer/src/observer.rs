@@ -9,7 +9,7 @@ use alloy::{
         client::WsConnect,
         types::{
             beacon::sidecar::BeaconBlobBundle,
-            eth::{Filter, Topic},
+            eth::{BlockTransactionsKind, Filter, Topic},
         },
     },
 };
@@ -17,9 +17,7 @@ use anyhow::{anyhow, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
-use hypercore_ethereum::event::{
-    ClaimValue, CreateProgram, CreatedProgram, SendMessage, SendReply, UploadCode,
-};
+use hypercore_ethereum::event::{ClaimValue, CreateProgram, SendMessage, SendReply, UploadCode};
 use reqwest::Client;
 use std::{collections::HashSet, hash::RandomState};
 use tokio::time::{self, Duration};
@@ -52,10 +50,9 @@ pub struct Observer {
 }
 
 impl Observer {
-    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 3] = [
+    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 2] = [
         B256::new(UploadCode::SIGNATURE_HASH),
         B256::new(CreateProgram::SIGNATURE_HASH),
-        B256::new(CreatedProgram::SIGNATURE_HASH),
     ];
     const PROGRAM_EVENT_SIGNATURE_HASHES: [B256; 3] = [
         B256::new(SendMessage::SIGNATURE_HASH),
@@ -187,14 +184,11 @@ impl Observer {
                         None
                     }
                     Some(CreateProgram::SIGNATURE_HASH) => {
-                        Some(BlockEvent::CreateProgram(data.try_into().ok()?))
-                    }
-                    Some(CreatedProgram::SIGNATURE_HASH) => {
-                        let CreatedProgram { actor_id: _ } = data.try_into().ok()?;
+                        let event: CreateProgram = data.try_into().ok()?;
 
-                        // TODO: mark actor_id as known in database
+                        // TODO: mark event.actor_id as known in database
 
-                        None
+                        Some(BlockEvent::CreateProgram(event))
                     }
                     Some(SendMessage::SIGNATURE_HASH) => {
                         // TODO: return None if is not known actor_id
@@ -272,7 +266,7 @@ impl Observer {
             .block_hash
             .ok_or_else(|| anyhow!("failed to get block hash"))?;
         let block = provider
-            .get_block_by_hash(block_hash, false)
+            .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
             .await?
             .ok_or_else(|| anyhow!("failed to get block"))?;
         let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME) / BEACON_BLOCK_TIME;
