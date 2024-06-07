@@ -46,6 +46,19 @@ pub fn hash(data: &[u8]) -> gprimitives::H256 {
     Hash(<[u8; 32]>::from(sha3::Keccak256::digest(data))).into()
 }
 
+impl PrivateKey {
+    pub fn from_hex(s: &str) -> Result<Self> {
+        let bytes = match hex::decode(s) {
+            Ok(bytes) => bytes,
+            _ => anyhow::bail!("Invalid hex format for {:?}", s),
+        };
+
+        let mut buf = [0u8; 32];
+        buf.copy_from_slice(&bytes);
+        Ok(Self(buf))
+    }
+}
+
 impl PublicKey {
     pub fn from_bytes(bytes: [u8; 33]) -> Self {
         Self(bytes)
@@ -263,8 +276,7 @@ mod tests {
         let signer = Signer::new(key_store.clone()).expect("Failed to create signer");
 
         // Convert the private key hex to bytes and add it to the signer
-        let private_key_bytes = hex::decode(private_key_hex).expect("Invalid private key hex");
-        let private_key = PrivateKey(private_key_bytes.try_into().expect("Invalid length"));
+        let private_key = PrivateKey::from_hex(private_key_hex).expect("Invalid private key hex");
         let public_key = signer.add_key(private_key).expect("Failed to add key");
 
         // Ensure the key store has the key
