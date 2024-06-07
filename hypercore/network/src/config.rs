@@ -26,14 +26,10 @@ use zeroize::Zeroize;
 use std::{
     error::Error,
     fmt, fs,
-    future::Future,
     io::{self, Write},
     iter,
     net::Ipv4Addr,
-    num::NonZeroUsize,
     path::{Path, PathBuf},
-    pin::Pin,
-    str::{self, FromStr},
 };
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
