@@ -116,10 +116,10 @@ impl Processor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core_processor::common::JournalNote;
     use gear_core::message::{DispatchKind, Payload};
     use hypercore_db::MemDb;
     use hypercore_runtime_native::{
+        hypercore_runtime_common::receipts::Receipt,
         process_program,
         state::{Dispatch, MaybeHash, MessageQueue, ProgramState},
         NativeRuntimeInterface,
@@ -211,13 +211,12 @@ mod tests {
         let mut processor = Processor::new(db.clone_boxed());
 
         let code = valid_code();
-        let code_len = code.len();
         let id = CodeId::generate(&code);
 
         assert!(processor.new_code(id, code).unwrap());
 
         let hash = processor.instrument_code(id).unwrap().unwrap();
-        let instrumented = processor.db.read_instrumented_code(hash).unwrap();
+        let _instrumented = processor.db.read_instrumented_code(hash).unwrap();
 
         processor.run_on_host(hash.to_fixed_bytes().into()).unwrap();
     }
@@ -265,9 +264,9 @@ mod tests {
         };
 
         let mut ri = NativeRuntimeInterface::new(processor.db.inner());
-        let journal = process_program(program_id, &program_state, &mut ri);
-        for note in journal {
-            if let JournalNote::SendDispatch { dispatch, .. } = note {
+        let (_, receipts) = process_program(program_id, program_state, &mut ri);
+        for receipt in receipts.into_iter() {
+            if let Receipt::SendDispatch { dispatch, .. } = receipt {
                 assert_eq!(
                     String::from_utf8(dispatch.message().payload_bytes().to_vec()),
                     Ok("PONG".to_string())
@@ -275,6 +274,6 @@ mod tests {
                 return;
             }
         }
-        panic!("No SendDispatch note found");
+        panic!("No SendDispatch receipt found");
     }
 }

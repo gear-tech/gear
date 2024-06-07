@@ -19,8 +19,10 @@
 //! Runtime common implementation.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(unused)]
 
 use alloc::{collections::BTreeMap, vec::Vec};
+use core::mem::swap;
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
@@ -37,17 +39,25 @@ use gear_core::{
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
-use state::{Dispatch, MessageQueue, ProgramState};
+use parity_scale_codec::{Decode, Encode};
+use receipts::Receipt;
+use state::{Dispatch, MaybeHash, MessageQueue, ProgramState};
 
 extern crate alloc;
 
+mod journal;
+pub mod receipts;
 pub mod state;
 
 pub trait CASReader {
     fn read(&self, hash: &H256) -> Option<Vec<u8>>;
 }
 
-pub trait RuntimeInterface: CASReader {
+pub trait CASWriter {
+    fn write(&mut self, data: &[u8]) -> H256;
+}
+
+pub trait RuntimeInterface: CASReader + CASWriter {
     type LazyPages: LazyPagesInterface + 'static;
 
     fn block_info(&self) -> BlockInfo;
@@ -55,81 +65,98 @@ pub trait RuntimeInterface: CASReader {
     fn random_data(&self) -> (Vec<u8>, u32);
 }
 
-#[allow(clippy::too_many_arguments)]
-fn process_dispatch<RI: RuntimeInterface>(
+struct ProgramContext {
     program_id: ProgramId,
-    block_config: &BlockConfig,
     allocations: IntervalsTree<WasmPage>,
     code: InstrumentedCode,
     gas_reservation_map: GasReservationMap,
-    dispatch: Dispatch,
     code_id: CodeId,
     memory_infix: MemoryInfix,
     pages_map: BTreeMap<GearPage, H256>,
     balance: Value,
-    ri: &mut RI,
+    receipts: Vec<Receipt>,
+}
+struct DispatchExecutionContext<'a, RI: RuntimeInterface> {
+    program_context: &'a mut ProgramContext,
+    dispatch: Dispatch,
+    ri: &'a mut RI,
+}
+
+fn process_dispatch<RI: RuntimeInterface>(
+    block_config: &BlockConfig,
+    ctx: &mut DispatchExecutionContext<RI>,
 ) -> Vec<JournalNote> {
-    let payload = dispatch.payload_hash.read(ri).unwrap_or_default();
+    let payload = ctx.dispatch.payload_hash.read(ctx.ri).unwrap_or_default();
     let incoming_message = IncomingMessage::new(
-        dispatch.id,
-        dispatch.source,
+        ctx.dispatch.id,
+        ctx.dispatch.source,
         payload,
-        dispatch.gas_limit,
-        dispatch.value,
-        dispatch.details,
+        ctx.dispatch.gas_limit,
+        ctx.dispatch.value,
+        ctx.dispatch.details,
     );
-    let dispatch = IncomingDispatch::new(dispatch.kind, incoming_message, dispatch.context);
+    let dispatch = IncomingDispatch::new(
+        ctx.dispatch.kind,
+        incoming_message,
+        ctx.dispatch.context.take(), // TODO: do not forget to set it back in wait
+    );
 
     let precharged_dispatch = core_processor::precharge_for_program(
         block_config,
         1_000_000_000_000, // TODO
         dispatch,
-        program_id,
+        ctx.program_context.program_id,
     )
     .expect("TODO: process precharge errors");
 
     let actor_data = ExecutableActorData {
-        allocations,
-        code_id,
-        code_exports: code.exports().clone(),
-        static_pages: code.static_pages(),
-        gas_reservation_map,
-        memory_infix,
+        allocations: ctx.program_context.allocations.clone(),
+        code_id: ctx.program_context.code_id,
+        code_exports: ctx.program_context.code.exports().clone(),
+        static_pages: ctx.program_context.code.static_pages(),
+        gas_reservation_map: ctx.program_context.gas_reservation_map.clone(),
+        memory_infix: ctx.program_context.memory_infix,
     };
 
     let context = core_processor::precharge_for_code_length(
         block_config,
         precharged_dispatch,
-        program_id,
+        ctx.program_context.program_id,
         actor_data,
     )
     .expect("TODO: process precharge errors");
 
-    let context = ContextChargedForCode::from((context, code.code().len() as u32));
+    let context =
+        ContextChargedForCode::from((context, ctx.program_context.code.code().len() as u32));
     let context = core_processor::precharge_for_memory(
         block_config,
         ContextChargedForInstrumentation::from(context),
     )
     .expect("TODO: process precharge errors");
-    let execution_context = ProcessExecutionContext::from((context, code, balance));
+    let execution_context = ProcessExecutionContext::from((
+        context,
+        ctx.program_context.code.clone(),
+        ctx.program_context.balance,
+    ));
 
-    let random_data = ri.random_data();
+    let random_data = ctx.ri.random_data();
 
-    ri.init_lazy_pages(pages_map);
+    ctx.ri
+        .init_lazy_pages(ctx.program_context.pages_map.clone());
 
     core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
-        .unwrap()
+        .unwrap_or_else(|err| unreachable!("{err}"))
 }
 
 pub fn process_program(
     program_id: ProgramId,
-    program_state: &ProgramState,
+    program_state: ProgramState,
     ri: &mut impl RuntimeInterface,
-) -> Vec<JournalNote> {
+) -> (ProgramState, Vec<Receipt>) {
     let mut queue: MessageQueue = program_state.queue_hash.read(ri).unwrap_or_default();
 
     if queue.0.is_empty() {
-        return Vec::new();
+        return (program_state, Vec::new());
     }
 
     // TODO: must be set by some runtime configuration
@@ -159,25 +186,62 @@ pub fn process_program(
         .unwrap_or_default();
     let pages_map: BTreeMap<GearPage, H256> = program_state.pages_hash.read(ri).unwrap_or_default();
 
-    let mut journal = Vec::new();
-    while let Some(dispatch) = queue.0.pop() {
-        let j = process_dispatch(
-            program_id,
-            &block_config,
-            allocations.clone(),
-            code.clone(),
-            gas_reservation_map.clone(),
-            dispatch,
-            code_id,
-            program_state.memory_infix,
-            pages_map.clone(),
-            program_state.balance,
-            ri,
-        );
-        journal.extend(j);
+    let mut receipts = Vec::new();
+    let mut program_context = ProgramContext {
+        program_id,
+        allocations,
+        code,
+        gas_reservation_map,
+        code_id,
+        memory_infix: program_state.memory_infix,
+        pages_map,
+        balance: program_state.balance,
+        receipts: Vec::new(),
+    };
 
-        // TODO: handle journal and store receipts
+    while let Some(dispatch) = queue.0.pop() {
+        let mut dispatch_context = DispatchExecutionContext {
+            program_context: &mut program_context,
+            dispatch,
+            ri,
+        };
+        let journal = process_dispatch(&block_config, &mut dispatch_context);
+        core_processor::handle_journal(journal, &mut dispatch_context);
+        receipts.append(&mut dispatch_context.program_context.receipts);
     }
 
-    journal
+    let queue_hash = queue
+        .0
+        .is_empty()
+        .then_some(MaybeHash::Empty)
+        .unwrap_or_else(|| ri.write(&queue.encode()).into());
+    let allocations_hash = (program_context.allocations.intervals_amount() == 0)
+        .then_some(MaybeHash::Empty)
+        .unwrap_or_else(|| ri.write(&program_context.allocations.encode()).into());
+    let pages_hash = program_context
+        .pages_map
+        .is_empty()
+        .then_some(MaybeHash::Empty)
+        .unwrap_or_else(|| ri.write(&program_context.pages_map.encode()).into());
+    let gas_reservation_map_hash = program_context
+        .gas_reservation_map
+        .is_empty()
+        .then_some(MaybeHash::Empty)
+        .unwrap_or_else(|| {
+            ri.write(&program_context.gas_reservation_map.encode())
+                .into()
+        });
+
+    let program_state = ProgramState {
+        queue_hash,
+        allocations_hash,
+        pages_hash,
+        gas_reservation_map_hash,
+        balance: program_context.balance,
+        original_code_hash: program_state.original_code_hash,
+        instrumented_code_hash: program_state.instrumented_code_hash,
+        memory_infix: program_state.memory_infix,
+    };
+
+    (program_state, receipts)
 }

@@ -25,11 +25,11 @@ use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gprimitives::H256;
 use hypercore_db::CASDatabase;
-use hypercore_runtime_common::RuntimeInterface;
+use hypercore_runtime_common::{CASWriter, RuntimeInterface};
 use pages_storage::PagesStorage;
 use std::collections::BTreeMap;
 
-pub use hypercore_runtime_common::{process_program, state, CASReader};
+pub use hypercore_runtime_common::{self, process_program, state, CASReader};
 
 mod pages_storage;
 
@@ -46,6 +46,12 @@ impl NativeRuntimeInterface {
 impl CASReader for NativeRuntimeInterface {
     fn read(&self, hash: &H256) -> Option<Vec<u8>> {
         self.db.read(hash)
+    }
+}
+
+impl CASWriter for NativeRuntimeInterface {
+    fn write(&mut self, data: &[u8]) -> H256 {
+        self.db.write(data)
     }
 }
 

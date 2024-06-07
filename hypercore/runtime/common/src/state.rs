@@ -20,7 +20,7 @@
 
 use core::num::NonZeroU32;
 
-use crate::CASReader;
+use crate::{CASReader, CASWriter};
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_core::{
     ids::ProgramId,
