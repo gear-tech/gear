@@ -26,7 +26,7 @@ use tokio::signal;
 /// Hypercore service.
 pub struct Service {
     db: Box<dyn hypercore_db::CASDatabase>,
-    network: hypercore_network::Network,
+    network: hypercore_network::NetworkWorker,
     observer: hypercore_observer::Observer,
     processor: hypercore_processor::Processor,
     signer: hypercore_signer::Signer,
@@ -38,7 +38,7 @@ impl Service {
         let db: Box<dyn hypercore_db::CASDatabase> = Box::new(hypercore_db::RocksDatabase::open(
             config.database_path.clone(),
         )?);
-        let network = hypercore_network::Network::new(config.net_config.clone())?;
+        let network = hypercore_network::NetworkWorker::new(config.net_config.clone())?;
         let observer = hypercore_observer::Observer::new(
             config.ethereum_rpc.clone(),
             config.ethereum_beacon_rpc.clone(),
@@ -120,7 +120,7 @@ impl Service {
                     }
                 }
                 _ = &mut network_run => {
-                    log::info!("`Network` has terminated, shutting down the network future.");
+                    log::info!("`NetworkWorker` has terminated, shutting down the network future.");
                     break;
                 }
             }
