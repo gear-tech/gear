@@ -76,6 +76,7 @@ struct ProgramContext {
     balance: Value,
     receipts: Vec<Receipt>,
 }
+
 struct DispatchExecutionContext<'a, RI: RuntimeInterface> {
     program_context: &'a mut ProgramContext,
     dispatch: Dispatch,

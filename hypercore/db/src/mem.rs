@@ -16,14 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::CASDatabase;
+use crate::{CASDatabase, KVDatabase};
 use dashmap::DashMap;
 use gprimitives::H256;
 use std::sync::Arc;
 
 #[derive(Debug, Default, Clone)]
 pub struct MemDb {
-    inner: Arc<DashMap<H256, Vec<u8>>>,
+    // TODO: using Vec as key is not optimal, consider using to use another data structure.
+    inner: Arc<DashMap<Vec<u8>, Vec<u8>>>,
 }
 
 impl CASDatabase for MemDb {
@@ -32,12 +33,32 @@ impl CASDatabase for MemDb {
     }
 
     fn read(&self, hash: &H256) -> Option<Vec<u8>> {
-        self.inner.get(hash).map(|v| v.value().clone())
+        let key = hash.as_bytes().to_vec();
+        self.inner.get(&key).map(|v| v.value().clone())
     }
 
     fn write_by_hash(&self, hash: &H256, data: &[u8]) {
         debug_assert_eq!(*hash, crate::hash(data));
-        self.inner.insert(*hash, data.to_vec());
+        let key = hash.as_bytes().to_vec();
+        self.inner.insert(key, data.to_vec());
+    }
+}
+
+impl KVDatabase for MemDb {
+    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase> {
+        Box::new(self.clone())
+    }
+
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.inner.get(&key.to_vec()).map(|v| v.value().clone())
+    }
+
+    fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.inner.remove(&key.to_vec()).map(|(_, value)| value)
+    }
+
+    fn put(&self, key: &[u8], value: Vec<u8>) {
+        self.inner.insert(key.to_vec(), value);
     }
 }
 
@@ -45,60 +66,30 @@ impl CASDatabase for MemDb {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
+    use crate::tests;
 
     #[test]
     fn is_clonable() {
-        let db = MemDb::default();
-        let _ = db.clone();
+        tests::is_clonable(MemDb::default());
     }
 
     #[test]
-    fn read_write() {
-        let db = MemDb::default();
-        let data = b"Hello, world!";
-        let hash = db.write(data);
-
-        assert_eq!(db.read(&hash), Some(data.to_vec()));
+    fn cas_read_write() {
+        tests::cas_read_write(MemDb::default());
     }
 
     #[test]
-    fn multi_thread() {
-        let amount = 10;
+    fn kv_read_write() {
+        tests::kv_read_write(MemDb::default());
+    }
 
-        let to_big_vec = |x: u32| -> Vec<u8> {
-            let bytes = x.to_le_bytes();
-            bytes
-                .iter()
-                .cycle()
-                .take(1024 * 1024)
-                .copied()
-                .collect::<Vec<_>>()
-        };
+    #[test]
+    fn cas_multi_thread() {
+        tests::cas_multi_thread(MemDb::default());
+    }
 
-        let db = MemDb::default();
-
-        let db_clone = CASDatabase::clone_boxed(&db);
-        let handler1 = thread::spawn(move || {
-            for x in 0u32..amount {
-                db_clone.write(to_big_vec(x).as_slice());
-            }
-        });
-
-        let db_clone = CASDatabase::clone_boxed(&db);
-        let handler2 = thread::spawn(move || {
-            for x in amount..amount * 2 {
-                db_clone.write(to_big_vec(x).as_slice());
-            }
-        });
-
-        handler1.join().unwrap();
-        handler2.join().unwrap();
-
-        for x in 0u32..amount * 2 {
-            let data = to_big_vec(x);
-            let hash = db.read(&crate::hash(data.as_slice()));
-            assert_eq!(hash, Some(data));
-        }
+    #[test]
+    fn kv_multi_thread() {
+        tests::kv_multi_thread(MemDb::default());
     }
 }
