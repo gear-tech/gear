@@ -7240,10 +7240,12 @@ name = "hypercore-runtime-common"
 version = "1.4.2"
 dependencies = [
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",
  "gprimitives",
  "gsys",
+ "log",
  "parity-scale-codec",
  "primitive-types",
 ]

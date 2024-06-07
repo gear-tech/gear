@@ -16,8 +16,9 @@ gear-core.workspace = true
 parity-scale-codec.workspace = true
 gprimitives.workspace = true
 gsys.workspace = true
+gear-core-errors.workspace = true
+log.workspace = true
 
-[dev-dependencies]
 [features]
 default = ["std"]
-std = ["core-processor/std"]
+std = ["core-processor/std", "log/std"]
