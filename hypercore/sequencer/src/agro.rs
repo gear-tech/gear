@@ -16,78 +16,51 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Hypercore commitment aggregator.
+//! Abstract commitment aggregator.
 
-use gear_core::ids::ActorId;
 use gprimitives::H256;
 use hypercore_signer::{hash, Address, Signature};
 use std::collections::HashMap;
 
-#[derive(Clone, Debug)]
-pub struct Commitment {
-    pub block_hash: H256,
-    pub program_id: ActorId,
-    pub new_state: H256,
+pub trait SeqHash {
+    fn hash(&self) -> H256;
 }
 
 #[derive(Clone, Debug)]
-pub struct CommitmentSource {
-    pub commitment: Commitment,
-    pub source: Address,
+pub struct AggregatedCommitments<D: SeqHash> {
+    pub commitments: Vec<D>,
     pub signature: Signature,
 }
 
-#[derive(Clone, Debug)]
-pub struct AggregatedCommitments {
-    pub block_hash: H256,
-    pub commitments: Vec<Commitment>,
-    pub source: Address,
-    pub signature: Signature,
+#[derive(Debug)]
+pub struct LinkedAggregation<D: SeqHash> {
+    pub aggregated: AggregatedCommitments<D>,
+    pub previous: Option<H256>,
 }
 
-#[derive(Clone, Debug)]
-pub struct RollingCommitment {
-    pub aggregated: AggregatedCommitments,
-    pub new_commitment: Commitment,
+#[derive(Debug)]
+pub struct AggregatedQueue<D: SeqHash> {
+    all_commitments: HashMap<H256, LinkedAggregation<D>>,
+    last: H256,
 }
 
-impl Commitment {
+impl<D: SeqHash> AggregatedCommitments<D> {
     pub fn hash(&self) -> H256 {
         let mut array = Vec::new();
-        array.extend_from_slice(self.block_hash.as_ref());
-        array.extend_from_slice(self.program_id.as_ref());
-        array.extend_from_slice(self.new_state.as_ref());
+        for commitment in &self.commitments {
+            array.extend_from_slice(commitment.hash().as_ref());
+        }
         hash(&array)
     }
 }
 
-#[derive(Debug)]
-pub struct LinkedAggregatedCommitment {
-    pub aggregated: AggregatedCommitments,
-    pub previous: Option<H256>,
-}
-
-#[derive(Clone, Debug)]
-pub struct MultisignedCommitments {
-    pub block_hash: H256,
-    pub commitments: Vec<Commitment>,
-    pub sources: Vec<Address>,
-    pub signatures: Vec<Signature>,
-}
-
-#[derive(Debug)]
-pub struct AggregatedQueue {
-    all_commitments: HashMap<H256, LinkedAggregatedCommitment>,
-    last: H256,
-}
-
-impl AggregatedQueue {
-    pub fn new(initial: AggregatedCommitments) -> Self {
+impl<D: SeqHash> AggregatedQueue<D> {
+    pub fn new(initial: AggregatedCommitments<D>) -> Self {
         let hash = initial.hash();
         let mut all_commitments = HashMap::new();
         all_commitments.insert(
             hash,
-            LinkedAggregatedCommitment {
+            LinkedAggregation {
                 aggregated: initial,
                 previous: None,
             },
@@ -98,11 +71,11 @@ impl AggregatedQueue {
         }
     }
 
-    pub fn push(&mut self, commitment: AggregatedCommitments) {
+    pub fn push(&mut self, commitment: AggregatedCommitments<D>) {
         let hash = commitment.hash();
         self.last = hash;
 
-        let new_queue = LinkedAggregatedCommitment {
+        let new_queue = LinkedAggregation {
             aggregated: commitment,
             previous: Some(self.last),
         };
@@ -123,32 +96,25 @@ impl AggregatedQueue {
     }
 }
 
-impl AggregatedCommitments {
-    pub fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        for commitment in &self.commitments {
-            array.extend_from_slice(commitment.hash().as_ref());
-        }
-        hash(&array)
-    }
+#[derive(Clone, Debug)]
+pub struct MultisignedCommitments<D> {
+    pub commitments: Vec<D>,
+    pub sources: Vec<Address>,
+    pub signatures: Vec<Signature>,
 }
 
-pub struct PlainCommitments(pub Vec<Commitment>);
-
-pub struct Aggregator {
-    block_hash: H256,
+pub struct Aggregator<D: SeqHash + Clone> {
     threshold: usize,
 
-    aggregated: HashMap<Address, AggregatedQueue>,
-    plain_commitments: HashMap<H256, PlainCommitments>,
+    aggregated: HashMap<Address, AggregatedQueue<D>>,
+    plain_commitments: HashMap<H256, Vec<D>>,
 
     rolling: Option<H256>,
 }
 
-impl Aggregator {
-    pub fn new(block_hash: H256, threshold: usize) -> Self {
+impl<D: SeqHash + Clone> Aggregator<D> {
+    pub fn new(threshold: usize) -> Self {
         Self {
-            block_hash,
             threshold,
             aggregated: HashMap::new(),
             plain_commitments: HashMap::new(),
@@ -156,14 +122,14 @@ impl Aggregator {
         }
     }
 
-    pub fn push(&mut self, aggregated: AggregatedCommitments) {
+    pub fn push(&mut self, origin: Address, aggregated: AggregatedCommitments<D>) {
         let hash = aggregated.hash();
 
         self.plain_commitments
-            .insert(hash, PlainCommitments(aggregated.commitments.clone()));
+            .insert(hash, aggregated.commitments.clone());
 
         self.aggregated
-            .entry(aggregated.source)
+            .entry(origin)
             .and_modify(|q| {
                 q.push(aggregated.clone());
             })
@@ -172,7 +138,7 @@ impl Aggregator {
         self.rolling = Some(hash);
     }
 
-    pub fn find_root(self) -> Option<MultisignedCommitments> {
+    pub fn find_root(self) -> Option<MultisignedCommitments<D>> {
         use std::collections::VecDeque;
 
         // Start only with the root
@@ -197,8 +163,7 @@ impl Aggregator {
                     .expect("Plain commitments should be present, as they are always updated when Aggregator::push is invoked; qed");
 
                 let multi_signed = MultisignedCommitments {
-                    block_hash: self.block_hash,
-                    commitments: plain_commitments.0.clone(),
+                    commitments: plain_commitments.clone(),
                     sources,
                     signatures,
                 };
@@ -222,7 +187,17 @@ impl Aggregator {
 mod tests {
 
     use super::*;
+    use gear_core::ids::ActorId;
     use hypercore_signer::{Address, Signature};
+
+    #[derive(Clone, Debug)]
+    pub struct MyComm([u8; 2]);
+
+    impl SeqHash for MyComm {
+        fn hash(&self) -> H256 {
+            hash(&self.0[..])
+        }
+    }
 
     fn signer(id: u8) -> Address {
         let mut array = [0; 20];
@@ -255,24 +230,16 @@ mod tests {
     }
 
     fn gen_commitment(
-        signer_id: u8,
         signature_id: u8,
-        block_hash_id: u8,
         commitments: Vec<(u8, u8)>,
-    ) -> AggregatedCommitments {
+    ) -> AggregatedCommitments<MyComm> {
         let commitments = commitments
             .into_iter()
-            .map(|(actor_id, state)| Commitment {
-                block_hash: block_hash(block_hash_id),
-                program_id: pid(actor_id),
-                new_state: state_id(state),
-            })
+            .map(|v| MyComm([v.0, v.1]))
             .collect();
 
         AggregatedCommitments {
-            block_hash: block_hash(block_hash_id),
             commitments,
-            source: signer(signer_id),
             signature: signature(signature_id),
         }
     }
@@ -280,9 +247,9 @@ mod tests {
     #[test]
     fn simple() {
         // aggregator with threshold 1
-        let mut aggregator = Aggregator::new(block_hash(0), 1);
+        let mut aggregator = Aggregator::new(1);
 
-        aggregator.push(gen_commitment(1, 1, 0, vec![(1, 1)]));
+        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
 
         let root = aggregator
             .find_root()
@@ -292,10 +259,10 @@ mod tests {
         assert_eq!(root.commitments.len(), 1);
 
         // aggregator with threshold 1
-        let mut aggregator = Aggregator::new(block_hash(0), 1);
+        let mut aggregator = Aggregator::new(1);
 
-        aggregator.push(gen_commitment(1, 1, 0, vec![(1, 1)]));
-        aggregator.push(gen_commitment(1, 2, 0, vec![(1, 1), (2, 2)]));
+        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
+        aggregator.push(signer(1), gen_commitment(1, vec![(1, 1), (2, 2)]));
 
         let root = aggregator
             .find_root()
