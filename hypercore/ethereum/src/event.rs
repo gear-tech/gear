@@ -51,6 +51,7 @@ impl TryFrom<&[u8]> for UploadedCode {
 #[derive(Debug)]
 pub struct CreateProgram {
     pub origin: ActorId,
+    pub actor_id: ActorId,
     pub code_id: CodeId,
     pub salt: Vec<u8>,
     pub init_payload: Vec<u8>,
@@ -71,6 +72,7 @@ impl TryFrom<&[u8]> for CreateProgram {
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),
+            actor_id: ActorId::new(event.actorId.into_word().0),
             code_id: CodeId::new(event.codeId.0),
             salt: event.salt.to_vec(),
             init_payload: event.initPayload.to_vec(),
@@ -81,23 +83,27 @@ impl TryFrom<&[u8]> for CreateProgram {
 }
 
 #[derive(Debug)]
-pub struct CreatedProgram {
+pub struct UpdatedProgram {
     pub actor_id: ActorId,
+    pub old_state_hash: H256,
+    pub new_state_hash: H256,
 }
 
-impl CreatedProgram {
-    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CreatedProgram::SIGNATURE_HASH.0;
+impl UpdatedProgram {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UpdatedProgram::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for CreatedProgram {
+impl TryFrom<&[u8]> for UpdatedProgram {
     type Error = anyhow::Error;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let event =
-            AlloyRouter::CreatedProgram::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+            AlloyRouter::UpdatedProgram::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
 
         Ok(Self {
             actor_id: ActorId::new(event.actorId.into_word().0),
+            old_state_hash: H256(event.oldStateHash.0),
+            new_state_hash: H256(event.newStateHash.0),
         })
     }
 }

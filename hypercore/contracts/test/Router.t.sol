@@ -14,21 +14,4 @@ contract RouterTest is Test {
         router = new Router();
         router.setProgram(address(program));
     }
-
-    function test_X() public {
-        bytes32[] memory codeIdsArray = new bytes32[](1);
-        codeIdsArray[0] = bytes32(uint256(41));
-
-        Router.CreateProgramData[] memory createProgramsArray = new Router.CreateProgramData[](1);
-        createProgramsArray[0].salt = hex"40";
-        createProgramsArray[0].codeId = bytes32(uint256(41));
-        createProgramsArray[0].stateHash = bytes32(uint256(42));
-
-        Router.UpdateProgramData[] memory updateProgramsArray = new Router.UpdateProgramData[](0);
-
-        Router.CommitData memory commitData = Router.CommitData(codeIdsArray, createProgramsArray, updateProgramsArray);
-        Router.ValidatorSign[] memory signatures = new Router.ValidatorSign[](0);
-        Router.SignedCommitData memory signedCommitData = Router.SignedCommitData(commitData, signatures);
-        router.commit(signedCommitData);
-    }
 }

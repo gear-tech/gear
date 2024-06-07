@@ -1,12 +1,13 @@
 #![allow(dead_code, clippy::new_without_default)]
 
+use abi::{AlloyProgram, AlloyRouter};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
     network::{Ethereum, EthereumSigner, TxSigner},
-    primitives::{Address, Bytes, ChainId, Signature, B256},
+    primitives::{keccak256, Address, Bytes, ChainId, Signature, B256},
     providers::{
-        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, SignerFiller},
-        Identity, ProviderBuilder, RootProvider,
+        fillers::{FillProvider, JoinFill, RecommendedFiller, SignerFiller},
+        ProviderBuilder, RootProvider,
     },
     pubsub::PubSubFrontend,
     rpc::client::WsConnect,
@@ -14,35 +15,20 @@ use alloy::{
         self as alloy_signer, sign_transaction_with_chain_id, Error as SignerError,
         Result as SignerResult, Signer, SignerSync,
     },
-    sol,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use hypercore_signer::{PublicKey, Signer as HypercoreSigner};
+use hypercore_signer::{PublicKey, Signature as HypercoreSignature, Signer as HypercoreSigner};
+use std::mem;
 
+mod abi;
 pub mod event;
 
-sol!(
-    #[derive(Debug)]
-    #[sol(rpc)]
-    AlloyRouter,
-    "router_abi.json"
-);
-
-sol!(
-    #[derive(Debug)]
-    #[sol(rpc)]
-    AlloyProgram,
-    "program_abi.json"
-);
-
 type AlloyTransport = PubSubFrontend;
-type AlloyRecommendFiller =
-    JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>;
 type AlloyProvider = FillProvider<
-    JoinFill<AlloyRecommendFiller, SignerFiller<EthereumSigner>>,
+    JoinFill<RecommendedFiller, SignerFiller<EthereumSigner>>,
     RootProvider<AlloyTransport>,
     AlloyTransport,
     Ethereum,
@@ -102,16 +88,14 @@ impl TxSigner<Signature> for Sender {
 }
 
 impl SignerSync for Sender {
-    #[inline]
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
         let signature = self
             .signer
-            .sign_digest(self.sender, hash.0)
+            .raw_sign_digest(self.sender, hash.0)
             .map_err(|err| SignerError::Other(err.into()))?;
         Ok(Signature::try_from(&signature.0[..])?)
     }
 
-    #[inline]
     fn chain_id_sync(&self) -> Option<ChainId> {
         self.chain_id
     }
@@ -126,21 +110,56 @@ async fn create_provider(rpc_url: &str, sender: Sender) -> Result<AlloyProvider>
     Ok(provider)
 }
 
-pub struct CreateProgramData {
-    pub salt: Vec<u8>,
-    pub code_id: CodeId,
-    pub state_hash: H256,
+#[derive(Debug, Clone)]
+#[repr(packed)]
+pub struct Transition {
+    pub actor_id: ActorId,
+    pub old_state_hash: H256,
+    pub new_state_hash: H256,
 }
 
-pub struct UpdateProgramData {
-    pub program: ActorId,
-    pub state_hash: H256,
+pub trait Signable {
+    fn create_message(&self) -> Vec<u8>;
+
+    fn sign(&self, signer: Sender) -> Result<HypercoreSignature> {
+        let hash = keccak256(self.create_message());
+        let signature = signer.sign_message_sync(hash.as_slice())?;
+
+        Ok(HypercoreSignature(signature.into()))
+    }
 }
 
-pub struct CommitData {
-    pub code_ids: Vec<CodeId>,
-    pub create_programs: Vec<CreateProgramData>,
-    pub update_programs: Vec<UpdateProgramData>,
+impl Signable for Vec<CodeId> {
+    fn create_message(&self) -> Vec<u8> {
+        let mut buffer = Vec::with_capacity(self.len() * mem::size_of::<CodeId>());
+
+        for code_id in self {
+            buffer.extend_from_slice(&code_id.into_bytes());
+        }
+
+        buffer
+    }
+}
+
+impl Signable for Vec<Transition> {
+    fn create_message(&self) -> Vec<u8> {
+        let mut buffer = Vec::with_capacity(
+            self.len() * (mem::size_of::<Address>() + mem::size_of::<H256>() * 2),
+        );
+
+        for Transition {
+            actor_id,
+            old_state_hash,
+            new_state_hash,
+        } in self
+        {
+            buffer.extend_from_slice(&actor_id.into_bytes()[12..]);
+            buffer.extend_from_slice(old_state_hash.as_bytes());
+            buffer.extend_from_slice(new_state_hash.as_bytes());
+        }
+
+        buffer
+    }
 }
 
 pub struct Router(AlloyRouterInstance);
@@ -151,6 +170,49 @@ impl Router {
             Address::parse_checksummed(address, None)?,
             create_provider(rpc_url, sender).await?,
         )))
+    }
+
+    pub async fn set_program(&self, program: ActorId) -> Result<H256> {
+        let builder = self.0.setProgram({
+            let mut address = Address::ZERO;
+            address.0.copy_from_slice(&program.into_bytes()[12..]);
+            address
+        });
+        let tx = builder.send().await?;
+        let receipt = tx.get_receipt().await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn add_validators(&self, validators: Vec<ActorId>) -> Result<H256> {
+        let builder = self.0.addValidators(
+            validators
+                .into_iter()
+                .map(|actor_id| {
+                    let mut address = Address::ZERO;
+                    address.0.copy_from_slice(&actor_id.into_bytes()[12..]);
+                    address
+                })
+                .collect(),
+        );
+        let tx = builder.send().await?;
+        let receipt = tx.get_receipt().await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn remove_validators(&self, validators: Vec<ActorId>) -> Result<H256> {
+        let builder = self.0.removeValidators(
+            validators
+                .into_iter()
+                .map(|actor_id| {
+                    let mut address = Address::ZERO;
+                    address.0.copy_from_slice(&actor_id.into_bytes()[12..]);
+                    address
+                })
+                .collect(),
+        );
+        let tx = builder.send().await?;
+        let receipt = tx.get_receipt().await?;
+        Ok(H256(receipt.transaction_hash.0))
     }
 
     pub async fn upload_code(&self, code_id: CodeId, blob_tx: H256) -> Result<H256> {
@@ -176,63 +238,40 @@ impl Router {
     pub async fn create_program(
         &self,
         code_id: CodeId,
-        salt: impl AsRef<[u8]>,
+        salt: H256,
         init_payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
     ) -> Result<H256> {
-        let builder = self.0.createProgram(
-            B256::new(code_id.into_bytes()),
-            Bytes::copy_from_slice(salt.as_ref()),
-            Bytes::copy_from_slice(init_payload.as_ref()),
-            gas_limit,
-            value,
-        );
+        let builder = self
+            .0
+            .createProgram(
+                B256::new(code_id.into_bytes()),
+                B256::new(salt.to_fixed_bytes()),
+                Bytes::copy_from_slice(init_payload.as_ref()),
+                gas_limit,
+            )
+            .value(value.try_into()?);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 
-    pub async fn set_program(&self, program: ActorId) -> Result<H256> {
-        let builder = self.0.setProgram({
-            let mut address = Address::ZERO;
-            address.0.copy_from_slice(&program.into_bytes()[12..]);
-            address
-        });
-        let tx = builder.send().await?;
-        let receipt = tx.get_receipt().await?;
-        Ok(H256(receipt.transaction_hash.0))
-    }
-
-    pub async fn commit(&self, commit_data: CommitData) -> Result<H256> {
-        let builder = self.0.commit(AlloyRouter::CommitData {
-            codeIdsArray: commit_data
-                .code_ids
+    pub async fn commit_codes(
+        &self,
+        code_ids: Vec<CodeId>,
+        signatures: Vec<HypercoreSignature>,
+    ) -> Result<H256> {
+        let builder = self.0.commitCodes(
+            code_ids
                 .into_iter()
                 .map(|code_id| B256::new(code_id.into_bytes()))
                 .collect(),
-            createProgramsArray: commit_data
-                .create_programs
+            signatures
                 .into_iter()
-                .map(|data| AlloyRouter::CreateProgramData {
-                    salt: Bytes::copy_from_slice(&data.salt),
-                    codeId: B256::new(data.code_id.into_bytes()),
-                    stateHash: B256::new(data.state_hash.to_fixed_bytes()),
-                })
+                .map(|signature| Bytes::copy_from_slice(&signature.0))
                 .collect(),
-            updateProgramsArray: commit_data
-                .update_programs
-                .into_iter()
-                .map(|data| AlloyRouter::UpdateProgramData {
-                    program: {
-                        let mut address = Address::ZERO;
-                        address.0.copy_from_slice(&data.program.into_bytes()[12..]);
-                        address
-                    },
-                    stateHash: B256::new(data.state_hash.to_fixed_bytes()),
-                })
-                .collect(),
-        });
+        );
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
@@ -256,16 +295,18 @@ impl Program {
         gas_limit: u64,
         value: u128,
     ) -> Result<H256> {
-        let builder = self.0.sendMessage(
-            {
-                let mut address = Address::ZERO;
-                address.0.copy_from_slice(&destination.into_bytes()[12..]);
-                address
-            },
-            Bytes::copy_from_slice(payload.as_ref()),
-            gas_limit,
-            value,
-        );
+        let builder = self
+            .0
+            .sendMessage(
+                {
+                    let mut address = Address::ZERO;
+                    address.0.copy_from_slice(&destination.into_bytes()[12..]);
+                    address
+                },
+                Bytes::copy_from_slice(payload.as_ref()),
+                gas_limit,
+            )
+            .value(value.try_into()?);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
@@ -278,12 +319,14 @@ impl Program {
         gas_limit: u64,
         value: u128,
     ) -> Result<H256> {
-        let builder = self.0.sendReply(
-            B256::new(reply_to_id.into_bytes()),
-            Bytes::copy_from_slice(payload.as_ref()),
-            gas_limit,
-            value,
-        );
+        let builder = self
+            .0
+            .sendReply(
+                B256::new(reply_to_id.into_bytes()),
+                Bytes::copy_from_slice(payload.as_ref()),
+                gas_limit,
+            )
+            .value(value.try_into()?);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
