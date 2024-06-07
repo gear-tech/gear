@@ -20,8 +20,8 @@
 
 use crate::config::{Config, SequencerConfig};
 use anyhow::Result;
-use futures::{future, stream::StreamExt};
-use tokio::signal;
+use futures::{future, stream::StreamExt, Future};
+use tokio::{signal, time};
 
 /// Hypercore service.
 pub struct Service {
@@ -31,6 +31,14 @@ pub struct Service {
     processor: hypercore_processor::Processor,
     signer: hypercore_signer::Signer,
     sequencer: Option<hypercore_sequencer::Sequencer>,
+}
+
+async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
+    if let Some(timer) = core::mem::replace(maybe_timer, None) {
+        timer.await
+    } else {
+        future::pending().await
+    }
 }
 
 impl Service {
@@ -101,6 +109,8 @@ impl Service {
         let network_run = network.run();
         futures::pin_mut!(network_run);
 
+        let mut delay: Option<_> = None;
+
         loop {
             tokio::select! {
                 _ = signal::ctrl_c() => {
@@ -114,13 +124,22 @@ impl Service {
                             &mut sequencer,
                             &observer_event
                         ).await?;
+
+                        delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
                     } else {
                         log::info!("Observer stream ended, shutting down...");
                         break;
                     }
                 }
+                _ = maybe_sleep(&mut delay) => {
+                    log::debug!("Sending timeout after block event...");
+
+                    if let Some(sequencer) = sequencer.as_mut() {
+                        sequencer.process_block_timeout().await?;
+                    }
+                }
                 _ = &mut network_run => {
-                    log::info!("`NetworkWorker` has terminated, shutting down the network future.");
+                    log::info!("`NetworkWorker` has terminated, shutting down...");
                     break;
                 }
             }

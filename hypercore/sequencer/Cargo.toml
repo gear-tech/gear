@@ -15,4 +15,5 @@ log.workspace = true
 anyhow.workspace = true
 hypercore-signer.workspace = true
 hypercore-observer.workspace = true
+hypercore-processor.workspace = true
 gear-core.workspace = true
