@@ -26,10 +26,10 @@ impl<RI: RuntimeInterface> JournalHandler for DispatchExecutionContext<'_, RI> {
             DispatchOutcome::MessageTrap { .. } => todo!(),
             DispatchOutcome::Success => {
                 // TODO: Implement
-            },
+            }
             DispatchOutcome::NoExecution => {
                 // TODO: Implement
-            },
+            }
         }
     }
 
