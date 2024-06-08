@@ -56,7 +56,7 @@ impl Processor {
             return Ok(false);
         }
 
-        let mut executor = InstanceWrapper::new()?;
+        let mut executor = InstanceWrapper::new(self.db.clone())?;
 
         let res = executor.verify(&code)?;
 
@@ -70,7 +70,7 @@ impl Processor {
     pub fn instrument_code(&mut self, code_id: CodeId) -> Result<bool> {
         let code = self.db.read_original_code(code_id).unwrap();
 
-        let mut instance_wrapper = host::InstanceWrapper::new()?;
+        let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
 
         if let Some(instrumented) = instance_wrapper.instrument(&code)? {
             self.db
@@ -88,7 +88,7 @@ impl Processor {
             .read_instrumented_code(RUNTIME_ID, code_id)
             .ok_or_else(|| anyhow!("couldn't find instrumented code"))?;
 
-        let mut instance_wrapper = host::InstanceWrapper::new()?;
+        let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
 
         instance_wrapper.run(&self.db, &instrumented_code)?;
 

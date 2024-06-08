@@ -18,6 +18,7 @@
 
 use anyhow::{anyhow, Result};
 use gear_core::code::InstrumentedCode;
+use gprimitives::H256;
 use hypercore_runtime_native::RuntimeInterface;
 use parity_scale_codec::Decode;
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
@@ -31,6 +32,7 @@ pub mod api;
 pub mod runtime;
 
 mod context;
+mod threads;
 
 pub fn runtime() -> Vec<u8> {
     let mut runtime = runtime::Runtime::new();
@@ -43,6 +45,7 @@ pub type Store = wasmtime::Store<StoreData>;
 pub struct InstanceWrapper {
     pub instance: wasmtime::Instance,
     pub store: Store,
+    pub db: Database,
 }
 
 impl InstanceWrapper {
@@ -54,7 +57,7 @@ impl InstanceWrapper {
         self.store.data_mut()
     }
 
-    pub fn new() -> Result<Self> {
+    pub fn new(db: Database) -> Result<Self> {
         let mut store = Store::default();
         let module = wasmtime::Module::new(store.engine(), runtime())?;
         let mut linker = wasmtime::Linker::new(store.engine());
@@ -65,7 +68,11 @@ impl InstanceWrapper {
         api::sandbox::link(&mut linker)?;
 
         let instance = linker.instantiate(&mut store, &module)?;
-        let mut instance_wrapper = Self { instance, store };
+        let mut instance_wrapper = Self {
+            instance,
+            store,
+            db,
+        };
 
         let memory = instance_wrapper.memory()?;
         let table = instance_wrapper.table()?;
@@ -84,6 +91,9 @@ impl InstanceWrapper {
         // breathx: init lazy pages here.
         let ri = hypercore_runtime_native::NativeRuntimeInterface::new(db);
         ri.init_lazy_pages(Default::default());
+
+        // TODO: set root.
+        threads::set(self.db.clone(), H256::zero());
 
         self.call("run", instrumented_code.code())
     }
