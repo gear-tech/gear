@@ -56,6 +56,14 @@ impl Node {
         })
     }
 
+    /// Append argument to the node
+    ///
+    /// see also [`Node::args`]
+    pub fn arg(&mut self, arg: &str) -> &mut Self {
+        self.command.arg(arg);
+        self
+    }
+
     /// Append arguments to the node
     ///
     /// NOTE: argument `--dev` or `--chain=vara-dev` is managed by [`Node::chain`]

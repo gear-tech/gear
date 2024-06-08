@@ -4302,6 +4302,7 @@ dependencies = [
  "gear-core-errors",
  "gear-utils",
  "gmeta",
+ "gnode",
  "gsdk",
  "gstd",
  "hex",
