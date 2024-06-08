@@ -32,6 +32,7 @@ use subxt_metadata::Metadata;
 use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
+const PRINT_SCALE: &str = "PRINT_SCALE";
 const USAGE: &str = r#"
 Usage: RUNTIME_WASM=<path> generate-client-api
 "#;
@@ -39,7 +40,7 @@ Usage: RUNTIME_WASM=<path> generate-client-api
 fn main() -> Result<()> {
     color_eyre::install()?;
 
-    if env::args().len() != 1 {
+    if env::args().len() < 1 {
         println!("{}", USAGE.trim());
         return Ok(());
     }
@@ -48,6 +49,11 @@ fn main() -> Result<()> {
     let encoded = metadata();
     if encoded.len() < 4 {
         panic!("Invalid metadata, doesn't even have enough bytes for the magic number.");
+    }
+
+    if env::var(PRINT_SCALE).is_ok() {
+        io::stdout().write_all(("0x".to_owned() + &hex::encode(&encoded[4..])).as_bytes())?;
+        return Ok(());
     }
 
     // NOTE: [4..] here for removing the magic number.

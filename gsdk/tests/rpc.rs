@@ -360,7 +360,7 @@ async fn query_program_counters(
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
     use gsdk::{
-        metadata::{runtime_types::gear_common::Program, storage::GearProgramStorage},
+        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
         BlockNumber,
     };
     use parity_scale_codec::Decode;

@@ -45,6 +45,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
+use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -513,7 +514,7 @@ impl ExtManager {
         if let Some((data, code)) = actor.get_executable_actor_data() {
             drop(actors);
 
-            core_processor::informational::execute_for_reply::<Ext, _>(
+            core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
                 String::from("state"),
                 code,
                 Some(data.allocations),
@@ -554,7 +555,7 @@ impl ExtManager {
         let mut mapping_code_payload = args.unwrap_or_default();
         mapping_code_payload.append(&mut self.read_state_bytes(payload, program_id)?);
 
-        core_processor::informational::execute_for_reply::<Ext, _>(
+        core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
             String::from(fn_name),
             mapping_code,
             None,
@@ -933,7 +934,7 @@ impl ExtManager {
             }
         };
 
-        let journal = core_processor::process::<Ext>(
+        let journal = core_processor::process::<Ext<LazyPagesNative>>(
             &block_config,
             (context, code, balance).into(),
             self.random_data.clone(),

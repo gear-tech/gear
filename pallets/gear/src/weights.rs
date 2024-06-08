@@ -517,18 +517,18 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(16_u64))
             .saturating_add(T::DbWeight::get().writes(13_u64))
     }
-    /// The range of component `c` is `[0, 512]`.
-    fn reinstrument_per_kb(c: u32, ) -> Weight {
+    /// The range of component `e` is `[0, 512]`.
+    fn reinstrument_per_kb(e: u32, ) -> Weight {
         // Proof Size summary in bytes:
-        //  Measured:  `211 + c * (1075 ±0)`
-        //  Estimated: `3682 + c * (1075 ±0)`
-        // Minimum execution time: 73_591_000 picoseconds.
-        Weight::from_parts(74_592_000, 3682)
-            // Standard Error: 32_473
-            .saturating_add(Weight::from_parts(61_681_098, 0).saturating_mul(c.into()))
+        //  Measured:  `327 + e * (1024 ±0)`
+        //  Estimated: `3791 + e * (1024 ±0)`
+        // Minimum execution time: 78_478_000 picoseconds.
+        Weight::from_parts(60_084_454, 3791)
+            // Standard Error: 214_025
+            .saturating_add(Weight::from_parts(638_778_276, 0).saturating_mul(e.into()))
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
-            .saturating_add(Weight::from_parts(0, 1075).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 1024).saturating_mul(e.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
@@ -2421,18 +2421,18 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(16_u64))
             .saturating_add(RocksDbWeight::get().writes(13_u64))
     }
-    /// The range of component `c` is `[0, 512]`.
-    fn reinstrument_per_kb(c: u32, ) -> Weight {
+    /// The range of component `e` is `[0, 512]`.
+    fn reinstrument_per_kb(e: u32, ) -> Weight {
         // Proof Size summary in bytes:
-        //  Measured:  `211 + c * (1075 ±0)`
-        //  Estimated: `3682 + c * (1075 ±0)`
-        // Minimum execution time: 73_591_000 picoseconds.
-        Weight::from_parts(74_592_000, 3682)
-            // Standard Error: 32_473
-            .saturating_add(Weight::from_parts(61_681_098, 0).saturating_mul(c.into()))
+        //  Measured:  `327 + e * (1024 ±0)`
+        //  Estimated: `3791 + e * (1024 ±0)`
+        // Minimum execution time: 78_478_000 picoseconds.
+        Weight::from_parts(60_084_454, 3791)
+            // Standard Error: 214_025
+            .saturating_add(Weight::from_parts(638_778_276, 0).saturating_mul(e.into()))
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(RocksDbWeight::get().writes(2_u64))
-            .saturating_add(Weight::from_parts(0, 1075).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 1024).saturating_mul(e.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
