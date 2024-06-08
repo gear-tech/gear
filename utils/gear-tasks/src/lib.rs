@@ -30,38 +30,29 @@ use sp_runtime_interface::runtime_interface;
 /// WASM host functions for managing tasks.
 #[runtime_interface]
 pub trait RuntimeTasks {
-    fn init() {
-        sp_externalities::with_externalities(|mut ext| {
-            ext.register_extension(inner::TaskSpawnerExt::default())
-                .expect("`RuntimeTasks` initialized twice");
-        })
-        .expect("`RuntimeTasks::spawn`: called outside of externalities context")
+    fn init(&mut self) {
+        self.register_extension(inner::TaskSpawnerExt::default())
+            .expect("`RuntimeTasks` initialized twice");
     }
 
-    fn spawn(dispatcher_ref: u32, entry: u32, payload: Vec<u8>) -> u64 {
-        sp_externalities::with_externalities(|mut ext| {
-            let runtime = ext
-                .extension::<GearVersionedRuntimeExt>()
-                .expect("`GearVersionedRuntimeExt` is not set")
-                .clone();
+    fn spawn(&mut self, dispatcher_ref: u32, entry: u32, payload: Vec<u8>) -> u64 {
+        let runtime = self
+            .extension::<GearVersionedRuntimeExt>()
+            .expect("`GearVersionedRuntimeExt` is not set")
+            .clone();
 
-            let spawner = ext
-                .extension::<inner::TaskSpawnerExt>()
-                .expect("Cannot spawn without dynamic runtime dispatcher (TaskSpawnerExt)");
-            let handle = spawner.spawn_via_dispatcher(runtime, dispatcher_ref, entry, payload);
-            handle.inner
-        })
-        .expect("`RuntimeTasks::spawn`: called outside of externalities context")
+        let spawner = self
+            .extension::<inner::TaskSpawnerExt>()
+            .expect("Cannot spawn without dynamic runtime dispatcher (TaskSpawnerExt)");
+        let handle = spawner.spawn_via_dispatcher(runtime, dispatcher_ref, entry, payload);
+        handle.inner
     }
 
-    fn join(handle: u64) -> Vec<u8> {
-        sp_externalities::with_externalities(|mut ext| {
-            let spawner = ext
-                .extension::<inner::TaskSpawnerExt>()
-                .expect("Cannot join without dynamic runtime dispatcher (TaskSpawnerExt)");
-            spawner.join(JoinHandle { inner: handle })
-        })
-        .expect("`RuntimeTasks::join`: called outside of externalities context")
+    fn join(&mut self, handle: u64) -> Vec<u8> {
+        let spawner = self
+            .extension::<inner::TaskSpawnerExt>()
+            .expect("Cannot join without dynamic runtime dispatcher (TaskSpawnerExt)");
+        spawner.join(JoinHandle { inner: handle })
     }
 }
 
