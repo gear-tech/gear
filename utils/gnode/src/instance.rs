@@ -36,11 +36,12 @@ impl NodeInstance {
     /// Get the RPC address in string.
     ///
     /// NOTE: If you want [`SocketAddrV4`], just call [`NodeInstance::address`]
-    pub fn rpc(&self) -> String {
-        self.address.to_string()
+    pub fn ws(&self) -> String {
+        format!("ws://{}", self.address.to_string())
     }
 
-    /// Get the recent cached node logs
+    /// Get the recent cached node logs, the max limit is
+    /// 256 lines.
     pub fn logs(&self) -> Result<Vec<String>> {
         let Ok(logs) = self.log.logs.read() else {
             return Err(anyhow!("Failed to read logs from the node process."));

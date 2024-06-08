@@ -41,6 +41,7 @@ parity-scale-codec.workspace = true
 rand = { workspace = true, optional = true }
 
 [dev-dependencies]
+gnode.workspace = true
 gsdk = { path = ".", features = ["testing"] }
 tokio = { workspace = true, features = [ "full" ] }
 demo-messenger.workspace = true
