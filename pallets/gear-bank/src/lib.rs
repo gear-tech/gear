@@ -63,7 +63,8 @@ pub mod pallet {
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
         sp_runtime::Saturating,
         traits::{
-            tokens::DepositConsequence, ExistenceRequirement, Get, Hooks, ReservableCurrency,
+            tokens::DepositConsequence, ExistenceRequirement, Get, Hooks, LockableCurrency,
+            ReservableCurrency,
         },
         weights::Weight,
         Identity,
@@ -84,7 +85,8 @@ pub mod pallet {
     pub trait Config: frame_system::Config + pallet_authorship::Config {
         /// Balances management trait for gas/value migrations.
         type Currency: ReservableCurrency<AccountIdOf<Self>>
-            + fungible::Inspect<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
+            + LockableCurrency<AccountIdOf<Self>>
+            + fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
 
         #[pallet::constant]
         /// Bank account address, that will keep all reserved funds.
@@ -239,9 +241,13 @@ pub mod pallet {
                 value,
                 Provenance::Extant,
             ) {
+                DepositConsequence::Success => (), // expected outcome
                 DepositConsequence::BelowMinimum => return Err(Error::<T>::InsufficientDeposit),
                 DepositConsequence::Overflow => return Err(Error::<T>::Overflow),
-                _ => (), // Any other outcome considered successful
+                // The rest is unreachable in Gear protocol and can be ignored.
+                DepositConsequence::CannotCreate
+                | DepositConsequence::UnknownAsset
+                | DepositConsequence::Blocked => (),
             };
 
             let existence_requirement = if keep_alive {

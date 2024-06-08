@@ -92,7 +92,7 @@ where
                             transferred += 1;
                         }
                         Err(e) => {
-                            log::debug!(
+                            log::error!(
                                 "❌ Failed to transfer ED to program {program_id:?}: {e:?}"
                             );
                         }

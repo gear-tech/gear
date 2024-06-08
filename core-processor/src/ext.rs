@@ -1329,7 +1329,7 @@ mod tests {
             self
         }
 
-        fn with_exitstential_deposit(mut self, ed: u128) -> Self {
+        fn with_existential_deposit(mut self, ed: u128) -> Self {
             self.0.existential_deposit = ed;
 
             self
@@ -1847,7 +1847,7 @@ mod tests {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_message_context(MessageContextBuilder::new().build())
-                .with_exitstential_deposit(500)
+                .with_existential_deposit(500)
                 .build(),
         );
 
@@ -1865,7 +1865,7 @@ mod tests {
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(u64::MAX))
                 .with_message_context(MessageContextBuilder::new().build())
-                .with_exitstential_deposit(500)
+                .with_existential_deposit(500)
                 .with_value(1500)
                 .build(),
         );
@@ -1887,7 +1887,7 @@ mod tests {
                         .with_outgoing_limit(u32::MAX)
                         .build(),
                 )
-                .with_exitstential_deposit(500)
+                .with_existential_deposit(500)
                 .build(),
         );
 
@@ -1910,7 +1910,7 @@ mod tests {
                         .with_outgoing_limit(u32::MAX)
                         .build(),
                 )
-                .with_exitstential_deposit(500)
+                .with_existential_deposit(500)
                 .with_value(5000)
                 .build(),
         );

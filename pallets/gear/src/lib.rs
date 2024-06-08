@@ -75,7 +75,8 @@ use frame_support::{
     traits::{
         fungible,
         tokens::{Fortitude, Preservation},
-        ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion,
+        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        StorageVersion, WithdrawReasons,
     },
     weights::Weight,
 };
@@ -131,6 +132,7 @@ pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub(crate) const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
 
 pub trait DebugInfo {
     fn is_remap_id_enabled() -> bool;
@@ -604,14 +606,15 @@ pub mod pallet {
                 Error::<T>::ProgramAlreadyExists
             );
 
-            // Create an account for the program
-            CurrencyOf::<T>::transfer(
-                &who,
-                &program_id.cast(),
-                CurrencyOf::<T>::minimum_balance(),
-                ExistenceRequirement::KeepAlive,
-            )?;
-            System::<T>::inc_consumers(&program_id.cast())?;
+            let program_account = program_id.cast();
+            let ed = CurrencyOf::<T>::minimum_balance();
+            CurrencyOf::<T>::transfer(&who, &program_account, ed, ExistenceRequirement::KeepAlive)?;
+            CurrencyOf::<T>::set_lock(
+                EXISTENTIAL_DEPOSIT_LOCK_ID,
+                &program_account,
+                ed,
+                WithdrawReasons::all(),
+            );
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
@@ -1250,17 +1253,22 @@ pub mod pallet {
             // can be created for the program.
             // Note: making a transfer outside of the `Ext::set_program()` because here a transfer
             // is allowed to fail (as opposed to creating a program by a program).
+            let program_account = program_id.cast();
+            let ed = CurrencyOf::<T>::minimum_balance();
             CurrencyOf::<T>::transfer(
                 &who,
-                &program_id.cast(),
-                CurrencyOf::<T>::minimum_balance(),
-                ExistenceRequirement::KeepAlive,
+                &program_account,
+                ed,
+                ExistenceRequirement::AllowDeath,
             )?;
 
-            // A consumer is added at program's account creation and removed it on termination
-            // to make sure the account is not removed by the runtime while the program exists.
-            // With a consumer, a correct runtime should not remove the account.
-            System::<T>::inc_consumers(&program_id.cast())?;
+            // Set lock to avoid accidental account removal by the runtime.
+            CurrencyOf::<T>::set_lock(
+                EXISTENTIAL_DEPOSIT_LOCK_ID,
+                &program_account,
+                ed,
+                WithdrawReasons::all(),
+            );
 
             ext_manager.set_program(program_id, &code_info, message_id, block_number);
 

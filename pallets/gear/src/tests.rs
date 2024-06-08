@@ -23,7 +23,7 @@ use crate::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
+        DUST_TRAP_TARGET, LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
@@ -15107,6 +15107,68 @@ fn create_program_with_reentrance_works() {
             amount
         );
     })
+}
+
+#[test]
+fn dust_in_message_to_user_handled_ok() {
+    use demo_value_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let ed = CurrencyOf::<Test>::minimum_balance();
+
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            1_000,
+            false,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+
+        run_to_block(2, None);
+
+        // Remove USER_1 account from the System.
+        CurrencyOf::<Test>::make_free_balance_be(&USER_1, 0);
+
+        // Test case 1: Make the program send a message to USER_1 with the value below the ED
+        // and gas below the mailbox threshold.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            (0_u64, 300_u128).encode(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        // USER_1 account doesn't receive the funds; instead, the dust handler kicks in.
+        assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
+        assert_eq!(CurrencyOf::<Test>::free_balance(DUST_TRAP_TARGET), ed + 300);
+
+        // Test case 2: Make the program send a message to USER_1 with the value below the ED
+        // and gas sufficient for a message to be placed into the mailbox (for 30 blocks).
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            (3_000_u64, 300_u128).encode(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(40, None);
+
+        // USER_1 account doesn't receive the funds again; instead, the value is stored as the
+        // `UnusedValue` in Gear Bank.
+        assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
+        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
+    });
 }
 
 pub(crate) mod utils {

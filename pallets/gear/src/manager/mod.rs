@@ -53,7 +53,7 @@ pub use task::*;
 
 use crate::{
     fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
-    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use common::{
     event::*,
@@ -63,8 +63,8 @@ use common::{
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::traits::{Currency, ExistenceRequirement};
-use frame_system::{pallet_prelude::BlockNumberFor, Pallet as System};
+use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -367,8 +367,8 @@ where
 
         let program_account = program_id.cast();
 
-        // Delete the consumer to allow the account to be reaped.
-        System::<T>::dec_consumers(&program_account);
+        // Remove the ED lock to allow the account to be reaped.
+        CurrencyOf::<T>::remove_lock(EXISTENTIAL_DEPOSIT_LOCK_ID, &program_account);
 
         // The `reducible_balance` should now include the ED since no consumer is left.
         // If some part of the program account's `free` balance is still `frozen` for some reason

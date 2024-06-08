@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
     Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet,
-    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use common::{
     event::*,
@@ -31,9 +31,9 @@ use common::{
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
     sp_runtime::Saturating,
-    traits::{Currency, ExistenceRequirement},
+    traits::{Currency, ExistenceRequirement, LockableCurrency, WithdrawReasons},
 };
-use frame_system::{pallet_prelude::BlockNumberFor, Pallet as System};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
@@ -378,17 +378,25 @@ where
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();
 
+                    let candidate_account = candidate_id.cast();
+                    let ed = CurrencyOf::<T>::minimum_balance();
+
                     // Make sure an account exists for the newly created program.
                     // Balance validity check has been performed so we don't expect any errors.
                     CurrencyOf::<T>::transfer(
                         &program_id.cast(),
-                        &candidate_id.cast(),
-                        CurrencyOf::<T>::minimum_balance(),
+                        &candidate_account,
+                        ed,
                         ExistenceRequirement::KeepAlive,
                     )
                     .unwrap_or_else(|e| unreachable!("Existential deposit transfer error: {e:?}"));
-                    System::<T>::inc_consumers(&candidate_id.cast())
-                        .unwrap_or_else(|e| unreachable!("Inc consumers error: {e:?}"));
+                    // Set lock to avoid accidental account removal by the runtime.
+                    CurrencyOf::<T>::set_lock(
+                        EXISTENTIAL_DEPOSIT_LOCK_ID,
+                        &candidate_account,
+                        ed,
+                        WithdrawReasons::all(),
+                    );
 
                     self.set_program(candidate_id, &code_info, init_message, block_number);
 

@@ -1116,7 +1116,7 @@ impl JournalHandler for ExtManager {
     #[track_caller]
     fn store_new_programs(
         &mut self,
-        _program_id: ProgramId,
+        program_id: ProgramId,
         code_id: CodeId,
         candidates: Vec<(MessageId, ProgramId)>,
     ) {
@@ -1136,6 +1136,7 @@ impl JournalHandler for ExtManager {
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
+
                     self.store_new_actor(
                         candidate_id,
                         Program::Genuine(GenuineProgram {
@@ -1146,6 +1147,17 @@ impl JournalHandler for ExtManager {
                             gas_reservation_map: Default::default(),
                         }),
                         Some(init_message_id),
+                    );
+                    // Transfer the ED from the program-creator to the new program
+                    let old_balance = self.balance_of(&program_id);
+                    self.mint_to(
+                        &candidate_id,
+                        crate::EXISTENTIAL_DEPOSIT,
+                        MintMode::KeepAlive,
+                    );
+                    self.override_balance(
+                        &program_id,
+                        old_balance.saturating_sub(crate::EXISTENTIAL_DEPOSIT),
                     );
                 } else {
                     log::debug!("Program with id {candidate_id:?} already exists");
