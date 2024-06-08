@@ -1,0 +1,187 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+// TODO (breathx): remove cloning of slices from wasm memory (unsafe casts).
+
+use crate::host::{api::MemoryWrap, context::HostContext};
+use anyhow::Result;
+use gear_runtime_interface::lazy_pages_detail;
+use parity_scale_codec::Encode;
+use sp_wasm_interface::{FunctionContext, IntoValue, StoreData};
+use std::{mem, slice};
+use wasmtime::{Caller, Linker};
+
+pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_change_wasm_memory_addr_and_size_version_1",
+        change_wasm_memory_addr_and_size,
+    )?;
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_init_lazy_pages_version_1",
+        init_lazy_pages,
+    )?;
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_init_lazy_pages_for_program_version_1",
+        init_lazy_pages_for_program,
+    )?;
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_lazy_pages_status_version_1",
+        lazy_pages_status,
+    )?;
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_mprotect_lazy_pages_version_1",
+        mprotect_lazy_pages,
+    )?;
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_pre_process_memory_accesses_version_2",
+        pre_process_memory_accesses,
+    )?;
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_write_accessed_pages_version_1",
+        write_accessed_pages,
+    )?;
+
+    Ok(())
+}
+
+fn change_wasm_memory_addr_and_size(caller: Caller<'_, StoreData>, addr: i64, size: i64) {
+    log::trace!(target: "host_call", "change_wasm_memory_addr_and_size(addr={addr:?}, size={size:?})");
+
+    let memory = MemoryWrap(caller.data().memory());
+
+    let addr = memory.decode_by_val(&caller, addr);
+
+    let size = memory.decode_by_val(&caller, size);
+
+    lazy_pages_detail::change_wasm_memory_addr_and_size(addr, size);
+}
+
+fn init_lazy_pages(_caller: Caller<'_, StoreData>, _ctx: i64) -> i32 {
+    unreachable!("This function should not be called in native");
+}
+
+fn init_lazy_pages_for_program(caller: Caller<'_, StoreData>, ctx: i64) {
+    log::trace!(target: "host_call", "init_lazy_pages_for_program(ctx={ctx:?})");
+
+    let memory = MemoryWrap(caller.data().memory());
+
+    let ctx = memory.decode_by_val(&caller, ctx);
+
+    lazy_pages_detail::init_lazy_pages_for_program(ctx);
+}
+
+fn lazy_pages_status(caller: Caller<'_, StoreData>) -> i64 {
+    log::trace!(target: "host_call", "lazy_pages_status()");
+
+    let status = lazy_pages_detail::lazy_pages_status().encode();
+    let status_len = status.len() as i32;
+
+    let mut host_context = HostContext { caller };
+
+    let ptr = host_context
+        .allocate_memory(status_len as u32)
+        .unwrap()
+        .into_value()
+        .as_i32()
+        .expect("always i32");
+
+    let mut caller = host_context.caller;
+
+    let memory = caller.data().memory();
+
+    memory
+        .write(&mut caller, ptr as usize, status.as_ref())
+        .unwrap();
+
+    let res = unsafe { mem::transmute([ptr, status_len]) };
+
+    log::trace!(target: "host_call", "lazy_pages_status(..) -> {res:?}");
+
+    res
+}
+
+fn mprotect_lazy_pages(_caller: Caller<'_, StoreData>, protect: i32) {
+    log::trace!(target: "host_call", "mprotect_lazy_pages(protect={protect:?})");
+
+    lazy_pages_detail::mprotect_lazy_pages(protect != 0);
+}
+
+fn pre_process_memory_accesses(
+    mut caller: Caller<'_, StoreData>,
+    reads: i64,
+    writes: i64,
+    gas_bytes: i32,
+) -> i32 {
+    log::trace!(target: "host_call", "pre_process_memory_accesses(reads={reads:?}, writes={writes:?}, gas_bytes={gas_bytes:?})");
+
+    let memory = MemoryWrap(caller.data().memory());
+
+    let reads = memory.slice_by_val(&caller, reads).to_vec();
+
+    let writes = memory.slice_by_val(&caller, writes).to_vec();
+
+    // 8 len bytes of u64 counter.
+    // TODO: why gas_bytes is &mut [u8; 8] and not &mut u64 (?).
+    let gas_bytes = memory
+        .slice_mut(&mut caller, gas_bytes as usize, 8)
+        .try_into()
+        .unwrap();
+
+    let res = lazy_pages_detail::pre_process_memory_accesses(&reads, &writes, gas_bytes) as i32;
+
+    log::trace!(target: "host_call", "pre_process_memory_accesses(..) -> {res:?}");
+
+    res
+}
+
+fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
+    log::trace!(target: "host_call", "write_accessed_pages()");
+
+    let pages = lazy_pages_detail::write_accessed_pages();
+    let pages: &[u32] = pages.as_ref();
+    let pages: &[u8] = unsafe { slice::from_raw_parts(pages.as_ptr() as _, pages.len() * 4) };
+    let pages_len = pages.len() as i32;
+
+    let mut host_context = HostContext { caller };
+
+    let ptr = host_context
+        .allocate_memory(pages_len as u32)
+        .unwrap()
+        .into_value()
+        .as_i32()
+        .expect("always i32");
+
+    let mut caller = host_context.caller;
+
+    let memory = caller.data().memory();
+
+    memory.write(&mut caller, ptr as usize, pages).unwrap();
+
+    let res = unsafe { mem::transmute([ptr, pages_len]) };
+
+    log::trace!(target: "host_call", "write_accessed_pages(..) -> {res:?}");
+
+    res
+}

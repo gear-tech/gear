@@ -16,16 +16,41 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use parity_scale_codec::Decode;
 use std::mem;
-use wasmtime::{Memory, StoreContext};
+use wasmtime::{Memory, StoreContext, StoreContextMut};
 
 pub mod allocator;
+pub mod lazy_pages;
 pub mod logging;
 pub mod sandbox;
 
 pub struct MemoryWrap(Memory);
 
+// TODO: return results for mem accesses.
 impl MemoryWrap {
+    fn decode_by_val<'a, T: 'a, D: Decode>(
+        &self,
+        store: impl Into<StoreContext<'a, T>>,
+        ptr_len: i64,
+    ) -> D {
+        let mut slice = self.slice_by_val(store, ptr_len);
+
+        D::decode(&mut slice).unwrap()
+    }
+
+    #[allow(unused)]
+    fn decode<'a, T: 'a, D: Decode>(
+        &self,
+        store: impl Into<StoreContext<'a, T>>,
+        ptr: usize,
+        len: usize,
+    ) -> D {
+        let mut slice = self.slice(store, ptr, len);
+
+        D::decode(&mut slice).unwrap()
+    }
+
     fn slice_by_val<'a, T: 'a>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
@@ -46,6 +71,19 @@ impl MemoryWrap {
             .data(store)
             .get(ptr..)
             .and_then(|s| s.get(..len))
+            .unwrap()
+    }
+
+    fn slice_mut<'a, T: 'a>(
+        &self,
+        store: impl Into<StoreContextMut<'a, T>>,
+        ptr: usize,
+        len: usize,
+    ) -> &'a mut [u8] {
+        self.0
+            .data_mut(store)
+            .get_mut(ptr..)
+            .and_then(|s| s.get_mut(..len))
             .unwrap()
     }
 }

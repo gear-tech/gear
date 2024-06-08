@@ -90,7 +90,7 @@ impl Processor {
 
         let mut instance_wrapper = host::InstanceWrapper::new()?;
 
-        instance_wrapper.run(&instrumented_code)?;
+        instance_wrapper.run(&self.db, &instrumented_code)?;
 
         Ok(())
     }

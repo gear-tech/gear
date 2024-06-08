@@ -17,6 +17,7 @@ parity-scale-codec = { workspace = true, optional = true }
 ## Gear deps.
 gear-core = { workspace = true, optional = true }
 gear-core-backend = { workspace = true, optional = true }
+gear-lazy-pages-interface = { workspace = true, optional = true }
 gear-sandbox = { workspace = true, optional = true }
 gear-sandbox-env = { workspace = true, optional = true }
 gear-wasm-instrument = { workspace = true, optional = true }
@@ -35,6 +36,7 @@ wasm = [
     # Gear deps.
     "dep:gear-core",
     "dep:gear-core-backend",
+    "dep:gear-lazy-pages-interface",
     "dep:gear-sandbox",
     "dep:gear-sandbox-env",
     "dep:gear-wasm-instrument",
