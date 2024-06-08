@@ -10,9 +10,9 @@ use gear_core::{
 use gear_core_errors::SignalCode;
 use gprimitives::{MessageId, ReservationId};
 
-use crate::{receipts::Receipt, DispatchExecutionContext, RuntimeInterface};
+use crate::{receipts::Receipt, state::Storage, DispatchExecutionContext, RuntimeInterface};
 
-impl<RI: RuntimeInterface> JournalHandler for DispatchExecutionContext<'_, RI> {
+impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionContext<'_, S, RI> {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
@@ -101,7 +101,7 @@ impl<RI: RuntimeInterface> JournalHandler for DispatchExecutionContext<'_, RI> {
             unreachable!("Program ID mismatch");
         }
         for (page, data) in pages_data {
-            let hash = self.ri.write(&data);
+            let hash = self.ri.storage().write_page_data(data);
             self.program_context.pages_map.insert(page, hash);
         }
     }

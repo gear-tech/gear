@@ -20,15 +20,17 @@
 
 use core::num::NonZeroU32;
 
-use crate::{CASReader, CASWriter};
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_core::{
+    code::InstrumentedCode,
     ids::ProgramId,
-    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Value},
-    pages::GearPage,
+    memory::PageBuf,
+    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, Value},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
+    reservation::GasReservationMap,
 };
-use gprimitives::{MessageId, H256};
+use gprimitives::{CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -47,15 +49,6 @@ impl From<H256> for HashAndLen {
     }
 }
 
-impl HashAndLen {
-    pub fn read<T: Decode>(&self, db: &impl CASReader) -> T {
-        let data = db
-            .read(&self.hash)
-            .expect("`db` does not contain data by hash {hash}");
-        T::decode(&mut &data[..]).expect("Failed to decode data into `T`")
-    }
-}
-
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum MaybeHash {
     Hash(HashAndLen),
@@ -70,10 +63,10 @@ impl From<H256> for MaybeHash {
 }
 
 impl MaybeHash {
-    pub fn read<T: Decode>(&self, db: &impl CASReader) -> Option<T> {
-        match self {
-            MaybeHash::Hash(hash_and_len) => Some(hash_and_len.read(db)),
-            MaybeHash::Empty => None,
+    pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(H256) -> T) -> T {
+        match &self {
+            Self::Hash(HashAndLen { hash, .. }) => f(*hash),
+            Self::Empty => Default::default(),
         }
     }
 }
@@ -87,10 +80,6 @@ pub struct ProgramState {
     pub allocations_hash: MaybeHash,
     /// Hash of memory pages table, see [`MemoryPages`].
     pub pages_hash: MaybeHash,
-    /// Hash of the original code bytes.
-    pub original_code_hash: HashAndLen,
-    /// Hash of the instrumented code, see [`InstrumentedCode`].
-    pub instrumented_code_hash: HashAndLen,
     /// Gas reservations map.
     pub gas_reservation_map_hash: MaybeHash,
     /// Program memory infix.
@@ -122,6 +111,70 @@ pub struct Dispatch {
 #[derive(Clone, Debug, Encode, Decode, Default)]
 pub struct MessageQueue(pub Vec<Dispatch>);
 
-/// Memory pages table, mapping gear page number to page data bytes hash.
-#[derive(Clone, Debug, Encode, Decode, Default)]
-pub struct MemoryPages(pub BTreeMap<GearPage, H256>);
+pub type MemoryPages = BTreeMap<GearPage, H256>;
+
+pub type Allocations = IntervalsTree<WasmPage>;
+
+pub trait Storage {
+    fn clone_boxed(&self) -> Box<dyn Storage>;
+
+    /// Reads program state by state hash.
+    fn read_state(&self, hash: H256) -> Option<ProgramState>;
+
+    /// Writes program state and returns its hash.
+    fn write_state(&self, state: ProgramState) -> H256;
+
+    /// Reads message queue by queue hash.
+    fn read_queue(&self, hash: H256) -> Option<MessageQueue>;
+
+    /// Writes message queue and returns its hash.
+    fn write_queue(&self, queue: MessageQueue) -> H256;
+
+    /// Reads memory pages by pages hash.
+    fn read_pages(&self, hash: H256) -> Option<MemoryPages>;
+
+    /// Writes memory pages and returns its hash.
+    fn write_pages(&self, pages: MemoryPages) -> H256;
+
+    /// Reads allocations by allocations hash.
+    fn read_allocations(&self, hash: H256) -> Option<Allocations>;
+
+    /// Writes allocations and returns its hash.
+    fn write_allocations(&self, allocations: Allocations) -> H256;
+
+    /// Reads gas reservation map by gas reservation map hash.
+    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap>;
+
+    /// Writes gas reservation map and returns its hash.
+    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256;
+
+    /// Reads original code id by program id.
+    fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId>;
+
+    /// Writes original code id by program id.
+    fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId);
+
+    /// Reads original code by code hash.
+    fn read_original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
+
+    /// Writes original code and returns its hash.
+    fn write_original_code(&self, code: &[u8]) -> H256;
+
+    /// Reads instrumented code by runtime id and original code id.
+    fn read_instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+
+    /// Writes instrumented code and returns its hash.
+    fn write_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
+
+    /// Reads payload by payload hash.
+    fn read_payload(&self, hash: H256) -> Option<Payload>;
+
+    /// Writes payload and returns its hash.
+    fn write_payload(&self, payload: Payload) -> H256;
+
+    /// Reads page data by page data hash.
+    fn read_page_data(&self, hash: H256) -> Option<PageBuf>;
+
+    /// Writes page data and returns its hash.
+    fn write_page_data(&self, data: PageBuf) -> H256;
+}

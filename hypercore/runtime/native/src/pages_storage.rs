@@ -21,7 +21,7 @@
 use gear_core::{ids::ProgramId, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
-use hypercore_db::CASDatabase;
+use hypercore_runtime_common::state::Storage;
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{
     collections::BTreeMap,
@@ -37,7 +37,7 @@ struct PageKey {
 }
 
 pub(crate) struct PagesStorage {
-    pub db: Box<dyn CASDatabase>,
+    pub storage: Box<dyn Storage>,
     pub memory_map: BTreeMap<GearPage, H256>,
 }
 
@@ -56,7 +56,10 @@ impl LazyPagesStorage for PagesStorage {
     fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
         let PageKey { page, .. } = PageKey::decode_all(&mut key).expect("Invalid key");
         self.memory_map.get(&page).map(|hash| {
-            let data = self.db.read(hash).expect("Cannot read page from db");
+            let data = self
+                .storage
+                .read_page_data(*hash)
+                .expect("Cannot read page from db");
             buffer.copy_from_slice(&data);
             data.len() as u32
         })

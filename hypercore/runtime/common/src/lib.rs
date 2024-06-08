@@ -22,7 +22,7 @@
 #![allow(unused)]
 
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::mem::swap;
+use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
@@ -41,7 +41,7 @@ use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use receipts::Receipt;
-use state::{Dispatch, MaybeHash, MessageQueue, ProgramState};
+use state::{Dispatch, HashAndLen, MaybeHash, MessageQueue, ProgramState, Storage};
 
 extern crate alloc;
 
@@ -49,20 +49,15 @@ mod journal;
 pub mod receipts;
 pub mod state;
 
-pub trait CASReader {
-    fn read(&self, hash: &H256) -> Option<Vec<u8>>;
-}
+const RUNTIME_ID: u32 = 0;
 
-pub trait CASWriter {
-    fn write(&mut self, data: &[u8]) -> H256;
-}
-
-pub trait RuntimeInterface: CASReader + CASWriter {
+pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
 
     fn block_info(&self) -> BlockInfo;
     fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, H256>);
     fn random_data(&self) -> (Vec<u8>, u32);
+    fn storage(&self) -> &S;
 }
 
 struct ProgramContext {
@@ -77,17 +72,24 @@ struct ProgramContext {
     receipts: Vec<Receipt>,
 }
 
-struct DispatchExecutionContext<'a, RI: RuntimeInterface> {
+struct DispatchExecutionContext<'a, S: Storage, RI: RuntimeInterface<S>> {
     program_context: &'a mut ProgramContext,
     dispatch: Dispatch,
-    ri: &'a mut RI,
+    ri: &'a RI,
+    _phantom: PhantomData<S>,
 }
 
-fn process_dispatch<RI: RuntimeInterface>(
+fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
     block_config: &BlockConfig,
-    ctx: &mut DispatchExecutionContext<RI>,
+    ctx: &mut DispatchExecutionContext<S, RI>,
 ) -> Vec<JournalNote> {
-    let payload = ctx.dispatch.payload_hash.read(ctx.ri).unwrap_or_default();
+    let payload = ctx.dispatch.payload_hash.with_hash_or_default(|hash| {
+        ctx.ri
+            .storage()
+            .read_payload(hash)
+            .expect("Cannot get payload")
+    });
+
     let incoming_message = IncomingMessage::new(
         ctx.dispatch.id,
         ctx.dispatch.source,
@@ -149,12 +151,16 @@ fn process_dispatch<RI: RuntimeInterface>(
         .unwrap_or_else(|err| unreachable!("{err}"))
 }
 
-pub fn process_program(
+pub fn process_program<S: Storage>(
     program_id: ProgramId,
     program_state: ProgramState,
-    ri: &mut impl RuntimeInterface,
+    ri: &impl RuntimeInterface<S>,
 ) -> (ProgramState, Vec<Receipt>) {
-    let mut queue: MessageQueue = program_state.queue_hash.read(ri).unwrap_or_default();
+    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
+        ri.storage()
+            .read_queue(hash)
+            .expect("Cannot get message queue")
+    });
 
     if queue.0.is_empty() {
         return (program_state, Vec::new());
@@ -176,16 +182,35 @@ pub fn process_program(
         outgoing_bytes_limit: 64 * 1024 * 1024,
     };
 
-    let code_id: CodeId = program_state.original_code_hash.hash.into();
+    let code_id = ri
+        .storage()
+        .get_program_code_id(program_id)
+        .expect("Cannot get code id");
 
-    let code: InstrumentedCode = program_state.instrumented_code_hash.read(ri);
-    let allocations: IntervalsTree<WasmPage> =
-        program_state.allocations_hash.read(ri).unwrap_or_default();
-    let gas_reservation_map: GasReservationMap = program_state
+    let code = ri
+        .storage()
+        .read_instrumented_code(RUNTIME_ID, code_id)
+        .unwrap_or_else(|| todo!("Make re-instrumentation"));
+
+    let allocations = program_state.allocations_hash.with_hash_or_default(|hash| {
+        ri.storage()
+            .read_allocations(hash)
+            .expect("Cannot get allocations")
+    });
+
+    let gas_reservation_map = program_state
         .gas_reservation_map_hash
-        .read(ri)
-        .unwrap_or_default();
-    let pages_map: BTreeMap<GearPage, H256> = program_state.pages_hash.read(ri).unwrap_or_default();
+        .with_hash_or_default(|hash| {
+            ri.storage()
+                .read_gas_reservation_map(hash)
+                .expect("Cannot get gas reservation map")
+        });
+
+    let pages_map = program_state.pages_hash.with_hash_or_default(|hash| {
+        ri.storage()
+            .read_pages(hash)
+            .expect("Cannot get memory pages")
+    });
 
     let mut receipts = Vec::new();
     let mut program_context = ProgramContext {
@@ -205,6 +230,7 @@ pub fn process_program(
             program_context: &mut program_context,
             dispatch,
             ri,
+            _phantom: PhantomData,
         };
         let journal = process_dispatch(&block_config, &mut dispatch_context);
         core_processor::handle_journal(journal, &mut dispatch_context);
@@ -215,21 +241,31 @@ pub fn process_program(
         .0
         .is_empty()
         .then_some(MaybeHash::Empty)
-        .unwrap_or_else(|| ri.write(&queue.encode()).into());
-    let allocations_hash = (program_context.allocations.intervals_amount() == 0)
+        .unwrap_or_else(|| ri.storage().write_queue(queue).into());
+
+    let ProgramContext {
+        allocations,
+        pages_map,
+        gas_reservation_map,
+        balance,
+        ..
+    } = program_context;
+
+    let allocations_hash = (allocations.intervals_amount() == 0)
         .then_some(MaybeHash::Empty)
-        .unwrap_or_else(|| ri.write(&program_context.allocations.encode()).into());
-    let pages_hash = program_context
-        .pages_map
+        .unwrap_or_else(|| ri.storage().write_allocations(allocations).into());
+
+    let pages_hash = pages_map
         .is_empty()
         .then_some(MaybeHash::Empty)
-        .unwrap_or_else(|| ri.write(&program_context.pages_map.encode()).into());
-    let gas_reservation_map_hash = program_context
-        .gas_reservation_map
+        .unwrap_or_else(|| ri.storage().write_pages(pages_map).into());
+
+    let gas_reservation_map_hash = gas_reservation_map
         .is_empty()
         .then_some(MaybeHash::Empty)
         .unwrap_or_else(|| {
-            ri.write(&program_context.gas_reservation_map.encode())
+            ri.storage()
+                .write_gas_reservation_map(gas_reservation_map)
                 .into()
         });
 
@@ -239,8 +275,6 @@ pub fn process_program(
         pages_hash,
         gas_reservation_map_hash,
         balance: program_context.balance,
-        original_code_hash: program_state.original_code_hash,
-        instrumented_code_hash: program_state.instrumented_code_hash,
         memory_infix: program_state.memory_infix,
     };
 

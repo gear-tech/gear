@@ -25,7 +25,7 @@ use tokio::{signal, time};
 
 /// Hypercore service.
 pub struct Service {
-    db: Box<dyn hypercore_db::CASDatabase>,
+    db: hypercore_db::RocksDatabase,
     network: hypercore_network::NetworkWorker,
     observer: hypercore_observer::Observer,
     processor: hypercore_processor::Processor,
@@ -43,9 +43,7 @@ async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let db: Box<dyn hypercore_db::CASDatabase> = Box::new(hypercore_db::RocksDatabase::open(
-            config.database_path.clone(),
-        )?);
+        let db = hypercore_db::RocksDatabase::open(config.database_path.clone())?;
         let network = hypercore_network::NetworkWorker::new(config.net_config.clone())?;
         let observer = hypercore_observer::Observer::new(
             config.ethereum_rpc.clone(),
@@ -53,7 +51,8 @@ impl Service {
             config.ethereum_router_address.clone(),
         )
         .await?;
-        let processor = hypercore_processor::Processor::new(db.clone_boxed());
+        let processor =
+            hypercore_processor::Processor::new(hypercore_processor::Database::from_one(&db));
         let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
 
         let sequencer = match config.sequencer {

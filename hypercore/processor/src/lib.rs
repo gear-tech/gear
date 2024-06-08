@@ -19,19 +19,22 @@
 //! Program's execution service for eGPU.
 
 use anyhow::{anyhow, Result};
-use db::Database;
+use db::Storage;
 use gear_core::{
     ids::{prelude::CodeIdExt as _, ProgramId},
     message::IncomingMessage,
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceWrapper;
-use hypercore_db::CASDatabase;
 use hypercore_observer::Event;
 use std::collections::HashMap;
 
+pub use db::Database;
+
 pub(crate) mod db;
 pub mod host;
+
+const RUNTIME_ID: u32 = 0;
 
 pub struct Processor {
     db: Database,
@@ -44,10 +47,8 @@ pub enum LocalOutcome {
 }
 
 impl Processor {
-    pub fn new(db: Box<dyn CASDatabase>) -> Self {
-        Self {
-            db: Database::new(db),
-        }
+    pub fn new(db: Database) -> Self {
+        Self { db }
     }
 
     pub fn new_code(&mut self, hash: CodeId, code: Vec<u8>) -> Result<bool> {
@@ -60,30 +61,31 @@ impl Processor {
         let res = executor.verify(&code)?;
 
         if res {
-            self.db.write_code(hash, &code)
+            let _ = self.db.write_original_code(&code);
         }
 
         Ok(res)
     }
 
-    pub fn instrument_code(&mut self, code_id: CodeId) -> Result<Option<H256>> {
-        let code = self.db.read_code(code_id).unwrap();
+    pub fn instrument_code(&mut self, code_id: CodeId) -> Result<bool> {
+        let code = self.db.read_original_code(code_id).unwrap();
 
         let mut instance_wrapper = host::InstanceWrapper::new()?;
 
         if let Some(instrumented) = instance_wrapper.instrument(&code)? {
-            let hash = self.db.write_instrumented_code(&instrumented);
+            self.db
+                .write_instrumented_code(RUNTIME_ID, code_id, instrumented);
 
-            Ok(Some(hash))
+            Ok(true)
         } else {
-            Ok(None)
+            Ok(false)
         }
     }
 
-    pub fn run_on_host(&mut self, instrumented_code_id: CodeId) -> Result<()> {
+    pub fn run_on_host(&mut self, code_id: CodeId) -> Result<()> {
         let instrumented_code = self
             .db
-            .read_instrumented_code(instrumented_code_id.into_bytes().into())
+            .read_instrumented_code(RUNTIME_ID, code_id)
             .ok_or_else(|| anyhow!("couldn't find instrumented code"))?;
 
         let mut instance_wrapper = host::InstanceWrapper::new()?;
@@ -164,21 +166,21 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(db.clone_boxed());
+        let mut processor = Processor::new(Database::from_one(&db));
 
         let valid = valid_code();
         let valid_id = CodeId::generate(&valid);
 
-        assert!(processor.db.read_code(valid_id).is_none());
+        assert!(processor.db.read_original_code(valid_id).is_none());
         assert!(processor.new_code(valid_id, valid).unwrap());
-        assert!(processor.db.read_code(valid_id).is_some());
+        assert!(processor.db.read_original_code(valid_id).is_some());
 
         let invalid = vec![0; 42];
         let invalid_id = CodeId::generate(&invalid);
 
-        assert!(processor.db.read_code(invalid_id).is_none());
+        assert!(processor.db.read_original_code(invalid_id).is_none());
         assert!(!processor.new_code(invalid_id, invalid).unwrap());
-        assert!(processor.db.read_code(invalid_id).is_none());
+        assert!(processor.db.read_original_code(invalid_id).is_none());
     }
 
     #[test]
@@ -186,7 +188,7 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(db.clone_boxed());
+        let mut processor = Processor::new(Database::from_one(&db));
 
         let valid = valid_code();
         let valid_id = CodeId::generate(&valid).into_bytes().into();
@@ -200,7 +202,7 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(db.clone_boxed());
+        let mut processor = Processor::new(Database::from_one(&db));
 
         let code = valid_code();
         let code_len = code.len();
@@ -208,8 +210,8 @@ mod tests {
 
         assert!(processor.new_code(id, code).unwrap());
 
-        let hash = processor.instrument_code(id).unwrap().unwrap();
-        let instrumented = processor.db.read_instrumented_code(hash).unwrap();
+        assert!(processor.instrument_code(id).unwrap());
+        let instrumented = processor.db.read_instrumented_code(RUNTIME_ID, id).unwrap();
 
         assert_eq!(instrumented.original_code_len() as usize, code_len);
         assert!(instrumented.code().len() > code_len);
@@ -220,17 +222,20 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(db.clone_boxed());
+        let mut processor = Processor::new(Database::from_one(&db));
 
         let code = valid_code();
-        let id = CodeId::generate(&code);
+        let code_id = CodeId::generate(&code);
 
-        assert!(processor.new_code(id, code).unwrap());
+        assert!(processor.new_code(code_id, code).unwrap());
 
-        let hash = processor.instrument_code(id).unwrap().unwrap();
-        let _instrumented = processor.db.read_instrumented_code(hash).unwrap();
+        assert!(processor.instrument_code(code_id).unwrap());
+        let _instrumented = processor
+            .db
+            .read_instrumented_code(RUNTIME_ID, code_id)
+            .unwrap();
 
-        processor.run_on_host(hash.to_fixed_bytes().into()).unwrap();
+        processor.run_on_host(code_id).unwrap();
     }
 
     #[test]
@@ -238,16 +243,19 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(db.clone_boxed());
+        let mut processor = Processor::new(Database::from_one(&db));
+
+        let program_id = ProgramId::default();
 
         let code = demo_ping::WASM_BINARY;
         let code_id = CodeId::generate(code);
         assert!(processor.new_code(code_id, code.to_vec()).unwrap());
+        processor.db.set_program_code_id(program_id, code_id);
 
-        let instrumented_code_hash = processor.instrument_code(code_id).unwrap().unwrap();
+        assert!(processor.instrument_code(code_id).unwrap());
 
         let payload = Payload::try_from(b"PING".to_vec()).unwrap();
-        let payload_hash = processor.db.write(&payload);
+        let payload_hash = processor.db.write_payload(payload);
 
         let dispatch = Dispatch {
             id: Default::default(),
@@ -261,21 +269,18 @@ mod tests {
         };
 
         let queue = MessageQueue(vec![dispatch]);
-        let queue_hash = processor.db.write(&queue);
+        let queue_hash = processor.db.write_queue(queue);
 
-        let program_id = ProgramId::default();
         let program_state = ProgramState {
             queue_hash: queue_hash.into(),
             allocations_hash: MaybeHash::Empty,
             pages_hash: MaybeHash::Empty,
-            original_code_hash: H256::from(code_id.into_bytes()).into(),
-            instrumented_code_hash: instrumented_code_hash.into(),
             gas_reservation_map_hash: MaybeHash::Empty,
             memory_infix: Default::default(),
             balance: 0,
         };
 
-        let mut ri = NativeRuntimeInterface::new(processor.db.inner());
+        let mut ri = NativeRuntimeInterface::new(&processor.db);
         let (_, receipts) = process_program(program_id, program_state, &mut ri);
         for receipt in receipts.into_iter() {
             if let Receipt::SendDispatch { dispatch, .. } = receipt {
