@@ -1,5 +1,5 @@
 use gnode::Node;
-use std::thread;
+use std::{thread, time::Duration};
 
 #[ignore]
 #[test]
@@ -10,7 +10,7 @@ fn run() {
         .unwrap();
 
     loop {
-        thread::sleep_ms(3000);
-        println!("logs: {:#?}", node.logs);
+        thread::sleep(Duration::from_secs(3));
+        println!("logs: {:#?}", node.logs());
     }
 }

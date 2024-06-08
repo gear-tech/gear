@@ -37,7 +37,7 @@ impl NodeInstance {
     ///
     /// NOTE: If you want [`SocketAddrV4`], just call [`NodeInstance::address`]
     pub fn ws(&self) -> String {
-        format!("ws://{}", self.address.to_string())
+        format!("ws://{}", self.address)
     }
 
     /// Get the recent cached node logs, the max limit is 256 lines.

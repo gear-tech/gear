@@ -5281,7 +5281,6 @@ dependencies = [
  "gear-core-errors",
  "gear-utils",
  "gnode",
- "gsdk",
  "gsdk-codegen",
  "hex",
  "indexmap 2.2.6",

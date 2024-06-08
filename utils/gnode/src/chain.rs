@@ -37,7 +37,6 @@ impl AsRef<str> for Chain {
             Self::Dev => "--dev",
             Self::VaraDev => "--chain=vara-dev",
         }
-        .into()
     }
 }
 
