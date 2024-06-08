@@ -19,7 +19,7 @@
 // TODO: Replace `feature = "cargo-clippy"` with `clippy`, once moved repo,
 // or at least `hypercore-*` crates, on stable or latest nightly in toml.
 #![no_std]
-#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
+#![cfg_attr(feature = "cargo-clippy", deny(warnings), allow(unused))]
 
 /* Error when compiling wasm module not for wasm. */
 #[cfg(all(feature = "wasm", not(target_arch = "wasm32")))]

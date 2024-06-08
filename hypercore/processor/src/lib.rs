@@ -280,8 +280,8 @@ mod tests {
             balance: 0,
         };
 
-        let mut ri = NativeRuntimeInterface::new(&processor.db);
-        let (_, receipts) = process_program(program_id, program_state, &mut ri);
+        let ri = NativeRuntimeInterface::new(&processor.db);
+        let (_, receipts) = process_program(program_id, program_state, &ri);
         for receipt in receipts.into_iter() {
             if let Receipt::SendDispatch { dispatch, .. } = receipt {
                 assert_eq!(

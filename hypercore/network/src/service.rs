@@ -22,12 +22,13 @@ use crate::{
 };
 
 use anyhow::Result;
+use either::Either;
 use futures::{select, StreamExt};
 use libp2p::{
     connection_limits::ConnectionLimits,
     core::upgrade,
     identify::Info as IdentifyInfo,
-    swarm::{Swarm, SwarmBuilder, SwarmEvent, THandlerErr},
+    swarm::{Config, Swarm, SwarmEvent},
     Multiaddr,
 };
 use log::{debug, error, info, trace};
@@ -38,6 +39,9 @@ use std::{
     num::NonZeroUsize,
     sync::{atomic::AtomicUsize, Arc},
 };
+use void::Void;
+
+pub type SwarmEventError = Either<Either<Void, std::io::Error>, Void>;
 
 /// Network for Hypercore nodes.
 pub struct NetworkWorker {
@@ -121,15 +125,15 @@ impl NetworkWorker {
                 }
             };
 
-            let builder = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id);
-            #[allow(deprecated)]
-            let builder = builder
-                .substream_upgrade_protocol_override(upgrade::Version::V1Lazy)
-                .notify_handler_buffer_size(NonZeroUsize::new(32).expect("32 != 0; qed"))
-                .per_connection_event_buffer_size(24)
-                .max_negotiating_inbound_streams(2048);
+            let config = Config::with_tokio_executor()
+                .with_substream_upgrade_protocol_override(upgrade::Version::V1Lazy)
+                .with_notify_handler_buffer_size(NonZeroUsize::new(32).expect("32 != 0; qed"))
+                .with_per_connection_event_buffer_size(24)
+                .with_max_negotiating_inbound_streams(2048);
 
-            (builder.build(), bandwidth)
+            let builder = Swarm::new(transport, behaviour, local_peer_id, config);
+
+            (builder, bandwidth)
         };
 
         // Listen on multiaddresses.
@@ -163,6 +167,7 @@ impl NetworkWorker {
         while self.next_action().await {}
     }
 
+    // TODO: handle connection closing manually.
     /// Perform one action. Returns `true` if it should be called again.
     ///
     /// Intended for tests only. Use `run`].
@@ -178,19 +183,17 @@ impl NetworkWorker {
     }
 
     /// Process the next event coming from `Swarm`.
-    fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourOut, THandlerErr<Behaviour>>) {
+    fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourOut, SwarmEventError>) {
         match event {
-            SwarmEvent::Behaviour(BehaviourOut::PeerIdentify {
-                peer_id,
-                info:
-                    IdentifyInfo {
-                        protocol_version,
-                        agent_version,
-                        mut listen_addrs,
-                        protocols: _,
-                        ..
-                    },
-            }) => {
+            SwarmEvent::Behaviour(BehaviourOut::PeerIdentify { peer_id, info }) => {
+                let IdentifyInfo {
+                    protocol_version,
+                    agent_version,
+                    mut listen_addrs,
+                    protocols: _,
+                    ..
+                } = *info;
+
                 if listen_addrs.len() > 30 {
                     debug!(
 
