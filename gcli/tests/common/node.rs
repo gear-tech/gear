@@ -60,10 +60,4 @@ pub trait NodeExec {
 
         Ok(output.stdout.convert())
     }
-
-    /// Formats websocket address to string.
-    ///
-    /// This interface is used for constructing the `endpoint`
-    /// argument of gcli as the command line input.
-    fn ws(&self) -> String;
 }
