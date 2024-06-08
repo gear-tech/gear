@@ -7208,6 +7208,7 @@ dependencies = [
  "hypercore-db",
  "hypercore-observer",
  "hypercore-runtime",
+ "hypercore-runtime-common",
  "hypercore-runtime-native",
  "log",
  "parity-scale-codec",
@@ -7260,7 +7261,6 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
  "gprimitives",
- "hypercore-db",
  "hypercore-runtime-common",
  "parity-scale-codec",
 ]

@@ -24,38 +24,25 @@ use gear_lazy_pages::LazyPagesVersion;
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gprimitives::H256;
-use hypercore_db::CASDatabase;
-use hypercore_runtime_common::{CASWriter, RuntimeInterface};
+use hypercore_runtime_common::{state::Storage, RuntimeInterface};
 use pages_storage::PagesStorage;
 use std::collections::BTreeMap;
 
-pub use hypercore_runtime_common::{self, process_program, state, CASReader};
+pub use hypercore_runtime_common::{self, process_program, state};
 
 mod pages_storage;
 
-pub struct NativeRuntimeInterface {
-    db: Box<dyn CASDatabase>,
+pub struct NativeRuntimeInterface<'a, S: Storage> {
+    storage: &'a S,
 }
 
-impl NativeRuntimeInterface {
-    pub fn new(db: Box<dyn CASDatabase>) -> Self {
-        Self { db }
+impl<'a, S: Storage> NativeRuntimeInterface<'a, S> {
+    pub fn new(storage: &'a S) -> Self {
+        Self { storage }
     }
 }
 
-impl CASReader for NativeRuntimeInterface {
-    fn read(&self, hash: &H256) -> Option<Vec<u8>> {
-        self.db.read(hash)
-    }
-}
-
-impl CASWriter for NativeRuntimeInterface {
-    fn write(&mut self, data: &[u8]) -> H256 {
-        self.db.write(data)
-    }
-}
-
-impl RuntimeInterface for NativeRuntimeInterface {
+impl<S: Storage> RuntimeInterface<S> for NativeRuntimeInterface<'_, S> {
     type LazyPages = LazyPagesNative;
 
     fn block_info(&self) -> BlockInfo {
@@ -64,7 +51,7 @@ impl RuntimeInterface for NativeRuntimeInterface {
 
     fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, H256>) {
         let pages_storage = PagesStorage {
-            db: self.db.clone_boxed(),
+            storage: self.storage.clone_boxed(),
             memory_map: pages_map,
         };
         gear_lazy_pages::init(
@@ -77,5 +64,9 @@ impl RuntimeInterface for NativeRuntimeInterface {
 
     fn random_data(&self) -> (Vec<u8>, u32) {
         (vec![0; 32], 0) // TODO
+    }
+
+    fn storage(&self) -> &S {
+        self.storage
     }
 }

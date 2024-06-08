@@ -10,7 +10,6 @@ repository.workspace = true
 
 [dependencies]
 hypercore-runtime-common.workspace = true
-hypercore-db.workspace = true
 gprimitives.workspace = true
 gear-core.workspace = true
 gear-core-processor.workspace = true
