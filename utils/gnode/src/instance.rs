@@ -40,8 +40,7 @@ impl NodeInstance {
         format!("ws://{}", self.address.to_string())
     }
 
-    /// Get the recent cached node logs, the max limit is
-    /// 256 lines.
+    /// Get the recent cached node logs, the max limit is 256 lines.
     pub fn logs(&self) -> Result<Vec<String>> {
         let Ok(logs) = self.log.logs.read() else {
             return Err(anyhow!("Failed to read logs from the node process."));

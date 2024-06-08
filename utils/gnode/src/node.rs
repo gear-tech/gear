@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear protocol node wrapper
-use crate::{utils, Log, NodeInstance};
+use crate::{utils, Chain, Log, NodeInstance};
 use anyhow::Result;
 use std::{
     env,
@@ -26,12 +26,13 @@ use std::{
 };
 
 const GEAR_BINARY: &str = "gear";
-const FORCE_ARGS: [&str; 4] = ["--tmp", "--dev", "--no-hardware-benchmarks", "--rpc-port"];
 
 /// Gear protocol node wrapper
 pub struct Node {
     /// Node command
     command: Command,
+    /// The chain of this node
+    chain: Chain,
     /// The rpc port of the node if any
     port: Option<u16>,
     /// How many logs should the log holder stores
@@ -49,6 +50,7 @@ impl Node {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self {
             command: Command::new(path.as_ref()),
+            chain: Chain::Dev,
             port: None,
             logs: None,
         })
@@ -56,11 +58,17 @@ impl Node {
 
     /// Append arguments to the node
     ///
-    /// NOTE: argument `--dev` is present by default and could not
-    /// be changed, if you are about to run a production node, please
+    /// NOTE: argument `--dev` or `--chain=vara-dev` is managed by [`Node::chain`]
+    /// and could not be removed, if you are about to run a production node, please
     /// run the node binary directly.
     pub fn args(&mut self, args: &[&str]) -> &mut Self {
         self.command.args(args);
+        self
+    }
+
+    /// Set the chain of this node, the default value is `dev`
+    pub fn chain(&mut self, chain: Chain) -> &mut Self {
+        self.chain = chain;
         self
     }
 
@@ -87,8 +95,7 @@ impl Node {
                 "RUST_LOG",
                 env::var("RUST_LOG").unwrap_or_else(|_| "".into()),
             )
-            .args(FORCE_ARGS)
-            .arg(&port)
+            .args(self.chain.to_args(&port))
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
