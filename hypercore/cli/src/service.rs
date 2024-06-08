@@ -20,12 +20,12 @@
 
 use crate::config::{Config, SequencerConfig};
 use anyhow::Result;
-use futures::{future, stream::StreamExt, Future};
+use futures::{future, stream::StreamExt};
 use tokio::{signal, time};
 
 /// Hypercore service.
 pub struct Service {
-    db: hypercore_db::RocksDatabase,
+    db: hypercore_processor::Database,
     network: hypercore_network::NetworkWorker,
     observer: hypercore_observer::Observer,
     processor: hypercore_processor::Processor,
@@ -34,7 +34,7 @@ pub struct Service {
 }
 
 async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
-    if let Some(timer) = core::mem::replace(maybe_timer, None) {
+    if let Some(timer) = maybe_timer.take() {
         timer.await
     } else {
         future::pending().await
@@ -43,7 +43,8 @@ async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let db = hypercore_db::RocksDatabase::open(config.database_path.clone())?;
+        let rocks_db = hypercore_db::RocksDatabase::open(config.database_path.clone())?;
+        let db = hypercore_processor::Database::from_one(&rocks_db);
         let network = hypercore_network::NetworkWorker::new(config.net_config.clone())?;
         let observer = hypercore_observer::Observer::new(
             config.ethereum_rpc.clone(),
@@ -51,8 +52,7 @@ impl Service {
             config.ethereum_router_address.clone(),
         )
         .await?;
-        let processor =
-            hypercore_processor::Processor::new(hypercore_processor::Database::from_one(&db));
+        let processor = hypercore_processor::Processor::new(db.clone());
         let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
 
         let sequencer = match config.sequencer {
