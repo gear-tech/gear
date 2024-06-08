@@ -46,12 +46,12 @@ pub use gear_sandbox::init as sandbox_init;
 pub use gear_sandbox::sandbox;
 
 #[cfg(feature = "std")]
-pub use gear_tasks::runtime_tasks;
+pub use gear_tasks::gear_tasks;
 
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
 pub fn init_tasks() {
-    gear_tasks::runtime_tasks::init();
+    ::gear_tasks::gear_tasks::init();
 }
 
 #[derive(Debug, Clone, Encode, Decode)]

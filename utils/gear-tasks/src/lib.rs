@@ -29,10 +29,10 @@ use sp_runtime_interface::runtime_interface;
 
 /// WASM host functions for managing tasks.
 #[runtime_interface]
-pub trait RuntimeTasks {
+pub trait GearTasks {
     fn init(&mut self) {
         self.register_extension(inner::TaskSpawnerExt::default())
-            .expect("`RuntimeTasks` initialized twice");
+            .expect("`GearTasks` initialized twice");
     }
 
     fn spawn(&mut self, dispatcher_ref: u32, entry: u32, payload: Vec<u8>) -> u64 {
@@ -433,13 +433,13 @@ mod inner {
 
     impl JoinHandle {
         pub fn join(self) -> Vec<u8> {
-            runtime_tasks::join(self.inner)
+            gear_tasks::join(self.inner)
         }
     }
 
     pub fn spawn(f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
         let func_ref = f as usize as u32;
-        let handle = runtime_tasks::spawn(dispatch_wrapper as usize as u32, func_ref, payload);
+        let handle = gear_tasks::spawn(dispatch_wrapper as usize as u32, func_ref, payload);
         JoinHandle { inner: handle }
     }
 }
