@@ -18,9 +18,10 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory.
 
-use crate::host::{api::MemoryWrap, context::HostContext};
+use crate::host::{api::MemoryWrap, context::HostContext, threads};
 use anyhow::Result;
 use gear_runtime_interface::{sandbox_detail, Instantiate};
+use hypercore_runtime_common::state::Storage;
 use sp_wasm_interface::{Pointer, StoreData};
 use wasmtime::{Caller, Linker};
 
@@ -60,6 +61,9 @@ fn instantiate(
     let dispatch_thunk_id = dispatch_thunk_id as u32;
 
     let memory = MemoryWrap(caller.data().memory());
+
+    // TODO: remove me (it's only demo).
+    threads::with_db(|db| assert!(db.get_program_code_id(Default::default()).is_none()));
 
     let wasm_code = memory.slice_by_val(&caller, wasm_code).to_vec();
 
