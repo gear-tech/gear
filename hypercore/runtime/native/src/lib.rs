@@ -18,13 +18,15 @@
 
 //! Native runtime implementation.
 
+pub use hypercore_runtime_common::RuntimeInterface;
+
 use gear_core::pages::GearPage;
 use gear_core_processor::configs::BlockInfo;
 use gear_lazy_pages::LazyPagesVersion;
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gprimitives::H256;
-use hypercore_runtime_common::{state::Storage, RuntimeInterface};
+use hypercore_runtime_common::state::Storage;
 use pages_storage::PagesStorage;
 use std::collections::BTreeMap;
 

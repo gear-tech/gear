@@ -50,7 +50,7 @@ use {
 
 pub use gear_sandbox::sandbox;
 #[cfg(feature = "std")]
-pub use gear_sandbox::{detail, init as sandbox_init, Instantiate};
+pub use gear_sandbox::{detail as sandbox_detail, init as sandbox_init, Instantiate};
 
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
@@ -137,14 +137,6 @@ impl LazyPagesStorage for SpIoProgramStorage {
     }
 }
 
-fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
-    let mem_interval_size = mem::size_of::<MemoryInterval>();
-    for chunk in bytes.chunks_exact(mem_interval_size) {
-        // can't panic because of chunks_exact
-        intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());
-    }
-}
-
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
 pub enum ProcessAccessErrorVer1 {
@@ -157,6 +149,43 @@ pub enum ProcessAccessErrorVer1 {
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    #[version(2)]
+    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
+        lazy_pages_detail::pre_process_memory_accesses(reads, writes, gas_bytes)
+    }
+
+    fn lazy_pages_status() -> (Status,) {
+        lazy_pages_detail::lazy_pages_status()
+    }
+
+    /// Init lazy-pages.
+    /// Returns whether initialization was successful.
+    fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
+        lazy_pages_detail::init_lazy_pages(ctx)
+    }
+
+    /// Init lazy pages context for current program.
+    /// Panic if some goes wrong during initialization.
+    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+        lazy_pages_detail::init_lazy_pages_for_program(ctx)
+    }
+
+    /// Mprotect all wasm mem buffer except released pages.
+    /// If `protect` argument is true then restrict all accesses to pages,
+    /// else allows read and write accesses.
+    fn mprotect_lazy_pages(protect: bool) {
+        lazy_pages_detail::mprotect_lazy_pages(protect)
+    }
+
+    fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
+        lazy_pages_detail::change_wasm_memory_addr_and_size(addr, size)
+    }
+
+    fn write_accessed_pages() -> Vec<u32> {
+        lazy_pages_detail::write_accessed_pages()
+    }
+
+    /* Bellow goes deprecated runtime interface functions. */
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
@@ -187,9 +216,13 @@ pub trait GearRI {
             }
         }
     }
+}
 
-    #[version(2)]
-    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
+#[cfg(feature = "std")]
+pub mod lazy_pages_detail {
+    use super::*;
+
+    pub fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
         let mem_interval_size = mem::size_of::<MemoryInterval>();
         let reads_len = reads.len();
         let writes_len = writes.len();
@@ -215,14 +248,14 @@ pub trait GearRI {
         res
     }
 
-    fn lazy_pages_status() -> (Status,) {
+    pub fn lazy_pages_status() -> (Status,) {
         (gear_lazy_pages::status()
             .unwrap_or_else(|err| unreachable!("Cannot get lazy-pages status: {err}")),)
     }
 
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
-    fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
+    pub fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
         use gear_lazy_pages::LazyPagesVersion;
 
         gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), SpIoProgramStorage)
@@ -232,7 +265,7 @@ pub trait GearRI {
 
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
-    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+    pub fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
         let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
             usize::try_from(addr)
                 .unwrap_or_else(|err| unreachable!("Cannot cast wasm mem addr to `usize`: {}", err))
@@ -253,7 +286,7 @@ pub trait GearRI {
     /// Mprotect all wasm mem buffer except released pages.
     /// If `protect` argument is true then restrict all accesses to pages,
     /// else allows read and write accesses.
-    fn mprotect_lazy_pages(protect: bool) {
+    pub fn mprotect_lazy_pages(protect: bool) {
         if protect {
             gear_lazy_pages::set_lazy_pages_protection()
         } else {
@@ -263,18 +296,24 @@ pub trait GearRI {
         .expect("Cannot set/unset mprotection for lazy pages");
     }
 
-    fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
+    pub fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
         // `as usize` is safe, because of const assert above.
         gear_lazy_pages::change_wasm_mem_addr_and_size(addr.map(|addr| addr as usize), size)
             .unwrap_or_else(|err| unreachable!("Cannot set new wasm addr and size: {err}"));
     }
 
-    fn write_accessed_pages() -> Vec<u32> {
+    pub fn write_accessed_pages() -> Vec<u32> {
         gear_lazy_pages::write_accessed_pages()
             .unwrap_or_else(|err| unreachable!("Cannot get write accessed pages: {err}"))
     }
 
-    // Bellow goes deprecated runtime interface functions.
+    fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
+        let mem_interval_size = mem::size_of::<MemoryInterval>();
+        for chunk in bytes.chunks_exact(mem_interval_size) {
+            // can't panic because of chunks_exact
+            intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());
+        }
+    }
 }
 
 /// For debug using in benchmarks testing.

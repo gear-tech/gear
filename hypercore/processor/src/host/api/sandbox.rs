@@ -20,7 +20,7 @@
 
 use crate::host::{api::MemoryWrap, context::HostContext};
 use anyhow::Result;
-use gear_runtime_interface::{detail, Instantiate};
+use gear_runtime_interface::{sandbox_detail, Instantiate};
 use sp_wasm_interface::{Pointer, StoreData};
 use wasmtime::{Caller, Linker};
 
@@ -46,7 +46,7 @@ fn instance_teardown(caller: Caller<'_, StoreData>, instance_idx: i32) {
     log::trace!(target: "host_call", "instance_teardown(instance_idx={instance_idx:?})");
 
     let mut host_context = HostContext { caller };
-    detail::instance_teardown(&mut host_context, instance_idx as u32)
+    sandbox_detail::instance_teardown(&mut host_context, instance_idx as u32)
 }
 
 fn instantiate(
@@ -68,7 +68,7 @@ fn instantiate(
     let state_ptr = Pointer::<u8>::new(state_ptr as u32);
 
     let mut host_context = HostContext { caller };
-    let res = detail::instantiate(
+    let res = sandbox_detail::instantiate(
         &mut host_context,
         dispatch_thunk_id,
         &wasm_code,
@@ -108,7 +108,7 @@ fn invoke(
     let state_ptr = Pointer::<u8>::new(state_ptr as u32);
 
     let mut host_context = HostContext { caller };
-    let res = detail::invoke(
+    let res = sandbox_detail::invoke(
         &mut host_context,
         instance_idx,
         function,
@@ -127,14 +127,14 @@ fn memory_teardown(caller: Caller<'_, StoreData>, memory_idx: i32) {
     log::trace!(target: "host_call", "memory_teardown(memory_idx={memory_idx:?})");
 
     let mut host_context = HostContext { caller };
-    detail::memory_teardown(&mut host_context, memory_idx as u32)
+    sandbox_detail::memory_teardown(&mut host_context, memory_idx as u32)
 }
 
 fn memory_new(caller: Caller<'_, StoreData>, initial: i32, maximum: i32) -> i32 {
     log::trace!(target: "host_call", "memory_new(initial={initial:?}, maximum={maximum:?})");
 
     let mut host_context = HostContext { caller };
-    let res = detail::memory_new(&mut host_context, initial as u32, maximum as u32) as i32;
+    let res = sandbox_detail::memory_new(&mut host_context, initial as u32, maximum as u32) as i32;
 
     log::trace!(target: "host_call", "memory_new(..) -> {res:?}");
 

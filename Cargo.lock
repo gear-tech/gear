@@ -5867,7 +5867,6 @@ name = "gear-lazy-pages-interface"
 version = "1.4.2"
 dependencies = [
  "byteorder",
- "gear-common",
  "gear-core",
  "gear-lazy-pages-common",
  "gear-runtime-interface",
@@ -7227,6 +7226,7 @@ version = "1.4.2"
 dependencies = [
  "gear-core",
  "gear-core-backend",
+ "gear-lazy-pages-interface",
  "gear-sandbox",
  "gear-sandbox-env",
  "gear-wasm-instrument",
