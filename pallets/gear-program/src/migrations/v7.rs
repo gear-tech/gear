@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Pallet, ProgramStorage};
-use common::{Origin, Program};
+use common::Origin;
 use frame_support::{
     traits::{tokens::Pay, Currency, Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
+use gear_core::program::Program;
 #[cfg(feature = "try-runtime")]
 use pallet_balances::Pallet as Balances;
 use pallet_balances::WeightInfo;
@@ -196,10 +197,12 @@ where
 mod tests {
     use super::*;
     use crate::mock::*;
-    use common::{ActiveProgram, ProgramState};
     use frame_support::traits::StorageVersion;
     use frame_system::pallet_prelude::BlockNumberFor;
-    use gear_core::ids::ProgramId;
+    use gear_core::{
+        ids::ProgramId,
+        program::{ActiveProgram, ProgramState},
+    };
     use pallet_treasury::Pallet as Treasury;
     use sp_runtime::traits::Zero;
 
