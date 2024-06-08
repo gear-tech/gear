@@ -17,27 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear protocol node wrapper
-use crate::{utils, Log};
-use anyhow::{anyhow, Result};
+use crate::{utils, Log, NodeInstance};
+use anyhow::Result;
 use std::{
     env,
-    net::SocketAddrV4,
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
 };
 
 const GEAR_BINARY: &str = "gear";
+const FORCE_ARGS: [&str; 3] = ["--dev", "--no-hardware-benchmarks", "--rpc-port"];
 
 /// Gear protocol node wrapper
 pub struct Node {
-    /// Node logs holder
-    log: Log,
     /// Node command
     command: Command,
-    /// Node child process
-    process: Option<Child>,
-    /// Node socket address
-    address: Option<SocketAddrV4>,
+    /// The rpc port of the node if any
+    port: Option<u16>,
+    /// How many logs should the log holder stores
+    logs: Option<usize>,
 }
 
 impl Node {
@@ -50,41 +48,58 @@ impl Node {
     /// Create a new node from path
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self {
-            log: Default::default(),
             command: Command::new(path.as_ref()),
-            process: None,
-            address: None,
+            port: None,
+            logs: None,
         })
     }
 
+    /// Append arguments to the node
+    ///
+    /// NOTE: argument `--dev` is present by default and could not
+    /// be changed, if you are about to run a production node, please
+    /// run the node binary directly.
+    pub fn args(&mut self, args: &[&str]) -> &mut Self {
+        self.command.args(args);
+        self
+    }
+
+    /// Sets the rpc port and returns self.
+    pub fn rpc_port(&mut self, port: u16) -> &mut Self {
+        self.port = Some(port);
+        self
+    }
+
+    /// The log holder stores 256 lines of matched logs
+    /// by default, here in this function we receive a limit
+    /// of the logs and resize the logger on spawning.
+    pub fn logs(&mut self, limit: usize) -> &mut Self {
+        self.logs = Some(limit);
+        self
+    }
+
     /// Spawn the node
-    pub fn spawn(&mut self) -> Result<()> {
-        let port: String = utils::pick().to_string();
+    pub fn spawn(&mut self) -> Result<NodeInstance> {
+        let port = self.port.unwrap_or(utils::pick()).to_string();
         let mut process = self
             .command
             .env(
                 "RUST_LOG",
                 env::var("RUST_LOG").unwrap_or_else(|_| "".into()),
             )
-            .args(["--dev", "--no-hardware-benchmarks", "--rpc-port", &port])
+            .args(FORCE_ARGS)
+            .arg(&port)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
 
-        self.log.spawn(&mut process)?;
-        self.address = Some(format!("{}:{port}", utils::LOCALHOST).parse()?);
-        Ok(())
-    }
-
-    pub fn address(&self) -> Result<SocketAddrV4> {
-        self.address.ok_or(anyhow!("Node has not spawned yet"))
-    }
-}
-
-impl Drop for Node {
-    fn drop(&mut self) {
-        if let Some(mut ps) = self.process.take() {
-            ps.kill().expect("Unable to kill node process.")
-        }
+        let address = format!("{}:{port}", utils::LOCALHOST).parse()?;
+        let mut log = Log::new(self.logs);
+        log.spawn(&mut process)?;
+        Ok(NodeInstance {
+            address,
+            log,
+            process,
+        })
     }
 }

@@ -18,9 +18,11 @@
 
 //! Gear protocol node wrapper
 
+mod instance;
 mod log;
 mod node;
 mod utils;
 
-use log::Log;
+pub use instance::NodeInstance;
+pub use log::Log;
 pub use node::Node;
