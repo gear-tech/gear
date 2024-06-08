@@ -33,6 +33,11 @@ async fn main() -> anyhow::Result<()> {
     let args = {
         let cli_args = Args::parse();
         if fs::metadata(&optional_config_path).is_ok() {
+            // logging might be uninizialized at this point due to it might depend on args.
+            println!(
+                "❗️❗️Using configuration path: {}",
+                optional_config_path.display()
+            );
             let str = fs::read_to_string(optional_config_path)?;
             let mut file_args: Args = toml::from_str(&str)?;
             file_args.extra_command = cli_args.extra_command;
