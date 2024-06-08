@@ -5,6 +5,7 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {IProgram} from "./IProgram.sol";
+import {IWrappedVara} from "./IWrappedVara.sol";
 
 contract Router {
     using ECDSA for bytes32;
@@ -12,6 +13,8 @@ contract Router {
 
     uint256 public constant COUNT_OF_VALIDATORS = 1;
     uint256 public constant REQUIRED_SIGNATURES = 1;
+
+    address public constant WRAPPED_VARA = 0x6377Bf194281FF2b14e807CC3740ac937744406f;
 
     address public owner;
     address public program;
@@ -77,6 +80,9 @@ contract Router {
     {
         require(codeIds[codeId], "unknown codeId");
         address actorId = Clones.cloneDeterministic(program, keccak256(abi.encodePacked(salt, codeId)), msg.value);
+        IWrappedVara wrappedVara = IWrappedVara(WRAPPED_VARA);
+        bool success = wrappedVara.transferFrom(msg.sender, address(this), wrappedVara.gasToValue(gasLimit));
+        require(success, "failed to transfer tokens");
         emit CreateProgram(tx.origin, actorId, codeId, salt, initPayload, gasLimit, uint128(msg.value));
     }
 
