@@ -147,8 +147,7 @@ impl ExtraCommands {
                 let key_list = signer.list_keys()?;
 
                 if key_list.is_empty() {
-                    println!("No keys found, please generate a key first");
-                    return Ok(());
+                    anyhow::bail!("No keys found, please generate a key first");
                 }
 
                 println!("Signing with all ({}) keys:", key_list.len());
@@ -171,8 +170,7 @@ impl ExtraCommands {
                 )?;
 
                 let Some(key) = signer.get_key_by_addr(sender_address)? else {
-                    println!("No key found for 0x{}", sender_address.to_hex());
-                    return Ok(());
+                    anyhow::bail!("No key found for 0x{}", sender_address.to_hex());
                 };
 
                 println!(

@@ -18,7 +18,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use gear_core::{code::Code, ids::prelude::*};
+use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::Schedule;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use hypercore_signer::{PublicKey, Signature as HypercoreSignature, Signer as HypercoreSigner};
@@ -228,7 +228,7 @@ impl Router {
 
     pub async fn upload_code_with_sidecar(&self, code: &[u8]) -> Result<H256> {
         let schedule = Schedule::default();
-        Code::try_new(
+        let code = Code::try_new(
             code.to_vec(),
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
@@ -236,11 +236,12 @@ impl Router {
             schedule.limits.data_segments_amount.into(),
         )
         .map_err(|err| anyhow!("failed to validate code: {err}"))?;
+        let (code, code_id) = CodeAndId::new(code).into_parts();
 
         let builder = self
             .0
-            .uploadCode(B256::new(CodeId::generate(code).into_bytes()), B256::ZERO)
-            .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
+            .uploadCode(B256::new(code_id.into_bytes()), B256::ZERO)
+            .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code.original_code()).build()?);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
