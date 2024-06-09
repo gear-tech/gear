@@ -7114,6 +7114,7 @@ dependencies = [
  "env_logger",
  "futures",
  "hypercore-db",
+ "hypercore-ethereum",
  "hypercore-network",
  "hypercore-observer",
  "hypercore-processor",
@@ -7149,6 +7150,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "gear-core",
+ "gear-wasm-instrument",
  "gprimitives",
  "hypercore-signer",
 ]

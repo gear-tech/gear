@@ -19,8 +19,10 @@
 //! CLI arguments in one place.
 
 use clap::{Parser, Subcommand};
+use hypercore_ethereum::{Router, Sender};
+use hypercore_signer::Address;
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use crate::params::NetworkParams;
 
@@ -97,6 +99,7 @@ pub enum ExtraCommands {
     ListKeys,
     ClearKeys,
     Sign(SigningArgs),
+    UploadCode(UploadCodeArgs),
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -104,8 +107,14 @@ pub struct SigningArgs {
     message: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Parser)]
+pub struct UploadCodeArgs {
+    path: PathBuf,
+    sender: String,
+}
+
 impl ExtraCommands {
-    pub fn run(&self, config: &config::Config) -> anyhow::Result<()> {
+    pub async fn run(&self, config: &config::Config) -> anyhow::Result<()> {
         let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
 
         match self {
@@ -149,6 +158,40 @@ impl ExtraCommands {
                     println!("Signature: {}", &signer.sign(*key, message.as_bytes())?);
                     println!("--------------------------------------------");
                 }
+            }
+
+            ExtraCommands::UploadCode(ref upload_code_args) => {
+                let path = &upload_code_args.path;
+                let sender_address = Address::from_hex(
+                    if let Some(sender) = upload_code_args.sender.strip_prefix("0x") {
+                        sender
+                    } else {
+                        &upload_code_args.sender
+                    },
+                )?;
+
+                let Some(key) = signer.get_key_by_addr(sender_address)? else {
+                    println!("No key found for 0x{}", sender_address.to_hex());
+                    return Ok(());
+                };
+
+                println!(
+                    "Uploading {} to Ethereum from 0x{}...",
+                    path.display(),
+                    sender_address.to_hex(),
+                );
+
+                let router = Router::new(
+                    &config.ethereum_router_address,
+                    &config.ethereum_rpc,
+                    Sender::new(signer.clone(), key),
+                )
+                .await?;
+
+                let code = fs::read(path)?;
+                let tx = router.upload_code_with_sidecar(&code).await?;
+
+                println!("Completed in transaction {tx:?}");
             }
         }
 

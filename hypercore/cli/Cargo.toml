@@ -30,5 +30,6 @@ hypercore-observer.workspace = true
 hypercore-processor.workspace = true
 hypercore-signer.workspace = true
 hypercore-sequencer.workspace = true
+hypercore-ethereum.workspace = true
 static_init = "1.0.3"
 tempfile.workspace = true
