@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::wasm::interface;
 use core::alloc::{GlobalAlloc, Layout};
 
-mod sys {
-    extern "C" {
-        pub(super) fn ext_allocator_free_version_1(ptr: *mut u8);
-        pub(super) fn ext_allocator_malloc_version_1(size: i32) -> *mut u8;
-    }
+interface::declare! {
+    pub(super) fn ext_allocator_free_version_1(ptr: *mut u8);
+    pub(super) fn ext_allocator_malloc_version_1(size: i32) -> *mut u8;
 }
 
 pub fn free(ptr: *mut u8) {

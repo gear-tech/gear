@@ -16,46 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: Replace `feature = "cargo-clippy"` with `clippy`, once moved repo,
-// or at least `hypercore-*` crates, on stable or latest nightly in toml.
-#![no_std]
-#![cfg_attr(feature = "cargo-clippy", deny(warnings), allow(unused))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-/* Error when compiling wasm module not for wasm. */
-#[cfg(all(feature = "wasm", not(target_arch = "wasm32")))]
-compile_error!("Building runtime with \"-F wasm\", but not for \"wasm32\" target, is forbidden!");
-
-/* Binary exports when building as export lib in native */
-#[cfg(all(not(feature = "wasm"), not(feature = "cargo-clippy")))]
+#[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-#[cfg(all(not(feature = "wasm"), feature = "cargo-clippy"))]
-pub const WASM_BINARY: Option<&[u8]> = None;
-
-#[cfg(all(not(feature = "wasm"), feature = "cargo-clippy"))]
-pub const WASM_BINARY_BLOATY: Option<&[u8]> = None;
-
-#[cfg(all(feature = "wasm", target_arch = "wasm32",))]
 extern crate alloc;
 
-#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 mod wasm {
-    use core::panic::PanicInfo;
     use interface::{allocator_ri::RuntimeAllocator, logging_ri::RuntimeLogger};
 
     mod api;
     mod interface;
 
-    #[global_allocator]
-    pub static ALLOCATOR: RuntimeAllocator = RuntimeAllocator;
+    #[cfg_attr(target_arch = "wasm32", global_allocator)]
+    #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
+    static ALLOCATOR: RuntimeAllocator = RuntimeAllocator;
 
+    #[cfg(target_arch = "wasm32")]
     #[no_mangle]
     extern "C" fn _start() {
+        __start()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
+    fn __start() {
         RuntimeLogger::init();
     }
 
+    #[cfg(target_arch = "wasm32")]
     #[panic_handler]
-    fn panic_handler(info: &PanicInfo) -> ! {
+    fn panic_handler(info: &core::panic::PanicInfo) -> ! {
         log::error!("{info}");
         core::arch::wasm32::unreachable()
     }

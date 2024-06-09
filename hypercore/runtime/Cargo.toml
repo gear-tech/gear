@@ -8,38 +8,31 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-# Once you append any dependency, make sure to put it under "wasm" feature.
-
 ## Operational deps.
-log = { workspace = true, optional = true }
-parity-scale-codec = { workspace = true, optional = true }
+log.workspace = true
+parity-scale-codec.workspace = true
 
 ## Gear deps.
-gear-core = { workspace = true, optional = true }
-gear-core-backend = { workspace = true, optional = true }
-gear-lazy-pages-interface = { workspace = true, optional = true }
-gear-sandbox = { workspace = true, optional = true }
-gear-sandbox-env = { workspace = true, optional = true }
-gear-wasm-instrument = { workspace = true, optional = true }
-gprimitives = { workspace = true, optional = true }
+gear-core.workspace = true
+gear-core-backend.workspace = true
+gear-lazy-pages-interface.workspace = true
+gear-sandbox.workspace = true
+gear-sandbox-env.workspace = true
+gear-wasm-instrument.workspace = true
+gprimitives.workspace = true
 
 [build-dependencies]
 substrate-wasm-builder.workspace = true
 
 [features]
-default = []
-wasm = [
-    ## Operational deps.
-    "dep:log",
-    "dep:parity-scale-codec",
-
-    # Gear deps.
-    "dep:gear-core",
-    "dep:gear-core-backend",
-    "dep:gear-lazy-pages-interface",
-    "dep:gear-sandbox",
-    "dep:gear-sandbox-env",
-    "dep:gear-wasm-instrument",
-    "dep:gprimitives",
+default = ["std"]
+std = [
+    "log/std",
+    "parity-scale-codec/std",
+    "gear-core/std",
+    "gear-core-backend/std",
+    "gear-lazy-pages-interface/std",
+    "gear-sandbox/std",
+    "gear-sandbox-env/std",
+    "gear-wasm-instrument/std",
 ]
-cargo-clippy = []

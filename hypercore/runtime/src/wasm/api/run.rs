@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
-use gear_lazy_pages_interface::{LazyPagesInterface as _, LazyPagesRuntimeInterface};
 use gear_sandbox::{
-    host_executor::{Caller, EnvironmentDefinitionBuilder, Instance, Memory, Store},
+    default_executor::{Caller, EnvironmentDefinitionBuilder, Instance, Memory, Store},
     HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
     SandboxStore, Value,
 };
@@ -57,17 +56,6 @@ pub fn run(code: Vec<u8>) {
     env_def_builder.add_host_func("env", "gr_reply", reply_mock);
 
     let mut instance = Instance::new(&mut store, code.as_ref(), &env_def_builder).unwrap();
-
-    let arr: &[u8] = &[];
-    let mut gas = 0;
-
-    // TODO: init lazy pages for program.
-    // assert!(LazyPagesRuntimeInterface::pre_process_memory_accesses(
-    //     arr.as_ref(),
-    //     arr.as_ref(),
-    //     &mut gas
-    // )
-    // .is_err());
 
     let res = instance.invoke(&mut store, "init", &[]).unwrap();
     log::debug!("Sandbox execution result = {res:?}");
