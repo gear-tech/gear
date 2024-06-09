@@ -10,7 +10,21 @@ use gear_core::{
 use gear_core_errors::SignalCode;
 use gprimitives::{MessageId, ReservationId};
 
-use crate::{receipts::Receipt, state::Storage, DispatchExecutionContext, RuntimeInterface};
+use crate::{
+    receipts::Receipt,
+    state::{InitStatus, Storage},
+    DispatchExecutionContext, ProgramContext, RuntimeInterface,
+};
+
+fn remove_reservation_map(program_context: &mut ProgramContext) {
+    let ProgramContext::Executable(ctx) = program_context else {
+        unreachable!("Remove reservation map on non-executable program");
+    };
+    if ctx.gas_reservation_map.is_empty() {
+        return;
+    }
+    todo!("Return reserved gas");
+}
 
 impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionContext<'_, S, RI> {
     fn message_dispatched(
@@ -21,14 +35,36 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     ) {
         match outcome {
             DispatchOutcome::Exit { .. } => todo!(),
-            DispatchOutcome::InitSuccess { .. } => todo!(),
-            DispatchOutcome::InitFailure { .. } => todo!(),
+            DispatchOutcome::InitSuccess { program_id } => {
+                log::trace!("Dispatch {message_id:?} init success for program {program_id:?}");
+                if program_id != self.program_id {
+                    unreachable!("Program ID mismatch");
+                }
+                let ProgramContext::Executable(ctx) = self.program_context else {
+                    unreachable!("Init success on non-executable program");
+                };
+                ctx.status = InitStatus::Initialized;
+            }
+            DispatchOutcome::InitFailure {
+                program_id,
+                origin,
+                reason,
+            } => {
+                log::trace!(
+                    "Dispatch {message_id:?} init failure for program {program_id:?}: {reason}"
+                );
+                if program_id != self.program_id {
+                    unreachable!("Program ID mismatch");
+                }
+                remove_reservation_map(self.program_context);
+                *self.program_context = ProgramContext::Terminated(origin);
+            }
             DispatchOutcome::MessageTrap { .. } => todo!(),
             DispatchOutcome::Success => {
                 // TODO: Implement
             }
             DispatchOutcome::NoExecution => {
-                // TODO: Implement
+                todo!()
             }
         }
     }
@@ -47,7 +83,10 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        todo!()
+        if self.program_id != id_exited {
+            unreachable!("Program ID mismatch");
+        }
+        *self.program_context = ProgramContext::Exited(value_destination);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -67,7 +106,7 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         if delay != 0 {
             todo!()
         }
-        self.program_context.receipts.push(Receipt::SendDispatch {
+        self.receipts.push(Receipt::SendDispatch {
             id: message_id,
             dispatch,
         });
@@ -97,36 +136,46 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         program_id: ProgramId,
         pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        if program_id != self.program_context.program_id {
+        let ProgramContext::Executable(ctx) = self.program_context else {
+            unreachable!("Update pages data on non-executable program");
+        };
+        if program_id != self.program_id {
             unreachable!("Program ID mismatch");
         }
         for (page, data) in pages_data {
             let hash = self.ri.storage().write_page_data(data);
-            self.program_context.pages_map.insert(page, hash);
+            ctx.pages_map.insert(page, hash);
         }
     }
 
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        if program_id != self.program_context.program_id {
+        let ProgramContext::Executable(ctx) = self.program_context else {
+            unreachable!("Update allocations on non-executable program");
+        };
+        if program_id != self.program_id {
             unreachable!("Program ID mismatch");
         }
-        for page in self
-            .program_context
+        for page in ctx
             .allocations
             .difference(&allocations)
             .flat_map(|i| i.iter())
             .flat_map(|p| p.to_iter())
         {
-            let _ = self.program_context.pages_map.remove(&page);
+            let _ = ctx.pages_map.remove(&page);
         }
-        self.program_context.allocations = allocations;
+        ctx.allocations = allocations;
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         let to = to.unwrap_or(from);
-        self.program_context
-            .receipts
-            .push(Receipt::SendValue { from, to, value });
+        match self.program_context {
+            ProgramContext::Executable(ctx) if self.program_id == to => {
+                ctx.balance.saturating_add(value);
+            }
+            _ => {
+                self.receipts.push(Receipt::SendValue { from, to, value });
+            }
+        };
     }
 
     fn store_new_programs(

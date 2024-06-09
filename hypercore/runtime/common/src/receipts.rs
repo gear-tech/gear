@@ -24,6 +24,7 @@ use gear_core::{
 };
 use gprimitives::MessageId;
 
+#[derive(Debug)]
 pub enum Receipt {
     SendValue {
         from: ProgramId,
