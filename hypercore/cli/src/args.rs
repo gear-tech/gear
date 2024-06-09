@@ -20,7 +20,7 @@
 
 use clap::{Parser, Subcommand};
 use hypercore_ethereum::{Router, Sender};
-use hypercore_signer::Address;
+use hypercore_signer::{Address, PrivateKey};
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
 
@@ -98,6 +98,7 @@ pub enum ExtraCommands {
     GenerateKey,
     ListKeys,
     ClearKeys,
+    InsertKey(InsertKeyArgs),
     Sign(SigningArgs),
     UploadCode(UploadCodeArgs),
 }
@@ -105,6 +106,11 @@ pub enum ExtraCommands {
 #[derive(Clone, Debug, Deserialize, Parser)]
 pub struct SigningArgs {
     message: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Parser)]
+pub struct InsertKeyArgs {
+    key_uri: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -157,6 +163,22 @@ impl ExtraCommands {
                     println!("Signature: {}", &signer.sign(*key, message.as_bytes())?);
                     println!("--------------------------------------------");
                 }
+            }
+
+            ExtraCommands::InsertKey(ref insert_key_args) => {
+                let key_uri = &insert_key_args.key_uri;
+
+                let private_hex = PrivateKey::from_hex(
+                    if let Some(sender) = insert_key_args.key_uri.strip_prefix("0x") {
+                        sender
+                    } else {
+                        &insert_key_args.key_uri
+                    },
+                )?;
+                let pub_key = signer.add_key(private_hex)?;
+
+                println!("Key inserted: {}", pub_key);
+                println!("Ethereum address: {}", pub_key.to_address());
             }
 
             ExtraCommands::UploadCode(ref upload_code_args) => {
