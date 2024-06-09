@@ -18,8 +18,9 @@
 
 //! Abstract commitment aggregator.
 
+use anyhow::Result;
 use gprimitives::H256;
-use hypercore_signer::{hash, Address, Signature};
+use hypercore_signer::{hash, Address, PublicKey, Signature, Signer};
 use std::collections::HashMap;
 
 pub trait SeqHash {
@@ -45,7 +46,7 @@ pub struct AggregatedQueue<D: SeqHash> {
 }
 
 #[derive(Debug, Clone)]
-pub struct CodeHashCommitment(H256);
+pub struct CodeHashCommitment(pub H256);
 
 // identity hashing
 impl SeqHash for CodeHashCommitment {
@@ -61,6 +62,33 @@ impl<D: SeqHash> AggregatedCommitments<D> {
             array.extend_from_slice(commitment.hash().as_ref());
         }
         hash(&array)
+    }
+}
+
+impl<T: SeqHash> SeqHash for Vec<T> {
+    fn hash(&self) -> H256 {
+        let mut array = Vec::new();
+        for commitment in self {
+            array.extend_from_slice(commitment.hash().as_ref());
+        }
+        hash(&array)
+    }
+}
+
+impl<T: SeqHash> AggregatedCommitments<T> {
+    pub fn aggregate_commitments(
+        commitments: Vec<T>,
+        signer: &Signer,
+        pub_key: PublicKey,
+    ) -> Result<AggregatedCommitments<T>> {
+        let mut aggregated = AggregatedCommitments {
+            commitments,
+            signature: Signature::default(),
+        };
+
+        aggregated.signature = signer.sign(pub_key, aggregated.commitments.hash().as_ref())?;
+
+        Ok(aggregated)
     }
 }
 

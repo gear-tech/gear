@@ -18,9 +18,13 @@
 
 //! Main service in hypercore node.
 
-use crate::config::{Config, SequencerConfig};
+use crate::config::{Config, SequencerConfig, ValidatorConfig};
 use anyhow::Result;
 use futures::{future, stream::StreamExt};
+use gprimitives::H256;
+use hypercore_processor::LocalOutcome;
+use hypercore_sequencer::{AggregatedCommitments, CodeHashCommitment};
+use hypercore_signer::PublicKey;
 use tokio::{signal, time};
 
 /// Hypercore service.
@@ -31,6 +35,7 @@ pub struct Service {
     processor: hypercore_processor::Processor,
     signer: hypercore_signer::Signer,
     sequencer: Option<hypercore_sequencer::Sequencer>,
+    validator: Option<PublicKey>,
 }
 
 async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
@@ -68,6 +73,13 @@ impl Service {
             SequencerConfig::Disabled => None,
         };
 
+        let validator = if let ValidatorConfig::Enabled(key) = &config.validator {
+            log::info!("Validator key: {}", key);
+            Some(PublicKey::from_hex(key)?)
+        } else {
+            None
+        };
+
         Ok(Self {
             db,
             network,
@@ -75,6 +87,7 @@ impl Service {
             processor,
             sequencer,
             signer,
+            validator,
         })
     }
 
@@ -82,8 +95,13 @@ impl Service {
         processor: &mut hypercore_processor::Processor,
         maybe_sequencer: &mut Option<hypercore_sequencer::Sequencer>,
         observer_event: &hypercore_observer::Event,
+        outcomes: &mut Vec<LocalOutcome>,
     ) -> Result<()> {
-        processor.process_observer_event(observer_event)?;
+        outcomes.extend(
+            processor
+                .process_observer_event(observer_event)?
+                .into_iter(),
+        );
 
         if let Some(sequencer) = maybe_sequencer {
             sequencer.process_observer_event(observer_event)?;
@@ -92,15 +110,37 @@ impl Service {
         Ok(())
     }
 
+    fn push_commitment(
+        sequencer: &mut hypercore_sequencer::Sequencer,
+        signer: &hypercore_signer::Signer,
+        pub_key: PublicKey,
+        outcomes: &[LocalOutcome],
+    ) -> Result<()> {
+        let mut code_commitments = Vec::new();
+        for outcome in outcomes {
+            match outcome {
+                LocalOutcome::CodeCommitment(code_id) => {
+                    code_commitments.push(CodeHashCommitment(H256::from(code_id.into_bytes())))
+                }
+            }
+        }
+        let aggregated_commitments =
+            AggregatedCommitments::aggregate_commitments(code_commitments, signer, pub_key)?;
+        sequencer.receive_codes_commitment(pub_key.to_address(), aggregated_commitments)
+    }
+
     pub async fn run(self) -> Result<()> {
         let Service {
-            db,
+            db: _db,
             network,
             mut observer,
             mut processor,
             mut sequencer,
             signer,
+            validator,
         } = self;
+
+        let mut outcomes: Vec<LocalOutcome> = Vec::new();
 
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
@@ -121,8 +161,14 @@ impl Service {
                         Self::process_observer_event(
                             &mut processor,
                             &mut sequencer,
-                            &observer_event
+                            &observer_event,
+                            &mut outcomes,
                         ).await?;
+
+                        if let Some(sequencer) = sequencer.as_mut() {
+                            Self::push_commitment(sequencer, &signer, validator.unwrap(), &outcomes)?;
+                            outcomes.clear();
+                        }
 
                         delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
                     } else {
