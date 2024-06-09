@@ -20,12 +20,12 @@
 
 mod agro;
 
-use agro::{Aggregator, CodeHashCommitment, MultisignedCommitments};
+use agro::{Aggregator, MultisignedCommitments};
 use anyhow::Result;
 use hypercore_observer::Event;
 use hypercore_signer::{Address, Signer};
 
-pub use agro::AggregatedCommitments;
+pub use agro::{AggregatedCommitments, CodeHashCommitment};
 
 pub struct Config {
     pub ethereum_rpc: String,
@@ -105,6 +105,7 @@ impl Sequencer {
         origin: Address,
         commitments: AggregatedCommitments<CodeHashCommitment>,
     ) -> Result<()> {
+        log::debug!("Received codes commitment from {}", origin);
         self.codes_aggregation.push(origin, commitments);
         Ok(())
     }

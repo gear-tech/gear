@@ -29,20 +29,21 @@ use tempfile::TempDir;
 #[static_init::dynamic(drop, lazy)]
 static mut BASE_PATH_TEMP: Option<TempDir> = None;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum SequencerConfig {
     Enabled(String),
     #[default]
     Disabled,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum ValidatorConfig {
     Enabled(String),
     #[default]
     Disabled,
 }
 
+#[derive(Debug)]
 pub struct Config {
     /// RPC of the Ethereum endpoint
     pub ethereum_rpc: String,
