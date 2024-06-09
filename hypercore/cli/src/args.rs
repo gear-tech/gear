@@ -20,7 +20,6 @@
 
 use clap::{Parser, Subcommand};
 use hypercore_ethereum::{Router, Sender};
-use hypercore_signer::{Address, PrivateKey};
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
 
@@ -166,15 +165,7 @@ impl ExtraCommands {
             }
 
             ExtraCommands::InsertKey(ref insert_key_args) => {
-                let key_uri = &insert_key_args.key_uri;
-
-                let private_hex = PrivateKey::from_hex(
-                    if let Some(sender) = insert_key_args.key_uri.strip_prefix("0x") {
-                        sender
-                    } else {
-                        &insert_key_args.key_uri
-                    },
-                )?;
+                let private_hex = insert_key_args.key_uri.parse()?;
                 let pub_key = signer.add_key(private_hex)?;
 
                 println!("Key inserted: {}", pub_key);
@@ -183,22 +174,15 @@ impl ExtraCommands {
 
             ExtraCommands::UploadCode(ref upload_code_args) => {
                 let path = &upload_code_args.path;
-                let sender_address = Address::from_hex(
-                    if let Some(sender) = upload_code_args.sender.strip_prefix("0x") {
-                        sender
-                    } else {
-                        &upload_code_args.sender
-                    },
-                )?;
+                let sender_address = upload_code_args.sender.parse()?;
 
                 let Some(key) = signer.get_key_by_addr(sender_address)? else {
-                    anyhow::bail!("No key found for 0x{}", sender_address.to_hex());
+                    anyhow::bail!("No key found for {sender_address}");
                 };
 
                 println!(
-                    "Uploading {} to Ethereum from 0x{}...",
+                    "Uploading {} to Ethereum from {sender_address}...",
                     path.display(),
-                    sender_address.to_hex(),
                 );
 
                 let router = Router::new(
