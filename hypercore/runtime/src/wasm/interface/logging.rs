@@ -17,16 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::utils;
+use crate::wasm::interface;
 use alloc::vec::Vec;
 use core::fmt::{self, Write};
 use log::{Level, LevelFilter, Metadata, Record};
 
-mod sys {
-    extern "C" {
-        pub(super) fn ext_logging_log_v1(level: i32, target: i64, message: i64);
-
-        pub(super) fn ext_logging_max_level_v1() -> i32;
-    }
+interface::declare! {
+    pub(super) fn ext_logging_log_v1(level: i32, target: i64, message: i64);
+    pub(super) fn ext_logging_max_level_v1() -> i32;
 }
 
 pub fn log(level: Level, target: &str, message: &[u8]) {

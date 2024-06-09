@@ -32,3 +32,45 @@ pub(crate) mod utils {
         unsafe { core::mem::transmute([ptr, len]) }
     }
 }
+
+macro_rules! declare {
+    (
+        $(
+            $(#[$attrs:meta])*
+            $vis:vis fn $symbol:ident(
+                $($arg_name:ident: $arg_ty:ty),* $(,)?
+            ) $(-> $ret_ty:ty)?;
+        )*
+    ) => {
+        mod sys {
+            #[allow(unused)]
+            use super::*;
+
+            #[allow(improper_ctypes)]
+            extern "C" {
+                $(
+                    $(#[$attrs])*
+                    $vis fn $symbol($($arg_name: $arg_ty),*) $(-> $ret_ty)?;
+                )*
+            }
+
+            #[cfg(not(target_arch = "wasm32"))]
+            mod sys_impl {
+                #[allow(unused)]
+                use super::*;
+
+                $(
+                    #[no_mangle]
+                    $vis extern "C" fn $symbol($(_: $arg_ty),*) $(-> $ret_ty)? {
+                        unimplemented!(concat!(
+                            stringify!($symbol),
+                            " syscall is only available for wasm32-unknown-unknown target"
+                        ))
+                    }
+                )*
+            }
+        }
+    };
+}
+
+pub(crate) use declare;

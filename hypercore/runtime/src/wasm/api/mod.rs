@@ -23,23 +23,55 @@ mod instrument;
 mod run;
 mod verify;
 
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 extern "C" fn instrument(code_ptr: i32, code_len: i32) -> i64 {
-    let code = unsafe { Vec::from_raw_parts(code_ptr as _, code_len as usize, code_len as usize) };
-    return_val(instrument::instrument(code))
+    _instrument(code_ptr, code_len)
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
+fn _instrument(code_ptr: i32, code_len: i32) -> i64 {
+    let code = get_vec(code_ptr, code_len);
+
+    let res = instrument::instrument(code);
+
+    return_val(res)
+}
+
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
-extern "C" fn run(code_ptr: i32, code_len: i32) -> i64 {
-    let code = unsafe { Vec::from_raw_parts(code_ptr as _, code_len as usize, code_len as usize) };
-    return_val(run::run(code))
+extern "C" fn run(instrumented_code_ptr: i32, instrumented_code_len: i32) -> i64 {
+    _run(instrumented_code_ptr, instrumented_code_len)
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
+fn _run(instrumented_code_ptr: i32, instrumented_code_len: i32) -> i64 {
+    let instrumented_code = get_vec(instrumented_code_ptr, instrumented_code_len);
+
+    #[allow(clippy::let_unit_value)]
+    let res = run::run(instrumented_code);
+
+    #[allow(clippy::unit_arg)]
+    return_val(res)
+}
+
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 extern "C" fn verify(code_ptr: i32, code_len: i32) -> i64 {
-    let code =
-        unsafe { Vec::from_raw_parts(code_ptr as *mut u8, code_len as usize, code_len as usize) };
-    return_val(verify::verify(code))
+    _verify(code_ptr, code_len)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
+fn _verify(code_ptr: i32, code_len: i32) -> i64 {
+    let code = get_vec(code_ptr, code_len);
+
+    let res = verify::verify(code);
+
+    return_val(res)
+}
+
+fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
+    unsafe { Vec::from_raw_parts(ptr as _, len as usize, len as usize) }
 }
 
 fn return_val(val: impl Encode) -> i64 {

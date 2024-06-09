@@ -17,22 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
-    #[cfg(all(not(feature = "wasm"), not(feature = "cargo-clippy")))]
-    {
-        substrate_wasm_builder::WasmBuilder::new()
-            .with_current_project()
-            .disable_runtime_version_section_check()
-            .enable_feature("wasm")
-            .build();
-    }
-
-    #[cfg(all(not(feature = "wasm"), feature = "cargo-clippy"))]
-    {
-        substrate_wasm_builder::WasmBuilder::new()
-            .with_current_project()
-            .disable_runtime_version_section_check()
-            .enable_feature("wasm")
-            .enable_feature("cargo-clippy")
-            .build();
-    }
+    #[cfg(feature = "std")]
+    substrate_wasm_builder::WasmBuilder::new()
+        .with_current_project()
+        .disable_runtime_version_section_check()
+        .build();
 }
