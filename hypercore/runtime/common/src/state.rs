@@ -33,6 +33,8 @@ use gear_core::{
 use gprimitives::{CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
+pub use gear_core::program::ProgramState as InitStatus;
+
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct HashAndLen {
     pub hash: H256,
@@ -71,19 +73,34 @@ impl MaybeHash {
     }
 }
 
-/// Hypercore program state.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct ProgramState {
-    /// Hash of incoming message queue, see [`MessageQueue`].
-    pub queue_hash: MaybeHash,
-    /// Wasm memory pages allocations.
+pub struct ActiveProgram {
+    /// Hash of wasm memory pages allocations, see [`Allocations`].
     pub allocations_hash: MaybeHash,
     /// Hash of memory pages table, see [`MemoryPages`].
     pub pages_hash: MaybeHash,
-    /// Gas reservations map.
+    /// Hash of gas reservations map, see [`GasReservationMap`].
     pub gas_reservation_map_hash: MaybeHash,
     /// Program memory infix.
     pub memory_infix: MemoryInfix,
+    /// Program initialization status.
+    pub status: InitStatus,
+}
+
+#[derive(Clone, Debug, Decode, Encode)]
+pub enum Program {
+    Active(ActiveProgram),
+    Exited(ProgramId),
+    Terminated(ProgramId),
+}
+
+/// Hypercore program state.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ProgramState {
+    /// Active, exited or terminated program state.
+    pub state: Program,
+    /// Hash of incoming message queue, see [`MessageQueue`].
+    pub queue_hash: MaybeHash,
     /// Balance
     pub balance: Value,
 }
@@ -108,8 +125,7 @@ pub struct Dispatch {
     pub context: Option<ContextStore>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, Default)]
-pub struct MessageQueue(pub Vec<Dispatch>);
+pub type MessageQueue = Vec<Dispatch>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 

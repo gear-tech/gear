@@ -40,7 +40,7 @@ pub struct Processor {
     db: Database,
 }
 
-/// Local changes that can be commited to the network or local signer.
+/// Local changes that can be committed to the network or local signer.
 pub enum LocalOutcome {
     /// Produced when code with specific id is recorded and available in database.
     CodeCommitment(CodeId),
@@ -130,12 +130,16 @@ impl Processor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::message::{DispatchKind, Payload};
+    use gear_core::{
+        message::{DispatchKind, Payload},
+        program::ProgramState as InitStatus,
+    };
+    use gprimitives::{ActorId, MessageId};
     use hypercore_db::MemDb;
     use hypercore_runtime_native::{
         hypercore_runtime_common::receipts::Receipt,
         process_program,
-        state::{Dispatch, MaybeHash, MessageQueue, ProgramState},
+        state::{self, Dispatch, MaybeHash, ProgramState},
         NativeRuntimeInterface,
     };
     use wabt::wat2wasm;
@@ -257,10 +261,10 @@ mod tests {
         let payload = Payload::try_from(b"PING".to_vec()).unwrap();
         let payload_hash = processor.db.write_payload(payload);
 
-        let dispatch = Dispatch {
-            id: Default::default(),
-            kind: DispatchKind::Handle,
-            source: Default::default(),
+        let init_dispatch = Dispatch {
+            id: MessageId::from(1),
+            kind: DispatchKind::Init,
+            source: ActorId::from(10),
             payload_hash: payload_hash.into(),
             gas_limit: 1_000_000_000,
             value: 1,
@@ -268,29 +272,49 @@ mod tests {
             context: None,
         };
 
-        let queue = MessageQueue(vec![dispatch]);
+        let dispatch = Dispatch {
+            id: MessageId::from(2),
+            kind: DispatchKind::Handle,
+            source: ActorId::from(20),
+            payload_hash: payload_hash.into(),
+            gas_limit: 1_000_000_000,
+            value: 1,
+            details: None,
+            context: None,
+        };
+
+        // TODO: queue is vec so init dispatch is after handle
+        let queue = vec![dispatch, init_dispatch];
         let queue_hash = processor.db.write_queue(queue);
 
-        let program_state = ProgramState {
-            queue_hash: queue_hash.into(),
+        let active_program = state::ActiveProgram {
             allocations_hash: MaybeHash::Empty,
             pages_hash: MaybeHash::Empty,
             gas_reservation_map_hash: MaybeHash::Empty,
             memory_infix: Default::default(),
+            status: InitStatus::Uninitialized {
+                message_id: MessageId::from(1),
+            },
+        };
+
+        let program_state = ProgramState {
+            state: state::Program::Active(active_program),
+            queue_hash: queue_hash.into(),
             balance: 0,
         };
 
         let ri = NativeRuntimeInterface::new(&processor.db);
         let (_, receipts) = process_program(program_id, program_state, &ri);
+        let mut pongs_amount = 0;
         for receipt in receipts.into_iter() {
             if let Receipt::SendDispatch { dispatch, .. } = receipt {
-                assert_eq!(
-                    String::from_utf8(dispatch.message().payload_bytes().to_vec()),
-                    Ok("PONG".to_string())
-                );
-                return;
+                if String::from_utf8(dispatch.message().payload_bytes().to_vec())
+                    == Ok("PONG".to_string())
+                {
+                    pongs_amount += 1;
+                }
             }
         }
-        panic!("No SendDispatch receipt found");
+        assert_eq!(pongs_amount, 2);
     }
 }
