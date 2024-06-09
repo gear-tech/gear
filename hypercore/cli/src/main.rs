@@ -57,7 +57,7 @@ async fn main() -> anyhow::Result<()> {
     print_info(&config);
 
     if let Some(extra_command) = args.extra_command {
-        extra_command.run(&config)?;
+        extra_command.run(&config).await?;
     } else {
         let service = Service::new(&config).await?;
 

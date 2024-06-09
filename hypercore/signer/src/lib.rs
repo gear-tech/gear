@@ -92,6 +92,23 @@ impl PublicKey {
     }
 }
 
+impl Address {
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.0)
+    }
+
+    pub fn from_hex(s: &str) -> Result<Self> {
+        let bytes = match hex::decode(s) {
+            Ok(bytes) => bytes,
+            _ => anyhow::bail!("Invalid hex format for {:?}", s),
+        };
+
+        let mut buf = [0u8; 20];
+        buf.copy_from_slice(&bytes);
+        Ok(Self(buf))
+    }
+}
+
 impl Signature {
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
@@ -182,16 +199,20 @@ impl Signer {
         anyhow::bail!("Address not found: {}", address);
     }
 
-    pub fn has_addr(&self, address: Address) -> Result<bool> {
+    pub fn get_key_by_addr(&self, address: Address) -> Result<Option<PublicKey>> {
         let keys = self.list_keys()?;
 
         for key in keys {
             if key.to_address() == address {
-                return Ok(true);
+                return Ok(Some(key));
             }
         }
 
-        Ok(false)
+        Ok(None)
+    }
+
+    pub fn has_addr(&self, address: Address) -> Result<bool> {
+        Ok(self.get_key_by_addr(address)?.is_some())
     }
 
     pub fn has_key(&self, key: PublicKey) -> Result<bool> {
