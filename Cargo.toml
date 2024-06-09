@@ -112,7 +112,7 @@ blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.19.2"
 cargo_metadata = "0.18.1"
-clap = "4.5.4"
+clap = "4.5.6"
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.3"
 colored = "2.1.0"
