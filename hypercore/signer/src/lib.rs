@@ -18,10 +18,10 @@
 
 //! Signer library for hypercore.
 
-use anyhow::{Context as _, Result};
+use anyhow::{anyhow, Context as _, Result};
 use secp256k1::Message;
 use sha3::Digest as _;
-use std::{fmt, fs, path::PathBuf};
+use std::{fmt, fs, path::PathBuf, str::FromStr};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PublicKey(pub [u8; 33]);
@@ -46,16 +46,26 @@ pub fn hash(data: &[u8]) -> gprimitives::H256 {
     Hash(<[u8; 32]>::from(sha3::Keccak256::digest(data))).into()
 }
 
-impl PrivateKey {
-    pub fn from_hex(s: &str) -> Result<Self> {
-        let bytes = match hex::decode(s) {
-            Ok(bytes) => bytes,
-            _ => anyhow::bail!("Invalid hex format for {:?}", s),
-        };
+fn strip_prefix(s: &str) -> &str {
+    if let Some(s) = s.strip_prefix("0x") {
+        s
+    } else {
+        s
+    }
+}
 
-        let mut buf = [0u8; 32];
-        buf.copy_from_slice(&bytes);
-        Ok(Self(buf))
+fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
+    let mut buf = [0; N];
+    hex::decode_to_slice(strip_prefix(s), &mut buf)
+        .map_err(|_| anyhow!("invalid hex format for {s:?}"))?;
+    Ok(buf)
+}
+
+impl FromStr for PrivateKey {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(decode_to_array(s)?))
     }
 }
 
@@ -79,16 +89,13 @@ impl PublicKey {
 
         address
     }
+}
 
-    pub fn from_hex(s: &str) -> Result<Self> {
-        let bytes = match hex::decode(s) {
-            Ok(bytes) => bytes,
-            _ => anyhow::bail!("Invalid hex format for {:?}", s),
-        };
+impl FromStr for PublicKey {
+    type Err = anyhow::Error;
 
-        let mut buf = [0u8; 33];
-        buf.copy_from_slice(&bytes);
-        Ok(Self(buf))
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(decode_to_array(s)?))
     }
 }
 
@@ -96,16 +103,13 @@ impl Address {
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
     }
+}
 
-    pub fn from_hex(s: &str) -> Result<Self> {
-        let bytes = match hex::decode(s) {
-            Ok(bytes) => bytes,
-            _ => anyhow::bail!("Invalid hex format for {:?}", s),
-        };
+impl FromStr for Address {
+    type Err = anyhow::Error;
 
-        let mut buf = [0u8; 20];
-        buf.copy_from_slice(&bytes);
-        Ok(Self(buf))
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(decode_to_array(s)?))
     }
 }
 
@@ -129,7 +133,7 @@ impl fmt::Display for PublicKey {
 
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
+        write!(f, "0x{}", self.to_hex())
     }
 }
 
@@ -256,7 +260,7 @@ impl Signer {
         for entry in fs::read_dir(&self.key_store)? {
             let entry = entry?;
             let file_name = entry.file_name();
-            let key = PublicKey::from_hex(file_name.to_string_lossy().as_ref())?;
+            let key = PublicKey::from_str(file_name.to_string_lossy().as_ref())?;
             keys.push(key);
         }
 
@@ -297,7 +301,7 @@ mod tests {
         let signer = Signer::new(key_store.clone()).expect("Failed to create signer");
 
         // Convert the private key hex to bytes and add it to the signer
-        let private_key = PrivateKey::from_hex(private_key_hex).expect("Invalid private key hex");
+        let private_key = PrivateKey::from_str(private_key_hex).expect("Invalid private key hex");
         let public_key = signer.add_key(private_key).expect("Failed to add key");
 
         // Ensure the key store has the key
