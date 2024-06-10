@@ -64,8 +64,8 @@ fn main() -> Result<()> {
         .without_time()
         .with_target(false)
         .init();
-    app.command
-        .run()
-        .map(|_| ())
-        .map_err(|e| tracing::error!("{e}"))
+    app.command.run().map(|_| ()).map_err(|e| {
+        tracing::error!("{e}");
+        e
+    })
 }
