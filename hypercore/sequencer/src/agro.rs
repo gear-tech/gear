@@ -21,7 +21,7 @@
 use anyhow::Result;
 use gprimitives::H256;
 use hypercore_signer::{hash, Address, PublicKey, Signature, Signer};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub trait SeqHash {
     fn hash(&self) -> H256;
@@ -111,12 +111,12 @@ impl<D: SeqHash> AggregatedQueue<D> {
 
     pub fn push(&mut self, commitment: AggregatedCommitments<D>) {
         let hash = commitment.hash();
-        self.last = hash;
 
         let new_queue = LinkedAggregation {
             aggregated: commitment,
             previous: Some(self.last),
         };
+        self.last = hash;
 
         self.all_commitments.insert(hash, new_queue);
     }
@@ -185,7 +185,9 @@ impl<D: SeqHash + Clone> Aggregator<D> {
 
         // Start only with the root
         let mut candidates = VecDeque::new();
+        let mut checked = HashSet::new();
         candidates.push_back(self.rolling?);
+        checked.insert(self.rolling?);
 
         while let Some(candidate_hash) = candidates.pop_front() {
             // check if we can find `threshold` amount of this `candidate_hash`
@@ -216,7 +218,11 @@ impl<D: SeqHash + Clone> Aggregator<D> {
             // else we try to find as many candidates as possible
             for queue in self.aggregated.values() {
                 if let Some(previous) = queue.previous(candidate_hash) {
+                    if checked.contains(&previous) {
+                        continue;
+                    }
                     candidates.push_back(previous);
+                    checked.insert(previous);
                 }
             }
         }
@@ -314,5 +320,37 @@ mod tests {
 
         // should be latest commitment
         assert_eq!(root.commitments.len(), 2);
+    }
+
+    #[test]
+    fn more_threshold() {
+        // aggregator with threshold 2
+        let mut aggregator = Aggregator::new(2);
+
+        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
+        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
+        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
+
+        let root = aggregator
+            .find_root()
+            .expect("Failed to generate root commitment");
+
+        assert_eq!(root.signatures.len(), 2);
+        assert_eq!(root.commitments.len(), 1); // only (1, 1) is commited by both aggregators
+
+        // aggregator with threshold 2
+        let mut aggregator = Aggregator::new(2);
+
+        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
+        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
+        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
+        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1), (2, 2)]));
+
+        let root = aggregator
+            .find_root()
+            .expect("Failed to generate root commitment");
+
+        assert_eq!(root.signatures.len(), 2);
+        assert_eq!(root.commitments.len(), 2); // both (1, 1) and (2, 2) is commited by both aggregators
     }
 }
