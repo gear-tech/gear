@@ -11,7 +11,7 @@ contract RouterTest is Test {
 
     function setUp() public {
         program = new Program();
-        router = new Router();
+        router = new Router(msg.sender);
         router.setProgram(address(program));
     }
 }

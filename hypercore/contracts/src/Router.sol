@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {IProgram} from "./IProgram.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 
-contract Router {
+contract Router is Ownable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
@@ -16,11 +17,11 @@ contract Router {
 
     address public constant WRAPPED_VARA = 0x6377Bf194281FF2b14e807CC3740ac937744406f;
 
-    address public owner;
     address public program;
     uint256 public countOfValidators;
     mapping(address => bool) public validators;
     mapping(bytes32 => bool) public codeIds;
+    mapping(address => bool) public programs;
 
     struct Transition {
         address actorId;
@@ -38,14 +39,13 @@ contract Router {
 
     event UpdatedProgram(address actorId, bytes32 oldStateHash, bytes32 newStateHash);
 
-    constructor() {
-        owner = msg.sender;
-    }
+    event SendMessage(address origin, address destination, bytes payload, uint64 gasLimit, uint128 value);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "not owner");
-        _;
-    }
+    event SendReply(address origin, bytes32 replyToId, bytes payload, uint64 gasLimit, uint128 value);
+
+    event ClaimValue(address origin, bytes32 messageId);
+
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     function setProgram(address _program) external onlyOwner {
         require(program == address(0), "program already set");
@@ -80,13 +80,43 @@ contract Router {
     {
         require(codeIds[codeId], "unknown codeId");
         address actorId = Clones.cloneDeterministic(program, keccak256(abi.encodePacked(salt, codeId)), msg.value);
-        IWrappedVara wrappedVara = IWrappedVara(WRAPPED_VARA);
-        bool success = wrappedVara.transferFrom(msg.sender, address(this), wrappedVara.gasToValue(gasLimit));
-        require(success, "failed to transfer tokens");
+        programs[actorId] = true;
+        chargeGas(gasLimit);
         emit CreateProgram(tx.origin, actorId, codeId, salt, initPayload, gasLimit, uint128(msg.value));
     }
 
-    function commitCodes(bytes32[] calldata codeIdsArray, bytes[] calldata signatures) external onlyOwner {
+    modifier onlyProgram() {
+        require(programs[msg.sender], "unknown program");
+        _;
+    }
+
+    function sendMessage(address destination, bytes calldata payload, uint64 gasLimit, uint128 value)
+        external
+        onlyProgram
+    {
+        chargeGas(gasLimit);
+        emit SendMessage(tx.origin, destination, payload, gasLimit, value);
+    }
+
+    function sendReply(bytes32 replyToId, bytes calldata payload, uint64 gasLimit, uint128 value)
+        external
+        onlyProgram
+    {
+        chargeGas(gasLimit);
+        emit SendReply(tx.origin, replyToId, payload, gasLimit, value);
+    }
+
+    function claimValue(bytes32 messageId) external onlyProgram {
+        emit ClaimValue(tx.origin, messageId);
+    }
+
+    function chargeGas(uint64 gas) private {
+        IWrappedVara wrappedVara = IWrappedVara(WRAPPED_VARA);
+        bool success = wrappedVara.transferFrom(tx.origin, address(this), wrappedVara.gasToValue(gas));
+        require(success, "failed to transfer tokens");
+    }
+
+    function commitCodes(bytes32[] calldata codeIdsArray, bytes[] calldata signatures) external {
         bytes memory message = abi.encodePacked(codeIdsArray);
 
         for (uint256 i = 0; i < codeIdsArray.length; i++) {
@@ -98,11 +128,12 @@ contract Router {
         validateSignatures(message, signatures);
     }
 
-    function commitTransitions(Transition[] calldata transitions, bytes[] calldata signatures) external onlyOwner {
+    function commitTransitions(Transition[] calldata transitions, bytes[] calldata signatures) external {
         bytes memory message;
 
         for (uint256 i = 0; i < transitions.length; i++) {
             Transition calldata transition = transitions[i];
+            require(programs[transition.actorId], "unknown program");
             message = bytes.concat(
                 message, abi.encodePacked(transition.actorId, transition.oldStateHash, transition.newStateHash)
             );
