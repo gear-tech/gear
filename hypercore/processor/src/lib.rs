@@ -318,7 +318,7 @@ mod tests {
 
     fn upload_code(processor: &mut Processor, code: &[u8]) -> Result<CodeId> {
         let code_id = CodeId::generate(code);
-        assert!(processor.new_code(code_id, code.to_vec()).unwrap());
+        assert!(processor.new_code(code.to_vec()).unwrap());
         assert!(processor.instrument_code(code_id).unwrap());
         Ok(code_id)
     }
