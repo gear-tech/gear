@@ -18,7 +18,6 @@
 
 //! Ethereum state observer for Hypercore.
 
-pub mod eip1167;
 mod event;
 mod observer;
 
