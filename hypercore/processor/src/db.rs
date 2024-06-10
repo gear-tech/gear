@@ -26,7 +26,9 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use hypercore_db::{CASDatabase, KVDatabase};
-use hypercore_runtime_common::state::{Allocations, MemoryPages, MessageQueue, ProgramState};
+use hypercore_runtime_common::state::{
+    Allocations, MemoryPages, MessageQueue, ProgramState, Waitlist,
+};
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
 
@@ -87,6 +89,16 @@ impl Storage for Database {
 
     fn write_queue(&self, queue: MessageQueue) -> H256 {
         self.cas.write(&queue.encode())
+    }
+
+    fn read_waitlist(&self, hash: H256) -> Option<Waitlist> {
+        self.cas.read(&hash).map(|data| {
+            Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
+        })
+    }
+
+    fn write_waitlist(&self, waitlist: Waitlist) -> H256 {
+        self.cas.write(&waitlist.encode())
     }
 
     fn read_pages(&self, hash: H256) -> Option<MemoryPages> {

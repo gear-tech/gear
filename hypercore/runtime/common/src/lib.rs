@@ -21,7 +21,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(unused)]
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, VecDeque},
+    vec::Vec,
+};
 use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
@@ -42,7 +45,8 @@ use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use receipts::Receipt;
 use state::{
-    ActiveProgram, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState, Storage,
+    ActiveProgram, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState,
+    Storage, Waitlist,
 };
 
 extern crate alloc;
@@ -84,12 +88,14 @@ struct DispatchExecutionContext<'a, S: Storage, RI: RuntimeInterface<S>> {
     program_id: ProgramId,
     receipts: Vec<Receipt>,
     dispatch: Dispatch,
+    queue: &'a mut MessageQueue,
+    waitlist: &'a mut Waitlist,
+    block_config: &'a BlockConfig,
     ri: &'a RI,
     _phantom: PhantomData<S>,
 }
 
 fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
-    block_config: &BlockConfig,
     ctx: &mut DispatchExecutionContext<S, RI>,
 ) -> Vec<JournalNote> {
     let program_context = match &ctx.program_context {
@@ -99,7 +105,6 @@ fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
         }
     };
 
-    // TODO: check for the initialization correctness
     if program_context.status == InitStatus::Initialized && ctx.dispatch.kind == DispatchKind::Init
     {
         // Panic is impossible, because gear protocol does not provide functionality
@@ -147,12 +152,12 @@ fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
     let dispatch = IncomingDispatch::new(
         ctx.dispatch.kind,
         incoming_message,
-        ctx.dispatch.context.take(), // TODO: do not forget to set it back in wait
+        ctx.dispatch.context.take(),
     );
 
     let precharged_dispatch = core_processor::precharge_for_program(
-        block_config,
-        1_000_000_000_000, // TODO
+        ctx.block_config,
+        1_000_000_000_000, // TODO: support gas allowance
         dispatch,
         ctx.program_id,
     )
@@ -168,7 +173,7 @@ fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
     };
 
     let context = core_processor::precharge_for_code_length(
-        block_config,
+        ctx.block_config,
         precharged_dispatch,
         ctx.program_id,
         actor_data,
@@ -177,7 +182,7 @@ fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
 
     let context = ContextChargedForCode::from((context, program_context.code.code().len() as u32));
     let context = core_processor::precharge_for_memory(
-        block_config,
+        ctx.block_config,
         ContextChargedForInstrumentation::from(context),
     )
     .expect("TODO: process precharge errors");
@@ -191,7 +196,7 @@ fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
 
     ctx.ri.init_lazy_pages(program_context.pages_map.clone());
 
-    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
+    core_processor::process::<Ext<RI::LazyPages>>(ctx.block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))
 }
 
@@ -244,6 +249,7 @@ fn prepare_executable_program_context<S: Storage>(
 fn post_process_executable_program_context<S: Storage>(
     program_context: ExecutableProgramContext,
     queue_hash: MaybeHash,
+    waitlist_hash: MaybeHash,
     ri: &impl RuntimeInterface<S>,
 ) -> ProgramState {
     let ExecutableProgramContext {
@@ -284,6 +290,7 @@ fn post_process_executable_program_context<S: Storage>(
             status,
         }),
         queue_hash,
+        waitlist_hash,
         balance,
     }
 }
@@ -293,21 +300,47 @@ pub fn process_program<S: Storage>(
     program_state: ProgramState,
     ri: &impl RuntimeInterface<S>,
 ) -> (ProgramState, Vec<Receipt>) {
+    let block_info = ri.block_info();
+
+    let mut waitlist = program_state.waitlist_hash.with_hash_or_default(|hash| {
+        ri.storage()
+            .read_waitlist(hash)
+            .expect("Cannot get waitlist")
+    });
+
+    let mut dispatches_to_wake = Vec::new();
+    let mut blocks_to_remove = Vec::new();
+    for (block, list) in waitlist.range_mut(0..=block_info.height) {
+        if list.is_empty() {
+            unreachable!("Empty waitlist for block, must been removed from waitlist")
+        }
+        dispatches_to_wake.append(list);
+        blocks_to_remove.push(*block);
+    }
+
+    for block in blocks_to_remove {
+        waitlist.remove(&block);
+    }
+
     let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_queue(hash)
             .expect("Cannot get message queue")
     });
 
+    for dispatch in dispatches_to_wake {
+        queue.push_back(dispatch);
+    }
+
     if queue.is_empty() {
+        // This is correct to return old state,
+        // because waitlist and queue has not been changed, in case of empty queue.
         return (program_state, Vec::new());
     }
 
-    let balance = program_state.balance;
-
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
-        block_info: ri.block_info(),
+        block_info,
         performance_multiplier: Percent::new(100),
         forbidden_funcs: Default::default(),
         reserve_for: 125_000_000,
@@ -323,23 +356,27 @@ pub fn process_program<S: Storage>(
 
     let mut program_context = match program_state.state {
         state::Program::Active(state) => ProgramContext::Executable(
-            prepare_executable_program_context(program_id, balance, state, ri),
+            prepare_executable_program_context(program_id, program_state.balance, state, ri),
         ),
         state::Program::Exited(program_id) => ProgramContext::Exited(program_id),
         state::Program::Terminated(program_id) => ProgramContext::Terminated(program_id),
     };
 
     let mut receipts = Vec::new();
-    while let Some(dispatch) = queue.pop() {
+    while !queue.is_empty() {
+        let dispatch = queue.pop_front().unwrap();
         let mut dispatch_context = DispatchExecutionContext {
             program_context: &mut program_context,
             program_id,
             receipts: Vec::new(),
             dispatch,
+            queue: &mut queue,
+            waitlist: &mut waitlist,
+            block_config: &block_config,
             ri,
             _phantom: PhantomData,
         };
-        let journal = process_dispatch(&block_config, &mut dispatch_context);
+        let journal = process_dispatch(&mut dispatch_context);
         core_processor::handle_journal(journal, &mut dispatch_context);
         receipts.append(&mut dispatch_context.receipts);
     }
@@ -349,9 +386,14 @@ pub fn process_program<S: Storage>(
         .then_some(MaybeHash::Empty)
         .unwrap_or_else(|| ri.storage().write_queue(queue).into());
 
+    let waitlist_hash = waitlist
+        .is_empty()
+        .then_some(MaybeHash::Empty)
+        .unwrap_or_else(|| ri.storage().write_waitlist(waitlist).into());
+
     let program_state = match program_context {
         ProgramContext::Executable(program_context) => {
-            post_process_executable_program_context(program_context, queue_hash, ri)
+            post_process_executable_program_context(program_context, queue_hash, waitlist_hash, ri)
         }
         ProgramContext::Exited(_) | ProgramContext::Terminated(_) => {
             todo!("Post process non-executable program context")

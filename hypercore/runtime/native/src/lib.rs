@@ -36,11 +36,15 @@ mod pages_storage;
 
 pub struct NativeRuntimeInterface<'a, S: Storage> {
     storage: &'a S,
+    block_info: BlockInfo,
 }
 
 impl<'a, S: Storage> NativeRuntimeInterface<'a, S> {
-    pub fn new(storage: &'a S) -> Self {
-        Self { storage }
+    pub fn new(storage: &'a S, block_info: BlockInfo) -> Self {
+        Self {
+            storage,
+            block_info,
+        }
     }
 }
 
@@ -48,7 +52,7 @@ impl<S: Storage> RuntimeInterface<S> for NativeRuntimeInterface<'_, S> {
     type LazyPages = LazyPagesNative;
 
     fn block_info(&self) -> BlockInfo {
-        BlockInfo::default() // TODO
+        self.block_info
     }
 
     fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, H256>) {

@@ -7201,6 +7201,7 @@ name = "hypercore-processor"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "demo-async",
  "demo-ping",
  "env_logger",
  "gear-core",

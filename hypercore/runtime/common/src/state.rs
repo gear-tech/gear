@@ -20,7 +20,10 @@
 
 use core::num::NonZeroU32;
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, VecDeque},
+    vec::Vec,
+};
 use gear_core::{
     code::InstrumentedCode,
     ids::ProgramId,
@@ -31,6 +34,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use gprimitives::{CodeId, MessageId, H256};
+use gsys::BlockNumber;
 use parity_scale_codec::{Decode, Encode};
 
 pub use gear_core::program::ProgramState as InitStatus;
@@ -101,6 +105,8 @@ pub struct ProgramState {
     pub state: Program,
     /// Hash of incoming message queue, see [`MessageQueue`].
     pub queue_hash: MaybeHash,
+    /// Hash of waiting messages list, see [`Waitlist`].
+    pub waitlist_hash: MaybeHash,
     /// Balance
     pub balance: Value,
 }
@@ -125,7 +131,9 @@ pub struct Dispatch {
     pub context: Option<ContextStore>,
 }
 
-pub type MessageQueue = Vec<Dispatch>;
+pub type MessageQueue = VecDeque<Dispatch>;
+
+pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 
@@ -145,6 +153,12 @@ pub trait Storage {
 
     /// Writes message queue and returns its hash.
     fn write_queue(&self, queue: MessageQueue) -> H256;
+
+    /// Reads waitlist by waitlist hash.
+    fn read_waitlist(&self, hash: H256) -> Option<Waitlist>;
+
+    /// Writes waitlist and returns its hash.
+    fn write_waitlist(&self, waitlist: Waitlist) -> H256;
 
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: H256) -> Option<MemoryPages>;

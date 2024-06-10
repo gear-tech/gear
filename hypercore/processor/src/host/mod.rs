@@ -89,7 +89,7 @@ impl InstanceWrapper {
 
     pub fn run(&mut self, db: &Database, instrumented_code: &InstrumentedCode) -> Result<()> {
         // breathx: init lazy pages here.
-        let ri = hypercore_runtime_native::NativeRuntimeInterface::new(db);
+        let ri = hypercore_runtime_native::NativeRuntimeInterface::new(db, Default::default());
         ri.init_lazy_pages(Default::default());
 
         // TODO: set root.
