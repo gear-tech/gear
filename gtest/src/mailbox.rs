@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{blocks::BlocksManager, manager::ExtManager, CoreLog, Log, RunResult};
+use crate::{blocks::BlocksManager, manager::ExtManager, CoreLog, Log, RunResult, GAS_ALLOWANCE};
 use codec::Encode;
 use core_processor::common::JournalHandler;
 use gear_common::{
     auxiliary::mailbox::*,
-    storage::{GetCallback, Interval, Mailbox as MailboxTrait, MailboxCallbacks},
+    storage::{GetCallback, Interval, IterableByKeyMap, Mailbox as MailboxTrait, MailboxCallbacks},
 };
 use gear_core::{
-    ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    ids::{prelude::MessageIdExt, MessageId, ProgramId},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails, ReplyMessage, ReplyPacket},
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use std::{cell::RefCell, convert::TryInto};
@@ -36,8 +36,8 @@ pub(crate) struct MailboxManager;
 impl MailboxManager {
     pub(crate) fn insert(
         &self,
-        to: ProgramId,
-        from_mid: MessageId,
+        user: ProgramId,
+        reply_to: MessageId,
         message: MailboxedMessage,
     ) -> Result<(), MailboxErrorImpl> {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::insert(message, u32::MAX)
@@ -45,14 +45,28 @@ impl MailboxManager {
 
     pub(crate) fn remove(
         &self,
-        to: ProgramId,
-        from_mid: MessageId,
+        user: ProgramId,
+        reply_to: MessageId,
     ) -> Result<(MailboxedMessage, Interval<BlockNumber>), MailboxErrorImpl> {
-        <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::remove(to, from_mid)
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::remove(user, reply_to)
     }
 
     pub(crate) fn reset(&self) {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::clear();
+    }
+
+    pub(crate) fn iter_key(
+        &self,
+        to: ProgramId,
+    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as IterableByKeyMap<_>>::iter_key(to)
+    }
+
+    pub(crate) fn drain_key(
+        &self,
+        to: ProgramId,
+    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as IterableByKeyMap<_>>::drain_key(to)
     }
 }
 
@@ -62,119 +76,101 @@ impl MailboxCallbacks<MailboxErrorImpl> for MailboxCallbacksImpl {
     type Value = MailboxedMessage;
     type BlockNumber = BlockNumber;
 
-    type GetBlockNumber = GetBlockNumber;
+    type GetBlockNumber = GetBlockNumberImpl;
 
     type OnInsert = ();
     type OnRemove = ();
 }
 
-pub(crate) struct GetBlockNumber;
+pub(crate) struct GetBlockNumberImpl;
 
-impl GetCallback<BlockNumber> for GetBlockNumber {
+impl GetCallback<BlockNumber> for GetBlockNumberImpl {
     fn call() -> BlockNumber {
         BlocksManager::new().get().height
     }
 }
 
-pub struct Mailbox<'a> {
+// TODO: optimize by creating a set of messages to program.
+pub struct MailboxInterface<'a> {
     manager: &'a RefCell<ExtManager>,
     user_id: ProgramId,
 }
 
-impl<'a> Mailbox<'a> {
-    pub(crate) fn new(user_id: ProgramId, manager: &'a RefCell<ExtManager>) -> Mailbox<'a> {
-        Mailbox { user_id, manager }
+impl<'a> MailboxInterface<'a> {
+    pub(crate) fn new(
+        user_id: ProgramId,
+        manager: &'a RefCell<ExtManager>,
+    ) -> MailboxInterface<'a> {
+        MailboxInterface { user_id, manager }
     }
 
     pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
-        let log: Log = log.clone().into();
-        if let Some(mailbox) = self.manager.borrow().mailbox.get(&self.user_id) {
-            return mailbox.iter().any(|message| log.eq(message));
-        }
-        self.manager
-            .borrow_mut()
-            .mailbox
-            .insert(self.user_id, Vec::default());
-        false
+        self.find_message_by_log(&log.clone().into()).is_some()
     }
 
-    pub fn take_message<T: Into<Log>>(&self, log: T) -> MessageReplier {
-        MessageReplier::new(self.remove_message(log), self.manager)
-    }
-
-    pub fn reply(&self, log: Log, payload: impl Encode, value: u128) -> RunResult {
+    pub fn reply(
+        &self,
+        log: Log,
+        payload: impl Encode,
+        value: u128,
+    ) -> Result<RunResult, MailboxErrorImpl> {
         self.reply_bytes(log, payload.encode(), value)
     }
 
-    pub fn reply_bytes(&self, log: Log, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
-        self.take_message(log).reply_bytes(raw_payload, value)
-    }
-
-    pub fn claim_value<T: Into<Log>>(&self, log: T) {
-        let message = self.remove_message(log);
-        self.manager.borrow_mut().send_value(
-            message.source(),
-            Some(message.destination()),
-            message.value(),
-        );
-    }
-
-    #[track_caller]
-    fn remove_message<T: Into<Log>>(&self, log: T) -> StoredMessage {
-        let log = log.into();
-        let mut manager = self.manager.borrow_mut();
-        let messages = manager
+    pub fn reply_bytes(
+        &self,
+        log: Log,
+        raw_payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<RunResult, MailboxErrorImpl> {
+        let mailboxed_msg = self
+            .find_message_by_log(&log)
+            .ok_or(MailboxErrorImpl::ElementNotFound)?;
+        self.manager
+            .borrow()
             .mailbox
-            .get_mut(&self.user_id)
-            .expect("Infallible. No mailbox associated with this user id");
-        let index = messages
-            .iter()
-            .position(|message| log.eq(message))
-            .expect("No message that satisfies log");
-        messages.remove(index)
-    }
-}
+            .remove(self.user_id, mailboxed_msg.id())?;
 
-pub struct MessageReplier<'a> {
-    log: CoreLog,
-    manager: &'a RefCell<ExtManager>,
-}
+        let dispatch = {
+            let packet = ReplyPacket::new_with_gas(
+                raw_payload
+                    .as_ref()
+                    .to_vec()
+                    .try_into()
+                    .unwrap_or_else(|err| panic!("Can't send reply with such payload: {err:?}")),
+                GAS_ALLOWANCE,
+                value,
+            );
+            let reply_message =
+                ReplyMessage::from_packet(MessageId::generate_reply(mailboxed_msg.id()), packet);
 
-impl<'a> MessageReplier<'a> {
-    pub(crate) fn new(
-        message: StoredMessage,
-        manager: &'a RefCell<ExtManager>,
-    ) -> MessageReplier<'a> {
-        MessageReplier {
-            log: message.into(),
-            manager,
-        }
+            reply_message.into_dispatch(self.user_id, mailboxed_msg.source(), mailboxed_msg.id())
+        };
+
+        Ok(self
+            .manager
+            .borrow_mut()
+            .validate_and_run_dispatch(dispatch))
     }
 
-    pub fn reply(&self, payload: impl Encode, value: u128) -> RunResult {
-        self.reply_bytes(payload.encode(), value)
+    fn find_message_by_log(&self, log: &Log) -> Option<MailboxedMessage> {
+        self.get_user_mailbox()
+            .find_map(|(msg, _)| log.eq(&msg).then_some(msg))
     }
 
-    pub fn reply_bytes(&self, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
-        let message = Message::new(
-            MessageId::from(self.manager.borrow_mut().fetch_inc_message_nonce()),
-            self.log.destination(),
-            self.log.source(),
-            raw_payload.as_ref().to_vec().try_into().unwrap(),
-            None,
-            value,
-            Some(
-                ReplyDetails::new(
-                    self.log.id(),
-                    ReplyCode::Success(SuccessReplyReason::Manual),
-                )
-                .into(),
-            ),
-        );
+    fn get_user_mailbox(&self) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
+        self.manager.borrow().mailbox.iter_key(self.user_id)
+    }
 
+    pub fn claim_value<T: Into<Log>>(&self, log: T) -> Result<(), MailboxErrorImpl> {
+        let mailboxed_msg = self
+            .find_message_by_log(&log.into())
+            .ok_or(MailboxErrorImpl::ElementNotFound)?;
         self.manager
             .borrow_mut()
-            .validate_and_run_dispatch(Dispatch::new(DispatchKind::Reply, message))
+            .claim_value_from_mailbox(self.user_id, mailboxed_msg.id());
+
+        Ok(())
     }
 }
 

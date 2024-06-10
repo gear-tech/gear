@@ -39,7 +39,7 @@ use gear_core::{
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
+        StoredDispatch, StoredMessage, UserStoredMessage,
     },
     pages::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
@@ -458,13 +458,13 @@ impl ExtManager {
             // TODO make sure user from user messages do not go to mailbox.
 
             let message = dispatch.into_parts().1.into_stored();
-            let user_stored_message = message
-                .clone()
-                .try_into()
-                .expect("todo");
+            let mailboxed_msg: UserStoredMessage = message.clone().try_into().expect("todo");
 
-            self.mailbox
-                .insert(message.destination(), message.id(), user_stored_message);
+            self.mailbox.insert(
+                mailboxed_msg.destination(),
+                mailboxed_msg.id(),
+                mailboxed_msg,
+            );
             self.log.push(message)
         }
 
@@ -1011,10 +1011,7 @@ impl JournalHandler for ExtManager {
         } else {
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
-            let user_stored_message = stored_message
-                .clone()
-                .try_into()
-                .expect("todo");
+            let mailboxed_msg: UserStoredMessage = stored_message.clone().try_into().expect("todo");
 
             self.gas_tree
                 .cut(message_id, stored_message.id(), gas_limit)
@@ -1022,9 +1019,9 @@ impl JournalHandler for ExtManager {
 
             self.mailbox
                 .insert(
-                    stored_message.destination(),
-                    stored_message.id(),
-                    user_stored_message,
+                    mailboxed_msg.destination(),
+                    mailboxed_msg.id(),
+                    mailboxed_msg,
                 )
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 

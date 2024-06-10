@@ -20,7 +20,7 @@ use crate::program::{Gas, ProgramIdWrapper};
 use codec::{Codec, Encode};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Payload, StoredMessage},
+    message::{Payload, StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use std::{collections::BTreeMap, convert::TryInto, fmt::Debug};
@@ -151,11 +151,11 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Log {
-    source: Option<ProgramId>,
-    destination: Option<ProgramId>,
-    payload: Option<Payload>,
-    reply_code: Option<ReplyCode>,
-    reply_to: Option<MessageId>,
+    pub(crate) source: Option<ProgramId>,
+    pub(crate) destination: Option<ProgramId>,
+    pub(crate) payload: Option<Payload>,
+    pub(crate) reply_code: Option<ReplyCode>,
+    pub(crate) reply_to: Option<MessageId>,
 }
 
 impl<ID, T> From<(ID, T)> for Log
@@ -283,22 +283,43 @@ impl Log {
     }
 }
 
-impl PartialEq<StoredMessage> for Log {
-    fn eq(&self, other: &StoredMessage) -> bool {
-        if matches!(other.reply_details(), Some(reply) if Some(reply.to_reply_code()) != self.reply_code)
-        {
-            return false;
-        }
+impl PartialEq<UserStoredMessage> for Log {
+    fn eq(&self, other: &UserStoredMessage) -> bool {
+        // self.source
+        //     .as_ref()
+        //     .map_or(Some((self.destination.as_ref(), false)), |source| {
+        //         (source == other.source()).then_some((self.destination.as_ref(),
+        // true))     })
+        //     .and_then(|(maybe_dest, has_any)| {
+        //         let ret = self.payload.as_ref();
+        //         maybe_dest.map_or(Some((ret, has_any)), |dest| (dest ==
+        // other.destination()).then_some((ret, true)))     })
+        //     .and_then(|(maybe_payload, has_any)| {
+        //         let valid_payload = maybe_payload
+        //             .and_then(|payload| Some(payload.inner() ==
+        // other.payload_bytes()))             .unwrap_or(true);
+
+        //         (valid_payload && has_any).then_some(())
+        //     })
+        //     .is_some()
+
+        // Any log field is set.
+        let has_any = self.source.is_some() || self.destination.is_some() || self.payload.is_some();
+
+        // If any of log field doesn't match, then there's no equality.
         if matches!(self.source, Some(source) if source != other.source()) {
             return false;
         }
+
         if matches!(self.destination, Some(dest) if dest != other.destination()) {
             return false;
         }
+
         if matches!(&self.payload, Some(payload) if payload.inner() != other.payload_bytes()) {
             return false;
         }
-        true
+
+        has_any
     }
 }
 
