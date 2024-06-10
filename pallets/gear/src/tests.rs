@@ -779,6 +779,8 @@ fn calculate_gas_returns_not_block_limit() {
 
     init_logger();
     new_test_ext().execute_with(|| {
+        let ed = get_ed();
+
         let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
         assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
         // Generator needs some balance to be able to pay ED for created programs
@@ -788,7 +790,7 @@ fn calculate_gas_returns_not_block_limit() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            1000,
+            2 * ed,
             false,
         ));
 
@@ -1083,7 +1085,7 @@ fn auto_reply_out_of_rent_mailbox() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let value = 1_000;
+        let value = 1_000_u128;
         let ed = get_ed();
 
         assert_ok!(Gear::upload_program(
@@ -1102,7 +1104,7 @@ fn auto_reply_out_of_rent_mailbox() {
         assert!(utils::is_active(program_id));
 
         let user1_balance = Balances::free_balance(USER_1);
-        assert_balance(program_id, value + ed, 0u128);
+        assert_program_balance(program_id, value, ed, 0u128);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_3),
             program_id,
@@ -1117,7 +1119,7 @@ fn auto_reply_out_of_rent_mailbox() {
         run_to_next_block(None);
         assert_succeed(message_id);
 
-        assert_balance(program_id, ed, value);
+        assert_program_balance(program_id, 0_u128, ed, value);
 
         let mailed_msg = utils::get_last_mail(USER_1);
         let expiration = utils::get_mailbox_expiration(mailed_msg.id());
@@ -1129,7 +1131,7 @@ fn auto_reply_out_of_rent_mailbox() {
         assert_eq!(user1_balance, Balances::free_balance(USER_1));
 
         run_to_block_maybe_with_queue(expiration, None, Some(false));
-        assert_balance(program_id, ed, 0u128);
+        assert_program_balance(program_id, 0u128, ed, 0u128);
         assert_eq!(user1_balance + value, Balances::free_balance(USER_1));
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
@@ -1850,13 +1852,12 @@ fn exited_program_zero_gas_and_value() {
 
         let program_id = utils::get_last_program_id();
 
-        let program_account = program_id.cast();
-        // Account exists for the program and has exactly ED as its free balance.
-        assert_eq!(Balances::free_balance(program_account), ed);
+        // Account exists for the program and has exactly the ED locked.
+        assert_program_balance(program_id, 0_u128, ed, 0_u128);
         // Reducible balance of an active program doesn't include the ED (runtime guarantee)
         assert_eq!(
             <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
-                &program_account,
+                &program_id.cast(),
                 Preservation::Expendable,
                 Fortitude::Polite,
             ),
@@ -1879,7 +1880,7 @@ fn exited_program_zero_gas_and_value() {
         assert_total_dequeued(2);
 
         // Program's account should have been completely drained.
-        assert_eq!(Balances::free_balance(program_account), 0);
+        assert_program_balance(program_id, 0_u128, 0_u128, 0_u128);
     })
 }
 
@@ -6249,7 +6250,7 @@ fn exit_locking_funds() {
 
         assert!(Gear::is_initialized(program_id));
 
-        assert_balance(program_id, ed, 0u128);
+        assert_program_balance(program_id, 0_u128, ed, 0_u128);
 
         let value = 1_000;
 
@@ -6319,12 +6320,8 @@ fn frozen_funds_remain_on_exit() {
 
         run_to_next_block(None);
 
-        // The ED hasn't been offset against `value`, therefore the program's account balance
-        // contains the sum of the two.
-        assert_eq!(
-            CurrencyOf::<Test>::free_balance(program_account),
-            value + ed
-        );
+        // The ED is not offset against `value` but locked separately.
+        assert_program_balance(program_id, value, ed, 0_u128);
 
         // reducible balance of an active program doesn't include the ED (runtime guarantee)
         assert_eq!(
@@ -6470,12 +6467,12 @@ fn terminated_locking_funds() {
         let message_id = get_last_message_id();
 
         // Before the `init` message is processed the program only has ED on its account.
-        assert_balance(program_id, ed, 0u128);
+        assert_program_balance(program_id, 0_u128, ed, 0_u128);
 
         run_to_next_block(None);
 
         assert!(utils::is_active(program_id));
-        assert_balance(program_id, prog_free + ed, prog_reserve);
+        assert_program_balance(program_id, prog_free, ed, prog_reserve);
 
         let (_message_with_value, interval) = MailboxOf::<Test>::iter_key(USER_3)
             .next()
@@ -6527,7 +6524,7 @@ fn terminated_locking_funds() {
         assert!(Gear::is_terminated(program_id));
         // ED has been returned to the beneficiary as a part of the `free` balance.
         // The `reserved` part of the balance is still being held.
-        assert_balance(program_id, 0u128, prog_reserve);
+        assert_program_balance(program_id, 0_u128, 0_u128, prog_reserve);
 
         let expected_balance = user_1_balance + expected_balance_difference;
         let user_1_balance = Balances::free_balance(USER_1);
@@ -6547,7 +6544,7 @@ fn terminated_locking_funds() {
                 * GasBalanceOf::<Test>::saturated_from(CostsPerBlockOf::<Test>::reserve_for()),
         );
 
-        assert_balance(program_id, 0u128, 0u128);
+        assert_program_balance(program_id, 0u128, 0u128, 0u128);
         assert_eq!(
             Balances::free_balance(USER_3),
             user_3_balance + prog_reserve
@@ -6656,7 +6653,7 @@ fn test_create_program_no_code_hash() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
-            2000,
+            4 * get_ed(),
             false,
         ));
 
@@ -6755,7 +6752,7 @@ fn test_create_program_simple() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
-            3000,
+            6 * get_ed(),
             false,
         ));
         run_to_block(2, None);
@@ -6902,7 +6899,7 @@ fn test_create_program_duplicate() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             20_000_000_000,
-            2000,
+            4 * get_ed(),
             false,
         ));
         run_to_block(2, None);
@@ -6993,7 +6990,7 @@ fn test_create_program_duplicate_in_one_execution() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             2_000_000_000,
-            1000,
+            2 * get_ed(),
             false,
         ));
         run_to_block(2, None);
@@ -7081,7 +7078,7 @@ fn test_create_program_miscellaneous() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
-            2000,
+            4 * get_ed(),
             false,
         ));
 
@@ -9596,7 +9593,7 @@ fn test_async_program_creation() {
             pid,
             kind.encode(),
             30_000_000_000u64,
-            1000, // required to be able to create a program
+            2 * get_ed(), // required to be able to create a program
             false,
         ));
 
@@ -15182,7 +15179,7 @@ pub(crate) mod utils {
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
         BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, CurrencyOf, GasHandlerOf, GasInfo,
-        GearBank, HandleKind, ProgramStorageOf, SentOf,
+        GearBank, HandleKind, ProgramStorageOf, SentOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
     };
     use common::{
         event::*,
@@ -15301,6 +15298,37 @@ pub(crate) mod utils {
     ) {
         let account_id = origin.cast();
         assert_eq!(Balances::free_balance(account_id), free.into());
+        assert_eq!(
+            GearBank::<Test>::account_total(&account_id),
+            reserved.into()
+        );
+    }
+
+    #[track_caller]
+    pub(super) fn assert_program_balance<B>(
+        origin: impl common::Origin,
+        available: B,
+        locked: B,
+        reserved: B,
+    ) where
+        B: Into<BalanceOf<Test>> + Copy,
+    {
+        let account_id = origin.cast();
+        let account_data = System::account(account_id).data;
+        assert_eq!(account_data.free, available.into() + locked.into());
+        assert_eq!(account_data.frozen, locked.into());
+        let maybe_ed = Balances::locks(account_id)
+            .into_iter()
+            .filter_map(|lock| {
+                if lock.id == EXISTENTIAL_DEPOSIT_LOCK_ID {
+                    Some(lock.amount)
+                } else {
+                    None
+                }
+            })
+            .reduce(|a, b| a + b)
+            .unwrap_or_default();
+        assert_eq!(maybe_ed, locked.into());
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
             reserved.into()
