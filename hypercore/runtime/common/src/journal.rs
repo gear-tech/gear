@@ -3,7 +3,7 @@ use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
-    message::Dispatch,
+    message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
 };
@@ -12,7 +12,7 @@ use gprimitives::{MessageId, ReservationId};
 
 use crate::{
     receipts::Receipt,
-    state::{InitStatus, Storage},
+    state::{Dispatch, InitStatus, Storage},
     DispatchExecutionContext, ProgramContext, RuntimeInterface,
 };
 
@@ -96,7 +96,7 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     fn send_dispatch(
         &mut self,
         message_id: MessageId,
-        dispatch: Dispatch,
+        dispatch: CoreDispatch,
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
@@ -114,11 +114,29 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
 
     fn wait_dispatch(
         &mut self,
-        dispatch: gear_core::message::StoredDispatch,
+        dispatch: StoredDispatch,
         duration: Option<u32>,
-        waited_type: gear_core::message::MessageWaitedType,
+        waited_type: MessageWaitedType,
     ) {
-        todo!()
+        let (_kind, message, context) = dispatch.into_parts();
+        if self.dispatch.id != message.id() {
+            unreachable!("Dispatch ID mismatch");
+        }
+        let Some(duration) = duration else {
+            todo!("Wait dispatch without specified duration");
+        };
+        let block = self.block_config.block_info.height.saturating_add(duration);
+
+        // Set context back
+        self.dispatch.context = context;
+
+        // TODO: better to `take` dispatch here
+        self.waitlist
+            .entry(block)
+            .or_default()
+            .push(self.dispatch.clone());
+
+        log::trace!("{:?} was added to waitlist block {block}", self.dispatch);
     }
 
     fn wake_message(
@@ -128,7 +146,39 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         awakening_id: MessageId,
         delay: u32,
     ) {
-        todo!()
+        log::trace!("Message {message_id} try to wake {awakening_id}");
+
+        if self.program_id != program_id {
+            unreachable!("Program ID mismatch");
+        }
+
+        if delay != 0 {
+            todo!("Delayed wake message");
+        }
+
+        let mut clear_for_block = None;
+        for (block, list) in self.waitlist.iter_mut() {
+            let Some(index) = list
+                .iter()
+                .enumerate()
+                .find_map(|(index, dispatch)| (dispatch.id == awakening_id).then_some(index))
+            else {
+                continue;
+            };
+
+            let dispatch = list.remove(index);
+            log::trace!("Dispatch {dispatch:?} has been woken up by {message_id}");
+
+            self.queue.push_back(dispatch);
+
+            if list.is_empty() {
+                clear_for_block = Some(*block);
+            }
+            break;
+        }
+        if let Some(block) = clear_for_block {
+            self.waitlist.remove(&block);
+        }
     }
 
     fn update_pages_data(
@@ -186,7 +236,7 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         todo!()
     }
 
-    fn stop_processing(&mut self, dispatch: gear_core::message::StoredDispatch, gas_burned: u64) {
+    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
         todo!()
     }
 
@@ -215,11 +265,13 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     }
 
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        todo!()
+        log::trace!("System reserve gas {amount} for {message_id}")
+        // TODO: Implement
     }
 
     fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        todo!()
+        log::trace!("System unreserve gas for {message_id}")
+        // TODO: Implement
     }
 
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {

@@ -129,9 +129,13 @@ impl Processor {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::VecDeque, os::unix::process, pin, result, thread::sleep, time::Duration,
+    };
+
     use super::*;
     use gear_core::{
-        message::{DispatchKind, Payload},
+        message::{DispatchKind, MessageDetails, Payload},
         program::ProgramState as InitStatus,
     };
     use gprimitives::{ActorId, MessageId};
@@ -142,6 +146,7 @@ mod tests {
         state::{self, Dispatch, MaybeHash, ProgramState},
         NativeRuntimeInterface,
     };
+    use parity_scale_codec::{Decode, Encode};
     use wabt::wat2wasm;
 
     fn valid_code() -> Vec<u8> {
@@ -270,7 +275,7 @@ mod tests {
         };
 
         // TODO: queue is vec so init dispatch is after handle
-        let queue = vec![dispatch, init_dispatch];
+        let queue = VecDeque::from(vec![init_dispatch, dispatch]);
         let queue_hash = processor.db.write_queue(queue);
 
         let active_program = state::ActiveProgram {
@@ -286,10 +291,11 @@ mod tests {
         let program_state = ProgramState {
             state: state::Program::Active(active_program),
             queue_hash: queue_hash.into(),
+            waitlist_hash: MaybeHash::Empty,
             balance: 0,
         };
 
-        let ri = NativeRuntimeInterface::new(&processor.db);
+        let ri = NativeRuntimeInterface::new(&processor.db, Default::default());
         let (_, receipts) = process_program(program_id, program_state, &ri);
         let mut pongs_amount = 0;
         for receipt in receipts.into_iter() {
@@ -302,5 +308,267 @@ mod tests {
             }
         }
         assert_eq!(pongs_amount, 2);
+    }
+
+    struct UserMessage {
+        id: MessageId,
+        kind: DispatchKind,
+        source: ActorId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    }
+
+    fn upload_code(processor: &mut Processor, code: &[u8]) -> Result<CodeId> {
+        let code_id = CodeId::generate(code);
+        assert!(processor.new_code(code_id, code.to_vec()).unwrap());
+        assert!(processor.instrument_code(code_id).unwrap());
+        Ok(code_id)
+    }
+
+    fn create_program(
+        processor: &mut Processor,
+        program_id: ProgramId,
+        code_id: CodeId,
+        init_message: UserMessage,
+    ) -> Result<H256> {
+        assert_eq!(init_message.kind, DispatchKind::Init);
+
+        processor.db.set_program_code_id(program_id, code_id);
+
+        let payload_hash = match init_message.payload.len() {
+            0 => MaybeHash::Empty,
+            _ => processor
+                .db
+                .write_payload(Payload::try_from(init_message.payload.clone()).unwrap())
+                .into(),
+        };
+
+        let init_dispatch = Dispatch {
+            id: init_message.id,
+            kind: DispatchKind::Init,
+            source: init_message.source,
+            payload_hash,
+            gas_limit: init_message.gas_limit,
+            value: init_message.value,
+            details: None,
+            context: None,
+        };
+
+        let queue = VecDeque::from(vec![init_dispatch]);
+        let queue_hash = processor.db.write_queue(queue);
+
+        let active_program = state::ActiveProgram {
+            allocations_hash: MaybeHash::Empty,
+            pages_hash: MaybeHash::Empty,
+            gas_reservation_map_hash: MaybeHash::Empty,
+            memory_infix: Default::default(),
+            status: InitStatus::Uninitialized {
+                message_id: init_message.id,
+            },
+        };
+
+        let program_state = ProgramState {
+            state: state::Program::Active(active_program),
+            queue_hash: queue_hash.into(),
+            waitlist_hash: MaybeHash::Empty,
+            balance: 0,
+        };
+
+        Ok(processor.db.write_state(program_state))
+    }
+
+    fn process_programs(
+        processor: &mut Processor,
+        programs: &mut HashMap<ProgramId, H256>,
+        mut messages: HashMap<ProgramId, Vec<UserMessage>>,
+    ) -> Result<VecDeque<Receipt>> {
+        let mut receipts = VecDeque::new();
+        for (program_id, state_hash) in programs.clone().into_iter() {
+            let messages = messages.remove(&program_id).unwrap_or_default();
+            let mut program_state = processor.db.read_state(state_hash).unwrap();
+
+            let mut queue = program_state
+                .queue_hash
+                .with_hash_or_default(|hash| processor.db.read_queue(hash).unwrap_or_default());
+
+            for message in messages.into_iter() {
+                let payload_hash = match message.payload.len() {
+                    0 => MaybeHash::Empty,
+                    _ => processor
+                        .db
+                        .write_payload(Payload::try_from(message.payload).unwrap())
+                        .into(),
+                };
+
+                let dispatch = Dispatch {
+                    id: message.id,
+                    kind: message.kind,
+                    source: message.source,
+                    payload_hash,
+                    gas_limit: message.gas_limit,
+                    value: message.value,
+                    details: None,
+                    context: None,
+                };
+
+                queue.push_back(dispatch);
+            }
+
+            if !queue.is_empty() {
+                let queue_hash = processor.db.write_queue(queue);
+                program_state.queue_hash = queue_hash.into();
+            }
+
+            let ri = NativeRuntimeInterface::new(&processor.db, Default::default());
+            let (new_state, new_receipts) = process_program(program_id, program_state, &ri);
+
+            receipts.append(&mut new_receipts.into());
+
+            programs.insert(program_id, processor.db.write_state(new_state));
+        }
+        Ok(receipts)
+    }
+
+    fn process_receipts(
+        processor: &mut Processor,
+        programs: &mut HashMap<ProgramId, H256>,
+        receipts: VecDeque<Receipt>,
+    ) {
+        for receipt in receipts.into_iter() {
+            match receipt {
+                Receipt::SendDispatch { dispatch, .. } => {
+                    let program_id = dispatch.message().destination();
+                    if !programs.contains_key(&program_id) {
+                        log::trace!("Message to user {program_id} was sent: {dispatch:?}");
+                        continue;
+                    }
+                    let payload = dispatch.message().payload_bytes();
+                    let payload_hash = payload
+                        .is_empty()
+                        .then_some(MaybeHash::Empty)
+                        .unwrap_or_else(|| {
+                            processor
+                                .db
+                                .write_payload(Payload::try_from(payload.to_vec()).unwrap())
+                                .into()
+                        });
+                    let details = dispatch.reply_details().map(MessageDetails::Reply);
+
+                    // TODO: temporary, gasless messages are not supported currently.
+                    let gas_limit = dispatch.message().gas_limit().unwrap_or(100_000_000_000);
+
+                    let dispatch = Dispatch {
+                        id: dispatch.message().id(),
+                        kind: dispatch.kind(),
+                        source: dispatch.message().source(),
+                        payload_hash,
+                        gas_limit,
+                        value: dispatch.message().value(),
+                        details,
+                        context: None,
+                    };
+                    let mut program_state = processor.db.read_state(programs[&program_id]).unwrap();
+                    let mut queue = program_state
+                        .queue_hash
+                        .with_hash_or_default(|hash| processor.db.read_queue(hash).unwrap());
+                    queue.push_back(dispatch);
+                    let queue_hash = processor.db.write_queue(queue);
+                    program_state.queue_hash = queue_hash.into();
+                    let new_state_hash = processor.db.write_state(program_state);
+                    programs.insert(program_id, new_state_hash);
+                }
+                r => todo!("Implement receipt {r:?} processing"),
+            }
+        }
+    }
+
+    #[test]
+    fn async_and_ping() {
+        init_logger();
+
+        let mut message_nonce: u64 = 0;
+        let mut get_next_message_id = || {
+            message_nonce += 1;
+            MessageId::from(message_nonce)
+        };
+        let user_id = ActorId::from(10);
+
+        let db = MemDb::default();
+        let mut processor = Processor::new(Database::from_one(&db));
+
+        let ping_id = ProgramId::from(0x10000000);
+        let async_id = ProgramId::from(0x20000000);
+
+        let ping_code_id = upload_code(&mut processor, demo_ping::WASM_BINARY).unwrap();
+        let upload_code_id = upload_code(&mut processor, demo_async::WASM_BINARY).unwrap();
+
+        let ping_state_hash = create_program(
+            &mut processor,
+            ping_id,
+            ping_code_id,
+            UserMessage {
+                id: get_next_message_id(),
+                kind: DispatchKind::Init,
+                source: user_id,
+                payload: b"PING".to_vec(),
+                gas_limit: 1_000_000_000,
+                value: 0,
+            },
+        )
+        .unwrap();
+
+        let async_state_hash = create_program(
+            &mut processor,
+            async_id,
+            upload_code_id,
+            UserMessage {
+                id: get_next_message_id(),
+                kind: DispatchKind::Init,
+                source: user_id,
+                payload: ping_id.encode(),
+                gas_limit: 1_000_000_000,
+                value: 0,
+            },
+        )
+        .unwrap();
+
+        let mut programs = vec![(ping_id, ping_state_hash), (async_id, async_state_hash)]
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        let receipts = process_programs(&mut processor, &mut programs, Default::default()).unwrap();
+        process_receipts(&mut processor, &mut programs, receipts);
+
+        let message_to_wait_for = get_next_message_id();
+        for i in 1..10 {
+            let messages = if i == 1 {
+                let ms = vec![UserMessage {
+                    id: message_to_wait_for,
+                    kind: DispatchKind::Handle,
+                    source: user_id,
+                    payload: demo_async::Command::Common.encode(),
+                    gas_limit: 10_000_000_000,
+                    value: 0,
+                }];
+                vec![(async_id, ms)].into_iter().collect()
+            } else {
+                Default::default()
+            };
+            let receipts = process_programs(&mut processor, &mut programs, messages).unwrap();
+            for r in receipts.iter() {
+                if let Receipt::SendDispatch { dispatch, .. } = r {
+                    if dispatch.destination() != user_id {
+                        continue;
+                    }
+                    let reply_payload =
+                        MessageId::decode(&mut dispatch.message().payload_bytes()).unwrap();
+                    assert_eq!(message_to_wait_for, reply_payload);
+                    let reply_for = dispatch.message().reply_details().unwrap().to_message_id();
+                    assert_eq!(message_to_wait_for, reply_for);
+                }
+            }
+            process_receipts(&mut processor, &mut programs, receipts);
+        }
     }
 }
