@@ -51,11 +51,7 @@ impl Processor {
         Self { db }
     }
 
-    pub fn new_code(&mut self, hash: CodeId, code: Vec<u8>) -> Result<bool> {
-        if hash != CodeId::generate(&code) {
-            return Ok(false);
-        }
-
+    pub fn new_code(&mut self, code: Vec<u8>) -> Result<bool> {
         let mut executor = InstanceWrapper::new(self.db.clone())?;
 
         let res = executor.verify(&code)?;
@@ -111,7 +107,7 @@ impl Processor {
             Event::UploadCode { code_id, code, .. } => {
                 log::debug!("Processing upload code {code_id:?}");
 
-                if self.new_code(*code_id, code.to_vec())? {
+                if self.new_code(code.to_vec())? {
                     Ok(vec![LocalOutcome::CodeCommitment(*code_id)])
                 } else {
                     Ok(vec![])
@@ -182,14 +178,14 @@ mod tests {
         let valid_id = CodeId::generate(&valid);
 
         assert!(processor.db.read_original_code(valid_id).is_none());
-        assert!(processor.new_code(valid_id, valid).unwrap());
+        assert!(processor.new_code(valid).unwrap());
         assert!(processor.db.read_original_code(valid_id).is_some());
 
         let invalid = vec![0; 42];
         let invalid_id = CodeId::generate(&invalid);
 
         assert!(processor.db.read_original_code(invalid_id).is_none());
-        assert!(!processor.new_code(invalid_id, invalid).unwrap());
+        assert!(!processor.new_code(invalid).unwrap());
         assert!(processor.db.read_original_code(invalid_id).is_none());
     }
 
@@ -204,7 +200,7 @@ mod tests {
         let code_len = code.len();
         let id = CodeId::generate(&code);
 
-        assert!(processor.new_code(id, code).unwrap());
+        assert!(processor.new_code(code).unwrap());
 
         assert!(processor.instrument_code(id).unwrap());
         let instrumented = processor.db.read_instrumented_code(RUNTIME_ID, id).unwrap();
@@ -223,7 +219,7 @@ mod tests {
         let code = valid_code();
         let code_id = CodeId::generate(&code);
 
-        assert!(processor.new_code(code_id, code).unwrap());
+        assert!(processor.new_code(code).unwrap());
 
         assert!(processor.instrument_code(code_id).unwrap());
         let _instrumented = processor
@@ -245,7 +241,7 @@ mod tests {
 
         let code = demo_ping::WASM_BINARY;
         let code_id = CodeId::generate(code);
-        assert!(processor.new_code(code_id, code.to_vec()).unwrap());
+        assert!(processor.new_code(code.to_vec()).unwrap());
         processor.db.set_program_code_id(program_id, code_id);
 
         assert!(processor.instrument_code(code_id).unwrap());
