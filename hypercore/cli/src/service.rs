@@ -18,6 +18,8 @@
 
 //! Main service in hypercore node.
 
+use std::str::FromStr;
+
 use crate::config::{Config, SequencerConfig, ValidatorConfig};
 use anyhow::Result;
 use futures::{future, stream::StreamExt};
@@ -75,7 +77,7 @@ impl Service {
 
         let validator = if let ValidatorConfig::Enabled(key) = &config.validator {
             log::info!("Validator key: {}", key);
-            Some(PublicKey::from_hex(key)?)
+            Some(PublicKey::from_str(key)?)
         } else {
             None
         };
