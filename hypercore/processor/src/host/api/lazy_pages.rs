@@ -18,9 +18,10 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory (unsafe casts).
 
-use crate::host::{api::MemoryWrap, context::HostContext};
+use crate::host::{api::MemoryWrap, context::HostContext, threads::HypercoreHostLazyPages};
 use anyhow::Result;
-use gear_runtime_interface::lazy_pages_detail;
+use gear_lazy_pages::LazyPagesVersion;
+use gear_runtime_interface::{lazy_pages_detail, LazyPagesInitContext};
 use parity_scale_codec::Encode;
 use sp_wasm_interface::{FunctionContext, IntoValue, StoreData};
 use std::{mem, slice};
@@ -78,8 +79,20 @@ fn change_wasm_memory_addr_and_size(caller: Caller<'_, StoreData>, addr: i64, si
     lazy_pages_detail::change_wasm_memory_addr_and_size(addr, size);
 }
 
-fn init_lazy_pages(_caller: Caller<'_, StoreData>, _ctx: i64) -> i32 {
-    unreachable!("This function should not be called in native");
+fn init_lazy_pages(caller: Caller<'_, StoreData>, ctx: i64) -> i32 {
+    log::trace!(target: "host_call", "init_lazy_pages(ctx={ctx:?})");
+
+    let memory = MemoryWrap(caller.data().memory());
+
+    let ctx: LazyPagesInitContext = memory.decode_by_val(&caller, ctx);
+
+    gear_lazy_pages::init(
+        LazyPagesVersion::Version1,
+        ctx.into(),
+        HypercoreHostLazyPages,
+    )
+    .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+    .is_ok() as i32
 }
 
 fn init_lazy_pages_for_program(caller: Caller<'_, StoreData>, ctx: i64) {
