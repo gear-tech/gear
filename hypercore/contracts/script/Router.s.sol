@@ -8,7 +8,8 @@ contract RouterScript is Script {
     function setUp() public {}
 
     function run() public {
-        vm.broadcast(vm.envUint("PRIVATE_KEY"));
-        console.log(address(new Router()));
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        vm.broadcast(privateKey);
+        console.log(address(new Router(vm.addr(privateKey))));
     }
 }

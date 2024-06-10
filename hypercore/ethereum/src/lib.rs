@@ -332,22 +332,13 @@ impl Program {
 
     pub async fn send_message(
         &self,
-        destination: ActorId,
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
     ) -> Result<H256> {
         let builder = self
             .0
-            .sendMessage(
-                {
-                    let mut address = Address::ZERO;
-                    address.0.copy_from_slice(&destination.into_bytes()[12..]);
-                    address
-                },
-                Bytes::copy_from_slice(payload.as_ref()),
-                gas_limit,
-            )
+            .sendMessage(Bytes::copy_from_slice(payload.as_ref()), gas_limit)
             .value(value.try_into()?);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;

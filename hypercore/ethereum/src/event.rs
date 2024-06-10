@@ -1,4 +1,4 @@
-use crate::{AlloyProgram, AlloyRouter};
+use crate::AlloyRouter;
 use alloy::sol_types::SolEvent;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 
@@ -118,14 +118,14 @@ pub struct SendMessage {
 }
 
 impl SendMessage {
-    pub const SIGNATURE_HASH: [u8; 32] = AlloyProgram::SendMessage::SIGNATURE_HASH.0;
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::SendMessage::SIGNATURE_HASH.0;
 }
 
 impl TryFrom<&[u8]> for SendMessage {
     type Error = anyhow::Error;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyProgram::SendMessage::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+        let event = AlloyRouter::SendMessage::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),
@@ -147,14 +147,14 @@ pub struct SendReply {
 }
 
 impl SendReply {
-    pub const SIGNATURE_HASH: [u8; 32] = AlloyProgram::SendReply::SIGNATURE_HASH.0;
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::SendReply::SIGNATURE_HASH.0;
 }
 
 impl TryFrom<&[u8]> for SendReply {
     type Error = anyhow::Error;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyProgram::SendReply::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+        let event = AlloyRouter::SendReply::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),
@@ -173,14 +173,14 @@ pub struct ClaimValue {
 }
 
 impl ClaimValue {
-    pub const SIGNATURE_HASH: [u8; 32] = AlloyProgram::ClaimValue::SIGNATURE_HASH.0;
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::ClaimValue::SIGNATURE_HASH.0;
 }
 
 impl TryFrom<&[u8]> for ClaimValue {
     type Error = anyhow::Error;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyProgram::ClaimValue::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+        let event = AlloyRouter::ClaimValue::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),

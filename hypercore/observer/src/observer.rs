@@ -50,11 +50,9 @@ pub struct Observer {
 }
 
 impl Observer {
-    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 2] = [
+    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 5] = [
         B256::new(UploadCode::SIGNATURE_HASH),
         B256::new(CreateProgram::SIGNATURE_HASH),
-    ];
-    const PROGRAM_EVENT_SIGNATURE_HASHES: [B256; 3] = [
         B256::new(SendMessage::SIGNATURE_HASH),
         B256::new(SendReply::SIGNATURE_HASH),
         B256::new(ClaimValue::SIGNATURE_HASH),
@@ -150,12 +148,8 @@ impl Observer {
         &mut self,
         block_hash: B256,
     ) -> Result<(Vec<PendingUploadCode>, Vec<BlockEvent>)> {
-        let [router_filter, program_filter] = self.event_filters(block_hash);
-
-        let mut logs = self.provider.get_logs(&router_filter).await?;
-        let mut logs1 = self.provider.get_logs(&program_filter).await?;
-        logs.append(&mut logs1);
-        logs.sort_unstable_by_key(|log| (log.block_timestamp, log.log_index));
+        let router_filter = self.event_filter(block_hash);
+        let logs = self.provider.get_logs(&router_filter).await?;
 
         let mut pending_upload_codes = vec![];
         let block_events: Vec<_> = logs
@@ -184,16 +178,9 @@ impl Observer {
                         None
                     }
                     Some(CreateProgram::SIGNATURE_HASH) => {
-                        let event: CreateProgram = data.try_into().ok()?;
-
-                        // TODO: mark event.actor_id as known in database
-
-                        Some(BlockEvent::CreateProgram(event))
+                        Some(BlockEvent::CreateProgram(data.try_into().ok()?))
                     }
                     Some(SendMessage::SIGNATURE_HASH) => {
-                        // TODO: return None if is not known actor_id
-                        // (for send message, send reply, claim value)
-
                         Some(BlockEvent::SendMessage(data.try_into().ok()?))
                     }
                     Some(SendReply::SIGNATURE_HASH) => {
@@ -210,16 +197,11 @@ impl Observer {
         Ok((pending_upload_codes, block_events))
     }
 
-    fn event_filters(&self, block_hash: B256) -> [Filter; 2] {
-        [
-            Filter::new()
-                .at_block_hash(block_hash)
-                .address(self.router_address)
-                .event_signature(Topic::from_iter(Self::ROUTER_EVENT_SIGNATURE_HASHES)),
-            Filter::new()
-                .at_block_hash(block_hash)
-                .event_signature(Topic::from_iter(Self::PROGRAM_EVENT_SIGNATURE_HASHES)),
-        ]
+    fn event_filter(&self, block_hash: B256) -> Filter {
+        Filter::new()
+            .at_block_hash(block_hash)
+            .address(self.router_address)
+            .event_signature(Topic::from_iter(Self::ROUTER_EVENT_SIGNATURE_HASHES))
     }
 
     async fn read_code_from_tx_hash(
