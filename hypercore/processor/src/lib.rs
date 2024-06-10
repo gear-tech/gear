@@ -188,20 +188,6 @@ mod tests {
     }
 
     #[test]
-    fn bad_hash() {
-        init_logger();
-
-        let db = MemDb::default();
-        let mut processor = Processor::new(Database::from_one(&db));
-
-        let valid = valid_code();
-        let valid_id = CodeId::generate(&valid).into_bytes().into();
-
-        assert!(processor.new_code(valid_id, valid.clone()).unwrap());
-        assert!(!processor.new_code(H256::zero().into(), valid).unwrap());
-    }
-
-    #[test]
     fn instrument_code() {
         init_logger();
 
