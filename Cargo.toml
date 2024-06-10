@@ -98,7 +98,8 @@ members = [
     "pallets/*",
     "runtime/*",
     "utils/*",
-    "utils/runtime-fuzzer/fuzz"
+    "utils/runtime-fuzzer/fuzz",
+    "utils/executor-fuzzer/fuzz"
 ]
 
 [workspace.dependencies]
