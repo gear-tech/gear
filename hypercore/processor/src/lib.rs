@@ -90,7 +90,8 @@ impl Processor {
 
         let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
 
-        instance_wrapper.run(&self.db, &instrumented_code)?;
+        // TODO: set state_hash.
+        instance_wrapper.run(Default::default(), &instrumented_code)?;
 
         Ok(())
     }

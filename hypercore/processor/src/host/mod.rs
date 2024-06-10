@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, Result};
-use gear_core::code::InstrumentedCode;
+use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::H256;
+use hypercore_runtime_common::state::Storage;
 use hypercore_runtime_native::RuntimeInterface;
 use parity_scale_codec::Decode;
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
@@ -87,13 +88,8 @@ impl InstanceWrapper {
         self.call("instrument", original_code)
     }
 
-    pub fn run(&mut self, db: &Database, instrumented_code: &InstrumentedCode) -> Result<()> {
-        // breathx: init lazy pages here.
-        let ri = hypercore_runtime_native::NativeRuntimeInterface::new(db, Default::default());
-        ri.init_lazy_pages(Default::default());
-
-        // TODO: set root.
-        threads::set(self.db.clone(), H256::zero());
+    pub fn run(&mut self, state_hash: H256, instrumented_code: &InstrumentedCode) -> Result<()> {
+        threads::set(self.db.clone(), state_hash);
 
         self.call("run", instrumented_code.code())
     }

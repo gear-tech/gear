@@ -7206,6 +7206,7 @@ dependencies = [
  "env_logger",
  "gear-core",
  "gear-core-processor",
+ "gear-lazy-pages",
  "gear-runtime-interface",
  "gprimitives",
  "hypercore-db",

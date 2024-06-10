@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
+use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gear_sandbox::{
     default_executor::{Caller, EnvironmentDefinitionBuilder, Instance, Memory, Store},
     HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -44,6 +45,10 @@ fn reply_mock(_caller: &mut Caller<'_, ()>, _args: &[Value]) -> Result<WasmRetur
 
 pub fn run(code: Vec<u8>) {
     log::info!("You're calling 'run(..)'");
+
+    assert!(LazyPagesRuntimeInterface::try_to_enable_lazy_pages(
+        Default::default()
+    ));
 
     let mut store = Store::new(());
     let memory = Memory::new(&mut store, 1, None).unwrap();
