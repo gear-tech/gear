@@ -50,7 +50,7 @@ pub struct Args {
     #[arg(
         long = "ethereum-router-address",
         alias = "router",
-        default_value = "0x9F1291e0DE8F29CC7bF16f7a8cb39e7Aebf33B9b"
+        default_value = "0xA2B95aC9aA1E821126Af6FBd65E93a23b2f85C2e"
     )]
     pub ethereum_router_address: String,
 
@@ -58,7 +58,7 @@ pub struct Args {
     #[arg(
         long = "ethereum-program-address",
         alias = "program",
-        default_value = "0x23a4FC5f430a7c3736193B852Ad5191c7EC01037"
+        default_value = "0xDB4fE5d350a1E84be106Bc8b8f01AB9037fba2A0"
     )]
     pub ethereum_program_address: String,
 
