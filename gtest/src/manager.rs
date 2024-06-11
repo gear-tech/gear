@@ -400,7 +400,6 @@ impl ExtManager {
 
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
-        // TODO review after https://github.com/gear-tech/gear/pull/3961
         if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "Value greater than 0, but less than \
