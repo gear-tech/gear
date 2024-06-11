@@ -66,9 +66,9 @@ jobs:
       - name: "Test: Production `vara-runtime`"
         run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev false target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Build: Prod Runtime metadata"
+      - name: "Artifact: Production `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/production_vara_runtime_v$VARA_SPEC_metadata.scale"
+          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/production_vara_runtime_v${VARA_SPEC}_metadata.scale"
 
       - name: "Artifact: Production `vara-runtime`"
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v$VARA_SPEC.wasm"
@@ -79,9 +79,9 @@ jobs:
       - name: "Test: Development `vara-runtime`"
         run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev true target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Build: Dev Runtime metadata"
+      - name: "Artifact: Development `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/testnet_vara_runtime_v$VARA_SPEC_metadata.scale"
+          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/testnet_vara_runtime_v${VARA_SPEC}_metadata.scale"
 
       - name: "Artifact: Production node client and development `vara-runtime`"
         run: |
