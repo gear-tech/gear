@@ -23,10 +23,11 @@ use std::str::FromStr;
 use crate::config::{Config, SequencerConfig, ValidatorConfig};
 use anyhow::Result;
 use futures::{future, stream::StreamExt};
-use gprimitives::H256;
+use hypercore_network::service::NetworkGossip;
 use hypercore_processor::LocalOutcome;
 use hypercore_sequencer::{AggregatedCommitments, CodeHashCommitment};
-use hypercore_signer::PublicKey;
+use hypercore_signer::{Address, PublicKey};
+use parity_scale_codec::Decode;
 use tokio::{signal, time};
 
 /// Hypercore service.
@@ -37,7 +38,7 @@ pub struct Service {
     processor: hypercore_processor::Processor,
     signer: hypercore_signer::Signer,
     sequencer: Option<hypercore_sequencer::Sequencer>,
-    validator: Option<PublicKey>,
+    validator: Option<hypercore_validator::Validator>,
 }
 
 async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
@@ -75,11 +76,16 @@ impl Service {
             SequencerConfig::Disabled => None,
         };
 
-        let validator = if let ValidatorConfig::Enabled(key) = &config.validator {
-            log::info!("Validator key: {}", key);
-            Some(PublicKey::from_str(key)?)
-        } else {
-            None
+        let validator = match config.validator {
+            ValidatorConfig::Enabled(ref sign_tx_public) => {
+                Some(hypercore_validator::Validator::new(
+                    &hypercore_validator::Config {
+                        pub_key: PublicKey::from_str(sign_tx_public)?,
+                    },
+                    signer.clone(),
+                ))
+            }
+            ValidatorConfig::Disabled => None,
         };
 
         Ok(Self {
@@ -112,25 +118,6 @@ impl Service {
         Ok(())
     }
 
-    fn push_commitment(
-        sequencer: &mut hypercore_sequencer::Sequencer,
-        signer: &hypercore_signer::Signer,
-        pub_key: PublicKey,
-        outcomes: &[LocalOutcome],
-    ) -> Result<()> {
-        let mut code_commitments = Vec::new();
-        for outcome in outcomes {
-            match outcome {
-                LocalOutcome::CodeCommitment(code_id) => {
-                    code_commitments.push(CodeHashCommitment(H256::from(code_id.into_bytes())))
-                }
-            }
-        }
-        let aggregated_commitments =
-            AggregatedCommitments::aggregate_commitments(code_commitments, signer, pub_key)?;
-        sequencer.receive_codes_commitment(pub_key.to_address(), aggregated_commitments)
-    }
-
     pub async fn run(self) -> Result<()> {
         let Service {
             db: _db,
@@ -138,17 +125,23 @@ impl Service {
             mut observer,
             mut processor,
             mut sequencer,
-            signer,
-            validator,
+            signer: _signer,
+            mut validator,
         } = self;
 
         let mut outcomes: Vec<LocalOutcome> = Vec::new();
 
+        let network_service = network.service().clone();
+
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
+        let mut gossip_stream = network_service.gossip_message_stream();
+
         let network_run = network.run();
-        futures::pin_mut!(network_run);
+
+        // spawn network future
+        let mut network_handle = tokio::spawn(network_run);
 
         let mut delay: Option<_> = None;
 
@@ -167,9 +160,8 @@ impl Service {
                             &mut outcomes,
                         ).await?;
 
-                        if let Some(sequencer) = sequencer.as_mut() {
-                            Self::push_commitment(sequencer, &signer, validator.unwrap(), &outcomes)?;
-                            outcomes.clear();
+                        if let Some(ref mut validator) = validator {
+                            validator.push_commitment(network_service.clone(), &outcomes)?;
                         }
 
                         delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
@@ -178,14 +170,39 @@ impl Service {
                         break;
                     }
                 }
+                message = gossip_stream.next() => {
+                    if let Some(message) = message {
+                        if let Some(sequencer) = sequencer.as_mut() {
+                            log::debug!("Received p2p commitments from: {:?}", message.sender);
+                            let (origin, aggregated_commitments) = <(Address, AggregatedCommitments<CodeHashCommitment>)>::decode(&mut message.data.as_slice())?;
+                            sequencer.receive_codes_commitment(origin, aggregated_commitments)?;
+                        }
+                    }
+                }
                 _ = maybe_sleep(&mut delay) => {
                     log::debug!("Sending timeout after block event...");
 
                     if let Some(sequencer) = sequencer.as_mut() {
+                        // Push to local sequencer if validator enabled
+                        if let Some(ref mut validator) = validator {
+                            let origin = validator.pub_key().to_address();
+                            for aggregated_code_commitments in validator.aggregated_code_commitments().drain() {
+                                sequencer.receive_codes_commitment(origin, aggregated_code_commitments)?;
+                            }
+                        };
+
                         sequencer.process_block_timeout().await?;
                     }
+
+                    if let Some(ref mut validator) = validator {
+                        // clean validator state
+                        validator.aggregated_code_commitments().clear();
+                    };
+
+                    // clear state
+                    outcomes.clear();
                 }
-                _ = &mut network_run => {
+                _ = &mut network_handle => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
                     break;
                 }

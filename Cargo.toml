@@ -292,6 +292,8 @@ hypercore-sequencer = { path = "hypercore/sequencer" }
 hypercore-ethereum = { path = "hypercore/ethereum" }
 hypercore-runtime-common = { path = "hypercore/runtime/common" }
 hypercore-runtime-native = { path = "hypercore/runtime/native" }
+hypercore-utils = { path = "hypercore/utils" }
+hypercore-validator = { path = "hypercore/validator" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }

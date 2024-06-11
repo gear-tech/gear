@@ -2,7 +2,9 @@ use crate::AlloyRouter;
 use alloy::sol_types::SolEvent;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 
-#[derive(Debug)]
+use parity_scale_codec::{Decode, Encode};
+
+#[derive(Debug, Decode, Encode)]
 pub struct UploadCode {
     pub origin: ActorId,
     pub code_id: CodeId,
@@ -27,7 +29,7 @@ impl TryFrom<&[u8]> for UploadCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Decode, Encode)]
 pub struct UploadedCode {
     pub code_id: CodeId,
 }
@@ -48,7 +50,7 @@ impl TryFrom<&[u8]> for UploadedCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Decode, Encode)]
 pub struct CreateProgram {
     pub origin: ActorId,
     pub actor_id: ActorId,
@@ -82,7 +84,7 @@ impl TryFrom<&[u8]> for CreateProgram {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct UpdatedProgram {
     pub actor_id: ActorId,
     pub old_state_hash: H256,
@@ -108,7 +110,7 @@ impl TryFrom<&[u8]> for UpdatedProgram {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Decode, Encode)]
 pub struct SendMessage {
     origin: ActorId,
     destination: ActorId,
@@ -137,7 +139,7 @@ impl TryFrom<&[u8]> for SendMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Decode, Encode)]
 pub struct SendReply {
     origin: ActorId,
     reply_to_id: MessageId,
@@ -166,7 +168,7 @@ impl TryFrom<&[u8]> for SendReply {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Decode, Encode)]
 pub struct ClaimValue {
     origin: ActorId,
     message_id: MessageId,

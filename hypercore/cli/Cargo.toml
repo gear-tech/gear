@@ -23,6 +23,7 @@ tokio = { workspace = true, features = ["signal", "macros", "rt", "rt-multi-thre
 futures.workspace = true
 serde = { workspace = true, features = ["derive"] }
 toml.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 
 gprimitives.workspace = true
 
@@ -33,5 +34,6 @@ hypercore-processor.workspace = true
 hypercore-signer.workspace = true
 hypercore-sequencer.workspace = true
 hypercore-ethereum.workspace = true
+hypercore-validator.workspace = true
 static_init = "1.0.3"
 tempfile.workspace = true

@@ -19,6 +19,7 @@
 //! Signer library for hypercore.
 
 use anyhow::{anyhow, Context as _, Result};
+use parity_scale_codec::{Decode, Encode};
 use secp256k1::Message;
 use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
@@ -28,10 +29,10 @@ pub struct PublicKey(pub [u8; 33]);
 
 pub struct PrivateKey(pub [u8; 32]);
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Address(pub [u8; 20]);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Signature(pub [u8; 65]);
 
 pub struct Hash([u8; 32]);

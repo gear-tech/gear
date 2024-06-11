@@ -19,6 +19,7 @@ alloy = { workspace = true, features = [
     "rpc-types-beacon",
 ] }
 async-stream.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tokio = { workspace = true, features = ["fs"] }
 futures.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }

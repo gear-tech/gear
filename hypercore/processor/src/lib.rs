@@ -27,6 +27,7 @@ use gear_core::{
 use gprimitives::{CodeId, H256};
 use host::InstanceWrapper;
 use hypercore_observer::Event;
+use parity_scale_codec::{Decode, Encode};
 use std::collections::HashMap;
 
 pub use db::Database;
@@ -41,6 +42,7 @@ pub struct Processor {
 }
 
 /// Local changes that can be committed to the network or local signer.
+#[derive(Debug, Encode, Decode)]
 pub enum LocalOutcome {
     /// Produced when code with specific id is recorded and available in database.
     CodeCommitment(CodeId),

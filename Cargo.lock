@@ -2419,9 +2419,9 @@ checksum = "2382f75942f4b3be3690fe4f86365e9c853c1587d6ee58212cebf6e2a9ccd101"
 
 [[package]]
 name = "concurrent-queue"
-version = "2.2.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62ec6771ecfa0762d24683ee5a32ad78487a3d3afdc0fb8cae19d2c5deb50b7c"
+checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -7121,7 +7121,9 @@ dependencies = [
  "hypercore-processor",
  "hypercore-sequencer",
  "hypercore-signer",
+ "hypercore-validator",
  "log",
+ "parity-scale-codec",
  "serde",
  "static_init",
  "tempfile",
@@ -7154,6 +7156,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gprimitives",
  "hypercore-signer",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -7166,6 +7169,7 @@ dependencies = [
  "fnv",
  "futures",
  "futures-timer",
+ "hypercore-utils",
  "libp2p 0.52.4",
  "linked_hash_set",
  "log",
@@ -7192,6 +7196,7 @@ dependencies = [
  "gprimitives",
  "hypercore-ethereum",
  "log",
+ "parity-scale-codec",
  "reqwest 0.11.27",
  "tokio",
 ]
@@ -7284,6 +7289,7 @@ dependencies = [
  "hypercore-processor",
  "hypercore-signer",
  "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -7294,8 +7300,41 @@ dependencies = [
  "ethers",
  "gprimitives",
  "hex",
+ "parity-scale-codec",
  "secp256k1 0.29.0",
  "sha3",
+]
+
+[[package]]
+name = "hypercore-utils"
+version = "1.4.2"
+dependencies = [
+ "async-channel",
+ "futures",
+ "futures-timer",
+ "lazy_static",
+ "log",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "sp-arithmetic",
+ "tokio-test",
+]
+
+[[package]]
+name = "hypercore-validator"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "futures",
+ "gprimitives",
+ "hypercore-network",
+ "hypercore-processor",
+ "hypercore-sequencer",
+ "hypercore-signer",
+ "log",
+ "parity-scale-codec",
+ "static_init",
+ "tempfile",
 ]
 
 [[package]]
@@ -16454,6 +16493,19 @@ dependencies = [
  "pin-project-lite 0.2.13",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "tokio-test"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2468baabc3311435b55dd935f702f42cd1b8abb7e754fb7dfb16bd36aa88f9f7"
+dependencies = [
+ "async-stream",
+ "bytes",
+ "futures-core",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]

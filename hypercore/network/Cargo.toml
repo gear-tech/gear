@@ -43,5 +43,7 @@ zeroize = "1.8.1"
 thiserror.workspace = true
 void = "1.0.2"
 
+hypercore-utils.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true

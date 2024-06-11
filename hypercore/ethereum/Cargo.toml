@@ -24,3 +24,5 @@ gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 gprimitives.workspace = true
 hypercore-signer.workspace = true
+
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }

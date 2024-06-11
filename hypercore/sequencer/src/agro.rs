@@ -21,13 +21,14 @@
 use anyhow::Result;
 use gprimitives::H256;
 use hypercore_signer::{hash, Address, PublicKey, Signature, Signer};
+use parity_scale_codec::{Decode, Encode};
 use std::collections::{HashMap, HashSet};
 
 pub trait SeqHash {
     fn hash(&self) -> H256;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct AggregatedCommitments<D: SeqHash> {
     pub commitments: Vec<D>,
     pub signature: Signature,
@@ -45,7 +46,7 @@ pub struct AggregatedQueue<D: SeqHash> {
     last: H256,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct CodeHashCommitment(pub H256);
 
 // identity hashing
