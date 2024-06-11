@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{boxed::Box, vec::Vec};
-use parity_scale_codec::Encode;
+use gear_core::code::InstrumentedCode;
+use parity_scale_codec::{Decode, Encode};
 
 mod instrument;
 mod run;
@@ -46,7 +47,9 @@ extern "C" fn run(instrumented_code_ptr: i32, instrumented_code_len: i32) -> i64
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
 fn _run(instrumented_code_ptr: i32, instrumented_code_len: i32) -> i64 {
-    let instrumented_code = get_vec(instrumented_code_ptr, instrumented_code_len);
+    let instrumented_code =
+        InstrumentedCode::decode(&mut get_slice(instrumented_code_ptr, instrumented_code_len))
+            .unwrap();
 
     #[allow(clippy::let_unit_value)]
     let res = run::run(instrumented_code);
@@ -72,6 +75,10 @@ fn _verify(code_ptr: i32, code_len: i32) -> i64 {
 
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(ptr as _, len as usize, len as usize) }
+}
+
+fn get_slice<'a>(ptr: i32, len: i32) -> &'a [u8] {
+    unsafe { core::slice::from_raw_parts(ptr as _, len as usize) }
 }
 
 fn return_val(val: impl Encode) -> i64 {

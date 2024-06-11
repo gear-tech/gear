@@ -78,7 +78,7 @@ impl Processor {
         }
     }
 
-    pub fn run_on_host(&mut self, code_id: CodeId) -> Result<()> {
+    pub fn run_on_host(&mut self, program_state: H256, code_id: CodeId) -> Result<()> {
         let instrumented_code = self
             .db
             .read_instrumented_code(RUNTIME_ID, code_id)
@@ -86,8 +86,7 @@ impl Processor {
 
         let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
 
-        // TODO: set state_hash.
-        instance_wrapper.run(Default::default(), &instrumented_code)?;
+        instance_wrapper.run(program_state, &instrumented_code)?;
 
         Ok(())
     }
@@ -137,6 +136,7 @@ mod tests {
     };
     use gprimitives::{ActorId, MessageId};
     use hypercore_db::MemDb;
+    use hypercore_runtime_common::state::ActiveProgram;
     use hypercore_runtime_native::{
         hypercore_runtime_common::receipts::Receipt,
         process_program,
@@ -210,13 +210,27 @@ mod tests {
     }
 
     #[test]
-    fn host_sandbox() {
+    fn host_ping_pong() {
         init_logger();
 
         let db = MemDb::default();
         let mut processor = Processor::new(Database::from_one(&db));
 
-        let code = valid_code();
+        let program_state = ProgramState {
+            state: state::Program::Active(ActiveProgram {
+                allocations_hash: MaybeHash::Empty,
+                pages_hash: MaybeHash::Empty,
+                gas_reservation_map_hash: MaybeHash::Empty,
+                memory_infix: Default::default(),
+                status: gear_core::program::ProgramState::Initialized,
+            }),
+            queue_hash: MaybeHash::Empty,
+            waitlist_hash: MaybeHash::Empty,
+            balance: 0,
+        };
+        let state_hash = processor.db.write_state(program_state);
+
+        let code = demo_ping::WASM_BINARY.to_vec();
         let code_id = CodeId::generate(&code);
 
         assert!(processor.new_code(code).unwrap());
@@ -227,7 +241,7 @@ mod tests {
             .read_instrumented_code(RUNTIME_ID, code_id)
             .unwrap();
 
-        processor.run_on_host(code_id).unwrap();
+        processor.run_on_host(state_hash, code_id).unwrap();
     }
 
     #[test]

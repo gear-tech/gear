@@ -29,8 +29,6 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
 }
 
 fn free(caller: Caller<'_, StoreData>, ptr: i32) {
-    log::trace!(target: "host_call", "free(ptr={ptr:?})");
-
     let mut host_context = HostContext { caller };
 
     host_context
@@ -39,18 +37,12 @@ fn free(caller: Caller<'_, StoreData>, ptr: i32) {
 }
 
 fn malloc(caller: Caller<'_, StoreData>, size: i32) -> i32 {
-    log::trace!(target: "host_call", "malloc(size={size:?})");
-
     let mut host_context = HostContext { caller };
 
-    let ptr = host_context
+    host_context
         .allocate_memory(size as _)
         .unwrap()
         .into_value()
         .as_i32()
-        .unwrap();
-
-    log::trace!(target: "host_call", "malloc(size={size:?}) -> ptr={ptr:?}");
-
-    ptr
+        .unwrap()
 }

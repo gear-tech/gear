@@ -21,7 +21,7 @@ use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::H256;
 use hypercore_runtime_common::state::Storage;
 use hypercore_runtime_native::RuntimeInterface;
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
 use std::mem;
@@ -59,6 +59,8 @@ impl InstanceWrapper {
     }
 
     pub fn new(db: Database) -> Result<Self> {
+        gear_runtime_interface::sandbox_init();
+
         let mut store = Store::default();
         let module = wasmtime::Module::new(store.engine(), runtime())?;
         let mut linker = wasmtime::Linker::new(store.engine());
@@ -91,7 +93,7 @@ impl InstanceWrapper {
     pub fn run(&mut self, state_hash: H256, instrumented_code: &InstrumentedCode) -> Result<()> {
         threads::set(self.db.clone(), state_hash);
 
-        self.call("run", instrumented_code.code())
+        self.call("run", instrumented_code.encode())
     }
 
     pub fn verify(&mut self, code: &Vec<u8>) -> Result<bool> {
