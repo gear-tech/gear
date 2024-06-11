@@ -53,11 +53,10 @@ impl Metadata {
 
         let inner = command.exec()?;
         let gbuild = serde_json::from_value::<MetadataField>(inner.workspace_metadata.clone())
-            .map(|m| {
-                let mut gbuild = m.gbuild;
-                gbuild.programs.dedup();
-                gbuild.metas.dedup();
-                gbuild
+            .map(|mut m| {
+                m.gbuild.programs.dedup();
+                m.gbuild.metas.dedup();
+                m.gbuild
             })
             .unwrap_or_default();
 
