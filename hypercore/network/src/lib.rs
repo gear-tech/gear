@@ -27,7 +27,11 @@ pub mod service;
 pub mod transport;
 pub mod utils;
 
-pub use crate::{config::*, error::Error, service::NetworkWorker};
+pub use crate::{
+    config::*,
+    error::Error,
+    service::{NetworkService, NetworkWorker},
+};
 
 #[doc(inline)]
 pub use libp2p::{multiaddr, Multiaddr, PeerId};

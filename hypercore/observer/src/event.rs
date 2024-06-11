@@ -1,7 +1,9 @@
 use gprimitives::{ActorId, CodeId, H256};
 pub use hypercore_ethereum::event::{ClaimValue, CreateProgram, SendMessage, SendReply};
 
-#[derive(Debug)]
+use parity_scale_codec::{Decode, Encode};
+
+#[derive(Debug, Encode, Decode)]
 pub enum BlockEvent {
     CreateProgram(CreateProgram),
     SendMessage(SendMessage),
@@ -9,7 +11,7 @@ pub enum BlockEvent {
     ClaimValue(ClaimValue),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub enum Event {
     UploadCode {
         origin: ActorId,

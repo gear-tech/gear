@@ -10,6 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 gprimitives = { workspace = true, features = ["codec"] }
 log.workspace = true
 anyhow.workspace = true

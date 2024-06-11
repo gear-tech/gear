@@ -21,36 +21,123 @@ use crate::{
     transport, Error, NetworkConfiguration, TransportConfig,
 };
 
+use hypercore_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver, TracingUnboundedSender};
+
 use anyhow::Result;
 use either::Either;
-use futures::{select, StreamExt};
+use futures::{select, Stream, StreamExt};
 use libp2p::{
     connection_limits::ConnectionLimits,
     core::upgrade,
+    gossipsub,
     identify::Info as IdentifyInfo,
+    identity::Keypair,
     swarm::{Config, Swarm, SwarmEvent},
-    Multiaddr,
+    Multiaddr, PeerId,
 };
 use log::{debug, error, info, trace};
 use parking_lot::Mutex;
 use std::{
-    collections::HashSet,
+    collections::{hash_map::DefaultHasher, HashSet},
     fs,
+    hash::{Hash, Hasher},
     num::NonZeroUsize,
-    sync::{atomic::AtomicUsize, Arc},
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
 };
 use void::Void;
 
-pub type SwarmEventError = Either<Either<Void, std::io::Error>, Void>;
+pub type SwarmEventError = Either<Either<Either<Void, std::io::Error>, Void>, Void>;
+
+#[allow(unused)]
+/// hypercore network service. Handles network IO and manages connectivity.
+pub struct NetworkService {
+    /// The local external addresses.
+    external_addresses: Arc<Mutex<HashSet<Multiaddr>>>,
+    /// Listen addresses. Do **NOT** include a trailing `/p2p/` with our `PeerId`.
+    listen_addresses: Arc<Mutex<HashSet<Multiaddr>>>,
+    /// Local copy of the `PeerId` of the local node.
+    local_peer_id: PeerId,
+    /// The `KeyPair` that defines the `PeerId` of the local node.
+    local_identity: Keypair,
+    /// Bandwidth logging system. Can be queried to know the average bandwidth consumed.
+    bandwidth: Arc<transport::BandwidthSinks>,
+    /// Channel that sends messages to the actual worker.
+    to_worker: TracingUnboundedSender<ServiceToWorkerMsg>,
+}
+
+pub struct GossipMessageStream {
+    receiver: TracingUnboundedReceiver<MessageEntry>,
+}
+
+impl GossipMessageStream {
+    pub fn new(receiver: TracingUnboundedReceiver<MessageEntry>) -> Self {
+        GossipMessageStream { receiver }
+    }
+}
+
+impl Stream for GossipMessageStream {
+    type Item = MessageEntry;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.receiver).poll_next(cx)
+    }
+}
+
+pub trait NetworkGossip {
+    fn broadcast_commitments(&self, data: impl Into<Vec<u8>>);
+    fn gossip_message_stream(&self) -> GossipMessageStream;
+}
+
+impl NetworkGossip for NetworkService {
+    fn broadcast_commitments(&self, data: impl Into<Vec<u8>>) {
+        let _ = self
+            .to_worker
+            .unbounded_send(ServiceToWorkerMsg::GossipCommitments { data: data.into() });
+    }
+    fn gossip_message_stream(&self) -> GossipMessageStream {
+        let (tx, rx) = tracing_unbounded("gossip_message_stream", 1000);
+        let _ = self
+            .to_worker
+            .unbounded_send(ServiceToWorkerMsg::GossipMessageStream { sender: tx });
+        GossipMessageStream::new(rx)
+    }
+}
+
+/// Messages sent from the `NetworkService` to the `NetworkWorker`.
+///
+/// Each entry corresponds to a method of `NetworkService`.
+enum ServiceToWorkerMsg {
+    GossipCommitments {
+        data: Vec<u8>,
+    },
+    GossipMessageStream {
+        sender: TracingUnboundedSender<MessageEntry>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageEntry {
+    pub message_id: gossipsub::MessageId,
+    pub topic_hash: gossipsub::TopicHash,
+    pub data: Vec<u8>,
+    pub sender: Option<PeerId>,
+}
 
 /// Network for Hypercore nodes.
 pub struct NetworkWorker {
     /// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
     listen_addresses: Arc<Mutex<HashSet<Multiaddr>>>,
-    /// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
-    num_connected: Arc<AtomicUsize>,
+    /// The network service that can be extracted and shared through the codebase.
+    service: Arc<NetworkService>,
     /// The *actual* network.
     network_service: Swarm<Behaviour>,
+    /// Messages from the [`NetworkService`] that must be processed.
+    from_service: TracingUnboundedReceiver<ServiceToWorkerMsg>,
+    /// Messages recieved from gossip engine
+    gossip_message_stream: Option<TracingUnboundedSender<MessageEntry>>,
 }
 
 impl NetworkWorker {
@@ -79,6 +166,8 @@ impl NetworkWorker {
             &network_config.transport,
         )?;
 
+        let (to_worker, from_service) = tracing_unbounded("mpsc_network_worker", 100_000);
+
         if let Some(path) = &network_config.net_config_path {
             fs::create_dir_all(path)?;
         }
@@ -94,11 +183,29 @@ impl NetworkWorker {
             transport::build_transport(local_identity.clone(), config_mem)
         };
 
+        let known_addresses = {
+            // Collect all reserved nodes and bootnodes addresses.
+            let mut addresses: Vec<_> = network_config
+                .default_peers_set
+                .reserved_nodes
+                .iter()
+                .chain(network_config.boot_nodes.iter())
+                .collect();
+
+            // Remove possible duplicates.
+            addresses.sort();
+            addresses.dedup();
+
+            addresses
+        };
+
+        let listen_addresses = Arc::new(Mutex::new(HashSet::new()));
+
         let external_addresses = Arc::new(Mutex::new(HashSet::new()));
 
         // Build the swarm.
         // TODO: Use bandwidth in metrics
-        let (mut swarm, _bandwidth): (Swarm<Behaviour>, _) = {
+        let (mut swarm, bandwidth): (Swarm<Behaviour>, _) = {
             // TODO: Add client version
             let user_agent = network_config.node_name.to_string();
 
@@ -112,11 +219,45 @@ impl NetworkWorker {
                     libp2p::connection_limits::Behaviour::new(limits)
                 };
 
+                let gossipsub = {
+                    // To content-address message, we can take the hash of message and use it as an ID.
+                    let message_id_fn = |message: &gossipsub::Message| {
+                        let mut s = DefaultHasher::new();
+                        message.data.hash(&mut s);
+                        gossipsub::MessageId::from(s.finish().to_string())
+                    };
+
+                    // Set a custom gossipsub configuration
+                    let gossipsub_config = gossipsub::ConfigBuilder::default()
+                        // This is set to aid debugging by not cluttering the log space
+                        .heartbeat_interval(Duration::from_secs(5))
+                        // This sets the kind of message validation. The default is Strict (enforce message signing)
+                        .validation_mode(gossipsub::ValidationMode::Strict)
+                        // content-address messages. No two messages of the same content will be propagated.
+                        .message_id_fn(message_id_fn)
+                        .build()
+                        .expect("Valid config");
+
+                    // build a gossipsub network behaviour
+                    let mut gossipsub = gossipsub::Behaviour::new(
+                        gossipsub::MessageAuthenticity::Signed(local_identity.clone()),
+                        gossipsub_config,
+                    )
+                    .expect("Correct configuration");
+                    // Create a Gossipsub topic
+                    let topic = gossipsub::IdentTopic::new("gpu-commitments");
+
+                    // subscribes to our topic
+                    gossipsub.subscribe(&topic)?;
+                    gossipsub
+                };
+
                 let result = Behaviour::new(
                     user_agent,
                     local_public,
                     external_addresses.clone(),
                     connection_limits,
+                    gossipsub,
                 );
 
                 match result {
@@ -131,9 +272,9 @@ impl NetworkWorker {
                 .with_per_connection_event_buffer_size(24)
                 .with_max_negotiating_inbound_streams(2048);
 
-            let builder = Swarm::new(transport, behaviour, local_peer_id, config);
+            let swarm = Swarm::new(transport, behaviour, local_peer_id, config);
 
-            (builder, bandwidth)
+            (swarm, bandwidth)
         };
 
         // Listen on multiaddresses.
@@ -148,18 +289,32 @@ impl NetworkWorker {
             Swarm::<Behaviour>::add_external_address(&mut swarm, addr.clone());
         }
 
-        for peer in &network_config.boot_nodes {
-            swarm.dial(peer.clone())?;
+        for address in known_addresses {
+            swarm.dial(address.clone())?;
         }
 
-        let listen_addresses = Arc::new(Mutex::new(HashSet::new()));
-        let num_connected = Arc::new(AtomicUsize::new(0));
+        let service = Arc::new(NetworkService {
+            bandwidth,
+            external_addresses,
+            listen_addresses: listen_addresses.clone(),
+            local_peer_id,
+            local_identity,
+            to_worker,
+        });
 
         Ok(Self {
             listen_addresses,
-            num_connected,
+            service,
             network_service: swarm,
+            from_service,
+            gossip_message_stream: None,
         })
+    }
+
+    /// Return a `NetworkService` that can be shared through the code base and can be used to
+    /// manipulate the worker.
+    pub fn service(&self) -> &Arc<NetworkService> {
+        &self.service
     }
 
     /// Run the network.
@@ -173,6 +328,14 @@ impl NetworkWorker {
     /// Intended for tests only. Use `run`].
     pub async fn next_action(&mut self) -> bool {
         select! {
+            // Next message from the service.
+            msg = self.from_service.next() => {
+                if let Some(msg) = msg {
+                    self.handle_worker_message(msg);
+                } else {
+                    return false
+                }
+            },
             // Next event from `Swarm` (the stream guaranteed to never terminate).
             event = self.network_service.select_next_some() => {
                 self.handle_swarm_event(event);
@@ -182,9 +345,43 @@ impl NetworkWorker {
         true
     }
 
+    /// Process the next message coming from the `NetworkService`.
+    fn handle_worker_message(&mut self, msg: ServiceToWorkerMsg) {
+        match msg {
+            ServiceToWorkerMsg::GossipCommitments { data } => {
+                let topic = "gpu-commitments".to_string();
+                self.network_service
+                    .behaviour_mut()
+                    .gossipsub_publish(topic, data)
+            }
+            ServiceToWorkerMsg::GossipMessageStream { sender } => {
+                self.gossip_message_stream = Some(sender);
+            }
+        }
+    }
+
     /// Process the next event coming from `Swarm`.
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourOut, SwarmEventError>) {
         match event {
+            SwarmEvent::Behaviour(BehaviourOut::GossipCommitments {
+                message_id,
+                message,
+                ..
+            }) => {
+                debug!(
+                    "Libp2p::gossipsub => GossipCommitments from {:?}",
+                    message.source
+                );
+                let entry = MessageEntry {
+                    message_id,
+                    topic_hash: message.topic,
+                    data: message.data,
+                    sender: message.source,
+                };
+                if let Some(ref sender) = self.gossip_message_stream {
+                    let _ = sender.unbounded_send(entry);
+                }
+            }
             SwarmEvent::Behaviour(BehaviourOut::PeerIdentify { peer_id, info }) => {
                 let IdentifyInfo {
                     protocol_version,
