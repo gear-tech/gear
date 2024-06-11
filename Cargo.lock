@@ -4819,6 +4819,8 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
+ "gear-tasks",
+ "gear-tasks-runtime-api",
  "hex-literal",
  "jsonrpsee 0.16.3",
  "log",
@@ -4904,14 +4906,27 @@ dependencies = [
 name = "gear-tasks"
 version = "1.4.2"
 dependencies = [
+ "env_logger",
  "futures-executor",
+ "gear-node-testing",
+ "gear-tasks-runtime-api",
  "log",
+ "sc-client-api",
  "sc-executor",
  "sc-executor-common",
+ "sp-api",
  "sp-externalities",
  "sp-io",
  "sp-runtime-interface",
  "sp-storage",
+ "substrate-test-client",
+]
+
+[[package]]
+name = "gear-tasks-runtime-api"
+version = "1.4.2"
+dependencies = [
+ "sp-api",
 ]
 
 [[package]]
@@ -14239,6 +14254,7 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
+ "gear-tasks-runtime-api",
  "hex-literal",
  "log",
  "pallet-authority-discovery",

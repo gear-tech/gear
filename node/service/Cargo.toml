@@ -30,6 +30,8 @@ pallet-gear-builtin-rpc-runtime-api = { workspace = true, features = ["std"] }
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 authorship.workspace = true
+gear-tasks = { workspace = true, features = ["std"] }
+gear-tasks-runtime-api = { workspace = true, features = ["std"] }
 
 # Gear Runtimes
 gear-runtime-common = { workspace = true, features = ["std"] }

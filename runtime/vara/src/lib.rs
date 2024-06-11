@@ -1495,6 +1495,12 @@ impl_runtime_apis_plus_common! {
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
         }
     }
+
+    impl gear_tasks_runtime_api::GearTasksApi<Block> for Runtime {
+        fn execute_task(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
+            gear_tasks_runtime_api::impl_fn(func_ref, payload)
+        }
+    }
 }
 
 #[cfg(any(feature = "std", test))]

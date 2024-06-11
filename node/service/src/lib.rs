@@ -626,6 +626,12 @@ where
         );
     }
 
+    task_manager.spawn_handle().spawn(
+        "gear-tasks-runner",
+        "gear-tasks",
+        gear_tasks::GearTasksRunner::new(client.clone()).run(),
+    );
+
     network_starter.start_network();
     Ok(NewFullBase {
         task_manager,

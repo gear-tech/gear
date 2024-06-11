@@ -94,6 +94,7 @@ members = [
     "pallets/*",
     "runtime/*",
     "utils/*",
+    "utils/gear-tasks/runtime-api",
     "utils/runtime-fuzzer/fuzz"
 ]
 
@@ -232,6 +233,7 @@ gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 gear-tasks = { path = "utils/gear-tasks", default-features = false }
+gear-tasks-runtime-api = { path = "utils/gear-tasks/runtime-api", default-features = false }
 junit-common = { path = "utils/junit-common" }
 actor-system-error = { path = "utils/actor-system-error" }
 calc-stack-height = { path = "utils/calc-stack-height" }

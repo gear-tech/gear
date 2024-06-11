@@ -10,22 +10,32 @@ repository.workspace = true
 [dependencies]
 sc-executor = { workspace = true, optional = true }
 sc-executor-common = { workspace = true, optional = true }
+sc-client-api = { workspace = true, optional = true }
 sp-runtime-interface.workspace = true
 sp-externalities.workspace = true
 sp-storage.workspace = true
+sp-api.workspace = true
+gear-tasks-runtime-api.workspace = true
 
 futures-executor = { version = "0.3.30", default-features = false, optional = true }
 log.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true
+futures-executor = "0.3.30"
+gear-node-testing.workspace = true
+substrate-test-client.workspace = true
+
+env_logger.workspace = true
 
 [features]
 default = ["std"]
 std = [
     "sc-executor",
     "sc-executor-common",
+    "sc-client-api",
     "sp-runtime-interface/std",
     "sp-externalities/std",
+    "sp-api/std",
     "futures-executor",
 ]
