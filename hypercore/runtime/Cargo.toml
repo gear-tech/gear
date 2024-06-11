@@ -13,8 +13,10 @@ log.workspace = true
 parity-scale-codec.workspace = true
 
 ## Gear deps.
+core-processor.workspace = true
 gear-core.workspace = true
 gear-core-backend.workspace = true
+gsys.workspace = true
 gear-lazy-pages-interface.workspace = true
 gear-sandbox.workspace = true
 gear-sandbox-env.workspace = true
@@ -29,6 +31,8 @@ default = ["std"]
 std = [
     "log/std",
     "parity-scale-codec/std",
+    #
+    "core-processor/std",
     "gear-core/std",
     "gear-core-backend/std",
     "gear-lazy-pages-interface/std",

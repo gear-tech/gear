@@ -172,9 +172,7 @@ fn pre_process_memory_accesses(
 fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
     log::trace!(target: "host_call", "write_accessed_pages()");
 
-    let pages = lazy_pages_detail::write_accessed_pages();
-    let pages: &[u32] = pages.as_ref();
-    let pages: &[u8] = unsafe { slice::from_raw_parts(pages.as_ptr() as _, pages.len() * 4) };
+    let pages = lazy_pages_detail::write_accessed_pages().encode();
     let pages_len = pages.len() as i32;
 
     let mut host_context = HostContext { caller };
@@ -190,7 +188,7 @@ fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
 
     let memory = caller.data().memory();
 
-    memory.write(&mut caller, ptr as usize, pages).unwrap();
+    memory.write(&mut caller, ptr as usize, &pages).unwrap();
 
     let res = unsafe { mem::transmute([ptr, pages_len]) };
 

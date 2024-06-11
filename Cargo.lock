@@ -7232,11 +7232,13 @@ version = "1.4.2"
 dependencies = [
  "gear-core",
  "gear-core-backend",
+ "gear-core-processor",
  "gear-lazy-pages-interface",
  "gear-sandbox",
  "gear-sandbox-env",
  "gear-wasm-instrument",
  "gprimitives",
+ "gsys",
  "log",
  "parity-scale-codec",
  "substrate-wasm-builder",
