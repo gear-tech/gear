@@ -32,7 +32,7 @@ pub struct Config {
 pub struct Validator {
     pub_key: PublicKey,
     signer: Signer,
-    aggregated_code_commitments: HashSet<AggregatedCommitments<CodeHashCommitment>>,
+    current_codes: Vec<CodeHashCommitment>,
 }
 
 impl Validator {
@@ -40,18 +40,24 @@ impl Validator {
         Self {
             signer,
             pub_key: config.pub_key,
-            aggregated_code_commitments: Default::default(),
+            current_codes: vec![],
         }
+    }
+
+    pub fn has_commit(&self) -> bool {
+        !self.current_codes.is_empty()
     }
 
     pub fn pub_key(&self) -> PublicKey {
         self.pub_key
     }
 
-    pub fn aggregated_code_commitments(
-        &mut self,
-    ) -> &mut HashSet<AggregatedCommitments<CodeHashCommitment>> {
-        &mut self.aggregated_code_commitments
+    pub fn codes_aggregation(&mut self) -> Result<AggregatedCommitments<CodeHashCommitment>> {
+        AggregatedCommitments::aggregate_commitments(
+            self.current_codes.clone(),
+            &self.signer,
+            self.pub_key,
+        )
     }
 
     pub fn push_commitment<N: NetworkGossip>(
@@ -59,39 +65,25 @@ impl Validator {
         network: Arc<N>,
         outcomes: &[LocalOutcome],
     ) -> Result<()> {
-        let mut code_commitments = Vec::new();
-
         // parse outcomes
         for outcome in outcomes {
             match outcome {
                 LocalOutcome::CodeCommitment(code_id) => {
-                    code_commitments.push(CodeHashCommitment(H256::from(code_id.into_bytes())))
+                    self.current_codes
+                        .push(CodeHashCommitment(H256::from(code_id.into_bytes())));
                 }
             }
         }
 
-        let aggregated_code_commitments = AggregatedCommitments::aggregate_commitments(
-            code_commitments,
-            &self.signer,
-            self.pub_key,
-        )?;
+        let origin = self.pub_key.to_address();
 
-        // TODO: store aggregates by hash to avoid unnecessary calculations and signing
-        // if hash([commitments]) not in self.aggregated_code_commitments
-        if self
-            .aggregated_code_commitments
-            .insert(aggregated_code_commitments.clone())
-        {
-            let origin = self.pub_key.to_address();
-
-            // broadcast aggregated_code_commitments to the network peers
-            network.broadcast_commitments((origin, aggregated_code_commitments).encode());
-        }
+        // broadcast aggregated_code_commitments to the network peers
+        network.broadcast_commitments((origin, self.codes_aggregation()?).encode());
 
         Ok(())
     }
 
-    pub fn clear_commitments(&mut self) {
-        self.aggregated_code_commitments.clear();
+    pub fn clear(&mut self) {
+        self.current_codes.clear();
     }
 }

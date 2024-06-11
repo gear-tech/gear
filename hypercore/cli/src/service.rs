@@ -129,8 +129,6 @@ impl Service {
             mut validator,
         } = self;
 
-        let mut outcomes: Vec<LocalOutcome> = Vec::new();
-
         let network_service = network.service().clone();
 
         let observer_events = observer.events();
@@ -152,6 +150,7 @@ impl Service {
                     break;
                 }
                 observer_event = observer_events.next() => {
+                    let mut outcomes = Vec::new();
                     if let Some(observer_event) = observer_event {
                         Self::process_observer_event(
                             &mut processor,
@@ -162,6 +161,14 @@ impl Service {
 
                         if let Some(ref mut validator) = validator {
                             validator.push_commitment(network_service.clone(), &outcomes)?;
+
+                            if let Some(ref mut sequencer) = sequencer {
+                                if validator.has_commit() {
+                                    let origin = validator.pub_key().to_address();
+                                    let aggregated_commitments = validator.codes_aggregation()?;
+                                    sequencer.receive_codes_commitment(origin, aggregated_commitments)?;
+                                }
+                            }
                         }
 
                         delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
@@ -183,24 +190,13 @@ impl Service {
                     log::debug!("Sending timeout after block event...");
 
                     if let Some(sequencer) = sequencer.as_mut() {
-                        // Push to local sequencer if validator enabled
-                        if let Some(ref mut validator) = validator {
-                            let origin = validator.pub_key().to_address();
-                            for aggregated_code_commitments in validator.aggregated_code_commitments().drain() {
-                                sequencer.receive_codes_commitment(origin, aggregated_code_commitments)?;
-                            }
-                        };
-
                         sequencer.process_block_timeout().await?;
                     }
 
                     if let Some(ref mut validator) = validator {
                         // clean validator state
-                        validator.aggregated_code_commitments().clear();
+                        validator.clear();
                     };
-
-                    // clear state
-                    outcomes.clear();
                 }
                 _ = &mut network_handle => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
