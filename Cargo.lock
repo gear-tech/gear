@@ -4409,6 +4409,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
+ "gear-tasks",
  "log",
  "mimalloc",
  "pallet-gear-payment",

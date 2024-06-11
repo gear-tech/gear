@@ -30,6 +30,7 @@ gear-runtime-interface = { workspace = true, features = ["std"] }
 service.workspace = true
 pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
+gear-tasks.workspace = true
 
 # Gear Runtimes
 vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
