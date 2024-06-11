@@ -50,6 +50,67 @@ impl Database {
             kv: KVDatabase::clone_boxed_kv(db),
         }
     }
+
+    pub fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
+        let key = [
+            "program_to_code_id".as_bytes(),
+            program_id.into_bytes().as_slice(),
+        ]
+        .concat();
+        let data = self.kv.get(&key)?;
+        Some(CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`"))
+    }
+
+    pub fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
+        let key = [
+            "program_to_code_id".as_bytes(),
+            program_id.into_bytes().as_slice(),
+        ]
+        .concat();
+        self.kv.put(&key, code_id.into_bytes().to_vec());
+    }
+
+    pub fn read_original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        let hash = H256::from(code_id.into_bytes());
+        self.cas.read(&hash)
+    }
+
+    pub fn write_original_code(&self, code: &[u8]) -> H256 {
+        self.cas.write(code)
+    }
+
+    pub fn read_instrumented_code(
+        &self,
+        runtime_id: u32,
+        code_id: CodeId,
+    ) -> Option<InstrumentedCode> {
+        let key = [
+            "instrumented_code".as_bytes(),
+            runtime_id.to_be_bytes().as_slice(),
+            code_id.into_bytes().as_slice(),
+        ]
+        .concat();
+        let data = self.kv.get(&key)?;
+        Some(
+            InstrumentedCode::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `InstrumentedCode`"),
+        )
+    }
+
+    pub fn write_instrumented_code(
+        &self,
+        runtime_id: u32,
+        code_id: CodeId,
+        code: InstrumentedCode,
+    ) {
+        let key = [
+            "instrumented_code".as_bytes(),
+            runtime_id.to_be_bytes().as_slice(),
+            code_id.into_bytes().as_slice(),
+        ]
+        .concat();
+        self.kv.put(&key, code.encode());
+    }
 }
 
 impl Clone for Database {
@@ -63,10 +124,6 @@ impl Clone for Database {
 
 // TODO: consider to change decode panics to Results.
 impl Storage for Database {
-    fn clone_boxed(&self) -> Box<dyn Storage> {
-        Box::new(self.clone())
-    }
-
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
         let data = self.cas.read(&hash)?;
         Some(
@@ -129,58 +186,6 @@ impl Storage for Database {
 
     fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256 {
         self.cas.write(&gas_reservation_map.encode())
-    }
-
-    fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
-        let key = [
-            "program_to_code_id".as_bytes(),
-            program_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        let data = self.kv.get(&key)?;
-        Some(CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`"))
-    }
-
-    fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
-        let key = [
-            "program_to_code_id".as_bytes(),
-            program_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        self.kv.put(&key, code_id.into_bytes().to_vec());
-    }
-
-    fn read_original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        let hash = H256::from(code_id.into_bytes());
-        self.cas.read(&hash)
-    }
-
-    fn write_original_code(&self, code: &[u8]) -> H256 {
-        self.cas.write(code)
-    }
-
-    fn read_instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
-        let key = [
-            "instrumented_code".as_bytes(),
-            runtime_id.to_be_bytes().as_slice(),
-            code_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        let data = self.kv.get(&key)?;
-        Some(
-            InstrumentedCode::decode(&mut data.as_slice())
-                .expect("Failed to decode data into `InstrumentedCode`"),
-        )
-    }
-
-    fn write_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
-        let key = [
-            "instrumented_code".as_bytes(),
-            runtime_id.to_be_bytes().as_slice(),
-            code_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        self.kv.put(&key, code.encode());
     }
 
     fn read_payload(&self, hash: H256) -> Option<Payload> {

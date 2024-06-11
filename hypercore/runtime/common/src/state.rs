@@ -140,8 +140,6 @@ pub type MemoryPages = BTreeMap<GearPage, H256>;
 pub type Allocations = IntervalsTree<WasmPage>;
 
 pub trait Storage {
-    fn clone_boxed(&self) -> Box<dyn Storage>;
-
     /// Reads program state by state hash.
     fn read_state(&self, hash: H256) -> Option<ProgramState>;
 
@@ -177,24 +175,6 @@ pub trait Storage {
 
     /// Writes gas reservation map and returns its hash.
     fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256;
-
-    /// Reads original code id by program id.
-    fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId>;
-
-    /// Writes original code id by program id.
-    fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId);
-
-    /// Reads original code by code hash.
-    fn read_original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
-
-    /// Writes original code and returns its hash.
-    fn write_original_code(&self, code: &[u8]) -> H256;
-
-    /// Reads instrumented code by runtime id and original code id.
-    fn read_instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
-
-    /// Writes instrumented code and returns its hash.
-    fn write_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 
     /// Reads payload by payload hash.
     fn read_payload(&self, hash: H256) -> Option<Payload>;
