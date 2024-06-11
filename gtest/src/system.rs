@@ -21,7 +21,6 @@ use crate::{
     mailbox::Mailbox,
     manager::{Actors, Balance, ExtManager, MintMode},
     program::{Program, ProgramIdWrapper},
-    BLOCK_DURATION_IN_MSECS,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
@@ -183,17 +182,14 @@ impl System {
     /// Spend blocks and return all results.
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
         let mut manager = self.0.borrow_mut();
+        let block_height = manager.blocks_manager.get().height;
 
-        (manager.block_info.height..manager.block_info.height + amount)
+        (block_height..block_height + amount)
             .map(|_| {
                 manager.check_epoch();
 
-                let next_block_number = manager.block_info.height + 1;
-                manager.block_info.height = next_block_number;
-                manager.block_info.timestamp = manager
-                    .block_info
-                    .timestamp
-                    .saturating_add(BLOCK_DURATION_IN_MSECS);
+                let block_info = manager.blocks_manager.next_block();
+                let next_block_number = block_info.height;
                 let mut results = manager.process_delayed_dispatches(next_block_number);
                 results.extend(manager.process_scheduled_wait_list(next_block_number));
                 results
@@ -204,12 +200,12 @@ impl System {
 
     /// Return the current block height of the testing environment.
     pub fn block_height(&self) -> u32 {
-        self.0.borrow().block_info.height
+        self.0.borrow().blocks_manager.get().height
     }
 
     /// Return the current block timestamp of the testing environment.
     pub fn block_timestamp(&self) -> u64 {
-        self.0.borrow().block_info.timestamp
+        self.0.borrow().blocks_manager.get().timestamp
     }
 
     /// Returns a [`Program`] by `id`.

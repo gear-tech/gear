@@ -16,11 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Auxiliary implementation of the gas provider that can be used in non-wasm environment.
+//! Auxiliary implementation of the gas provider.
 
 use crate::{
-    gas_provider::{Error, GasNode, GasNodeId, Origin, Provider, TreeImpl},
+    gas_provider::{Error, GasNode, GasNodeId, Provider, TreeImpl},
     storage::{MapStorage, ValueStorage},
+    Origin,
 };
 use alloc::collections::BTreeMap;
 use core::{cell::RefCell, ops::DerefMut};

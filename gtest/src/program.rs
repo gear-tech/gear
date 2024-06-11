@@ -523,7 +523,7 @@ impl<'a> Program<'a> {
 
         let message = Message::new(
             MessageId::generate_from_user(
-                system.block_info.height,
+                system.blocks_manager.get().height,
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
@@ -557,7 +557,7 @@ impl<'a> Program<'a> {
         let source = from.into().0;
 
         let origin_msg_id = MessageId::generate_from_user(
-            system.block_info.height,
+            system.blocks_manager.get().height,
             source,
             system.fetch_inc_message_nonce() as u128,
         );
