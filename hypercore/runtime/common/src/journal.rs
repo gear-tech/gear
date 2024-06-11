@@ -80,6 +80,9 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
                 .unwrap_or_else(|| {
                     unreachable!("Gas limit underflow");
                 });
+        *self.gas_allowance = self.gas_allowance.checked_sub(amount).unwrap_or_else(|| {
+            unreachable!("Gas allowance underflow");
+        });
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
@@ -129,6 +132,8 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
 
         // Set context back
         self.dispatch.context = context;
+        // Set changed value
+        self.dispatch.value = message.value();
 
         // TODO: better to `take` dispatch here
         self.waitlist
@@ -237,7 +242,13 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     }
 
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
-        todo!()
+        log::trace!("Stop processing {dispatch:?}, gas burned: {gas_burned}");
+        *self.gas_allowance = self
+            .gas_allowance
+            .checked_sub(gas_burned)
+            .unwrap_or_else(|| {
+                unreachable!("Gas allowance underflow");
+            });
     }
 
     fn reserve_gas(

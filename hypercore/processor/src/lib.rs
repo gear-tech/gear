@@ -292,8 +292,22 @@ mod tests {
             balance: 0,
         };
 
+        let instrumented_code = processor
+            .db
+            .read_instrumented_code(RUNTIME_ID, code_id)
+            .unwrap();
+
         let ri = NativeRuntimeInterface::new(&processor.db, Default::default());
-        let (_, receipts) = process_program(program_id, program_state, &ri);
+        let (_, receipts) = process_program(
+            program_id,
+            program_state,
+            Some(instrumented_code),
+            u32::MAX,
+            u64::MAX,
+            code_id,
+            &ri,
+        );
+
         let mut pongs_amount = 0;
         for receipt in receipts.into_iter() {
             if let Receipt::SendDispatch { dispatch, .. } = receipt {
@@ -417,8 +431,30 @@ mod tests {
                 program_state.queue_hash = queue_hash.into();
             }
 
+            let code_id = processor
+                .db
+                .get_program_code_id(program_id)
+                .expect("Code ID must be set");
+            let instrumented_code = match &program_state.state {
+                state::Program::Active(_) => Some(
+                    processor
+                        .db
+                        .read_instrumented_code(RUNTIME_ID, code_id)
+                        .expect("Instrumented code must be set at this point"),
+                ),
+                state::Program::Exited(_) | state::Program::Terminated(_) => None,
+            };
+
             let ri = NativeRuntimeInterface::new(&processor.db, Default::default());
-            let (new_state, new_receipts) = process_program(program_id, program_state, &ri);
+            let (new_state, new_receipts) = process_program(
+                program_id,
+                program_state,
+                instrumented_code,
+                u32::MAX,
+                u64::MAX,
+                code_id,
+                &ri,
+            );
 
             receipts.append(&mut new_receipts.into());
 

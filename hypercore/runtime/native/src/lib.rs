@@ -48,7 +48,7 @@ impl<'a, S: Storage> NativeRuntimeInterface<'a, S> {
     }
 }
 
-impl<S: Storage> RuntimeInterface<S> for NativeRuntimeInterface<'_, S> {
+impl<S: Storage + Clone + Sized + 'static> RuntimeInterface<S> for NativeRuntimeInterface<'_, S> {
     type LazyPages = LazyPagesNative;
 
     fn block_info(&self) -> BlockInfo {
@@ -57,7 +57,7 @@ impl<S: Storage> RuntimeInterface<S> for NativeRuntimeInterface<'_, S> {
 
     fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, H256>) {
         let pages_storage = PagesStorage {
-            storage: self.storage.clone_boxed(),
+            storage: Box::new(self.storage.clone()),
             memory_map: pages_map,
         };
         gear_lazy_pages::init(

@@ -70,7 +70,6 @@ struct ExecutableProgramContext {
     allocations: IntervalsTree<WasmPage>,
     code: InstrumentedCode,
     gas_reservation_map: GasReservationMap,
-    code_id: CodeId,
     memory_infix: MemoryInfix,
     pages_map: BTreeMap<GearPage, H256>,
     status: InitStatus,
@@ -84,13 +83,15 @@ enum ProgramContext {
 }
 
 struct DispatchExecutionContext<'a, S: Storage, RI: RuntimeInterface<S>> {
-    program_context: &'a mut ProgramContext,
     program_id: ProgramId,
-    receipts: Vec<Receipt>,
+    code_id: CodeId,
     dispatch: Dispatch,
+    block_config: &'a BlockConfig,
+    program_context: &'a mut ProgramContext,
+    receipts: &'a mut Vec<Receipt>,
     queue: &'a mut MessageQueue,
     waitlist: &'a mut Waitlist,
-    block_config: &'a BlockConfig,
+    gas_allowance: &'a mut u64,
     ri: &'a RI,
     _phantom: PhantomData<S>,
 }
@@ -157,7 +158,7 @@ fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
 
     let precharged_dispatch = core_processor::precharge_for_program(
         ctx.block_config,
-        1_000_000_000_000, // TODO: support gas allowance
+        *ctx.gas_allowance,
         dispatch,
         ctx.program_id,
     )
@@ -165,7 +166,7 @@ fn process_dispatch<S: Storage, RI: RuntimeInterface<S>>(
 
     let actor_data = ExecutableActorData {
         allocations: program_context.allocations.clone(),
-        code_id: program_context.code_id,
+        code_id: ctx.code_id,
         code_exports: program_context.code.exports().clone(),
         static_pages: program_context.code.static_pages(),
         gas_reservation_map: program_context.gas_reservation_map.clone(),
@@ -204,17 +205,10 @@ fn prepare_executable_program_context<S: Storage>(
     program_id: ProgramId,
     balance: Value,
     state: ActiveProgram,
+    instrumented_code: Option<InstrumentedCode>,
     ri: &impl RuntimeInterface<S>,
 ) -> ExecutableProgramContext {
-    let code_id = ri
-        .storage()
-        .get_program_code_id(program_id)
-        .expect("Cannot get code id");
-
-    let code = ri
-        .storage()
-        .read_instrumented_code(RUNTIME_ID, code_id)
-        .unwrap_or_else(|| todo!("Make re-instrumentation"));
+    let code = instrumented_code.expect("Instrumented code must be provided if program is active");
 
     let allocations = state.allocations_hash.with_hash_or_default(|hash| {
         ri.storage()
@@ -238,7 +232,6 @@ fn prepare_executable_program_context<S: Storage>(
         allocations,
         code,
         gas_reservation_map,
-        code_id,
         memory_infix: state.memory_infix,
         pages_map,
         status: state.status,
@@ -256,7 +249,6 @@ fn post_process_executable_program_context<S: Storage>(
         allocations,
         code,
         gas_reservation_map,
-        code_id,
         memory_infix,
         pages_map,
         balance,
@@ -298,6 +290,10 @@ fn post_process_executable_program_context<S: Storage>(
 pub fn process_program<S: Storage>(
     program_id: ProgramId,
     program_state: ProgramState,
+    instrumented_code: Option<InstrumentedCode>,
+    max_messages_to_process: u32,
+    gas_allowance: u64,
+    code_id: CodeId,
     ri: &impl RuntimeInterface<S>,
 ) -> (ProgramState, Vec<Receipt>) {
     let block_info = ri.block_info();
@@ -355,30 +351,40 @@ pub fn process_program<S: Storage>(
     };
 
     let mut program_context = match program_state.state {
-        state::Program::Active(state) => ProgramContext::Executable(
-            prepare_executable_program_context(program_id, program_state.balance, state, ri),
-        ),
+        state::Program::Active(state) => {
+            ProgramContext::Executable(prepare_executable_program_context(
+                program_id,
+                program_state.balance,
+                state,
+                instrumented_code,
+                ri,
+            ))
+        }
         state::Program::Exited(program_id) => ProgramContext::Exited(program_id),
         state::Program::Terminated(program_id) => ProgramContext::Terminated(program_id),
     };
 
     let mut receipts = Vec::new();
-    while !queue.is_empty() {
+    let mut messages_counter = 0;
+    let mut gas_allowance = gas_allowance;
+    while !queue.is_empty() && messages_counter < max_messages_to_process && gas_allowance > 0 {
         let dispatch = queue.pop_front().unwrap();
         let mut dispatch_context = DispatchExecutionContext {
-            program_context: &mut program_context,
             program_id,
-            receipts: Vec::new(),
+            code_id,
             dispatch,
+            block_config: &block_config,
+            program_context: &mut program_context,
+            receipts: &mut receipts,
             queue: &mut queue,
             waitlist: &mut waitlist,
-            block_config: &block_config,
+            gas_allowance: &mut gas_allowance,
             ri,
             _phantom: PhantomData,
         };
         let journal = process_dispatch(&mut dispatch_context);
         core_processor::handle_journal(journal, &mut dispatch_context);
-        receipts.append(&mut dispatch_context.receipts);
+        messages_counter += 1;
     }
 
     let queue_hash = queue
