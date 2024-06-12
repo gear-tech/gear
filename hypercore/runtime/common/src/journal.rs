@@ -1,32 +1,52 @@
+use crate::state::{self, Dispatch, ProgramState, Storage};
 use alloc::collections::BTreeMap;
-use core_processor::common::{DispatchOutcome, JournalHandler};
+use core_processor::{
+    common::{DispatchOutcome, JournalHandler},
+    configs::BlockInfo,
+};
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
-    message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
+    message::{
+        Dispatch as CoreDispatch, Message, MessageWaitedType, Payload, StoredDispatch,
+        StoredMessage,
+    },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    program::ProgramState as InitStatus,
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gprimitives::{MessageId, ReservationId};
-
-use crate::{
-    receipts::Receipt,
-    state::{Dispatch, InitStatus, Storage},
-    DispatchExecutionContext, ProgramContext, RuntimeInterface,
-};
-
-fn remove_reservation_map(program_context: &mut ProgramContext) {
-    let ProgramContext::Executable(ctx) = program_context else {
-        unreachable!("Remove reservation map on non-executable program");
-    };
-    if ctx.gas_reservation_map.is_empty() {
-        return;
-    }
-    todo!("Return reserved gas");
+use gprimitives::{MessageId, ReservationId, H256};
+pub struct HandlerForPrograms<S: Storage> {
+    pub programs: BTreeMap<ProgramId, H256>,
+    pub storage: S,
+    pub block_info: BlockInfo,
+    pub to_users_messages: Vec<Message>,
 }
 
-impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionContext<'_, S, RI> {
+impl<S: Storage> HandlerForPrograms<S> {
+    #[track_caller]
+    pub fn update_program(
+        &mut self,
+        program_id: ProgramId,
+        f: impl FnOnce(ProgramState, &S) -> Option<ProgramState>,
+    ) {
+        let state_hash = self
+            .programs
+            .get(&program_id)
+            .expect("Program does not exist");
+        let program_state = self
+            .storage
+            .read_state(*state_hash)
+            .expect("Failed to read state");
+        if let Some(program_new_state) = f(program_state, &self.storage) {
+            let state_hash = self.storage.write_state(program_new_state);
+            self.programs.insert(program_id, state_hash);
+        }
+    }
+}
+
+impl<S: Storage> JournalHandler for HandlerForPrograms<S> {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
@@ -36,14 +56,14 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         match outcome {
             DispatchOutcome::Exit { .. } => todo!(),
             DispatchOutcome::InitSuccess { program_id } => {
-                log::trace!("Dispatch {message_id:?} init success for program {program_id:?}");
-                if program_id != self.program_id {
-                    unreachable!("Program ID mismatch");
-                }
-                let ProgramContext::Executable(ctx) = self.program_context else {
-                    unreachable!("Init success on non-executable program");
-                };
-                ctx.status = InitStatus::Initialized;
+                log::trace!("Dispatch {message_id} init success for program {program_id}");
+                self.update_program(program_id, |mut state, _| match &mut state.state {
+                    state::Program::Active(program) => {
+                        program.status = InitStatus::Initialized;
+                        Some(state)
+                    }
+                    _ => None,
+                });
             }
             DispatchOutcome::InitFailure {
                 program_id,
@@ -51,13 +71,15 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
                 reason,
             } => {
                 log::trace!(
-                    "Dispatch {message_id:?} init failure for program {program_id:?}: {reason}"
+                    "Init failed for dispatch {message_id}, program {program_id}: {reason}"
                 );
-                if program_id != self.program_id {
-                    unreachable!("Program ID mismatch");
-                }
-                remove_reservation_map(self.program_context);
-                *self.program_context = ProgramContext::Terminated(origin);
+                self.update_program(program_id, |state, _| {
+                    Some(ProgramState {
+                        state: state::Program::Terminated(origin),
+                        ..state
+                    })
+                });
+                // TODO: return gas reservations
             }
             DispatchOutcome::MessageTrap { .. } => todo!(),
             DispatchOutcome::Success => {
@@ -70,26 +92,18 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        if self.dispatch.id != message_id {
-            unreachable!("Message ID mismatch");
-        }
-        self.dispatch.gas_limit =
-            self.dispatch
-                .gas_limit
-                .checked_sub(amount)
-                .unwrap_or_else(|| {
-                    unreachable!("Gas limit underflow");
-                });
-        *self.gas_allowance = self.gas_allowance.checked_sub(amount).unwrap_or_else(|| {
-            unreachable!("Gas allowance underflow");
-        });
+        // TODO
+        // unreachable!("Must not be called here")
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        if self.program_id != id_exited {
-            unreachable!("Program ID mismatch");
-        }
-        *self.program_context = ProgramContext::Exited(value_destination);
+        self.update_program(id_exited, |state, _| {
+            Some(ProgramState {
+                state: state::Program::Exited(value_destination),
+                ..state
+            })
+        });
+        // TODO: return gas reservations
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -106,12 +120,42 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         if reservation.is_some() {
             todo!()
         }
+
         if delay != 0 {
             todo!()
         }
-        self.receipts.push(Receipt::SendDispatch {
-            id: message_id,
-            dispatch,
+
+        if !self.programs.contains_key(&dispatch.destination()) {
+            // log::trace!("{payload} was sent to user {destination}");
+            self.to_users_messages.push(dispatch.into_parts().1);
+            return;
+        }
+
+        let (kind, message) = dispatch.into_parts();
+        let (id, source, destination, payload, gas_limit, value, details) = message.into_parts();
+
+        let payload_hash = self.storage.write_payload(payload).into();
+
+        self.update_program(destination, |state, storage| {
+            let mut queue = state.queue_hash.with_hash_or_default(|hash| {
+                storage.read_queue(hash).expect("Failed to read queue")
+            });
+            let dispatch = Dispatch {
+                id,
+                kind,
+                source,
+                payload_hash,
+                gas_limit: gas_limit.unwrap_or(100_000_000_000), // TODO
+                value,
+                details,
+                context: None,
+            };
+            queue.push_back(dispatch);
+            let queue_hash = storage.write_queue(queue).into();
+            Some(ProgramState {
+                queue_hash,
+                ..state
+            })
         });
     }
 
@@ -121,27 +165,42 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         duration: Option<u32>,
         waited_type: MessageWaitedType,
     ) {
-        let (_kind, message, context) = dispatch.into_parts();
-        if self.dispatch.id != message.id() {
-            unreachable!("Dispatch ID mismatch");
-        }
+        let (kind, message, context) = dispatch.into_parts();
         let Some(duration) = duration else {
             todo!("Wait dispatch without specified duration");
         };
-        let block = self.block_config.block_info.height.saturating_add(duration);
+        let block = self.block_info.height.saturating_add(duration);
 
-        // Set context back
-        self.dispatch.context = context;
-        // Set changed value
-        self.dispatch.value = message.value();
+        let (id, source, destination, payload, value, details) = message.into_parts();
 
-        // TODO: better to `take` dispatch here
-        self.waitlist
-            .entry(block)
-            .or_default()
-            .push(self.dispatch.clone());
+        let payload_hash = self.storage.write_payload(payload).into();
 
-        log::trace!("{:?} was added to waitlist block {block}", self.dispatch);
+        let dispatch = Dispatch {
+            id,
+            kind,
+            source,
+            payload_hash,
+            gas_limit: 100_000_000_000, // TODO
+            value,
+            details,
+            context,
+        };
+
+        log::trace!("{:?} was added to waitlist block {block}", dispatch);
+
+        self.update_program(destination, |state, storage| {
+            let mut waitlist = state.waitlist_hash.with_hash_or_default(|hash| {
+                storage
+                    .read_waitlist(hash)
+                    .expect("Failed to read waitlist")
+            });
+            waitlist.entry(block).or_default().push(dispatch);
+            let waitlist_hash = storage.write_waitlist(waitlist).into();
+            Some(ProgramState {
+                waitlist_hash,
+                ..state
+            })
+        });
     }
 
     fn wake_message(
@@ -153,37 +212,58 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     ) {
         log::trace!("Message {message_id} try to wake {awakening_id}");
 
-        if self.program_id != program_id {
-            unreachable!("Program ID mismatch");
-        }
-
         if delay != 0 {
             todo!("Delayed wake message");
         }
 
-        let mut clear_for_block = None;
-        for (block, list) in self.waitlist.iter_mut() {
-            let Some(index) = list
-                .iter()
-                .enumerate()
-                .find_map(|(index, dispatch)| (dispatch.id == awakening_id).then_some(index))
-            else {
-                continue;
-            };
+        self.update_program(program_id, |state, storage| {
+            let mut waitlist = state.waitlist_hash.with_hash_or_default(|hash| {
+                storage
+                    .read_waitlist(hash)
+                    .expect("Failed to read waitlist")
+            });
 
-            let dispatch = list.remove(index);
-            log::trace!("Dispatch {dispatch:?} has been woken up by {message_id}");
+            let mut queue = state.queue_hash.with_hash_or_default(|hash| {
+                storage.read_queue(hash).expect("Failed to read queue")
+            });
 
-            self.queue.push_back(dispatch);
+            let mut changed = false;
+            let mut clear_for_block = None;
+            for (block, list) in waitlist.iter_mut() {
+                let Some(index) = list
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, dispatch)| (dispatch.id == awakening_id).then_some(index))
+                else {
+                    continue;
+                };
 
-            if list.is_empty() {
-                clear_for_block = Some(*block);
+                let dispatch = list.remove(index);
+                log::trace!("{dispatch:?} has been woken up by {message_id}");
+
+                queue.push_back(dispatch);
+
+                if list.is_empty() {
+                    clear_for_block = Some(*block);
+                }
+                changed = true;
+                break;
             }
-            break;
-        }
-        if let Some(block) = clear_for_block {
-            self.waitlist.remove(&block);
-        }
+
+            if let Some(block) = clear_for_block {
+                waitlist.remove(&block);
+            }
+
+            changed.then(|| {
+                let queue_hash = storage.write_queue(queue).into();
+                let waitlist_hash = storage.write_waitlist(waitlist).into();
+                ProgramState {
+                    queue_hash,
+                    waitlist_hash,
+                    ..state
+                }
+            })
+        });
     }
 
     fn update_pages_data(
@@ -191,46 +271,43 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
         program_id: ProgramId,
         pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        let ProgramContext::Executable(ctx) = self.program_context else {
-            unreachable!("Update pages data on non-executable program");
-        };
-        if program_id != self.program_id {
-            unreachable!("Program ID mismatch");
-        }
+        let mut new_page_hashes = BTreeMap::new();
         for (page, data) in pages_data {
-            let hash = self.ri.storage().write_page_data(data);
-            ctx.pages_map.insert(page, hash);
+            let hash = self.storage.write_page_data(data);
+            new_page_hashes.insert(page, hash);
         }
+
+        self.update_program(program_id, |state, storage| {
+            let state::Program::Active(mut active_state) = state.state else {
+                return None;
+            };
+
+            let mut pages_map = active_state.pages_hash.with_hash_or_default(|hash| {
+                storage.read_pages(hash).expect("Failed to read pages")
+            });
+
+            for (page, hash) in new_page_hashes {
+                pages_map.insert(page, hash);
+            }
+
+            let changed_active_state = state::ActiveProgram {
+                pages_hash: storage.write_pages(pages_map).into(),
+                ..active_state
+            };
+
+            Some(ProgramState {
+                state: state::Program::Active(changed_active_state),
+                ..state
+            })
+        });
     }
 
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        let ProgramContext::Executable(ctx) = self.program_context else {
-            unreachable!("Update allocations on non-executable program");
-        };
-        if program_id != self.program_id {
-            unreachable!("Program ID mismatch");
-        }
-        for page in ctx
-            .allocations
-            .difference(&allocations)
-            .flat_map(|i| i.iter())
-            .flat_map(|p| p.to_iter())
-        {
-            let _ = ctx.pages_map.remove(&page);
-        }
-        ctx.allocations = allocations;
+        todo!()
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        let to = to.unwrap_or(from);
-        match self.program_context {
-            ProgramContext::Executable(ctx) if self.program_id == to => {
-                ctx.balance.saturating_add(value);
-            }
-            _ => {
-                self.receipts.push(Receipt::SendValue { from, to, value });
-            }
-        };
+        // TODO: implement
     }
 
     fn store_new_programs(
@@ -242,13 +319,7 @@ impl<S: Storage, RI: RuntimeInterface<S>> JournalHandler for DispatchExecutionCo
     }
 
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
-        log::trace!("Stop processing {dispatch:?}, gas burned: {gas_burned}");
-        *self.gas_allowance = self
-            .gas_allowance
-            .checked_sub(gas_burned)
-            .unwrap_or_else(|| {
-                unreachable!("Gas allowance underflow");
-            });
+        todo!()
     }
 
     fn reserve_gas(

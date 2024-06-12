@@ -7227,6 +7227,7 @@ dependencies = [
  "rand 0.8.5",
  "sp-allocator",
  "sp-wasm-interface",
+ "tokio",
  "wabt",
  "wasmtime",
 ]
