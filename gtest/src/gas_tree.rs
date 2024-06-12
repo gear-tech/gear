@@ -30,7 +30,7 @@ pub(crate) type PositiveImbalance = <GasTree as Tree>::PositiveImbalance;
 pub(crate) type NegativeImbalance = <GasTree as Tree>::NegativeImbalance;
 type GasTree = <AuxiliaryGasProvider as Provider>::GasTree;
 
-/// Gas tree manager which uses operates under the hood over
+/// Gas tree manager which operates under the hood over
 /// [`gear_common::AuxiliaryGasProvider`].
 ///
 /// Manager is needed mainly to adapt arguments of the gas tree methods to the
