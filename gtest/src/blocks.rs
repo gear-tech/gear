@@ -135,7 +135,7 @@ mod tests {
         assert_eq!(second_instance.get().height, 2);
 
         drop(second_instance);
-        INSTANCES.with_borrow(|count| assert_eq!(&count, 0));
+        INSTANCES.with_borrow(|count| assert_eq!(*count, 0));
         BLOCK_INFO_STORAGE.with_borrow(|maybe_bi| assert!(maybe_bi.is_none()));
     }
 }

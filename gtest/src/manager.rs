@@ -1009,15 +1009,18 @@ impl JournalHandler for ExtManager {
         } else {
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
-            let mailboxed_msg: UserStoredMessage = stored_message.clone().try_into().expect("todo");
 
-            self.gas_tree
-                .cut(message_id, stored_message.id(), gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            if let Ok(mailbox_msg) = stored_message.clone().try_into() {
+                self.gas_tree
+                    .cut(message_id, stored_message.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            self.mailbox
-                .insert(mailboxed_msg)
-                .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+                self.mailbox
+                    .insert(mailbox_msg)
+                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+            } else {
+                log::debug!("A reply message is sent to user: {stored_message:?}");
+            };
 
             self.log.push(stored_message);
         }
