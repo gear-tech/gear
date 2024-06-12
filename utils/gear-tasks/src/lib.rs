@@ -468,6 +468,8 @@ mod inner {
 #[cfg(not(feature = "std"))]
 #[cfg(target_arch = "wasm32")]
 mod inner {
+    use super::*;
+
     #[derive(Debug, Eq, PartialEq)]
     pub struct JoinHandle {
         pub(crate) inner: u64,
