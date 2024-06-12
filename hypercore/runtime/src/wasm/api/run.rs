@@ -18,30 +18,10 @@
 
 use crate::wasm::storage::{NativeRuntimeInterface, RuntimeInterfaceStorage};
 use alloc::vec::Vec;
-use core_processor::{
-    common::{ExecutableActorData, JournalNote},
-    configs::BlockConfig,
-};
-use gear_core::{
-    code::InstrumentedCode,
-    ids::ProgramId,
-    message::{DispatchKind, StoredDispatch, StoredMessage},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
-};
-use gear_core_backend::env::Environment;
-use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
-use gear_sandbox::{
-    default_executor::{Caller, EnvironmentDefinitionBuilder, Instance, Memory, Store},
-    HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
-    SandboxStore, Value,
-};
-use gear_sandbox_env::WasmReturnValue;
+use core_processor::common::JournalNote;
+use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
-use gsys::{GasMultiplier, Percent};
-use hypercore_runtime_common::{
-    process_next_message, state::Storage, HandlerForPrograms, RuntimeInterface,
-};
-use parity_scale_codec::Encode;
+use hypercore_runtime_common::{process_next_message, state::Storage, RuntimeInterface};
 
 pub fn run(
     program_id: ProgramId,

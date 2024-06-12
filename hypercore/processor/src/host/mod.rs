@@ -20,8 +20,6 @@ use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
-use hypercore_runtime_common::state::Storage;
-use hypercore_runtime_native::RuntimeInterface;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};

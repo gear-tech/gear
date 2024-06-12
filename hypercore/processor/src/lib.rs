@@ -18,7 +18,7 @@
 
 //! Program's execution service for eGPU.
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, MessageId, ProgramId},
@@ -35,8 +35,6 @@ pub use db::Database;
 pub(crate) mod db;
 pub mod host;
 mod run;
-
-const RUNTIME_ID: u32 = 0;
 
 pub struct Processor {
     db: Database,
@@ -73,7 +71,7 @@ impl Processor {
 
         if let Some(instrumented) = instance_wrapper.instrument(&code)? {
             self.db
-                .write_instrumented_code(RUNTIME_ID, code_id, instrumented);
+                .write_instrumented_code(hypercore_runtime::VERSION, code_id, instrumented);
 
             Ok(true)
         } else {
@@ -88,7 +86,9 @@ impl Processor {
     ) -> Result<Vec<JournalNote>> {
         let original_code_id = self.db.get_program_code_id(program_id).unwrap();
 
-        let maybe_instrumented_code = self.db.read_instrumented_code(RUNTIME_ID, original_code_id);
+        let maybe_instrumented_code = self
+            .db
+            .read_instrumented_code(hypercore_runtime::VERSION, original_code_id);
 
         let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
 
@@ -143,31 +143,16 @@ pub struct UserMessage {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        borrow::BorrowMut, cell::RefCell, collections::VecDeque, os::unix::process, pin, rc::Rc,
-        result, sync::Arc, thread::sleep, time::Duration,
-    };
-
     use super::*;
-    use core_processor::common::JournalNote;
     use gear_core::{
-        ids::{hash, prelude::CodeIdExt},
-        message::{DispatchKind, Message, MessageDetails, Payload},
+        ids::prelude::CodeIdExt,
+        message::{DispatchKind, Payload},
         program::ProgramState as InitStatus,
     };
     use gprimitives::{ActorId, MessageId};
     use hypercore_db::MemDb;
-    use hypercore_runtime_common::{
-        process_next_message,
-        state::{ActiveProgram, HashAndLen, Waitlist},
-        HandlerForPrograms,
-    };
-    use hypercore_runtime_native::{
-        state::{self, Dispatch, MaybeHash, ProgramState, Storage},
-        NativeRuntimeInterface,
-    };
-    use hypercore_signer::Hash;
-    use tokio::sync::oneshot::Receiver;
+    use hypercore_runtime_native::state::{self, Dispatch, MaybeHash, ProgramState, Storage};
+    use std::collections::VecDeque;
     use wabt::wat2wasm;
 
     fn valid_code() -> Vec<u8> {
@@ -227,7 +212,10 @@ mod tests {
         assert!(processor.new_code(code).unwrap());
 
         assert!(processor.instrument_code(id).unwrap());
-        let instrumented = processor.db.read_instrumented_code(RUNTIME_ID, id).unwrap();
+        let instrumented = processor
+            .db
+            .read_instrumented_code(hypercore_runtime::VERSION, id)
+            .unwrap();
 
         assert_eq!(instrumented.original_code_len() as usize, code_len);
         assert!(instrumented.code().len() > code_len);

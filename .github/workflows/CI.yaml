@@ -26,7 +26,7 @@ jobs:
         run: ./scripts/gear.sh format gear --check
 
       - name: "Check: hypercore clippy allowing unused code"
-        run: cargo clippy -p "hypercore-*" --all-targets --locked -- --no-deps -A unused -D warnings
+        run: cargo clippy -p "hypercore-*" --all-targets --locked -- --no-deps -D warnings
 
       - name: "Build: Hypercore"
         run: cargo build --release -p hypercore-cli
