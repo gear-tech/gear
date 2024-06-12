@@ -2,7 +2,7 @@
 .PHONY: gpu-pre-commit
 gpu-pre-commit:
 	@ echo " > Formatting eGPU" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
-	@ echo " >> Clippy checking eGPU" && cargo clippy -p "hypercore-*" --all-targets --all-features -- --no-deps -A unused -D warnings
+	@ echo " >> Clippy checking eGPU" && cargo clippy -p "hypercore-*" --all-targets --all-features -- --no-deps -D warnings
 
 # Common section
 .PHONY: show

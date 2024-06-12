@@ -33,6 +33,7 @@ pub struct Config {
     pub router_address: Address,
 }
 
+#[allow(unused)]
 pub struct Sequencer {
     signer: Signer,
     ethereum_rpc: String,

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::interface::{self, database_ri};
+use super::interface::database_ri;
 use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::configs::BlockInfo;
 use gear_core::{

@@ -260,18 +260,21 @@ mod tests {
         Signature::from(array)
     }
 
+    #[allow(unused)]
     fn block_hash(id: u8) -> H256 {
         let mut array = [0; 32];
         array[0] = id;
         H256::from(array)
     }
 
+    #[allow(unused)]
     fn pid(id: u8) -> ActorId {
         let mut array = [0; 32];
         array[0] = id;
         ActorId::from(array)
     }
 
+    #[allow(unused)]
     fn state_id(id: u8) -> H256 {
         let mut array = [0; 32];
         array[0] = id;

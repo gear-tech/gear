@@ -16,14 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{api::MemoryWrap, context::HostContext, threads};
+use crate::host::{api::MemoryWrap, threads};
 use anyhow::Result;
 use core::mem;
-use gear_runtime_interface::{sandbox_detail, Instantiate};
 use gprimitives::H256;
-use hypercore_runtime_common::state::Storage;
-use parity_scale_codec::Encode;
-use sp_wasm_interface::{FunctionContext as _, IntoValue as _, Pointer, StoreData};
+use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {

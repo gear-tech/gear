@@ -99,6 +99,7 @@ pub fn set(db: Database, root: H256) {
     }))
 }
 
+#[allow(unused)]
 pub fn replace_root(root: H256) -> H256 {
     PARAMS.with_borrow_mut(|params| params.as_mut().expect(UNSET_PANIC).replace_root(root))
 }
@@ -113,6 +114,7 @@ pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {
 }
 
 // TODO: consider Database mutability.
+#[allow(unused)]
 pub fn with_db_and_root<T>(f: impl FnOnce(&Database, H256) -> T) -> T {
     PARAMS.with_borrow(|v| {
         let params = v.as_ref().expect(UNSET_PANIC);

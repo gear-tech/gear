@@ -22,7 +22,6 @@ use crate::host::{api::MemoryWrap, context::HostContext, threads};
 use anyhow::Result;
 use core::mem;
 use gear_runtime_interface::{sandbox_detail, Instantiate};
-use hypercore_runtime_common::state::Storage;
 use parity_scale_codec::Encode;
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, Pointer, StoreData};
 use wasmtime::{Caller, Linker};

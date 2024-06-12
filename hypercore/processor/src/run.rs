@@ -18,7 +18,7 @@
 
 #![allow(unused)]
 
-use crate::{Database, Processor, UserMessage, RUNTIME_ID};
+use crate::{Database, Processor, UserMessage};
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, MessageId, ProgramId},
@@ -147,7 +147,7 @@ async fn run_task(task: Task) {
 
     let instrumented_code = match &program_state.state {
         state::Program::Active(_) => Some(
-            db.read_instrumented_code(RUNTIME_ID, code_id)
+            db.read_instrumented_code(hypercore_runtime::VERSION, code_id)
                 .expect("Instrumented code must be set at this point"),
         ),
         state::Program::Exited(_) | state::Program::Terminated(_) => None,

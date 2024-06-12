@@ -32,7 +32,7 @@ pub struct MemoryWrap(Memory);
 
 // TODO: return results for mem accesses.
 impl MemoryWrap {
-    fn decode_by_val<'a, T: 'a, D: Decode>(
+    pub fn decode_by_val<'a, T: 'a, D: Decode>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr_len: i64,
@@ -42,7 +42,7 @@ impl MemoryWrap {
         D::decode(&mut slice).unwrap()
     }
 
-    fn decode<'a, T: 'a, D: Decode>(
+    pub fn decode<'a, T: 'a, D: Decode>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr: usize,
@@ -53,7 +53,7 @@ impl MemoryWrap {
         D::decode(&mut slice).unwrap()
     }
 
-    fn slice_by_val<'a, T: 'a>(
+    pub fn slice_by_val<'a, T: 'a>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr_len: i64,
@@ -63,7 +63,7 @@ impl MemoryWrap {
         self.slice(store, ptr as usize, len as usize)
     }
 
-    fn slice<'a, T: 'a>(
+    pub fn slice<'a, T: 'a>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr: usize,
@@ -76,7 +76,7 @@ impl MemoryWrap {
             .unwrap()
     }
 
-    fn slice_mut<'a, T: 'a>(
+    pub fn slice_mut<'a, T: 'a>(
         &self,
         store: impl Into<StoreContextMut<'a, T>>,
         ptr: usize,

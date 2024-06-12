@@ -23,7 +23,7 @@ use hypercore_processor::LocalOutcome;
 use hypercore_sequencer::{AggregatedCommitments, CodeHashCommitment};
 use hypercore_signer::{PublicKey, Signer};
 use parity_scale_codec::Encode;
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 pub struct Config {
     pub pub_key: PublicKey,
