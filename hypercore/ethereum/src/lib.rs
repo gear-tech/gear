@@ -321,7 +321,6 @@ impl Program {
 
 pub struct HypercoreEthereum {
     router_address: Address,
-    program_address: Address,
     provider: AlloyProvider,
 }
 
@@ -329,13 +328,11 @@ impl HypercoreEthereum {
     pub async fn new(
         rpc_url: &str,
         router_address: HypercoreAddress,
-        program_address: HypercoreAddress,
         signer: HypercoreSigner,
         sender_address: HypercoreAddress,
     ) -> Result<Self> {
         Ok(Self {
             router_address: Address::new(router_address.0),
-            program_address: Address::new(program_address.0),
             provider: ProviderBuilder::new()
                 .with_recommended_fillers()
                 .signer(EthereumSigner::new(Sender::new(signer, sender_address)?))
@@ -348,7 +345,7 @@ impl HypercoreEthereum {
         Router::new(self.router_address, &self.provider)
     }
 
-    pub fn program(&self) -> Program {
-        Program::new(self.program_address, &self.provider)
+    pub fn program(&self, program_address: HypercoreAddress) -> Program {
+        Program::new(Address::new(program_address.0), &self.provider)
     }
 }

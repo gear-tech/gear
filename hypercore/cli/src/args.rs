@@ -150,7 +150,6 @@ impl ExtraCommands {
                 HypercoreEthereum::new(
                     &config.ethereum_rpc,
                     config.ethereum_router_address.parse()?,
-                    config.ethereum_program_address.parse()?,
                     signer.clone(),
                     sender_address,
                 )
