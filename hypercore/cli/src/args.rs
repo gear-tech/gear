@@ -18,8 +18,11 @@
 
 //! CLI arguments in one place.
 
+use anyhow::Result;
 use clap::{Parser, Subcommand};
-use hypercore_ethereum::{Router, Sender};
+use gprimitives::ActorId;
+use hypercore_ethereum::HypercoreEthereum;
+use hypercore_signer::Address;
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
 
@@ -74,6 +77,10 @@ pub struct Args {
     #[arg(long = "validator-key")]
     pub validator_key: Option<String>,
 
+    /// Sender address, if intended to send Ethereum transaction.
+    #[arg(long = "validator-address")]
+    pub sender_address: Option<String>,
+
     /// Run a temporary node.
     ///
     /// A temporary directory will be created to store the configuration and will be deleted
@@ -100,6 +107,9 @@ pub enum ExtraCommands {
     InsertKey(InsertKeyArgs),
     Sign(SigningArgs),
     UploadCode(UploadCodeArgs),
+    SetProgram,
+    AddValidators(AddValidatorsArgs),
+    RemoveValidators(RemoveValidatorsArgs),
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -115,12 +125,40 @@ pub struct InsertKeyArgs {
 #[derive(Clone, Debug, Deserialize, Parser)]
 pub struct UploadCodeArgs {
     path: PathBuf,
-    sender: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Parser)]
+pub struct AddValidatorsArgs {
+    validators: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Parser)]
+pub struct RemoveValidatorsArgs {
+    validators: Vec<String>,
 }
 
 impl ExtraCommands {
     pub async fn run(&self, config: &config::Config) -> anyhow::Result<()> {
         let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
+
+        let maybe_sender_address = config
+            .sender_address
+            .as_ref()
+            .and_then(|addr| addr.parse::<Address>().ok());
+        let maybe_ethereum = if let Some(sender_address) = maybe_sender_address {
+            Some(
+                HypercoreEthereum::new(
+                    &config.ethereum_rpc,
+                    config.ethereum_router_address.parse()?,
+                    config.ethereum_program_address.parse()?,
+                    signer.clone(),
+                    sender_address,
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
 
         match self {
             ExtraCommands::GenerateKey => {
@@ -174,10 +212,11 @@ impl ExtraCommands {
 
             ExtraCommands::UploadCode(ref upload_code_args) => {
                 let path = &upload_code_args.path;
-                let sender_address = upload_code_args.sender.parse()?;
 
-                let Some(key) = signer.get_key_by_addr(sender_address)? else {
-                    anyhow::bail!("No key found for {sender_address}");
+                let Some((sender_address, hypercore_ethereum)) =
+                    maybe_sender_address.zip(maybe_ethereum)
+                else {
+                    anyhow::bail!("please provide signer address");
                 };
 
                 println!(
@@ -185,16 +224,96 @@ impl ExtraCommands {
                     path.display(),
                 );
 
-                let router = Router::new(
-                    &config.ethereum_router_address,
-                    &config.ethereum_rpc,
-                    Sender::new(signer.clone(), key),
-                )
-                .await?;
-
                 let code = fs::read(path)?;
-                let tx = router.upload_code_with_sidecar(&code).await?;
+                let tx = hypercore_ethereum
+                    .router()
+                    .upload_code_with_sidecar(&code)
+                    .await?;
 
+                println!("Completed in transaction {tx:?}");
+            }
+
+            ExtraCommands::SetProgram => {
+                let program_impl: Address = config.ethereum_program_address.parse()?;
+
+                let Some((sender_address, hypercore_ethereum)) =
+                    maybe_sender_address.zip(maybe_ethereum)
+                else {
+                    anyhow::bail!("please provide signer address");
+                };
+
+                println!("Setting program {program_impl} for Router from {sender_address}...");
+
+                let tx = hypercore_ethereum
+                    .router()
+                    .set_program({
+                        let mut actor_id = [0; 32];
+                        actor_id[12..].copy_from_slice(&program_impl.0);
+                        ActorId::new(actor_id)
+                    })
+                    .await?;
+                println!("Completed in transaction {tx:?}");
+            }
+
+            ExtraCommands::AddValidators(ref add_validators_args) => {
+                let validator_addresses = add_validators_args
+                    .validators
+                    .iter()
+                    .map(|validator| validator.parse::<Address>())
+                    .collect::<Result<Vec<_>>>()?;
+
+                let validators = validator_addresses
+                    .into_iter()
+                    .map(|validator| {
+                        let mut actor_id = [0; 32];
+                        actor_id[12..].copy_from_slice(&validator.0);
+                        ActorId::new(actor_id)
+                    })
+                    .collect();
+
+                let Some((sender_address, hypercore_ethereum)) =
+                    maybe_sender_address.zip(maybe_ethereum)
+                else {
+                    anyhow::bail!("please provide signer address");
+                };
+
+                println!("Adding validators for Router from {sender_address}...");
+
+                let tx = hypercore_ethereum
+                    .router()
+                    .add_validators(validators)
+                    .await?;
+                println!("Completed in transaction {tx:?}");
+            }
+
+            ExtraCommands::RemoveValidators(ref remove_validators_args) => {
+                let validator_addresses = remove_validators_args
+                    .validators
+                    .iter()
+                    .map(|validator| validator.parse::<Address>())
+                    .collect::<Result<Vec<_>>>()?;
+
+                let validators = validator_addresses
+                    .into_iter()
+                    .map(|validator| {
+                        let mut actor_id = [0; 32];
+                        actor_id[12..].copy_from_slice(&validator.0);
+                        ActorId::new(actor_id)
+                    })
+                    .collect();
+
+                let Some((sender_address, hypercore_ethereum)) =
+                    maybe_sender_address.zip(maybe_ethereum)
+                else {
+                    anyhow::bail!("please provide signer address");
+                };
+
+                println!("Removing validators for Router from {sender_address}...");
+
+                let tx = hypercore_ethereum
+                    .router()
+                    .remove_validators(validators)
+                    .await?;
                 println!("Completed in transaction {tx:?}");
             }
         }

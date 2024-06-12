@@ -18,15 +18,13 @@
 
 //! Main service in hypercore node.
 
-use std::str::FromStr;
-
 use crate::config::{Config, SequencerConfig, ValidatorConfig};
 use anyhow::Result;
 use futures::{future, stream::StreamExt};
 use hypercore_network::service::NetworkGossip;
 use hypercore_processor::LocalOutcome;
 use hypercore_sequencer::{AggregatedCommitments, CodeHashCommitment};
-use hypercore_signer::{Address, PublicKey};
+use hypercore_signer::Address;
 use parity_scale_codec::Decode;
 use tokio::{signal, time};
 
@@ -228,6 +226,7 @@ mod tests {
             net_config: hypercore_network::NetworkConfiguration::new_local(),
             sequencer: Default::default(),
             validator: Default::default(),
+            sender_address: Default::default(),
         })
         .await;
 

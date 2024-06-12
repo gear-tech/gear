@@ -4,7 +4,7 @@ use abi::{AlloyProgram, AlloyRouter};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
     network::{Ethereum, EthereumSigner, TxSigner},
-    primitives::{keccak256, Address, Bytes, ChainId, Signature, B256},
+    primitives::{Address, Bytes, ChainId, Signature, B256},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, SignerFiller},
         ProviderBuilder, RootProvider,
@@ -21,8 +21,10 @@ use async_trait::async_trait;
 use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::Schedule;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use hypercore_signer::{PublicKey, Signature as HypercoreSignature, Signer as HypercoreSigner};
-use std::mem;
+use hypercore_signer::{
+    Address as HypercoreAddress, PublicKey, Signature as HypercoreSignature,
+    Signer as HypercoreSigner,
+};
 
 mod abi;
 pub mod event;
@@ -39,19 +41,22 @@ type AlloyProgramInstance = AlloyProgram::AlloyProgramInstance<AlloyTransport, A
 type AlloyRouterInstance = AlloyRouter::AlloyRouterInstance<AlloyTransport, AlloyProvider>;
 
 #[derive(Debug, Clone)]
-pub struct Sender {
+struct Sender {
     signer: HypercoreSigner,
     sender: PublicKey,
     chain_id: Option<ChainId>,
 }
 
 impl Sender {
-    pub fn new(signer: HypercoreSigner, sender: PublicKey) -> Self {
-        Self {
+    pub fn new(signer: HypercoreSigner, sender_address: HypercoreAddress) -> Result<Self> {
+        let sender = signer
+            .get_key_by_addr(sender_address)?
+            .ok_or_else(|| anyhow!("no key found for {sender_address}"))?;
+        Ok(Self {
             signer,
             sender,
             chain_id: None,
-        }
+        })
     }
 }
 
@@ -102,15 +107,6 @@ impl SignerSync for Sender {
     }
 }
 
-async fn create_provider(rpc_url: &str, sender: Sender) -> Result<AlloyProvider> {
-    let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .signer(EthereumSigner::new(sender))
-        .on_ws(WsConnect::new(rpc_url))
-        .await?;
-    Ok(provider)
-}
-
 #[derive(Debug, Clone)]
 #[repr(packed)]
 pub struct Transition {
@@ -119,58 +115,11 @@ pub struct Transition {
     pub new_state_hash: H256,
 }
 
-pub trait Signable {
-    fn create_message(&self) -> Vec<u8>;
-
-    fn sign(&self, signer: Sender) -> Result<HypercoreSignature> {
-        let hash = keccak256(self.create_message());
-        let signature = signer.sign_message_sync(hash.as_slice())?;
-
-        Ok(HypercoreSignature(signature.into()))
-    }
-}
-
-impl Signable for Vec<CodeId> {
-    fn create_message(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(self.len() * mem::size_of::<CodeId>());
-
-        for code_id in self {
-            buffer.extend_from_slice(&code_id.into_bytes());
-        }
-
-        buffer
-    }
-}
-
-impl Signable for Vec<Transition> {
-    fn create_message(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(
-            self.len() * (mem::size_of::<Address>() + mem::size_of::<H256>() * 2),
-        );
-
-        for Transition {
-            actor_id,
-            old_state_hash,
-            new_state_hash,
-        } in self
-        {
-            buffer.extend_from_slice(&actor_id.into_bytes()[12..]);
-            buffer.extend_from_slice(old_state_hash.as_bytes());
-            buffer.extend_from_slice(new_state_hash.as_bytes());
-        }
-
-        buffer
-    }
-}
-
 pub struct Router(AlloyRouterInstance);
 
 impl Router {
-    pub async fn new(address: &str, rpc_url: &str, sender: Sender) -> Result<Self> {
-        Ok(Self(AlloyRouterInstance::new(
-            Address::parse_checksummed(address, None)?,
-            create_provider(rpc_url, sender).await?,
-        )))
+    fn new(address: Address, provider: &AlloyProvider) -> Self {
+        Self(AlloyRouterInstance::new(address, provider.clone()))
     }
 
     pub async fn set_program(&self, program: ActorId) -> Result<H256> {
@@ -323,11 +272,8 @@ impl Router {
 pub struct Program(AlloyProgramInstance);
 
 impl Program {
-    pub async fn new(address: &str, rpc_url: &str, sender: Sender) -> Result<Self> {
-        Ok(Self(AlloyProgramInstance::new(
-            Address::parse_checksummed(address, None)?,
-            create_provider(rpc_url, sender).await?,
-        )))
+    fn new(address: Address, provider: &AlloyProvider) -> Self {
+        Self(AlloyProgramInstance::new(address, provider.clone()))
     }
 
     pub async fn send_message(
@@ -370,5 +316,39 @@ impl Program {
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
+    }
+}
+
+pub struct HypercoreEthereum {
+    router_address: Address,
+    program_address: Address,
+    provider: AlloyProvider,
+}
+
+impl HypercoreEthereum {
+    pub async fn new(
+        rpc_url: &str,
+        router_address: HypercoreAddress,
+        program_address: HypercoreAddress,
+        signer: HypercoreSigner,
+        sender_address: HypercoreAddress,
+    ) -> Result<Self> {
+        Ok(Self {
+            router_address: Address::new(router_address.0),
+            program_address: Address::new(program_address.0),
+            provider: ProviderBuilder::new()
+                .with_recommended_fillers()
+                .signer(EthereumSigner::new(Sender::new(signer, sender_address)?))
+                .on_ws(WsConnect::new(rpc_url))
+                .await?,
+        })
+    }
+
+    pub fn router(&self) -> Router {
+        Router::new(self.router_address, &self.provider)
+    }
+
+    pub fn program(&self) -> Program {
+        Program::new(self.program_address, &self.provider)
     }
 }

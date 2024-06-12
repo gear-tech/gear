@@ -73,6 +73,9 @@ pub struct Config {
     /// Is this role a validator
     pub validator: ValidatorConfig,
 
+    /// Sender address to send Ethereum transaction.
+    pub sender_address: Option<String>,
+
     // Network configuration
     pub net_config: NetworkConfiguration,
 }
@@ -131,6 +134,7 @@ impl TryFrom<Args> for Config {
                 }
                 None => ValidatorConfig::Disabled,
             },
+            sender_address: args.sender_address,
         })
     }
 }
