@@ -129,79 +129,78 @@ impl<'a> MailboxInterface<'a> {
 mod tests {
     use std::convert::TryInto;
 
-    use crate::{program::ProgramIdWrapper, Log, Program, System};
-    use codec::Encode;
-    use gear_core::{
-        ids::MessageId,
-        message::{Dispatch, DispatchKind, Message, Payload},
+    use crate::{
+        program::ProgramIdWrapper, Log, Program, System, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
     };
+    use codec::Encode;
+    use demo_constructor::Arg;
+    use gear_common::auxiliary::mailbox::MailboxErrorImpl;
+    use gear_core::{
+        ids::{prelude::MessageIdExt, MessageId, ProgramId},
+        message::{Dispatch, DispatchKind, HandleMessage, HandlePacket, Message, Payload},
+    };
+    use gear_utils::init_default_logger;
 
-    // #[test]
-    // fn mailbox_walk_through_test() {
-    //     //Arranging data for future messages
-    //     let system = System::new();
-    //     let message_id: MessageId = Default::default();
-    //     let source_user_id = ProgramIdWrapper::from(100).0;
-    //     let destination_user_id = ProgramIdWrapper::from(200).0;
-    //     let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
-    //     let encoded_message_payload: Payload =
-    // message_payload.encode().try_into().unwrap();     let reply_payload:
-    // Payload = vec![3, 2, 1].try_into().unwrap();
-    //     let encoded_reply_payload: Payload =
-    // reply_payload.encode().try_into().unwrap();     let log =
-    // Log::builder().payload(message_payload);
+    #[test]
+    fn user2user_doesnt_reach_mailbox() {
+        let system = System::new();
 
-    //     //Building message based on arranged data
-    //     let message = Message::new(
-    //         message_id,
-    //         source_user_id,
-    //         destination_user_id,
-    //         encoded_message_payload.clone(),
-    //         Default::default(),
-    //         0,
-    //         None,
-    //     );
+        let source = ProgramIdWrapper::from(100).0;
+        let message_id: MessageId = MessageId::generate_from_user(0, source, 0);
+        let destination = ProgramIdWrapper::from(200).0;
+        let payload: Payload = vec![1, 2, 3].try_into().expect("len exceed");
+        let log = Log::builder()
+            .dest(destination)
+            .payload_bytes(payload.inner());
 
-    //     //Sending created message and extracting its log
-    //     let message_result =
-    //         system.send_dispatch(Dispatch::new(DispatchKind::Handle,
-    // message.clone()));     let message_log = message_result
-    //         .log
-    //         .last()
-    //         .expect("No message log in run result");
+        let dispatch = Dispatch::new(
+            DispatchKind::Handle,
+            HandleMessage::from_packet(
+                message_id,
+                HandlePacket::new_with_gas(destination, payload, GAS_ALLOWANCE, 0),
+            )
+            .into_message(source),
+        );
 
-    //     //Getting mailbox of destination user and extracting message
-    //     let destination_user_mailbox =
-    // system.get_mailbox(destination_user_id);     let message_replier =
-    // destination_user_mailbox.take_message(log);
+        // Log exists
+        let res = system.send_dispatch(dispatch);
+        assert!(res.contains(&log));
 
-    //     //Replying on sended message and extracting log
-    //     let reply_log = message_replier.reply(reply_payload, 0).log;
-    //     let last_reply_log = reply_log.last().expect("No message log in run
-    // result");
+        // But message doesn't exist in mailbox
+        let mailbox = system.get_mailbox(destination);
+        let res = mailbox.reply(log, b"", 0);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), MailboxErrorImpl::ElementNotFound);
+    }
 
-    //     //Sending one more message to be sure that no critical move semantic
-    // didn't     // occur
-    //     let second_message_result =
-    //         system.send_dispatch(Dispatch::new(DispatchKind::Handle,
-    // message));     let second_message_log = message_result
-    //         .log
-    //         .last()
-    //         .expect("No message log in run result");
+    #[test]
+    fn claim_value_from_mailbox() {
+        use demo_constructor::{Calls, Scheme, WASM_BINARY};
+        let system = System::new();
+        let program = Program::from_binary_with_id(&system, 121, WASM_BINARY);
 
-    //     //Asserting results
-    //     assert!(!message_result.main_failed);
-    //     assert!(!message_result.others_failed);
-    //     assert!(!second_message_result.main_failed);
-    //     assert!(!second_message_result.others_failed);
-    //     assert_eq!(reply_log.len(), 1);
-    //     assert_eq!(last_reply_log.payload(), encoded_reply_payload.inner());
-    //     assert_eq!(message_log.payload(), encoded_message_payload.inner());
-    //     assert_eq!(
-    //         second_message_log.payload(),
-    //         encoded_message_payload.inner()
-    //     );
-    // }
+        let sender = ProgramId::from(42).into_bytes();
+        let payload = b"sup!".to_vec();
+        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
+
+        let original_balance = 20 * EXISTENTIAL_DEPOSIT;
+        system.mint_to(sender, original_balance);
+
+        let res = program.send(sender, Scheme::empty());
+        assert!(!res.main_failed());
+
+        let value_send = 2 * EXISTENTIAL_DEPOSIT;
+        let handle = Calls::builder().send_value(sender, payload, value_send);
+        let res = program.send_bytes_with_value(sender, handle.encode(), value_send);
+        assert!(!res.main_failed());
+        assert!(res.contains(&log));
+        assert_eq!(system.balance_of(sender), original_balance - value_send);
+
+        let mailbox = system.get_mailbox(sender);
+        assert!(mailbox.claim_value(log).is_ok());
+
+        assert_eq!(system.balance_of(sender), original_balance);
+    }
 
     // #[test]
     // fn mailbox_deletes_message_after_reply() {

@@ -455,14 +455,18 @@ impl ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            // TODO make sure user from user messages do not go to mailbox.
-
             let message = dispatch.into_parts().1.into_stored();
-            let mailboxed_msg: UserStoredMessage = message.clone().try_into().expect("todo");
+            if let (Ok(mailbox_msg), true) = (
+                message.clone().try_into(),
+                self.is_program(&message.source()),
+            ) {
+                panic!("REACHED!");
 
-            self.mailbox
-                .insert(mailboxed_msg)
-                .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+                self.mailbox
+                    .insert(mailbox_msg)
+                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+            }
+
             self.log.push(message)
         }
 
