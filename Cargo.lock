@@ -4908,6 +4908,7 @@ name = "gear-tasks"
 version = "1.4.2"
 dependencies = [
  "env_logger",
+ "frame-support",
  "futures-executor",
  "gear-node-testing",
  "gear-tasks-runtime-api",
@@ -4927,6 +4928,7 @@ dependencies = [
 name = "gear-tasks-runtime-api"
 version = "1.4.2"
 dependencies = [
+ "frame-support",
  "sp-api",
 ]
 

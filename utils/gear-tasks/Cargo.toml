@@ -16,6 +16,7 @@ sp-externalities.workspace = true
 sp-storage.workspace = true
 sp-api.workspace = true
 gear-tasks-runtime-api.workspace = true
+frame-support.workspace = true
 
 futures-executor = { version = "0.3.30", default-features = false, optional = true }
 log.workspace = true
@@ -37,5 +38,6 @@ std = [
     "sp-runtime-interface/std",
     "sp-externalities/std",
     "sp-api/std",
+    "frame-support/std",
     "futures-executor",
 ]

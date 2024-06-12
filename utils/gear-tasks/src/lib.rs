@@ -74,47 +74,43 @@ mod inner {
         sync::{mpsc, Arc, OnceLock},
     };
 
-    struct NoStorageExternalities;
+    struct ReadOnlyExternalities<'a, E>(&'a mut E);
 
-    impl Externalities for NoStorageExternalities {
+    impl<E: Externalities> Externalities for ReadOnlyExternalities<'_, E> {
         fn set_offchain_storage(&mut self, _key: &[u8], _value: Option<&[u8]>) {
             panic!("`Externalities::set_offchain_storage()` is not supported")
         }
 
-        fn storage(&self, _key: &[u8]) -> Option<Vec<u8>> {
-            panic!("`Externalities::storage()` is not supported")
+        fn storage(&self, key: &[u8]) -> Option<Vec<u8>> {
+            self.0.storage(key)
         }
 
-        fn storage_hash(&self, _key: &[u8]) -> Option<Vec<u8>> {
-            panic!("`Externalities::storage_hash()` is not supported")
+        fn storage_hash(&self, key: &[u8]) -> Option<Vec<u8>> {
+            self.0.storage_hash(key)
         }
 
         fn child_storage_hash(
             &self,
-            _child_info: &sp_storage::ChildInfo,
-            _key: &[u8],
+            child_info: &sp_storage::ChildInfo,
+            key: &[u8],
         ) -> Option<Vec<u8>> {
-            panic!("`Externalities::child_storage_hash()` is not supported")
+            self.0.child_storage_hash(child_info, key)
         }
 
-        fn child_storage(
-            &self,
-            _child_info: &sp_storage::ChildInfo,
-            _key: &[u8],
-        ) -> Option<Vec<u8>> {
-            panic!("`Externalities::child_storage()` is not supported")
+        fn child_storage(&self, child_info: &sp_storage::ChildInfo, key: &[u8]) -> Option<Vec<u8>> {
+            self.0.child_storage(child_info, key)
         }
 
-        fn next_storage_key(&self, _key: &[u8]) -> Option<Vec<u8>> {
-            panic!("`Externalities::next_storage_key()` is not supported")
+        fn next_storage_key(&self, key: &[u8]) -> Option<Vec<u8>> {
+            self.0.next_storage_key(key)
         }
 
         fn next_child_storage_key(
             &self,
-            _child_info: &sp_storage::ChildInfo,
-            _key: &[u8],
+            child_info: &sp_storage::ChildInfo,
+            key: &[u8],
         ) -> Option<Vec<u8>> {
-            panic!("`Externalities::next_child_storage_key()` is not supported")
+            self.0.next_child_storage_key(child_info, key)
         }
 
         fn kill_child_storage(
@@ -215,21 +211,21 @@ mod inner {
         }
     }
 
-    impl ExtensionStore for NoStorageExternalities {
-        fn extension_by_type_id(&mut self, _type_id: TypeId) -> Option<&mut dyn Any> {
-            panic!("`ExternalitiesStore::extension_by_type_id()` is not supported")
+    impl<E: ExtensionStore> ExtensionStore for ReadOnlyExternalities<'_, E> {
+        fn extension_by_type_id(&mut self, type_id: TypeId) -> Option<&mut dyn Any> {
+            self.0.extension_by_type_id(type_id)
         }
 
         fn register_extension_with_type_id(
             &mut self,
-            _type_id: TypeId,
-            _extension: Box<dyn Extension>,
+            type_id: TypeId,
+            extension: Box<dyn Extension>,
         ) -> Result<(), Error> {
-            panic!("`ExternalitiesStore::register_extension_with_type_id()` is not supported")
+            self.0.register_extension_with_type_id(type_id, extension)
         }
 
-        fn deregister_extension_by_type_id(&mut self, _type_id: TypeId) -> Result<(), Error> {
-            panic!("`ExternalitiesStore::deregister_extension_by_type_id()` is not supported")
+        fn deregister_extension_by_type_id(&mut self, type_id: TypeId) -> Result<(), Error> {
+            self.0.deregister_extension_by_type_id(type_id)
         }
     }
 
@@ -309,8 +305,11 @@ mod inner {
                         rx,
                     } => {
                         self.thread_pool.spawn_ok(async move {
-                            let payload = (func_ref)(payload);
-                            rx.send(payload).unwrap();
+                            let output_payload;
+                            frame_support::assert_storage_noop!({
+                                output_payload = (func_ref)(payload);
+                            });
+                            rx.send(output_payload).unwrap();
                         });
                     }
                 }
@@ -410,7 +409,7 @@ mod inner {
         use gear_node_testing::client::{
             Client as TestClient, TestClientBuilder, TestClientBuilderExt,
         };
-        use std::sync::Arc;
+        use std::sync::{Arc, Once};
 
         fn init_logger() {
             let _ = env_logger::Builder::from_default_env()
@@ -420,12 +419,15 @@ mod inner {
         }
 
         fn new_test_ext() -> sp_io::TestExternalities {
-            let client: Arc<TestClient> = Arc::new(TestClientBuilder::new().build());
-            let runner = GearTasksRunner::new(client);
+            static CLIENT: Once = Once::new();
+            CLIENT.call_once(|| {
+                let client: Arc<TestClient> = Arc::new(TestClientBuilder::new().build());
+                let runner = GearTasksRunner::new(client);
 
-            std::thread::spawn(|| {
-                futures_executor::block_on(async move {
-                    runner.run().await;
+                std::thread::spawn(|| {
+                    futures_executor::block_on(async move {
+                        runner.run().await;
+                    });
                 });
             });
 
@@ -461,6 +463,21 @@ mod inner {
                     assert_eq!(payload, expected);
                 }
             })
+        }
+
+        #[test]
+        fn read_denied() {
+            init_logger();
+            new_test_ext().execute_with(|| {
+                spawn(
+                    |_payload| {
+                        sp_io::storage::set(b"SOME_NEW_KEY", b"SOME_NEW_VALUE");
+                        vec![]
+                    },
+                    vec![],
+                )
+                .join();
+            });
         }
     }
 }
