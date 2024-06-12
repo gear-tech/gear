@@ -111,6 +111,16 @@ impl Database {
         .concat();
         self.kv.put(&key, code.encode());
     }
+
+    // TODO: temporary solution for MVP runtime-interfaces db access.
+    pub fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
+        self.cas.read(&hash)
+    }
+
+    // TODO: temporary solution for MVP runtime-interfaces db access.
+    pub fn write(&self, data: &[u8]) -> H256 {
+        self.cas.write(data)
+    }
 }
 
 impl Clone for Database {
