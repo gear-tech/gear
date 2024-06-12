@@ -30,13 +30,15 @@ pub use agro::{AggregatedCommitments, CodeHashCommitment};
 pub struct Config {
     pub ethereum_rpc: String,
     pub sign_tx_public: PublicKey,
+    pub router_address: Address,
 }
 
 pub struct Sequencer {
     signer: Signer,
     ethereum_rpc: String,
-
+    key: PublicKey,
     codes_aggregation: Aggregator<CodeHashCommitment>,
+    router_address: Address,
 }
 
 impl Sequencer {
@@ -45,7 +47,19 @@ impl Sequencer {
             signer,
             ethereum_rpc: config.ethereum_rpc.clone(),
             codes_aggregation: Aggregator::new(1),
+            key: config.sign_tx_public,
+            router_address: config.router_address,
         }
+    }
+
+    async fn eth(&self) -> Result<hypercore_ethereum::HypercoreEthereum> {
+        hypercore_ethereum::HypercoreEthereum::new(
+            &self.ethereum_rpc,
+            self.router_address,
+            self.signer.clone(),
+            self.key.to_address(),
+        )
+        .await
     }
 
     // This function should never block.
@@ -83,7 +97,7 @@ impl Sequencer {
 
             if let Some(code_commitments) = active_aggregation.find_root() {
                 log::debug!("Achieved consensus on code commitments. Submitting...");
-                Self::submit_codes_commitment(code_commitments).await?;
+                self.submit_codes_commitment(code_commitments).await?;
             } else {
                 log::debug!("No consensus on code commitments found. Discarding...");
             }
@@ -93,9 +107,20 @@ impl Sequencer {
     }
 
     async fn submit_codes_commitment(
-        _commitments: MultisignedCommitments<CodeHashCommitment>,
+        &self,
+        commitments: MultisignedCommitments<CodeHashCommitment>,
     ) -> Result<()> {
-        // TODO
+        let codes = commitments
+            .commitments
+            .iter()
+            .map(|c| c.0.into())
+            .collect::<Vec<_>>();
+        let signatures = commitments.signatures;
+
+        let router = self.eth().await?.router();
+        if let Err(e) = router.commit_codes(codes, signatures).await {
+            log::error!("Failed to commit code ids: {e}");
+        }
 
         Ok(())
     }

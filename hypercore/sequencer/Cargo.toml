@@ -17,4 +17,5 @@ anyhow.workspace = true
 hypercore-signer.workspace = true
 hypercore-observer.workspace = true
 hypercore-processor.workspace = true
+hypercore-ethereum.workspace = true
 gear-core.workspace = true

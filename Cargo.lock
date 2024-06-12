@@ -7288,6 +7288,7 @@ dependencies = [
  "anyhow",
  "gear-core",
  "gprimitives",
+ "hypercore-ethereum",
  "hypercore-observer",
  "hypercore-processor",
  "hypercore-signer",

@@ -67,6 +67,7 @@ impl Service {
                     &hypercore_sequencer::Config {
                         ethereum_rpc: config.ethereum_rpc.clone(),
                         sign_tx_public: *sign_tx_public,
+                        router_address: config.ethereum_router_address.parse()?,
                     },
                     signer.clone(),
                 ))
