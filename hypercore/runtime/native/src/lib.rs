@@ -30,7 +30,7 @@ use hypercore_runtime_common::state::Storage;
 use pages_storage::PagesStorage;
 use std::collections::BTreeMap;
 
-pub use hypercore_runtime_common::{self, process_program, state};
+pub use hypercore_runtime_common::{self, state};
 
 mod pages_storage;
 
