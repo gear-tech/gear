@@ -108,27 +108,9 @@ fn init_lazy_pages_for_program(caller: Caller<'_, StoreData>, ctx: i64) {
 fn lazy_pages_status(caller: Caller<'_, StoreData>) -> i64 {
     log::trace!(target: "host_call", "lazy_pages_status()");
 
-    let status = lazy_pages_detail::lazy_pages_status().encode();
-    let status_len = status.len() as i32;
+    let status = lazy_pages_detail::lazy_pages_status();
 
-    let mut host_context = HostContext { caller };
-
-    let ptr = host_context
-        .allocate_memory(status_len as u32)
-        .unwrap()
-        .into_value()
-        .as_i32()
-        .expect("always i32");
-
-    let mut caller = host_context.caller;
-
-    let memory = caller.data().memory();
-
-    memory
-        .write(&mut caller, ptr as usize, status.as_ref())
-        .unwrap();
-
-    let res = unsafe { mem::transmute([ptr, status_len]) };
+    let (_caller, res) = super::allocate_and_write(caller, status);
 
     log::trace!(target: "host_call", "lazy_pages_status(..) -> {res:?}");
 
@@ -172,25 +154,9 @@ fn pre_process_memory_accesses(
 fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
     log::trace!(target: "host_call", "write_accessed_pages()");
 
-    let pages = lazy_pages_detail::write_accessed_pages().encode();
-    let pages_len = pages.len() as i32;
+    let pages = lazy_pages_detail::write_accessed_pages();
 
-    let mut host_context = HostContext { caller };
-
-    let ptr = host_context
-        .allocate_memory(pages_len as u32)
-        .unwrap()
-        .into_value()
-        .as_i32()
-        .expect("always i32");
-
-    let mut caller = host_context.caller;
-
-    let memory = caller.data().memory();
-
-    memory.write(&mut caller, ptr as usize, &pages).unwrap();
-
-    let res = unsafe { mem::transmute([ptr, pages_len]) };
+    let (_caller, res) = super::allocate_and_write(caller, pages);
 
     log::trace!(target: "host_call", "write_accessed_pages(..) -> {res:?}");
 

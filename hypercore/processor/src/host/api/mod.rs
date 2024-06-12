@@ -16,11 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use parity_scale_codec::Decode;
+use super::context::HostContext;
+use parity_scale_codec::{Decode, Encode};
+use sp_wasm_interface::{FunctionContext as _, IntoValue as _, StoreData};
 use std::mem;
-use wasmtime::{Memory, StoreContext, StoreContextMut};
+use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
 
 pub mod allocator;
+pub mod database;
 pub mod lazy_pages;
 pub mod logging;
 pub mod sandbox;
@@ -39,7 +42,6 @@ impl MemoryWrap {
         D::decode(&mut slice).unwrap()
     }
 
-    #[allow(unused)]
     fn decode<'a, T: 'a, D: Decode>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
@@ -86,4 +88,38 @@ impl MemoryWrap {
             .and_then(|s| s.get_mut(..len))
             .unwrap()
     }
+}
+
+pub fn allocate_and_write(
+    caller: Caller<'_, StoreData>,
+    data: impl Encode,
+) -> (Caller<'_, StoreData>, i64) {
+    allocate_and_write_raw(caller, data.encode())
+}
+
+pub fn allocate_and_write_raw(
+    caller: Caller<'_, StoreData>,
+    data: impl AsRef<[u8]>,
+) -> (Caller<'_, StoreData>, i64) {
+    let data = data.as_ref();
+    let len = data.len();
+
+    let mut host_context = HostContext { caller };
+
+    let ptr = host_context
+        .allocate_memory(len as u32)
+        .unwrap()
+        .into_value()
+        .as_i32()
+        .expect("always i32");
+
+    let mut caller = host_context.caller;
+
+    let memory = caller.data().memory();
+
+    memory.write(&mut caller, ptr as usize, data).unwrap();
+
+    let res = unsafe { mem::transmute([ptr, len as i32]) };
+
+    (caller, res)
 }
