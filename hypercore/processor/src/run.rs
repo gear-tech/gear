@@ -27,7 +27,7 @@ use gear_core::{
 use hypercore_runtime_common::{
     process_next_message,
     state::{self, Dispatch, MaybeHash, ProgramState, Storage},
-    HandlerForPrograms,
+    Handler,
 };
 use hypercore_runtime_native::NativeRuntimeInterface;
 use primitive_types::H256;
@@ -79,50 +79,32 @@ async fn run_in_async(
     }
 
     loop {
-        // send process programs to workers
+        // Send tasks to process programs in workers, until all queues are empty.
+
         let mut no_more_to_do = true;
         for index in (0..programs.len()).step_by(num_workers) {
             let result_receivers = one_batch(index, db.clone(), &task_senders, programs).await;
 
-            log::info!(
-                "result_receivers: {:?}",
-                result_receivers.keys().copied().collect::<Vec<ProgramId>>()
-            );
-
             let mut super_journal = vec![];
             for (program_id, receiver) in result_receivers.into_iter() {
-                let mut journal = receiver.await.unwrap();
+                let journal = receiver.await.unwrap();
                 if !journal.is_empty() {
                     no_more_to_do = false;
                 }
-                log::info!("New journal notes: {:?}", journal);
-                super_journal.append(&mut journal);
-
-                // Update program message queue
-                let state_hash = programs.get_mut(&program_id).unwrap();
-                let state = db.read_state(*state_hash).unwrap();
-                let mut queue = state
-                    .queue_hash
-                    .with_hash_or_default(|hash| db.read_queue(hash).unwrap());
-                let _ = queue.pop_front();
-                let queue_hash = db.write_queue(queue).into();
-                let state = ProgramState {
-                    queue_hash,
-                    ..state
-                };
-                *state_hash = db.write_state(state);
+                super_journal.push((program_id, journal));
             }
 
-            let mut handler = HandlerForPrograms {
-                programs: programs.clone(),
-                storage: db.clone(),
-                block_info: Default::default(),
-                to_users_messages: Default::default(),
-            };
-            core_processor::handle_journal(super_journal, &mut handler);
-
-            *programs = handler.programs;
-            to_users_messages.append(&mut handler.to_users_messages);
+            for (program_id, journal) in super_journal {
+                let mut handler = Handler {
+                    program_id,
+                    program_states: programs,
+                    storage: &db,
+                    block_info: Default::default(),
+                    to_users_messages: Default::default(),
+                };
+                core_processor::handle_journal(journal, &mut handler);
+                to_users_messages.append(&mut handler.to_users_messages);
+            }
         }
 
         if no_more_to_do {

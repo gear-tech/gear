@@ -53,7 +53,7 @@ extern crate alloc;
 mod journal;
 pub mod state;
 
-pub use journal::HandlerForPrograms;
+pub use journal::Handler;
 
 const RUNTIME_ID: u32 = 0;
 
