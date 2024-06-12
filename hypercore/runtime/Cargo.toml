@@ -22,6 +22,7 @@ gear-sandbox.workspace = true
 gear-sandbox-env.workspace = true
 gear-wasm-instrument.workspace = true
 gprimitives.workspace = true
+hypercore-runtime-common.workspace = true
 
 [build-dependencies]
 substrate-wasm-builder.workspace = true

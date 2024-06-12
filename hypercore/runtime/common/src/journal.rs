@@ -1,5 +1,5 @@
 use crate::state::{self, Dispatch, ProgramState, Storage};
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
@@ -17,6 +17,7 @@ use gear_core::{
 };
 use gear_core_errors::SignalCode;
 use gprimitives::{MessageId, ReservationId, H256};
+
 pub struct HandlerForPrograms<S: Storage> {
     pub programs: BTreeMap<ProgramId, H256>,
     pub storage: S,

@@ -337,7 +337,7 @@ mod tests {
             .expect("Failed to generate root commitment");
 
         assert_eq!(root.signatures.len(), 2);
-        assert_eq!(root.commitments.len(), 1); // only (1, 1) is commited by both aggregators
+        assert_eq!(root.commitments.len(), 1); // only (1, 1) is committed by both aggregators
 
         // aggregator with threshold 2
         let mut aggregator = Aggregator::new(2);
@@ -352,6 +352,6 @@ mod tests {
             .expect("Failed to generate root commitment");
 
         assert_eq!(root.signatures.len(), 2);
-        assert_eq!(root.commitments.len(), 2); // both (1, 1) and (2, 2) is commited by both aggregators
+        assert_eq!(root.commitments.len(), 2); // both (1, 1) and (2, 2) is committed by both aggregators
     }
 }

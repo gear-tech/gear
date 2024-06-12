@@ -28,6 +28,7 @@ mod wasm {
 
     mod api;
     mod interface;
+    mod storage;
 
     #[cfg_attr(target_arch = "wasm32", global_allocator)]
     #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
