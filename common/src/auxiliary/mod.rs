@@ -23,7 +23,7 @@
 pub mod gas_provider;
 pub mod mailbox;
 
-use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter, Iter};
+use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter};
 
 /// Double key `BTreeMap`.
 ///

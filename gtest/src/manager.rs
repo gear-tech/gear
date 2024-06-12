@@ -450,7 +450,7 @@ impl ExtManager {
                     .unwrap_or_else(|| unreachable!("message from program API has always gas"));
                 self.gas_tree
                     .create(dispatch.source(), dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupter! {:?}", e));
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
 
             self.dispatches.push_back(dispatch.into_stored());
@@ -460,11 +460,9 @@ impl ExtManager {
             let message = dispatch.into_parts().1.into_stored();
             let mailboxed_msg: UserStoredMessage = message.clone().try_into().expect("todo");
 
-            self.mailbox.insert(
-                mailboxed_msg.destination(),
-                mailboxed_msg.id(),
-                mailboxed_msg,
-            );
+            self.mailbox
+                .insert(mailboxed_msg)
+                .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
             self.log.push(message)
         }
 
@@ -1018,11 +1016,7 @@ impl JournalHandler for ExtManager {
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             self.mailbox
-                .insert(
-                    mailboxed_msg.destination(),
-                    mailboxed_msg.id(),
-                    mailboxed_msg,
-                )
+                .insert(mailboxed_msg)
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
             self.log.push(stored_message);

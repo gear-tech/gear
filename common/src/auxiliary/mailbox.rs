@@ -26,10 +26,10 @@ use crate::{
     },
 };
 use alloc::collections::btree_map::IntoIter;
-use core::{cell::RefCell, iter::Cloned};
+use core::cell::RefCell;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Message, UserStoredMessage},
+    message::UserStoredMessage,
 };
 
 /// Mailbox implementation that can be used in a native, non-wasm runtimes.

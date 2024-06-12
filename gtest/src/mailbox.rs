@@ -16,30 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{blocks::BlocksManager, manager::ExtManager, CoreLog, Log, RunResult, GAS_ALLOWANCE};
+use crate::{blocks::BlocksManager, manager::ExtManager, Log, RunResult, GAS_ALLOWANCE};
 use codec::Encode;
-use core_processor::common::JournalHandler;
 use gear_common::{
     auxiliary::mailbox::*,
     storage::{GetCallback, Interval, IterableByKeyMap, Mailbox as MailboxTrait, MailboxCallbacks},
 };
 use gear_core::{
     ids::{prelude::MessageIdExt, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails, ReplyMessage, ReplyPacket},
+    message::{ReplyMessage, ReplyPacket},
 };
-use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use std::{cell::RefCell, convert::TryInto};
 
 #[derive(Debug, Default)]
 pub(crate) struct MailboxManager;
 
 impl MailboxManager {
-    pub(crate) fn insert(
-        &self,
-        user: ProgramId,
-        reply_to: MessageId,
-        message: MailboxedMessage,
-    ) -> Result<(), MailboxErrorImpl> {
+    pub(crate) fn insert(&self, message: MailboxedMessage) -> Result<(), MailboxErrorImpl> {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as MailboxTrait>::insert(message, u32::MAX)
     }
 
@@ -60,13 +53,6 @@ impl MailboxManager {
         to: ProgramId,
     ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as IterableByKeyMap<_>>::iter_key(to)
-    }
-
-    pub(crate) fn drain_key(
-        &self,
-        to: ProgramId,
-    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
-        <AuxiliaryMailbox<MailboxCallbacksImpl> as IterableByKeyMap<_>>::drain_key(to)
     }
 }
 

@@ -114,3 +114,28 @@ fn now() -> u64 {
         .expect("Time went backwards")
         .as_millis() as u64
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_data_nullified_on_drop() {
+        let first_instance = BlocksManager::new();
+        let second_instance = BlocksManager::new();
+
+        first_instance.next_block();
+        first_instance.next_block();
+
+        // Assert all instance use same data;
+        assert_eq!(second_instance.get().height, 2);
+
+        // Drop first instance and check whether data is removed.
+        drop(first_instance);
+        assert_eq!(second_instance.get().height, 2);
+
+        drop(second_instance);
+        INSTANCES.with_borrow(|count| assert_eq!(&count, 0));
+        BLOCK_INFO_STORAGE.with_borrow(|maybe_bi| assert!(maybe_bi.is_none()));
+    }
+}
