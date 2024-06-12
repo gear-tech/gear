@@ -29,10 +29,10 @@ pub struct PublicKey(pub [u8; 33]);
 
 pub struct PrivateKey(pub [u8; 32]);
 
-#[derive(Debug, Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Address(pub [u8; 20]);
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Signature(pub [u8; 65]);
 
 pub struct Hash([u8; 32]);
@@ -111,6 +111,18 @@ impl FromStr for Address {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(decode_to_array(s)?))
+    }
+}
+
+impl fmt::Debug for Address {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x{}", self.to_hex())
+    }
+}
+
+impl fmt::Debug for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x{}", self.to_hex())
     }
 }
 

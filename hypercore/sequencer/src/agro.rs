@@ -22,7 +22,10 @@ use anyhow::Result;
 use gprimitives::H256;
 use hypercore_signer::{hash, Address, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 pub trait SeqHash {
     fn hash(&self) -> H256;
@@ -87,7 +90,11 @@ impl<T: SeqHash> AggregatedCommitments<T> {
             signature: Signature::default(),
         };
 
-        aggregated.signature = signer.sign(pub_key, aggregated.commitments.hash().as_ref())?;
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(b"\x19Ethereum Signed Message:\n32");
+        buffer.extend_from_slice(aggregated.commitments.hash().as_ref());
+
+        aggregated.signature = signer.sign_digest(pub_key, hash(&buffer).to_fixed_bytes())?;
 
         Ok(aggregated)
     }
@@ -135,11 +142,21 @@ impl<D: SeqHash> AggregatedQueue<D> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MultisignedCommitments<D> {
     pub commitments: Vec<D>,
     pub sources: Vec<Address>,
     pub signatures: Vec<Signature>,
+}
+
+impl<D: fmt::Debug> fmt::Debug for MultisignedCommitments<D> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "MultisignedCommitments {{ commitments: {:?}, sources: {:?}, signatures: {:?} }}",
+            self.commitments, self.sources, self.signatures
+        )
+    }
 }
 
 pub struct Aggregator<D: SeqHash + Clone> {

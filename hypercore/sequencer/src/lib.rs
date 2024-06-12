@@ -111,6 +111,8 @@ impl Sequencer {
         &self,
         commitments: MultisignedCommitments<CodeHashCommitment>,
     ) -> Result<()> {
+        log::debug!("Code commitment to submit: {commitments:?}");
+
         let codes = commitments
             .commitments
             .iter()
