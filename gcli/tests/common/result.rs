@@ -28,8 +28,6 @@ pub enum Error {
     Hex(#[from] hex::FromHexError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Node(#[from] gsdk::testing::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
