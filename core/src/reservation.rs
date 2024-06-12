@@ -101,7 +101,7 @@ impl GasReserver {
     /// Creates a new gas reserver.
     ///
     /// `map`, which is a [`BTreeMap`] of [`GasReservationSlot`]s,
-    /// will be converted to the [`HashMap`] of [`GasReservationState`]s.
+    /// will be converted to the [`BTreeMap`] of [`GasReservationState`]s.
     pub fn new(
         incoming_dispatch: &IncomingDispatch,
         map: GasReservationMap,
