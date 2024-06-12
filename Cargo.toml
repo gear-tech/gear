@@ -281,19 +281,19 @@ vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 
 # Hypercore deps
-hypercore-cli = { path = "hypercore/cli" }
-hypercore-observer = { path = "hypercore/observer" }
-hypercore-db = { path = "hypercore/db" }
-hypercore-network = { path = "hypercore/network" }
-hypercore-processor = { path = "hypercore/processor" }
-hypercore-runtime = { path = "hypercore/runtime" }
-hypercore-signer = { path = "hypercore/signer" }
-hypercore-sequencer = { path = "hypercore/sequencer" }
-hypercore-ethereum = { path = "hypercore/ethereum" }
-hypercore-runtime-common = { path = "hypercore/runtime/common" }
-hypercore-runtime-native = { path = "hypercore/runtime/native" }
-hypercore-utils = { path = "hypercore/utils" }
-hypercore-validator = { path = "hypercore/validator" }
+hypercore-cli = { path = "hypercore/cli", default-features = false }
+hypercore-observer = { path = "hypercore/observer", default-features = false }
+hypercore-db = { path = "hypercore/db", default-features = false }
+hypercore-network = { path = "hypercore/network", default-features = false }
+hypercore-processor = { path = "hypercore/processor", default-features = false }
+hypercore-runtime = { path = "hypercore/runtime", default-features = false }
+hypercore-signer = { path = "hypercore/signer", default-features = false }
+hypercore-sequencer = { path = "hypercore/sequencer", default-features = false }
+hypercore-ethereum = { path = "hypercore/ethereum", default-features = false }
+hypercore-runtime-common = { path = "hypercore/runtime/common", default-features = false }
+hypercore-runtime-native = { path = "hypercore/runtime/native", default-features = false }
+hypercore-utils = { path = "hypercore/utils", default-features = false }
+hypercore-validator = { path = "hypercore/validator", default-features = false }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }

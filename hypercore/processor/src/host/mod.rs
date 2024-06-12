@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, Result};
+use core_processor::common::JournalNote;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use hypercore_runtime_common::state::Storage;
 use hypercore_runtime_native::RuntimeInterface;
 use parity_scale_codec::{Decode, Encode};
@@ -91,10 +92,23 @@ impl InstanceWrapper {
         self.call("instrument", original_code)
     }
 
-    pub fn run(&mut self, state_hash: H256, instrumented_code: &InstrumentedCode) -> Result<()> {
+    pub fn run(
+        &mut self,
+        program_id: ProgramId,
+        original_code_id: CodeId,
+        state_hash: H256,
+        maybe_instrumented_code: Option<InstrumentedCode>,
+    ) -> Result<Vec<JournalNote>> {
         threads::set(self.db.clone(), state_hash);
 
-        self.call("run", instrumented_code.encode())
+        let arg = (
+            program_id,
+            original_code_id,
+            state_hash,
+            maybe_instrumented_code,
+        );
+
+        self.call("run", arg.encode())
     }
 
     pub fn verify(&mut self, code: &Vec<u8>) -> Result<bool> {

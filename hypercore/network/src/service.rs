@@ -136,7 +136,7 @@ pub struct NetworkWorker {
     network_service: Swarm<Behaviour>,
     /// Messages from the [`NetworkService`] that must be processed.
     from_service: TracingUnboundedReceiver<ServiceToWorkerMsg>,
-    /// Messages recieved from gossip engine
+    /// Messages received from gossip engine
     gossip_message_stream: Option<TracingUnboundedSender<MessageEntry>>,
 }
 
@@ -546,7 +546,7 @@ mod tests {
 
     #[test]
     fn dummy() {
-        let net = NetworkWorker::new(NetworkConfiguration::new_local())
+        let _net = NetworkWorker::new(NetworkConfiguration::new_local())
             .expect("failed to create network service");
     }
 }

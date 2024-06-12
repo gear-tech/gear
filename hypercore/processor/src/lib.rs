@@ -19,6 +19,7 @@
 //! Program's execution service for eGPU.
 
 use anyhow::{anyhow, Result};
+use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, MessageId, ProgramId},
     message::{DispatchKind, IncomingMessage},
@@ -80,17 +81,23 @@ impl Processor {
         }
     }
 
-    pub fn run_on_host(&mut self, program_state: H256, code_id: CodeId) -> Result<()> {
-        let instrumented_code = self
-            .db
-            .read_instrumented_code(RUNTIME_ID, code_id)
-            .ok_or_else(|| anyhow!("couldn't find instrumented code"))?;
+    pub fn run_on_host(
+        &mut self,
+        program_id: ProgramId,
+        program_state: H256,
+    ) -> Result<Vec<JournalNote>> {
+        let original_code_id = self.db.get_program_code_id(program_id).unwrap();
+
+        let maybe_instrumented_code = self.db.read_instrumented_code(RUNTIME_ID, original_code_id);
 
         let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
 
-        instance_wrapper.run(program_state, &instrumented_code)?;
-
-        Ok(())
+        instance_wrapper.run(
+            program_id,
+            original_code_id,
+            program_state,
+            maybe_instrumented_code,
+        )
     }
 
     // TODO: use proper `Dispatch` type here instead of db's.
@@ -144,7 +151,7 @@ mod tests {
     use super::*;
     use core_processor::common::JournalNote;
     use gear_core::{
-        ids::prelude::CodeIdExt,
+        ids::{hash, prelude::CodeIdExt},
         message::{DispatchKind, Message, MessageDetails, Payload},
         program::ProgramState as InitStatus,
     };
@@ -233,32 +240,19 @@ mod tests {
         let db = MemDb::default();
         let mut processor = Processor::new(Database::from_one(&db));
 
-        let program_state = ProgramState {
-            state: state::Program::Active(ActiveProgram {
-                allocations_hash: MaybeHash::Empty,
-                pages_hash: MaybeHash::Empty,
-                gas_reservation_map_hash: MaybeHash::Empty,
-                memory_infix: Default::default(),
-                status: gear_core::program::ProgramState::Initialized,
-            }),
-            queue_hash: MaybeHash::Empty,
-            waitlist_hash: MaybeHash::Empty,
-            balance: 0,
-        };
-        let state_hash = processor.db.write_state(program_state);
+        let program_id = 42.into();
 
-        let code = demo_ping::WASM_BINARY.to_vec();
-        let code_id = CodeId::generate(&code);
+        let code_id = upload_code(&mut processor, demo_ping::WASM_BINARY).unwrap();
 
-        assert!(processor.new_code(code).unwrap());
+        let state_hash = create_program(
+            &mut processor,
+            program_id,
+            code_id,
+            create_message(DispatchKind::Init, "PING"),
+        )
+        .unwrap();
 
-        assert!(processor.instrument_code(code_id).unwrap());
-        let _instrumented = processor
-            .db
-            .read_instrumented_code(RUNTIME_ID, code_id)
-            .unwrap();
-
-        processor.run_on_host(state_hash, code_id).unwrap();
+        let _init = processor.run_on_host(program_id, state_hash).unwrap();
     }
 
     #[test]
@@ -324,6 +318,17 @@ mod tests {
         assert!(processor.new_code(code.to_vec()).unwrap());
         assert!(processor.instrument_code(code_id).unwrap());
         Ok(code_id)
+    }
+
+    fn create_message(kind: DispatchKind, payload: impl AsRef<[u8]>) -> UserMessage {
+        UserMessage {
+            id: H256::random().0.into(),
+            kind,
+            source: H256::random().0.into(),
+            payload: payload.as_ref().to_vec(),
+            gas_limit: 1_000_000_000,
+            value: 0,
+        }
     }
 
     fn create_program(

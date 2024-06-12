@@ -32,6 +32,10 @@ pub fn read<D: Decode>(hash: &H256) -> Option<Result<D, CodecError>> {
     Some(D::decode(&mut slice))
 }
 
+pub fn read_unwrapping<D: Decode>(hash: &H256) -> Option<D> {
+    read(hash).map(|v| v.unwrap())
+}
+
 pub fn read_raw(hash: &H256) -> Option<&[u8]> {
     unsafe {
         let ptr_len = sys::ext_database_read_by_hash_version_1(hash.as_ptr() as _);

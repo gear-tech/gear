@@ -5807,6 +5807,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "log",
+ "parity-scale-codec",
  "scale-info",
 ]
 
@@ -7245,6 +7246,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gprimitives",
  "gsys",
+ "hypercore-runtime-common",
  "log",
  "parity-scale-codec",
  "substrate-wasm-builder",

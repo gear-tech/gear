@@ -41,20 +41,22 @@ fn _instrument(code_ptr: i32, code_len: i32) -> i64 {
 
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
-extern "C" fn run(instrumented_code_ptr: i32, instrumented_code_len: i32) -> i64 {
-    _run(instrumented_code_ptr, instrumented_code_len)
+extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
+    _run(arg_ptr, arg_len)
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
-fn _run(instrumented_code_ptr: i32, instrumented_code_len: i32) -> i64 {
-    let instrumented_code =
-        InstrumentedCode::decode(&mut get_slice(instrumented_code_ptr, instrumented_code_len))
-            .unwrap();
+fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
+    let (program_id, original_code_id, state_root, maybe_instrumented_code) =
+        Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
-    #[allow(clippy::let_unit_value)]
-    let res = run::run(instrumented_code);
+    let res = run::run(
+        program_id,
+        original_code_id,
+        state_root,
+        maybe_instrumented_code,
+    );
 
-    #[allow(clippy::unit_arg)]
     return_val(res)
 }
 
