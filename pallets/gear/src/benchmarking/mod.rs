@@ -347,7 +347,7 @@ benchmarks! {
 
     #[extra]
     check_gear_tasks {
-        tests::gear_tasks::smoke();
+        tests::gear_tasks::smoke::<T>();
     }: {}
 
     // This bench uses `StorageMap` as a storage, due to the fact that

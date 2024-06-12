@@ -16,23 +16,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::benchmarking::tests::utils;
+use crate::{benchmarking::tests::utils, BalanceOf, Config, CurrencyOf};
 use alloc::vec;
+use frame_support::traits::{Currency, Get};
+use parity_scale_codec::Encode;
 
-pub fn smoke() {
+pub fn smoke<T: Config>() {
     #[cfg(feature = "std")]
     utils::init_logger();
 
     gear_runtime_interface::init_tasks();
 
-    let payload = vec![9, 7, 5, 3, 2, 1];
+    let unsorted = vec![9, 7, 5, 3, 2, 1];
     let handle = gear_tasks::spawn(
         |mut payload| {
+            let bank_address = <T as pallet_gear_bank::Config>::BankAddress::get();
+            let balance = CurrencyOf::<T>::free_balance(&bank_address);
+
             payload.sort();
-            payload
+            (payload, balance).encode()
         },
-        payload,
+        unsorted,
     );
-    let sorted = handle.join();
-    assert_eq!(sorted, vec![1, 2, 3, 5, 7, 9])
+
+    let payload = handle.join();
+    let (sorted, bank_balance): (Vec<u8>, BalanceOf<T>) =
+        parity_scale_codec::Decode::decode(&mut &payload[..]).unwrap();
+    assert_eq!(sorted, vec![1, 2, 3, 5, 7, 9]);
+    assert_eq!(bank_balance, CurrencyOf::<T>::minimum_balance());
 }
