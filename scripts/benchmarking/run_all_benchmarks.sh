@@ -112,10 +112,10 @@ PALLETS=($({ printf '%s\n' "${ALL_PALLETS[@]}" "${EXCLUDED_PALLETS[@]}"; } | sor
 
 echo "[+] Benchmarking ${#PALLETS[@]} Gear pallets by excluding ${#EXCLUDED_PALLETS[@]} from ${#ALL_PALLETS[@]}."
 
-# Populate ISOL_CMD with taskset command if isolated core is set.
+# Populate TASKSET_CMD with taskset command if isolated core is set.
 if [ -n "$ISOLATED_CORE" ]; then
   echo "[+] Running benches on isolated core: $ISOLATED_CORE"
-  ISOL_CMD="taskset -c $ISOLATED_CORE"
+  TASKSET_CMD="taskset -c $ISOLATED_CORE"
 fi
 
 # Define the error file.
@@ -146,6 +146,12 @@ for PALLET in "${PALLETS[@]}"; do
     unset start_pallet
   fi
 
+  # Run multithreaded benchmarks (pallet_gear_builtin) on fixed 4 cores.
+  if [ -n "$INSTANCE_TYPE" ] && [ "$PALLET" == "pallet_gear_builtin" ]
+  then
+    TASKSET_CMD="taskset -c 2,3,4,5"
+    echo "[+] Running pallet_gear_builtin benches on fixed 4 cores: 2,3,4,5"
+  fi
 
   # Get all the extrinsics for the pallet if the pallet is "pallet_gear".
   if [ "$PALLET" == "pallet_gear" ]
@@ -177,7 +183,7 @@ for PALLET in "${PALLETS[@]}"; do
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
-    $ISOL_CMD $GEAR benchmark pallet \
+    $TASKSET_CMD $GEAR benchmark pallet \
     --chain="$chain_spec" \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
@@ -198,7 +204,7 @@ for PALLET in "${PALLETS[@]}"; do
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
     OUTPUT=$(
-        $ISOL_CMD $GEAR benchmark pallet \
+        $TASKSET_CMD $GEAR benchmark pallet \
         --chain="$chain_spec" \
         --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
         --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
@@ -220,7 +226,7 @@ if [ "$skip_machine_benchmark" != true ]
 then
   echo "[+] Benchmarking the machine..."
   OUTPUT=$(
-    $ISOL_CMD $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
+    $TASKSET_CMD $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
   )
   # In any case don't write errors to the error file since they're not benchmarking errors.
   echo "[x] Machine benchmark:\n$OUTPUT"
@@ -230,7 +236,7 @@ fi
 # If `-s` is used, run the storage benchmark.
 if [ ! -z "$storage_folder" ]; then
   OUTPUT=$(
-  $ISOL_CMD $GEAR benchmark storage \
+  $TASKSET_CMD $GEAR benchmark storage \
     --chain=$chain_spec \
     --state-version=1 \
     --warmups=10 \
