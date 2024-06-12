@@ -24,7 +24,7 @@ pub mod storage;
 
 use crate::{ws::WSAddress, EventListener};
 use error::*;
-use gnode::{Chain, Node, NodeInstance};
+use gnode::{Node, NodeInstance};
 use gsdk::{
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
@@ -96,10 +96,7 @@ impl GearApi {
     /// process uses a binary specified by the `path` param. Ideally, the
     /// binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn vara_dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
-        let node = Node::from_path(path.as_ref())?
-            .chain(Chain::VaraDev)
-            .arg("--validator")
-            .spawn()?;
+        let node = Node::from_path(path.as_ref())?.arg("--validator").spawn()?;
         let api = Self::init(node.address.into()).await?;
         Ok(Self(api.0, Some(Arc::new(node))))
     }

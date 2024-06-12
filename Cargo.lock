@@ -5216,7 +5216,6 @@ dependencies = [
  "anyhow",
  "rand 0.8.5",
  "smallvec",
- "tokio",
  "which",
 ]
 

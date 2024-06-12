@@ -11,6 +11,5 @@ description = "Gear protocol node wrapper"
 [dependencies]
 anyhow.workspace = true
 rand = { workspace = true, features = [ "getrandom" ] }
-tokio.workspace = true
 which.workspace = true
 smallvec.workspace = true

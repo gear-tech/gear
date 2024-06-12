@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear protocol node wrapper
-use crate::{utils, Chain, Log, NodeInstance};
+use crate::{utils, Log, NodeInstance};
 use anyhow::Result;
 use std::{
     env,
@@ -26,13 +26,12 @@ use std::{
 };
 
 const GEAR_BINARY: &str = "gear";
+const DEFAULT_ARGS: [&str; 3] = ["--dev", "--tmp", "--no-hardware-benchmarks"];
 
 /// Gear protocol node wrapper
 pub struct Node {
     /// Node command
     command: Command,
-    /// The chain of this node
-    chain: Chain,
     /// The rpc port of the node if any
     port: Option<u16>,
     /// How many logs should the log holder stores
@@ -50,7 +49,6 @@ impl Node {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self {
             command: Command::new(path.as_ref()),
-            chain: Chain::Dev,
             port: None,
             logs: None,
         })
@@ -74,12 +72,6 @@ impl Node {
         self
     }
 
-    /// Set the chain of this node, the default value is `dev`
-    pub fn chain(&mut self, chain: Chain) -> &mut Self {
-        self.chain = chain;
-        self
-    }
-
     /// Sets the rpc port and returns self.
     pub fn rpc_port(&mut self, port: u16) -> &mut Self {
         self.port = Some(port);
@@ -97,13 +89,16 @@ impl Node {
     /// Spawn the node
     pub fn spawn(&mut self) -> Result<NodeInstance> {
         let port = self.port.unwrap_or(utils::pick()).to_string();
+        let mut args = DEFAULT_ARGS.to_vec();
+        args.push(&port);
+
         let mut process = self
             .command
             .env(
                 "RUST_LOG",
                 env::var("RUST_LOG").unwrap_or_else(|_| "".into()),
             )
-            .args(self.chain.to_args(&port))
+            .args(args)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
