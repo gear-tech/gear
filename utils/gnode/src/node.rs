@@ -26,7 +26,7 @@ use std::{
 };
 
 const GEAR_BINARY: &str = "gear";
-const DEFAULT_ARGS: [&str; 3] = ["--dev", "--tmp", "--no-hardware-benchmarks"];
+const DEFAULT_ARGS: [&str; 4] = ["--dev", "--tmp", "--no-hardware-benchmarks", "--rpc-port"];
 
 /// Gear protocol node wrapper
 pub struct Node {
