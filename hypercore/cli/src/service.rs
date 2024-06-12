@@ -68,7 +68,7 @@ impl Service {
                 Some(hypercore_sequencer::Sequencer::new(
                     &hypercore_sequencer::Config {
                         ethereum_rpc: config.ethereum_rpc.clone(),
-                        sign_tx_public: sign_tx_public.clone(),
+                        sign_tx_public: *sign_tx_public,
                     },
                     signer.clone(),
                 ))
@@ -80,7 +80,7 @@ impl Service {
             ValidatorConfig::Enabled(ref sign_tx_public) => {
                 Some(hypercore_validator::Validator::new(
                     &hypercore_validator::Config {
-                        pub_key: PublicKey::from_str(sign_tx_public)?,
+                        pub_key: *sign_tx_public,
                     },
                     signer.clone(),
                 ))

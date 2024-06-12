@@ -23,6 +23,7 @@ use crate::args::Args;
 use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
 use hypercore_network::NetworkConfiguration;
+use hypercore_signer::PublicKey;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -31,14 +32,14 @@ static mut BASE_PATH_TEMP: Option<TempDir> = None;
 
 #[derive(Default, Debug)]
 pub enum SequencerConfig {
-    Enabled(String),
+    Enabled(PublicKey),
     #[default]
     Disabled,
 }
 
 #[derive(Default, Debug)]
 pub enum ValidatorConfig {
-    Enabled(String),
+    Enabled(PublicKey),
     #[default]
     Disabled,
 }
@@ -119,11 +120,15 @@ impl TryFrom<Args> for Config {
             network_path: base_path.join("net"),
             key_path: base_path.join("key"),
             sequencer: match args.sequencer_key {
-                Some(key) => SequencerConfig::Enabled(key),
+                Some(key) => {
+                    SequencerConfig::Enabled(key.parse().with_context(|| "Invalid sequencer key")?)
+                }
                 None => SequencerConfig::Disabled,
             },
             validator: match args.validator_key {
-                Some(key) => ValidatorConfig::Enabled(key),
+                Some(key) => {
+                    ValidatorConfig::Enabled(key.parse().with_context(|| "Invalid validator key")?)
+                }
                 None => ValidatorConfig::Disabled,
             },
         })

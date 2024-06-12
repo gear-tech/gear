@@ -23,13 +23,13 @@ mod agro;
 use agro::{Aggregator, MultisignedCommitments};
 use anyhow::Result;
 use hypercore_observer::Event;
-use hypercore_signer::{Address, Signer};
+use hypercore_signer::{Address, PublicKey, Signer};
 
 pub use agro::{AggregatedCommitments, CodeHashCommitment};
 
 pub struct Config {
     pub ethereum_rpc: String,
-    pub sign_tx_public: String,
+    pub sign_tx_public: PublicKey,
 }
 
 pub struct Sequencer {
