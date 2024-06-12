@@ -2417,7 +2417,7 @@ fn delayed_program_creation_no_code() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
-            1000, // necessary for init function to succeed
+            2 * get_ed(), // necessary for init function to succeed
             false,
         ));
 

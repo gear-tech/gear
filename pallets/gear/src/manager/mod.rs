@@ -380,6 +380,8 @@ where
         if !balance.is_zero() {
             let destination = Pallet::<T>::inheritor_for(value_destination).cast();
 
+            // The transfer is guaranteed to succeed since the amount contains at least the ED
+            // from the deactivated program.
             CurrencyOf::<T>::transfer(
                 &program_account,
                 &destination,

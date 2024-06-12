@@ -247,7 +247,9 @@ pub mod pallet {
                 // The rest is unreachable in Gear protocol and can be ignored.
                 DepositConsequence::CannotCreate
                 | DepositConsequence::UnknownAsset
-                | DepositConsequence::Blocked => (),
+                | DepositConsequence::Blocked => {
+                    log::error!("Unexpected deposit consequence while depositing to bank address");
+                }
             };
 
             let existence_requirement = if keep_alive {

@@ -779,7 +779,7 @@ where
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
                 .unwrap_or_else(|e| match e {
                     DispatchError::Token(TokenError::BelowMinimum) => {
-                        log::warn!(
+                        log::debug!(
                             "Failed to transfer value: {:?}. User account balance is too low.",
                             e
                         );
