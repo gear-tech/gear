@@ -38,7 +38,6 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
     expected: InstructionWeights<T>,
 ) {
     check_instruction_weight(weights.i64const, expected.i64const);
-    check_instruction_weight(weights.i64const, expected.i64const);
     check_instruction_weight(weights.i64load, expected.i64load);
     check_instruction_weight(weights.i32load, expected.i32load);
     check_instruction_weight(weights.i64store, expected.i64store);
