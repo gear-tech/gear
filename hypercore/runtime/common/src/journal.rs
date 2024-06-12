@@ -1,4 +1,4 @@
-use crate::state::{self, Dispatch, ProgramState, Storage};
+use crate::state::{self, Dispatch, HashAndLen, MaybeHash, ProgramState, Storage};
 use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
@@ -18,14 +18,15 @@ use gear_core::{
 use gear_core_errors::SignalCode;
 use gprimitives::{MessageId, ReservationId, H256};
 
-pub struct HandlerForPrograms<S: Storage> {
-    pub programs: BTreeMap<ProgramId, H256>,
-    pub storage: S,
+pub struct Handler<'a, S: Storage> {
+    pub program_id: ProgramId,
+    pub program_states: &'a mut BTreeMap<ProgramId, H256>,
+    pub storage: &'a S,
     pub block_info: BlockInfo,
     pub to_users_messages: Vec<Message>,
 }
 
-impl<S: Storage> HandlerForPrograms<S> {
+impl<S: Storage> Handler<'_, S> {
     #[track_caller]
     pub fn update_program(
         &mut self,
@@ -33,21 +34,34 @@ impl<S: Storage> HandlerForPrograms<S> {
         f: impl FnOnce(ProgramState, &S) -> Option<ProgramState>,
     ) {
         let state_hash = self
-            .programs
-            .get(&program_id)
+            .program_states
+            .get_mut(&program_id)
             .expect("Program does not exist");
         let program_state = self
             .storage
             .read_state(*state_hash)
             .expect("Failed to read state");
-        if let Some(program_new_state) = f(program_state, &self.storage) {
-            let state_hash = self.storage.write_state(program_new_state);
-            self.programs.insert(program_id, state_hash);
+        if let Some(program_new_state) = f(program_state, self.storage) {
+            *state_hash = self.storage.write_state(program_new_state);
         }
+    }
+
+    fn pop_queue_message(state: &ProgramState, storage: &S) -> (H256, MessageId) {
+        let mut queue = state
+            .queue_hash
+            .with_hash_or_default(|hash| storage.read_queue(hash).expect("Failed to read queue"));
+
+        let dispatch = queue
+            .pop_front()
+            .unwrap_or_else(|| unreachable!("Queue must not be empty in message consume"));
+
+        let new_queue_hash = storage.write_queue(queue);
+
+        (new_queue_hash, dispatch.id)
     }
 }
 
-impl<S: Storage> JournalHandler for HandlerForPrograms<S> {
+impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
@@ -108,7 +122,20 @@ impl<S: Storage> JournalHandler for HandlerForPrograms<S> {
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        // TODO: Implement
+        self.update_program(self.program_id, |state, storage| {
+            let (queue_hash, pop_id) = Self::pop_queue_message(&state, storage);
+
+            if pop_id != message_id {
+                unreachable!("First message in queue is {pop_id}, but {message_id} was consumed",);
+            }
+
+            Some(ProgramState {
+                queue_hash: queue_hash.into(),
+                ..state
+            })
+        });
+
+        // TODO: implement returning of system reservation and left gas
     }
 
     fn send_dispatch(
@@ -126,8 +153,7 @@ impl<S: Storage> JournalHandler for HandlerForPrograms<S> {
             todo!()
         }
 
-        if !self.programs.contains_key(&dispatch.destination()) {
-            // log::trace!("{payload} was sent to user {destination}");
+        if !self.program_states.contains_key(&dispatch.destination()) {
             self.to_users_messages.push(dispatch.into_parts().1);
             return;
         }
@@ -190,15 +216,25 @@ impl<S: Storage> JournalHandler for HandlerForPrograms<S> {
         log::trace!("{:?} was added to waitlist block {block}", dispatch);
 
         self.update_program(destination, |state, storage| {
+            let (queue_hash, pop_id) = Self::pop_queue_message(&state, storage);
+
+            if pop_id != dispatch.id {
+                unreachable!(
+                    "First message in queue is {pop_id}, but {} was waited",
+                    dispatch.id
+                );
+            }
+
             let mut waitlist = state.waitlist_hash.with_hash_or_default(|hash| {
                 storage
                     .read_waitlist(hash)
                     .expect("Failed to read waitlist")
             });
             waitlist.entry(block).or_default().push(dispatch);
-            let waitlist_hash = storage.write_waitlist(waitlist).into();
+
             Some(ProgramState {
-                waitlist_hash,
+                waitlist_hash: storage.write_waitlist(waitlist).into(),
+                queue_hash: queue_hash.into(),
                 ..state
             })
         });
