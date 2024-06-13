@@ -75,13 +75,12 @@ impl Sequencer {
             } => {
                 log::debug!("Processing events for {block_hash:?}");
 
-                log::debug!("Restarting upload code aggregation");
-                let previous_aggregation =
-                    core::mem::replace(&mut self.codes_aggregation, Aggregator::new(1));
-                log::debug!(
-                    "Dropped previous aggregation of {} commitments",
-                    previous_aggregation.len()
-                )
+                if self.codes_aggregation.len() > 0 {
+                    log::debug!(
+                        "Building on top of existing aggregation of {} commitments",
+                        self.codes_aggregation.len()
+                    );
+                }
             }
             Event::UploadCode { code_id, .. } => {
                 log::debug!("Observed code_hash#{:?}. Waiting for inclusion...", code_id);
@@ -95,7 +94,10 @@ impl Sequencer {
         log::debug!("Block timeout reached. Submitting aggregated commitments");
 
         if self.codes_aggregation.len() > 0 {
-            log::debug!("Collected some code commitments. Trying to submit...");
+            log::debug!(
+                "Collected some {0} code commitments. Trying to submit...",
+                self.codes_aggregation.len()
+            );
             let active_aggregation =
                 core::mem::replace(&mut self.codes_aggregation, Aggregator::new(1));
 
