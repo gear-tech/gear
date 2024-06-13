@@ -1,4 +1,4 @@
-use crate::{BlockEvent, Event};
+use crate::{BlockEvent, Database as _, Event};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
@@ -13,10 +13,11 @@ use alloy::{
         },
     },
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
+use hypercore_db::Database;
 use hypercore_ethereum::event::{
     ClaimValue, CreateProgram, SendMessage, SendReply, UpdatedProgram, UploadCode,
 };
@@ -25,7 +26,7 @@ use std::{collections::HashSet, hash::RandomState};
 use tokio::time::{self, Duration};
 
 #[derive(Debug)]
-pub(crate) struct PendingUploadCode {
+struct PendingUploadCode {
     origin: ActorId,
     code_id: CodeId,
     blob_tx: H256,
@@ -42,9 +43,10 @@ impl PendingUploadCode {
     }
 }
 
-pub(crate) type ObserverProvider = RootProvider<PubSubFrontend>;
+type ObserverProvider = RootProvider<PubSubFrontend>;
 
 pub struct Observer {
+    database: Database,
     provider: ObserverProvider,
     ethereum_beacon_rpc: String,
     http_client: Client,
@@ -62,11 +64,13 @@ impl Observer {
     ];
 
     pub async fn new(
+        database: Database,
         ethereum_rpc: String,
         ethereum_beacon_rpc: String,
         router_address: String,
     ) -> Result<Self> {
         Ok(Self {
+            database,
             provider: ProviderBuilder::new()
                 .on_ws(WsConnect::new(ethereum_rpc))
                 .await?,
@@ -98,7 +102,7 @@ impl Observer {
                                 let timestamp = block_header.timestamp;
                                 log::debug!("block {block_number}, hash {block_hash}");
 
-                                match self.read_events(block_hash).await {
+                                match self.read_events(block_hash, parent_hash).await {
                                     Ok((pending_upload_codes, events)) => {
                                         for pending_upload_code in pending_upload_codes {
                                             let provider = self.provider.clone();
@@ -160,6 +164,7 @@ impl Observer {
     async fn read_events(
         &mut self,
         block_hash: B256,
+        parent_hash: B256,
     ) -> Result<(Vec<PendingUploadCode>, Vec<BlockEvent>)> {
         let router_filter = self.event_filter(block_hash);
         let logs = self.provider.get_logs(&router_filter).await?;
@@ -209,6 +214,43 @@ impl Observer {
                 }
             })
             .collect();
+
+        let block_hash = H256(block_hash.0);
+        let parent_hash = H256(parent_hash.0);
+
+        //TODO: handle some start block number here
+        let mut program_state_hashes = self
+            .database
+            .get_program_state_hashes(parent_hash)
+            .unwrap_or_default();
+
+        for event in block_events.iter() {
+            match event {
+                BlockEvent::CreateProgram(CreateProgram { actor_id, .. }) => {
+                    program_state_hashes.insert(*actor_id, H256::zero());
+                }
+                BlockEvent::UpdatedProgram(UpdatedProgram {
+                    actor_id,
+                    old_state_hash,
+                    new_state_hash,
+                }) => {
+                    let state = program_state_hashes
+                        .get_mut(actor_id)
+                        .ok_or_else(|| anyhow!("previous state not found"))?;
+
+                    if state != old_state_hash {
+                        bail!("incorrect state transition");
+                    }
+
+                    *state = *new_state_hash;
+                }
+                _ => {}
+            }
+        }
+
+        self.database
+            .set_program_state_hashes(block_hash, program_state_hashes);
+        self.database.set_block_parent_hash(block_hash, parent_hash);
 
         Ok((pending_upload_codes, block_events))
     }

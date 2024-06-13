@@ -133,7 +133,7 @@ impl Database {
         })
     }
 
-    pub fn set_block_map(&self, block_hash: H256, map: &BTreeMap<ActorId, H256>) {
+    pub fn set_block_map(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         let key = [BLOCK_TO_PROGRAM_STATES_PREFIX, block_hash.as_bytes()].concat();
         self.kv.put(&key, map.encode());
     }
