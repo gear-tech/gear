@@ -7219,7 +7219,6 @@ dependencies = [
  "hypercore-observer",
  "hypercore-runtime",
  "hypercore-runtime-common",
- "hypercore-runtime-native",
  "hypercore-signer",
  "log",
  "parity-scale-codec",

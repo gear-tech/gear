@@ -22,7 +22,7 @@ use anyhow::Result;
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, MessageId, ProgramId},
-    message::{DispatchKind, IncomingMessage},
+    message::DispatchKind,
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceWrapper;
@@ -103,10 +103,11 @@ impl Processor {
     // TODO: use proper `Dispatch` type here instead of db's.
     pub fn run(
         &mut self,
-        _chain_head: H256,
-        _programs: Vec<ProgramId>,
-        _messages: BTreeMap<ProgramId, Vec<IncomingMessage>>,
+        programs: BTreeMap<ProgramId, H256>,
+        messages: BTreeMap<ProgramId, Vec<UserMessage>>,
     ) -> Result<()> {
+        let mut programs = programs;
+        let _messages_to_users = run::run(8, self.db.clone(), &mut programs, messages);
         Ok(())
     }
 
@@ -151,7 +152,7 @@ mod tests {
     };
     use gprimitives::{ActorId, MessageId};
     use hypercore_db::MemDb;
-    use hypercore_runtime_native::state::{self, Dispatch, MaybeHash, ProgramState, Storage};
+    use hypercore_runtime_common::state::{self, Dispatch, MaybeHash, ProgramState, Storage};
     use std::collections::VecDeque;
     use wabt::wat2wasm;
 
