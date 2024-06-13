@@ -5378,6 +5378,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "etc",
+ "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
