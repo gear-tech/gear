@@ -17,7 +17,9 @@ use anyhow::{anyhow, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
-use hypercore_ethereum::event::{ClaimValue, CreateProgram, SendMessage, SendReply, UploadCode};
+use hypercore_ethereum::event::{
+    ClaimValue, CreateProgram, SendMessage, SendReply, UpdatedProgram, UploadCode,
+};
 use reqwest::Client;
 use std::{collections::HashSet, hash::RandomState};
 use tokio::time::{self, Duration};
@@ -50,9 +52,10 @@ pub struct Observer {
 }
 
 impl Observer {
-    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 5] = [
+    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 6] = [
         B256::new(UploadCode::SIGNATURE_HASH),
         B256::new(CreateProgram::SIGNATURE_HASH),
+        B256::new(UpdatedProgram::SIGNATURE_HASH),
         B256::new(SendMessage::SIGNATURE_HASH),
         B256::new(SendReply::SIGNATURE_HASH),
         B256::new(ClaimValue::SIGNATURE_HASH),
@@ -89,8 +92,10 @@ impl Observer {
                         match block {
                             Some(block) => {
                                 let block_header = block.header;
-                                let block_number = block_header.number.expect("failed to get block number");
                                 let block_hash = block_header.hash.expect("failed to get block hash");
+                                let parent_hash = block_header.parent_hash;
+                                let block_number = block_header.number.expect("failed to get block number");
+                                let timestamp = block_header.timestamp;
                                 log::debug!("block {block_number}, hash {block_hash}");
 
                                 match self.read_events(block_hash).await {
@@ -118,7 +123,15 @@ impl Observer {
                                         }
 
                                         let block_hash = H256(block_hash.0);
-                                        yield Event::Block { block_hash, events };
+                                        let parent_hash = H256(parent_hash.0);
+
+                                        yield Event::Block {
+                                            block_hash,
+                                            parent_hash,
+                                            block_number,
+                                            timestamp,
+                                            events,
+                                        };
                                     }
                                     Err(err) => log::error!("failed to read events: {err}"),
                                 }
@@ -179,6 +192,9 @@ impl Observer {
                     }
                     Some(CreateProgram::SIGNATURE_HASH) => {
                         Some(BlockEvent::CreateProgram(data.try_into().ok()?))
+                    }
+                    Some(UpdatedProgram::SIGNATURE_HASH) => {
+                        Some(BlockEvent::UpdatedProgram(data.try_into().ok()?))
                     }
                     Some(SendMessage::SIGNATURE_HASH) => {
                         Some(BlockEvent::SendMessage(data.try_into().ok()?))
