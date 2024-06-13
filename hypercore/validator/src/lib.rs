@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use gprimitives::H256;
 use hypercore_network::service::NetworkGossip;
 use hypercore_processor::LocalOutcome;
-use hypercore_sequencer::{AggregatedCommitments, CodeHashCommitment};
+use hypercore_sequencer::{AggregatedCommitments, CodeCommitment};
 use hypercore_signer::{PublicKey, Signer};
 use parity_scale_codec::Encode;
 use std::sync::Arc;
@@ -32,7 +31,7 @@ pub struct Config {
 pub struct Validator {
     pub_key: PublicKey,
     signer: Signer,
-    current_codes: Vec<CodeHashCommitment>,
+    current_codes: Vec<CodeCommitment>,
 }
 
 impl Validator {
@@ -52,7 +51,7 @@ impl Validator {
         self.pub_key
     }
 
-    pub fn codes_aggregation(&mut self) -> Result<AggregatedCommitments<CodeHashCommitment>> {
+    pub fn codes_aggregation(&mut self) -> Result<AggregatedCommitments<CodeCommitment>> {
         AggregatedCommitments::aggregate_commitments(
             self.current_codes.clone(),
             &self.signer,
@@ -68,9 +67,17 @@ impl Validator {
         // parse outcomes
         for outcome in outcomes {
             match outcome {
-                LocalOutcome::CodeCommitment(code_id) => {
-                    self.current_codes
-                        .push(CodeHashCommitment(H256::from(code_id.into_bytes())));
+                LocalOutcome::CodeApproved(code_id) => {
+                    self.current_codes.push(CodeCommitment {
+                        code_id: *code_id,
+                        approved: true,
+                    });
+                }
+                LocalOutcome::CodeRejected(code_id) => {
+                    self.current_codes.push(CodeCommitment {
+                        code_id: *code_id,
+                        approved: false,
+                    });
                 }
             }
         }

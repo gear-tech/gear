@@ -19,7 +19,7 @@
 //! Abstract commitment aggregator.
 
 use anyhow::Result;
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use hypercore_signer::{hash, Address, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{
@@ -50,12 +50,24 @@ pub struct AggregatedQueue<D: SeqHash> {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct CodeHashCommitment(pub H256);
+pub struct CodeCommitment {
+    pub code_id: CodeId,
+    pub approved: bool,
+}
+
+impl From<CodeCommitment> for hypercore_ethereum::CodeCommitment {
+    fn from(value: CodeCommitment) -> Self {
+        Self {
+            code_id: value.code_id,
+            approved: value.approved as u8,
+        }
+    }
+}
 
 // identity hashing
-impl SeqHash for CodeHashCommitment {
+impl SeqHash for CodeCommitment {
     fn hash(&self) -> H256 {
-        self.0
+        hash((self.code_id, self.approved as u8).encode().as_ref())
     }
 }
 

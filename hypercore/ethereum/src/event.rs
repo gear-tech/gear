@@ -30,19 +30,40 @@ impl TryFrom<&[u8]> for UploadCode {
 }
 
 #[derive(Debug, Decode, Encode)]
-pub struct UploadedCode {
+pub struct CodeApproved {
     pub code_id: CodeId,
 }
 
-impl UploadedCode {
-    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UploadedCode::SIGNATURE_HASH.0;
+impl CodeApproved {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CodeApproved::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for UploadedCode {
+impl TryFrom<&[u8]> for CodeApproved {
     type Error = anyhow::Error;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyRouter::UploadedCode::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+        let event = AlloyRouter::CodeApproved::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+
+        Ok(Self {
+            code_id: CodeId::new(event.codeId.0),
+        })
+    }
+}
+
+#[derive(Debug, Decode, Encode)]
+pub struct CodeRejected {
+    pub code_id: CodeId,
+}
+
+impl CodeRejected {
+    pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CodeRejected::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&[u8]> for CodeRejected {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let event = AlloyRouter::CodeRejected::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
 
         Ok(Self {
             code_id: CodeId::new(event.codeId.0),

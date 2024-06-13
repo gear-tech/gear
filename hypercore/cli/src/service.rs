@@ -23,7 +23,7 @@ use anyhow::Result;
 use futures::{future, stream::StreamExt};
 use hypercore_network::service::NetworkGossip;
 use hypercore_processor::LocalOutcome;
-use hypercore_sequencer::{AggregatedCommitments, CodeHashCommitment};
+use hypercore_sequencer::{AggregatedCommitments, CodeCommitment};
 use hypercore_signer::Address;
 use parity_scale_codec::Decode;
 use tokio::{signal, time};
@@ -180,7 +180,7 @@ impl Service {
                     if let Some(message) = message {
                         if let Some(sequencer) = sequencer.as_mut() {
                             log::debug!("Received p2p commitments from: {:?}", message.sender);
-                            let (origin, aggregated_commitments) = <(Address, AggregatedCommitments<CodeHashCommitment>)>::decode(&mut message.data.as_slice())?;
+                            let (origin, aggregated_commitments) = <(Address, AggregatedCommitments<CodeCommitment>)>::decode(&mut message.data.as_slice())?;
                             sequencer.receive_codes_commitment(origin, aggregated_commitments)?;
                         }
                     }

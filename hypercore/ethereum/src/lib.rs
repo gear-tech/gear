@@ -109,6 +109,13 @@ impl SignerSync for Sender {
 
 #[derive(Debug, Clone)]
 #[repr(packed)]
+pub struct CodeCommitment {
+    pub code_id: CodeId,
+    pub approved: u8,
+}
+
+#[derive(Debug, Clone)]
+#[repr(packed)]
 pub struct Transition {
     pub actor_id: ActorId,
     pub old_state_hash: H256,
@@ -220,13 +227,16 @@ impl Router {
 
     pub async fn commit_codes(
         &self,
-        code_ids: Vec<CodeId>,
+        commitments: Vec<CodeCommitment>,
         signatures: Vec<HypercoreSignature>,
     ) -> Result<H256> {
         let builder = self.0.commitCodes(
-            code_ids
+            commitments
                 .into_iter()
-                .map(|code_id| B256::new(code_id.into_bytes()))
+                .map(|commitment| AlloyRouter::CodeCommitment {
+                    codeId: B256::new(commitment.code_id.into_bytes()),
+                    approved: commitment.approved,
+                })
                 .collect(),
             signatures
                 .into_iter()
