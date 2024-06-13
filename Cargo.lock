@@ -7263,20 +7263,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hypercore-runtime-native"
-version = "1.4.2"
-dependencies = [
- "gear-core",
- "gear-core-processor",
- "gear-lazy-pages",
- "gear-lazy-pages-common",
- "gear-lazy-pages-native-interface",
- "gprimitives",
- "hypercore-runtime-common",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "hypercore-sequencer"
 version = "1.4.2"
 dependencies = [
