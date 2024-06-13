@@ -18,8 +18,10 @@
 
 //! Ethereum state observer for Hypercore.
 
+mod database;
 mod event;
 mod observer;
 
+pub use database::Database;
 pub use event::{BlockEvent, Event};
 pub use observer::Observer;
