@@ -21,20 +21,17 @@ use parity_scale_codec::{Decode, Encode};
 
 mod instrument;
 mod run;
-mod verify;
 
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
-extern "C" fn instrument(code_ptr: i32, code_len: i32) -> i64 {
-    _instrument(code_ptr, code_len)
+extern "C" fn instrument_code(code_ptr: i32, code_len: i32) -> i64 {
+    _instrument_code(code_ptr, code_len)
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
-fn _instrument(code_ptr: i32, code_len: i32) -> i64 {
-    let code = get_vec(code_ptr, code_len);
-
-    let res = instrument::instrument(code);
-
+fn _instrument_code(original_code_ptr: i32, original_code_len: i32) -> i64 {
+    let code = get_vec(original_code_ptr, original_code_len);
+    let res = instrument::instrument_code(code);
     return_val(res)
 }
 
@@ -55,21 +52,6 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
         state_root,
         maybe_instrumented_code,
     );
-
-    return_val(res)
-}
-
-#[cfg(target_arch = "wasm32")]
-#[no_mangle]
-extern "C" fn verify(code_ptr: i32, code_len: i32) -> i64 {
-    _verify(code_ptr, code_len)
-}
-
-#[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
-fn _verify(code_ptr: i32, code_len: i32) -> i64 {
-    let code = get_vec(code_ptr, code_len);
-
-    let res = verify::verify(code);
 
     return_val(res)
 }

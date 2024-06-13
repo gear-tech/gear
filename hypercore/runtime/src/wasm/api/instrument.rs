@@ -17,39 +17,39 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
-use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
+use gear_core::code::{Code, CodeError, InstrumentedCode};
 use gear_wasm_instrument::gas_metering::Schedule;
 
-// TODO: return Result here.
-pub fn instrument(code: Vec<u8>) -> Option<InstrumentedCode> {
-    log::info!("You're calling 'instrument(..)'");
+// TODO: impl Codec for CodeError, so could be thrown to host via memory.
+pub fn instrument_code(original_code: Vec<u8>) -> Option<InstrumentedCode> {
+    log::debug!("Runtime::instrument_code(..)");
 
     let schedule = Schedule::default();
 
-    // TODO: consider runtime version here.
-    match Code::try_new(
-        code,
-        schedule.instruction_weights.version,
+    if original_code.len() > schedule.limits.code_len as usize {
+        log::debug!("Original code exceeds size limit!");
+        return None;
+    }
+
+    let instrumented = Code::try_new(
+        original_code,
+        // TODO: should we update it on each upgrade (?);
+        crate::VERSION,
         |module| schedule.rules(module),
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
-    ) {
-        Ok(instrumented) => {
-            if instrumented.code().len() > schedule.limits.code_len as usize {
-                log::debug!("Code is too big!");
-                return None;
-            }
+    )
+    .map(InstrumentedCode::from)
+    .map_err(|e: CodeError| {
+        log::debug!("Failed to validate or instrument code: {e:?}");
+        e
+    })
+    .ok()?;
 
-            let code_and_id = CodeAndId::new(instrumented);
-
-            // TODO: fix this strange casts.
-            let instrumented = InstrumentedCodeAndId::from(code_and_id).into_parts().0;
-
-            Some(instrumented)
-        }
-        Err(e) => {
-            log::debug!("Bad instrumentation: {e:?}!");
-            None
-        }
+    if instrumented.code().len() > schedule.limits.code_len as usize {
+        log::debug!("Instrumented code exceeds size limit!");
+        return None;
     }
+
+    Some(instrumented)
 }
