@@ -75,8 +75,8 @@ impl Database {
         self.cas.read(&hash)
     }
 
-    pub fn write_original_code(&self, code: &[u8]) -> H256 {
-        self.cas.write(code)
+    pub fn write_original_code(&self, code: &[u8]) -> CodeId {
+        self.cas.write(code).into()
     }
 
     pub fn read_instrumented_code(

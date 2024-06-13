@@ -117,8 +117,11 @@ impl InstanceWrapper {
         self.store.data_mut()
     }
 
-    pub fn instrument(&mut self, original_code: &Vec<u8>) -> Result<Option<InstrumentedCode>> {
-        self.call("instrument", original_code)
+    pub fn instrument(
+        &mut self,
+        original_code: impl AsRef<[u8]>,
+    ) -> Result<Option<InstrumentedCode>> {
+        self.call("instrument_code", original_code)
     }
 
     pub fn run(
@@ -138,10 +141,6 @@ impl InstanceWrapper {
         );
 
         self.call("run", arg.encode())
-    }
-
-    pub fn verify(&mut self, code: &Vec<u8>) -> Result<bool> {
-        self.call("verify", code)
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {
