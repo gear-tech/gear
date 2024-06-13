@@ -3476,6 +3476,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "derive_more",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-wasm-gen",
@@ -3486,6 +3487,7 @@ dependencies = [
  "region",
  "wasm-smith",
  "wasmer",
+ "wasmi 0.13.2",
  "wasmprinter",
  "wat",
 ]

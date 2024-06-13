@@ -28,7 +28,7 @@ use gear_wasm_instrument::{
 };
 use wasm_smith::InstructionKind;
 
-use crate::MEMORY_BYTES;
+use crate::INITIAL_PAGES;
 
 pub struct FuzzerConfigBundle;
 
@@ -38,7 +38,7 @@ impl ConfigsBundle for FuzzerConfigBundle {
         (
             GearWasmGeneratorConfig {
                 memory_config: MemoryPagesConfig {
-                    initial_size: MEMORY_BYTES,
+                    initial_size: INITIAL_PAGES,
                     upper_limit: None,
                     stack_end_page: None,
                 },
@@ -49,7 +49,9 @@ impl ConfigsBundle for FuzzerConfigBundle {
                 ..Default::default()
             },
             SelectableParams {
-                allowed_instructions: vec![Numeric, Reference, Parametric, Variable, Table, Memory],
+                allowed_instructions: vec![
+                    Numeric, Reference, Parametric, Variable, Table, Memory, Control,
+                ],
                 max_instructions: 500,
                 min_funcs: NonZeroUsize::new(3).expect("from non zero value; qed."),
                 max_funcs: NonZeroUsize::new(5).expect("from non zero value; qed."),

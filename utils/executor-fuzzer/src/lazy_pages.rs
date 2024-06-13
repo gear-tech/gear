@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{cell::RefCell, ops::Range};
+use std::{cell::RefCell, collections::HashMap, ops::Range};
 
 use gear_lazy_pages::{
     ExceptionInfo, LazyPagesError as Error, LazyPagesVersion, UserSignalHandler,
@@ -26,9 +26,25 @@ use gear_wasm_instrument::GLOBAL_NAME_GAS;
 
 use crate::globals::InstanceAccessGlobal;
 
+pub type HostPageAddr = usize;
+
+pub struct TouchedPage {
+    pub addr: HostPageAddr,
+    pub write: bool,
+    pub read: bool,
+}
+
+impl TouchedPage {
+    fn update(&mut self, other: &Self) {
+        self.write |= other.write;
+        self.read |= other.read;
+    }
+}
+
 pub struct FuzzerLazyPagesContext {
-    pub range: Range<usize>,
+    pub memory_range: Range<usize>,
     pub instance: Box<dyn InstanceAccessGlobal>,
+    pub pages: HashMap<HostPageAddr, TouchedPage>,
     //globals_update_list: GlobalList,
 }
 
@@ -39,7 +55,7 @@ thread_local! {
 pub fn init_fuzzer_lazy_pages(init: FuzzerLazyPagesContext) {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"dummydummydummydummydummydummy01";
 
-    let mem_range = init.range.clone();
+    let mem_range = init.memory_range.clone();
 
     FUZZER_LP_CONTEXT.with(|ctx: &RefCell<Option<FuzzerLazyPagesContext>>| {
         *ctx.borrow_mut() = Some(init);
@@ -83,7 +99,7 @@ fn user_signal_handler_internal(
 ) -> Result<(), Error> {
     let native_addr = info.fault_addr as usize;
     let is_write = info.is_write.ok_or_else(|| Error::ReadOrWriteIsUnknown)?;
-    let wasm_mem_range = &ctx.range;
+    let wasm_mem_range = &ctx.memory_range;
 
     if !wasm_mem_range.contains(&native_addr) {
         return Err(Error::OutOfWasmMemoryAccess);
@@ -94,6 +110,19 @@ fn user_signal_handler_internal(
     unsafe {
         mprotect_interval(native_addr, 4096, true, is_write, false).unwrap();
     }
+
+    // Update touched pages
+    let page = TouchedPage {
+        addr: native_addr,
+        write: is_write,
+        read: !is_write,
+    };
+    ctx.pages
+        .entry(native_addr)
+        .and_modify(|prev_access| {
+            prev_access.update(&page);
+        })
+        .or_insert(page);
 
     // Update gas global
     let mut gas = ctx

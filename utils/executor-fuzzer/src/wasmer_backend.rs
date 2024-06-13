@@ -16,17 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::panic;
+
 use crate::{
     globals::InstanceAccessGlobal,
     lazy_pages::{self, FuzzerLazyPagesContext},
-    print_module, Runner, ENV, MEMORY_BYTES, PROGRAM_GAS,
+    print_module, Runner, ENV, INITIAL_PAGES, PROGRAM_GAS,
 };
 use anyhow::Result;
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
 use wasmer::{
-    Exports, Extern, Function, ImportObject, Instance, Memory, MemoryType, Module as WasmerModule,
-    Store, Val,
+    Exports, Extern, Function, FunctionType, ImportObject, Instance, Memory, MemoryType,
+    Module as WasmerModule, RuntimeError, Store, Type, Val,
 };
 
 impl InstanceAccessGlobal for Instance {
@@ -46,10 +48,6 @@ impl InstanceAccessGlobal for Instance {
     }
 }
 
-fn gr_system_break(_code: i32) {
-    log::error!("system break trap");
-}
-
 pub struct WasmerRunner;
 
 impl Runner for WasmerRunner {
@@ -58,19 +56,22 @@ impl Runner for WasmerRunner {
         let wasmer_module =
             WasmerModule::new(&store, module.clone().into_bytes().expect("valid bytes"))?;
 
-        let ty = MemoryType::new(MEMORY_BYTES, None, false);
+        let ty = MemoryType::new(INITIAL_PAGES, None, false);
         let m = Memory::new(&store, ty).expect("memory allocated");
         let data_ptr = m.data_ptr() as usize;
         let memory = Extern::Memory(m);
 
-        let mem_range = data_ptr..(data_ptr + MEMORY_BYTES as usize);
-
         let mut exports = Exports::new();
         exports.insert("memory".to_string(), memory.clone());
 
+        let host_function_signature = FunctionType::new(vec![Type::I32], vec![]);
+        let host_function = Function::new(&store, &host_function_signature, |_args| {
+            Err(RuntimeError::user("out off gas".into()))
+        });
+
         exports.insert(
             SyscallName::SystemBreak.to_str(),
-            Extern::Function(Function::new_native(&store, gr_system_break)),
+            Extern::Function(host_function),
         );
 
         let mut imports = ImportObject::new();
@@ -86,7 +87,8 @@ impl Runner for WasmerRunner {
 
         lazy_pages::init_fuzzer_lazy_pages(FuzzerLazyPagesContext {
             instance: Box::new(instance.clone()),
-            range: mem_range,
+            memory_range: data_ptr..(data_ptr + INITIAL_PAGES as usize),
+            pages: Default::default(),
         });
 
         let gear_gas = instance
@@ -101,7 +103,12 @@ impl Runner for WasmerRunner {
             .exports
             .get_function("init")
             .expect("init function");
-        init_fn.call(&[]).expect("init function call");
+        match init_fn.call(&[]) {
+            Ok(_) => {}
+            Err(e) => {
+                log::error!("Failed to call init function: {:?}", e);
+            }
+        }
 
         Ok(())
     }

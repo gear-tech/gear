@@ -16,11 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 
 use arbitrary::Unstructured;
 pub use config::FuzzerInput;
 use gear_wasm_instrument::parity_wasm::elements::Module;
+use lazy_pages::{HostPageAddr, TouchedPage};
 use wasmer_backend::WasmerRunner;
 use wasmi_backend::WasmiRunner;
 
@@ -31,7 +34,7 @@ mod lazy_pages;
 mod wasmer_backend;
 mod wasmi_backend;
 
-const MEMORY_BYTES: u32 = 0x10_000;
+const INITIAL_PAGES: u32 = 10;
 const PROGRAM_GAS: i64 = 10_000_000;
 const ENV: &str = "env";
 
@@ -46,7 +49,8 @@ pub fn run(data: FuzzerInput) -> Result<()> {
     WasmerRunner::run(&module)?;
     WasmiRunner::run(&module)?;
 
-    // TODO: compare the results of both runners
+    // TODO:
+    //ExecutorRunResult::verify_equality(&wasmer_res, &wasmi_res);
 
     Ok(())
 }
@@ -57,4 +61,16 @@ fn print_module(m: &Module) {
         "{}",
         wasmprinter::print_bytes(b).expect("failed to print module")
     );
+}
+
+struct _ExecutorRunResult {
+    gas_global: i64,
+    // TODO: globals
+    pages: BTreeMap<HostPageAddr, (TouchedPage, Vec<u8>)>,
+}
+
+impl _ExecutorRunResult {
+    fn _verify_equality(_lhs: &Self, _rhs: &Self) {
+        // TODO: compare the results of both runners
+    }
 }

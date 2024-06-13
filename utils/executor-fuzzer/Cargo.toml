@@ -19,6 +19,8 @@ gear-wasm-instrument.workspace = true
 gear-lazy-pages.workspace = true
 gear-lazy-pages-common.workspace = true
 region.workspace = true
+wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
+derive_more.workspace = true
 
 ## Temporary deps for the reproducing crash script until #2313 is implemented
 #clap = { workspace = true, features = ["derive"] }
