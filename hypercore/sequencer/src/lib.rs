@@ -25,7 +25,7 @@ use anyhow::Result;
 use hypercore_observer::Event;
 use hypercore_signer::{Address, PublicKey, Signer};
 
-pub use agro::{AggregatedCommitments, CodeHashCommitment};
+pub use agro::{AggregatedCommitments, CodeCommitment};
 
 pub struct Config {
     pub ethereum_rpc: String,
@@ -38,7 +38,7 @@ pub struct Sequencer {
     signer: Signer,
     ethereum_rpc: String,
     key: PublicKey,
-    codes_aggregation: Aggregator<CodeHashCommitment>,
+    codes_aggregation: Aggregator<CodeCommitment>,
     router_address: Address,
 }
 
@@ -114,14 +114,14 @@ impl Sequencer {
 
     async fn submit_codes_commitment(
         &self,
-        commitments: MultisignedCommitments<CodeHashCommitment>,
+        commitments: MultisignedCommitments<CodeCommitment>,
     ) -> Result<()> {
         log::debug!("Code commitment to submit: {commitments:?}");
 
         let codes = commitments
             .commitments
-            .iter()
-            .map(|c| c.0.into())
+            .into_iter()
+            .map(Into::into)
             .collect::<Vec<_>>();
         let signatures = commitments.signatures;
 
@@ -136,7 +136,7 @@ impl Sequencer {
     pub fn receive_codes_commitment(
         &mut self,
         origin: Address,
-        commitments: AggregatedCommitments<CodeHashCommitment>,
+        commitments: AggregatedCommitments<CodeCommitment>,
     ) -> Result<()> {
         log::debug!("Received codes commitment from {}", origin);
         self.codes_aggregation.push(origin, commitments);

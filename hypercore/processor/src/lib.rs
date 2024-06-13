@@ -21,7 +21,7 @@
 use anyhow::Result;
 use core_processor::common::JournalNote;
 use gear_core::{
-    ids::{ActorId, MessageId, ProgramId},
+    ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
     message::DispatchKind,
 };
 use gprimitives::{CodeId, H256};
@@ -55,7 +55,10 @@ pub struct Processor {
 #[derive(Debug, Encode, Decode)]
 pub enum LocalOutcome {
     /// Produced when code with specific id is recorded and available in database.
-    CodeCommitment(CodeId),
+    CodeApproved(CodeId),
+
+    // TODO: add docs
+    CodeRejected(CodeId),
 }
 
 /// TODO: consider avoiding re-instantiations on processing events.
@@ -145,11 +148,10 @@ impl Processor {
             Event::UploadCode { code_id, code, .. } => {
                 log::debug!("Processing upload code {code_id:?}");
 
-                // TODO: handle code rejection and code id mismatch.
-                if self.handle_new_code(code)?.is_some() {
-                    Ok(vec![LocalOutcome::CodeCommitment(*code_id)])
+                if *code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
+                    Ok(vec![LocalOutcome::CodeRejected(*code_id)])
                 } else {
-                    Ok(vec![])
+                    Ok(vec![LocalOutcome::CodeApproved(*code_id)])
                 }
             }
             Event::Block {

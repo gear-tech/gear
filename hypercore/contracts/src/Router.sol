@@ -19,9 +19,21 @@ contract Router is Ownable {
 
     address public program;
     uint256 public countOfValidators;
-    mapping(address => bool) public validators;
-    mapping(bytes32 => bool) public codeIds;
+
     mapping(address => bool) public programs;
+    mapping(address => bool) public validators;
+    mapping(bytes32 => CodeState) public codes;
+
+    enum CodeState {
+        Unknown,
+        Unconfirmed,
+        Confirmed
+    }
+
+    struct CodeCommitment {
+        bytes32 codeId;
+        uint8 approved;
+    }
 
     struct Transition {
         address actorId;
@@ -31,7 +43,9 @@ contract Router is Ownable {
 
     event UploadCode(address origin, bytes32 codeId, bytes32 blobTx);
 
-    event UploadedCode(bytes32 codeId);
+    event CodeApproved(bytes32 codeId);
+
+    event CodeRejected(bytes32 codeId);
 
     event CreateProgram(
         address origin, address actorId, bytes32 codeId, bytes32 salt, bytes initPayload, uint64 gasLimit, uint128 value
@@ -71,6 +85,8 @@ contract Router is Ownable {
     }
 
     function uploadCode(bytes32 codeId, bytes32 blobTx) external {
+        require(codes[codeId] == CodeState.Unknown, "code already uploaded");
+        codes[codeId] = CodeState.Unconfirmed;
         emit UploadCode(tx.origin, codeId, blobTx);
     }
 
@@ -78,7 +94,7 @@ contract Router is Ownable {
         external
         payable
     {
-        require(codeIds[codeId], "unknown codeId");
+        require(codes[codeId] == CodeState.Confirmed, "code is unconfirmed");
         address actorId = Clones.cloneDeterministic(program, keccak256(abi.encodePacked(salt, codeId)), msg.value);
         programs[actorId] = true;
         chargeGas(gasLimit);
@@ -116,13 +132,27 @@ contract Router is Ownable {
         require(success, "failed to transfer tokens");
     }
 
-    function commitCodes(bytes32[] calldata codeIdsArray, bytes[] calldata signatures) external {
-        bytes memory message = abi.encodePacked(codeIdsArray);
+    function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external {
+        bytes memory message;
 
-        for (uint256 i = 0; i < codeIdsArray.length; i++) {
-            bytes32 codeId = codeIdsArray[i];
-            codeIds[codeId] = true;
-            emit UploadedCode(codeId);
+        for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
+            CodeCommitment calldata codeCommitment = codeCommitmentsArray[i];
+
+            require(codeCommitment.approved < 2, "'approved' field should represent bool as uint8");
+
+            message = bytes.concat(message, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
+
+            bytes32 codeId = codeCommitment.codeId;
+
+            require(codes[codeId] == CodeState.Unconfirmed, "code should be uploaded, but unconfirmed");
+
+            if (codeCommitment.approved == 1) {
+                codes[codeId] = CodeState.Confirmed;
+                emit CodeApproved(codeId);
+            } else {
+                delete codes[codeId];
+                emit CodeRejected(codeId);
+            }
         }
 
         validateSignatures(message, signatures);
