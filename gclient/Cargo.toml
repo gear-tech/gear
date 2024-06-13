@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 gear-utils.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
+gnode.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 

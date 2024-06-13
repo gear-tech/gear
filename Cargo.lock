@@ -4247,6 +4247,7 @@ dependencies = [
  "gear-core-errors",
  "gear-runtime-primitives",
  "gmeta",
+ "gnode",
  "gring",
  "gsdk",
  "hex",
@@ -4301,6 +4302,7 @@ dependencies = [
  "gear-core-errors",
  "gear-utils",
  "gmeta",
+ "gnode",
  "gsdk",
  "gstd",
  "hex",
@@ -5213,6 +5215,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gnode"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "rand 0.8.5",
+ "smallvec",
+ "which",
+]
+
+[[package]]
 name = "gprimitives"
 version = "1.4.2"
 dependencies = [
@@ -5272,7 +5284,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-utils",
- "gsdk",
+ "gnode",
  "gsdk-codegen",
  "hex",
  "indexmap 2.2.6",
@@ -11990,9 +12002,9 @@ checksum = "826167069c09b99d56f31e9ae5c99049e932a98c9dc2dac47645b08dbbf76ba7"
 
 [[package]]
 name = "smallvec"
-version = "1.11.0"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
+checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "smol"

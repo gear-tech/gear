@@ -129,18 +129,30 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
           curl -o wasm-opt-linux-x64.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-linux")) | .browser_download_url' |grep -v sha256`
           tar xzf wasm-opt-linux-x64.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
+          cargo install cargo-script
           wasm-opt --version
 
       - name: Run all benchmarks
         run: |
-          ./scripts/benchmarking/run_all_benchmarks.sh -c vara-dev -m
+          INSTANCE_TYPE="${{ inputs.instance_type }}"
+          INSTANCE_TYPE=${INSTANCE_TYPE} ./scripts/benchmarking/run_all_benchmarks.sh -c vara-dev -m
           cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
+
+          # apply weight adjustments for baremetal runner to `runtime/vara/src/weights/pallet_gear.rs`
+          if [ "$INSTANCE_TYPE" = "c6i.metal" ]; then
+            echo "Applying baremetal weight patch"
+            ./scripts/benchmarking/apply_baremetal_weight_patch.rs -i runtime/vara/src/weights/pallet_gear.rs -o runtime/vara/src/weights/pallet_gear_patched.rs
+            mv runtime/vara/src/weights/pallet_gear_patched.rs runtime/vara/src/weights/pallet_gear.rs
+          fi
+
           # apply some patches for `pallets/gear/src/weights.rs`
           cp runtime/vara/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
           sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
+
           # apply some patches for `pallets/gear-builtin/src/weights.rs`
           cp runtime/vara/src/weights/pallet_gear_builtin.rs pallets/gear-builtin/src/weights.rs
           sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear-builtin/src/weights.rs
+
           # generate code for lightweight scheduler that is used in gtest and other crates
           ./scripts/weight-dump.sh
 
