@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{host::InstanceWrapper, Database, UserMessage};
+use crate::{
+    host::{InstanceCreator, InstanceWrapper},
+    Database, UserMessage,
+};
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, ProgramId},
@@ -37,7 +40,7 @@ struct Task {
 
 pub fn run(
     threads_amount: usize,
-    db: Database,
+    instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
     messages: BTreeMap<ProgramId, Vec<UserMessage>>,
 ) -> Vec<Message> {
@@ -47,19 +50,19 @@ pub fn run(
         .build()
         .unwrap();
 
-    rt.block_on(async { run_in_async(db, programs, messages).await })
+    rt.block_on(async { run_in_async(instance_creator, programs, messages).await })
 }
 
 // TODO: Returning Vec<Message> is a temporary solution.
 // In future need to send all messages to users and all state hashes changes to sequencer.
 async fn run_in_async(
-    db: Database,
+    instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
     messages: BTreeMap<ProgramId, Vec<UserMessage>>,
 ) -> Vec<Message> {
     let mut to_users_messages = vec![];
 
-    update_queues(&db, programs, messages);
+    update_queues(instance_creator.db(), programs, messages);
 
     let num_workers = 4;
 
@@ -70,7 +73,7 @@ async fn run_in_async(
     for id in 0..num_workers {
         let (task_sender, task_receiver) = mpsc::channel(100);
         task_senders.push(task_sender);
-        let handle = tokio::spawn(worker(id, db.clone(), task_receiver));
+        let handle = tokio::spawn(worker(id, instance_creator.clone(), task_receiver));
         handles.push(handle);
     }
 
@@ -94,7 +97,7 @@ async fn run_in_async(
                 let mut handler = Handler {
                     program_id,
                     program_states: programs,
-                    storage: &db,
+                    storage: instance_creator.db(),
                     block_info: Default::default(),
                     to_users_messages: Default::default(),
                 };
@@ -115,27 +118,34 @@ async fn run_in_async(
     to_users_messages
 }
 
-async fn run_task(db: Database, instance: &mut InstanceWrapper, task: Task) {
+async fn run_task(executor: &mut InstanceWrapper, task: Task) {
     let (program_id, state_hash) = task.data;
 
-    let code_id = db
+    let code_id = executor
+        .db()
         .get_program_code_id(program_id)
         .expect("Code ID must be set");
 
-    let instrumented_code = db.read_instrumented_code(hypercore_runtime::VERSION, code_id);
+    let instrumented_code = executor
+        .db()
+        .read_instrumented_code(hypercore_runtime::VERSION, code_id);
 
-    let journal = instance
+    let journal = executor
         .run(program_id, code_id, state_hash, instrumented_code)
         .expect("Some error occurs while running program in instance");
 
     task.result_sender.send(journal).unwrap();
 }
 
-async fn worker(_id: usize, db: Database, mut task_receiver: mpsc::Receiver<Task>) {
-    let mut instance_wrapper =
-        InstanceWrapper::new(db.clone()).expect("Cannot create runtime instance");
+async fn worker(
+    _id: usize,
+    instance_creator: InstanceCreator,
+    mut task_receiver: mpsc::Receiver<Task>,
+) {
+    let mut executor = instance_creator.instantiate().unwrap();
+
     while let Some(task) = task_receiver.recv().await {
-        run_task(db.clone(), &mut instance_wrapper, task).await;
+        run_task(&mut executor, task).await;
     }
 }
 

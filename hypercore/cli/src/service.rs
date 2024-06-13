@@ -58,7 +58,7 @@ impl Service {
             config.ethereum_router_address.clone(),
         )
         .await?;
-        let processor = hypercore_processor::Processor::new(db.clone());
+        let processor = hypercore_processor::Processor::new(db.clone())?;
         let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
 
         let sequencer = match config.sequencer {

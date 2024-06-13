@@ -25,7 +25,7 @@ use gear_core::{
     message::DispatchKind,
 };
 use gprimitives::{CodeId, H256};
-use host::InstanceWrapper;
+use host::InstanceCreator;
 use hypercore_observer::Event;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
@@ -38,6 +38,7 @@ mod run;
 
 pub struct Processor {
     db: Database,
+    creator: InstanceCreator,
 }
 
 /// Local changes that can be committed to the network or local signer.
@@ -48,12 +49,13 @@ pub enum LocalOutcome {
 }
 
 impl Processor {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(db: Database) -> Result<Self> {
+        let creator = InstanceCreator::new(db.clone(), host::runtime())?;
+        Ok(Self { db, creator })
     }
 
     pub fn new_code(&mut self, code: Vec<u8>) -> Result<bool> {
-        let mut executor = InstanceWrapper::new(self.db.clone())?;
+        let mut executor = self.creator.instantiate()?;
 
         let res = executor.verify(&code)?;
 
@@ -67,9 +69,9 @@ impl Processor {
     pub fn instrument_code(&mut self, code_id: CodeId) -> Result<bool> {
         let code = self.db.read_original_code(code_id).unwrap();
 
-        let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
+        let mut executor = self.creator.instantiate()?;
 
-        if let Some(instrumented) = instance_wrapper.instrument(&code)? {
+        if let Some(instrumented) = executor.instrument(&code)? {
             self.db
                 .write_instrumented_code(hypercore_runtime::VERSION, code_id, instrumented);
 
@@ -90,9 +92,9 @@ impl Processor {
             .db
             .read_instrumented_code(hypercore_runtime::VERSION, original_code_id);
 
-        let mut instance_wrapper = host::InstanceWrapper::new(self.db.clone())?;
+        let mut executor = self.creator.instantiate()?;
 
-        instance_wrapper.run(
+        executor.run(
             program_id,
             original_code_id,
             program_state,
@@ -107,7 +109,7 @@ impl Processor {
         messages: BTreeMap<ProgramId, Vec<UserMessage>>,
     ) -> Result<()> {
         let mut programs = programs;
-        let _messages_to_users = run::run(8, self.db.clone(), &mut programs, messages);
+        let _messages_to_users = run::run(8, self.creator.clone(), &mut programs, messages);
         Ok(())
     }
 
@@ -182,7 +184,7 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(Database::from_one(&db));
+        let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
         let valid = valid_code();
         let valid_id = CodeId::generate(&valid);
@@ -204,7 +206,7 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(Database::from_one(&db));
+        let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
         let code = valid_code();
         let code_len = code.len();
@@ -227,7 +229,7 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(Database::from_one(&db));
+        let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
         let program_id = 42.into();
 
@@ -249,7 +251,7 @@ mod tests {
         init_logger();
 
         let db = MemDb::default();
-        let mut processor = Processor::new(Database::from_one(&db));
+        let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
         let user_id = ActorId::from(10);
         let program_id = ProgramId::from(0x10000);
@@ -289,7 +291,12 @@ mod tests {
             },
         );
 
-        let to_users = run::run(8, processor.db.clone(), &mut programs, Default::default());
+        let to_users = run::run(
+            8,
+            processor.creator.clone(),
+            &mut programs,
+            Default::default(),
+        );
 
         assert_eq!(to_users.len(), 2);
 
@@ -421,7 +428,7 @@ mod tests {
         let user_id = ActorId::from(10);
 
         let db = MemDb::default();
-        let mut processor = Processor::new(Database::from_one(&db));
+        let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
         let ping_id = ProgramId::from(0x10000000);
         let async_id = ProgramId::from(0x20000000);
@@ -478,7 +485,12 @@ mod tests {
             },
         );
 
-        let to_users = run::run(8, processor.db.clone(), &mut programs, Default::default());
+        let to_users = run::run(
+            8,
+            processor.creator.clone(),
+            &mut programs,
+            Default::default(),
+        );
 
         assert_eq!(to_users.len(), 3);
 

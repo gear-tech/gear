@@ -23,8 +23,7 @@ use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
-use std::mem;
-use wasmtime::{Memory, Table};
+use std::{mem, sync::Arc};
 
 use crate::Database;
 
@@ -42,27 +41,21 @@ pub fn runtime() -> Vec<u8> {
 
 pub type Store = wasmtime::Store<StoreData>;
 
-pub struct InstanceWrapper {
-    pub instance: wasmtime::Instance,
-    pub store: Store,
-    pub db: Database,
+#[derive(Clone)]
+pub struct InstanceCreator {
+    db: Database,
+    engine: wasmtime::Engine,
+    instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
 }
 
-impl InstanceWrapper {
-    pub fn data(&self) -> &StoreData {
-        self.store.data()
-    }
-
-    pub fn data_mut(&mut self) -> &mut StoreData {
-        self.store.data_mut()
-    }
-
-    pub fn new(db: Database) -> Result<Self> {
+impl InstanceCreator {
+    pub fn new(db: Database, runtime: Vec<u8>) -> Result<Self> {
         gear_runtime_interface::sandbox_init();
 
-        let mut store = Store::default();
-        let module = wasmtime::Module::new(store.engine(), runtime())?;
-        let mut linker = wasmtime::Linker::new(store.engine());
+        let engine = wasmtime::Engine::default();
+
+        let module = wasmtime::Module::new(&engine, runtime)?;
+        let mut linker = wasmtime::Linker::new(&engine);
 
         api::allocator::link(&mut linker)?;
         api::database::link(&mut linker)?;
@@ -70,11 +63,25 @@ impl InstanceWrapper {
         api::logging::link(&mut linker)?;
         api::sandbox::link(&mut linker)?;
 
-        let instance = linker.instantiate(&mut store, &module)?;
-        let mut instance_wrapper = Self {
+        let instance_pre = linker.instantiate_pre(&module)?;
+        let instance_pre = Arc::new(instance_pre);
+
+        Ok(Self {
+            db,
+            engine,
+            instance_pre,
+        })
+    }
+
+    pub fn instantiate(&self) -> Result<InstanceWrapper> {
+        let mut store = Store::new(&self.engine, Default::default());
+
+        let instance = self.instance_pre.instantiate(&mut store)?;
+
+        let mut instance_wrapper = InstanceWrapper {
             instance,
             store,
-            db,
+            db: self.db().clone(),
         };
 
         let memory = instance_wrapper.memory()?;
@@ -84,6 +91,30 @@ impl InstanceWrapper {
         instance_wrapper.data_mut().table = Some(table);
 
         Ok(instance_wrapper)
+    }
+
+    pub fn db(&self) -> &Database {
+        &self.db
+    }
+}
+
+pub struct InstanceWrapper {
+    instance: wasmtime::Instance,
+    store: Store,
+    db: Database,
+}
+
+impl InstanceWrapper {
+    pub fn db(&self) -> &Database {
+        &self.db
+    }
+
+    pub fn data(&self) -> &StoreData {
+        self.store.data()
+    }
+
+    pub fn data_mut(&mut self) -> &mut StoreData {
+        self.store.data_mut()
     }
 
     pub fn instrument(&mut self, original_code: &Vec<u8>) -> Result<Option<InstrumentedCode>> {
@@ -214,7 +245,7 @@ impl InstanceWrapper {
         res
     }
 
-    fn memory(&mut self) -> Result<Memory> {
+    fn memory(&mut self) -> Result<wasmtime::Memory> {
         let memory_export = self
             .instance
             .get_export(&mut self.store, "memory")
@@ -227,7 +258,7 @@ impl InstanceWrapper {
         Ok(memory)
     }
 
-    fn table(&mut self) -> Result<Table> {
+    fn table(&mut self) -> Result<wasmtime::Table> {
         let table_export = self
             .instance
             .get_export(&mut self.store, "__indirect_function_table")
