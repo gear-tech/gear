@@ -53,6 +53,7 @@ impl Service {
         let db = hypercore_db::Database::from_one(&rocks_db);
         let network = hypercore_network::NetworkWorker::new(config.net_config.clone())?;
         let observer = hypercore_observer::Observer::new(
+            db.clone(),
             config.ethereum_rpc.clone(),
             config.ethereum_beacon_rpc.clone(),
             config.ethereum_router_address.clone(),

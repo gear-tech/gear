@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 pub trait Database {
     fn get_program_state_hashes(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
 
-    fn set_program_state_hashes(&self, block_hash: H256, map: &BTreeMap<ActorId, H256>);
+    fn set_program_state_hashes(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
 
     fn get_block_parent_hash(&self, block_hash: H256) -> Option<H256>;
 
@@ -16,7 +16,7 @@ impl Database for hypercore_db::Database {
         self.get_block_map(block_hash)
     }
 
-    fn set_program_state_hashes(&self, block_hash: H256, map: &BTreeMap<ActorId, H256>) {
+    fn set_program_state_hashes(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         self.set_block_map(block_hash, map)
     }
 
@@ -42,7 +42,7 @@ mod tests {
         let parent_hash = H256::zero();
         let map: BTreeMap<ActorId, H256> = [(ActorId::zero(), H256::zero())].into();
 
-        database.set_program_state_hashes(block_hash, &map);
+        database.set_program_state_hashes(block_hash, map.clone());
         assert_eq!(database.get_program_state_hashes(block_hash), Some(map));
 
         database.set_block_parent_hash(block_hash, parent_hash);
