@@ -16,23 +16,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Processor storage implementation.
+//! Database for hypercore.
 
+use std::collections::BTreeMap;
+
+use crate::{CASDatabase, KVDatabase};
 use gear_core::{
     code::InstrumentedCode,
-    ids::{CodeId, ProgramId},
+    ids::{ActorId, CodeId, ProgramId},
     memory::PageBuf,
     message::Payload,
     reservation::GasReservationMap,
 };
-use hypercore_db::{CASDatabase, KVDatabase};
+pub use hypercore_runtime_common::state::Storage;
 use hypercore_runtime_common::state::{
     Allocations, MemoryPages, MessageQueue, ProgramState, Waitlist,
 };
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
 
-pub use hypercore_runtime_common::state::Storage;
+const BLOCK_TO_PROGRAM_STATES_PREFIX: &[u8] = b"block_to_program_states";
+const PARENT_HASH_PREFIX: &[u8] = b"block_parent_hash";
 
 pub struct Database {
     cas: Box<dyn CASDatabase>,
@@ -120,6 +124,30 @@ impl Database {
     // TODO: temporary solution for MVP runtime-interfaces db access.
     pub fn write(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
+    }
+
+    pub fn get_block_map(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+        let key = [BLOCK_TO_PROGRAM_STATES_PREFIX, block_hash.as_bytes()].concat();
+        self.kv.get(&key).map(|data| {
+            BTreeMap::decode(&mut data.as_slice()).expect("Failed to decode data into `BTreeMap`")
+        })
+    }
+
+    pub fn set_block_map(&self, block_hash: H256, map: &BTreeMap<ActorId, H256>) {
+        let key = [BLOCK_TO_PROGRAM_STATES_PREFIX, block_hash.as_bytes()].concat();
+        self.kv.put(&key, map.encode());
+    }
+
+    pub fn get_parent_hash(&self, block_hash: H256) -> Option<H256> {
+        let key = [PARENT_HASH_PREFIX, block_hash.as_bytes()].concat();
+        self.kv
+            .get(&key)
+            .map(|data| H256::from_slice(data.as_slice()))
+    }
+
+    pub fn set_parent_hash(&self, block_hash: H256, parent_hash: H256) {
+        let key = [PARENT_HASH_PREFIX, block_hash.as_bytes()].concat();
+        self.kv.put(&key, parent_hash.as_bytes().to_vec());
     }
 }
 

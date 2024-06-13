@@ -27,3 +27,4 @@ log.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
 hypercore-ethereum.workspace = true
+hypercore-db.workspace = true

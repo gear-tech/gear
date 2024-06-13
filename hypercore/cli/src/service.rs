@@ -30,7 +30,7 @@ use tokio::{signal, time};
 
 /// Hypercore service.
 pub struct Service {
-    db: hypercore_processor::Database,
+    db: hypercore_db::Database,
     network: hypercore_network::NetworkWorker,
     observer: hypercore_observer::Observer,
     processor: hypercore_processor::Processor,
@@ -50,7 +50,7 @@ async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
         let rocks_db = hypercore_db::RocksDatabase::open(config.database_path.clone())?;
-        let db = hypercore_processor::Database::from_one(&rocks_db);
+        let db = hypercore_db::Database::from_one(&rocks_db);
         let network = hypercore_network::NetworkWorker::new(config.net_config.clone())?;
         let observer = hypercore_observer::Observer::new(
             config.ethereum_rpc.clone(),

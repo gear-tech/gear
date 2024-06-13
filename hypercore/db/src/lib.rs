@@ -21,9 +21,11 @@
 use gear_core::ids;
 use gprimitives::H256;
 
+mod database;
 mod mem;
 mod rocks;
 
+pub use database::Database;
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 
