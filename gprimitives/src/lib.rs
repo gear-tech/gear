@@ -28,7 +28,11 @@ pub use gear_ss58::Ss58Address;
 pub use primitive_types::{H160, H256, U256};
 
 mod macros;
+#[cfg(feature = "codec")]
+mod nonzero_u256;
 mod utils;
+#[cfg(feature = "codec")]
+pub use nonzero_u256::NonZeroU256;
 
 use core::{
     fmt,
