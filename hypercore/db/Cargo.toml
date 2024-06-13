@@ -15,6 +15,8 @@ gear-core.workspace = true
 gprimitives.workspace = true
 dashmap = "5.5.3"
 parity-scale-codec.workspace = true
+hypercore-runtime-common = { workspace = true, features = ["std"] }
+primitive-types.workspace = true
 
 # TODO: jemalloc is not stable for OpenBSD and MSVC.
 rocksdb = { version = "0.21", features = ["snappy", "jemalloc"] }

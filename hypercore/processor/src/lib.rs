@@ -26,13 +26,11 @@ use gear_core::{
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceCreator;
+use hypercore_db::Database;
 use hypercore_observer::Event;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
 
-pub use db::Database;
-
-pub(crate) mod db;
 pub mod host;
 mod run;
 
