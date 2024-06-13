@@ -126,6 +126,9 @@ impl Processor {
             }
             Event::Block {
                 ref block_hash,
+                parent_hash: _,
+                block_number: _,
+                timestamp: _,
                 events: _,
             } => {
                 log::debug!("Processing events for {block_hash:?}");
