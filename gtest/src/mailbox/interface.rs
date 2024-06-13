@@ -127,19 +127,17 @@ impl<'a> MailboxInterface<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
-
     use crate::{
         program::ProgramIdWrapper, Log, Program, System, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
     };
     use codec::Encode;
-    use demo_constructor::Arg;
+    use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_common::auxiliary::mailbox::MailboxErrorImpl;
     use gear_core::{
         ids::{prelude::MessageIdExt, MessageId, ProgramId},
-        message::{Dispatch, DispatchKind, HandleMessage, HandlePacket, Message, Payload},
+        message::{Dispatch, DispatchKind, HandleMessage, HandlePacket, Payload},
     };
-    use gear_utils::init_default_logger;
+    use std::convert::TryInto;
 
     #[test]
     fn user2user_doesnt_reach_mailbox() {
@@ -175,7 +173,6 @@ mod tests {
 
     #[test]
     fn claim_value_from_mailbox() {
-        use demo_constructor::{Calls, Scheme, WASM_BINARY};
         let system = System::new();
         let program = Program::from_binary_with_id(&system, 121, WASM_BINARY);
 
@@ -197,229 +194,64 @@ mod tests {
         assert_eq!(system.balance_of(sender), original_balance - value_send);
 
         let mailbox = system.get_mailbox(sender);
+        assert!(mailbox.contains(&log));
         assert!(mailbox.claim_value(log).is_ok());
-
         assert_eq!(system.balance_of(sender), original_balance);
     }
 
-    // #[test]
-    // fn mailbox_deletes_message_after_reply() {
-    //     //Arranging data for future messages
-    //     let system = System::new();
-    //     let message_id: MessageId = Default::default();
-    //     let source_user_id = ProgramIdWrapper::from(100).0;
-    //     let destination_user_id = ProgramIdWrapper::from(200).0;
-    //     let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
-    //     let reply_payload: Payload = vec![3, 2, 1].try_into().unwrap();
-    //     let message_log = Log::builder().payload(message_payload.clone());
+    #[test]
+    fn reply_to_mailbox_message() {
+        let system = System::new();
+        let program = Program::from_binary_with_id(&system, 121, WASM_BINARY);
 
-    //     //Building message based on arranged data
-    //     let message = Message::new(
-    //         message_id,
-    //         source_user_id,
-    //         destination_user_id,
-    //         message_payload.encode().try_into().unwrap(),
-    //         Default::default(),
-    //         0,
-    //         None,
-    //     );
+        let sender = ProgramId::from(42).into_bytes();
+        let payload = b"sup!".to_vec();
+        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
 
-    //     //Sending created message
-    //     system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
+        let res = program.send(sender, Scheme::empty());
+        assert!(!res.main_failed());
 
-    //     //Getting mailbox of destination user and replying on it
-    //     let mut destination_user_mailbox =
-    // system.get_mailbox(destination_user_id);
-    //     destination_user_mailbox.reply(message_log.clone(), reply_payload,
-    // 0);
+        let handle = Calls::builder().send(sender, payload);
+        let res = program.send(sender, handle);
+        assert!(!res.main_failed());
+        assert!(res.contains(&log));
 
-    //     //Making sure that original message deletes after reply
-    //     destination_user_mailbox = system.get_mailbox(destination_user_id);
-    //     assert!(!destination_user_mailbox.contains(&message_log))
-    // }
+        let mailbox = system.get_mailbox(sender);
+        assert!(mailbox.contains(&log));
+        let res = mailbox
+            .reply(log, Calls::default(), 0)
+            .expect("sending reply failed: didn't find message in mailbox");
+        assert!(!res.main_failed());
+    }
 
-    // #[test]
-    // fn mailbox_reply_bytes_test() {
-    //     //Arranging data for future messages
-    //     let system = System::new();
-    //     let message_id: MessageId = Default::default();
-    //     let source_user_id = ProgramIdWrapper::from(100).0;
-    //     let destination_user_id = ProgramIdWrapper::from(200).0;
-    //     let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
-    //     let reply_payload_array: [u8; 3] = [3, 2, 1];
-    //     let reply_payload: Payload =
-    // reply_payload_array.to_vec().try_into().unwrap();     let log =
-    // Log::builder().payload(message_payload.clone());
+    #[test]
+    fn delayed_mailbox_message() {
+        let system = System::new();
+        let program = Program::from_binary_with_id(&system, 121, WASM_BINARY);
 
-    //     //Building message based on arranged data
-    //     let message = Message::new(
-    //         message_id,
-    //         source_user_id,
-    //         destination_user_id,
-    //         message_payload.encode().try_into().unwrap(),
-    //         Default::default(),
-    //         0,
-    //         None,
-    //     );
+        let sender = ProgramId::from(42).into_bytes();
+        let payload = b"sup!".to_vec();
+        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
 
-    //     //Sending created message
-    //     system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
+        let res = program.send(sender, Scheme::empty());
+        assert!(!res.main_failed());
 
-    //     //Getting mailbox of destination user and extracting message
-    //     let destination_user_mailbox =
-    // system.get_mailbox(destination_user_id);     let message_replier =
-    // destination_user_mailbox.take_message(log);
+        let delay = 5;
+        let handle = Calls::builder().add_call(Call::Send(
+            sender.into(),
+            payload.into(),
+            None,
+            0.into(),
+            delay.into(),
+        ));
+        let res = program.send(sender, handle);
+        assert!(!res.main_failed());
 
-    //     //Replying by bytes and extracting result log
-    //     let result = message_replier.reply_bytes(reply_payload_array, 0);
-    //     let result_log = result.log;
-    //     let last_result_log = result_log.last().expect("No message log in run
-    // result");
+        let results = system.spend_blocks(delay);
+        let delayed_dispatch_res = results.last().expect("internal error: no blocks spent");
 
-    //     assert_eq!(last_result_log.payload(), reply_payload.inner());
-    // }
-
-    // #[test]
-    // fn mailbox_deletes_message_after_taking() {
-    //     //Arranging data for future messages
-    //     let system = System::new();
-    //     let message_id: MessageId = Default::default();
-    //     let source_user_id = ProgramIdWrapper::from(100).0;
-    //     let destination_user_id = ProgramIdWrapper::from(200).0;
-    //     let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
-    //     let log = Log::builder().payload(message_payload.clone());
-
-    //     //Building message based on arranged data
-    //     let message = Message::new(
-    //         message_id,
-    //         source_user_id,
-    //         destination_user_id,
-    //         message_payload.encode().try_into().unwrap(),
-    //         Default::default(),
-    //         0,
-    //         None,
-    //     );
-
-    //     //Sending created message
-    //     system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
-
-    //     //Getting mailbox of destination user and extracting message
-    //     let destination_user_mailbox =
-    // system.get_mailbox(destination_user_id);
-    //     destination_user_mailbox.take_message(log.clone());
-
-    //     //Making sure that taken message is deleted
-    //     assert!(!destination_user_mailbox.contains(&log))
-    // }
-
-    // #[test]
-    // #[should_panic(expected = "No message that satisfies log")]
-    // fn take_unknown_log_message() {
-    //     // Arranging data for future messages
-    //     let system = System::new();
-    //     let source_user_id = 100;
-    //     let destination_user_id = 200;
-    //     let log = Log::builder().source(source_user_id);
-
-    //     // Taking mailbox and message that doesn't exists
-    //     let mailbox = system.get_mailbox(destination_user_id);
-    //     mailbox.take_message(log);
-    // }
-
-    // #[test]
-    // #[should_panic(expected = "Mailbox available only for users")]
-    // fn take_programs_mailbox() {
-    //     // Setting up variables for test
-    //     let system = System::new();
-    //     let restricted_user_id = 42;
-
-    //     Program::from_binary_with_id(
-    //         &system,
-    //         restricted_user_id,
-    //         demo_futures_unordered::WASM_BINARY,
-    //     );
-
-    //     // Getting user id that is already registered as a program
-    //     system.get_mailbox(restricted_user_id);
-    // }
-
-    // #[test]
-    // fn claim_value_from_mailbox() {
-    //     let system = System::new();
-    //     let message_id: MessageId = Default::default();
-    //     let sender_id = 1;
-    //     let receiver_id = 42;
-    //     let payload = b"hello".to_vec();
-
-    //     let log = Log::builder()
-    //         .source(sender_id)
-    //         .dest(receiver_id)
-    //         .payload(payload.clone());
-
-    //     let message = Message::new(
-    //         message_id,
-    //         sender_id.into(),
-    //         receiver_id.into(),
-    //         payload.encode().try_into().unwrap(),
-    //         Default::default(),
-    //         2 * crate::EXISTENTIAL_DEPOSIT,
-    //         None,
-    //     );
-
-    //     system.mint_to(sender_id, 2 * crate::EXISTENTIAL_DEPOSIT);
-    //     system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
-
-    //     let receiver_mailbox = system.get_mailbox(receiver_id);
-    //     receiver_mailbox.claim_value(log);
-
-    //     assert_eq!(
-    //         system.balance_of(receiver_id),
-    //         2 * crate::EXISTENTIAL_DEPOSIT
-    //     );
-    // }
-
-    // #[test]
-    // fn delayed_dispatches_works() {
-    //     // Arranging data for future messages.
-    //     let system = System::new();
-    //     let message_id: MessageId = Default::default();
-    //     let source_user_id = ProgramIdWrapper::from(100).0;
-    //     let destination_user_id = ProgramIdWrapper::from(200).0;
-    //     let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
-    //     let log = Log::builder().payload(message_payload.clone());
-
-    //     // Building message based on arranged data.
-    //     let message = Message::new(
-    //         message_id,
-    //         source_user_id,
-    //         destination_user_id,
-    //         message_payload.encode().try_into().unwrap(),
-    //         Default::default(),
-    //         0,
-    //         None,
-    //     );
-
-    //     let bn_before_schedule = 5;
-    //     let scheduled_delay = 10;
-    //     system.0.borrow_mut().send_delayed_dispatch(
-    //         Dispatch::new(DispatchKind::Handle, message),
-    //         scheduled_delay,
-    //     );
-
-    //     let mailbox = system.get_mailbox(destination_user_id);
-    //     assert!(!mailbox.contains(&log));
-
-    //     // Run to block number before scheduled delay
-    //     assert_eq!(system.spend_blocks(bn_before_schedule).len(), 0);
-    //     assert!(!mailbox.contains(&log));
-
-    //     // Run to block number at scheduled delay
-    //     assert_eq!(
-    //         system
-    //             .spend_blocks(scheduled_delay - bn_before_schedule)
-    //             .len(),
-    //         1
-    //     );
-    //     assert!(mailbox.contains(&log));
-    // }
+        assert!(delayed_dispatch_res.contains(&log));
+        let mailbox = system.get_mailbox(sender);
+        assert!(mailbox.contains(&log));
+    }
 }
