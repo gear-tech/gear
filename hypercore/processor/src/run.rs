@@ -16,26 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![allow(unused)]
-
-use crate::{Database, Processor, UserMessage};
+use crate::{host::InstanceWrapper, Database, UserMessage};
 use core_processor::common::JournalNote;
 use gear_core::{
-    ids::{ActorId, MessageId, ProgramId},
-    message::{DispatchKind, Message, Payload},
+    ids::{ActorId, ProgramId},
+    message::{Message, Payload},
 };
 use hypercore_runtime_common::{
-    process_next_message,
-    state::{self, Dispatch, MaybeHash, ProgramState, Storage},
+    state::{Dispatch, MaybeHash, ProgramState, Storage},
     Handler,
 };
-use hypercore_runtime_native::NativeRuntimeInterface;
 use primitive_types::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 
 struct Task {
-    data: (ProgramId, H256, Database),
+    data: (ProgramId, H256),
     result_sender: oneshot::Sender<Vec<JournalNote>>,
 }
 
@@ -74,7 +70,7 @@ async fn run_in_async(
     for id in 0..num_workers {
         let (task_sender, task_receiver) = mpsc::channel(100);
         task_senders.push(task_sender);
-        let handle = tokio::spawn(worker(id, task_receiver));
+        let handle = tokio::spawn(worker(id, db.clone(), task_receiver));
         handles.push(handle);
     }
 
@@ -83,7 +79,7 @@ async fn run_in_async(
 
         let mut no_more_to_do = true;
         for index in (0..programs.len()).step_by(num_workers) {
-            let result_receivers = one_batch(index, db.clone(), &task_senders, programs).await;
+            let result_receivers = one_batch(index, &task_senders, programs).await;
 
             let mut super_journal = vec![];
             for (program_id, receiver) in result_receivers.into_iter() {
@@ -119,41 +115,32 @@ async fn run_in_async(
     to_users_messages
 }
 
-async fn run_task(task: Task) {
-    let (program_id, state_hash, db) = task.data;
-    let program_state = db.read_state(state_hash).unwrap();
+async fn run_task(db: Database, instance: &mut InstanceWrapper, task: Task) {
+    let (program_id, state_hash) = task.data;
 
     let code_id = db
         .get_program_code_id(program_id)
         .expect("Code ID must be set");
 
-    let instrumented_code = match &program_state.state {
-        state::Program::Active(_) => Some(
-            db.read_instrumented_code(hypercore_runtime::VERSION, code_id)
-                .expect("Instrumented code must be set at this point"),
-        ),
-        state::Program::Exited(_) | state::Program::Terminated(_) => None,
-    };
+    let instrumented_code = db.read_instrumented_code(hypercore_runtime::VERSION, code_id);
 
-    let mut ri = NativeRuntimeInterface::new(&db, Default::default());
-    let journal = match program_state.queue_hash {
-        MaybeHash::Hash(_) => {
-            process_next_message(program_id, program_state, instrumented_code, code_id, &ri)
-        }
-        MaybeHash::Empty => Vec::new(),
-    };
+    let journal = instance
+        .run(program_id, code_id, state_hash, instrumented_code)
+        .expect("Some error occurs while running program in instance");
+
     task.result_sender.send(journal).unwrap();
 }
 
-async fn worker(id: usize, mut task_receiver: mpsc::Receiver<Task>) {
+async fn worker(_id: usize, db: Database, mut task_receiver: mpsc::Receiver<Task>) {
+    let mut instance_wrapper =
+        InstanceWrapper::new(db.clone()).expect("Cannot create runtime instance");
     while let Some(task) = task_receiver.recv().await {
-        run_task(task).await;
+        run_task(db.clone(), &mut instance_wrapper, task).await;
     }
 }
 
 async fn one_batch(
     from_index: usize,
-    db: Database,
     task_senders: &[mpsc::Sender<Task>],
     programs: &mut BTreeMap<ActorId, H256>,
 ) -> BTreeMap<ProgramId, oneshot::Receiver<Vec<JournalNote>>> {
@@ -165,7 +152,7 @@ async fn one_batch(
         let (result_sender, result_receiver) = oneshot::channel();
 
         let task = Task {
-            data: (*program_id, *state_hash, db.clone()),
+            data: (*program_id, *state_hash),
             result_sender,
         };
 
