@@ -23,6 +23,8 @@ use core::{
     cmp::Ordering,
     fmt,
     hash::{Hash, Hasher},
+    mem::transmute,
+    num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8},
 };
 
 /// A value that is known not to equal zero.
@@ -133,7 +135,24 @@ impl Hash for NonZeroU256 {
     }
 }
 
+/// Get a reference to the underlying little-endian words.
+impl AsRef<[u64]> for NonZeroU256 {
+    #[inline]
+    fn as_ref(&self) -> &[u64] {
+        &self.0.as_ref()
+    }
+}
+
+impl<'a> From<&'a NonZeroU256> for NonZeroU256 {
+    fn from(x: &'a NonZeroU256) -> NonZeroU256 {
+        *x
+    }
+}
+
 impl NonZeroU256 {
+    pub const MIN: NonZeroU256 = unsafe { NonZeroU256::new_unchecked(U256::one()) };
+    pub const MAX: NonZeroU256 = unsafe { NonZeroU256::new_unchecked(U256::MAX) };
+
     /// Creates a non-zero if the given value is not zero.
     #[must_use]
     #[inline]
@@ -151,17 +170,12 @@ impl NonZeroU256 {
     /// # Safety
     ///
     /// The value must not be zero.
-
     #[must_use]
     #[inline]
     pub const unsafe fn new_unchecked(n: U256) -> Self {
-        match Self::new(n) {
-            Some(n) => n,
-            None => {
-                // SAFETY: The caller guarantees that `n` is non-zero, so this is unreachable.
-                unreachable!()
-            }
-        }
+        // SAFETY: The caller guarantees that `n` is non-zero
+
+        transmute(n)
     }
 
     #[inline]
@@ -180,5 +194,53 @@ impl NonZeroU256 {
                 unreachable!()
             }
         }
+    }
+}
+
+macro_rules! impl_map_from {
+    ($from:ty) => {
+        impl From<$from> for NonZeroU256 {
+            fn from(value: $from) -> Self {
+                unsafe { Self::new_unchecked(U256::from(value.get() as u64)) }
+            }
+        }
+    };
+}
+
+impl_map_from!(NonZeroU8);
+impl_map_from!(NonZeroU16);
+impl_map_from!(NonZeroU32);
+impl_map_from!(NonZeroU64);
+
+impl From<NonZeroU128> for NonZeroU256 {
+    fn from(value: NonZeroU128) -> Self {
+        unsafe { Self::new_unchecked(U256::from(value.get())) }
+    }
+}
+
+macro_rules! impl_try_from {
+    ($from:ident) => {
+        impl TryFrom<$from> for NonZeroU256 {
+            type Error = &'static str;
+
+            #[inline]
+            fn try_from(value: $from) -> Result<NonZeroU256, &'static str> {
+                NonZeroU256::new(U256::from(value as u64)).ok_or("integer value iz zero")
+            }
+        }
+    };
+}
+
+impl_try_from!(u8);
+impl_try_from!(u16);
+impl_try_from!(u32);
+impl_try_from!(u64);
+
+impl TryFrom<u128> for NonZeroU256 {
+    type Error = &'static str;
+
+    #[inline]
+    fn try_from(value: u128) -> Result<NonZeroU256, &'static str> {
+        NonZeroU256::new(U256::from(value)).ok_or("integer value iz zero")
     }
 }
