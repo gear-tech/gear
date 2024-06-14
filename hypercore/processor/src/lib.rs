@@ -29,7 +29,6 @@ use host::InstanceCreator;
 use hypercore_db::Database;
 use hypercore_observer::Event;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeMap;
 
 pub mod host;
 mod run;
@@ -45,12 +44,6 @@ pub struct UserMessage {
     payload: Vec<u8>,
     gas_limit: u64,
     value: u128,
-}
-
-#[derive(Debug, Clone, Default)]
-struct ChainHeadInfo {
-    block_height: u32,
-    block_timestamp: u64,
 }
 
 pub struct Processor {
@@ -139,13 +132,16 @@ impl Processor {
         )
     }
 
-    // TODO: use proper `Dispatch` type here instead of db's.
-    pub fn run(&mut self, programs: BTreeMap<ProgramId, H256>) -> Result<()> {
-        // TODO: use proper chain head info here.
-        self.creator.set_chain_head_info(Default::default());
+    pub fn run(&mut self, chain_head: H256) -> Result<()> {
+        self.creator.set_chain_head(chain_head);
 
-        let mut programs = programs;
+        let mut programs = self
+            .db
+            .get_block_program_hashes(chain_head)
+            .expect("Programs map is not found");
+
         let _messages_to_users = run::run(8, self.creator.clone(), &mut programs);
+
         Ok(())
     }
 
@@ -162,9 +158,6 @@ impl Processor {
             }
             Event::Block {
                 ref block_hash,
-                parent_hash: _,
-                block_number: _,
-                timestamp: _,
                 events: _,
             } => {
                 log::debug!("Processing events for {block_hash:?}");

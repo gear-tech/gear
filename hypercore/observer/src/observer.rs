@@ -1,4 +1,4 @@
-use crate::{BlockEvent, Database as _, Event};
+use crate::{BlockEvent, Event};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
@@ -17,7 +17,7 @@ use anyhow::{anyhow, bail, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
-use hypercore_db::Database;
+use hypercore_db::{BlockInfo, Database};
 use hypercore_ethereum::event::{
     ClaimValue, CreateProgram, SendMessage, SendReply, UpdatedProgram, UploadCode,
 };
@@ -102,7 +102,7 @@ impl Observer {
                                 let timestamp = block_header.timestamp;
                                 log::debug!("block {block_number}, hash {block_hash}");
 
-                                match self.read_events(block_hash, parent_hash).await {
+                                match self.read_events(block_hash, parent_hash, block_number, timestamp).await {
                                     Ok((pending_upload_codes, events)) => {
                                         for pending_upload_code in pending_upload_codes {
                                             let provider = self.provider.clone();
@@ -126,14 +126,8 @@ impl Observer {
                                             });
                                         }
 
-                                        let block_hash = H256(block_hash.0);
-                                        let parent_hash = H256(parent_hash.0);
-
                                         yield Event::Block {
-                                            block_hash,
-                                            parent_hash,
-                                            block_number,
-                                            timestamp,
+                                            block_hash: H256(block_hash.0),
                                             events,
                                         };
                                     }
@@ -165,6 +159,8 @@ impl Observer {
         &mut self,
         block_hash: B256,
         parent_hash: B256,
+        block_number: u64,
+        block_timestamp: u64,
     ) -> Result<(Vec<PendingUploadCode>, Vec<BlockEvent>)> {
         let router_filter = self.event_filter(block_hash);
         let logs = self.provider.get_logs(&router_filter).await?;
@@ -221,7 +217,7 @@ impl Observer {
         //TODO: handle some start block number here
         let mut program_state_hashes = self
             .database
-            .get_program_state_hashes(parent_hash)
+            .get_block_program_hashes(parent_hash)
             .unwrap_or_default();
 
         for event in block_events.iter() {
@@ -249,8 +245,15 @@ impl Observer {
         }
 
         self.database
-            .set_program_state_hashes(block_hash, program_state_hashes);
+            .set_block_program_hashes(block_hash, program_state_hashes);
         self.database.set_block_parent_hash(block_hash, parent_hash);
+        self.database.set_block_info(
+            block_hash,
+            BlockInfo {
+                height: block_number as u32,
+                timestamp: block_timestamp,
+            },
+        );
 
         Ok((pending_upload_codes, block_events))
     }

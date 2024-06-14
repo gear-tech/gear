@@ -26,6 +26,7 @@ mod mem;
 mod rocks;
 
 pub use database::Database;
+pub use hypercore_runtime_common::BlockInfo;
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 

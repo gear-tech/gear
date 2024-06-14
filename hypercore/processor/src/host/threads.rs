@@ -18,11 +18,12 @@
 
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
-use crate::{ChainHeadInfo, Database};
+use crate::Database;
 use core::fmt;
 use gear_core::{ids::ProgramId, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
+use hypercore_db::BlockInfo;
 use hypercore_runtime_common::state::{ActiveProgram, MaybeHash, Program, ProgramState, Storage};
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
@@ -36,8 +37,8 @@ thread_local! {
 
 pub struct ThreadParams {
     pub db: Database,
-    pub root: H256,
-    pub info: ChainHeadInfo,
+    pub block_info: BlockInfo,
+    pub state_hash: H256,
     pub pages: Option<BTreeMap<GearPage, H256>>,
 }
 
@@ -48,21 +49,12 @@ impl fmt::Debug for ThreadParams {
 }
 
 impl ThreadParams {
-    pub fn replace_root(&mut self, root: H256) -> H256 {
-        let previous = self.root;
-
-        self.root = root;
-        self.pages = None;
-
-        previous
-    }
-
     pub fn pages(&mut self) -> &BTreeMap<GearPage, H256> {
         self.pages.get_or_insert_with(|| {
             let ProgramState {
                 state: Program::Active(ActiveProgram { pages_hash, .. }),
                 ..
-            } = self.db.read_state(self.root).expect(UNKNOWN_STATE)
+            } = self.db.read_state(self.state_hash).expect(UNKNOWN_STATE)
             else {
                 // TODO: consider me.
                 panic!("Couldn't get pages hash for inactive program!")
@@ -92,18 +84,14 @@ impl PageKey {
     }
 }
 
-pub fn set(db: Database, info: ChainHeadInfo, root: H256) {
+pub fn set(db: Database, chain_head: H256, state_hash: H256) {
+    let block_info = db.get_block_info(chain_head).expect("Block info not found");
     PARAMS.set(Some(ThreadParams {
         db,
-        root,
-        info,
+        block_info,
+        state_hash,
         pages: None,
     }))
-}
-
-#[allow(unused)]
-pub fn replace_root(root: H256) -> H256 {
-    PARAMS.with_borrow_mut(|params| params.as_mut().expect(UNSET_PANIC).replace_root(root))
 }
 
 // TODO: consider Database mutability.
@@ -115,21 +103,21 @@ pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {
     })
 }
 
-pub fn chain_head_info() -> ChainHeadInfo {
+pub fn chain_head_info() -> BlockInfo {
     PARAMS.with_borrow(|v| {
         let params = v.as_ref().expect(UNSET_PANIC);
 
-        params.info.clone()
+        params.block_info
     })
 }
 
 // TODO: consider Database mutability.
 #[allow(unused)]
-pub fn with_db_and_root<T>(f: impl FnOnce(&Database, H256) -> T) -> T {
+pub fn with_db_and_state_hash<T>(f: impl FnOnce(&Database, H256) -> T) -> T {
     PARAMS.with_borrow(|v| {
         let params = v.as_ref().expect(UNSET_PANIC);
 
-        f(&params.db, params.root)
+        f(&params.db, params.state_hash)
     })
 }
 

@@ -22,9 +22,6 @@ pub enum Event {
     },
     Block {
         block_hash: H256,
-        parent_hash: H256,
-        block_number: u64,
-        timestamp: u64,
         events: Vec<BlockEvent>,
     },
 }
