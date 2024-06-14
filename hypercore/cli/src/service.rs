@@ -63,16 +63,17 @@ impl Service {
         let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
 
         let sequencer = match config.sequencer {
-            SequencerConfig::Enabled(ref sign_tx_public) => {
-                Some(hypercore_sequencer::Sequencer::new(
+            SequencerConfig::Enabled(ref sign_tx_public) => Some(
+                hypercore_sequencer::Sequencer::new(
                     &hypercore_sequencer::Config {
                         ethereum_rpc: config.ethereum_rpc.clone(),
                         sign_tx_public: *sign_tx_public,
                         router_address: config.ethereum_router_address.parse()?,
                     },
                     signer.clone(),
-                ))
-            }
+                )
+                .await?,
+            ),
             SequencerConfig::Disabled => None,
         };
 

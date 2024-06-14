@@ -22,6 +22,7 @@ mod agro;
 
 use agro::{Aggregator, MultisignedCommitments};
 use anyhow::Result;
+use hypercore_ethereum::Ethereum;
 use hypercore_observer::Event;
 use hypercore_signer::{Address, PublicKey, Signer};
 
@@ -39,28 +40,24 @@ pub struct Sequencer {
     ethereum_rpc: String,
     key: PublicKey,
     codes_aggregation: Aggregator<CodeCommitment>,
-    router_address: Address,
+    ethereum: Ethereum,
 }
 
 impl Sequencer {
-    pub fn new(config: &Config, signer: Signer) -> Self {
-        Self {
-            signer,
+    pub async fn new(config: &Config, signer: Signer) -> Result<Self> {
+        Ok(Self {
+            signer: signer.clone(),
             ethereum_rpc: config.ethereum_rpc.clone(),
             codes_aggregation: Aggregator::new(1),
             key: config.sign_tx_public,
-            router_address: config.router_address,
-        }
-    }
-
-    async fn eth(&self) -> Result<hypercore_ethereum::HypercoreEthereum> {
-        hypercore_ethereum::HypercoreEthereum::new(
-            &self.ethereum_rpc,
-            self.router_address,
-            self.signer.clone(),
-            self.key.to_address(),
-        )
-        .await
+            ethereum: Ethereum::new(
+                &config.ethereum_rpc,
+                config.router_address,
+                signer,
+                config.sign_tx_public.to_address(),
+            )
+            .await?,
+        })
     }
 
     // This function should never block.
@@ -125,7 +122,7 @@ impl Sequencer {
             .collect::<Vec<_>>();
         let signatures = commitments.signatures;
 
-        let router = self.eth().await?.router();
+        let router = self.ethereum.router();
         if let Err(e) = router.commit_codes(codes, signatures).await {
             log::error!("Failed to commit code ids: {e}");
         }

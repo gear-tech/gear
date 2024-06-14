@@ -21,7 +21,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use gprimitives::ActorId;
-use hypercore_ethereum::HypercoreEthereum;
+use hypercore_ethereum::Ethereum;
 use hypercore_signer::Address;
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
@@ -147,7 +147,7 @@ impl ExtraCommands {
             .and_then(|addr| addr.parse::<Address>().ok());
         let maybe_ethereum = if let Some(sender_address) = maybe_sender_address {
             Some(
-                HypercoreEthereum::new(
+                Ethereum::new(
                     &config.ethereum_rpc,
                     config.ethereum_router_address.parse()?,
                     signer.clone(),
