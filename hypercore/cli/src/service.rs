@@ -82,6 +82,7 @@ impl Service {
                 Some(hypercore_validator::Validator::new(
                     &hypercore_validator::Config {
                         pub_key: *sign_tx_public,
+                        router_address: config.ethereum_router_address.parse()?,
                     },
                     signer.clone(),
                 ))

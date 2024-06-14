@@ -96,15 +96,19 @@ impl<T: SeqHash> AggregatedCommitments<T> {
         commitments: Vec<T>,
         signer: &Signer,
         pub_key: PublicKey,
+        router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
         let mut aggregated = AggregatedCommitments {
             commitments,
             signature: Signature::default(),
         };
 
-        let mut buffer = Vec::new();
-        buffer.extend_from_slice(b"\x19Ethereum Signed Message:\n32");
-        buffer.extend_from_slice(aggregated.commitments.hash().as_ref());
+        let buffer = [
+            [0x19, 0x00].as_ref(),
+            router_address.0.as_ref(),
+            aggregated.commitments.hash().as_ref(),
+        ]
+        .concat();
 
         aggregated.signature = signer.sign_digest(pub_key, hash(&buffer).to_fixed_bytes())?;
 

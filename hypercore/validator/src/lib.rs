@@ -20,18 +20,20 @@ use anyhow::Result;
 use hypercore_network::service::NetworkGossip;
 use hypercore_processor::LocalOutcome;
 use hypercore_sequencer::{AggregatedCommitments, CodeCommitment};
-use hypercore_signer::{PublicKey, Signer};
+use hypercore_signer::{Address, PublicKey, Signer};
 use parity_scale_codec::Encode;
 use std::sync::Arc;
 
 pub struct Config {
     pub pub_key: PublicKey,
+    pub router_address: Address,
 }
 
 pub struct Validator {
     pub_key: PublicKey,
     signer: Signer,
     current_codes: Vec<CodeCommitment>,
+    router_address: Address,
 }
 
 impl Validator {
@@ -40,6 +42,7 @@ impl Validator {
             signer,
             pub_key: config.pub_key,
             current_codes: vec![],
+            router_address: config.router_address,
         }
     }
 
@@ -56,6 +59,7 @@ impl Validator {
             self.current_codes.clone(),
             &self.signer,
             self.pub_key,
+            self.router_address,
         )
     }
 
