@@ -84,7 +84,15 @@ fn test_program_tests() {
 
         if !String::from_utf8_lossy(&toolchains).contains("stable") {
             Command::new("rustup")
-                .args(["install", "stable"])
+                .args([
+                    "toolchain",
+                    "install",
+                    "stable",
+                    "--component",
+                    "llvm-tools",
+                    "--target",
+                    "wasm32-unknown-unknown",
+                ])
                 .status()
                 .expect("Failed to install stable toolchain");
         }
