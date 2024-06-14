@@ -4913,6 +4913,7 @@ dependencies = [
  "gear-node-testing",
  "gear-tasks-runtime-api",
  "log",
+ "parity-scale-codec",
  "sc-client-api",
  "sc-executor",
  "sc-executor-common",

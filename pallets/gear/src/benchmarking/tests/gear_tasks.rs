@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{benchmarking::tests::utils, BalanceOf, Config, CurrencyOf};
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 use frame_support::traits::{Currency, Get};
 use parity_scale_codec::Encode;
 

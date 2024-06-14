@@ -18,6 +18,7 @@ sp-api.workspace = true
 gear-tasks-runtime-api.workspace = true
 frame-support.workspace = true
 
+parity-scale-codec.workspace = true
 futures-executor = { version = "0.3.30", default-features = false, optional = true }
 log.workspace = true
 
@@ -39,5 +40,6 @@ std = [
     "sp-externalities/std",
     "sp-api/std",
     "frame-support/std",
+    "parity-scale-codec/std",
     "futures-executor",
 ]
