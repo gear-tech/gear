@@ -3,7 +3,7 @@
 use abi::{AlloyProgram, AlloyRouter};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
-    network::{Ethereum, EthereumSigner, TxSigner},
+    network::{Ethereum as AlloyEthereum, EthereumSigner, TxSigner},
     primitives::{Address, Bytes, ChainId, Signature, B256},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, SignerFiller},
@@ -34,7 +34,7 @@ type AlloyProvider = FillProvider<
     JoinFill<RecommendedFiller, SignerFiller<EthereumSigner>>,
     RootProvider<AlloyTransport>,
     AlloyTransport,
-    Ethereum,
+    AlloyEthereum,
 >;
 
 type AlloyProgramInstance = AlloyProgram::AlloyProgramInstance<AlloyTransport, AlloyProvider>;
@@ -329,12 +329,12 @@ impl Program {
     }
 }
 
-pub struct HypercoreEthereum {
+pub struct Ethereum {
     router_address: Address,
     provider: AlloyProvider,
 }
 
-impl HypercoreEthereum {
+impl Ethereum {
     pub async fn new(
         rpc_url: &str,
         router_address: HypercoreAddress,
