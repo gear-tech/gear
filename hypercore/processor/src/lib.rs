@@ -18,16 +18,22 @@
 
 //! Program's execution service for eGPU.
 
+use std::collections::VecDeque;
+
 use anyhow::Result;
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
-    message::DispatchKind,
+    message::{DispatchKind, Payload},
+    program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceCreator;
 use hypercore_db::Database;
 use hypercore_observer::Event;
+use hypercore_runtime_common::state::{
+    self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
+};
 use parity_scale_codec::{Decode, Encode};
 
 pub mod host;
@@ -109,6 +115,101 @@ impl Processor {
         );
 
         Ok(true)
+    }
+
+    // TODO: deal with params on smart contract side.
+    pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<H256> {
+        if self.db.read_original_code(code_id).is_none() {
+            anyhow::bail!("code existence should be checked on smart contract side");
+        }
+
+        if self.db.get_program_code_id(program_id).is_some() {
+            anyhow::bail!("program duplicates should be checked on smart contract side");
+        }
+
+        self.db.set_program_code_id(program_id, code_id);
+
+        // TODO: state here is non-zero (?!).
+
+        let active_program = ActiveProgram {
+            allocations_hash: MaybeHash::Empty,
+            pages_hash: MaybeHash::Empty,
+            gas_reservation_map_hash: MaybeHash::Empty,
+            memory_infix: MemoryInfix::new(0),
+            initialized: false,
+        };
+
+        // TODO: on program creation send message to it.
+        let program_state = ProgramState {
+            state: state::Program::Active(active_program),
+            queue_hash: MaybeHash::Empty,
+            waitlist_hash: MaybeHash::Empty,
+            // TODO: remove program balance from here.
+            balance: 0,
+        };
+
+        // TODO: not write zero state, but just register it (or support default on get)
+        Ok(self.db.write_state(program_state))
+    }
+
+    // TODO: remove state hashes from here
+    pub fn handle_user_message(
+        &mut self,
+        program_hash: H256,
+        messages: Vec<UserMessage>,
+    ) -> Result<H256> {
+        if messages.is_empty() {
+            return Ok(program_hash);
+        }
+
+        let mut dispatches = Vec::with_capacity(messages.len());
+
+        for message in messages {
+            let payload = Payload::try_from(message.payload)
+                .map_err(|_| anyhow::anyhow!("payload should be checked on eth side"))?;
+
+            let payload_hash = payload
+                .inner()
+                .is_empty()
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.db.write_payload(payload).into());
+
+            let dispatch = Dispatch {
+                id: message.id,
+                kind: message.kind,
+                source: message.source,
+                payload_hash,
+                gas_limit: message.gas_limit,
+                value: message.value,
+                // TODO: handle replies.
+                details: None,
+                context: None,
+            };
+
+            dispatches.push(dispatch);
+        }
+
+        // TODO: on zero hash return default avoiding db.
+        let mut program_state = self
+            .db
+            .read_state(program_hash)
+            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+
+        let mut queue = if let MaybeHash::Hash(queue_hash_and_len) = program_state.queue_hash {
+            self.db
+                .read_queue(queue_hash_and_len.hash)
+                .ok_or_else(|| anyhow::anyhow!("queue should exist if hash present"))?
+        } else {
+            VecDeque::with_capacity(dispatches.len())
+        };
+
+        queue.extend(dispatches);
+
+        let queue_hash = self.db.write_queue(queue);
+
+        program_state.queue_hash = MaybeHash::Hash(queue_hash.into());
+
+        Ok(self.db.write_state(program_state))
     }
 
     pub fn run_on_host(
