@@ -30,23 +30,15 @@ sp_api::decl_runtime_apis! {
 
 pub fn impl_fn(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
     #[cfg(target_arch = "wasm32")]
-    {
-        let f = unsafe { core::mem::transmute::<u32, fn(Vec<u8>) -> Vec<u8>>(func_ref as u32) };
-
-        // tasks must only read storage and never write
-        let output_payload;
-        frame_support::assert_storage_noop!({
-            output_payload = f(payload);
-        });
-        output_payload
-    }
+    let f = unsafe { core::mem::transmute::<u32, fn(Vec<u8>) -> Vec<u8>>(func_ref as u32) };
 
     #[cfg(feature = "std")]
-    {
-        // actually, this implementation believes
-        // `StateMachine::new()` is never called with enabled
-        // native call execution!
-        let _ = (func_ref, payload);
-        unreachable!("`gear-tasks` uses different implementation for native calls")
-    }
+    let f = unsafe { core::mem::transmute::<u64, fn(Vec<u8>) -> Vec<u8>>(func_ref) };
+
+    // tasks must only read storage and never write
+    let output_payload;
+    frame_support::assert_storage_noop!({
+        output_payload = f(payload);
+    });
+    output_payload
 }

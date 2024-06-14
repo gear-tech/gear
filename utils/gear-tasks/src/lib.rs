@@ -26,7 +26,6 @@ extern crate alloc;
 
 #[cfg(feature = "std")]
 pub use inner::GearTasksRunner;
-pub use inner::{spawn, JoinHandle};
 
 use alloc::vec::Vec;
 use sp_externalities::ExternalitiesExt;
@@ -56,6 +55,22 @@ pub trait GearTasks {
             .expect("Cannot join without dynamic runtime dispatcher (TaskSpawnerExt)");
         spawner.join(JoinHandle { inner: handle })
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct JoinHandle {
+    pub(crate) inner: u64,
+}
+
+impl JoinHandle {
+    pub fn join(self) -> Vec<u8> {
+        gear_tasks::join(self.inner)
+    }
+}
+
+pub fn spawn(f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
+    let inner = gear_tasks::spawn(f as usize as u64, payload);
+    JoinHandle { inner }
 }
 
 #[cfg(feature = "std")]
@@ -229,24 +244,17 @@ mod inner {
         }
     }
 
-    static TX: OnceLock<mpsc::Sender<TaskEvent>> = OnceLock::new();
+    static RUNNER_TX: OnceLock<mpsc::Sender<TaskInfo>> = OnceLock::new();
 
-    enum TaskEvent {
-        SpawnWasm {
-            func_ref: u64,
-            payload: Vec<u8>,
-            rx: mpsc::SyncSender<Vec<u8>>,
-        },
-        SpawnNative {
-            func_ref: fn(Vec<u8>) -> Vec<u8>,
-            payload: Vec<u8>,
-            rx: mpsc::SyncSender<Vec<u8>>,
-        },
+    struct TaskInfo {
+        pub func_ref: u64,
+        pub payload: Vec<u8>,
+        pub rx: mpsc::SyncSender<Vec<u8>>,
     }
 
     pub struct GearTasksRunner<RA, Block: sp_api::BlockT> {
         runtime_api_provider: Arc<RA>,
-        rx: mpsc::Receiver<TaskEvent>,
+        rx: mpsc::Receiver<TaskInfo>,
         thread_pool: ThreadPool,
         _block: PhantomData<Block>,
     }
@@ -259,7 +267,7 @@ mod inner {
     {
         pub fn new(client: Arc<RA>) -> Self {
             let (tx, rx) = mpsc::channel();
-            let _tx = TX.get_or_init(move || tx);
+            let _tx = RUNNER_TX.get_or_init(move || tx);
 
             log::error!("TX inited");
 
@@ -278,41 +286,25 @@ mod inner {
         pub async fn run(self) {
             log::error!("RUN started");
 
-            for event in self.rx {
-                match event {
-                    TaskEvent::SpawnWasm {
-                        func_ref,
-                        payload,
-                        rx,
-                    } => {
-                        let client = self.runtime_api_provider.clone();
-                        self.thread_pool.spawn_ok(async move {
-                            let runtime_api = client.runtime_api();
-                            let block_hash = client.usage_info().chain.best_hash;
-                            match runtime_api.execute_task(block_hash, func_ref, payload) {
-                                Ok(payload) => {
-                                    rx.send(payload).unwrap();
-                                }
-                                Err(e) => {
-                                    log::error!("`GearTasksApi::execute_task` failed: {e}");
-                                }
-                            }
-                        });
+            for TaskInfo {
+                func_ref,
+                payload,
+                rx,
+            } in self.rx
+            {
+                let client = self.runtime_api_provider.clone();
+                self.thread_pool.spawn_ok(async move {
+                    let runtime_api = client.runtime_api();
+                    let block_hash = client.usage_info().chain.best_hash;
+                    match runtime_api.execute_task(block_hash, func_ref, payload) {
+                        Ok(payload) => {
+                            rx.send(payload).unwrap();
+                        }
+                        Err(e) => {
+                            log::error!("`GearTasksApi::execute_task` failed: {e}");
+                        }
                     }
-                    TaskEvent::SpawnNative {
-                        func_ref,
-                        payload,
-                        rx,
-                    } => {
-                        self.thread_pool.spawn_ok(async move {
-                            let output_payload;
-                            frame_support::assert_storage_noop!({
-                                output_payload = (func_ref)(payload);
-                            });
-                            rx.send(output_payload).unwrap();
-                        });
-                    }
-                }
+                });
             }
         }
     }
@@ -329,40 +321,23 @@ mod inner {
     }
 
     impl TaskSpawner {
-        fn spawn_inner(
-            &mut self,
-            build_event: impl FnOnce(mpsc::SyncSender<Vec<u8>>) -> TaskEvent,
-        ) -> JoinHandle {
+        pub(crate) fn spawn_wasm(&mut self, func_ref: u64, payload: Vec<u8>) -> JoinHandle {
             let handle = self.counter;
             self.counter += 1;
 
             let (rx, tx) = mpsc::sync_channel(1);
 
-            let spawner_tx = TX.get().expect("`GearTasksRunner` is not spawned");
-            spawner_tx.send(build_event(rx)).unwrap();
+            let runner_tx = RUNNER_TX.get().expect("`GearTasksRunner` is not spawned");
+            runner_tx
+                .send(TaskInfo {
+                    func_ref,
+                    payload,
+                    rx,
+                })
+                .unwrap();
 
             self.tasks.insert(handle, tx);
             JoinHandle { inner: handle }
-        }
-
-        pub(crate) fn spawn_wasm(&mut self, func_ref: u64, payload: Vec<u8>) -> JoinHandle {
-            self.spawn_inner(move |rx| TaskEvent::SpawnWasm {
-                func_ref,
-                payload,
-                rx,
-            })
-        }
-
-        pub(crate) fn spawn_native(
-            &mut self,
-            func_ref: fn(Vec<u8>) -> Vec<u8>,
-            payload: Vec<u8>,
-        ) -> JoinHandle {
-            self.spawn_inner(move |rx| TaskEvent::SpawnNative {
-                func_ref,
-                payload,
-                rx,
-            })
         }
 
         pub(crate) fn join(&mut self, handle: JoinHandle) -> Vec<u8> {
@@ -375,40 +350,11 @@ mod inner {
         }
     }
 
-    #[derive(Debug, Eq, PartialEq)]
-    pub struct JoinHandle {
-        pub(super) inner: u64,
-    }
-
-    impl JoinHandle {
-        pub fn join(self) -> Vec<u8> {
-            sp_externalities::with_externalities(|mut ext| {
-                let spawner = ext
-                    .extension::<TaskSpawnerExt>()
-                    .expect("Cannot join without dynamic runtime dispatcher (TaskSpawnerExt)");
-                spawner.join(self)
-            })
-            .expect("`spawn`: called outside of externalities context")
-        }
-    }
-
-    pub fn spawn(f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
-        sp_externalities::with_externalities(|mut ext| {
-            let spawner = ext
-                .extension::<TaskSpawnerExt>()
-                .expect("Cannot join without dynamic runtime dispatcher (TaskSpawnerExt)");
-            spawner.spawn_native(f, payload)
-        })
-        .expect("`spawn`: called outside of externalities context")
-    }
-
     #[cfg(test)]
     mod tests {
         use super::*;
         use crate::inner::TaskSpawnerExt;
-        use gear_node_testing::client::{
-            Client as TestClient, TestClientBuilder, TestClientBuilderExt,
-        };
+        use gear_node_testing::client::{TestClientBuilder, TestClientBuilderExt};
         use std::sync::{Arc, Once};
 
         fn init_logger() {
@@ -421,8 +367,13 @@ mod inner {
         fn new_test_ext() -> sp_io::TestExternalities {
             static CLIENT: Once = Once::new();
             CLIENT.call_once(|| {
-                let client: Arc<TestClient> = Arc::new(TestClientBuilder::new().build());
-                let runner = GearTasksRunner::new(client);
+                let mut client = TestClientBuilder::new().build();
+                // Substrate's `CodeExecutor::call()` has explicit flag to use native execution,
+                // so it's applicable for `NativeElseWasmExecutor`, too.
+                // The flag is always set to `false` in our case, so
+                // we set it to true
+                client.gear_use_native();
+                let runner = GearTasksRunner::new(Arc::new(client));
 
                 std::thread::spawn(|| {
                     futures_executor::block_on(async move {
@@ -440,7 +391,7 @@ mod inner {
         fn smoke_native() {
             init_logger();
             new_test_ext().execute_with(|| {
-                const PAYLOAD_SIZE: usize = 32 * 1024 * 1024;
+                const PAYLOAD_SIZE: usize = 32 * 1024;
 
                 let payload = vec![0xff; PAYLOAD_SIZE];
                 let handles = (0..TASKS_AMOUNT).map(|i| {
@@ -479,27 +430,5 @@ mod inner {
                 .join();
             });
         }
-    }
-}
-
-#[cfg(not(feature = "std"))]
-#[cfg(target_arch = "wasm32")]
-mod inner {
-    use super::*;
-
-    #[derive(Debug, Eq, PartialEq)]
-    pub struct JoinHandle {
-        pub(crate) inner: u64,
-    }
-
-    impl JoinHandle {
-        pub fn join(self) -> Vec<u8> {
-            gear_tasks::join(self.inner)
-        }
-    }
-
-    pub fn spawn(f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
-        let inner = gear_tasks::spawn(f as usize as u64, payload);
-        JoinHandle { inner }
     }
 }
