@@ -100,14 +100,16 @@ impl Storage for RuntimeInterfaceStorage {
 }
 
 #[derive(Debug, Clone)]
-pub struct NativeRuntimeInterface(pub(crate) RuntimeInterfaceStorage);
+pub struct NativeRuntimeInterface {
+    pub(crate) block_info: BlockInfo,
+    pub(crate) storage: RuntimeInterfaceStorage,
+}
 
 impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
     type LazyPages = LazyPagesRuntimeInterface;
 
     fn block_info(&self) -> BlockInfo {
-        // TODO: set real value
-        Default::default()
+        self.block_info
     }
 
     fn init_lazy_pages(&self, _: BTreeMap<GearPage, H256>) {
@@ -120,6 +122,6 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
     }
 
     fn storage(&self) -> &RuntimeInterfaceStorage {
-        &self.0
+        &self.storage
     }
 }

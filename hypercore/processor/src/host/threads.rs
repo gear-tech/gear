@@ -18,7 +18,7 @@
 
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
-use crate::Database;
+use crate::{ChainHeadInfo, Database};
 use core::fmt;
 use gear_core::{ids::ProgramId, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
@@ -37,6 +37,7 @@ thread_local! {
 pub struct ThreadParams {
     pub db: Database,
     pub root: H256,
+    pub info: ChainHeadInfo,
     pub pages: Option<BTreeMap<GearPage, H256>>,
 }
 
@@ -91,10 +92,11 @@ impl PageKey {
     }
 }
 
-pub fn set(db: Database, root: H256) {
+pub fn set(db: Database, info: ChainHeadInfo, root: H256) {
     PARAMS.set(Some(ThreadParams {
         db,
         root,
+        info,
         pages: None,
     }))
 }
@@ -110,6 +112,14 @@ pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {
         let params = v.as_ref().expect(UNSET_PANIC);
 
         f(&params.db)
+    })
+}
+
+pub fn chain_head_info() -> ChainHeadInfo {
+    PARAMS.with_borrow(|v| {
+        let params = v.as_ref().expect(UNSET_PANIC);
+
+        params.info.clone()
     })
 }
 

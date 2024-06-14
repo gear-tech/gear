@@ -24,6 +24,8 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError};
 interface::declare! {
     pub(super) fn ext_database_read_by_hash_version_1(hash: *const H256) -> i64;
     pub(super) fn ext_database_write_version_1(data: *const u8, len: i32) -> *const H256;
+    pub(super) fn ext_get_block_height_version_1() -> i32;
+    pub(super) fn ext_get_block_timestamp_version_1() -> i64;
 }
 
 pub fn read<D: Decode>(hash: &H256) -> Option<Result<D, CodecError>> {
@@ -62,4 +64,12 @@ pub fn write_raw(data: impl AsRef<[u8]>) -> H256 {
         let slice = slice::from_raw_parts(hash_ptr as *const u8, mem::size_of::<H256>());
         H256::from_slice(slice)
     }
+}
+
+pub fn get_block_height() -> u32 {
+    unsafe { sys::ext_get_block_height_version_1() as u32 }
+}
+
+pub fn get_block_timestamp() -> u64 {
+    unsafe { sys::ext_get_block_timestamp_version_1() as u64 }
 }

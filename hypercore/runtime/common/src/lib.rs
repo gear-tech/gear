@@ -66,6 +66,65 @@ pub trait RuntimeInterface<S: Storage> {
     fn storage(&self) -> &S;
 }
 
+pub fn wake_messages<S: Storage, RI: RuntimeInterface<S>>(
+    program_id: ProgramId,
+    program_state: ProgramState,
+    ri: &RI,
+) -> Option<H256> {
+    let block_info = ri.block_info();
+
+    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
+        ri.storage()
+            .read_queue(hash)
+            .expect("Cannot get message queue")
+    });
+
+    let mut waitlist = match program_state.waitlist_hash {
+        MaybeHash::Empty => {
+            // No messages in waitlist
+            return None;
+        }
+        MaybeHash::Hash(HashAndLen { hash, .. }) => ri
+            .storage()
+            .read_waitlist(hash)
+            .expect("Cannot get waitlist"),
+    };
+
+    let mut dispatches_to_wake = Vec::new();
+    let mut remove_from_waitlist_blocks = Vec::new();
+    for (block, list) in waitlist.range_mut(0..=block_info.height) {
+        if list.is_empty() {
+            log::error!("Empty waitlist for block, must been removed from waitlist")
+        }
+        dispatches_to_wake.append(list);
+        remove_from_waitlist_blocks.push(*block);
+    }
+
+    if remove_from_waitlist_blocks.is_empty() {
+        // No messages to wake up
+        return None;
+    }
+
+    for block in remove_from_waitlist_blocks {
+        waitlist.remove(&block);
+    }
+
+    for dispatch in dispatches_to_wake {
+        queue.push_back(dispatch);
+    }
+
+    let queue_hash = ri.storage().write_queue(queue).into();
+    let waitlist_hash = ri.storage().write_waitlist(waitlist).into();
+
+    let new_program_state = ProgramState {
+        queue_hash,
+        waitlist_hash,
+        ..program_state
+    };
+
+    Some(ri.storage().write_state(new_program_state))
+}
+
 pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     program_id: ProgramId,
     program_state: ProgramState,
@@ -74,6 +133,8 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     ri: &RI,
 ) -> Vec<JournalNote> {
     let block_info = ri.block_info();
+
+    log::trace!("Processing next message for program {program_id}");
 
     let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
         ri.storage()
@@ -105,7 +166,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         state::Program::Active(state) => state,
         state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
             log::trace!("Program {program_id} is not active");
-            todo!("Process non-active program")
+            todo!("Support non-active program")
         }
     };
 
@@ -154,13 +215,15 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let precharged_dispatch = core_processor::precharge_for_program(
+    let precharged_dispatch = match core_processor::precharge_for_program(
         &block_config,
         1_000_000_000_000,
         dispatch,
         program_id,
-    )
-    .expect("TODO: process precharge errors");
+    ) {
+        Ok(dispatch) => dispatch,
+        Err(journal) => return journal,
+    };
 
     let code = instrumented_code.expect("Instrumented code must be provided if program is active");
 
@@ -192,20 +255,24 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         memory_infix: active_state.memory_infix,
     };
 
-    let context = core_processor::precharge_for_code_length(
+    let context = match core_processor::precharge_for_code_length(
         &block_config,
         precharged_dispatch,
         program_id,
         actor_data,
-    )
-    .expect("TODO: process precharge errors");
+    ) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
 
     let context = ContextChargedForCode::from((context, code.code().len() as u32));
-    let context = core_processor::precharge_for_memory(
+    let context = match core_processor::precharge_for_memory(
         &block_config,
         ContextChargedForInstrumentation::from(context),
-    )
-    .expect("TODO: process precharge errors");
+    ) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
 
     let execution_context = ProcessExecutionContext::from((context, code, program_state.balance));
 

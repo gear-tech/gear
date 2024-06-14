@@ -37,6 +37,7 @@ mod run;
 #[cfg(test)]
 mod tests;
 
+#[allow(unused)]
 pub struct UserMessage {
     id: MessageId,
     kind: DispatchKind,
@@ -44,6 +45,12 @@ pub struct UserMessage {
     payload: Vec<u8>,
     gas_limit: u64,
     value: u128,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ChainHeadInfo {
+    block_height: u32,
+    block_timestamp: u64,
 }
 
 pub struct Processor {
@@ -133,13 +140,12 @@ impl Processor {
     }
 
     // TODO: use proper `Dispatch` type here instead of db's.
-    pub fn run(
-        &mut self,
-        programs: BTreeMap<ProgramId, H256>,
-        messages: BTreeMap<ProgramId, Vec<UserMessage>>,
-    ) -> Result<()> {
+    pub fn run(&mut self, programs: BTreeMap<ProgramId, H256>) -> Result<()> {
+        // TODO: use proper chain head info here.
+        self.creator.set_chain_head_info(Default::default());
+
         let mut programs = programs;
-        let _messages_to_users = run::run(8, self.creator.clone(), &mut programs, messages);
+        let _messages_to_users = run::run(8, self.creator.clone(), &mut programs);
         Ok(())
     }
 

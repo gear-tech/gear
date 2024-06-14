@@ -16,33 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    host::{InstanceCreator, InstanceWrapper},
-    Database, UserMessage,
-};
+use crate::host::{InstanceCreator, InstanceWrapper};
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, ProgramId},
-    message::{Message, Payload},
+    message::Message,
 };
-use hypercore_runtime_common::{
-    state::{Dispatch, MaybeHash, ProgramState, Storage},
-    Handler,
-};
+use hypercore_runtime_common::Handler;
 use primitive_types::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 
-struct Task {
-    data: (ProgramId, H256),
-    result_sender: oneshot::Sender<Vec<JournalNote>>,
+enum Task {
+    Run {
+        program_id: ProgramId,
+        state_hash: H256,
+        result_sender: oneshot::Sender<Vec<JournalNote>>,
+    },
+    WakeMessages {
+        program_id: ProgramId,
+        state_hash: H256,
+        result_sender: oneshot::Sender<H256>,
+    },
 }
 
 pub fn run(
     threads_amount: usize,
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
-    messages: BTreeMap<ProgramId, Vec<UserMessage>>,
 ) -> Vec<Message> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(threads_amount)
@@ -50,7 +51,7 @@ pub fn run(
         .build()
         .unwrap();
 
-    rt.block_on(async { run_in_async(instance_creator, programs, messages).await })
+    rt.block_on(async { run_in_async(instance_creator, programs).await })
 }
 
 // TODO: Returning Vec<Message> is a temporary solution.
@@ -58,11 +59,8 @@ pub fn run(
 async fn run_in_async(
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
-    messages: BTreeMap<ProgramId, Vec<UserMessage>>,
 ) -> Vec<Message> {
     let mut to_users_messages = vec![];
-
-    update_queues(instance_creator.db(), programs, messages);
 
     let num_workers = 4;
 
@@ -76,6 +74,8 @@ async fn run_in_async(
         let handle = tokio::spawn(worker(id, instance_creator.clone(), task_receiver));
         handles.push(handle);
     }
+
+    wake_messages(&task_senders, programs).await;
 
     loop {
         // Send tasks to process programs in workers, until all queues are empty.
@@ -119,30 +119,50 @@ async fn run_in_async(
 }
 
 async fn run_task(executor: &mut InstanceWrapper, task: Task) {
-    let (program_id, state_hash) = task.data;
+    match task {
+        Task::Run {
+            program_id,
+            state_hash,
+            result_sender,
+        } => {
+            let code_id = executor
+                .db()
+                .get_program_code_id(program_id)
+                .expect("Code ID must be set");
 
-    let code_id = executor
-        .db()
-        .get_program_code_id(program_id)
-        .expect("Code ID must be set");
+            let instrumented_code = executor
+                .db()
+                .read_instrumented_code(hypercore_runtime::VERSION, code_id);
 
-    let instrumented_code = executor
-        .db()
-        .read_instrumented_code(hypercore_runtime::VERSION, code_id);
+            let journal = executor
+                .run(program_id, code_id, state_hash, instrumented_code)
+                .expect("Some error occurs while running program in instance");
 
-    let journal = executor
-        .run(program_id, code_id, state_hash, instrumented_code)
-        .expect("Some error occurs while running program in instance");
-
-    task.result_sender.send(journal).unwrap();
+            result_sender.send(journal).unwrap();
+        }
+        Task::WakeMessages {
+            program_id,
+            state_hash,
+            result_sender,
+        } => {
+            let new_state_hash = executor
+                .wake_messages(program_id, state_hash)
+                .expect("Some error occurs while waking messages");
+            result_sender.send(new_state_hash).unwrap();
+        }
+    }
 }
 
 async fn worker(
-    _id: usize,
+    id: usize,
     instance_creator: InstanceCreator,
     mut task_receiver: mpsc::Receiver<Task>,
 ) {
-    let mut executor = instance_creator.instantiate().unwrap();
+    log::trace!("Worker {} started", id);
+
+    let mut executor = instance_creator
+        .instantiate()
+        .expect("Failed to instantiate executor");
 
     while let Some(task) = task_receiver.recv().await {
         run_task(&mut executor, task).await;
@@ -161,8 +181,9 @@ async fn one_batch(
     {
         let (result_sender, result_receiver) = oneshot::channel();
 
-        let task = Task {
-            data: (*program_id, *state_hash),
+        let task = Task::Run {
+            program_id: *program_id,
+            state_hash: *state_hash,
             result_sender,
         };
 
@@ -174,70 +195,28 @@ async fn one_batch(
     result_receivers
 }
 
-fn update_queues(
-    db: &Database,
+async fn wake_messages(
+    task_senders: &[mpsc::Sender<Task>],
     programs: &mut BTreeMap<ProgramId, H256>,
-    mut messages: BTreeMap<ProgramId, Vec<UserMessage>>,
 ) {
-    for (program_id, state_hash) in programs.iter_mut() {
-        let state = db.read_state(*state_hash).unwrap();
-        let mut queue = state
-            .queue_hash
-            .with_hash_or_default(|hash| db.read_queue(hash).unwrap_or_default());
-        let messages = messages.remove(program_id).unwrap_or_default();
-        for message in messages.into_iter() {
-            let payload_hash = match message.payload.len() {
-                0 => MaybeHash::Empty,
-                _ => db
-                    .write_payload(Payload::try_from(message.payload).unwrap())
-                    .into(),
-            };
+    let mut result_receivers = vec![];
+    for (task_sender, (&program_id, &state_hash)) in
+        task_senders.iter().cycle().zip(programs.iter())
+    {
+        let (result_sender, result_receiver) = oneshot::channel();
+        task_sender
+            .send(Task::WakeMessages {
+                program_id,
+                state_hash,
+                result_sender,
+            })
+            .await
+            .unwrap();
+        result_receivers.push((program_id, result_receiver));
+    }
 
-            let dispatch = Dispatch {
-                id: message.id,
-                kind: message.kind,
-                source: message.source,
-                payload_hash,
-                gas_limit: message.gas_limit,
-                value: message.value,
-                details: None,
-                context: None,
-            };
-
-            queue.push_back(dispatch);
-        }
-
-        let mut waitlist = state
-            .waitlist_hash
-            .with_hash_or_default(|hash| db.read_waitlist(hash).unwrap_or_default());
-
-        let mut dispatches_to_wake = Vec::new();
-        let mut blocks_to_remove = Vec::new();
-        for (block, list) in waitlist.range_mut(0..=0) {
-            if list.is_empty() {
-                unreachable!("Empty waitlist for block, must been removed from waitlist")
-            }
-            dispatches_to_wake.append(list);
-            blocks_to_remove.push(*block);
-        }
-
-        for block in blocks_to_remove {
-            waitlist.remove(&block);
-        }
-
-        for dispatch in dispatches_to_wake {
-            queue.push_back(dispatch);
-        }
-
-        let queue_hash = db.write_queue(queue).into();
-        let waitlist_hash = db.write_waitlist(waitlist).into();
-
-        let state = ProgramState {
-            queue_hash,
-            waitlist_hash,
-            ..state
-        };
-
-        *state_hash = db.write_state(state);
+    for (program_id, result_receiver) in result_receivers {
+        let new_state_hash = result_receiver.await;
+        programs.insert(program_id, new_state_hash.unwrap());
     }
 }

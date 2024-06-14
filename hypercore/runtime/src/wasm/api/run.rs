@@ -16,12 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::wasm::storage::{NativeRuntimeInterface, RuntimeInterfaceStorage};
+use crate::wasm::{
+    interface::database_ri,
+    storage::{NativeRuntimeInterface, RuntimeInterfaceStorage},
+};
 use alloc::vec::Vec;
-use core_processor::common::JournalNote;
+use core_processor::{common::JournalNote, configs::BlockInfo};
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
 use hypercore_runtime_common::{process_next_message, state::Storage, RuntimeInterface};
+
+pub fn wake_messages(program_id: ProgramId, state_hash: H256) -> H256 {
+    log::info!("You're calling 'wake_messages(..)'");
+
+    let block_info = BlockInfo {
+        height: database_ri::get_block_height(),
+        timestamp: database_ri::get_block_timestamp(),
+    };
+
+    let ri = NativeRuntimeInterface {
+        block_info,
+        storage: RuntimeInterfaceStorage,
+    };
+
+    let program_state = ri.storage().read_state(state_hash).unwrap();
+
+    hypercore_runtime_common::wake_messages(program_id, program_state, &ri).unwrap_or(state_hash)
+}
 
 pub fn run(
     program_id: ProgramId,
@@ -31,7 +52,15 @@ pub fn run(
 ) -> Vec<JournalNote> {
     log::info!("You're calling 'run(..)'");
 
-    let ri = NativeRuntimeInterface(RuntimeInterfaceStorage);
+    let block_info = BlockInfo {
+        height: database_ri::get_block_height(),
+        timestamp: database_ri::get_block_timestamp(),
+    };
+
+    let ri = NativeRuntimeInterface {
+        block_info,
+        storage: RuntimeInterfaceStorage,
+    };
 
     let program_state = ri.storage().read_state(state_root).unwrap();
 

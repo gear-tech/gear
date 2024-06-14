@@ -105,6 +105,7 @@ fn host_ping_pong() {
 
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    processor.creator.set_chain_head_info(Default::default());
 
     let program_id = 42.into();
 
@@ -130,6 +131,7 @@ fn ping_pong() {
 
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    processor.creator.set_chain_head_info(Default::default());
 
     let user_id = ActorId::from(10);
     let program_id = ProgramId::from(0x10000);
@@ -170,12 +172,7 @@ fn ping_pong() {
         },
     );
 
-    let to_users = run::run(
-        8,
-        processor.creator.clone(),
-        &mut programs,
-        Default::default(),
-    );
+    let to_users = run::run(8, processor.creator.clone(), &mut programs);
 
     assert_eq!(to_users.len(), 2);
 
@@ -301,6 +298,7 @@ fn async_and_ping() {
 
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    processor.creator.set_chain_head_info(Default::default());
 
     let ping_id = ProgramId::from(0x10000000);
     let async_id = ProgramId::from(0x20000000);
@@ -364,12 +362,7 @@ fn async_and_ping() {
         },
     );
 
-    let to_users = run::run(
-        8,
-        processor.creator.clone(),
-        &mut programs,
-        Default::default(),
-    );
+    let to_users = run::run(8, processor.creator.clone(), &mut programs);
 
     assert_eq!(to_users.len(), 3);
 
@@ -387,6 +380,88 @@ fn async_and_ping() {
         message.payload_bytes(),
         wait_for_reply_to.into_bytes().as_slice()
     );
+}
+
+#[test]
+fn many_waits() {
+    init_logger();
+
+    let threads_amount = 8;
+
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (import "env" "gr_wait_for" (func $wait_for (param i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (if
+                    (i32.eqz (i32.load (i32.const 0x200)))
+                    (then
+                        (i32.store (i32.const 0x200) (i32.const 1))
+                        (call $wait_for (i32.const 10))
+                    )
+                    (else
+                        (call $reply (i32.const 0) (i32.const 13) (i32.const 0x400) (i32.const 0x600))
+                    )
+                )
+            )
+            (data (i32.const 0) "Hello, world!")
+        )
+    "#;
+
+    let (_, code) = wat_to_wasm(wat);
+
+    let db = MemDb::default();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    processor.creator.set_chain_head_info(Default::default());
+
+    let code_id = processor
+        .handle_new_code(code)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let amount = 10000;
+    let mut programs = BTreeMap::new();
+    for i in 0..amount {
+        let program_id = ProgramId::from(i);
+        let state_hash = create_program(
+            &mut processor,
+            program_id,
+            code_id,
+            create_message(DispatchKind::Init, b""),
+        )
+        .unwrap();
+
+        programs.insert(program_id, state_hash);
+    }
+
+    let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    assert_eq!(to_users.len(), amount as usize);
+
+    for &program_id in programs.clone().keys() {
+        send_user_message(
+            &mut processor,
+            &mut programs,
+            program_id,
+            create_message(DispatchKind::Handle, b""),
+        );
+    }
+
+    let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    assert_eq!(to_users.len(), 0);
+
+    processor.creator.set_chain_head_info(ChainHeadInfo {
+        block_height: 11,
+        block_timestamp: 11,
+    });
+    let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
+
+    assert_eq!(to_users.len(), amount as usize);
+
+    for message in to_users {
+        assert_eq!(message.payload_bytes(), b"Hello, world!");
+    }
 }
 
 mod utils {
