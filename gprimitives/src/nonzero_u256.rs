@@ -199,6 +199,14 @@ impl NonZeroU256 {
     }
 }
 
+impl From<NonZeroU256> for U256 {
+    #[inline]
+    fn from(nonzero: NonZeroU256) -> Self {
+        // Call `get` method to keep range information.
+        nonzero.get()
+    }
+}
+
 macro_rules! impl_map_from {
     ($from:ty) => {
         impl From<$from> for NonZeroU256 {
