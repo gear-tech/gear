@@ -56,6 +56,21 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     return_val(res)
 }
 
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+extern "C" fn wake_messages(arg_ptr: i32, arg_len: i32) -> i64 {
+    _wake_messages(arg_ptr, arg_len)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
+fn _wake_messages(arg_ptr: i32, arg_len: i32) -> i64 {
+    let (program_id, state_hash) = Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
+
+    let res = run::wake_messages(program_id, state_hash);
+
+    return_val(res)
+}
+
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(ptr as _, len as usize, len as usize) }
 }
