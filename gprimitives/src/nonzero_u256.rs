@@ -29,7 +29,7 @@ use core::{
 use scale_info::TypeInfo;
 
 /// A value that is known not to equal zero.
-#[derive(TypeInfo)]
+#[derive(Clone, Copy, TypeInfo)]
 #[repr(transparent)]
 pub struct NonZeroU256(U256);
 
@@ -49,25 +49,10 @@ impl_nonzero_fmt!(Display);
 impl_nonzero_fmt!(LowerHex);
 impl_nonzero_fmt!(UpperHex);
 
-impl Clone for NonZeroU256 {
-    #[inline]
-    fn clone(&self) -> Self {
-        // SAFETY: The contained value is non-zero.
-        Self(self.0)
-    }
-}
-
-impl Copy for NonZeroU256 {}
-
 impl PartialEq for NonZeroU256 {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.get() == other.get()
-    }
-
-    #[inline]
-    fn ne(&self, other: &Self) -> bool {
-        self.get() != other.get()
     }
 }
 
@@ -76,7 +61,7 @@ impl Eq for NonZeroU256 {}
 impl PartialOrd for NonZeroU256 {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.get().partial_cmp(&other.get())
+        Some(self.cmp(other))
     }
 
     #[inline]
@@ -139,7 +124,7 @@ impl Hash for NonZeroU256 {
 impl AsRef<[u64]> for NonZeroU256 {
     #[inline]
     fn as_ref(&self) -> &[u64] {
-        &self.0.as_ref()
+        self.0.as_ref()
     }
 }
 
