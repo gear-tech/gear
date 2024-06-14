@@ -26,8 +26,10 @@ use core::{
     mem::transmute,
     num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8},
 };
+use scale_info::TypeInfo;
 
 /// A value that is known not to equal zero.
+#[derive(TypeInfo)]
 #[repr(transparent)]
 pub struct NonZeroU256(U256);
 
@@ -44,8 +46,6 @@ macro_rules! impl_nonzero_fmt {
 
 impl_nonzero_fmt!(Debug);
 impl_nonzero_fmt!(Display);
-impl_nonzero_fmt!(Binary);
-impl_nonzero_fmt!(Octal);
 impl_nonzero_fmt!(LowerHex);
 impl_nonzero_fmt!(UpperHex);
 
@@ -53,7 +53,7 @@ impl Clone for NonZeroU256 {
     #[inline]
     fn clone(&self) -> Self {
         // SAFETY: The contained value is non-zero.
-        unsafe { Self(self.0) }
+        Self(self.0)
     }
 }
 
@@ -109,19 +109,19 @@ impl Ord for NonZeroU256 {
     #[inline]
     fn max(self, other: Self) -> Self {
         // SAFETY: The maximum of two non-zero values is still non-zero.
-        unsafe { Self(self.get().max(other.get())) }
+        Self(self.get().max(other.get()))
     }
 
     #[inline]
     fn min(self, other: Self) -> Self {
         // SAFETY: The minimum of two non-zero values is still non-zero.
-        unsafe { Self(self.get().min(other.get())) }
+        Self(self.get().min(other.get()))
     }
 
     #[inline]
     fn clamp(self, min: Self, max: Self) -> Self {
         // SAFETY: A non-zero value clamped between two non-zero values is still non-zero.
-        unsafe { Self(self.get().clamp(min.get(), max.get())) }
+        Self(self.get().clamp(min.get(), max.get()))
     }
 }
 
@@ -150,7 +150,9 @@ impl<'a> From<&'a NonZeroU256> for NonZeroU256 {
 }
 
 impl NonZeroU256 {
+    /// The smallest value that can be represented by this non-zero
     pub const MIN: NonZeroU256 = unsafe { NonZeroU256::new_unchecked(U256::one()) };
+    /// The largest value that can be represented by this non-zero
     pub const MAX: NonZeroU256 = unsafe { NonZeroU256::new_unchecked(U256::MAX) };
 
     /// Creates a non-zero if the given value is not zero.
@@ -177,6 +179,7 @@ impl NonZeroU256 {
         transmute(n)
     }
 
+    /// Returns the contained value as a primitive type.
     #[inline]
     pub const fn get(self) -> U256 {
         // FIXME: This can be changed to simply `self.0` once LLVM supports `!range` metadata
