@@ -4754,6 +4754,10 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "1.4.2"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
+ "ark-scale 0.0.12",
  "byteorder",
  "gear-core",
  "gear-lazy-pages",
@@ -4761,6 +4765,7 @@ dependencies = [
  "gear-sandbox-host",
  "log",
  "parity-scale-codec",
+ "sha2 0.10.8",
  "sp-io",
  "sp-runtime-interface",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
@@ -8246,6 +8251,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-runtime-interface",
  "hex-literal",
  "impl-trait-for-tuples",
  "log",
@@ -8261,6 +8267,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "sha2 0.10.8",
  "sp-core",
  "sp-crypto-ec-utils",
  "sp-externalities",
