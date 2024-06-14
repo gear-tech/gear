@@ -82,7 +82,7 @@ fn test_program_tests() {
             .expect("Failed to list rust toolchains")
             .stdout;
 
-        if !String::from_utf8_lossy(&targets).contains("wasm32-unknown-unknown") {
+        if !String::from_utf8_lossy(&targets).contains("wasm32-unknown-unknown (installed)") {
             assert!(Command::new("rustup")
                 .args([
                     "toolchain",
