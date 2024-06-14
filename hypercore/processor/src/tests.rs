@@ -17,15 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
-use gear_core::{
-    ids::prelude::CodeIdExt,
-    message::{DispatchKind, Payload},
-    program::ProgramState as InitStatus,
-};
+use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
 use hypercore_db::{BlockInfo, MemDb};
-use hypercore_runtime_common::state::{self, Dispatch, MaybeHash, ProgramState, Storage};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 use utils::*;
 use wabt::wat2wasm;
 
@@ -127,13 +122,13 @@ fn host_ping_pong() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let state_hash = create_program(
-        &mut processor,
-        program_id,
-        code_id,
-        create_message(DispatchKind::Init, "PING"),
-    )
-    .unwrap();
+    let state_hash = processor
+        .handle_new_program(program_id, code_id)
+        .expect("failed to create new program");
+
+    let state_hash = processor
+        .handle_user_message(state_hash, vec![create_message(DispatchKind::Init, "PING")])
+        .expect("failed to populate message queue");
 
     let _init = processor.run_on_host(program_id, state_hash).unwrap();
 }
@@ -155,36 +150,21 @@ fn ping_pong() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let state_hash = create_program(
-        &mut processor,
-        program_id,
-        code_id,
-        UserMessage {
-            id: MessageId::from(1),
-            kind: DispatchKind::Init,
-            source: user_id,
-            payload: b"PING".to_vec(),
-            gas_limit: 1_000_000_000,
-            value: 1,
-        },
-    )
-    .unwrap();
+    let state_hash = processor
+        .handle_new_program(program_id, code_id)
+        .expect("failed to create new program");
+
+    let state_hash = processor
+        .handle_user_message(
+            state_hash,
+            vec![
+                create_message_full(MessageId::from(1), DispatchKind::Init, user_id, "PING"),
+                create_message_full(MessageId::from(2), DispatchKind::Handle, user_id, "PING"),
+            ],
+        )
+        .expect("failed to populate message queue");
 
     let mut programs = BTreeMap::from_iter([(program_id, state_hash)]);
-
-    send_user_message(
-        &mut processor,
-        &mut programs,
-        program_id,
-        UserMessage {
-            id: MessageId::from(2),
-            kind: DispatchKind::Handle,
-            source: user_id,
-            payload: b"PING".to_vec(),
-            gas_limit: 1_000_000_000,
-            value: 1,
-        },
-    );
 
     let to_users = run::run(8, processor.creator.clone(), &mut programs);
 
@@ -200,103 +180,23 @@ fn ping_pong() {
 }
 
 fn create_message(kind: DispatchKind, payload: impl AsRef<[u8]>) -> UserMessage {
+    create_message_full(H256::random().into(), kind, H256::random().into(), payload)
+}
+
+fn create_message_full(
+    id: MessageId,
+    kind: DispatchKind,
+    source: ActorId,
+    payload: impl AsRef<[u8]>,
+) -> UserMessage {
     UserMessage {
-        id: H256::random().0.into(),
+        id,
         kind,
-        source: H256::random().0.into(),
+        source,
         payload: payload.as_ref().to_vec(),
         gas_limit: 1_000_000_000,
         value: 0,
     }
-}
-
-fn create_program(
-    processor: &mut Processor,
-    program_id: ProgramId,
-    code_id: CodeId,
-    init_message: UserMessage,
-) -> Result<H256> {
-    assert_eq!(init_message.kind, DispatchKind::Init);
-
-    processor.db.set_program_code_id(program_id, code_id);
-
-    let payload_hash = match init_message.payload.len() {
-        0 => MaybeHash::Empty,
-        _ => processor
-            .db
-            .write_payload(Payload::try_from(init_message.payload.clone()).unwrap())
-            .into(),
-    };
-
-    let init_dispatch = Dispatch {
-        id: init_message.id,
-        kind: DispatchKind::Init,
-        source: init_message.source,
-        payload_hash,
-        gas_limit: init_message.gas_limit,
-        value: init_message.value,
-        details: None,
-        context: None,
-    };
-
-    let queue = VecDeque::from(vec![init_dispatch]);
-    let queue_hash = processor.db.write_queue(queue);
-
-    let active_program = state::ActiveProgram {
-        allocations_hash: MaybeHash::Empty,
-        pages_hash: MaybeHash::Empty,
-        gas_reservation_map_hash: MaybeHash::Empty,
-        memory_infix: Default::default(),
-        status: InitStatus::Uninitialized {
-            message_id: init_message.id,
-        },
-    };
-
-    let program_state = ProgramState {
-        state: state::Program::Active(active_program),
-        queue_hash: queue_hash.into(),
-        waitlist_hash: MaybeHash::Empty,
-        balance: 0,
-    };
-
-    Ok(processor.db.write_state(program_state))
-}
-
-fn send_user_message(
-    processor: &mut Processor,
-    programs: &mut BTreeMap<ProgramId, H256>,
-    program_id: ProgramId,
-    message: UserMessage,
-) {
-    let payload_hash = match message.payload.len() {
-        0 => MaybeHash::Empty,
-        _ => processor
-            .db
-            .write_payload(Payload::try_from(message.payload).unwrap())
-            .into(),
-    };
-
-    let dispatch = Dispatch {
-        id: message.id,
-        kind: message.kind,
-        source: message.source,
-        payload_hash,
-        gas_limit: message.gas_limit,
-        value: message.value,
-        details: None,
-        context: None,
-    };
-
-    let mut program_state = processor.db.read_state(programs[&program_id]).unwrap();
-    let mut queue = program_state
-        .queue_hash
-        .with_hash_or_default(|hash| processor.db.read_queue(hash).unwrap());
-    queue.push_back(dispatch);
-    log::info!("Process queue after send message: {queue:?}");
-    let queue_hash = processor.db.write_queue(queue);
-    program_state.queue_hash = queue_hash.into();
-    let new_state_hash = processor.db.write_state(program_state);
-    programs.insert(program_id, new_state_hash);
 }
 
 #[test]
@@ -328,54 +228,57 @@ fn async_and_ping() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let ping_state_hash = create_program(
-        &mut processor,
-        ping_id,
-        ping_code_id,
-        UserMessage {
-            id: get_next_message_id(),
-            kind: DispatchKind::Init,
-            source: user_id,
-            payload: b"PING".to_vec(),
-            gas_limit: 1_000_000_000,
-            value: 0,
-        },
-    )
-    .unwrap();
+    let ping_state_hash = processor
+        .handle_new_program(ping_id, ping_code_id)
+        .expect("failed to create new program");
+    let ping_state_hash = processor
+        .handle_user_message(
+            ping_state_hash,
+            vec![UserMessage {
+                id: get_next_message_id(),
+                kind: DispatchKind::Init,
+                source: user_id,
+                payload: b"PING".to_vec(),
+                gas_limit: 10_000_000_000,
+                value: 0,
+            }],
+        )
+        .expect("failed to populate message queue");
 
-    let async_state_hash = create_program(
-        &mut processor,
-        async_id,
-        upload_code_id,
-        UserMessage {
-            id: get_next_message_id(),
-            kind: DispatchKind::Init,
-            source: user_id,
-            payload: ping_id.encode(),
-            gas_limit: 1_000_000_000,
-            value: 0,
-        },
-    )
-    .unwrap();
-
-    let mut programs = vec![(ping_id, ping_state_hash), (async_id, async_state_hash)]
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
+    let async_state_hash = processor
+        .handle_new_program(async_id, upload_code_id)
+        .expect("failed to create new program");
+    let async_state_hash = processor
+        .handle_user_message(
+            async_state_hash,
+            vec![UserMessage {
+                id: get_next_message_id(),
+                kind: DispatchKind::Init,
+                source: user_id,
+                payload: ping_id.encode(),
+                gas_limit: 10_000_000_000,
+                value: 0,
+            }],
+        )
+        .expect("failed to populate message queue");
 
     let wait_for_reply_to = get_next_message_id();
-    send_user_message(
-        &mut processor,
-        &mut programs,
-        async_id,
-        UserMessage {
-            id: wait_for_reply_to,
-            kind: DispatchKind::Handle,
-            source: user_id,
-            payload: demo_async::Command::Common.encode(),
-            gas_limit: 10_000_000_000,
-            value: 0,
-        },
-    );
+    let async_state_hash = processor
+        .handle_user_message(
+            async_state_hash,
+            vec![UserMessage {
+                id: wait_for_reply_to,
+                kind: DispatchKind::Handle,
+                source: user_id,
+                payload: demo_async::Command::Common.encode(),
+                gas_limit: 10_000_000_000,
+                value: 0,
+            }],
+        )
+        .expect("failed to populate message queue");
+
+    let mut programs =
+        BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
 
     let to_users = run::run(8, processor.creator.clone(), &mut programs);
 
@@ -441,13 +344,13 @@ fn many_waits() {
     let mut programs = BTreeMap::new();
     for i in 0..amount {
         let program_id = ProgramId::from(i);
-        let state_hash = create_program(
-            &mut processor,
-            program_id,
-            code_id,
-            create_message(DispatchKind::Init, b""),
-        )
-        .unwrap();
+
+        let state_hash = processor
+            .handle_new_program(program_id, code_id)
+            .expect("failed to create new program");
+        let state_hash = processor
+            .handle_user_message(state_hash, vec![create_message(DispatchKind::Init, b"")])
+            .expect("failed to populate message queue");
 
         programs.insert(program_id, state_hash);
     }
@@ -455,13 +358,11 @@ fn many_waits() {
     let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
     assert_eq!(to_users.len(), amount as usize);
 
-    for &program_id in programs.clone().keys() {
-        send_user_message(
-            &mut processor,
-            &mut programs,
-            program_id,
-            create_message(DispatchKind::Handle, b""),
-        );
+    for (_pid, state_hash) in programs.iter_mut() {
+        let new_state_hash = processor
+            .handle_user_message(*state_hash, vec![create_message(DispatchKind::Handle, b"")])
+            .expect("failed to populate message queue");
+        *state_hash = new_state_hash;
     }
 
     let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);

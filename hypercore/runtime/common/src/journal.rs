@@ -74,7 +74,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 log::trace!("Dispatch {message_id} init success for program {program_id}");
                 self.update_program(program_id, |mut state, _| match &mut state.state {
                     state::Program::Active(program) => {
-                        program.status = InitStatus::Initialized;
+                        program.initialized = true;
                         Some(state)
                     }
                     _ => None,

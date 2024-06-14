@@ -182,7 +182,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         context,
     } = queue.pop_front().unwrap();
 
-    if active_state.status == InitStatus::Initialized && kind == DispatchKind::Init {
+    if active_state.initialized && kind == DispatchKind::Init {
         // Panic is impossible, because gear protocol does not provide functionality
         // to send second init message to any already existing program.
         unreachable!(
@@ -193,18 +193,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     // If the destination program is uninitialized, then we allow
     // to process message, if it's a reply or init message.
     // Otherwise, we return error reply.
-    if matches!(active_state.status, InitStatus::Uninitialized { message_id }
-            if message_id != dispatch_id && kind != DispatchKind::Reply)
-    {
-        if kind == DispatchKind::Init {
-            // Panic is impossible, because gear protocol does not provide functionality
-            // to send second init message to any existing program.
-            unreachable!(
-                "Init message {} is not the first init message to the program {}",
-                dispatch_id, program_id,
-            );
-        }
-
+    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
         todo!("Process messages to uninitialized program");
     }
 

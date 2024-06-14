@@ -88,7 +88,7 @@ pub struct ActiveProgram {
     /// Program memory infix.
     pub memory_infix: MemoryInfix,
     /// Program initialization status.
-    pub status: InitStatus,
+    pub initialized: bool,
 }
 
 #[derive(Clone, Debug, Decode, Encode)]
