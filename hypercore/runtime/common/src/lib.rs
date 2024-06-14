@@ -28,7 +28,7 @@ use alloc::{
 use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
-    configs::{BlockConfig, BlockInfo},
+    configs::BlockConfig,
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use gear_core::{
@@ -53,6 +53,7 @@ extern crate alloc;
 mod journal;
 pub mod state;
 
+pub use core_processor::configs::BlockInfo;
 pub use journal::Handler;
 
 const RUNTIME_ID: u32 = 0;

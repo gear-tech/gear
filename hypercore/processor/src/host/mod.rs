@@ -25,7 +25,7 @@ use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
 use std::{mem, sync::Arc};
 
-use crate::{ChainHeadInfo, Database};
+use crate::Database;
 
 pub mod api;
 pub mod runtime;
@@ -44,9 +44,13 @@ pub type Store = wasmtime::Store<StoreData>;
 #[derive(Clone)]
 pub(crate) struct InstanceCreator {
     db: Database,
-    info: Option<ChainHeadInfo>,
     engine: wasmtime::Engine,
     instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
+
+    /// Current chain head hash.
+    ///
+    /// NOTE: must be preset each time processor start to process new chain head.
+    chain_head: Option<H256>,
 }
 
 impl InstanceCreator {
@@ -69,9 +73,9 @@ impl InstanceCreator {
 
         Ok(Self {
             db,
-            info: None,
             engine,
             instance_pre,
+            chain_head: None,
         })
     }
 
@@ -83,8 +87,10 @@ impl InstanceCreator {
         let mut instance_wrapper = InstanceWrapper {
             instance,
             store,
-            info: self.info.clone(),
             db: self.db().clone(),
+            chain_head: self
+                .chain_head
+                .expect("chain head should be set before instantiate"),
         };
 
         let memory = instance_wrapper.memory()?;
@@ -100,16 +106,16 @@ impl InstanceCreator {
         &self.db
     }
 
-    pub fn set_chain_head_info(&mut self, info: ChainHeadInfo) {
-        self.info = Some(info);
+    pub fn set_chain_head(&mut self, chain_head: H256) {
+        self.chain_head = Some(chain_head);
     }
 }
 
 pub(crate) struct InstanceWrapper {
     instance: wasmtime::Instance,
     store: Store,
-    info: Option<ChainHeadInfo>,
     db: Database,
+    chain_head: H256,
 }
 
 impl InstanceWrapper {
@@ -140,8 +146,7 @@ impl InstanceWrapper {
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
     ) -> Result<Vec<JournalNote>> {
-        let info = self.info.clone().expect("info should be set before run");
-        threads::set(self.db.clone(), info, state_hash);
+        threads::set(self.db.clone(), self.chain_head, state_hash);
 
         let arg = (
             program_id,
@@ -154,11 +159,7 @@ impl InstanceWrapper {
     }
 
     pub fn wake_messages(&mut self, program_id: ProgramId, state_hash: H256) -> Result<H256> {
-        let info = self
-            .info
-            .clone()
-            .expect("info should be set before wake_messages");
-        threads::set(self.db.clone(), info, state_hash);
+        threads::set(self.db.clone(), self.chain_head, state_hash);
 
         self.call("wake_messages", (program_id, state_hash).encode())
     }

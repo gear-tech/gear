@@ -23,11 +23,19 @@ use gear_core::{
     program::ProgramState as InitStatus,
 };
 use gprimitives::{ActorId, MessageId};
-use hypercore_db::MemDb;
+use hypercore_db::{BlockInfo, MemDb};
 use hypercore_runtime_common::state::{self, Dispatch, MaybeHash, ProgramState, Storage};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use utils::*;
 use wabt::wat2wasm;
+
+fn init_new_block(processor: &mut Processor, height: u32, timestamp: u64) {
+    let chain_head = H256::random();
+    processor
+        .db
+        .set_block_info(chain_head, BlockInfo { height, timestamp });
+    processor.creator.set_chain_head(chain_head);
+}
 
 #[test]
 fn handle_new_code_valid() {
@@ -36,6 +44,8 @@ fn handle_new_code_valid() {
     let db = MemDb::default();
     let mut processor =
         Processor::new(Database::from_one(&db)).expect("failed to create processor");
+
+    init_new_block(&mut processor, 0, 0);
 
     let (code_id, original_code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
     let original_code_len = original_code.len();
@@ -79,6 +89,8 @@ fn handle_new_code_invalid() {
     let mut processor =
         Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
+    init_new_block(&mut processor, 0, 0);
+
     let (code_id, original_code) = utils::wat_to_wasm(utils::INVALID_PROGRAM);
 
     assert!(processor.db.read_original_code(code_id).is_none());
@@ -105,7 +117,8 @@ fn host_ping_pong() {
 
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
-    processor.creator.set_chain_head_info(Default::default());
+
+    init_new_block(&mut processor, 0, 0);
 
     let program_id = 42.into();
 
@@ -131,7 +144,8 @@ fn ping_pong() {
 
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
-    processor.creator.set_chain_head_info(Default::default());
+
+    init_new_block(&mut processor, 0, 0);
 
     let user_id = ActorId::from(10);
     let program_id = ProgramId::from(0x10000);
@@ -298,7 +312,8 @@ fn async_and_ping() {
 
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
-    processor.creator.set_chain_head_info(Default::default());
+
+    init_new_block(&mut processor, 0, 0);
 
     let ping_id = ProgramId::from(0x10000000);
     let async_id = ProgramId::from(0x20000000);
@@ -414,7 +429,8 @@ fn many_waits() {
 
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
-    processor.creator.set_chain_head_info(Default::default());
+
+    init_new_block(&mut processor, 0, 0);
 
     let code_id = processor
         .handle_new_code(code)
@@ -451,10 +467,8 @@ fn many_waits() {
     let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
     assert_eq!(to_users.len(), 0);
 
-    processor.creator.set_chain_head_info(ChainHeadInfo {
-        block_height: 11,
-        block_timestamp: 11,
-    });
+    init_new_block(&mut processor, 11, 11);
+
     let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
 
     assert_eq!(to_users.len(), amount as usize);

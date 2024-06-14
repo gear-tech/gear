@@ -28,8 +28,9 @@ use gear_core::{
     message::Payload,
     reservation::GasReservationMap,
 };
-use hypercore_runtime_common::state::{
-    Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
+use hypercore_runtime_common::{
+    state::{Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist},
+    BlockInfo,
 };
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
@@ -40,6 +41,7 @@ enum KeyPrefix {
     InstrumentedCode = 1,
     BlockProgramStates = 2,
     BlockParentHash = 3,
+    BlockInfo = 4,
 }
 
 impl KeyPrefix {
@@ -142,7 +144,7 @@ impl Database {
         );
     }
 
-    pub fn get_block_map(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+    pub fn get_block_program_hashes(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
         self.kv
             .get(&KeyPrefix::BlockProgramStates.one(block_hash))
             .map(|data| {
@@ -151,22 +153,40 @@ impl Database {
             })
     }
 
-    pub fn set_block_map(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+    pub fn set_block_program_hashes(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         self.kv
             .put(&KeyPrefix::BlockProgramStates.one(block_hash), map.encode());
     }
 
-    pub fn get_parent_hash(&self, block_hash: H256) -> Option<H256> {
+    pub fn get_block_parent_hash(&self, block_hash: H256) -> Option<H256> {
         self.kv
             .get(&KeyPrefix::BlockParentHash.one(block_hash))
             .map(|data| H256::from_slice(data.as_slice()))
     }
 
-    pub fn set_parent_hash(&self, block_hash: H256, parent_hash: H256) {
+    pub fn set_block_parent_hash(&self, block_hash: H256, parent_hash: H256) {
         self.kv.put(
             &KeyPrefix::BlockParentHash.one(block_hash),
             parent_hash.as_bytes().to_vec(),
         );
+    }
+
+    pub fn set_block_info(&self, block_hash: H256, block_info: BlockInfo) {
+        let BlockInfo { height, timestamp } = block_info;
+        self.kv.put(
+            &KeyPrefix::BlockInfo.one(block_hash),
+            (height, timestamp).encode(),
+        );
+    }
+
+    pub fn get_block_info(&self, block_hash: H256) -> Option<BlockInfo> {
+        self.kv
+            .get(&KeyPrefix::BlockInfo.one(block_hash))
+            .map(|data| {
+                let (height, timestamp) = <(u32, u64)>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BlockInfo`");
+                BlockInfo { height, timestamp }
+            })
     }
 }
 
@@ -252,5 +272,29 @@ impl Storage for Database {
 
     fn write_page_data(&self, data: PageBuf) -> H256 {
         self.cas.write(&data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_database() {
+        let db = crate::MemDb::default();
+        let database = crate::Database::from_one(&db);
+
+        let block_hash = H256::zero();
+        let parent_hash = H256::zero();
+        let map: BTreeMap<ActorId, H256> = [(ActorId::zero(), H256::zero())].into();
+
+        database.set_block_program_hashes(block_hash, map.clone());
+        assert_eq!(database.get_block_program_hashes(block_hash), Some(map));
+
+        database.set_block_parent_hash(block_hash, parent_hash);
+        assert_eq!(
+            database.get_block_parent_hash(block_hash),
+            Some(parent_hash)
+        );
     }
 }

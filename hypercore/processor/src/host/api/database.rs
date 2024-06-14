@@ -77,7 +77,7 @@ fn write(caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
 fn get_block_height(_caller: Caller<'_, StoreData>) -> i32 {
     log::trace!(target: "host_call", "get_block_height()");
 
-    let height = threads::chain_head_info().block_height;
+    let height = threads::chain_head_info().height;
 
     log::trace!(target: "host_call", "get_block_height() -> {height:?}");
 
@@ -87,7 +87,7 @@ fn get_block_height(_caller: Caller<'_, StoreData>) -> i32 {
 fn get_block_timestamp(_caller: Caller<'_, StoreData>) -> i64 {
     log::trace!(target: "host_call", "get_block_timestamp()");
 
-    let timestamp = threads::chain_head_info().block_timestamp;
+    let timestamp = threads::chain_head_info().timestamp;
 
     log::trace!(target: "host_call", "get_block_timestamp() -> {timestamp:?}");
 
