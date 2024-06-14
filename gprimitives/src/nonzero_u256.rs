@@ -214,13 +214,13 @@ impl From<NonZeroU128> for NonZeroU256 {
 }
 
 macro_rules! impl_try_from {
-    ($from:ident) => {
+    ($from:ty) => {
         impl TryFrom<$from> for NonZeroU256 {
             type Error = &'static str;
 
             #[inline]
             fn try_from(value: $from) -> Result<NonZeroU256, &'static str> {
-                NonZeroU256::new(U256::from(value as u64)).ok_or("integer value iz zero")
+                NonZeroU256::new(U256::from(value as u64)).ok_or("integer value is zero")
             }
         }
     };
@@ -236,6 +236,39 @@ impl TryFrom<u128> for NonZeroU256 {
 
     #[inline]
     fn try_from(value: u128) -> Result<NonZeroU256, &'static str> {
-        NonZeroU256::new(U256::from(value)).ok_or("integer value iz zero")
+        NonZeroU256::new(U256::from(value)).ok_or("integer value is zero")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate alloc;
+
+    use super::*;
+    use alloc::format;
+
+    #[test]
+    fn nonzero_u256_from_to_u256() {
+        let u256 = U256::from(42u64);
+        let nz = NonZeroU256::new(u256).unwrap();
+        assert_eq!(u256, nz.into());
+        assert_eq!(format!("{u256}"), format!("{nz}"));
+        assert_eq!(format!("{u256:?}"), format!("{nz:?}"));
+    }
+
+    #[test]
+    fn nonzero_u256_from_nz64() {
+        let nzu64 = NonZeroU64::new(42u64).unwrap();
+        let nz: NonZeroU256 = nzu64.into();
+        assert_eq!(U256::from(nzu64.get()), nz.get());
+    }
+
+    #[test]
+    fn nonzero_u256_from_zero() {
+        let zero = 0u64;
+        let opt = NonZeroU256::new(U256::from(zero));
+        assert_eq!(None, opt);
+        let res = TryInto::<NonZeroU256>::try_into(zero);
+        assert_eq!(Err("integer value is zero"), res);
     }
 }
