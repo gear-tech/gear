@@ -10,7 +10,7 @@ import {IWrappedVara} from "./IWrappedVara.sol";
 
 contract Router is Ownable {
     using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
+    using MessageHashUtils for address;
 
     uint256 public constant COUNT_OF_VALIDATORS = 1;
     uint256 public constant REQUIRED_SIGNATURES = 1;
@@ -19,10 +19,9 @@ contract Router is Ownable {
 
     address public program;
     uint256 public countOfValidators;
-
-    mapping(address => bool) public programs;
     mapping(address => bool) public validators;
     mapping(bytes32 => CodeState) public codes;
+    mapping(address => bool) public programs;
 
     enum CodeState {
         Unknown,
@@ -137,13 +136,11 @@ contract Router is Ownable {
 
         for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
             CodeCommitment calldata codeCommitment = codeCommitmentsArray[i];
-
             require(codeCommitment.approved < 2, "'approved' field should represent bool as uint8");
 
             message = bytes.concat(message, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
 
             bytes32 codeId = codeCommitment.codeId;
-
             require(codes[codeId] == CodeState.Unconfirmed, "code should be uploaded, but unconfirmed");
 
             if (codeCommitment.approved == 1) {
@@ -165,7 +162,8 @@ contract Router is Ownable {
             Transition calldata transition = transitions[i];
             require(programs[transition.actorId], "unknown program");
             message = bytes.concat(
-                message, abi.encodePacked(transition.actorId, transition.oldStateHash, transition.newStateHash)
+                message,
+                keccak256(abi.encodePacked(transition.actorId, transition.oldStateHash, transition.newStateHash))
             );
             IProgram(transition.actorId).performStateTransition(transition.oldStateHash, transition.newStateHash);
             emit UpdatedProgram(transition.actorId, transition.oldStateHash, transition.newStateHash);
@@ -175,7 +173,7 @@ contract Router is Ownable {
     }
 
     function validateSignatures(bytes memory message, bytes[] calldata signatures) private view {
-        bytes32 messageHash = keccak256(message).toEthSignedMessageHash();
+        bytes32 messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(message)));
         uint256 k = 0;
 
         for (; k < signatures.length; k++) {
