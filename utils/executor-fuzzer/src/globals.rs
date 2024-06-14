@@ -34,8 +34,8 @@ const _GLOBAL_NAMES: [&str; 11] = [
 ];
 
 pub trait InstanceAccessGlobal {
-    fn set_global(&mut self, name: &str, value: i64) -> Result<()>;
-    fn get_global(&mut self, name: &str) -> Result<i64>;
+    fn set_global(&self, name: &str, value: i64) -> Result<()>;
+    fn get_global(&self, name: &str) -> Result<i64>;
 }
 
 #[derive(Arbitrary)]

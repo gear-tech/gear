@@ -16,7 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{cell::RefCell, collections::HashMap, ops::Range};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    mem,
+    ops::Range,
+    ptr,
+};
 
 use gear_lazy_pages::{
     ExceptionInfo, LazyPagesError as Error, LazyPagesVersion, UserSignalHandler,
@@ -28,8 +34,10 @@ use crate::globals::InstanceAccessGlobal;
 
 pub type HostPageAddr = usize;
 
+const OS_PAGE_SIZE: usize = 4096;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TouchedPage {
-    pub addr: HostPageAddr,
     pub write: bool,
     pub read: bool,
 }
@@ -80,6 +88,36 @@ pub fn init_fuzzer_lazy_pages(init: FuzzerLazyPagesContext) {
     .expect("Failed to init lazy-pages");
 }
 
+pub fn get_touched_pages() -> BTreeMap<HostPageAddr, (TouchedPage, Vec<u8>)> {
+    let pages = FUZZER_LP_CONTEXT.with(|ctx: &RefCell<Option<FuzzerLazyPagesContext>>| {
+        let mut borrow = ctx.borrow_mut();
+        let ctx = borrow.as_mut().expect("lazy pages initialized");
+        mem::take(&mut ctx.pages)
+    });
+
+    pages
+        .into_iter()
+        .map(|(addr, page)| {
+            let mut data = vec![0; OS_PAGE_SIZE];
+
+            // Unprotect page for read
+            if !page.read {
+                unsafe {
+                    mprotect_interval(addr, OS_PAGE_SIZE, true, false, false)
+                        .expect("unprotect page");
+                }
+            }
+
+            // SAFETY: these pages still allocated by VM and not freed.
+            unsafe {
+                ptr::copy_nonoverlapping(addr as *const u8, data.as_mut_ptr(), OS_PAGE_SIZE);
+            }
+
+            (addr, (page, data))
+        })
+        .collect()
+}
+
 struct FuzzerLazyPagesSignalHandler;
 
 impl UserSignalHandler for FuzzerLazyPagesSignalHandler {
@@ -105,15 +143,17 @@ fn user_signal_handler_internal(
         return Err(Error::OutOfWasmMemoryAccess);
     }
 
-    log::debug!("SIG: Unprotect WASM memory at address: {:#x}", native_addr);
+    log::trace!(
+        "SIG: Unprotect WASM memory at address: {:#x}, wr: {is_write}",
+        native_addr
+    );
 
     unsafe {
-        mprotect_interval(native_addr, 4096, true, is_write, false).unwrap();
+        mprotect_interval(native_addr, OS_PAGE_SIZE, true, is_write, false).unwrap();
     }
 
     // Update touched pages
     let page = TouchedPage {
-        addr: native_addr,
         write: is_write,
         read: !is_write,
     };
@@ -129,7 +169,7 @@ fn user_signal_handler_internal(
         .instance
         .get_global(GLOBAL_NAME_GAS)
         .expect("global get");
-    gas = gas.saturating_add(100);
+    gas = gas.saturating_sub(100);
     ctx.instance
         .set_global(GLOBAL_NAME_GAS, gas)
         .expect("global set");

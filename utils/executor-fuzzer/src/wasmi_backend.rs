@@ -26,7 +26,9 @@ use wasmi::{
     RuntimeValue, TrapCode, ValueType,
 };
 
-use crate::{globals::InstanceAccessGlobal, lazy_pages, Runner, INITIAL_PAGES, PROGRAM_GAS};
+use crate::{
+    globals::InstanceAccessGlobal, lazy_pages, RunResult, Runner, INITIAL_PAGES, PROGRAM_GAS,
+};
 
 mod error;
 
@@ -80,7 +82,7 @@ impl wasmi::Externals for Externals {
 }
 
 impl InstanceAccessGlobal for ModuleRef {
-    fn set_global(&mut self, name: &str, value: i64) -> anyhow::Result<()> {
+    fn set_global(&self, name: &str, value: i64) -> anyhow::Result<()> {
         let Some(ExternVal::Global(global)) = self.export_by_name(name) else {
             panic!("global '{name}' not found");
         };
@@ -91,7 +93,7 @@ impl InstanceAccessGlobal for ModuleRef {
         Ok(())
     }
 
-    fn get_global(&mut self, name: &str) -> anyhow::Result<i64> {
+    fn get_global(&self, name: &str) -> anyhow::Result<i64> {
         let Some(ExternVal::Global(global)) = self.export_by_name(name) else {
             panic!("global '{name}' not found");
         };
@@ -107,7 +109,7 @@ impl InstanceAccessGlobal for ModuleRef {
 pub struct WasmiRunner;
 
 impl Runner for WasmiRunner {
-    fn run(module: &Module) -> anyhow::Result<()> {
+    fn run(module: &Module) -> anyhow::Result<RunResult> {
         let wasmi_module =
             WasmiModule::from_buffer(module.clone().into_bytes().expect("valid bytes"))
                 .expect("failed to load wasm");
@@ -152,6 +154,11 @@ impl Runner for WasmiRunner {
             }
         }
 
-        Ok(())
+        let result = RunResult {
+            gas_global: instance.get_global(GLOBAL_NAME_GAS)?,
+            pages: lazy_pages::get_touched_pages(),
+        };
+
+        Ok(result)
     }
 }

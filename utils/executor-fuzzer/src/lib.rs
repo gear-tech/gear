@@ -35,22 +35,24 @@ mod wasmer_backend;
 mod wasmi_backend;
 
 const INITIAL_PAGES: u32 = 10;
+const WASM_PAGE_SIZE: usize = 0x10_000;
 const PROGRAM_GAS: i64 = 10_000_000;
 const ENV: &str = "env";
 
 trait Runner {
-    fn run(module: &Module) -> Result<()>;
+    fn run(module: &Module) -> Result<RunResult>;
 }
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(data: FuzzerInput) -> Result<()> {
     let module = generate::generate_module(Unstructured::new(data.0))?;
 
-    WasmerRunner::run(&module)?;
-    WasmiRunner::run(&module)?;
+    print_module(&module);
 
-    // TODO:
-    //ExecutorRunResult::verify_equality(&wasmer_res, &wasmi_res);
+    let wasmer_res = WasmerRunner::run(&module)?;
+    let wasmi_res = WasmiRunner::run(&module)?;
+
+    RunResult::verify_equality(wasmer_res, wasmi_res);
 
     Ok(())
 }
@@ -63,14 +65,32 @@ fn print_module(m: &Module) {
     );
 }
 
-struct _ExecutorRunResult {
+struct RunResult {
     gas_global: i64,
     // TODO: globals
     pages: BTreeMap<HostPageAddr, (TouchedPage, Vec<u8>)>,
 }
 
-impl _ExecutorRunResult {
-    fn _verify_equality(_lhs: &Self, _rhs: &Self) {
-        // TODO: compare the results of both runners
+impl RunResult {
+    fn verify_equality(wasmer_res: Self, wasmi_res: Self) {
+        assert_eq!(wasmer_res.gas_global, wasmi_res.gas_global);
+        assert_eq!(wasmer_res.pages.len(), wasmi_res.pages.len());
+
+        for (
+            (wasmer_addr, (wasmer_page_info, wasmer_page_mem)),
+            (wasmi_addr, (wasmi_page_info, wasmi_page_mem)),
+        ) in wasmer_res
+            .pages
+            .into_iter()
+            .zip(wasmi_res.pages.into_iter())
+        {
+            let lower_bytes_page_mask = ((INITIAL_PAGES as usize) * WASM_PAGE_SIZE) - 1;
+            assert_eq!(
+                lower_bytes_page_mask & wasmer_addr,
+                lower_bytes_page_mask & wasmi_addr
+            );
+            assert_eq!(wasmer_page_info, wasmi_page_info);
+            assert_eq!(wasmer_page_mem, wasmi_page_mem);
+        }
     }
 }
