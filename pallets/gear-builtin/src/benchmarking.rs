@@ -284,11 +284,7 @@ benchmarks! {
     }: {
         _result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(&message);
     } verify {
-        assert!(
-            matches!(
-                _result, Ok(result) if ArkScale::<G2Affine>::decode(&mut &result[..]).is_ok()
-            )
-        )
+        assert!(ArkScale::<G2Affine>::decode(&mut &_result.unwrap()[..]).is_ok())
     }
 }
 
