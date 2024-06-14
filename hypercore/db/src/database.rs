@@ -28,19 +28,43 @@ use gear_core::{
     message::Payload,
     reservation::GasReservationMap,
 };
-pub use hypercore_runtime_common::state::Storage;
 use hypercore_runtime_common::state::{
-    Allocations, MemoryPages, MessageQueue, ProgramState, Waitlist,
+    Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
 
-const BLOCK_TO_PROGRAM_STATES_PREFIX: &[u8] = b"block_to_program_states";
-const PARENT_HASH_PREFIX: &[u8] = b"block_parent_hash";
+#[repr(u64)]
+enum KeyPrefix {
+    ProgramToCodeId = 0,
+    InstrumentedCode = 1,
+    BlockProgramStates = 2,
+    BlockParentHash = 3,
+}
+
+impl KeyPrefix {
+    fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
+        [H256::from_low_u64_be(self as u64).as_bytes(), key.as_ref()].concat()
+    }
+
+    fn two(self, key1: impl AsRef<[u8]>, key2: impl AsRef<[u8]>) -> Vec<u8> {
+        let key = [key1.as_ref(), key2.as_ref()].concat();
+        self.one(key)
+    }
+}
 
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,
+}
+
+impl Clone for Database {
+    fn clone(&self) -> Self {
+        Self {
+            cas: self.cas.clone_boxed(),
+            kv: self.kv.clone_boxed_kv(),
+        }
+    }
 }
 
 impl Database {
@@ -55,24 +79,7 @@ impl Database {
         }
     }
 
-    pub fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
-        let key = [
-            "program_to_code_id".as_bytes(),
-            program_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        let data = self.kv.get(&key)?;
-        Some(CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`"))
-    }
-
-    pub fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
-        let key = [
-            "program_to_code_id".as_bytes(),
-            program_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        self.kv.put(&key, code_id.into_bytes().to_vec());
-    }
+    // CAS accesses.
 
     pub fn read_original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
         let hash = H256::from(code_id.into_bytes());
@@ -81,39 +88,6 @@ impl Database {
 
     pub fn write_original_code(&self, code: &[u8]) -> CodeId {
         self.cas.write(code).into()
-    }
-
-    pub fn read_instrumented_code(
-        &self,
-        runtime_id: u32,
-        code_id: CodeId,
-    ) -> Option<InstrumentedCode> {
-        let key = [
-            "instrumented_code".as_bytes(),
-            runtime_id.to_be_bytes().as_slice(),
-            code_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        let data = self.kv.get(&key)?;
-        Some(
-            InstrumentedCode::decode(&mut data.as_slice())
-                .expect("Failed to decode data into `InstrumentedCode`"),
-        )
-    }
-
-    pub fn write_instrumented_code(
-        &self,
-        runtime_id: u32,
-        code_id: CodeId,
-        code: InstrumentedCode,
-    ) {
-        let key = [
-            "instrumented_code".as_bytes(),
-            runtime_id.to_be_bytes().as_slice(),
-            code_id.into_bytes().as_slice(),
-        ]
-        .concat();
-        self.kv.put(&key, code.encode());
     }
 
     // TODO: temporary solution for MVP runtime-interfaces db access.
@@ -126,37 +100,73 @@ impl Database {
         self.cas.write(data)
     }
 
+    // Auxiliary KV accesses.
+
+    pub fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
+        self.kv
+            .get(&KeyPrefix::ProgramToCodeId.one(program_id))
+            .map(|data| {
+                CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`")
+            })
+    }
+
+    pub fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
+        self.kv.put(
+            &KeyPrefix::ProgramToCodeId.one(program_id),
+            code_id.into_bytes().to_vec(),
+        );
+    }
+
+    pub fn read_instrumented_code(
+        &self,
+        runtime_id: u32,
+        code_id: CodeId,
+    ) -> Option<InstrumentedCode> {
+        self.kv
+            .get(&KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id))
+            .map(|data| {
+                InstrumentedCode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `InstrumentedCode`")
+            })
+    }
+
+    pub fn write_instrumented_code(
+        &self,
+        runtime_id: u32,
+        code_id: CodeId,
+        code: InstrumentedCode,
+    ) {
+        self.kv.put(
+            &KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id),
+            code.encode(),
+        );
+    }
+
     pub fn get_block_map(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
-        let key = [BLOCK_TO_PROGRAM_STATES_PREFIX, block_hash.as_bytes()].concat();
-        self.kv.get(&key).map(|data| {
-            BTreeMap::decode(&mut data.as_slice()).expect("Failed to decode data into `BTreeMap`")
-        })
+        self.kv
+            .get(&KeyPrefix::BlockProgramStates.one(block_hash))
+            .map(|data| {
+                BTreeMap::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
     }
 
     pub fn set_block_map(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
-        let key = [BLOCK_TO_PROGRAM_STATES_PREFIX, block_hash.as_bytes()].concat();
-        self.kv.put(&key, map.encode());
+        self.kv
+            .put(&KeyPrefix::BlockProgramStates.one(block_hash), map.encode());
     }
 
     pub fn get_parent_hash(&self, block_hash: H256) -> Option<H256> {
-        let key = [PARENT_HASH_PREFIX, block_hash.as_bytes()].concat();
         self.kv
-            .get(&key)
+            .get(&KeyPrefix::BlockParentHash.one(block_hash))
             .map(|data| H256::from_slice(data.as_slice()))
     }
 
     pub fn set_parent_hash(&self, block_hash: H256, parent_hash: H256) {
-        let key = [PARENT_HASH_PREFIX, block_hash.as_bytes()].concat();
-        self.kv.put(&key, parent_hash.as_bytes().to_vec());
-    }
-}
-
-impl Clone for Database {
-    fn clone(&self) -> Self {
-        Self {
-            cas: self.cas.clone_boxed(),
-            kv: self.kv.clone_boxed_kv(),
-        }
+        self.kv.put(
+            &KeyPrefix::BlockParentHash.one(block_hash),
+            parent_hash.as_bytes().to_vec(),
+        );
     }
 }
 
