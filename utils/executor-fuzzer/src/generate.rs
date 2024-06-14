@@ -21,11 +21,15 @@ use anyhow::Result;
 use arbitrary::Unstructured;
 use gear_wasm_gen::generate_gear_program_module;
 use gear_wasm_instrument::{parity_wasm::elements::Module, InstrumentationBuilder};
+use mem_accesses::InjectMemoryAccesses;
 
 use crate::{
     config::{FuzzerConfigBundle, FuzzerCostRules},
     ENV,
 };
+
+mod globals;
+mod mem_accesses;
 
 pub fn generate_module(mut u: Unstructured<'_>) -> Result<Module> {
     let module =
@@ -35,6 +39,10 @@ pub fn generate_module(mut u: Unstructured<'_>) -> Result<Module> {
         .with_gas_limiter(|_| FuzzerCostRules)
         .instrument(module)
         .expect("instrumented");
+
+    let module = InjectMemoryAccesses::new(u, module)
+        .inject()
+        .expect("injected memory accesses");
 
     Ok(module)
 }

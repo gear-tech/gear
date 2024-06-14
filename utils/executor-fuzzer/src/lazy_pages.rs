@@ -30,11 +30,9 @@ use gear_lazy_pages::{
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_wasm_instrument::GLOBAL_NAME_GAS;
 
-use crate::globals::InstanceAccessGlobal;
+use crate::{globals::InstanceAccessGlobal, OS_PAGE_SIZE};
 
 pub type HostPageAddr = usize;
-
-const OS_PAGE_SIZE: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TouchedPage {

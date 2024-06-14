@@ -37,6 +37,7 @@ mod wasmi_backend;
 const INITIAL_PAGES: u32 = 10;
 const WASM_PAGE_SIZE: usize = 0x10_000;
 const PROGRAM_GAS: i64 = 10_000_000;
+const OS_PAGE_SIZE: usize = 4096;
 const ENV: &str = "env";
 
 trait Runner {
@@ -47,7 +48,7 @@ trait Runner {
 pub fn run(data: FuzzerInput) -> Result<()> {
     let module = generate::generate_module(Unstructured::new(data.0))?;
 
-    print_module(&module);
+    //print_module(&module);
 
     let wasmer_res = WasmerRunner::run(&module)?;
     let wasmi_res = WasmiRunner::run(&module)?;

@@ -45,7 +45,6 @@ impl ConfigsBundle for FuzzerConfigBundle {
                 syscalls_config: SyscallsConfigBuilder::new(SyscallsInjectionTypes::all_never())
                     .build(),
                 remove_recursions: true,
-                inject_memory_accesses: true,
                 ..Default::default()
             },
             SelectableParams {
