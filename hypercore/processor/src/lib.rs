@@ -272,6 +272,9 @@ impl Processor {
             Event::UploadCode { code_id, code, .. } => {
                 log::debug!("Processing upload code {code_id:?}");
 
+                // TODO: set real head?
+                self.creator.set_chain_head(H256::zero());
+
                 if *code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
                     outcomes.push(LocalOutcome::CodeRejected(*code_id))
                 } else {
