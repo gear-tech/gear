@@ -19,9 +19,18 @@ contract Program {
         IRouter(ROUTER).claimValue(messageId);
     }
 
-    function performStateTransition(bytes32 oldStateHash, bytes32 newStateHash) external {
+    modifier onlyRouter() {
         require(msg.sender == ROUTER, "not router");
+        _;
+    }
+
+    function performStateTransition(bytes32 oldStateHash, bytes32 newStateHash) external onlyRouter {
         require(stateHash == oldStateHash, "invalid state transition");
         stateHash = newStateHash;
+    }
+
+    function performPayout(address actorId, uint128 value) external onlyRouter {
+        (bool sent,) = actorId.call{value: value}("");
+        require(sent, "failed to send value");
     }
 }
