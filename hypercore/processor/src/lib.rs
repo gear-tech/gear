@@ -24,7 +24,7 @@ use anyhow::Result;
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
-    message::{DispatchKind, Payload},
+    message::{DispatchKind, Payload, ReplyDetails},
     program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
@@ -65,6 +65,21 @@ pub enum LocalOutcome {
 
     // TODO: add docs
     CodeRejected(CodeId),
+
+    Transition {
+        program_id: ProgramId,
+        old_state_hash: H256,
+        new_state_hash: H256,
+        outgoing_messages: Vec<OutgoingMessage>,
+    },
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct OutgoingMessage {
+    pub destination: ActorId,
+    pub payload: Payload,
+    pub value: u128,
+    pub reply_details: Option<ReplyDetails>,
 }
 
 /// TODO: consider avoiding re-instantiations on processing events.

@@ -19,3 +19,4 @@ hypercore-observer.workspace = true
 hypercore-processor.workspace = true
 hypercore-ethereum.workspace = true
 gear-core.workspace = true
+futures.workspace = true

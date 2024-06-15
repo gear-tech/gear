@@ -7270,6 +7270,7 @@ name = "hypercore-sequencer"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "futures",
  "gear-core",
  "gprimitives",
  "hypercore-ethereum",
