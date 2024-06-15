@@ -174,12 +174,14 @@ impl Service {
                             validator.push_commitment(network_service.clone(), &outcomes)?;
 
                             if let Some(ref mut sequencer) = sequencer {
-                                if validator.has_commit() {
-                                    let origin = validator.pub_key().to_address();
+                                let origin = validator.pub_key().to_address();
 
+                                if validator.has_codes_commit() {
                                     let aggregated_codes_commitments = validator.codes_aggregation()?;
                                     sequencer.receive_codes_commitment(origin, aggregated_codes_commitments)?;
+                                }
 
+                                if validator.has_transitions_commit() {
                                     let aggregated_transitions_commitments = validator.transitions_aggregation()?;
                                     sequencer.receive_transitions_commitment(origin, aggregated_transitions_commitments)?;
                                 }

@@ -48,8 +48,12 @@ impl Validator {
         }
     }
 
-    pub fn has_commit(&self) -> bool {
-        !(self.current_codes.is_empty() || self.current_transitions.is_empty())
+    pub fn has_codes_commit(&self) -> bool {
+        !self.current_codes.is_empty()
+    }
+
+    pub fn has_transitions_commit(&self) -> bool {
+        !self.current_transitions.is_empty()
     }
 
     pub fn pub_key(&self) -> PublicKey {
