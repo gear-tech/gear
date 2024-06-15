@@ -48,13 +48,15 @@ pub fn run(
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
 ) -> (Vec<Message>, Vec<LocalOutcome>) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(threads_amount)
-        .enable_all()
-        .build()
-        .unwrap();
+    tokio::task::block_in_place(|| {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(threads_amount)
+            .enable_all()
+            .build()
+            .unwrap();
 
-    rt.block_on(async { run_in_async(instance_creator, programs).await })
+        rt.block_on(async { run_in_async(instance_creator, programs).await })
+    })
 }
 
 // TODO: Returning Vec<LocalOutcome> is a temporary solution.
