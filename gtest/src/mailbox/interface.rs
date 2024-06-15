@@ -25,7 +25,6 @@ use gear_core::{
 };
 use std::{cell::RefCell, convert::TryInto};
 
-// TODO: optimize by creating a set of messages to program.
 /// Interface to particular user mailbox.
 ///
 /// Gives a simplified interface to perform some operations
@@ -100,15 +99,6 @@ impl<'a> MailboxInterface<'a> {
             .validate_and_run_dispatch(dispatch))
     }
 
-    fn find_message_by_log(&self, log: &Log) -> Option<MailboxedMessage> {
-        self.get_user_mailbox()
-            .find_map(|(msg, _)| log.eq(&msg).then_some(msg))
-    }
-
-    fn get_user_mailbox(&self) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
-        self.manager.borrow().mailbox.iter_key(self.user_id)
-    }
-
     /// Claims value from a message in mailbox.
     ///
     /// If message with traits defined in `log` is not found, an error is
@@ -119,9 +109,19 @@ impl<'a> MailboxInterface<'a> {
             .ok_or(MailboxErrorImpl::ElementNotFound)?;
         self.manager
             .borrow_mut()
-            .claim_value_from_mailbox(self.user_id, mailboxed_msg.id());
+            .claim_value_from_mailbox(self.user_id, mailboxed_msg.id())
+            .unwrap_or_else(|e| unreachable!("Unexpected mailbox error: {e:?}"));
 
         Ok(())
+    }
+
+    fn find_message_by_log(&self, log: &Log) -> Option<MailboxedMessage> {
+        self.get_user_mailbox()
+            .find_map(|(msg, _)| log.eq(&msg).then_some(msg))
+    }
+
+    fn get_user_mailbox(&self) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
+        self.manager.borrow().mailbox.iter_key(self.user_id)
     }
 }
 
@@ -138,6 +138,19 @@ mod tests {
         message::{Dispatch, DispatchKind, HandleMessage, HandlePacket, Payload},
     };
     use std::convert::TryInto;
+
+    fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
+        let program = Program::from_binary_with_id(system, 121, WASM_BINARY);
+
+        let sender = ProgramId::from(42).into_bytes();
+        let payload = b"sup!".to_vec();
+        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
+
+        let res = program.send(sender, Scheme::empty());
+        assert!(!res.main_failed());
+
+        (program, (sender, payload, log))
+    }
 
     #[test]
     fn user2user_doesnt_reach_mailbox() {
@@ -174,17 +187,10 @@ mod tests {
     #[test]
     fn claim_value_from_mailbox() {
         let system = System::new();
-        let program = Program::from_binary_with_id(&system, 121, WASM_BINARY);
-
-        let sender = ProgramId::from(42).into_bytes();
-        let payload = b"sup!".to_vec();
-        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
+        let (program, (sender, payload, log)) = prepare_program(&system);
 
         let original_balance = 20 * EXISTENTIAL_DEPOSIT;
         system.mint_to(sender, original_balance);
-
-        let res = program.send(sender, Scheme::empty());
-        assert!(!res.main_failed());
 
         let value_send = 2 * EXISTENTIAL_DEPOSIT;
         let handle = Calls::builder().send_value(sender, payload, value_send);
@@ -202,14 +208,7 @@ mod tests {
     #[test]
     fn reply_to_mailbox_message() {
         let system = System::new();
-        let program = Program::from_binary_with_id(&system, 121, WASM_BINARY);
-
-        let sender = ProgramId::from(42).into_bytes();
-        let payload = b"sup!".to_vec();
-        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
-
-        let res = program.send(sender, Scheme::empty());
-        assert!(!res.main_failed());
+        let (program, (sender, payload, log)) = prepare_program(&system);
 
         let handle = Calls::builder().send(sender, payload);
         let res = program.send(sender, handle);
@@ -227,14 +226,7 @@ mod tests {
     #[test]
     fn delayed_mailbox_message() {
         let system = System::new();
-        let program = Program::from_binary_with_id(&system, 121, WASM_BINARY);
-
-        let sender = ProgramId::from(42).into_bytes();
-        let payload = b"sup!".to_vec();
-        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
-
-        let res = program.send(sender, Scheme::empty());
-        assert!(!res.main_failed());
+        let (program, (sender, payload, log)) = prepare_program(&system);
 
         let delay = 5;
         let handle = Calls::builder().add_call(Call::Send(

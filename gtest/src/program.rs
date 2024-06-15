@@ -933,7 +933,7 @@ mod tests {
             core_log.id()
         };
 
-        sys.claim_value_from_mailbox(receiver, reply_to_id);
+        assert!(sys.claim_value_from_mailbox(receiver, reply_to_id).is_ok());
         assert_eq!(
             sys.balance_of(receiver),
             (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT

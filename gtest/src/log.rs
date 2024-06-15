@@ -285,24 +285,6 @@ impl Log {
 
 impl PartialEq<UserStoredMessage> for Log {
     fn eq(&self, other: &UserStoredMessage) -> bool {
-        // self.source
-        //     .as_ref()
-        //     .map_or(Some((self.destination.as_ref(), false)), |source| {
-        //         (source == other.source()).then_some((self.destination.as_ref(),
-        // true))     })
-        //     .and_then(|(maybe_dest, has_any)| {
-        //         let ret = self.payload.as_ref();
-        //         maybe_dest.map_or(Some((ret, has_any)), |dest| (dest ==
-        // other.destination()).then_some((ret, true)))     })
-        //     .and_then(|(maybe_payload, has_any)| {
-        //         let valid_payload = maybe_payload
-        //             .and_then(|payload| Some(payload.inner() ==
-        // other.payload_bytes()))             .unwrap_or(true);
-
-        //         (valid_payload && has_any).then_some(())
-        //     })
-        //     .is_some()
-
         // Any log field is set.
         let has_any = self.source.is_some() || self.destination.is_some() || self.payload.is_some();
 

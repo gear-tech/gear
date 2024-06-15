@@ -33,6 +33,7 @@ use core_processor::{
     configs::{BlockConfig, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
+use gear_common::auxiliary::mailbox::MailboxErrorImpl;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
@@ -434,7 +435,7 @@ impl ExtManager {
 
     #[track_caller]
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch, from_task_pool: bool) -> RunResult {
-        self.prepare_for(&dispatch);
+        self.prepare_for(&dispatch, !from_task_pool);
 
         if self.is_program(&dispatch.destination()) {
             if !from_task_pool {
@@ -620,8 +621,12 @@ impl ExtManager {
             .unwrap_or_default()
     }
 
-    pub(crate) fn claim_value_from_mailbox(&mut self, to: ProgramId, from_mid: MessageId) {
-        let (message, _) = self.mailbox.remove(to, from_mid).expect("todo");
+    pub(crate) fn claim_value_from_mailbox(
+        &mut self,
+        to: ProgramId,
+        from_mid: MessageId,
+    ) -> Result<(), MailboxErrorImpl> {
+        let (message, _) = self.mailbox.remove(to, from_mid)?;
 
         self.send_value(
             message.source(),
@@ -629,6 +634,8 @@ impl ExtManager {
             message.value(),
         );
         self.message_consumed(message.id());
+
+        Ok(())
     }
 
     #[track_caller]
@@ -667,7 +674,7 @@ impl ExtManager {
     }
 
     #[track_caller]
-    fn prepare_for(&mut self, dispatch: &Dispatch) {
+    fn prepare_for(&mut self, dispatch: &Dispatch, update_block: bool) {
         self.msg_id = dispatch.id();
         self.origin = dispatch.source();
         self.log.clear();
@@ -682,6 +689,9 @@ impl ExtManager {
             m
         };
         self.gas_allowance = Gas(GAS_ALLOWANCE);
+        if update_block {
+            let _ = self.blocks_manager.next_block();
+        }
     }
 
     fn mark_failed(&mut self, msg_id: MessageId) {

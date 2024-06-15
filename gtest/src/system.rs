@@ -25,6 +25,7 @@ use crate::{
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
 use env_logger::{Builder, Env};
+use gear_common::auxiliary::mailbox::MailboxErrorImpl;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::Dispatch,
@@ -330,11 +331,11 @@ impl System {
         &self,
         id: ID,
         message_id: MessageId,
-    ) {
+    ) -> Result<(), MailboxErrorImpl> {
         let actor_id = id.into().0;
         self.0
             .borrow_mut()
-            .claim_value_from_mailbox(actor_id, message_id);
+            .claim_value_from_mailbox(actor_id, message_id)
     }
 }
 
