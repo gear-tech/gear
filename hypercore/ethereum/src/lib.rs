@@ -4,7 +4,7 @@ use abi::{AlloyProgram, AlloyRouter};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
     network::{Ethereum as AlloyEthereum, EthereumSigner, TxSigner},
-    primitives::{Address, Bytes, ChainId, Signature, B256},
+    primitives::{Address, Bytes, ChainId, FixedBytes, Signature, B256},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, SignerFiller},
         ProviderBuilder, RootProvider,
@@ -20,11 +20,13 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::Schedule;
-use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H256};
 use hypercore_signer::{
     Address as HypercoreAddress, PublicKey, Signature as HypercoreSignature,
     Signer as HypercoreSigner,
 };
+
+pub use gear_core::message::ReplyDetails;
 
 mod abi;
 pub mod event;
@@ -123,16 +125,10 @@ pub struct TransitionCommitment {
 
 #[derive(Debug, Clone)]
 pub struct OutgoingMessage {
-    pub destination: H160,
+    pub destination: ActorId,
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: ReplyDetails,
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct ReplyDetails {
-    pub to: MessageId,
-    pub code: [u8; 4],
 }
 
 pub struct Router(AlloyRouterInstance);
@@ -269,8 +265,7 @@ impl Router {
         let builder = self.0.commitTransitions(
             transitions
                 .into_iter()
-                // TODO: adjust eth type of transition.
-                .map(|transition| AlloyRouter::Transition {
+                .map(|transition| AlloyRouter::TransitionCommitment {
                     actorId: {
                         let mut address = Address::ZERO;
                         address
@@ -280,6 +275,29 @@ impl Router {
                     },
                     oldStateHash: B256::new(transition.old_state_hash.to_fixed_bytes()),
                     newStateHash: B256::new(transition.new_state_hash.to_fixed_bytes()),
+                    outgoingMessages: transition
+                        .outgoing_messages
+                        .into_iter()
+                        .map(|outgoin_message| AlloyRouter::OutgoingMessage {
+                            destination: {
+                                let mut address = Address::ZERO;
+                                address.0.copy_from_slice(
+                                    &outgoin_message.destination.into_bytes()[12..],
+                                );
+                                address
+                            },
+                            payload: Bytes::copy_from_slice(&outgoin_message.payload),
+                            value: outgoin_message.value,
+                            replyDetails: AlloyRouter::ReplyDetails {
+                                replyTo: B256::new(
+                                    outgoin_message.reply_details.to_message_id().into_bytes(),
+                                ),
+                                replyCode: FixedBytes::new(
+                                    outgoin_message.reply_details.to_reply_code().to_bytes(),
+                                ),
+                            },
+                        })
+                        .collect(),
                 })
                 .collect(),
             signatures

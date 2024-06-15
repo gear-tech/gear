@@ -47,7 +47,7 @@ contract Router is Ownable, ReentrancyGuardTransient {
         ReplyDetails replyDetails;
     }
 
-    struct Transition {
+    struct TransitionCommitment {
         address actorId;
         bytes32 oldStateHash;
         bytes32 newStateHash;
@@ -61,7 +61,7 @@ contract Router is Ownable, ReentrancyGuardTransient {
     event CodeRejected(bytes32 codeId);
 
     event CreateProgram(
-        address origin, address actorId, bytes32 codeId, bytes32 salt, bytes initPayload, uint64 gasLimit, uint128 value
+        address origin, address actorId, bytes32 codeId, bytes initPayload, uint64 gasLimit, uint128 value
     );
 
     event UpdatedProgram(address actorId, bytes32 oldStateHash, bytes32 newStateHash);
@@ -115,7 +115,7 @@ contract Router is Ownable, ReentrancyGuardTransient {
         address actorId = Clones.cloneDeterministic(program, keccak256(abi.encodePacked(salt, codeId)), msg.value);
         programs[actorId] = true;
         chargeGas(gasLimit);
-        emit CreateProgram(tx.origin, actorId, codeId, salt, initPayload, gasLimit, uint128(msg.value));
+        emit CreateProgram(tx.origin, actorId, codeId, initPayload, gasLimit, uint128(msg.value));
     }
 
     modifier onlyProgram() {
@@ -173,18 +173,21 @@ contract Router is Ownable, ReentrancyGuardTransient {
         validateSignatures(message, signatures);
     }
 
-    function commitTransitions(Transition[] calldata transitions, bytes[] calldata signatures) external nonReentrant {
+    function commitTransitions(TransitionCommitment[] calldata transitionsCommitmentsArray, bytes[] calldata signatures)
+        external
+        nonReentrant
+    {
         bytes memory message;
 
-        for (uint256 i = 0; i < transitions.length; i++) {
-            Transition calldata transition = transitions[i];
-            require(programs[transition.actorId], "unknown program");
+        for (uint256 i = 0; i < transitionsCommitmentsArray.length; i++) {
+            TransitionCommitment calldata transitionCommitment = transitionsCommitmentsArray[i];
+            require(programs[transitionCommitment.actorId], "unknown program");
 
             bytes memory message1;
-            IProgram _program = IProgram(transition.actorId);
+            IProgram _program = IProgram(transitionCommitment.actorId);
 
-            for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
-                OutgoingMessage calldata outgoingMessage = transition.outgoingMessages[j];
+            for (uint256 j = 0; j < transitionCommitment.outgoingMessages.length; j++) {
+                OutgoingMessage calldata outgoingMessage = transitionCommitment.outgoingMessages[j];
                 message1 = bytes.concat(
                     message1,
                     keccak256(
@@ -220,14 +223,19 @@ contract Router is Ownable, ReentrancyGuardTransient {
                 message,
                 keccak256(
                     abi.encodePacked(
-                        transition.actorId, transition.oldStateHash, transition.newStateHash, keccak256(message1)
+                        transitionCommitment.actorId,
+                        transitionCommitment.oldStateHash,
+                        transitionCommitment.newStateHash,
+                        keccak256(message1)
                     )
                 )
             );
 
-            _program.performStateTransition(transition.oldStateHash, transition.newStateHash);
+            _program.performStateTransition(transitionCommitment.oldStateHash, transitionCommitment.newStateHash);
 
-            emit UpdatedProgram(transition.actorId, transition.oldStateHash, transition.newStateHash);
+            emit UpdatedProgram(
+                transitionCommitment.actorId, transitionCommitment.oldStateHash, transitionCommitment.newStateHash
+            );
         }
 
         validateSignatures(message, signatures);

@@ -19,7 +19,8 @@ use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
 use hypercore_db::{BlockInfo, Database};
 use hypercore_ethereum::event::{
-    ClaimValue, CreateProgram, SendMessage, SendReply, UpdatedProgram, UploadCode,
+    ClaimValue, CodeApproved, CodeRejected, CreateProgram, SendMessage, SendReply, UpdatedProgram,
+    UploadCode, UserMessageSent, UserReplySent,
 };
 use reqwest::Client;
 use std::{collections::HashSet, hash::RandomState};
@@ -54,10 +55,14 @@ pub struct Observer {
 }
 
 impl Observer {
-    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 6] = [
+    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 10] = [
         B256::new(UploadCode::SIGNATURE_HASH),
+        B256::new(CodeApproved::SIGNATURE_HASH),
+        B256::new(CodeRejected::SIGNATURE_HASH),
         B256::new(CreateProgram::SIGNATURE_HASH),
         B256::new(UpdatedProgram::SIGNATURE_HASH),
+        B256::new(UserMessageSent::SIGNATURE_HASH),
+        B256::new(UserReplySent::SIGNATURE_HASH),
         B256::new(SendMessage::SIGNATURE_HASH),
         B256::new(SendReply::SIGNATURE_HASH),
         B256::new(ClaimValue::SIGNATURE_HASH),
@@ -191,11 +196,23 @@ impl Observer {
 
                         None
                     }
+                    Some(CodeApproved::SIGNATURE_HASH) => {
+                        Some(BlockEvent::CodeApproved(data.try_into().ok()?))
+                    }
+                    Some(CodeRejected::SIGNATURE_HASH) => {
+                        Some(BlockEvent::CodeRejected(data.try_into().ok()?))
+                    }
                     Some(CreateProgram::SIGNATURE_HASH) => {
                         Some(BlockEvent::CreateProgram(data.try_into().ok()?))
                     }
                     Some(UpdatedProgram::SIGNATURE_HASH) => {
                         Some(BlockEvent::UpdatedProgram(data.try_into().ok()?))
+                    }
+                    Some(UserMessageSent::SIGNATURE_HASH) => {
+                        Some(BlockEvent::UserMessageSent(data.try_into().ok()?))
+                    }
+                    Some(UserReplySent::SIGNATURE_HASH) => {
+                        Some(BlockEvent::UserReplySent(data.try_into().ok()?))
                     }
                     Some(SendMessage::SIGNATURE_HASH) => {
                         Some(BlockEvent::SendMessage(data.try_into().ok()?))
