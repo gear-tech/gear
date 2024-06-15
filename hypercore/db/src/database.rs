@@ -42,6 +42,7 @@ enum KeyPrefix {
     BlockProgramStates = 2,
     BlockParentHash = 3,
     BlockInfo = 4,
+    BlockEndProgramHashes = 5,
 }
 
 impl KeyPrefix {
@@ -187,6 +188,25 @@ impl Database {
                     .expect("Failed to decode data into `BlockInfo`");
                 BlockInfo { height, timestamp }
             })
+    }
+
+    pub fn get_block_end_program_hashes(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, H256>> {
+        self.kv
+            .get(&KeyPrefix::BlockEndProgramHashes.one(block_hash))
+            .map(|data| {
+                BTreeMap::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
+    }
+
+    pub fn set_block_end_program_hashes(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+        self.kv.put(
+            &KeyPrefix::BlockEndProgramHashes.one(block_hash),
+            map.encode(),
+        );
     }
 }
 

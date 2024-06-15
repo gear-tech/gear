@@ -33,7 +33,7 @@ use hypercore_runtime_common::state::{
     self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
 };
 use parity_scale_codec::{Decode, Encode};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 pub mod host;
 mod run;
@@ -248,19 +248,16 @@ impl Processor {
     }
 
     // TODO: replace LocalOutcome with Transition struct.
-    pub fn run(&mut self, chain_head: H256) -> Result<Vec<LocalOutcome>> {
+    pub fn run(
+        &mut self,
+        chain_head: H256,
+        programs: &mut BTreeMap<ProgramId, H256>,
+    ) -> Result<Vec<LocalOutcome>> {
         self.creator.set_chain_head(chain_head);
-
-        let mut programs = self
-            .db
-            .get_block_program_hashes(chain_head)
-            .expect("Programs map is not found");
 
         log::debug!("{programs:?}");
 
-        let messages_and_outcomes = run::run(8, self.creator.clone(), &mut programs);
-
-        self.db.set_block_program_hashes(chain_head, programs);
+        let messages_and_outcomes = run::run(8, self.creator.clone(), programs);
 
         Ok(messages_and_outcomes.1)
     }
@@ -282,19 +279,18 @@ impl Processor {
                 }
             }
             Event::Block {
-                parent_hash,
+                parent_hash: _,
                 block_hash,
                 events,
             } => {
                 log::debug!("Processing events for {block_hash:?}: {events:?}");
 
-                let mut parent_block_program_states = self
+                let initial_program_states = self
                     .db
-                    .get_block_program_hashes(*parent_hash)
-                    // TODO: replace default with check on zero parent hash
+                    .get_block_program_hashes(*block_hash)
                     .unwrap_or_default();
 
-                let mut programs = parent_block_program_states.clone();
+                let mut programs = initial_program_states.clone();
 
                 for event in events {
                     match event {
@@ -317,8 +313,6 @@ impl Processor {
                                 }],
                             )?;
 
-                            parent_block_program_states
-                                .insert(create_program_info.actor_id, H256::zero());
                             programs.insert(create_program_info.actor_id, state_hash);
                         }
                         BlockEvent::SendMessage(send_message_info) => {
@@ -342,10 +336,7 @@ impl Processor {
                         event => log::debug!("Handling for {event:?} is not yet implemented; noop"),
                     }
 
-                    self.db
-                        .set_block_program_hashes(*block_hash, programs.clone());
-
-                    let mut current_outcomes = self.run(*block_hash)?;
+                    let mut current_outcomes = self.run(*block_hash, &mut programs)?;
 
                     for outcome in current_outcomes.iter_mut() {
                         if let LocalOutcome::Transition {
@@ -354,15 +345,18 @@ impl Processor {
                             ..
                         } = outcome
                         {
-                            let old_state = parent_block_program_states
+                            let old_state = initial_program_states
                                 .get(program_id)
-                                .expect("should be");
-                            *old_state_hash = *old_state;
+                                .cloned()
+                                .unwrap_or_default();
+                            *old_state_hash = old_state;
                         }
                     }
 
                     outcomes.extend(current_outcomes);
                 }
+
+                self.db.set_block_end_program_hashes(*block_hash, programs);
             }
         }
 

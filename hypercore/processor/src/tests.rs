@@ -34,6 +34,21 @@ fn init_new_block(processor: &mut Processor, height: u32, timestamp: u64) -> H25
     chain_head
 }
 
+fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H256 {
+    let parent_block_info = processor.db.get_block_info(parent_hash).unwrap_or_default();
+    let height = parent_block_info.height + 1;
+    let timestamp = parent_block_info.timestamp + 12;
+    let chain_head = init_new_block(processor, height, timestamp);
+    let parent_out_program_hashes = processor
+        .db
+        .get_block_end_program_hashes(parent_hash)
+        .unwrap_or_default();
+    processor
+        .db
+        .set_block_program_hashes(chain_head, parent_out_program_hashes);
+    chain_head
+}
+
 #[test]
 fn process_observer_event() {
     init_logger();
@@ -42,9 +57,7 @@ fn process_observer_event() {
     let mut processor =
         Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
-    let ch0 = init_new_block(&mut processor, 0, 0);
-
-    processor.db.set_block_program_hashes(ch0, BTreeMap::new());
+    let ch0 = init_new_block_from_parent(&mut processor, Default::default());
 
     let code = demo_ping::WASM_BINARY.to_vec();
     let code_id = CodeId::generate(&code);
@@ -62,7 +75,7 @@ fn process_observer_event() {
 
     assert_eq!(outcomes, vec![LocalOutcome::CodeApproved(code_id)]);
 
-    let ch1 = init_new_block(&mut processor, 1, 12);
+    let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
     let create_program_event = BlockEvent::CreateProgram(CreateProgram {
         origin: H256::random().0.into(),
@@ -84,7 +97,7 @@ fn process_observer_event() {
         .expect("failed to process observer event");
     log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
 
-    let ch2 = init_new_block(&mut processor, 2, 24);
+    let ch2 = init_new_block_from_parent(&mut processor, ch1);
 
     let send_message_event = BlockEvent::SendMessage(SendMessage {
         origin: H256::random().0.into(),
