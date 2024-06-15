@@ -7156,6 +7156,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "gear-core",
+ "gear-core-errors",
  "gear-wasm-instrument",
  "gprimitives",
  "hypercore-signer",

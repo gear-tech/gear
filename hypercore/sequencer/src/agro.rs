@@ -20,7 +20,7 @@
 
 use anyhow::Result;
 use gear_core::ids::ProgramId;
-use gprimitives::{CodeId, MessageId, H160, H256};
+use gprimitives::{CodeId, MessageId, H256};
 use hypercore_processor::OutgoingMessage;
 use hypercore_signer::{hash, Address, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
@@ -70,7 +70,7 @@ impl From<CodeCommitment> for hypercore_ethereum::CodeCommitment {
 // identity hashing
 impl SeqHash for CodeCommitment {
     fn hash(&self) -> H256 {
-        hash((self.code_id, self.approved as u8).encode().as_ref())
+        hash(&(self.code_id, self.approved as u8).encode())
     }
 }
 
@@ -85,48 +85,63 @@ pub struct TransitionCommitment {
 // TODO: REMOVE THIS IMPL. SeqHash makes sense only for `hypercore_ethereum` types.
 impl SeqHash for TransitionCommitment {
     fn hash(&self) -> H256 {
-        let res = hypercore_ethereum::TransitionCommitment::from(self.clone());
+        let transition_commitment = hypercore_ethereum::TransitionCommitment::from(self.clone());
 
-        let mut bytes = (res.actor_id, res.old_state_hash, res.new_state_hash).encode();
+        let mut message1 = Vec::with_capacity(
+            transition_commitment.outgoing_messages.len() * mem::size_of::<H256>(),
+        );
 
-        for message in res.outgoing_messages {
-            let mut message_bytes = Vec::with_capacity(
-                mem::size_of::<H160>()
-                    + message.payload.len()
+        for hypercore_ethereum::OutgoingMessage {
+            destination,
+            payload,
+            value,
+            reply_details,
+        } in transition_commitment.outgoing_messages
+        {
+            let mut outgoing_message = Vec::with_capacity(
+                mem::size_of::<Address>()
+                    + payload.len()
                     + mem::size_of::<u128>()
                     + mem::size_of::<MessageId>()
                     + mem::size_of::<[u8; 4]>(),
             );
 
-            // TODO: double check for usage LE vs BE bytes.
-            message_bytes.extend_from_slice(&message.destination.as_ref()[12..]);
-            message_bytes.extend(message.payload.to_vec());
-            message_bytes.extend(message.value.to_be_bytes());
-            message_bytes.extend(message.reply_details.to.into_bytes());
-            message_bytes.extend(message.reply_details.code);
+            outgoing_message.extend_from_slice(&destination.into_bytes()[12..]);
+            outgoing_message.extend_from_slice(&payload);
+            outgoing_message.extend_from_slice(&value.to_be_bytes());
+            outgoing_message.extend_from_slice(&reply_details.to_message_id().into_bytes());
+            outgoing_message.extend(&reply_details.to_reply_code().to_bytes());
 
-            bytes.extend(message_bytes);
+            message1.extend_from_slice(hash(&outgoing_message).as_bytes());
         }
 
-        hash(&bytes)
+        let mut message =
+            Vec::with_capacity(mem::size_of::<Address>() + (3 * mem::size_of::<H256>()));
+
+        message.extend_from_slice(&transition_commitment.actor_id.into_bytes()[12..]);
+        message.extend_from_slice(transition_commitment.old_state_hash.as_bytes());
+        message.extend_from_slice(transition_commitment.new_state_hash.as_bytes());
+        message.extend_from_slice(hash(&message1).as_bytes());
+
+        hash(&message)
     }
 }
 
-fn cast_message(value: OutgoingMessage) -> hypercore_ethereum::OutgoingMessage {
-    let reply_details = value
-        .reply_details
-        .map(|d| hypercore_ethereum::ReplyDetails {
-            to: d.to_message_id(),
-            code: d.to_reply_code().to_bytes(),
-        })
-        .unwrap_or_default();
-
-    let destination = H160::from_slice(&value.destination.into_bytes()[12..]);
+fn cast_message(
+    OutgoingMessage {
+        destination,
+        payload,
+        value,
+        reply_details,
+    }: OutgoingMessage,
+) -> hypercore_ethereum::OutgoingMessage {
+    let payload = payload.into_vec();
+    let reply_details = reply_details.unwrap_or_default();
 
     hypercore_ethereum::OutgoingMessage {
         destination,
-        payload: value.payload.into_vec(),
-        value: value.value,
+        payload,
+        value,
         reply_details,
     }
 }

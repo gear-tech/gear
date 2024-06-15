@@ -27,6 +27,24 @@
   },
   {
     "type": "function",
+    "name": "performPayout",
+    "inputs": [
+      {
+        "name": "actorId",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "value",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "performStateTransition",
     "inputs": [
       {

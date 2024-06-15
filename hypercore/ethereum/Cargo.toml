@@ -21,6 +21,7 @@ alloy = { workspace = true, features = [
     "kzg",
 ] }
 gear-core.workspace = true
+gear-core-errors.workspace = true
 gear-wasm-instrument.workspace = true
 gprimitives.workspace = true
 hypercore-signer.workspace = true

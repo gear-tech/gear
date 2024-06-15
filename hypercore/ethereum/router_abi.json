@@ -129,9 +129,9 @@
     "name": "commitTransitions",
     "inputs": [
       {
-        "name": "transitions",
+        "name": "transitionsCommitmentsArray",
         "type": "tuple[]",
-        "internalType": "struct Router.Transition[]",
+        "internalType": "struct Router.TransitionCommitment[]",
         "components": [
           {
             "name": "actorId",
@@ -147,6 +147,45 @@
             "name": "newStateHash",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "outgoingMessages",
+            "type": "tuple[]",
+            "internalType": "struct Router.OutgoingMessage[]",
+            "components": [
+              {
+                "name": "destination",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "payload",
+                "type": "bytes",
+                "internalType": "bytes"
+              },
+              {
+                "name": "value",
+                "type": "uint128",
+                "internalType": "uint128"
+              },
+              {
+                "name": "replyDetails",
+                "type": "tuple",
+                "internalType": "struct Router.ReplyDetails",
+                "components": [
+                  {
+                    "name": "replyTo",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "replyCode",
+                    "type": "bytes4",
+                    "internalType": "bytes4"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -452,12 +491,6 @@
         "internalType": "bytes32"
       },
       {
-        "name": "salt",
-        "type": "bytes32",
-        "indexed": false,
-        "internalType": "bytes32"
-      },
-      {
         "name": "initPayload",
         "type": "bytes",
         "indexed": false,
@@ -622,6 +655,68 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "UserMessageSent",
+    "inputs": [
+      {
+        "name": "destination",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "payload",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "value",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "UserReplySent",
+    "inputs": [
+      {
+        "name": "destination",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "payload",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "value",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "replyTo",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "replyCode",
+        "type": "bytes4",
+        "indexed": false,
+        "internalType": "bytes4"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "ECDSAInvalidSignature",
     "inputs": []
@@ -690,5 +785,10 @@
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
   }
 ]
