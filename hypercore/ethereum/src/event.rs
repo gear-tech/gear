@@ -190,11 +190,11 @@ impl TryFrom<&[u8]> for UserReplySent {
 
 #[derive(Debug, Decode, Encode)]
 pub struct SendMessage {
-    origin: ActorId,
-    destination: ActorId,
-    payload: Vec<u8>,
-    gas_limit: u64,
-    value: u128,
+    pub origin: ActorId,
+    pub destination: ActorId,
+    pub payload: Vec<u8>,
+    pub gas_limit: u64,
+    pub value: u128,
 }
 
 impl SendMessage {

@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{InstanceCreator, InstanceWrapper};
+use crate::{
+    host::{InstanceCreator, InstanceWrapper},
+    LocalOutcome, OutgoingMessage,
+};
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, ProgramId},
@@ -44,7 +47,7 @@ pub fn run(
     threads_amount: usize,
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
-) -> Vec<Message> {
+) -> (Vec<Message>, Vec<LocalOutcome>) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(threads_amount)
         .enable_all()
@@ -54,13 +57,14 @@ pub fn run(
     rt.block_on(async { run_in_async(instance_creator, programs).await })
 }
 
-// TODO: Returning Vec<Message> is a temporary solution.
+// TODO: Returning Vec<LocalOutcome> is a temporary solution.
 // In future need to send all messages to users and all state hashes changes to sequencer.
 async fn run_in_async(
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
-) -> Vec<Message> {
+) -> (Vec<Message>, Vec<LocalOutcome>) {
     let mut to_users_messages = vec![];
+    let mut results = BTreeMap::new();
 
     let num_workers = 4;
 
@@ -99,9 +103,20 @@ async fn run_in_async(
                     program_states: programs,
                     storage: instance_creator.db(),
                     block_info: Default::default(),
+                    results: Default::default(),
                     to_users_messages: Default::default(),
                 };
                 core_processor::handle_journal(journal, &mut handler);
+
+                for (id, (old_hash, new_hash)) in handler.results {
+                    results.insert(id, (old_hash, new_hash, vec![]));
+                }
+
+                for message in &handler.to_users_messages {
+                    let entry = results.get_mut(&message.source()).expect("should be");
+                    entry.2.push(message.clone());
+                }
+
                 to_users_messages.append(&mut handler.to_users_messages);
             }
         }
@@ -115,7 +130,32 @@ async fn run_in_async(
         handle.abort();
     }
 
-    to_users_messages
+    let outcomes = results
+        .into_iter()
+        .map(
+            |(id, (old_hash, new_hash, outgoing_messages))| LocalOutcome::Transition {
+                program_id: id,
+                old_state_hash: old_hash,
+                new_state_hash: new_hash,
+                outgoing_messages: outgoing_messages
+                    .into_iter()
+                    .map(|message| {
+                        let (_mid, _source, dest, payload, _gas_limit, value, message_details) =
+                            message.into_parts();
+
+                        OutgoingMessage {
+                            destination: dest,
+                            payload,
+                            value,
+                            reply_details: message_details.and_then(|v| v.to_reply_details()),
+                        }
+                    })
+                    .collect(),
+            },
+        )
+        .collect();
+
+    (to_users_messages, outcomes)
 }
 
 async fn run_task(executor: &mut InstanceWrapper, task: Task) {

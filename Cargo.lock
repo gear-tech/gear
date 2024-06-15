@@ -7220,6 +7220,7 @@ dependencies = [
  "gear-runtime-interface",
  "gprimitives",
  "hypercore-db",
+ "hypercore-ethereum",
  "hypercore-observer",
  "hypercore-runtime",
  "hypercore-runtime-common",

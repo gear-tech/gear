@@ -16,13 +16,15 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gprimitives::{MessageId, ReservationId, H256};
+use gprimitives::{ActorId, MessageId, ReservationId, H256};
 
 pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
     pub program_states: &'a mut BTreeMap<ProgramId, H256>,
     pub storage: &'a S,
     pub block_info: BlockInfo,
+    // TODO: replace with something reasonable.
+    pub results: BTreeMap<ActorId, (H256, H256)>,
     pub to_users_messages: Vec<Message>,
 }
 
@@ -41,8 +43,16 @@ impl<S: Storage> Handler<'_, S> {
             .storage
             .read_state(*state_hash)
             .expect("Failed to read state");
+
+        let initial_state = *state_hash;
+
         if let Some(program_new_state) = f(program_state, self.storage) {
             *state_hash = self.storage.write_state(program_new_state);
+
+            self.results
+                .entry(program_id)
+                .and_modify(|v| v.1 = *state_hash)
+                .or_insert_with(|| (initial_state, *state_hash));
         }
     }
 
