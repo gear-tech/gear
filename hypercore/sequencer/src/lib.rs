@@ -67,10 +67,11 @@ impl Sequencer {
     pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Block {
-                ref block_hash,
+                parent_hash,
+                block_hash,
                 events: _,
             } => {
-                log::debug!("Processing events for {block_hash:?}");
+                log::debug!("Processing events for {block_hash:?} (parent: {parent_hash:?})");
 
                 if self.codes_aggregation.len() > 0 {
                     log::debug!(

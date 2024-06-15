@@ -18,8 +18,6 @@
 
 //! Program's execution service for eGPU.
 
-use std::collections::VecDeque;
-
 use anyhow::Result;
 use core_processor::common::JournalNote;
 use gear_core::{
@@ -30,11 +28,12 @@ use gear_core::{
 use gprimitives::{CodeId, H256};
 use host::InstanceCreator;
 use hypercore_db::Database;
-use hypercore_observer::Event;
+use hypercore_observer::{BlockEvent, Event};
 use hypercore_runtime_common::state::{
     self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
 };
 use parity_scale_codec::{Decode, Encode};
+use std::collections::VecDeque;
 
 pub mod host;
 mod run;
@@ -58,7 +57,7 @@ pub struct Processor {
 }
 
 /// Local changes that can be committed to the network or local signer.
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LocalOutcome {
     /// Produced when code with specific id is recorded and available in database.
     CodeApproved(CodeId),
@@ -74,7 +73,7 @@ pub enum LocalOutcome {
     },
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OutgoingMessage {
     pub destination: ActorId,
     pub payload: Payload,
@@ -248,7 +247,8 @@ impl Processor {
         )
     }
 
-    pub fn run(&mut self, chain_head: H256) -> Result<()> {
+    // TODO: replace LocalOutcome with Transition struct.
+    pub fn run(&mut self, chain_head: H256) -> Result<Vec<LocalOutcome>> {
         self.creator.set_chain_head(chain_head);
 
         let mut programs = self
@@ -256,29 +256,113 @@ impl Processor {
             .get_block_program_hashes(chain_head)
             .expect("Programs map is not found");
 
-        let _messages_to_users = run::run(8, self.creator.clone(), &mut programs);
+        log::debug!("{programs:?}");
 
-        Ok(())
+        let messages_and_outcomes = run::run(8, self.creator.clone(), &mut programs);
+
+        self.db.set_block_program_hashes(chain_head, programs);
+
+        Ok(messages_and_outcomes.1)
     }
 
     pub fn process_observer_event(&mut self, event: &Event) -> Result<Vec<LocalOutcome>> {
+        let mut outcomes = vec![];
+
         match event {
             Event::UploadCode { code_id, code, .. } => {
                 log::debug!("Processing upload code {code_id:?}");
 
                 if *code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
-                    Ok(vec![LocalOutcome::CodeRejected(*code_id)])
+                    outcomes.push(LocalOutcome::CodeRejected(*code_id))
                 } else {
-                    Ok(vec![LocalOutcome::CodeApproved(*code_id)])
+                    outcomes.push(LocalOutcome::CodeApproved(*code_id))
                 }
             }
             Event::Block {
-                ref block_hash,
-                events: _,
+                parent_hash,
+                block_hash,
+                events,
             } => {
-                log::debug!("Processing events for {block_hash:?}");
-                Ok(vec![])
+                log::debug!("Processing events for {block_hash:?}: {events:?}");
+
+                let mut parent_block_program_states = self
+                    .db
+                    .get_block_program_hashes(*parent_hash)
+                    // TODO: replace default with check on zero parent hash
+                    .unwrap_or_default();
+
+                let mut programs = parent_block_program_states.clone();
+
+                for event in events {
+                    match event {
+                        BlockEvent::CreateProgram(create_program_info) => {
+                            // TODO: set this zero like start of the block data.
+                            let state_hash = self.handle_new_program(
+                                create_program_info.actor_id,
+                                create_program_info.code_id,
+                            )?;
+                            let state_hash = self.handle_user_message(
+                                state_hash,
+                                vec![UserMessage {
+                                    // TODO: handle mid.
+                                    id: MessageId::zero(),
+                                    kind: DispatchKind::Init,
+                                    source: create_program_info.origin,
+                                    payload: create_program_info.init_payload.clone(),
+                                    gas_limit: create_program_info.gas_limit,
+                                    value: create_program_info.value,
+                                }],
+                            )?;
+
+                            parent_block_program_states
+                                .insert(create_program_info.actor_id, H256::zero());
+                            programs.insert(create_program_info.actor_id, state_hash);
+                        }
+                        BlockEvent::SendMessage(send_message_info) => {
+                            // TODO: review if observer got lost.
+                            let state_hash = programs
+                                .get(&send_message_info.destination)
+                                .expect("should exist");
+                            let state_hash = self.handle_user_message(
+                                *state_hash,
+                                vec![UserMessage {
+                                    id: MessageId::zero(),
+                                    kind: DispatchKind::Handle,
+                                    source: send_message_info.origin,
+                                    payload: send_message_info.payload.clone(),
+                                    gas_limit: send_message_info.gas_limit,
+                                    value: send_message_info.value,
+                                }],
+                            )?;
+                            programs.insert(send_message_info.destination, state_hash);
+                        }
+                        event => log::debug!("Handling for {event:?} is not yet implemented; noop"),
+                    }
+
+                    self.db
+                        .set_block_program_hashes(*block_hash, programs.clone());
+
+                    let mut current_outcomes = self.run(*block_hash)?;
+
+                    for outcome in current_outcomes.iter_mut() {
+                        if let LocalOutcome::Transition {
+                            program_id,
+                            old_state_hash,
+                            ..
+                        } = outcome
+                        {
+                            let old_state = parent_block_program_states
+                                .get(program_id)
+                                .expect("should be");
+                            *old_state_hash = *old_state;
+                        }
+                    }
+
+                    outcomes.extend(current_outcomes);
+                }
             }
         }
+
+        Ok(outcomes)
     }
 }

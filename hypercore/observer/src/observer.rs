@@ -132,6 +132,7 @@ impl Observer {
                                         }
 
                                         yield Event::Block {
+                                            parent_hash: H256(parent_hash.0),
                                             block_hash: H256(block_hash.0),
                                             events,
                                         };

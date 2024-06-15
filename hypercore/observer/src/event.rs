@@ -26,6 +26,7 @@ pub enum Event {
         code: Vec<u8>,
     },
     Block {
+        parent_hash: H256,
         block_hash: H256,
         events: Vec<BlockEvent>,
     },

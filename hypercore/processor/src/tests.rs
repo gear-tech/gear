@@ -20,16 +20,109 @@ use crate::*;
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
 use hypercore_db::{BlockInfo, MemDb};
+use hypercore_ethereum::event::{CreateProgram, SendMessage};
 use std::collections::BTreeMap;
 use utils::*;
 use wabt::wat2wasm;
 
-fn init_new_block(processor: &mut Processor, height: u32, timestamp: u64) {
+fn init_new_block(processor: &mut Processor, height: u32, timestamp: u64) -> H256 {
     let chain_head = H256::random();
     processor
         .db
         .set_block_info(chain_head, BlockInfo { height, timestamp });
     processor.creator.set_chain_head(chain_head);
+    chain_head
+}
+
+#[test]
+fn process_observer_event() {
+    init_logger();
+
+    let db = MemDb::default();
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
+
+    let ch0 = init_new_block(&mut processor, 0, 0);
+
+    processor.db.set_block_program_hashes(ch0, BTreeMap::new());
+
+    let code = demo_ping::WASM_BINARY.to_vec();
+    let code_id = CodeId::generate(&code);
+
+    let event = Event::UploadCode {
+        origin: ActorId::zero(),
+        code_id,
+        code,
+    };
+
+    let outcomes = processor
+        .process_observer_event(&event)
+        .expect("failed to process observer event");
+    log::debug!("\n\nUpload code outcomes: {outcomes:?}\n\n");
+
+    assert_eq!(outcomes, vec![LocalOutcome::CodeApproved(code_id)]);
+
+    let ch1 = init_new_block(&mut processor, 1, 12);
+
+    let create_program_event = BlockEvent::CreateProgram(CreateProgram {
+        origin: H256::random().0.into(),
+        actor_id: ActorId::from(42),
+        code_id,
+        salt: Default::default(),
+        init_payload: b"PING".to_vec(),
+        gas_limit: 1_000_000_000,
+        value: 0,
+    });
+
+    let event = Event::Block {
+        parent_hash: ch0,
+        block_hash: ch1,
+        events: vec![create_program_event],
+    };
+
+    let outcomes = processor
+        .process_observer_event(&event)
+        .expect("failed to process observer event");
+    log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
+
+    let ch2 = init_new_block(&mut processor, 2, 24);
+    // processor.db.set_block_program_hashes(
+    //     ch2,
+    //     outcomes
+    //         .into_iter()
+    //         .filter_map(|v| {
+    //             if let LocalOutcome::Transition {
+    //                 program_id,
+    //                 new_state_hash,
+    //                 ..
+    //             } = v
+    //             {
+    //                 Some((program_id, new_state_hash))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect(),
+    // );
+
+    let send_message_event = BlockEvent::SendMessage(SendMessage {
+        origin: H256::random().0.into(),
+        destination: ActorId::from(42),
+        payload: b"PING".to_vec(),
+        gas_limit: 1_000_000_000,
+        value: 0,
+    });
+
+    let event = Event::Block {
+        parent_hash: ch1,
+        block_hash: ch2,
+        events: vec![send_message_event],
+    };
+
+    let outcomes = processor
+        .process_observer_event(&event)
+        .expect("failed to process observer event");
+    log::debug!("\n\nSend message outcomes: {outcomes:?}\n\n");
 }
 
 #[test]
@@ -166,7 +259,7 @@ fn ping_pong() {
 
     let mut programs = BTreeMap::from_iter([(program_id, state_hash)]);
 
-    let to_users = run::run(8, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(8, processor.creator.clone(), &mut programs);
 
     assert_eq!(to_users.len(), 2);
 
@@ -280,7 +373,7 @@ fn async_and_ping() {
     let mut programs =
         BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
 
-    let to_users = run::run(8, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(8, processor.creator.clone(), &mut programs);
 
     assert_eq!(to_users.len(), 3);
 
@@ -355,7 +448,7 @@ fn many_waits() {
         programs.insert(program_id, state_hash);
     }
 
-    let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
     assert_eq!(to_users.len(), amount as usize);
 
     for (_pid, state_hash) in programs.iter_mut() {
@@ -365,12 +458,12 @@ fn many_waits() {
         *state_hash = new_state_hash;
     }
 
-    let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
     assert_eq!(to_users.len(), 0);
 
     init_new_block(&mut processor, 11, 11);
 
-    let to_users = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
 
     assert_eq!(to_users.len(), amount as usize);
 
