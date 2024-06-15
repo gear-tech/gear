@@ -126,4 +126,8 @@ impl Validator {
         self.current_codes.clear();
         self.current_transitions.clear();
     }
+
+    pub fn address(&self) -> Address {
+        self.pub_key.to_address()
+    }
 }

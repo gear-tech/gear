@@ -143,6 +143,17 @@ impl Service {
 
         let mut delay: Option<_> = None;
 
+        let mut roles = "Observer".to_string();
+        if let Some(seq) = sequencer.as_ref() {
+            roles.push_str(&format!(", Sequencer ({})", seq.address()));
+        }
+
+        if let Some(val) = validator.as_ref() {
+            roles.push_str(&format!(", Validator ({})", val.address()));
+        }
+
+        log::info!("⚙️Node service starting, roles: [{}]", roles);
+
         loop {
             tokio::select! {
                 _ = signal::ctrl_c() => {
