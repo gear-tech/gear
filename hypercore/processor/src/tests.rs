@@ -68,7 +68,6 @@ fn process_observer_event() {
         origin: H256::random().0.into(),
         actor_id: ActorId::from(42),
         code_id,
-        salt: Default::default(),
         init_payload: b"PING".to_vec(),
         gas_limit: 1_000_000_000,
         value: 0,
@@ -86,24 +85,6 @@ fn process_observer_event() {
     log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
 
     let ch2 = init_new_block(&mut processor, 2, 24);
-    // processor.db.set_block_program_hashes(
-    //     ch2,
-    //     outcomes
-    //         .into_iter()
-    //         .filter_map(|v| {
-    //             if let LocalOutcome::Transition {
-    //                 program_id,
-    //                 new_state_hash,
-    //                 ..
-    //             } = v
-    //             {
-    //                 Some((program_id, new_state_hash))
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect(),
-    // );
 
     let send_message_event = BlockEvent::SendMessage(SendMessage {
         origin: H256::random().0.into(),
