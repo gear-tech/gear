@@ -25,7 +25,7 @@ use gear_core::{
 };
 use std::{cell::RefCell, convert::TryInto};
 
-/// Interface to particular user mailbox.
+/// Interface to a particular user mailbox.
 ///
 /// Gives a simplified interface to perform some operations
 /// over a particular user mailbox.
