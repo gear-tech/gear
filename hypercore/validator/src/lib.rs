@@ -19,7 +19,7 @@
 use anyhow::Result;
 use hypercore_network::service::NetworkGossip;
 use hypercore_processor::LocalOutcome;
-use hypercore_sequencer::{AggregatedCommitments, CodeCommitment};
+use hypercore_sequencer::{AggregatedCommitments, CodeCommitment, TransitionCommitment};
 use hypercore_signer::{Address, PublicKey, Signer};
 use parity_scale_codec::Encode;
 use std::sync::Arc;
@@ -33,6 +33,7 @@ pub struct Validator {
     pub_key: PublicKey,
     signer: Signer,
     current_codes: Vec<CodeCommitment>,
+    current_transitions: Vec<TransitionCommitment>,
     router_address: Address,
 }
 
@@ -42,12 +43,13 @@ impl Validator {
             signer,
             pub_key: config.pub_key,
             current_codes: vec![],
+            current_transitions: vec![],
             router_address: config.router_address,
         }
     }
 
     pub fn has_commit(&self) -> bool {
-        !self.current_codes.is_empty()
+        !(self.current_codes.is_empty() || self.current_transitions.is_empty())
     }
 
     pub fn pub_key(&self) -> PublicKey {
@@ -57,6 +59,17 @@ impl Validator {
     pub fn codes_aggregation(&mut self) -> Result<AggregatedCommitments<CodeCommitment>> {
         AggregatedCommitments::aggregate_commitments(
             self.current_codes.clone(),
+            &self.signer,
+            self.pub_key,
+            self.router_address,
+        )
+    }
+
+    pub fn transitions_aggregation(
+        &mut self,
+    ) -> Result<AggregatedCommitments<TransitionCommitment>> {
+        AggregatedCommitments::aggregate_commitments(
+            self.current_transitions.clone(),
             &self.signer,
             self.pub_key,
             self.router_address,
@@ -83,18 +96,34 @@ impl Validator {
                         approved: false,
                     });
                 }
+                LocalOutcome::Transition {
+                    program_id,
+                    old_state_hash,
+                    new_state_hash,
+                    outgoing_messages,
+                } => {
+                    // TODO: they're about to be aggregated before signing: like commitments A0 -> A1 && A1 -> A2 will one single commit A0 -> A2.
+                    self.current_transitions.push(TransitionCommitment {
+                        program_id: *program_id,
+                        old_state_hash: *old_state_hash,
+                        new_state_hash: *new_state_hash,
+                        outgoing_messages: outgoing_messages.clone(),
+                    })
+                }
             }
         }
 
         let origin = self.pub_key.to_address();
 
-        // broadcast aggregated_code_commitments to the network peers
-        network.broadcast_commitments((origin, self.codes_aggregation()?).encode());
+        // broadcast (aggregated_code_commitments, aggregated_transitions_commitments) to the network peers
+        let commitments = (self.codes_aggregation()?, self.transitions_aggregation()?);
+        network.broadcast_commitments((origin, commitments).encode());
 
         Ok(())
     }
 
     pub fn clear(&mut self) {
         self.current_codes.clear();
+        self.current_transitions.clear();
     }
 }

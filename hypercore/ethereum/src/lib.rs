@@ -20,7 +20,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::Schedule;
-use gprimitives::{ActorId, CodeId, MessageId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use hypercore_signer::{
     Address as HypercoreAddress, PublicKey, Signature as HypercoreSignature,
     Signer as HypercoreSigner,
@@ -108,18 +108,31 @@ impl SignerSync for Sender {
 }
 
 #[derive(Debug, Clone)]
-#[repr(packed)]
 pub struct CodeCommitment {
     pub code_id: CodeId,
     pub approved: u8,
 }
 
 #[derive(Debug, Clone)]
-#[repr(packed)]
-pub struct Transition {
+pub struct TransitionCommitment {
     pub actor_id: ActorId,
     pub old_state_hash: H256,
     pub new_state_hash: H256,
+    pub outgoing_messages: Vec<OutgoingMessage>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OutgoingMessage {
+    pub destination: H160,
+    pub payload: Vec<u8>,
+    pub value: u128,
+    pub reply_details: ReplyDetails,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct ReplyDetails {
+    pub to: MessageId,
+    pub code: [u8; 4],
 }
 
 pub struct Router(AlloyRouterInstance);
@@ -250,12 +263,13 @@ impl Router {
 
     pub async fn commit_transitions(
         &self,
-        transitions: Vec<Transition>,
+        transitions: Vec<TransitionCommitment>,
         signatures: Vec<HypercoreSignature>,
     ) -> Result<H256> {
         let builder = self.0.commitTransitions(
             transitions
                 .into_iter()
+                // TODO: adjust eth type of transition.
                 .map(|transition| AlloyRouter::Transition {
                     actorId: {
                         let mut address = Address::ZERO;

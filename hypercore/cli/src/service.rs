@@ -23,8 +23,6 @@ use anyhow::Result;
 use futures::{future, stream::StreamExt};
 use hypercore_network::service::NetworkGossip;
 use hypercore_processor::LocalOutcome;
-use hypercore_sequencer::{AggregatedCommitments, CodeCommitment};
-use hypercore_signer::Address;
 use parity_scale_codec::Decode;
 use tokio::{signal, time};
 
@@ -167,8 +165,12 @@ impl Service {
                             if let Some(ref mut sequencer) = sequencer {
                                 if validator.has_commit() {
                                     let origin = validator.pub_key().to_address();
-                                    let aggregated_commitments = validator.codes_aggregation()?;
-                                    sequencer.receive_codes_commitment(origin, aggregated_commitments)?;
+
+                                    let aggregated_codes_commitments = validator.codes_aggregation()?;
+                                    sequencer.receive_codes_commitment(origin, aggregated_codes_commitments)?;
+
+                                    let aggregated_transitions_commitments = validator.transitions_aggregation()?;
+                                    sequencer.receive_transitions_commitment(origin, aggregated_transitions_commitments)?;
                                 }
                             }
                         }
@@ -183,8 +185,11 @@ impl Service {
                     if let Some(message) = message {
                         if let Some(sequencer) = sequencer.as_mut() {
                             log::debug!("Received p2p commitments from: {:?}", message.sender);
-                            let (origin, aggregated_commitments) = <(Address, AggregatedCommitments<CodeCommitment>)>::decode(&mut message.data.as_slice())?;
-                            sequencer.receive_codes_commitment(origin, aggregated_commitments)?;
+
+                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut message.data.as_slice())?;
+
+                            sequencer.receive_codes_commitment(origin, codes_aggregated_commitment)?;
+                            sequencer.receive_transitions_commitment(origin, transitions_aggregated_commitment)?;
                         }
                     }
                 }

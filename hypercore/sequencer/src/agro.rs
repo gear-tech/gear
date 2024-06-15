@@ -19,12 +19,14 @@
 //! Abstract commitment aggregator.
 
 use anyhow::Result;
-use gprimitives::{CodeId, H256};
+use gear_core::ids::ProgramId;
+use gprimitives::{CodeId, MessageId, H160, H256};
+use hypercore_processor::OutgoingMessage;
 use hypercore_signer::{hash, Address, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{HashMap, HashSet},
-    fmt,
+    fmt, mem,
 };
 
 pub trait SeqHash {
@@ -64,10 +66,83 @@ impl From<CodeCommitment> for hypercore_ethereum::CodeCommitment {
     }
 }
 
+// TODO: REMOVE THIS IMPL. SeqHash makes sense only for `hypercore_ethereum` types.
 // identity hashing
 impl SeqHash for CodeCommitment {
     fn hash(&self) -> H256 {
         hash((self.code_id, self.approved as u8).encode().as_ref())
+    }
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct TransitionCommitment {
+    pub program_id: ProgramId,
+    pub old_state_hash: H256,
+    pub new_state_hash: H256,
+    pub outgoing_messages: Vec<OutgoingMessage>,
+}
+
+// TODO: REMOVE THIS IMPL. SeqHash makes sense only for `hypercore_ethereum` types.
+impl SeqHash for TransitionCommitment {
+    fn hash(&self) -> H256 {
+        let res = hypercore_ethereum::TransitionCommitment::from(self.clone());
+
+        let mut bytes = (res.actor_id, res.old_state_hash, res.new_state_hash).encode();
+
+        for message in res.outgoing_messages {
+            let mut message_bytes = Vec::with_capacity(
+                mem::size_of::<H160>()
+                    + message.payload.len()
+                    + mem::size_of::<u128>()
+                    + mem::size_of::<MessageId>()
+                    + mem::size_of::<[u8; 4]>(),
+            );
+
+            // TODO: double check for usage LE vs BE bytes.
+            message_bytes.extend_from_slice(&message.destination.as_ref()[12..]);
+            message_bytes.extend(message.payload.to_vec());
+            message_bytes.extend(message.value.to_be_bytes());
+            message_bytes.extend(message.reply_details.to.into_bytes());
+            message_bytes.extend(message.reply_details.code);
+
+            bytes.extend(message_bytes);
+        }
+
+        hash(&bytes)
+    }
+}
+
+fn cast_message(value: OutgoingMessage) -> hypercore_ethereum::OutgoingMessage {
+    let reply_details = value
+        .reply_details
+        .map(|d| hypercore_ethereum::ReplyDetails {
+            to: d.to_message_id(),
+            code: d.to_reply_code().to_bytes(),
+        })
+        .unwrap_or_default();
+
+    let destination = H160::from_slice(&value.destination.into_bytes()[12..]);
+
+    hypercore_ethereum::OutgoingMessage {
+        destination,
+        payload: value.payload.into_vec(),
+        value: value.value,
+        reply_details,
+    }
+}
+
+impl From<TransitionCommitment> for hypercore_ethereum::TransitionCommitment {
+    fn from(value: TransitionCommitment) -> Self {
+        Self {
+            actor_id: value.program_id,
+            old_state_hash: value.old_state_hash,
+            new_state_hash: value.new_state_hash,
+            outgoing_messages: value
+                .outgoing_messages
+                .into_iter()
+                .map(cast_message)
+                .collect(),
+        }
     }
 }
 
