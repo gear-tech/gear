@@ -30,14 +30,23 @@ use gear_core::{
     memory::{HostPointer, MemoryInterval},
     str::LimitedStr,
 };
-#[cfg(feature = "std")]
-use gear_lazy_pages::LazyPagesStorage;
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
 use sp_std::{convert::TryFrom, mem, result::Result, vec::Vec};
+#[cfg(feature = "std")]
+use {
+    ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
+    ark_ec::{
+        bls12::Bls12Config,
+        hashing::{curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
+    },
+    ark_ff::fields::field_hashers::DefaultFieldHasher,
+    ark_scale::ArkScale,
+    gear_lazy_pages::LazyPagesStorage,
+};
 
 mod gear_sandbox;
 
@@ -46,6 +55,9 @@ pub use gear_sandbox::init as sandbox_init;
 pub use gear_sandbox::sandbox;
 
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
+
+// Domain Separation Tag for signatures on G2.
+pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
@@ -299,5 +311,65 @@ pub trait GearDebug {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_nanos()
+    }
+}
+
+/// Describes possible errors for `GearBls12_381`.
+#[repr(u32)]
+enum GearBls12_381Error {
+    /// Failed to decode an array of G1-points.
+    Decode,
+    /// The array of G1-points is empty.
+    EmptyPointList,
+    /// Failed to create `MapToCurveBasedHasher`.
+    MapperCreation,
+    /// Failed to map a message to a G2-point.
+    MessageMapping,
+}
+
+impl From<GearBls12_381Error> for u32 {
+    fn from(value: GearBls12_381Error) -> Self {
+        value as u32
+    }
+}
+
+#[runtime_interface]
+pub trait GearBls12_381 {
+    /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
+    /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
+    /// Result is scale-encoded `ArkScale<G1Projective>`.
+    fn aggregate_g1(points: &[u8]) -> Result<Vec<u8>, u32> {
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+
+        let ArkScale(points) = ArkScale::<Vec<G1>>::decode(&mut &points[..])
+            .map_err(|_| u32::from(GearBls12_381Error::Decode))?;
+
+        let point_first = points
+            .first()
+            .ok_or(u32::from(GearBls12_381Error::EmptyPointList))?;
+
+        let point_aggregated = points
+            .iter()
+            .skip(1)
+            .fold(*point_first, |aggregated, point| aggregated + *point);
+
+        Ok(ArkScale::<G1>::from(point_aggregated).encode())
+    }
+
+    /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
+    /// Result is encoded `ArkScale<G2Affine>`.
+    fn map_to_g2affine(message: &[u8]) -> Result<Vec<u8>, u32> {
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+
+        let mapper =
+            MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
+                .map_err(|_| u32::from(GearBls12_381Error::MapperCreation))?;
+
+        let point = mapper
+            .hash(message)
+            .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
+
+        Ok(ArkScale::<G2Affine>::from(point).encode())
     }
 }
