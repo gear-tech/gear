@@ -206,4 +206,8 @@ impl Sequencer {
         self.transitions_aggregation.push(origin, commitments);
         Ok(())
     }
+
+    pub fn address(&self) -> Address {
+        self.key.to_address()
+    }
 }
