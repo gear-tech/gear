@@ -12,4 +12,6 @@ interface IProgram {
     function claimValue(bytes32 messageId) external;
 
     function performStateTransition(bytes32 oldStateHash, bytes32 newStateHash) external;
+
+    function performPayout(address actorId, uint128 value) external;
 }

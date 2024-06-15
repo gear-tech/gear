@@ -5,10 +5,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {IProgram} from "./IProgram.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 
-contract Router is Ownable {
+contract Router is Ownable, ReentrancyGuardTransient {
     using ECDSA for bytes32;
     using MessageHashUtils for address;
 
@@ -34,10 +35,23 @@ contract Router is Ownable {
         uint8 approved;
     }
 
+    struct ReplyDetails {
+        bytes32 replyTo;
+        bytes4 replyCode;
+    }
+
+    struct OutgoingMessage {
+        address destination;
+        bytes payload;
+        uint128 value;
+        ReplyDetails replyDetails;
+    }
+
     struct Transition {
         address actorId;
         bytes32 oldStateHash;
         bytes32 newStateHash;
+        OutgoingMessage[] outgoingMessages;
     }
 
     event UploadCode(address origin, bytes32 codeId, bytes32 blobTx);
@@ -51,6 +65,10 @@ contract Router is Ownable {
     );
 
     event UpdatedProgram(address actorId, bytes32 oldStateHash, bytes32 newStateHash);
+
+    event UserMessageSent(address destination, bytes payload, uint128 value);
+
+    event UserReplySent(address destination, bytes payload, uint128 value, bytes32 replyTo, bytes4 replyCode);
 
     event SendMessage(address origin, address destination, bytes payload, uint64 gasLimit, uint128 value);
 
@@ -155,17 +173,60 @@ contract Router is Ownable {
         validateSignatures(message, signatures);
     }
 
-    function commitTransitions(Transition[] calldata transitions, bytes[] calldata signatures) external {
+    function commitTransitions(Transition[] calldata transitions, bytes[] calldata signatures) external nonReentrant {
         bytes memory message;
 
         for (uint256 i = 0; i < transitions.length; i++) {
             Transition calldata transition = transitions[i];
             require(programs[transition.actorId], "unknown program");
+
+            bytes memory message1;
+            IProgram _program = IProgram(transition.actorId);
+
+            for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
+                OutgoingMessage calldata outgoingMessage = transition.outgoingMessages[j];
+                message1 = bytes.concat(
+                    message1,
+                    keccak256(
+                        abi.encodePacked(
+                            outgoingMessage.destination,
+                            outgoingMessage.payload,
+                            outgoingMessage.value,
+                            outgoingMessage.replyDetails.replyTo,
+                            outgoingMessage.replyDetails.replyCode
+                        )
+                    )
+                );
+
+                if (outgoingMessage.value > 0) {
+                    _program.performPayout(outgoingMessage.destination, outgoingMessage.value);
+                }
+
+                ReplyDetails calldata replyDetails = outgoingMessage.replyDetails;
+                if (replyDetails.replyTo == 0 && replyDetails.replyCode == 0) {
+                    emit UserMessageSent(outgoingMessage.destination, outgoingMessage.payload, outgoingMessage.value);
+                } else {
+                    emit UserReplySent(
+                        outgoingMessage.destination,
+                        outgoingMessage.payload,
+                        outgoingMessage.value,
+                        replyDetails.replyTo,
+                        replyDetails.replyCode
+                    );
+                }
+            }
+
             message = bytes.concat(
                 message,
-                keccak256(abi.encodePacked(transition.actorId, transition.oldStateHash, transition.newStateHash))
+                keccak256(
+                    abi.encodePacked(
+                        transition.actorId, transition.oldStateHash, transition.newStateHash, keccak256(message1)
+                    )
+                )
             );
-            IProgram(transition.actorId).performStateTransition(transition.oldStateHash, transition.newStateHash);
+
+            _program.performStateTransition(transition.oldStateHash, transition.newStateHash);
+
             emit UpdatedProgram(transition.actorId, transition.oldStateHash, transition.newStateHash);
         }
 
