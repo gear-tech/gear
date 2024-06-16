@@ -88,9 +88,7 @@ impl InstanceCreator {
             instance,
             store,
             db: self.db().clone(),
-            chain_head: self
-                .chain_head
-                .expect("chain head should be set before instantiate"),
+            chain_head: self.chain_head,
         };
 
         let memory = instance_wrapper.memory()?;
@@ -115,7 +113,7 @@ pub(crate) struct InstanceWrapper {
     instance: wasmtime::Instance,
     store: Store,
     db: Database,
-    chain_head: H256,
+    chain_head: Option<H256>,
 }
 
 impl InstanceWrapper {
@@ -146,7 +144,8 @@ impl InstanceWrapper {
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
     ) -> Result<Vec<JournalNote>> {
-        threads::set(self.db.clone(), self.chain_head, state_hash);
+        let chain_head = self.chain_head.expect("chain head must be set before run");
+        threads::set(self.db.clone(), chain_head, state_hash);
 
         let arg = (
             program_id,
@@ -159,7 +158,8 @@ impl InstanceWrapper {
     }
 
     pub fn wake_messages(&mut self, program_id: ProgramId, state_hash: H256) -> Result<H256> {
-        threads::set(self.db.clone(), self.chain_head, state_hash);
+        let chain_head = self.chain_head.expect("chain head must be set before wake");
+        threads::set(self.db.clone(), chain_head, state_hash);
 
         self.call("wake_messages", (program_id, state_hash).encode())
     }
