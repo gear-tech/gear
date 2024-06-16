@@ -54,27 +54,34 @@ contract Router is Ownable, ReentrancyGuardTransient {
         OutgoingMessage[] outgoingMessages;
     }
 
-    event UploadCode(address origin, bytes32 codeId, bytes32 blobTx);
+    event UploadCode(address indexed origin, bytes32 indexed codeId, bytes32 indexed blobTx);
 
-    event CodeApproved(bytes32 codeId);
+    event CodeApproved(bytes32 indexed codeId);
 
-    event CodeRejected(bytes32 codeId);
+    event CodeRejected(bytes32 indexed codeId);
 
     event CreateProgram(
-        address origin, address actorId, bytes32 codeId, bytes initPayload, uint64 gasLimit, uint128 value
+        address indexed origin,
+        address indexed actorId,
+        bytes32 indexed codeId,
+        bytes initPayload,
+        uint64 gasLimit,
+        uint128 value
     );
 
-    event UpdatedProgram(address actorId, bytes32 oldStateHash, bytes32 newStateHash);
+    event UpdatedProgram(address indexed actorId, bytes32 oldStateHash, bytes32 newStateHash);
 
-    event UserMessageSent(address destination, bytes payload, uint128 value);
+    event UserMessageSent(address indexed destination, bytes payload, uint128 value);
 
-    event UserReplySent(address destination, bytes payload, uint128 value, bytes32 replyTo, bytes4 replyCode);
+    event UserReplySent(address indexed destination, bytes payload, uint128 value, bytes32 replyTo, bytes4 replyCode);
 
-    event SendMessage(address origin, address destination, bytes payload, uint64 gasLimit, uint128 value);
+    event SendMessage(
+        address indexed origin, address indexed destination, bytes payload, uint64 gasLimit, uint128 value
+    );
 
-    event SendReply(address origin, bytes32 replyToId, bytes payload, uint64 gasLimit, uint128 value);
+    event SendReply(address indexed origin, bytes32 indexed replyToId, bytes payload, uint64 gasLimit, uint128 value);
 
-    event ClaimValue(address origin, bytes32 messageId);
+    event ClaimValue(address indexed origin, bytes32 indexed messageId);
 
     constructor(address initialOwner) Ownable(initialOwner) {}
 
