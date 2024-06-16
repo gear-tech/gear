@@ -7155,6 +7155,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
+ "futures",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",

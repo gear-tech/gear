@@ -1,5 +1,6 @@
 #![allow(dead_code, clippy::new_without_default)]
 
+use crate::event::CodeApproved;
 use abi::{AlloyProgram, AlloyRouter};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
@@ -16,8 +17,9 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
+use futures::StreamExt;
 use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::Schedule;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
@@ -191,7 +193,7 @@ impl Router {
         Ok(H256(receipt.transaction_hash.0))
     }
 
-    pub async fn upload_code_with_sidecar(&self, code: &[u8]) -> Result<H256> {
+    pub async fn upload_code_with_sidecar(&self, code: &[u8]) -> Result<(H256, CodeId)> {
         let schedule = Schedule::default();
         let code = Code::try_new(
             code.to_vec(),
@@ -209,7 +211,23 @@ impl Router {
             .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code.original_code()).build()?);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
-        Ok(H256(receipt.transaction_hash.0))
+        Ok((H256(receipt.transaction_hash.0), code_id))
+    }
+
+    pub async fn wait_for_code_approval(&self, code_id: CodeId) -> Result<CodeApproved> {
+        let mut code_approved_filter = self.0.CodeApproved_filter();
+        code_approved_filter.filter = code_approved_filter
+            .filter
+            .topic1(B256::new(code_id.into_bytes()));
+
+        let code_approved_subscription = code_approved_filter.subscribe().await?;
+        let mut code_approved_stream = code_approved_subscription.into_stream();
+
+        let Some(Ok((_, ref log))) = code_approved_stream.next().await else {
+            bail!("failed to read CodeApproved event");
+        };
+
+        log.try_into()
     }
 
     pub async fn create_program(
