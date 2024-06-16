@@ -2,7 +2,7 @@ use crate::{BlockEvent, Event};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
-    primitives::{Address, LogData, B256},
+    primitives::{Address, B256},
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::PubSubFrontend,
     rpc::{
@@ -174,58 +174,53 @@ impl Observer {
         let mut pending_upload_codes = vec![];
         let block_events: Vec<_> = logs
             .into_iter()
-            .filter_map(|log| {
-                let log_data: &LogData = log.as_ref();
-                let data = log_data.data.as_ref();
+            .filter_map(|ref log| match log.topic0().copied().map(|bytes| bytes.0) {
+                Some(UploadCode::SIGNATURE_HASH) => {
+                    let UploadCode {
+                        origin,
+                        code_id,
+                        blob_tx,
+                    } = log.try_into().ok()?;
 
-                match log.topic0().copied().map(|bytes| bytes.0) {
-                    Some(UploadCode::SIGNATURE_HASH) => {
-                        let UploadCode {
-                            origin,
-                            code_id,
-                            blob_tx,
-                        } = data.try_into().ok()?;
+                    let tx_hash = H256(log.transaction_hash?.0);
 
-                        let tx_hash = H256(log.transaction_hash?.0);
+                    pending_upload_codes.push(PendingUploadCode {
+                        origin,
+                        code_id,
+                        blob_tx,
+                        tx_hash,
+                    });
 
-                        pending_upload_codes.push(PendingUploadCode {
-                            origin,
-                            code_id,
-                            blob_tx,
-                            tx_hash,
-                        });
-
-                        None
-                    }
-                    Some(CodeApproved::SIGNATURE_HASH) => {
-                        Some(BlockEvent::CodeApproved(data.try_into().ok()?))
-                    }
-                    Some(CodeRejected::SIGNATURE_HASH) => {
-                        Some(BlockEvent::CodeRejected(data.try_into().ok()?))
-                    }
-                    Some(CreateProgram::SIGNATURE_HASH) => {
-                        Some(BlockEvent::CreateProgram(data.try_into().ok()?))
-                    }
-                    Some(UpdatedProgram::SIGNATURE_HASH) => {
-                        Some(BlockEvent::UpdatedProgram(data.try_into().ok()?))
-                    }
-                    Some(UserMessageSent::SIGNATURE_HASH) => {
-                        Some(BlockEvent::UserMessageSent(data.try_into().ok()?))
-                    }
-                    Some(UserReplySent::SIGNATURE_HASH) => {
-                        Some(BlockEvent::UserReplySent(data.try_into().ok()?))
-                    }
-                    Some(SendMessage::SIGNATURE_HASH) => {
-                        Some(BlockEvent::SendMessage(data.try_into().ok()?))
-                    }
-                    Some(SendReply::SIGNATURE_HASH) => {
-                        Some(BlockEvent::SendReply(data.try_into().ok()?))
-                    }
-                    Some(ClaimValue::SIGNATURE_HASH) => {
-                        Some(BlockEvent::ClaimValue(data.try_into().ok()?))
-                    }
-                    _ => None,
+                    None
                 }
+                Some(CodeApproved::SIGNATURE_HASH) => {
+                    Some(BlockEvent::CodeApproved(log.try_into().ok()?))
+                }
+                Some(CodeRejected::SIGNATURE_HASH) => {
+                    Some(BlockEvent::CodeRejected(log.try_into().ok()?))
+                }
+                Some(CreateProgram::SIGNATURE_HASH) => {
+                    Some(BlockEvent::CreateProgram(log.try_into().ok()?))
+                }
+                Some(UpdatedProgram::SIGNATURE_HASH) => {
+                    Some(BlockEvent::UpdatedProgram(log.try_into().ok()?))
+                }
+                Some(UserMessageSent::SIGNATURE_HASH) => {
+                    Some(BlockEvent::UserMessageSent(log.try_into().ok()?))
+                }
+                Some(UserReplySent::SIGNATURE_HASH) => {
+                    Some(BlockEvent::UserReplySent(log.try_into().ok()?))
+                }
+                Some(SendMessage::SIGNATURE_HASH) => {
+                    Some(BlockEvent::SendMessage(log.try_into().ok()?))
+                }
+                Some(SendReply::SIGNATURE_HASH) => {
+                    Some(BlockEvent::SendReply(log.try_into().ok()?))
+                }
+                Some(ClaimValue::SIGNATURE_HASH) => {
+                    Some(BlockEvent::ClaimValue(log.try_into().ok()?))
+                }
+                _ => None,
             })
             .collect();
 

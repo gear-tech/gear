@@ -209,29 +209,6 @@ impl ExtraCommands {
                 println!("Ethereum address: {}", pub_key.to_address());
             }
 
-            ExtraCommands::UploadCode(ref upload_code_args) => {
-                let path = &upload_code_args.path;
-
-                let Some((sender_address, hypercore_ethereum)) =
-                    maybe_sender_address.zip(maybe_ethereum)
-                else {
-                    anyhow::bail!("please provide signer address");
-                };
-
-                println!(
-                    "Uploading {} to Ethereum from {sender_address}...",
-                    path.display(),
-                );
-
-                let code = fs::read(path)?;
-                let tx = hypercore_ethereum
-                    .router()
-                    .upload_code_with_sidecar(&code)
-                    .await?;
-
-                println!("Completed in transaction {tx:?}");
-            }
-
             ExtraCommands::SetProgram => {
                 let program_impl: Address = config.ethereum_program_address.parse()?;
 
@@ -314,6 +291,32 @@ impl ExtraCommands {
                     .remove_validators(validators)
                     .await?;
                 println!("Completed in transaction {tx:?}");
+            }
+
+            ExtraCommands::UploadCode(ref upload_code_args) => {
+                let path = &upload_code_args.path;
+
+                let Some((sender_address, hypercore_ethereum)) =
+                    maybe_sender_address.zip(maybe_ethereum)
+                else {
+                    anyhow::bail!("please provide signer address");
+                };
+
+                println!(
+                    "Uploading {} to Ethereum from {sender_address}...",
+                    path.display(),
+                );
+
+                let router = hypercore_ethereum.router();
+
+                let code = fs::read(path)?;
+                let (tx, code_id) = router.upload_code_with_sidecar(&code).await?;
+
+                println!("Completed in transaction {tx:?}");
+                println!("Waiting for approval of code id {code_id}...");
+
+                router.wait_for_code_approval(code_id).await?;
+                println!("Now you can create program from code id {code_id}!");
             }
         }
 

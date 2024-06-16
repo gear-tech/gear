@@ -1,10 +1,19 @@
 use crate::AlloyRouter;
-use alloy::sol_types::SolEvent;
+use alloy::{
+    primitives::LogData,
+    rpc::types::eth::Log,
+    sol_types::{self, SolEvent},
+};
 use gear_core::message::ReplyDetails;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 
 use parity_scale_codec::{Decode, Encode};
+
+fn decode_log<E: SolEvent>(log: &Log) -> sol_types::Result<E> {
+    let log_data: &LogData = log.as_ref();
+    E::decode_raw_log(log_data.topics().iter().copied(), &log_data.data, false)
+}
 
 #[derive(Debug, Decode, Encode)]
 pub struct UploadCode {
@@ -17,11 +26,11 @@ impl UploadCode {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UploadCode::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for UploadCode {
+impl TryFrom<&Log> for UploadCode {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyRouter::UploadCode::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::UploadCode = decode_log(log)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),
@@ -40,11 +49,11 @@ impl CodeApproved {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CodeApproved::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for CodeApproved {
+impl TryFrom<&Log> for CodeApproved {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyRouter::CodeApproved::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::CodeApproved = decode_log(log)?;
 
         Ok(Self {
             code_id: CodeId::new(event.codeId.0),
@@ -61,11 +70,11 @@ impl CodeRejected {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CodeRejected::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for CodeRejected {
+impl TryFrom<&Log> for CodeRejected {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyRouter::CodeRejected::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::CodeRejected = decode_log(log)?;
 
         Ok(Self {
             code_id: CodeId::new(event.codeId.0),
@@ -87,12 +96,11 @@ impl CreateProgram {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::CreateProgram::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for CreateProgram {
+impl TryFrom<&Log> for CreateProgram {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event =
-            AlloyRouter::CreateProgram::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::CreateProgram = decode_log(log)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),
@@ -116,12 +124,11 @@ impl UpdatedProgram {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UpdatedProgram::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for UpdatedProgram {
+impl TryFrom<&Log> for UpdatedProgram {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event =
-            AlloyRouter::UpdatedProgram::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::UpdatedProgram = decode_log(log)?;
 
         Ok(Self {
             actor_id: ActorId::new(event.actorId.into_word().0),
@@ -142,12 +149,11 @@ impl UserMessageSent {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UserMessageSent::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for UserMessageSent {
+impl TryFrom<&Log> for UserMessageSent {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event =
-            AlloyRouter::UserMessageSent::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::UserMessageSent = decode_log(log)?;
 
         Ok(Self {
             destination: ActorId::new(event.destination.into_word().0),
@@ -169,12 +175,11 @@ impl UserReplySent {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::UserReplySent::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for UserReplySent {
+impl TryFrom<&Log> for UserReplySent {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event =
-            AlloyRouter::UserReplySent::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::UserReplySent = decode_log(log)?;
 
         Ok(Self {
             destination: ActorId::new(event.destination.into_word().0),
@@ -201,11 +206,11 @@ impl SendMessage {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::SendMessage::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for SendMessage {
+impl TryFrom<&Log> for SendMessage {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyRouter::SendMessage::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::SendMessage = decode_log(log)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),
@@ -230,11 +235,11 @@ impl SendReply {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::SendReply::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for SendReply {
+impl TryFrom<&Log> for SendReply {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyRouter::SendReply::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::SendReply = decode_log(log)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),
@@ -256,11 +261,11 @@ impl ClaimValue {
     pub const SIGNATURE_HASH: [u8; 32] = AlloyRouter::ClaimValue::SIGNATURE_HASH.0;
 }
 
-impl TryFrom<&[u8]> for ClaimValue {
+impl TryFrom<&Log> for ClaimValue {
     type Error = anyhow::Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let event = AlloyRouter::ClaimValue::decode_raw_log([Self::SIGNATURE_HASH], data, false)?;
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: AlloyRouter::ClaimValue = decode_log(log)?;
 
         Ok(Self {
             origin: ActorId::new(event.origin.into_word().0),

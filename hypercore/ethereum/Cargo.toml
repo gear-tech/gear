@@ -16,10 +16,12 @@ alloy = { workspace = true, features = [
     "network",
     "provider-ws",
     "pubsub",
+    "rpc-types-eth",
     "rpc-client",
     "signers",
     "kzg",
 ] }
+futures.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-wasm-instrument.workspace = true
