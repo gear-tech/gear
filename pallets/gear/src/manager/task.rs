@@ -274,6 +274,7 @@ where
     }
 
     fn remove_resume_session(&mut self, _session_id: u32) -> Gas {
+        log::debug!("Program rent logic is disabled");
         0
     }
 }

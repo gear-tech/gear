@@ -108,8 +108,9 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
+
             #[allow(deprecated)]
-            RemoveResumeSession(_) => 0,
+            RemoveResumeSession(session_id) => handler.remove_resume_session(session_id),
         }
     }
 }
