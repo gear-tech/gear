@@ -18,7 +18,7 @@
 
 #![no_main]
 
-use executor_fuzzer::GeneratedModule;
+use lazy_pages_fuzzer::GeneratedModule;
 use libfuzzer_sys::{fuzz_target, Corpus};
 
 fuzz_target!(|generated_module: GeneratedModule<'_>| -> Corpus {
@@ -26,7 +26,7 @@ fuzz_target!(|generated_module: GeneratedModule<'_>| -> Corpus {
 
     log::info!("Executing generated gear calls");
 
-    match executor_fuzzer::run(generated_module) {
+    match lazy_pages_fuzzer::run(generated_module) {
         Err(_) => Corpus::Reject,
         Ok(_) => Corpus::Keep,
     }

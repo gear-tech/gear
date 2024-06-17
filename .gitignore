@@ -11,11 +11,7 @@ weight-dumps/
 .log
 *.meta.txt
 .terraform*
-utils/runtime-fuzzer/fuzz/corpus/*
-utils/runtime-fuzzer/fuzz/coverage/*
-utils/runtime-fuzzer/fuzz/artifacts/*
-utils/executor-fuzzer/fuzz/fuzz/*
-utils/executor-fuzzer/fuzz/corpus/*
-utils/executor-fuzzer/fuzz/coverage/*
-utils/executor-fuzzer/fuzz/artifacts/*
-utils/executor-fuzzer/fuzz/fuzz/*
+utils/**/fuzz/corpus/*
+utils/**/fuzz/coverage/*
+utils/**/fuzz/artifacts/*
+utils/**/fuzz/fuzz/*

@@ -1,5 +1,5 @@
 [package]
-name = "executor-fuzzer-fuzz"
+name = "lazy-pages-fuzzer-fuzz"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys.workspace = true
-executor-fuzzer = { path = ".." }
+lazy-pages-fuzzer = { path = ".." }
 gear-utils.workspace = true
 log.workspace = true
 

@@ -3471,38 +3471,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
-name = "executor-fuzzer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arbitrary",
- "derive_more",
- "gear-lazy-pages",
- "gear-lazy-pages-common",
- "gear-wasm-gen",
- "gear-wasm-instrument",
- "hex",
- "log",
- "parity-scale-codec",
- "region",
- "wasm-smith",
- "wasmer",
- "wasmi 0.13.2",
- "wasmprinter",
- "wat",
-]
-
-[[package]]
-name = "executor-fuzzer-fuzz"
-version = "0.1.0"
-dependencies = [
- "executor-fuzzer",
- "gear-utils",
- "libfuzzer-sys",
- "log",
-]
-
-[[package]]
 name = "exit-future"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6351,6 +6319,36 @@ dependencies = [
  "regex",
  "rocksdb",
  "smallvec",
+]
+
+[[package]]
+name = "lazy-pages-fuzzer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "derive_more",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
+ "gear-wasm-gen",
+ "gear-wasm-instrument",
+ "log",
+ "region",
+ "wasm-smith",
+ "wasmer",
+ "wasmi 0.13.2",
+ "wasmprinter",
+ "wat",
+]
+
+[[package]]
+name = "lazy-pages-fuzzer-fuzz"
+version = "0.1.0"
+dependencies = [
+ "gear-utils",
+ "lazy-pages-fuzzer",
+ "libfuzzer-sys",
+ "log",
 ]
 
 [[package]]

@@ -99,7 +99,7 @@ members = [
     "runtime/*",
     "utils/*",
     "utils/runtime-fuzzer/fuzz",
-    "utils/executor-fuzzer/fuzz"
+    "utils/lazy-pages-fuzzer/fuzz"
 ]
 
 [workspace.dependencies]
