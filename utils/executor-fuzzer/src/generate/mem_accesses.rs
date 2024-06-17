@@ -40,8 +40,8 @@ enum MemoryAccess {
     ReadWriteI32,
 }
 
-pub struct InjectMemoryAccesses<'a> {
-    unstructured: Unstructured<'a>,
+pub struct InjectMemoryAccesses<'u> {
+    unstructured: Unstructured<'u>,
 }
 
 impl InjectMemoryAccesses<'_> {

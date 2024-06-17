@@ -19,14 +19,13 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use arbitrary::Unstructured;
-
 use gear_wasm_instrument::parity_wasm::elements::Module;
 
-pub use config::FuzzerInput;
 mod config;
 
+pub use generate::GeneratedModule;
 mod generate;
+
 mod globals;
 
 use lazy_pages::{HostPageAddr, TouchedPage};
@@ -49,8 +48,8 @@ trait Runner {
 }
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(data: FuzzerInput) -> Result<()> {
-    let module = generate::generate_module(Unstructured::new(data.0))?;
+pub fn run(generated_module: GeneratedModule) -> Result<()> {
+    let module = generated_module.enhance()?.module();
 
     let unwrap_error_chain = |res| {
         match res {
@@ -68,15 +67,6 @@ pub fn run(data: FuzzerInput) -> Result<()> {
     RunResult::verify_equality(wasmer_res, wasmi_res);
 
     Ok(())
-}
-
-#[allow(unused)]
-fn print_module(m: &Module) {
-    let b = m.clone().into_bytes().unwrap();
-    println!(
-        "{}",
-        wasmprinter::print_bytes(b).expect("failed to print module")
-    );
 }
 
 struct RunResult {

@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Result};
+use std::fmt;
 
-use arbitrary::Unstructured;
+use anyhow::{Context as _, Result};
+use arbitrary::{Arbitrary, Unstructured};
 use gear_wasm_gen::generate_gear_program_module;
 use gear_wasm_instrument::{parity_wasm::elements::Module, InstrumentationBuilder};
 
@@ -34,22 +35,60 @@ mod globals;
 use mem_accesses::InjectMemoryAccesses;
 mod mem_accesses;
 
-pub fn generate_module(mut u: Unstructured<'_>) -> Result<Module> {
-    let module =
-        generate_gear_program_module(&mut u, FuzzerConfigBundle).context("module generated")?;
+pub struct GeneratedModule<'u> {
+    u: Unstructured<'u>,
+    module: Module,
+}
 
-    let module = InstrumentationBuilder::new(MODULE_ENV)
-        .with_gas_limiter(|_| FuzzerCostRules)
-        .instrument(module)
-        .map_err(anyhow::Error::msg)?;
+impl<'u> Arbitrary<'u> for GeneratedModule<'u> {
+    fn arbitrary(u: &mut Unstructured<'u>) -> arbitrary::Result<Self> {
+        let mut u = Unstructured::new(
+            u.peek_bytes(u.len())
+                .ok_or(arbitrary::Error::NotEnoughData)?,
+        );
 
-    let (module, u) = InjectMemoryAccesses::new(u)
-        .inject(module)
-        .context("injected memory accesses")?;
+        Ok(GeneratedModule {
+            module: generate_gear_program_module(&mut u, FuzzerConfigBundle)?,
+            u,
+        })
+    }
+}
 
-    let (module, _) = InjectGlobals::new(u, Default::default())
-        .inject(module)
-        .context("injected globals")?;
+impl GeneratedModule<'_> {
+    pub fn enhance(self) -> Result<Self> {
+        let module = self.module;
 
-    Ok(module)
+        let module = InstrumentationBuilder::new(MODULE_ENV)
+            .with_gas_limiter(|_| FuzzerCostRules)
+            .instrument(module)
+            .map_err(anyhow::Error::msg)?;
+
+        let (module, u) = InjectMemoryAccesses::new(self.u)
+            .inject(module)
+            .context("injected memory accesses")?;
+
+        let (module, u) = InjectGlobals::new(u, Default::default())
+            .inject(module)
+            .context("injected globals")?;
+
+        Ok(GeneratedModule { u, module })
+    }
+
+    pub fn module(self) -> Module {
+        self.module
+    }
+}
+
+impl fmt::Debug for GeneratedModule<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let module_str = wasmprinter::print_bytes(
+            self.module
+                .clone()
+                .into_bytes()
+                .expect("failed to serialize"),
+        )
+        .expect("failed to print module");
+
+        write!(f, "{}", module_str)
+    }
 }

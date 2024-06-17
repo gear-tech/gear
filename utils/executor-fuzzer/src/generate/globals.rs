@@ -40,8 +40,8 @@ impl Default for InjectGlobalsConfig {
     }
 }
 
-pub struct InjectGlobals<'a> {
-    unstructured: Unstructured<'a>,
+pub struct InjectGlobals<'u> {
+    unstructured: Unstructured<'u>,
     config: InjectGlobalsConfig,
 }
 
@@ -57,7 +57,7 @@ impl InjectGlobals<'_> {
     where
         Self: 'this,
     {
-        let globals: Vec<_> = ('a'..='z')
+        let global_names: Vec<_> = ('a'..='z')
             .take(self.config.max_global_number)
             .map(|ch| format!("{GLOBAL_NAME_PREFIX}{ch}"))
             .collect();
@@ -73,8 +73,9 @@ impl InjectGlobals<'_> {
             let count_per_func = self
                 .unstructured
                 .int_in_range(1..=self.config.max_access_per_func)?;
+
             for _ in 0..count_per_func {
-                let array_idx = self.unstructured.choose_index(globals.len())? as u32;
+                let array_idx = self.unstructured.choose_index(global_names.len())? as u32;
                 let global_idx = next_global_idx + array_idx;
 
                 let insert_at_pos = self
@@ -102,7 +103,7 @@ impl InjectGlobals<'_> {
 
         // Add global exports
         let mut builder = builder::from_module(module);
-        for global in globals.iter() {
+        for global in global_names.iter() {
             builder.push_export(
                 builder::export()
                     .field(global)

@@ -18,7 +18,6 @@
 
 use std::num::{NonZeroU32, NonZeroUsize};
 
-use arbitrary::{Arbitrary, Unstructured};
 use gear_wasm_gen::{
     ConfigsBundle, GearWasmGeneratorConfig, MemoryPagesConfig, SelectableParams,
     SyscallsConfigBuilder, SyscallsInjectionTypes,
@@ -72,24 +71,5 @@ impl Rules for FuzzerCostRules {
 
     fn call_per_local_cost(&self) -> u32 {
         132
-    }
-}
-pub struct FuzzerInput<'a>(pub(crate) &'a [u8]);
-
-impl<'a> Arbitrary<'a> for FuzzerInput<'a> {
-    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let data = u
-            .peek_bytes(u.len())
-            .ok_or(arbitrary::Error::NotEnoughData)?;
-
-        Ok(Self(data))
-    }
-}
-
-impl std::fmt::Debug for FuzzerInput<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("RuntimeFuzzerInput")
-            .field(&"Mock `Debug` impl")
-            .finish()
     }
 }
