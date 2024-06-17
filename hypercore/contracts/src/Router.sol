@@ -109,6 +109,7 @@ contract Router is Ownable, ReentrancyGuardTransient {
     }
 
     function uploadCode(bytes32 codeId, bytes32 blobTx) external {
+        require(blobTx != 0 || blobhash(0) != 0, "invalid transaction");
         require(codes[codeId] == CodeState.Unknown, "code already uploaded");
         codes[codeId] = CodeState.Unconfirmed;
         emit UploadCode(tx.origin, codeId, blobTx);
