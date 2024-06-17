@@ -146,7 +146,7 @@ pub mod pallet_tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{scheduler::*, storage::*, CodeMetadata, Program};
+    use common::{scheduler::*, storage::*, CodeMetadata};
     use frame_support::{
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
