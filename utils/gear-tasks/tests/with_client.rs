@@ -21,9 +21,8 @@ use gear_node_testing::client::{
 };
 use gear_tasks::{GearTasksRunner, TaskSpawnerExt, TASKS_AMOUNT};
 use sc_client_api::{Backend, UsageProvider};
-use sp_externalities::{Extension, Extensions, ExternalitiesExt};
+use sp_externalities::{Extension, Extensions};
 use sp_state_machine::{Ext, OverlayedChanges};
-use sp_storage::StateVersion;
 use std::sync::{Arc, OnceLock};
 
 static BACKEND: OnceLock<Arc<TestBackend>> = OnceLock::new();
@@ -71,7 +70,7 @@ pub fn init_logger() {
         .try_init();
 }
 
-pub fn new_test_ext() -> BackendExternalities {
+fn new_test_ext() -> BackendExternalities {
     CLIENT.get_or_init(|| {
         let backend = BACKEND.get_or_init(|| Arc::new(TestBackend::new_test(u32::MAX, u64::MAX)));
         let builder = TestClientBuilder::with_backend(backend.clone());

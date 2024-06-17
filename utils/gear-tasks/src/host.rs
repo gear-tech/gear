@@ -17,14 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{JoinError, JoinHandle, JoinResult, TASKS_AMOUNT};
-use frame_support::sp_runtime::TransactionOutcome;
 use futures_executor::ThreadPool;
 use gear_tasks_runtime_api::GearTasksApi;
 use sc_client_api::UsageProvider;
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use sp_externalities::{Error, Extension, ExtensionStore, Externalities, MultiRemovalResults};
 use std::{
-    any::{Any, TypeId},
     collections::HashMap,
     marker::PhantomData,
     sync::{mpsc, Arc, OnceLock},
