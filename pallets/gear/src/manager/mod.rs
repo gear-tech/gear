@@ -59,7 +59,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    ActiveProgram, CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -70,7 +70,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
-    program::MemoryInfix,
+    program::{ActiveProgram, MemoryInfix, Program, ProgramState},
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -81,7 +81,6 @@ use sp_runtime::{
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryInto,
     marker::PhantomData,
     prelude::*,
 };
@@ -246,13 +245,13 @@ where
         );
 
         // An empty program has been just constructed: it contains no mem allocations.
-        let program = common::ActiveProgram {
+        let program = ActiveProgram {
             allocations: Default::default(),
             pages_with_data: Default::default(),
             code_hash: code_info.id,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
-            state: common::ProgramState::Uninitialized { message_id },
+            state: ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
             expiration_block,
             memory_infix: Default::default(),

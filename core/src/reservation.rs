@@ -19,7 +19,7 @@
 //! Gas reservation structures.
 
 use crate::{
-    ids::{MessageId, ReservationId},
+    ids::{prelude::*, MessageId, ReservationId},
     message::IncomingDispatch,
 };
 use alloc::collections::BTreeMap;

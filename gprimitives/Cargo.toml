@@ -1,0 +1,20 @@
+[package]
+name = "gprimitives"
+description = "Gear programs' primitives"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
+primitive-types = { workspace = true, features = ["scale-info"], optional = true }
+scale-info = { workspace = true, features = ["derive"], optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+hex.workspace = true
+gear-ss58.workspace = true
+
+[features]
+codec = ["parity-scale-codec", "primitive-types", "scale-info"]
+serde = ["dep:serde", "primitive-types?/serde_no_std"]

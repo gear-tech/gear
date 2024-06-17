@@ -34,7 +34,7 @@ use alloc::{
 };
 use gear_core::{
     env::Externalities,
-    ids::{MessageId, ProgramId},
+    ids::{prelude::*, MessageId, ProgramId},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };

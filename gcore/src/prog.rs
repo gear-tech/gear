@@ -141,7 +141,7 @@ pub fn create_program_delayed(
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
     let cid_value = HashWithValue {
-        hash: code_id.0,
+        hash: code_id.into(),
         value,
     };
 
@@ -164,7 +164,7 @@ pub fn create_program_delayed(
     };
     SyscallError(res.error_code).into_result()?;
 
-    Ok((MessageId(res.hash1), ActorId(res.hash2)))
+    Ok((res.hash1.into(), res.hash2.into()))
 }
 
 /// Same as [`create_program_with_gas`], but creates a new program after the
@@ -178,7 +178,7 @@ pub fn create_program_with_gas_delayed(
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
     let cid_value = HashWithValue {
-        hash: code_id.0,
+        hash: code_id.into(),
         value,
     };
 
@@ -202,5 +202,5 @@ pub fn create_program_with_gas_delayed(
     };
     SyscallError(res.error_code).into_result()?;
 
-    Ok((MessageId(res.hash1), ActorId(res.hash2)))
+    Ok((res.hash1.into(), res.hash2.into()))
 }

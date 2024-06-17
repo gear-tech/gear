@@ -23,6 +23,12 @@ byteorder.workspace = true
 codec = { workspace = true }
 log = { workspace = true, optional = true }
 
+ark-bls12-381 = { workspace = true, features = ["curve"] }
+ark-ec = { workspace = true, optional = true }
+ark-ff = { workspace = true, optional = true }
+ark-scale = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
 
@@ -41,4 +47,10 @@ std = [
 	"byteorder/std",
 	"codec/std",
 	"log",
+
+	"ark-bls12-381/std",
+	"ark-ec/std",
+	"ark-ff/std",
+	"ark-scale/std",
+	"sha2/std"
 ]

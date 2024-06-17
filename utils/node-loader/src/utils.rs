@@ -11,10 +11,8 @@ use gear_wasm_gen::{
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
-    gear_core::{
-        ids::MessageId as GenMId,
-        message::{common::ReplyDetails, user::UserMessage as GenUserMessage},
-    },
+    gear_core::message::{common::ReplyDetails, user::UserMessage as GenUserMessage},
+    gprimitives::MessageId as GenMId,
 };
 use rand::rngs::SmallRng;
 use reqwest::Client;
@@ -117,7 +115,7 @@ pub async fn capture_mailbox_messages(
     api: &GearApi,
     event_source: &[gsdk::metadata::Event],
 ) -> Result<BTreeSet<MessageId>> {
-    let to = ProgramId::from(api.account_id().as_ref());
+    let to = ProgramId::new(api.account_id().clone().into());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
     let bn_threshold = api.last_block_number().await? + 20;
     let mailbox_messages: Vec<_> = event_source

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, StoredDispatch,
         StoredMessage, Value,
@@ -159,7 +159,7 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ProgramId::generate_from_program(code_id, salt.inner(), message_id),
+            program_id: ProgramId::generate_from_program(message_id, code_id, salt.inner()),
             code_id,
             salt,
             payload,

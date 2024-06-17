@@ -18,7 +18,7 @@
 
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{MapStorage, ValueStorage};
-use gear_core::code::MAX_WASM_PAGES_AMOUNT;
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, program::ProgramState};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
 

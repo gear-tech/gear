@@ -18,7 +18,7 @@
 
 use crate::prelude::ops::{Bound, RangeBounds};
 
-pub(crate) fn decay_range<Range: RangeBounds<usize>>(range: Range) -> (u32, u32) {
+pub(crate) fn decay_range(range: impl RangeBounds<usize>) -> (u32, u32) {
     use Bound::*;
 
     let offset = match range.start_bound() {

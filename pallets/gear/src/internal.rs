@@ -38,7 +38,7 @@ use core::cmp::{Ord, Ordering};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, MessageId, ProgramId, ReservationId},
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,

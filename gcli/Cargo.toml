@@ -48,7 +48,7 @@ rand.workspace = true
 demo-messenger.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
-gsdk = { workspace = true, features = ["testing"] }
+gnode.workspace = true
 
 [build-dependencies]
 which.workspace = true

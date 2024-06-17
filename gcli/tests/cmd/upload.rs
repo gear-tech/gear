@@ -22,7 +22,7 @@ use crate::common::{
     node::{Convert, NodeExec},
     Args, Result,
 };
-use gear_core::ids::CodeId;
+use gear_core::ids::{prelude::*, CodeId};
 use gsdk::Api;
 
 #[tokio::test]
