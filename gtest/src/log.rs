@@ -23,7 +23,7 @@ use gear_core::{
     message::{Payload, StoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
-use std::{convert::TryInto, fmt::Debug};
+use std::{collections::BTreeMap, convert::TryInto, fmt::Debug};
 
 /// A log that emitted by a program, for user defined logs,
 /// see [`Log`].
@@ -371,7 +371,7 @@ pub struct RunResult {
     pub(crate) message_id: MessageId,
     pub(crate) total_processed: u32,
     pub(crate) main_gas_burned: Gas,
-    pub(crate) others_gas_burned: Gas,
+    pub(crate) others_gas_burned: BTreeMap<u32, Gas>,
 }
 
 impl RunResult {
@@ -413,8 +413,8 @@ impl RunResult {
     }
 
     /// Get the total gas burned by the other messages.
-    pub fn others_gas_burned(&self) -> Gas {
-        self.others_gas_burned
+    pub fn others_gas_burned(&self) -> &BTreeMap<u32, Gas> {
+        &self.others_gas_burned
     }
 
     /// Returns decoded logs.

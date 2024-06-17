@@ -159,7 +159,7 @@ pub mod pallet {
         ids::{CodeId, ProgramId},
         memory::PageBuf,
         pages::GearPage,
-        program::MemoryInfix,
+        program::{MemoryInfix, Program},
     };
 
     use sp_runtime::DispatchError;

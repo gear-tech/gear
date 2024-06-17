@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Pallet, ProgramStorage};
-use common::Program;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use gear_core::program::{ActiveProgram, Program};
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -62,7 +62,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                 Some(match program {
-                    v5::Program::Active(p) => Program::Active(common::ActiveProgram {
+                    v5::Program::Active(p) => Program::Active(ActiveProgram {
                         allocations: p.allocations.into_iter().collect(),
                         pages_with_data: p.pages_with_data.into_iter().collect(),
                         memory_infix: p.memory_infix,
@@ -124,12 +124,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
 }
 
 mod v5 {
-    use common::ProgramState;
     use gear_core::{
         ids::ProgramId,
         message::DispatchKind,
         pages::{GearPage, WasmPage},
-        program::MemoryInfix,
+        program::{MemoryInfix, ProgramState},
         reservation::GasReservationMap,
     };
     use primitive_types::H256;
@@ -202,12 +201,12 @@ mod v5 {
 mod test {
     use super::*;
     use crate::mock::*;
-    use common::ProgramState;
     use frame_support::traits::StorageVersion;
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::ProgramId,
         pages::{GearPage, WasmPage},
+        program::ProgramState,
     };
     use sp_runtime::traits::Zero;
 

@@ -170,6 +170,16 @@ pub trait LazyPagesStorage: fmt::Debug {
     fn load_page(&mut self, key: &[u8], buffer: &mut [u8]) -> Option<u32>;
 }
 
+impl LazyPagesStorage for () {
+    fn page_exists(&self, _key: &[u8]) -> bool {
+        unreachable!()
+    }
+
+    fn load_page(&mut self, _key: &[u8], _buffer: &mut [u8]) -> Option<u32> {
+        unreachable!()
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
     /// Lazy-pages accesses costs.

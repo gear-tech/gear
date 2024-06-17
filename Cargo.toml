@@ -19,6 +19,10 @@ members = [
     "core-backend",
     "core-processor",
     "core-errors",
+    "lazy-pages",
+    "lazy-pages/common",
+    "lazy-pages/interface",
+    "lazy-pages/native-interface",
     "examples/async",
     "examples/async-critical",
     "examples/async-custom-entry",
@@ -134,7 +138,7 @@ num_enum = { version = "0.6.1", default-features = false }
 once_cell = "1.19.0"
 parity-scale-codec = { version = "3.6.4", default-features = false }
 parity-wasm = "0.45.0"
-parking_lot = "0.12.2"
+parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
@@ -154,9 +158,9 @@ sha-1 = "0.10.1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.64"
+syn = "2.0.66"
 thiserror = "1.0.61"
-tokio = { version = "1.37.0" }
+tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.0"
 wat = "1.0.83"
@@ -176,6 +180,7 @@ ark-serialize = { version = "0.4", default-features = false }
 ark-ec = { version = "0.4.2", default-features = false }
 ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
+sha2 = { version = "0.10.8", default-features = false }
 
 # Published deps
 #
@@ -196,6 +201,7 @@ gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
+gnode = { path = "utils/gnode" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
@@ -217,6 +223,7 @@ gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
+gear-lazy-pages-native-interface = { path = "lazy-pages/native-interface" }
 gear-node-testing = { path = "node/testing" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
@@ -450,7 +457,7 @@ indexmap = "2.2.6"                                                        # util
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.51.4"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.41", default-features = false }               # node/cli
+mimalloc = { version = "0.1.42", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
@@ -462,7 +469,7 @@ schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.8.13"                                                           # utils/wasm-builder
+toml = "0.8.14"                                                           # utils/wasm-builder
 tracing = "0.1.40"                                                        # utils/node-loader
 tracing-appender = "0.2"                                                  # utils/node-loader
 tracing-subscriber = "0.3.18"                                             # utils/node-loader
@@ -474,10 +481,12 @@ fail = "0.5"                                                              # gear
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.5.0"                                                            # gsdk-api-gen
 etc = "0.1.19"                                                            # gcli
-toml_edit = "0.22.12"                                                      # crates-io
+toml_edit = "0.22.12"                                                     # crates-io
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
+glob = "0.3.1"                                                            # cargo-gbuild
+smallvec = "1.13.2"                                                       # utils/gnode
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`

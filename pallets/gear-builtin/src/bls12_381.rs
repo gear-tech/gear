@@ -50,6 +50,8 @@ impl<T: Config> BuiltinActor for Actor<T> {
             Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2) => {
                 projective_multiplication_g2::<T>(&payload[1..], gas_limit)
             }
+            Some(REQUEST_AGGREGATE_G1) => aggregate_g1::<T>(&payload[1..], gas_limit),
+            Some(REQUEST_MAP_TO_G2AFFINE) => map_to_g2affine::<T>(&payload[1..], gas_limit),
             _ => (Err(BuiltinActorError::DecodingError), 0),
         };
 
@@ -368,5 +370,98 @@ fn projective_multiplication_g2<T: Config>(
             bls12_381::host_calls::bls12_381_mul_projective_g2(base, scalar)
                 .map(Response::ProjectiveMultiplicationG2)
         },
+    )
+}
+
+fn aggregate_g1<T: Config>(
+    mut payload: &[u8],
+    gas_limit: u64,
+) -> (Result<Response, BuiltinActorError>, u64) {
+    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
+    let points = match result {
+        Some(Ok(array)) => array,
+        Some(Err(e)) => return (Err(e), gas_spent),
+        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    };
+
+    // decode the count of items
+
+    let mut slice = points.as_slice();
+    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
+    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
+        log::debug!(
+            target: LOG_TARGET,
+            "Failed to decode item count in points",
+        );
+
+        return (Err(BuiltinActorError::DecodingError), gas_spent);
+    };
+
+    let to_spend = <T as Config>::WeightInfo::bls12_381_aggregate_g1(count as u32).ref_time();
+    if gas_limit < gas_spent + to_spend {
+        return (Err(BuiltinActorError::InsufficientGas), gas_spent);
+    }
+
+    gas_spent += to_spend;
+
+    (
+        gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points)
+            .map(Response::AggregateG1)
+            .map_err(|e| {
+                log::debug!(
+                    target: LOG_TARGET,
+                    "Failed to aggregate G1-points: {e}"
+                );
+
+                BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    "Aggregate G1-points: computation error",
+                ))
+            }),
+        gas_spent,
+    )
+}
+
+fn map_to_g2affine<T: Config>(
+    mut payload: &[u8],
+    gas_limit: u64,
+) -> (Result<Response, BuiltinActorError>, u64) {
+    let Ok(len) = Compact::<u32>::decode(&mut payload).map(u32::from) else {
+        log::debug!(
+            target: LOG_TARGET,
+            "Failed to scale-decode vector length"
+        );
+        return (Err(BuiltinActorError::DecodingError), 0);
+    };
+
+    if len != payload.len() as u32 {
+        log::debug!(
+            target: LOG_TARGET,
+            "Failed to scale-decode vector length"
+        );
+
+        return (Err(BuiltinActorError::DecodingError), 0);
+    }
+
+    let to_spend = <T as Config>::WeightInfo::bls12_381_map_to_g2affine(len).ref_time();
+    if gas_limit < to_spend {
+        return (Err(BuiltinActorError::InsufficientGas), 0);
+    }
+
+    let gas_spent = to_spend;
+
+    (
+        gear_runtime_interface::gear_bls_12_381::map_to_g2affine(payload)
+            .map(Response::MapToG2Affine)
+            .map_err(|e| {
+                log::debug!(
+                    target: LOG_TARGET,
+                    "Failed to map a message: {e}"
+                );
+
+                BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    "Mapping message: computation error",
+                ))
+            }),
+        gas_spent,
     )
 }

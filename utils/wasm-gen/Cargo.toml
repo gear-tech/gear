@@ -27,4 +27,6 @@ gear-utils.workspace = true
 
 gear-core-backend = { workspace = true, features = ["std"] }
 gear-core-processor = { workspace = true, features = ["std", "mock"] }
-gear-lazy-pages-interface = { workspace = true, features = ["std"] }
+gear-lazy-pages.workspace = true
+gear-lazy-pages-common.workspace = true
+gear-lazy-pages-native-interface.workspace = true
