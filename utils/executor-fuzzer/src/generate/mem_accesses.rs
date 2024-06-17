@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use arbitrary::Unstructured;
+use derive_more::{Display, Error};
 use gear_wasm_instrument::parity_wasm::{
     builder,
     elements::{External, Instruction, Instructions, Module},
@@ -24,8 +25,9 @@ use gear_wasm_instrument::parity_wasm::{
 
 use crate::OS_PAGE_SIZE;
 
-#[derive(Debug)]
+#[derive(Debug, Display, Error)]
 pub enum InjectMemoryAccessesError {
+    #[display(fmt = "No memory imports found")]
     NoMemoryImports,
 }
 

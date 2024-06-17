@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use arbitrary::Unstructured;
 use gear_wasm_gen::generate_gear_program_module;
@@ -25,7 +25,7 @@ use mem_accesses::InjectMemoryAccesses;
 
 use crate::{
     config::{FuzzerConfigBundle, FuzzerCostRules},
-    ENV,
+    MODULE_ENV,
 };
 
 mod globals;
@@ -33,16 +33,16 @@ mod mem_accesses;
 
 pub fn generate_module(mut u: Unstructured<'_>) -> Result<Module> {
     let module =
-        generate_gear_program_module(&mut u, FuzzerConfigBundle).expect("module generated");
+        generate_gear_program_module(&mut u, FuzzerConfigBundle).context("module generated")?;
 
-    let module = InstrumentationBuilder::new(ENV)
+    let module = InstrumentationBuilder::new(MODULE_ENV)
         .with_gas_limiter(|_| FuzzerCostRules)
         .instrument(module)
-        .expect("instrumented");
+        .map_err(anyhow::Error::msg)?;
 
     let module = InjectMemoryAccesses::new(u, module)
         .inject()
-        .expect("injected memory accesses");
+        .context("injected memory accesses")?;
 
     Ok(module)
 }

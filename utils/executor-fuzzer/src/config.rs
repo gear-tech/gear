@@ -52,8 +52,8 @@ impl ConfigsBundle for FuzzerConfigBundle {
                     Numeric, Reference, Parametric, Variable, Table, Memory, Control,
                 ],
                 max_instructions: 500,
-                min_funcs: NonZeroUsize::new(3).expect("from non zero value; qed."),
-                max_funcs: NonZeroUsize::new(5).expect("from non zero value; qed."),
+                min_funcs: NonZeroUsize::new(3).expect("non zero value"),
+                max_funcs: NonZeroUsize::new(5).expect("non zero value"),
             },
         )
     }

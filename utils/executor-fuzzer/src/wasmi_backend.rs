@@ -16,20 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use error::CustomHostError;
-use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
+use anyhow::{bail, Context};
 
 use gear_wasm_gen::SyscallName;
+use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
 use wasmi::{
     memory_units::Pages, ExternVal, FuncInstance, FuncRef, ImportsBuilder, MemoryInstance,
     MemoryRef, Module as WasmiModule, ModuleImportResolver, ModuleInstance, ModuleRef,
-    RuntimeValue, TrapCode, ValueType,
+    RuntimeValue, Trap, TrapCode, ValueType,
 };
 
 use crate::{
     globals::InstanceAccessGlobal, lazy_pages, RunResult, Runner, INITIAL_PAGES, PROGRAM_GAS,
 };
 
+use error::CustomHostError;
 mod error;
 
 struct Resolver {
@@ -84,25 +85,22 @@ impl wasmi::Externals for Externals {
 impl InstanceAccessGlobal for ModuleRef {
     fn set_global(&self, name: &str, value: i64) -> anyhow::Result<()> {
         let Some(ExternVal::Global(global)) = self.export_by_name(name) else {
-            panic!("global '{name}' not found");
+            bail!("global '{name}' not found");
         };
 
-        global
-            .set(RuntimeValue::I64(value))
-            .expect("failed to set global");
-        Ok(())
+        Ok(global.set(RuntimeValue::I64(value))?)
     }
 
     fn get_global(&self, name: &str) -> anyhow::Result<i64> {
         let Some(ExternVal::Global(global)) = self.export_by_name(name) else {
-            panic!("global '{name}' not found");
+            bail!("global '{name}' not found");
         };
 
-        if let RuntimeValue::I64(v) = global.get() {
-            Ok(v)
-        } else {
-            panic!("Global is not an i64");
-        }
+        let RuntimeValue::I64(v) = global.get() else {
+            bail!("global is not an i64");
+        };
+
+        Ok(v)
     }
 }
 
@@ -111,11 +109,11 @@ pub struct WasmiRunner;
 impl Runner for WasmiRunner {
     fn run(module: &Module) -> anyhow::Result<RunResult> {
         let wasmi_module =
-            WasmiModule::from_buffer(module.clone().into_bytes().expect("valid bytes"))
-                .expect("failed to load wasm");
+            WasmiModule::from_buffer(module.clone().into_bytes().map_err(anyhow::Error::msg)?)
+                .context("failed to load wasm")?;
 
         let memory = MemoryInstance::alloc(Pages(INITIAL_PAGES as usize), None)
-            .expect("failed to allocate memory");
+            .context("failed to allocate memory")?;
 
         let mem_ptr = memory.direct_access().as_ref().as_ptr() as usize;
         let mem_size = memory.direct_access().as_ref().len();
@@ -124,7 +122,7 @@ impl Runner for WasmiRunner {
         let imports = ImportsBuilder::new().with_resolver("env", &resolver);
 
         let instance = ModuleInstance::new(&wasmi_module, &imports)
-            .expect("failed to instantiate wasm module")
+            .context("failed to instantiate wasm module")?
             .assert_no_start();
 
         let Some(ExternVal::Global(gear_gas)) = instance.export_by_name(GLOBAL_NAME_GAS) else {
@@ -132,7 +130,7 @@ impl Runner for WasmiRunner {
         };
         gear_gas
             .set(RuntimeValue::I64(PROGRAM_GAS))
-            .expect("failed to set gas");
+            .context("failed to set gas")?;
 
         lazy_pages::init_fuzzer_lazy_pages(lazy_pages::FuzzerLazyPagesContext {
             instance: Box::new(instance.clone()),
@@ -147,7 +145,7 @@ impl Runner for WasmiRunner {
                 gr_system_break_idx: 0,
             },
         ) {
-            if let wasmi::Error::Trap(wasmi::Trap::Host(msg)) = error {
+            if let wasmi::Error::Trap(Trap::Host(msg)) = error {
                 log::error!("{msg}");
             } else {
                 Err(error)?;

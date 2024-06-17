@@ -19,26 +19,30 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-
 use arbitrary::Unstructured;
-pub use config::FuzzerInput;
-use gear_wasm_instrument::parity_wasm::elements::Module;
-use lazy_pages::{HostPageAddr, TouchedPage};
-use wasmer_backend::WasmerRunner;
-use wasmi_backend::WasmiRunner;
 
+use gear_wasm_instrument::parity_wasm::elements::Module;
+
+pub use config::FuzzerInput;
 mod config;
+
 mod generate;
 mod globals;
+
+use lazy_pages::{HostPageAddr, TouchedPage};
 mod lazy_pages;
+
+use wasmer_backend::WasmerRunner;
 mod wasmer_backend;
+
+use wasmi_backend::WasmiRunner;
 mod wasmi_backend;
 
 const INITIAL_PAGES: u32 = 10;
 const WASM_PAGE_SIZE: usize = 0x10_000;
 const PROGRAM_GAS: i64 = 10_000_000;
 const OS_PAGE_SIZE: usize = 4096;
-const ENV: &str = "env";
+const MODULE_ENV: &str = "env";
 
 trait Runner {
     fn run(module: &Module) -> Result<RunResult>;

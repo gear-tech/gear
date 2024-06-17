@@ -16,17 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    globals::InstanceAccessGlobal,
-    lazy_pages::{self, FuzzerLazyPagesContext},
-    print_module, RunResult, Runner, ENV, INITIAL_PAGES, PROGRAM_GAS,
-};
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
+
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
 use wasmer::{
     Exports, Extern, Function, FunctionType, ImportObject, Instance, Memory, MemoryType,
     Module as WasmerModule, RuntimeError, Store, Type, Val,
+};
+
+use crate::{
+    globals::InstanceAccessGlobal,
+    lazy_pages::{self, FuzzerLazyPagesContext},
+    RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
 
 impl InstanceAccessGlobal for Instance {
@@ -38,11 +40,11 @@ impl InstanceAccessGlobal for Instance {
 
     fn get_global(&self, name: &str) -> Result<i64> {
         let global = self.exports.get_global(name)?;
-        if let Val::I64(v) = global.get() {
-            Ok(v)
-        } else {
-            Err(anyhow::anyhow!("Global is not an i64"))
-        }
+        let Val::I64(v) = global.get() else {
+            bail!("global is not an i64")
+        };
+
+        Ok(v)
     }
 }
 
@@ -51,11 +53,13 @@ pub struct WasmerRunner;
 impl Runner for WasmerRunner {
     fn run(module: &Module) -> Result<RunResult> {
         let store = Store::default();
-        let wasmer_module =
-            WasmerModule::new(&store, module.clone().into_bytes().expect("valid bytes"))?;
+        let wasmer_module = WasmerModule::new(
+            &store,
+            module.clone().into_bytes().map_err(anyhow::Error::msg)?,
+        )?;
 
         let ty = MemoryType::new(INITIAL_PAGES, None, false);
-        let m = Memory::new(&store, ty).expect("memory allocated");
+        let m = Memory::new(&store, ty).context("memory allocated")?;
         let mem_ptr = m.data_ptr() as usize;
         let mem_size = m.data_size() as usize;
         let memory = Extern::Memory(m);
@@ -74,14 +78,11 @@ impl Runner for WasmerRunner {
         );
 
         let mut imports = ImportObject::new();
-        imports.register(ENV, exports);
+        imports.register(MODULE_ENV, exports);
 
         let instance = match Instance::new(&wasmer_module, &imports) {
             Ok(instance) => instance,
-            Err(e) => {
-                print_module(module);
-                panic!("Failed to instantiate module: {:?}", e);
-            }
+            err @ Err(_) => err?,
         };
 
         lazy_pages::init_fuzzer_lazy_pages(FuzzerLazyPagesContext {
@@ -93,20 +94,20 @@ impl Runner for WasmerRunner {
         let gear_gas = instance
             .exports
             .get_global(GLOBAL_NAME_GAS)
-            .expect("global exists");
-        gear_gas.set(Val::I64(PROGRAM_GAS)).expect("global set");
+            .context("global exists")?;
+        gear_gas.set(Val::I64(PROGRAM_GAS)).context("global set")?;
 
         let init_fn = instance
             .exports
             .get_function("init")
-            .expect("init function");
+            .context("init function")?;
         match init_fn.call(&[]) {
             Ok(_) => {}
             Err(e) => {
                 if e.message().contains("out off gas") {
                     log::error!("wasmer, out off gas");
                 } else {
-                    Err(e)?;
+                    Err(e)?
                 }
             }
         }
