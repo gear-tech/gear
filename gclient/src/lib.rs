@@ -132,6 +132,7 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 mod api;
+mod client;
 mod utils;
 mod ws;
 
