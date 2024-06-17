@@ -1,20 +1,20 @@
 [package]
-name = "pallet-gear-builtin-rpc"
+name = "pallet-gear-eth-bridge-rpc"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
+primitive-types.workspace = true
 
 # Substrate packages
 sp-api.workspace = true
 sp-blockchain.workspace = true
-sp-core.workspace = true
 sp-runtime.workspace = true
 
 # Local packages
-pallet-gear-builtin-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear-eth-bridge-rpc-runtime-api = { workspace = true, features = ["std"] }

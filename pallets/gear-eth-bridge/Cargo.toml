@@ -1,0 +1,82 @@
+[package]
+name = "pallet-gear-eth-bridge"
+description = "TODO (breathx): write pallet's description"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+# Operational deps.
+log.workspace = true
+parity-scale-codec.workspace = true
+scale-info.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
+
+# Gear deps.
+common.workspace = true
+gbuiltin-eth-bridge.workspace = true
+gear-core.workspace = true
+gprimitives.workspace = true
+pallet-gear-builtin.workspace = true
+
+# Substrate deps.
+binary-merkle-tree.workspace = true
+frame-support.workspace = true
+frame-system.workspace = true
+pallet-staking.workspace = true
+sp-consensus-grandpa.workspace = true
+sp-runtime.workspace = true
+sp-std.workspace = true
+
+[features]
+default = ['std']
+std = [
+    # Operational deps.
+    "log/std",
+    "parity-scale-codec/std",
+    "scale-info/std",
+    "dep:serde",
+
+    # Gear deps.
+    "common/std",
+    "gear-core/std",
+    "pallet-gear-builtin/std",
+
+    # Substrate deps.
+    "binary-merkle-tree/std",
+    "frame-support/std",
+    "frame-system/std",
+    "pallet-staking/std",
+    "sp-consensus-grandpa/std",
+    "sp-runtime/std",
+    "sp-std/std",
+]
+runtime-benchmarks = [
+    # Gear deps.
+    "common/runtime-benchmarks",
+    "pallet-gear-builtin/runtime-benchmarks",
+
+    # Substrate deps.
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "pallet-staking/runtime-benchmarks",
+    "sp-runtime/runtime-benchmarks",
+]
+try-runtime = [
+    # Gear deps.
+    "common/runtime-benchmarks",
+    "pallet-gear-builtin/runtime-benchmarks",
+
+    # Substrate deps.
+    "frame-support/try-runtime",
+    "frame-system/try-runtime",
+    "pallet-staking/try-runtime",
+    "sp-runtime/try-runtime",
+]

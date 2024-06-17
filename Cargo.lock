@@ -894,6 +894,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "binary-merkle-tree"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0#e0206506693aef9ad68f42001b86312f8b9debcf"
+dependencies = [
+ "hash-db",
+ "log",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4245,6 +4254,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin-eth-bridge"
+version = "1.4.2"
+dependencies = [
+ "gprimitives",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "gcli"
 version = "1.4.2"
 dependencies = [
@@ -4881,6 +4899,8 @@ dependencies = [
  "log",
  "pallet-gear-builtin-rpc",
  "pallet-gear-builtin-rpc-runtime-api",
+ "pallet-gear-eth-bridge-rpc",
+ "pallet-gear-eth-bridge-rpc-runtime-api",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-staking-rewards-rpc",
@@ -8361,6 +8381,49 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
  "test-syscalls",
  "wabt",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge"
+version = "1.4.2"
+dependencies = [
+ "binary-merkle-tree",
+ "frame-support",
+ "frame-system",
+ "gbuiltin-eth-bridge",
+ "gear-common",
+ "gear-core",
+ "gprimitives",
+ "log",
+ "pallet-gear-builtin",
+ "pallet-staking",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-consensus-grandpa",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge-rpc"
+version = "1.4.2"
+dependencies = [
+ "jsonrpsee 0.16.3",
+ "pallet-gear-eth-bridge-rpc-runtime-api",
+ "primitive-types",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge-rpc-runtime-api"
+version = "1.4.2"
+dependencies = [
+ "pallet-gear-eth-bridge",
+ "sp-api",
+ "sp-core",
 ]
 
 [[package]]
@@ -14297,6 +14360,8 @@ dependencies = [
  "pallet-gear-builtin",
  "pallet-gear-builtin-rpc-runtime-api",
  "pallet-gear-debug",
+ "pallet-gear-eth-bridge",
+ "pallet-gear-eth-bridge-rpc-runtime-api",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-payment",
