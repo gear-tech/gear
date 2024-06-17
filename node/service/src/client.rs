@@ -96,6 +96,7 @@ pub trait RuntimeApiCollection:
     + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
     + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
     + gear_tasks_runtime_api::GearTasksApi<Block>
+    + gear_tasks::RuntimeSetOverlayedChanges<Block>
 {
 }
 
@@ -114,6 +115,7 @@ impl<Api> RuntimeApiCollection for Api where
         + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
         + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
         + gear_tasks_runtime_api::GearTasksApi<Block>
+        + gear_tasks::RuntimeSetOverlayedChanges<Block>
 {
 }
 

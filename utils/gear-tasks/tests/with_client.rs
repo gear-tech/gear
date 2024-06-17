@@ -55,17 +55,15 @@ pub fn init_logger() {
             use std::io::Write;
 
             let current_thread = std::thread::current();
-            writeln!(
-                f,
-                "[{} {}] |{}| {}",
-                record.level(),
-                record.module_path().unwrap_or_default(),
-                current_thread
-                    .name()
-                    .map(str::to_string)
-                    .unwrap_or_else(|| { format!("{:?}", current_thread.id()) }),
-                record.args(),
-            )
+
+            let level = f.default_styled_level(record.level());
+            let module = record.module_path().unwrap_or_default();
+            let thread_name = current_thread
+                .name()
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("{:?}", current_thread.id()));
+
+            writeln!(f, "[{level:<5} ({thread_name}) {module}] {}", record.args(),)
         })
         .try_init();
 }
@@ -92,8 +90,6 @@ fn new_test_ext() -> BackendExternalities {
 
         client
     });
-
-    sp_io::TestExternalities::default();
 
     let mut ext = BackendExternalities::default();
     ext.register_extension(TaskSpawnerExt::default());
@@ -130,32 +126,24 @@ fn smoke_native() {
 }
 
 #[test]
-//#[should_panic = r#"RuntimeApi("Execution failed: Runtime panicked: assertion `left == right` failed"#]
-fn read_denied() {
+fn write_has_no_effect() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const GLOBAL_AVAILABLE_KEY: &[u8] = b"GLOBAL_AVAILABLE_KEY";
-        const GLOBAL_AVAILABLE_VALUE: &[u8] = b"GLOBAL_AVAILABLE_VALUE";
+        const MAIN_KEY: &[u8] = b"MAIN_KEY";
+        const MAIN_VALUE: &[u8] = b"MAIN_VALUE";
 
-        sp_io::storage::set(GLOBAL_AVAILABLE_KEY, GLOBAL_AVAILABLE_VALUE);
-        assert_eq!(
-            sp_io::storage::get(GLOBAL_AVAILABLE_KEY).as_deref(),
-            Some(GLOBAL_AVAILABLE_VALUE)
-        );
+        const THREAD_KEY: &[u8] = b"THREAD_KEY";
+        const THREAD_VALUE: &[u8] = b"THREAD_VALUE";
 
-        assert_eq!(
-            sp_io::storage::get(GLOBAL_AVAILABLE_KEY).as_deref(),
-            Some(GLOBAL_AVAILABLE_VALUE)
-        );
+        sp_io::storage::set(MAIN_KEY, MAIN_VALUE);
+        assert_eq!(sp_io::storage::get(MAIN_KEY).as_deref(), Some(MAIN_VALUE));
 
         gear_tasks::spawn(
             |_payload| {
-                assert_eq!(
-                    sp_io::storage::get(GLOBAL_AVAILABLE_KEY).as_deref(),
-                    Some(GLOBAL_AVAILABLE_VALUE)
-                );
+                assert_eq!(sp_io::storage::get(MAIN_KEY).as_deref(), Some(MAIN_VALUE));
 
-                sp_io::storage::set(b"SOME_NEW_KEY", b"SOME_NEW_VALUE");
+                sp_io::storage::set(THREAD_KEY, THREAD_VALUE);
+
                 vec![]
             },
             vec![],
@@ -165,12 +153,9 @@ fn read_denied() {
 
         gear_tasks::spawn(
             |_payload| {
-                assert_eq!(
-                    sp_io::storage::get(GLOBAL_AVAILABLE_KEY).as_deref(),
-                    Some(GLOBAL_AVAILABLE_VALUE)
-                );
+                assert_eq!(sp_io::storage::get(MAIN_KEY).as_deref(), Some(MAIN_VALUE));
 
-                assert_eq!(sp_io::storage::get(b"SOME_NEW_KEY"), None);
+                assert_eq!(sp_io::storage::get(THREAD_KEY), None);
                 vec![]
             },
             vec![],
@@ -178,10 +163,7 @@ fn read_denied() {
         .join()
         .unwrap();
 
-        assert_eq!(
-            sp_io::storage::get(GLOBAL_AVAILABLE_KEY).as_deref(),
-            Some(GLOBAL_AVAILABLE_VALUE)
-        );
-        assert_eq!(sp_io::storage::get(b"SOME_NEW_KEY"), None);
+        assert_eq!(sp_io::storage::get(MAIN_KEY).as_deref(), Some(MAIN_VALUE));
+        assert_eq!(sp_io::storage::get(THREAD_KEY), None);
     });
 }

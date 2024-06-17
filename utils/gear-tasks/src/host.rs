@@ -17,11 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{JoinError, JoinHandle, JoinResult, TASKS_AMOUNT};
+use frame_support::sp_runtime::traits::HashingFor;
 use futures_executor::ThreadPool;
 use gear_tasks_runtime_api::GearTasksApi;
 use sc_client_api::UsageProvider;
-use sp_api::{ApiExt, ProvideRuntimeApi};
+use sp_api::{ApiExt, BlockT, ProvideRuntimeApi};
+use sp_state_machine::OverlayedChanges;
 use std::{
+    any::Any,
     collections::HashMap,
     marker::PhantomData,
     sync::{mpsc, Arc, OnceLock},
@@ -29,7 +32,12 @@ use std::{
 
 static RUNNER_TX: OnceLock<mpsc::Sender<TaskInfo>> = OnceLock::new();
 
+pub trait RuntimeSetOverlayedChanges<B: BlockT> {
+    fn set_overlayed_changes(&mut self, changes: OverlayedChanges<HashingFor<B>>);
+}
+
 struct TaskInfo {
+    pub overlayed_changes: Box<dyn Any + Send>,
     pub func_ref: u64,
     pub payload: Vec<u8>,
     pub rx: mpsc::SyncSender<JoinResult>,
@@ -39,7 +47,7 @@ sp_externalities::decl_extension! {
     pub(crate) struct GearTasksContextExt;
 }
 
-pub struct GearTasksRunner<RA, Block: sp_api::BlockT> {
+pub struct GearTasksRunner<RA, Block> {
     runtime_api_provider: Arc<RA>,
     rx: mpsc::Receiver<TaskInfo>,
     thread_pool: ThreadPool,
@@ -49,8 +57,8 @@ pub struct GearTasksRunner<RA, Block: sp_api::BlockT> {
 impl<RA, Block> GearTasksRunner<RA, Block>
 where
     RA: ProvideRuntimeApi<Block> + UsageProvider<Block> + Send + Sync + 'static,
-    RA::Api: GearTasksApi<Block>,
-    Block: sp_api::BlockT,
+    RA::Api: GearTasksApi<Block> + RuntimeSetOverlayedChanges<Block>,
+    Block: BlockT,
 {
     pub fn new(client: Arc<RA>) -> Self {
         let (tx, rx) = mpsc::channel();
@@ -74,6 +82,7 @@ where
         log::error!("RUN started");
 
         for TaskInfo {
+            overlayed_changes,
             func_ref,
             payload,
             rx,
@@ -83,6 +92,12 @@ where
             self.thread_pool.spawn_ok(async move {
                 let mut runtime_api = client.runtime_api();
                 runtime_api.register_extension(GearTasksContextExt);
+
+                let overlayed_changes = overlayed_changes
+                    .downcast::<OverlayedChanges<HashingFor<Block>>>()
+                    .expect("`Externalities::gear_overlayed_changes()` implementation is invalid");
+                runtime_api.set_overlayed_changes(*overlayed_changes);
+
                 let block_hash = client.usage_info().chain.best_hash;
 
                 let res = runtime_api
@@ -108,7 +123,12 @@ pub struct TaskSpawner {
 }
 
 impl TaskSpawner {
-    pub(crate) fn spawn(&mut self, func_ref: u64, payload: Vec<u8>) -> JoinHandle {
+    pub(crate) fn spawn(
+        &mut self,
+        overlayed_changes: Box<dyn Any + Send>,
+        func_ref: u64,
+        payload: Vec<u8>,
+    ) -> JoinHandle {
         let handle = self.counter;
         self.counter += 1;
 
@@ -117,6 +137,7 @@ impl TaskSpawner {
         let runner_tx = RUNNER_TX.get().expect("`GearTasksRunner` is not spawned");
         runner_tx
             .send(TaskInfo {
+                overlayed_changes,
                 func_ref,
                 payload,
                 rx,

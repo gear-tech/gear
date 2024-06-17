@@ -28,7 +28,7 @@ extern crate alloc;
 mod host;
 
 #[cfg(feature = "std")]
-pub use host::{GearTasksRunner, TaskSpawnerExt};
+pub use host::{GearTasksRunner, RuntimeSetOverlayedChanges, TaskSpawnerExt};
 
 use alloc::{string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
@@ -51,10 +51,14 @@ pub trait GearTasks {
     }
 
     fn spawn(&mut self, func_ref: u64, payload: Vec<u8>) -> u64 {
+        let changes = self
+            .gear_overlayed_changes()
+            .expect("`GearTasks::spawn` called outside `sp_state_machine::StateMachine`");
+
         let spawner = self
             .extension::<host::TaskSpawnerExt>()
             .expect("Cannot spawn without dynamic runtime dispatcher (TaskSpawnerExt)");
-        let handle = spawner.spawn(func_ref, payload);
+        let handle = spawner.spawn(changes, func_ref, payload);
         handle.inner
     }
 
@@ -77,12 +81,7 @@ pub fn runtime_api_impl(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
     #[cfg(feature = "std")]
     let f = unsafe { core::mem::transmute::<u64, fn(Vec<u8>) -> Vec<u8>>(func_ref) };
 
-    // tasks must only read storage and never write
-    let output_payload;
-    //frame_support::assert_storage_noop!({
-    output_payload = f(payload);
-    //});
-    output_payload
+    f(payload)
 }
 
 #[derive(Debug, Encode, Decode)]

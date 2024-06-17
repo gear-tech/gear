@@ -1504,6 +1504,17 @@ impl_runtime_apis_plus_common! {
 }
 
 #[cfg(any(feature = "std", test))]
+impl<B, C> gear_tasks::RuntimeSetOverlayedChanges<B> for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+{
+    fn set_overlayed_changes(&mut self, changes: OverlayedChanges<HashingFor<B>>) {
+        let _changes = self.changes.replace(changes);
+    }
+}
+
+#[cfg(any(feature = "std", test))]
 impl<B, C> Clone for RuntimeApiImpl<B, C>
 where
     B: BlockT,

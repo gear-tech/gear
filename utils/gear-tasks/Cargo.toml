@@ -11,11 +11,15 @@ repository.workspace = true
 sc-executor = { workspace = true, optional = true }
 sc-executor-common = { workspace = true, optional = true }
 sc-client-api = { workspace = true, optional = true }
+sp-state-machine = { workspace = true, optional = true, features = ["std"] }
+runtime-primitives = { workspace = true, optional = true, features = ["std"] }
+
+gear-tasks-runtime-api.workspace = true
+
 sp-runtime-interface.workspace = true
 sp-externalities.workspace = true
 sp-storage.workspace = true
 sp-api.workspace = true
-gear-tasks-runtime-api.workspace = true
 frame-support.workspace = true
 
 parity-scale-codec.workspace = true
@@ -39,6 +43,8 @@ std = [
     "sc-executor",
     "sc-executor-common",
     "sc-client-api",
+    "sp-state-machine",
+    "runtime-primitives",
     "sp-runtime-interface/std",
     "sp-externalities/std",
     "sp-api/std",
