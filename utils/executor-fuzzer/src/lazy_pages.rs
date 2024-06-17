@@ -141,7 +141,7 @@ fn user_signal_handler_internal(
         return Err(Error::OutOfWasmMemoryAccess);
     }
 
-    log::trace!(
+    log::error!(
         "SIG: Unprotect WASM memory at address: {:#x}, wr: {is_write}",
         native_addr
     );

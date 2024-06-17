@@ -150,7 +150,7 @@ impl Runner for WasmiRunner {
             if let wasmi::Error::Trap(wasmi::Trap::Host(msg)) = error {
                 log::error!("{msg}");
             } else {
-                panic!("failed to run wasm: {:?}", error);
+                Err(error)?;
             }
         }
 

@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::panic;
-
 use crate::{
     globals::InstanceAccessGlobal,
     lazy_pages::{self, FuzzerLazyPagesContext},
@@ -105,7 +103,11 @@ impl Runner for WasmerRunner {
         match init_fn.call(&[]) {
             Ok(_) => {}
             Err(e) => {
-                log::error!("Failed to call init function: {:?}", e);
+                if e.message().contains("out off gas") {
+                    log::error!("wasmer, out off gas");
+                } else {
+                    Err(e)?;
+                }
             }
         }
 

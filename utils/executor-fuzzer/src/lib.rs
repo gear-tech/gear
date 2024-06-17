@@ -48,10 +48,20 @@ trait Runner {
 pub fn run(data: FuzzerInput) -> Result<()> {
     let module = generate::generate_module(Unstructured::new(data.0))?;
 
-    //print_module(&module);
+    print_module(&module);
 
-    let wasmer_res = WasmerRunner::run(&module)?;
-    let wasmi_res = WasmiRunner::run(&module)?;
+    let unwrap_error_chain = |res| {
+        match res {
+            Ok(res) => res,
+            Err(e) => {
+                // Print whole error chain with '#' formatter
+                panic!("{:#?}", e)
+            }
+        }
+    };
+
+    let wasmer_res = unwrap_error_chain(WasmerRunner::run(&module));
+    let wasmi_res = unwrap_error_chain(WasmiRunner::run(&module));
 
     RunResult::verify_equality(wasmer_res, wasmi_res);
 
