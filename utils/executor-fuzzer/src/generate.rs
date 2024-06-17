@@ -21,14 +21,17 @@ use anyhow::{Context, Result};
 use arbitrary::Unstructured;
 use gear_wasm_gen::generate_gear_program_module;
 use gear_wasm_instrument::{parity_wasm::elements::Module, InstrumentationBuilder};
-use mem_accesses::InjectMemoryAccesses;
 
 use crate::{
     config::{FuzzerConfigBundle, FuzzerCostRules},
     MODULE_ENV,
 };
 
+use globals::InjectGlobals;
+pub use globals::GLOBAL_NAME_PREFIX;
 mod globals;
+
+use mem_accesses::InjectMemoryAccesses;
 mod mem_accesses;
 
 pub fn generate_module(mut u: Unstructured<'_>) -> Result<Module> {
@@ -40,9 +43,13 @@ pub fn generate_module(mut u: Unstructured<'_>) -> Result<Module> {
         .instrument(module)
         .map_err(anyhow::Error::msg)?;
 
-    let module = InjectMemoryAccesses::new(u, module)
-        .inject()
+    let (module, u) = InjectMemoryAccesses::new(u)
+        .inject(module)
         .context("injected memory accesses")?;
+
+    let (module, _) = InjectGlobals::new(u, Default::default())
+        .inject(module)
+        .context("injected globals")?;
 
     Ok(module)
 }

@@ -26,7 +26,7 @@ use wasmer::{
 };
 
 use crate::{
-    globals::InstanceAccessGlobal,
+    globals::{get_globals, globals_list, InstanceAccessGlobal},
     lazy_pages::{self, FuzzerLazyPagesContext},
     RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
@@ -69,7 +69,7 @@ impl Runner for WasmerRunner {
 
         let host_function_signature = FunctionType::new(vec![Type::I32], vec![]);
         let host_function = Function::new(&store, &host_function_signature, |_args| {
-            Err(RuntimeError::user("out off gas".into()))
+            Err(RuntimeError::user("out of gas".into()))
         });
 
         exports.insert(
@@ -89,23 +89,23 @@ impl Runner for WasmerRunner {
             instance: Box::new(instance.clone()),
             memory_range: mem_ptr..(mem_ptr + mem_size),
             pages: Default::default(),
+            globals_list: globals_list(module),
         });
 
-        let gear_gas = instance
-            .exports
-            .get_global(GLOBAL_NAME_GAS)
-            .context("global exists")?;
-        gear_gas.set(Val::I64(PROGRAM_GAS)).context("global set")?;
+        instance
+            .set_global(GLOBAL_NAME_GAS, PROGRAM_GAS)
+            .context("failed to set gas")?;
 
         let init_fn = instance
             .exports
             .get_function("init")
             .context("init function")?;
+
         match init_fn.call(&[]) {
             Ok(_) => {}
             Err(e) => {
-                if e.message().contains("out off gas") {
-                    log::error!("wasmer, out off gas");
+                if e.message().contains("out of gas") {
+                    log::info!("out of gas");
                 } else {
                     Err(e)?
                 }
@@ -115,6 +115,7 @@ impl Runner for WasmerRunner {
         Ok(RunResult {
             gas_global: instance.get_global(GLOBAL_NAME_GAS)?,
             pages: lazy_pages::get_touched_pages(),
+            globals: get_globals(&instance, module).context("failed to get globals")?,
         })
     }
 }

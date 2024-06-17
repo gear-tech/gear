@@ -27,7 +27,9 @@ use wasmi::{
 };
 
 use crate::{
-    globals::InstanceAccessGlobal, lazy_pages, RunResult, Runner, INITIAL_PAGES, PROGRAM_GAS,
+    globals::{get_globals, globals_list, InstanceAccessGlobal},
+    lazy_pages::{self, FuzzerLazyPagesContext},
+    RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
 
 use error::CustomHostError;
@@ -75,7 +77,7 @@ impl wasmi::Externals for Externals {
         _args: wasmi::RuntimeArgs,
     ) -> Result<Option<wasmi::RuntimeValue>, wasmi::Trap> {
         Err(if index == self.gr_system_break_idx {
-            wasmi::Trap::host(CustomHostError::from("out off gas"))
+            wasmi::Trap::host(CustomHostError::from("out of gas"))
         } else {
             TrapCode::Unreachable.into()
         })
@@ -119,23 +121,21 @@ impl Runner for WasmiRunner {
         let mem_size = memory.direct_access().as_ref().len();
 
         let resolver = Resolver { memory };
-        let imports = ImportsBuilder::new().with_resolver("env", &resolver);
+        let imports = ImportsBuilder::new().with_resolver(MODULE_ENV, &resolver);
 
         let instance = ModuleInstance::new(&wasmi_module, &imports)
             .context("failed to instantiate wasm module")?
             .assert_no_start();
 
-        let Some(ExternVal::Global(gear_gas)) = instance.export_by_name(GLOBAL_NAME_GAS) else {
-            panic!("failed to get gas global");
-        };
-        gear_gas
-            .set(RuntimeValue::I64(PROGRAM_GAS))
+        instance
+            .set_global(GLOBAL_NAME_GAS, PROGRAM_GAS)
             .context("failed to set gas")?;
 
-        lazy_pages::init_fuzzer_lazy_pages(lazy_pages::FuzzerLazyPagesContext {
+        lazy_pages::init_fuzzer_lazy_pages(FuzzerLazyPagesContext {
             instance: Box::new(instance.clone()),
             memory_range: mem_ptr..(mem_ptr + mem_size),
             pages: Default::default(),
+            globals_list: globals_list(module),
         });
 
         if let Err(error) = instance.invoke_export(
@@ -145,8 +145,8 @@ impl Runner for WasmiRunner {
                 gr_system_break_idx: 0,
             },
         ) {
-            if let wasmi::Error::Trap(Trap::Host(msg)) = error {
-                log::error!("{msg}");
+            if let wasmi::Error::Trap(Trap::Host(_)) = error {
+                log::info!("out of gas");
             } else {
                 Err(error)?;
             }
@@ -155,6 +155,7 @@ impl Runner for WasmiRunner {
         let result = RunResult {
             gas_global: instance.get_global(GLOBAL_NAME_GAS)?,
             pages: lazy_pages::get_touched_pages(),
+            globals: get_globals(&instance, module).context("failed to get globals")?,
         };
 
         Ok(result)

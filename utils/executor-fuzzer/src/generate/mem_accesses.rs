@@ -29,6 +29,8 @@ use crate::OS_PAGE_SIZE;
 pub enum InjectMemoryAccessesError {
     #[display(fmt = "No memory imports found")]
     NoMemoryImports,
+    #[display(fmt = "No code section found")]
+    NoCodeSection,
 }
 
 // TODO: different word size accesses
@@ -40,15 +42,11 @@ enum MemoryAccess {
 
 pub struct InjectMemoryAccesses<'a> {
     unstructured: Unstructured<'a>,
-    module: Module,
 }
 
 impl InjectMemoryAccesses<'_> {
-    pub fn new(unstructured: Unstructured<'_>, module: Module) -> InjectMemoryAccesses<'_> {
-        InjectMemoryAccesses {
-            unstructured,
-            module,
-        }
+    pub fn new(unstructured: Unstructured<'_>) -> InjectMemoryAccesses<'_> {
+        InjectMemoryAccesses { unstructured }
     }
 
     fn generate_access_body(
@@ -81,9 +79,14 @@ impl InjectMemoryAccesses<'_> {
         Ok(body)
     }
 
-    pub fn inject(mut self) -> Result<Module, InjectMemoryAccessesError> {
-        let import_section = self
-            .module
+    pub fn inject<'this>(
+        mut self,
+        mut module: Module,
+    ) -> Result<(Module, Unstructured<'this>), InjectMemoryAccessesError>
+    where
+        Self: 'this,
+    {
+        let import_section = module
             .import_section()
             .ok_or(InjectMemoryAccessesError::NoMemoryImports)?;
         let initial_memory_limit = import_section
@@ -99,12 +102,14 @@ impl InjectMemoryAccesses<'_> {
             .next()
             .ok_or(InjectMemoryAccessesError::NoMemoryImports)?;
 
-        let mut next_func_index = self.module.functions_space() as u32;
+        let mut next_func_index = module.functions_space() as u32;
         let mut functions_instr = Vec::new();
 
-        let code_section = self.module.code_section_mut().expect("no code section");
+        let code_section = module
+            .code_section_mut()
+            .ok_or(InjectMemoryAccessesError::NoCodeSection)?;
 
-        // NOTE: Atm insert one access per original function.
+        // NOTE: ATM insert one access per function.
         for function in code_section.bodies_mut() {
             let target_addr = self
                 .unstructured
@@ -130,7 +135,7 @@ impl InjectMemoryAccesses<'_> {
             functions_instr.push(instructions)
         }
 
-        let mut mbuilder = builder::from_module(self.module);
+        let mut mbuilder = builder::from_module(module);
 
         for instructions in functions_instr.into_iter() {
             mbuilder.push_function(
@@ -144,6 +149,6 @@ impl InjectMemoryAccesses<'_> {
             );
         }
 
-        Ok(mbuilder.build())
+        Ok((mbuilder.build(), self.unstructured))
     }
 }

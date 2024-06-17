@@ -52,8 +52,6 @@ trait Runner {
 pub fn run(data: FuzzerInput) -> Result<()> {
     let module = generate::generate_module(Unstructured::new(data.0))?;
 
-    print_module(&module);
-
     let unwrap_error_chain = |res| {
         match res {
             Ok(res) => res,
@@ -72,6 +70,7 @@ pub fn run(data: FuzzerInput) -> Result<()> {
     Ok(())
 }
 
+#[allow(unused)]
 fn print_module(m: &Module) {
     let b = m.clone().into_bytes().unwrap();
     println!(
@@ -82,8 +81,8 @@ fn print_module(m: &Module) {
 
 struct RunResult {
     gas_global: i64,
-    // TODO: globals
     pages: BTreeMap<HostPageAddr, (TouchedPage, Vec<u8>)>,
+    globals: BTreeMap<String, i64>,
 }
 
 impl RunResult {
@@ -107,5 +106,7 @@ impl RunResult {
             assert_eq!(wasmer_page_info, wasmi_page_info);
             assert_eq!(wasmer_page_mem, wasmi_page_mem);
         }
+
+        assert_eq!(wasmer_res.globals, wasmi_res.globals);
     }
 }

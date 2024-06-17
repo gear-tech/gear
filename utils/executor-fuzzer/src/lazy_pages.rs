@@ -51,7 +51,7 @@ pub struct FuzzerLazyPagesContext {
     pub memory_range: Range<usize>,
     pub instance: Box<dyn InstanceAccessGlobal>,
     pub pages: HashMap<HostPageAddr, TouchedPage>,
-    //globals_update_list: GlobalList,
+    pub globals_list: Vec<String>,
 }
 
 thread_local! {
@@ -59,7 +59,7 @@ thread_local! {
 }
 
 pub fn init_fuzzer_lazy_pages(init: FuzzerLazyPagesContext) {
-    const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"dummydummydummydummydummydummy01";
+    const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"dummydummydummydummydummydummydu";
 
     let mem_range = init.memory_range.clone();
 
@@ -141,7 +141,7 @@ fn user_signal_handler_internal(
         return Err(Error::OutOfWasmMemoryAccess);
     }
 
-    log::error!(
+    log::trace!(
         "SIG: Unprotect WASM memory at address: {:#x}, wr: {is_write}",
         native_addr
     );
@@ -162,15 +162,18 @@ fn user_signal_handler_internal(
         })
         .or_insert(page);
 
-    // Update gas global
-    let mut gas = ctx
-        .instance
-        .get_global(GLOBAL_NAME_GAS)
-        .expect("global get");
-    gas = gas.saturating_sub(100);
+    // Increment gas global
     ctx.instance
-        .set_global(GLOBAL_NAME_GAS, gas)
-        .expect("global set");
+        .increment_global(GLOBAL_NAME_GAS, 100)
+        .expect("gas global exists");
+
+    // Increment generated globals
+    for global in &ctx.globals_list {
+        //TODO: add some randomness to global update process
+        ctx.instance
+            .increment_global(global, -42)
+            .expect("global exists");
+    }
 
     Ok(())
 }
