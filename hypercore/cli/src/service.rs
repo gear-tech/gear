@@ -171,6 +171,7 @@ impl Service {
                         ).await?;
 
                         if let Some(ref mut validator) = validator {
+                            log::debug!("Pushing commitments to local validator...");
                             validator.push_commitment(network_service.clone(), &outcomes)?;
 
                             if let Some(ref mut sequencer) = sequencer {
@@ -178,12 +179,16 @@ impl Service {
 
                                 if validator.has_codes_commit() {
                                     let aggregated_codes_commitments = validator.codes_aggregation()?;
+                                    log::debug!("Received ({}) signed code commitments from local validator...", aggregated_codes_commitments.len());
                                     sequencer.receive_codes_commitment(origin, aggregated_codes_commitments)?;
                                 }
 
                                 if validator.has_transitions_commit() {
                                     let aggregated_transitions_commitments = validator.transitions_aggregation()?;
+                                    log::debug!("Received ({}) signed transition commitments from local validator...", aggregated_transitions_commitments.len());
                                     sequencer.receive_transitions_commitment(origin, aggregated_transitions_commitments)?;
+                                } else {
+                                    log::debug!("No commitments from local validator...");
                                 }
                             }
                         }
