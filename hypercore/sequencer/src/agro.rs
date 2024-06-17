@@ -204,6 +204,14 @@ impl<T: SeqHash> AggregatedCommitments<T> {
 
         Ok(aggregated)
     }
+
+    pub fn len(&self) -> usize {
+        self.commitments.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.commitments.is_empty()
+    }
 }
 
 impl<D: SeqHash> AggregatedQueue<D> {
