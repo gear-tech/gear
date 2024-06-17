@@ -20,6 +20,7 @@ use crate::{benchmarking::tests::utils, BalanceOf, Config, CurrencyOf};
 use alloc::{vec, vec::Vec};
 use frame_support::traits::{Currency, Get};
 use parity_scale_codec::Encode;
+use sp_runtime::SaturatedConversion;
 
 pub fn smoke<T: Config>() {
     #[cfg(feature = "std")]
@@ -39,9 +40,11 @@ pub fn smoke<T: Config>() {
         unsorted,
     );
 
-    let payload = handle.join();
+    let payload = handle.join().unwrap();
     let (sorted, bank_balance): (Vec<u8>, BalanceOf<T>) =
         parity_scale_codec::Decode::decode(&mut &payload[..]).unwrap();
     assert_eq!(sorted, vec![1, 2, 3, 5, 7, 9]);
     assert_eq!(bank_balance, CurrencyOf::<T>::minimum_balance());
+
+    log::info!("Bank balance: {}", bank_balance.saturated_into::<u128>());
 }

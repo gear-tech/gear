@@ -102,6 +102,7 @@ pallet-gear-rpc-runtime-api.workspace = true
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 pallet-gear-builtin-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
+gear-tasks.workspace = true
 gear-tasks-runtime-api.workspace = true
 
 [dev-dependencies]
@@ -121,6 +122,7 @@ default = ["std"]
 std = [
 	"parity-scale-codec/std",
 	"common/std",
+	"gear-tasks/std",
 	"gear-tasks-runtime-api/std",
  	"frame-try-runtime?/std",
  	"frame-system-benchmarking?/std",

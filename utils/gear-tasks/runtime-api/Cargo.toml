@@ -9,8 +9,7 @@ repository.workspace = true
 
 [dependencies]
 sp-api.workspace = true
-frame-support.workspace = true
 
 [features]
 default = ["std"]
-std = ["sp-api/std", "frame-support/std"]
+std = ["sp-api/std"]

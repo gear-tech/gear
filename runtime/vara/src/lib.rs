@@ -1498,7 +1498,7 @@ impl_runtime_apis_plus_common! {
 
     impl gear_tasks_runtime_api::GearTasksApi<Block> for Runtime {
         fn execute_task(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
-            gear_tasks_runtime_api::impl_fn(func_ref, payload)
+            gear_tasks::runtime_api_impl(func_ref, payload)
         }
     }
 }
