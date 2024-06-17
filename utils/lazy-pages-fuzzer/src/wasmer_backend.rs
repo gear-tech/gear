@@ -22,7 +22,7 @@ use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
 use wasmer::{
     Exports, Extern, Function, FunctionType, ImportObject, Instance, Memory, MemoryType,
-    Module as WasmerModule, RuntimeError, Store, Type, Val,
+    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Universal, Val,
 };
 
 use crate::{
@@ -52,7 +52,9 @@ pub struct WasmerRunner;
 
 impl Runner for WasmerRunner {
     fn run(module: &Module) -> Result<RunResult> {
-        let store = Store::default();
+        let compiler = Singlepass::default();
+        let store = Store::new(&Universal::new(compiler).engine());
+
         let wasmer_module = WasmerModule::new(
             &store,
             module.clone().into_bytes().map_err(anyhow::Error::msg)?,
