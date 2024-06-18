@@ -44,6 +44,8 @@ struct TaskInfo {
 }
 
 sp_externalities::decl_extension! {
+    /// Set only by `GearTasksRunner` and checked by `gear_tasks::check_context()` host call,
+    /// so no one can call API outside.
     pub(crate) struct GearTasksContextExt;
 }
 
@@ -64,8 +66,6 @@ where
         let (tx, rx) = mpsc::channel();
         let _tx = RUNNER_TX.get_or_init(move || tx);
 
-        log::error!("TX inited");
-
         Self {
             runtime_api_provider: client,
             rx,
@@ -79,8 +79,6 @@ where
     }
 
     pub async fn run(self) {
-        log::error!("RUN started");
-
         for TaskInfo {
             overlayed_changes,
             func_ref,
