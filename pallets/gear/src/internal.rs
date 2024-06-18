@@ -776,6 +776,7 @@ where
             // Permanently transferring funds.
             // Note that we have no guarantees of the user account to exist. Since no minimum
             // transfer value is enforced, the transfer can fail. Handle it gracefully.
+            // TODO #4018 Introduce a safer way to handle this.
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
                 .unwrap_or_else(|e| match e {
                     DispatchError::Token(TokenError::BelowMinimum) => {
