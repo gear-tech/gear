@@ -29,15 +29,17 @@ use crate::{
 };
 
 use globals::InjectGlobals;
-pub use globals::GLOBAL_NAME_PREFIX;
+pub use globals::{InjectGlobalsConfig, GLOBAL_NAME_PREFIX};
 mod globals;
 
 use mem_accesses::InjectMemoryAccesses;
+pub use mem_accesses::InjectMemoryAccessesConfig;
 mod mem_accesses;
 
 pub struct GeneratedModule<'u> {
     u: Unstructured<'u>,
     module: Module,
+    config: FuzzerConfigBundle,
 }
 
 impl<'u> Arbitrary<'u> for GeneratedModule<'u> {
@@ -47,9 +49,12 @@ impl<'u> Arbitrary<'u> for GeneratedModule<'u> {
                 .ok_or(arbitrary::Error::NotEnoughData)?,
         );
 
+        let config = FuzzerConfigBundle::default();
+
         Ok(GeneratedModule {
-            module: generate_gear_program_module(&mut u, FuzzerConfigBundle)?,
+            module: generate_gear_program_module(&mut u, config.clone())?,
             u,
+            config,
         })
     }
 }
@@ -57,21 +62,22 @@ impl<'u> Arbitrary<'u> for GeneratedModule<'u> {
 impl GeneratedModule<'_> {
     pub fn enhance(self) -> Result<Self> {
         let module = self.module;
+        let config = self.config;
 
         let module = InstrumentationBuilder::new(MODULE_ENV)
             .with_gas_limiter(|_| FuzzerCostRules)
             .instrument(module)
             .map_err(anyhow::Error::msg)?;
 
-        let (module, u) = InjectMemoryAccesses::new(self.u, Default::default())
+        let (module, u) = InjectMemoryAccesses::new(self.u, config.memory_accesses.clone())
             .inject(module)
             .context("injected memory accesses")?;
 
-        let (module, u) = InjectGlobals::new(u, Default::default())
+        let (module, u) = InjectGlobals::new(u, config.globals.clone())
             .inject(module)
             .context("injected globals")?;
 
-        Ok(GeneratedModule { u, module })
+        Ok(GeneratedModule { u, module, config })
     }
 
     pub fn module(self) -> Module {

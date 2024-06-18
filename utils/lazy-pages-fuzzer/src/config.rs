@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::num::{NonZeroU32, NonZeroUsize};
+use wasm_smith::InstructionKind;
 
 use gear_wasm_gen::{
     ConfigsBundle, GearWasmGeneratorConfig, MemoryPagesConfig, SelectableParams,
@@ -25,11 +26,17 @@ use gear_wasm_gen::{
 use gear_wasm_instrument::{
     gas_metering::MemoryGrowCost, parity_wasm::elements::Instruction, Rules,
 };
-use wasm_smith::InstructionKind;
 
-use crate::INITIAL_PAGES;
+use crate::{
+    generate::{InjectGlobalsConfig, InjectMemoryAccessesConfig},
+    INITIAL_PAGES,
+};
 
-pub struct FuzzerConfigBundle;
+#[derive(Debug, Default, Clone)]
+pub struct FuzzerConfigBundle {
+    pub memory_accesses: InjectMemoryAccessesConfig,
+    pub globals: InjectGlobalsConfig,
+}
 
 impl ConfigsBundle for FuzzerConfigBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {

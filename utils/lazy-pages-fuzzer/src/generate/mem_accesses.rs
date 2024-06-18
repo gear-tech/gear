@@ -22,6 +22,7 @@ use gear_wasm_instrument::parity_wasm::elements::{External, Instruction, Module}
 
 use crate::OS_PAGE_SIZE;
 
+#[derive(Debug, Clone)]
 pub struct InjectMemoryAccessesConfig {
     pub max_accesses_per_func: usize,
 }

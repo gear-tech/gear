@@ -26,6 +26,7 @@ use gear_wasm_instrument::parity_wasm::{
 
 pub const GLOBAL_NAME_PREFIX: &str = "gear_fuzz_";
 
+#[derive(Debug, Clone)]
 pub struct InjectGlobalsConfig {
     pub max_global_number: usize,
     pub max_access_per_func: usize,
