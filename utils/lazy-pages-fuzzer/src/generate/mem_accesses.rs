@@ -17,44 +17,61 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use arbitrary::Unstructured;
-use derive_more::{Display, Error};
-use gear_wasm_instrument::parity_wasm::{
-    builder,
-    elements::{External, Instruction, Instructions, Module},
-};
+use derive_more::{Display, Error, From};
+use gear_wasm_instrument::parity_wasm::elements::{External, Instruction, Module};
 
 use crate::OS_PAGE_SIZE;
 
-#[derive(Debug, Display, Error)]
+pub struct InjectMemoryAccessesConfig {
+    pub max_accesses_per_func: usize,
+}
+
+impl Default for InjectMemoryAccessesConfig {
+    fn default() -> Self {
+        InjectMemoryAccessesConfig {
+            max_accesses_per_func: 10,
+        }
+    }
+}
+
+#[derive(Debug, Display, Error, From)]
 pub enum InjectMemoryAccessesError {
     #[display(fmt = "No memory imports found")]
     NoMemoryImports,
     #[display(fmt = "No code section found")]
     NoCodeSection,
+    #[display(fmt = "")]
+    Arbitrary(arbitrary::Error),
 }
 
 // TODO: different word size accesses
 enum MemoryAccess {
     ReadI32,
     WriteI32,
-    ReadWriteI32,
 }
 
 pub struct InjectMemoryAccesses<'u> {
     unstructured: Unstructured<'u>,
+    config: InjectMemoryAccessesConfig,
 }
 
 impl InjectMemoryAccesses<'_> {
-    pub fn new(unstructured: Unstructured<'_>) -> InjectMemoryAccesses<'_> {
-        InjectMemoryAccesses { unstructured }
+    pub fn new(
+        unstructured: Unstructured<'_>,
+        config: InjectMemoryAccessesConfig,
+    ) -> InjectMemoryAccesses<'_> {
+        InjectMemoryAccesses {
+            unstructured,
+            config,
+        }
     }
 
-    fn generate_access_body(
+    fn generate_access_instructions(
         u: &mut Unstructured,
         target_addr: usize,
-    ) -> Result<Vec<Instruction>, ()> {
+    ) -> Result<Vec<Instruction>, InjectMemoryAccessesError> {
         use MemoryAccess::*;
-        let mut body = match u.choose(&[ReadI32, WriteI32, ReadWriteI32]).unwrap() {
+        Ok(match u.choose(&[ReadI32, WriteI32])? {
             ReadI32 => vec![
                 Instruction::I32Const(target_addr as i32),
                 Instruction::I32Load(0, 0),
@@ -65,18 +82,7 @@ impl InjectMemoryAccesses<'_> {
                 Instruction::I32Const(0xB6B6B6B6u32 as i32),
                 Instruction::I32Store(0, 0),
             ],
-            ReadWriteI32 => vec![
-                Instruction::I32Const(target_addr as i32),
-                Instruction::I32Const(target_addr as i32),
-                Instruction::I32Load(0, 0),
-                Instruction::I32Const(42),
-                Instruction::I32Add,
-                Instruction::I32Store(0, 0),
-            ],
-        };
-
-        body.push(Instruction::End);
-        Ok(body)
+        })
     }
 
     pub fn inject<'this>(
@@ -102,53 +108,41 @@ impl InjectMemoryAccesses<'_> {
             .next()
             .ok_or(InjectMemoryAccessesError::NoMemoryImports)?;
 
-        let mut next_func_index = module.functions_space() as u32;
-        let mut functions_instr = Vec::new();
-
         let code_section = module
             .code_section_mut()
             .ok_or(InjectMemoryAccessesError::NoCodeSection)?;
 
-        // NOTE: ATM insert one access per function.
         for function in code_section.bodies_mut() {
-            let target_addr = self
+            let access_count = self
                 .unstructured
-                .choose_index(initial_memory_limit as usize)
-                .unwrap()
-                .saturating_mul(OS_PAGE_SIZE);
+                .int_in_range(1..=self.config.max_accesses_per_func)?;
 
-            let code_len = function.code().elements().len();
-            let insert_at_pos = self
-                .unstructured
-                .choose_index(code_len)
-                .ok()
-                .unwrap_or_default();
+            for _ in 0..=access_count {
+                let target_addr = self
+                    .unstructured
+                    .choose_index(initial_memory_limit as usize)
+                    .unwrap()
+                    .saturating_mul(OS_PAGE_SIZE);
 
-            function
-                .code_mut()
-                .elements_mut()
-                .insert(insert_at_pos, Instruction::Call(next_func_index));
-            next_func_index += 1;
+                let code_len = function.code().elements().len();
+                let insert_at_pos = self
+                    .unstructured
+                    .choose_index(code_len)
+                    .ok()
+                    .unwrap_or_default();
 
-            let instructions =
-                Self::generate_access_body(&mut self.unstructured, target_addr).unwrap();
-            functions_instr.push(instructions)
+                let instrs =
+                    Self::generate_access_instructions(&mut self.unstructured, target_addr)?;
+
+                for instr in instrs.into_iter().rev() {
+                    function
+                        .code_mut()
+                        .elements_mut()
+                        .insert(insert_at_pos, instr);
+                }
+            }
         }
 
-        let mut mbuilder = builder::from_module(module);
-
-        for instructions in functions_instr.into_iter() {
-            mbuilder.push_function(
-                builder::function()
-                    .signature()
-                    .build()
-                    .body()
-                    .with_instructions(Instructions::new(instructions))
-                    .build()
-                    .build(),
-            );
-        }
-
-        Ok((mbuilder.build(), self.unstructured))
+        Ok((module, self.unstructured))
     }
 }

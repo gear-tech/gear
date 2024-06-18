@@ -74,7 +74,7 @@ impl InjectGlobals<'_> {
                 .unstructured
                 .int_in_range(1..=self.config.max_access_per_func)?;
 
-            for _ in 0..count_per_func {
+            for _ in 0..=count_per_func {
                 let array_idx = self.unstructured.choose_index(global_names.len())? as u32;
                 let global_idx = next_global_idx + array_idx;
 

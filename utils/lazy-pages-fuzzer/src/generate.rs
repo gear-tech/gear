@@ -63,7 +63,7 @@ impl GeneratedModule<'_> {
             .instrument(module)
             .map_err(anyhow::Error::msg)?;
 
-        let (module, u) = InjectMemoryAccesses::new(self.u)
+        let (module, u) = InjectMemoryAccesses::new(self.u, Default::default())
             .inject(module)
             .context("injected memory accesses")?;
 
