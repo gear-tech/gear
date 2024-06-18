@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,19 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Picking random ports
-use rand::Rng;
+use rand::{rngs::OsRng, Rng};
 use std::{net::TcpListener, ops::Range};
 
 /// localhost addr
-const LOCALHOST: &str = "127.0.0.1";
+pub const LOCALHOST: &str = "127.0.0.1";
 const PORT_RANGE: Range<u16> = 15000..25000;
 
 /// Pick a random port
 pub fn pick() -> u16 {
-    let mut rng = rand::thread_rng();
-
     loop {
-        let port = rng.gen_range(PORT_RANGE);
+        let port = OsRng.gen_range(PORT_RANGE);
         if TcpListener::bind(format!("{LOCALHOST}:{port}")).is_ok() {
             return port;
         }

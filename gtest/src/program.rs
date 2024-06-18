@@ -20,7 +20,7 @@ use crate::{
     log::RunResult,
     manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
     system::System,
-    Result,
+    Result, GAS_ALLOWANCE,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
@@ -523,14 +523,14 @@ impl<'a> Program<'a> {
 
         let message = Message::new(
             MessageId::generate_from_user(
-                system.block_info.height,
+                system.blocks_manager.get().height,
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
             source,
             self.id,
             payload.into().try_into().unwrap(),
-            Some(u64::MAX),
+            Some(GAS_ALLOWANCE),
             value,
             None,
         );
@@ -557,7 +557,7 @@ impl<'a> Program<'a> {
         let source = from.into().0;
 
         let origin_msg_id = MessageId::generate_from_user(
-            system.block_info.height,
+            system.blocks_manager.get().height,
             source,
             system.fetch_inc_message_nonce() as u128,
         );
@@ -786,13 +786,18 @@ pub mod gbuild {
     /// NOTE: Release or Debug is decided by the users
     /// who run the command `cargo-gbuild`.
     pub fn wasm_path() -> Result<PathBuf> {
-        let target = etc::find_up("target")
-            .map_err(|_| Error::GbuildArtifactNotFound("Could not find target folder".into()))?;
-        let manifest = Manifest::from_path(
-            etc::find_up("Cargo.toml")
-                .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?,
-        )
-        .map_err(|_| Error::GbuildArtifactNotFound("Failed to parse manifest".into()))?;
+        let manifest_path = etc::find_up("Cargo.toml")
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?;
+        let manifest = Manifest::from_path(&manifest_path)
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not parse manifest".into()))?;
+        let target = etc::find_up("target").unwrap_or(
+            manifest_path
+                .parent()
+                .ok_or(Error::GbuildArtifactNotFound(
+                    "Could not parse target directory".into(),
+                ))?
+                .to_path_buf(),
+        );
 
         let artifact = target
             .join(format!(
@@ -815,15 +820,6 @@ pub mod gbuild {
         if wasm_path().is_err() {
             let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
             if !Command::new("cargo")
-                // NOTE: The `cargo-gbuild` command could be overridden by user defined alias,
-                // this is a workaround for our workspace, for the details, see: issue #10049
-                // <https://github.com/rust-lang/cargo/issues/10049>.
-                .current_dir(
-                    manifest
-                        .ancestors()
-                        .nth(2)
-                        .expect("The project is under the root directory"),
-                )
                 .args(["gbuild", "-m"])
                 .arg(&manifest)
                 .status()

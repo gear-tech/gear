@@ -33,7 +33,7 @@ use crate::{
         code::{body, WasmModule},
         utils as common_utils,
     },
-    HandleKind,
+    Ext, HandleKind,
 };
 use common::benchmarking;
 use gear_wasm_instrument::parity_wasm::elements::Instruction;

@@ -18,28 +18,13 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{Program, System};
-use std::{path::PathBuf, process::Command};
+use gtest::{state_args, Program, System};
+use std::{fs, path::PathBuf, process::Command};
 
-#[test]
-fn test_compile_program() -> Result<()> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
-    let artifact = GBuild {
-        manifest_path: root.to_string_lossy().to_string().into(),
-        features: vec!["debug".into()],
-        profile: None,
-        target_dir: None,
-        release: false,
-    }
-    .run()?;
-
-    // Initialize system environment
-    let system = System::new();
-    system.init_logger();
-
+fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
     let user = 0;
-    let program = Program::from_file(&system, artifact.program);
+    let program = Program::from_file(sys, prog);
 
     // Init program
     let res = program.send_bytes(user, b"PING");
@@ -50,6 +35,38 @@ fn test_compile_program() -> Result<()> {
     let res = program.send_bytes(user, b"PING");
     assert!(!res.main_failed());
     assert!(res.contains(&(user, b"HANDLE_PONG")));
+
+    program
+}
+
+// NOTE:
+//
+// This test gathers both workspace build and single package build
+// for avoiding asynchronous I/O of the built programs, use [`tokio::fs`]
+// when this test grows.
+#[test]
+fn test_compile() -> Result<()> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
+    let system = System::new();
+    system.init_logger();
+
+    // 1. Test single package build.
+    let mut gbuild = GBuild::default().manifest_path(root);
+    let artifacts = gbuild.run()?;
+    ping(&system, artifacts.root.join("gbuild_test_program.wasm"));
+
+    // 2. Test workspace build.
+    gbuild = gbuild.workspace();
+    let artifacts = gbuild.run()?;
+    ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
+    let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
+
+    // 3. Test meta build.
+    let metawasm = fs::read(artifacts.root.join("gbuild_test_meta.meta.wasm"))?;
+    let modified: bool = prog
+        .read_state_using_wasm(Vec::<u8>::default(), "modified", metawasm, state_args!())
+        .expect("Failed to read program state");
+    assert!(modified);
     Ok(())
 }
 
@@ -59,25 +76,33 @@ fn test_program_tests() {
     // This is momently only for adapting the environment (nightly)
     // of our CI.
     {
-        let toolchains = Command::new("rustup")
-            .args(["toolchain", "list"])
+        let targets = Command::new("rustup")
+            .args(["target", "list", "--toolchain", "stable"])
             .output()
             .expect("Failed to list rust toolchains")
             .stdout;
-        if !String::from_utf8_lossy(&toolchains).contains("stable") {
-            Command::new("rustup")
-                .args(["install", "stable"])
+
+        if !String::from_utf8_lossy(&targets).contains("wasm32-unknown-unknown (installed)") {
+            assert!(Command::new("rustup")
+                .args([
+                    "toolchain",
+                    "install",
+                    "stable",
+                    "--component",
+                    "llvm-tools",
+                    "--target",
+                    "wasm32-unknown-unknown",
+                ])
                 .status()
-                .expect("Failed to install stable toolchain");
+                .expect("Failed to install stable toolchain")
+                .success());
         }
     }
 
     assert!(Command::new("cargo")
         .current_dir("test-program")
-        // NOTE: for the stable toolchain, see issue #48556 <https://github.com/rust-lang/rust/issues/48556>
-        // for more information.
-        .args(["+stable", "test"])
+        .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
-        .success())
+        .success());
 }

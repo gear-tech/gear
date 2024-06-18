@@ -420,7 +420,9 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+mod blocks;
 mod error;
+mod gas_tree;
 mod log;
 mod mailbox;
 mod manager;
@@ -442,6 +444,8 @@ pub(crate) use constants::*;
 pub mod constants {
     /* Constant types */
 
+    use gear_common::GasMultiplier;
+
     /// Numeric type representing value in Gear protocol.
     pub type Value = u128;
 
@@ -450,6 +454,15 @@ pub mod constants {
 
     /// Numeric type representing blocks in Gear protocol.
     pub type Block = u32;
+
+    /* Gas logic related constants */
+
+    /// Gas allowance for executing user dispatch and set of generated
+    /// by programs dispatches from execution of the user dispatch.
+    pub const GAS_ALLOWANCE: Gas = 750_000_000_000;
+
+    /// Gas multiplier used to calculate equivalence of gas in token value.
+    pub const GAS_MULTIPLIER: GasMultiplier<Value, Gas> = GasMultiplier::ValuePerGas(6);
 
     /* Currency-related constants */
 

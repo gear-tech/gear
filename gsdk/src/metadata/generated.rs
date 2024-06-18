@@ -648,25 +648,6 @@ pub mod runtime_types {
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct ActiveProgram<_0> {
-                pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                    runtime_types::gear_core::pages::Page2,
-                >,
-                pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                    runtime_types::gear_core::pages::Page,
-                >,
-                pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
-                pub gas_reservation_map: ::subxt::utils::KeyedVec<
-                    runtime_types::gprimitives::ReservationId,
-                    runtime_types::gear_core::reservation::GasReservationSlot,
-                >,
-                pub code_hash: ::subxt::utils::H256,
-                pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                pub static_pages: runtime_types::gear_core::pages::PagesAmount,
-                pub state: runtime_types::gear_common::ProgramState,
-                pub expiration_block: _0,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct CodeMetadata {
                 pub author: ::subxt::utils::H256,
                 #[codec(compact)]
@@ -678,24 +659,6 @@ pub mod runtime_types {
                 ValuePerGas(_0),
                 #[codec(index = 1)]
                 GasPerValue(_1),
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum Program<_0> {
-                #[codec(index = 0)]
-                Active(runtime_types::gear_common::ActiveProgram<_0>),
-                #[codec(index = 1)]
-                Exited(runtime_types::gprimitives::ActorId),
-                #[codec(index = 2)]
-                Terminated(runtime_types::gprimitives::ActorId),
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum ProgramState {
-                #[codec(index = 0)]
-                Uninitialized {
-                    message_id: runtime_types::gprimitives::MessageId,
-                },
-                #[codec(index = 1)]
-                Initialized,
             }
         }
         pub mod gear_core {
@@ -914,6 +877,26 @@ pub mod runtime_types {
             }
             pub mod program {
                 use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct ActiveProgram<_0> {
+                    pub allocations: runtime_types::numerated::tree::IntervalsTree<
+                        runtime_types::gear_core::pages::Page2,
+                    >,
+                    pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
+                        runtime_types::gear_core::pages::Page,
+                    >,
+                    pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
+                    pub gas_reservation_map: ::subxt::utils::KeyedVec<
+                        runtime_types::gprimitives::ReservationId,
+                        runtime_types::gear_core::reservation::GasReservationSlot,
+                    >,
+                    pub code_hash: ::subxt::utils::H256,
+                    pub code_exports:
+                        ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
+                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
+                    pub state: runtime_types::gear_core::program::ProgramState,
+                    pub expiration_block: _0,
+                }
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
                     Debug,
@@ -922,6 +905,24 @@ pub mod runtime_types {
                     crate::gp::Encode,
                 )]
                 pub struct MemoryInfix(pub ::core::primitive::u32);
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum Program<_0> {
+                    #[codec(index = 0)]
+                    Active(runtime_types::gear_core::program::ActiveProgram<_0>),
+                    #[codec(index = 1)]
+                    Exited(runtime_types::gprimitives::ActorId),
+                    #[codec(index = 2)]
+                    Terminated(runtime_types::gprimitives::ActorId),
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum ProgramState {
+                    #[codec(index = 0)]
+                    Uninitialized {
+                        message_id: runtime_types::gprimitives::MessageId,
+                    },
+                    #[codec(index = 1)]
+                    Initialized,
+                }
             }
             pub mod reservation {
                 use super::runtime_types;

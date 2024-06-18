@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 gstd.workspace = true
 parity-scale-codec.workspace = true
-sha2 = { version = "0.10.8", default-features = false }
+sha2.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
