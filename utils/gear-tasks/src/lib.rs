@@ -77,9 +77,18 @@ pub fn runtime_api_impl(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
     #[cfg(target_arch = "wasm32")]
     let f = unsafe { core::mem::transmute::<u32, fn(Vec<u8>) -> Vec<u8>>(func_ref as u32) };
 
-    // used only in tests
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", test))]
     let f = unsafe { core::mem::transmute::<u64, fn(Vec<u8>) -> Vec<u8>>(func_ref) };
+
+    #[cfg(all(feature = "std", not(test)))]
+    let f: fn(Vec<u8>) -> Vec<u8> = {
+        let _ = func_ref;
+        |_payload| {
+            panic!(
+                "`gear-tasks` runtime API implementation have not to be used for native in production"
+            )
+        }
+    };
 
     f(payload)
 }
