@@ -1150,16 +1150,7 @@ impl JournalHandler for ExtManager {
                         Some(init_message_id),
                     );
                     // Transfer the ED from the program-creator to the new program
-                    let old_balance = self.balance_of(&program_id);
-                    self.mint_to(
-                        &candidate_id,
-                        crate::EXISTENTIAL_DEPOSIT,
-                        MintMode::KeepAlive,
-                    );
-                    self.override_balance(
-                        &program_id,
-                        old_balance.saturating_sub(crate::EXISTENTIAL_DEPOSIT),
-                    );
+                    self.send_value(program_id, Some(candidate_id), crate::EXISTENTIAL_DEPOSIT);
                 } else {
                     log::debug!("Program with id {candidate_id:?} already exists");
                 }

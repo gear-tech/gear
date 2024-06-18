@@ -19,7 +19,7 @@
 use crate::*;
 use frame_support::{
     assert_noop, assert_ok,
-    traits::{OnFinalize, OnInitialize},
+    traits::{LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_babe::{
@@ -616,5 +616,113 @@ fn slashed_proposals_back_to_treasury() {
 
             // The total issuance has, therefore, persisted
             assert_eq!(Balances::total_issuance(), initial_total_issuance);
+        });
+}
+
+// Setting lock on an account prevents the account from being dusted
+#[test]
+fn dusting_prevented_by_lock() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+    let dave = AccountKeyring::Dave;
+    let ferdie = AccountKeyring::Ferdie;
+
+    let offset_pool_id = StakingRewards::account_id();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                charlie.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                dave.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![charlie.into(), dave.into(), offset_pool_id.clone()])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            let value = 1_000 * UNITS;
+
+            // Sending ED + `value` to `ferdie` to create the account in storage
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value,
+            ));
+            // `ferdie`'s balance is now ED + `value`
+            assert_eq!(
+                Balances::free_balance(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value
+            );
+
+            // Sending out some value to create dust
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(ferdie.to_account_id()),
+                sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                value + 1,
+            ));
+            // `ferdie`'s balance is now 0
+            assert_eq!(Balances::free_balance(ferdie.to_account_id()), 0);
+
+            // Second round
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value,
+            ));
+            // `ferdie`'s balance is now (again) ED + `value`
+            assert_eq!(
+                Balances::free_balance(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value
+            );
+
+            // Setting lock on `ferdie`'s account
+            Balances::set_lock(
+                *b"testlock",
+                &ferdie.into(),
+                EXISTENTIAL_DEPOSIT,
+                WithdrawReasons::all(),
+            );
+
+            // Sending out the same amount of value as before will now fail
+            assert_noop!(
+                Balances::transfer_allow_death(
+                    RuntimeOrigin::signed(ferdie.to_account_id()),
+                    sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                    value + 1,
+                ),
+                sp_runtime::TokenError::Frozen
+            );
+
+            // Sending value so that the frozen amount is not touched is ok
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(ferdie.to_account_id()),
+                sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                value,
+            ));
+
+            // `ferdie`'s balance is still greater than 0: exactly ED
+            assert_eq!(
+                Balances::free_balance(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT
+            );
         });
 }

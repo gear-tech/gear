@@ -26,7 +26,7 @@ type HandleParams = ([u8; 32], u128);
 extern "C" fn init() {
     let program_id: [u8; 32] = msg::load().expect("internal error: invalid payload");
     debug!(
-        "[CREATE_PROGRAM_REENTRANCE::init()] DST_PROGRAM_ID: 0x{}",
+        "[CREATE_PROGRAM_REENTRANCE::init] DST_PROGRAM_ID: 0x{}",
         hex::encode(program_id)
     );
 

@@ -788,6 +788,7 @@ where
                         ));
                     }
                     _ => {
+                        // Other errors are ruled out by the protocol guarantees.
                         unreachable!("Failed to transfer value: {:?}", e)
                     }
                 });
