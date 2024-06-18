@@ -77,10 +77,10 @@ pub fn runtime_api_impl(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
     #[cfg(target_arch = "wasm32")]
     let f = unsafe { core::mem::transmute::<u32, fn(Vec<u8>) -> Vec<u8>>(func_ref as u32) };
 
-    #[cfg(all(feature = "std", test))]
+    #[cfg(all(feature = "std", feature = "testing"))]
     let f = unsafe { core::mem::transmute::<u64, fn(Vec<u8>) -> Vec<u8>>(func_ref) };
 
-    #[cfg(all(feature = "std", not(test)))]
+    #[cfg(all(feature = "std", not(feature = "testing")))]
     let f: fn(Vec<u8>) -> Vec<u8> = {
         let _ = func_ref;
         |_payload| {

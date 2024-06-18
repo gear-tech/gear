@@ -24,7 +24,7 @@ parity-scale-codec.workspace = true
 log.workspace = true
 
 [dev-dependencies]
-gear-tasks = { workspace = true, features = ["std"] }
+gear-tasks = { workspace = true, features = ["std", "testing"] }
 
 sp-io = { workspace = true, features = ["std"] }
 sp-state-machine = { workspace = true, features = ["std"] }
@@ -44,3 +44,4 @@ std = [
     "futures-executor",
     "parity-scale-codec/std",
 ]
+testing = []
