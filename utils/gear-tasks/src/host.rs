@@ -63,6 +63,7 @@ where
 {
     pub fn new(client: Arc<RA>) -> Self {
         let (tx, rx) = mpsc::channel();
+        assert_eq!(RUNNER_TX.get(), None, "`GearTasksRunner` initialized twice");
         let _tx = RUNNER_TX.get_or_init(move || tx);
 
         Self {
