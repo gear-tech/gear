@@ -17,11 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{JoinError, JoinHandle, JoinResult, TASKS_AMOUNT};
-use frame_support::sp_runtime::traits::HashingFor;
 use futures_executor::ThreadPool;
 use gear_tasks_runtime_api::GearTasksApi;
 use sc_client_api::UsageProvider;
-use sp_api::{ApiExt, BlockT, ProvideRuntimeApi};
+use sp_api::{ApiExt, BlockT, HashingFor, ProvideRuntimeApi};
 use sp_state_machine::OverlayedChanges;
 use std::{
     any::Any,

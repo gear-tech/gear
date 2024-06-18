@@ -4908,24 +4908,18 @@ name = "gear-tasks"
 version = "1.4.2"
 dependencies = [
  "env_logger",
- "frame-support",
  "futures-executor",
  "gear-node-testing",
- "gear-runtime-primitives",
  "gear-tasks",
  "gear-tasks-runtime-api",
  "log",
  "parity-scale-codec",
  "sc-client-api",
- "sc-executor",
- "sc-executor-common",
  "sp-api",
  "sp-externalities",
  "sp-io",
  "sp-runtime-interface",
  "sp-state-machine",
- "sp-storage",
- "substrate-test-client",
 ]
 
 [[package]]
