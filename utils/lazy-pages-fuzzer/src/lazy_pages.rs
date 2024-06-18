@@ -146,8 +146,17 @@ fn user_signal_handler_internal(
         native_addr
     );
 
+    // On read, simulate data load to memory page
+    if !is_write {
+        unsafe {
+            simulate_data_load(native_addr);
+        }
+    }
+
     unsafe {
-        mprotect_interval(native_addr, OS_PAGE_SIZE, true, is_write, false).unwrap();
+        // In case of write access, unprotect page for write and protect for read (and vice versa)
+        mprotect_interval(native_addr, OS_PAGE_SIZE, !is_write, is_write, false)
+            .expect("mprotect succeeded");
     }
 
     // Update touched pages
@@ -204,4 +213,22 @@ unsafe fn mprotect_interval(
     region::protect(addr as *mut (), size, mask)?;
     log::trace!("mprotect interval: {addr:#x}, size: {size:#x}, mask: {mask}");
     Ok(())
+}
+
+// Simulate data load to memory page.
+unsafe fn simulate_data_load(addr: usize) {
+    // SAFETY: these pages still allocated by VM and not freed.
+    unsafe {
+        mprotect_interval(addr, OS_PAGE_SIZE, true, true, false).expect("mprotect succeeded");
+        memset(addr as *mut u8, 0xA5, OS_PAGE_SIZE);
+    }
+}
+
+// Set memory region to specific value.
+unsafe fn memset(addr: *mut u8, value: u8, size: usize) {
+    let mut addr = addr;
+    for _ in 0..size {
+        *addr = value;
+        addr = addr.add(1);
+    }
 }
