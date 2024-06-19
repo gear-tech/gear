@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Auxiliary implementations of the complext data structures,
+//! Auxiliary implementations of the complex data structures,
 //! which manage important for the gear runtime storages. These
 //! implementations can be used in a non-wasm environment.
 
@@ -27,7 +27,7 @@ use alloc::collections::btree_map::{BTreeMap, Entry};
 
 /// Double key `BTreeMap`.
 ///
-/// Basically is just a map fo the map.
+/// Basically is just a map for the map.
 pub struct DoubleBTreeMap<K1, K2, V> {
     inner: BTreeMap<K1, BTreeMap<K2, V>>,
 }

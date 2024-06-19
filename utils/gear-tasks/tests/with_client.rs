@@ -30,7 +30,6 @@ use vara_runtime::{Block, ProcessingTasksAmount};
 
 static CLIENT: OnceLock<Arc<TestClient>> = OnceLock::new();
 
-#[derive(Default)]
 struct BackendExternalities {
     extensions: Extensions,
     overlay: OverlayedChanges<HashingFor<Block>>,

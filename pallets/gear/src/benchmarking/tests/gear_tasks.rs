@@ -16,21 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{benchmarking::tests::utils, BalanceOf, Config, CurrencyOf};
-use alloc::{vec, vec::Vec};
-use frame_support::traits::{Currency, Get};
-use parity_scale_codec::Encode;
-use sp_runtime::SaturatedConversion;
+// We have to spawn a client and `GearTasksRunner` for native benchmark execution.
+// Also, we anyway run the same set of tests in `gear-tasks` crate itself.
+#[cfg(feature = "std")]
+pub fn smoke<T: crate::Config>() {}
 
-pub fn smoke<T: Config>() {
+#[cfg(target_arch = "wasm32")]
+pub fn smoke<T: crate::Config>() {
+    use crate::{benchmarking::tests::utils, BalanceOf, CurrencyOf};
+    use alloc::{vec, vec::Vec};
+    use frame_support::traits::{Currency, Get};
+    use parity_scale_codec::Encode;
+    use sp_runtime::SaturatedConversion;
+
     const MAIN_KEY: &[u8] = b"MAIN_KEY";
     const MAIN_VALUE: &[u8] = b"MAIN_VALUE";
 
     const THREAD_KEY: &[u8] = b"THREAD_KEY";
     const THREAD_VALUE: &[u8] = b"THREAD_VALUE";
-
-    #[cfg(feature = "std")]
-    utils::init_logger();
 
     gear_runtime_interface::reinit_tasks(T::ProcessingTasksAmount::get());
 
