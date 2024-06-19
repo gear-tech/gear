@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::num::NonZeroU32;
+
 use super::{
     RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE, MAX_SALT_SIZE,
     VALUE_SIZE,
@@ -25,8 +27,9 @@ use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     wasm_gen_arbitrary::{Result, Unstructured},
-    ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
-    StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
+    ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues,
+    RandomizedGearWasmConfigBundle, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
+    SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use runtime_primitives::Balance;
 use vara_runtime::EXISTENTIAL_DEPOSIT;
@@ -61,16 +64,14 @@ pub(crate) fn generate(
 ) -> Result<GearCall> {
     log::trace!("New gear-wasm generation");
     log::trace!("Random data before wasm gen {}", unstructured.len());
-
-    let code = gear_wasm_gen::generate_gear_program_code(
+    let config = config(
         unstructured,
-        config(
-            programs,
-            codes,
-            Some(format!("Generated program from corpus - {corpus_id}")),
-            current_balance,
-        ),
-    )?;
+        programs,
+        codes,
+        Some(format!("Generated program from corpus - {corpus_id}")),
+        current_balance,
+    );
+    let code = gear_wasm_gen::generate_gear_program_code(unstructured, config)?;
     log::trace!("Random data after wasm gen {}", unstructured.len());
     log::trace!("Code length {:?}", code.len());
 
@@ -100,13 +101,29 @@ fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
 }
 
 fn config(
+    unstructured: &mut Unstructured,
     programs: Option<&NonEmpty<ProgramId>>,
     codes: Option<&NonEmpty<CodeId>>,
     log_info: Option<String>,
     current_balance: Balance,
-) -> StandardGearWasmConfigsBundle {
+) -> RandomizedGearWasmConfigBundle {
+    // TODO: PLay with this more: control instructions make us very slow.
+    let no_control = unstructured.ratio(1, 4).unwrap();
+    let max_instructions = if no_control {
+        // when no control insns are enabled we generate a small amount of instructions
+        // as it should be more than enough to test the program and exhaust the gas
+        unstructured.int_in_range(60..=400).unwrap()
+    } else {
+        unstructured.int_in_range(500..=1000).unwrap()
+    };
+
+    let (min_funcs, max_funcs) = no_control.then(|| (1, 1)).unwrap_or((3, 4));
+
     let initial_pages = 2;
-    let mut injection_types = SyscallsInjectionTypes::all_with_range(1..=3);
+    // pump up injection rates of syscalls when there's control instructions and lower it when there's no control
+    // instructions (no control => all syscalls should be executed, control => some won't be executed due to if's or loops)
+    let mut injection_types =
+        SyscallsInjectionTypes::all_with_range(no_control.then_some(1..=3).unwrap_or(1..=10));
     injection_types.set_multiple(
         [
             (SyscallName::SendInit, 3..=5),
@@ -120,7 +137,12 @@ fn config(
             (SyscallName::Panic, 0..=0),
             (SyscallName::OomPanic, 0..=0),
             (SyscallName::EnvVars, 0..=0),
-            (SyscallName::Send, 10..=15),
+            (
+                SyscallName::Send,
+                // lower the amount of sends in no_control case because
+                // we do not want to exhaust the gas.
+                no_control.then_some(1..=5).unwrap_or(10..=15),
+            ),
             (SyscallName::Exit, 0..=1),
             (SyscallName::Alloc, 3..=6),
             (SyscallName::Free, 3..=6),
@@ -180,12 +202,19 @@ fn config(
         });
     }
 
-    StandardGearWasmConfigsBundle {
-        entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_types,
-        log_info,
-        params_config,
-        initial_pages: initial_pages as u32,
-        ..Default::default()
+    RandomizedGearWasmConfigBundle {
+        standard_gear_wasm_config_bundle: StandardGearWasmConfigsBundle {
+            entry_points_set: EntryPointsSet::InitHandleHandleReply,
+            injection_types,
+            log_info,
+            params_config,
+            initial_pages: initial_pages as u32,
+            waiting_probability: NonZeroU32::new(unstructured.int_in_range(1..=8).unwrap()),
+            ..Default::default()
+        },
+        max_funcs,
+        min_funcs,
+        max_instructions,
+        no_control,
     }
 }

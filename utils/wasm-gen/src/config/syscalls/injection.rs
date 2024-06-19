@@ -24,6 +24,7 @@
 
 use crate::InvocableSyscall;
 
+use arbitrary::Unstructured;
 use gear_wasm_instrument::syscalls::SyscallName;
 use indexmap::IndexSet;
 use std::{collections::HashMap, ops::RangeInclusive};
@@ -73,6 +74,30 @@ impl SyscallsInjectionTypes {
     /// Instantiate a syscalls map, where each gear syscall is injected into wasm-module with given range.
     pub fn all_with_range(range: RangeInclusive<u32>) -> Self {
         Self::new_with_injection_type(SyscallInjectionType::Function(range))
+    }
+
+    pub fn all_from_unstructured(unstructured: &mut Unstructured) -> Self {
+        Self {
+            inner: SyscallName::instrumentable()
+                .map(|name| {
+                    let range = unstructured.int_in_range(1..=3).unwrap()
+                        ..=unstructured.int_in_range(3..=20).unwrap();
+                    let injection_type = SyscallInjectionType::Function(range);
+                    (InvocableSyscall::Loose(name), injection_type)
+                })
+                .chain(SyscallName::instrumentable().filter_map(|name| {
+                    InvocableSyscall::has_precise_variant(name).then(|| {
+                        let injection_type = SyscallInjectionType::Function(
+                            /*unstructured.int_in_range(1..=3).unwrap()
+                            ..=unstructured.int_in_range(3..=20).unwrap(),*/
+                            1..=3,
+                        );
+                        (InvocableSyscall::Precise(name), injection_type.clone())
+                    })
+                }))
+                .collect(),
+            order: IndexSet::new(),
+        }
     }
 
     /// Instantiate a syscalls map with given injection type.

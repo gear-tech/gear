@@ -93,12 +93,13 @@
 //! There's a pre-defined one - [`StandardGearWasmConfigsBundle`], usage of which will result
 //! in generation of valid (always) gear-wasm module.
 
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 mod generator;
 mod module;
 mod syscalls;
 
+use arbitrary::Unstructured;
 pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
@@ -204,6 +205,72 @@ impl ConfigsBundle for StandardGearWasmConfigsBundle {
         let memory_pages_config = MemoryPagesConfig {
             initial_size: initial_pages,
             stack_end_page,
+            upper_limit: None,
+        };
+        let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
+            .with_critical_gas_limit(critical_gas_limit)
+            .with_recursions_removed(remove_recursion)
+            .with_syscalls_config(syscalls_config_builder.build())
+            .with_entry_points_config(entry_points_set)
+            .with_memory_config(memory_pages_config)
+            .build();
+
+        (gear_wasm_generator_config, selectable_params)
+    }
+}
+
+pub struct RandomizedGearWasmConfigBundle {
+    pub max_instructions: usize,
+    pub no_control: bool,
+    pub min_funcs: usize,
+    pub max_funcs: usize,
+    pub standard_gear_wasm_config_bundle: StandardGearWasmConfigsBundle,
+}
+
+impl ConfigsBundle for RandomizedGearWasmConfigBundle {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        let RandomizedGearWasmConfigBundle {
+            max_funcs,
+            max_instructions,
+            min_funcs,
+            no_control,
+            standard_gear_wasm_config_bundle:
+                StandardGearWasmConfigsBundle {
+                    critical_gas_limit,
+                    entry_points_set,
+                    initial_pages,
+                    injection_types,
+                    log_info,
+                    params_config,
+                    remove_recursion,
+                    stack_end_page,
+                    waiting_probability,
+                },
+        } = self;
+
+        let mut selectable_params = SelectableParams::default();
+
+        selectable_params.max_instructions = max_instructions;
+        selectable_params.max_funcs = NonZeroUsize::new(max_funcs).unwrap();
+        selectable_params.min_funcs = NonZeroUsize::new(min_funcs).unwrap();
+        if no_control {
+            let index = selectable_params
+                .allowed_instructions
+                .iter()
+                .position(|x| x == &InstructionKind::Control)
+                .unwrap();
+            selectable_params.allowed_instructions.remove(index);
+        }
+
+        let mut syscalls_config_builder = SyscallsConfigBuilder::new(injection_types)
+            .with_log_info("RandomizedGearWasmConfigBuilder".to_owned())
+            .with_waiting_probability(waiting_probability.unwrap());
+
+        syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
+
+        let memory_pages_config = MemoryPagesConfig {
+            initial_size: initial_pages,
+            stack_end_page: stack_end_page,
             upper_limit: None,
         };
         let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
