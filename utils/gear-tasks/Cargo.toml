@@ -17,7 +17,7 @@ sp-api.workspace = true
 # std only
 sc-client-api = { workspace = true, optional = true }
 sp-state-machine = { workspace = true, optional = true, features = ["std"] }
-futures-executor = { version = "0.3.30", optional = true, features = ["thread-pool"] }
+futures-executor = { workspace = true, optional = true, features = ["thread-pool"] }
 
 # utility
 parity-scale-codec.workspace = true
