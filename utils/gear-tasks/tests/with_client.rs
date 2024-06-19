@@ -36,6 +36,19 @@ struct BackendExternalities {
     overlay: OverlayedChanges<HashingFor<Block>>,
 }
 
+impl Default for BackendExternalities {
+    fn default() -> Self {
+        let mut overlay = OverlayedChanges::default();
+        // simulate actual runtime behavior
+        overlay.enter_runtime().unwrap();
+
+        Self {
+            extensions: Default::default(),
+            overlay,
+        }
+    }
+}
+
 impl BackendExternalities {
     fn execute_with<R>(&mut self, f: impl FnOnce() -> R) -> R {
         let client = CLIENT.get().unwrap();

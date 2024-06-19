@@ -23,16 +23,28 @@ use parity_scale_codec::Encode;
 use sp_runtime::SaturatedConversion;
 
 pub fn smoke<T: Config>() {
+    const MAIN_KEY: &[u8] = b"MAIN_KEY";
+    const MAIN_VALUE: &[u8] = b"MAIN_VALUE";
+
+    const THREAD_KEY: &[u8] = b"THREAD_KEY";
+    const THREAD_VALUE: &[u8] = b"THREAD_VALUE";
+
     #[cfg(feature = "std")]
     utils::init_logger();
 
     gear_runtime_interface::reinit_tasks(T::ProcessingTasksAmount::get());
+
+    sp_io::storage::set(MAIN_KEY, MAIN_VALUE);
 
     let unsorted = vec![9, 7, 5, 3, 2, 1];
     let handle = gear_tasks::spawn(
         |mut payload| {
             let bank_address = <T as pallet_gear_bank::Config>::BankAddress::get();
             let balance = CurrencyOf::<T>::free_balance(&bank_address);
+
+            assert_eq!(sp_io::storage::get(MAIN_KEY).as_deref(), Some(MAIN_VALUE));
+
+            sp_io::storage::set(THREAD_KEY, THREAD_VALUE);
 
             payload.sort();
             (payload, balance).encode()
@@ -45,6 +57,8 @@ pub fn smoke<T: Config>() {
         parity_scale_codec::Decode::decode(&mut &payload[..]).unwrap();
     assert_eq!(sorted, vec![1, 2, 3, 5, 7, 9]);
     assert_eq!(bank_balance, CurrencyOf::<T>::minimum_balance());
+
+    assert_eq!(sp_io::storage::get(THREAD_KEY), None);
 
     log::info!("Bank balance: {}", bank_balance.saturated_into::<u128>());
 }

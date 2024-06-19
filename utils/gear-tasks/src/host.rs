@@ -114,14 +114,22 @@ where
                     let thread_pool = self
                         .thread_pool
                         .as_ref()
-                        .expect("`TaskInfo::ReInit` has never been sent");
+                        .expect("`TasksRunnerEvent::ReInit` has never been sent");
                     thread_pool.spawn_ok(async move {
                         let mut runtime_api = client.runtime_api();
                         runtime_api.register_extension(GearTasksContextExt);
 
-                        let overlayed_changes = overlayed_changes
+                        let mut overlayed_changes = overlayed_changes
                             .downcast::<OverlayedChanges<HashingFor<Block>>>()
-                            .expect("`Externalities::gear_overlayed_changes()` implementation is invalid");
+                            .expect(
+                                "`Externalities::gear_overlayed_changes()` returns invalid type",
+                            );
+                        // Overlayed changes enter runtime mode in `StateMachine::execute()`
+                        // so we definitely want to exit from it before `execute_task()` tries to
+                        // enter it again.
+                        overlayed_changes.exit_runtime().expect(
+                            "Overlayed changes is never called in `sp_state_machine::StateMachine::execute()`",
+                        );
                         runtime_api.set_overlayed_changes(*overlayed_changes);
 
                         let block_hash = client.usage_info().chain.best_hash;
@@ -130,8 +138,9 @@ where
                             .execute_task(block_hash, func_ref, payload)
                             .map_err(|e| JoinError::RuntimeApi(e.to_string()));
 
-                        rx.send(res)
-                            .expect("`TaskSpawner` dropped before task completion and `join()` on it")
+                        rx.send(res).expect(
+                            "`TaskSpawner` dropped before task completion and `join()` on it",
+                        )
                     });
                 }
             }
