@@ -29,9 +29,9 @@ use std::{
     sync::{mpsc, Arc, OnceLock},
 };
 
-static RUNNER_TX: OnceLock<mpsc::Sender<TaskInfo>> = OnceLock::new();
+static RUNNER_TX: OnceLock<mpsc::Sender<TasksRunnerEvent>> = OnceLock::new();
 
-enum TaskInfo {
+enum TasksRunnerEvent {
     ReInit {
         tasks: u8,
     },
@@ -43,8 +43,8 @@ enum TaskInfo {
     },
 }
 
-impl TaskInfo {
-    fn send_to_runner(self) {
+impl TasksRunnerEvent {
+    fn send(self) {
         RUNNER_TX
             .get()
             .expect("`GearTasksRunner` is not spawned")
@@ -65,7 +65,7 @@ sp_externalities::decl_extension! {
 
 pub struct GearTasksRunner<RA, Block> {
     runtime_api_provider: Arc<RA>,
-    rx: mpsc::Receiver<TaskInfo>,
+    rx: mpsc::Receiver<TasksRunnerEvent>,
     thread_pool: Option<ThreadPool>,
     _block: PhantomData<Block>,
 }
@@ -95,7 +95,7 @@ where
     pub async fn run(mut self) {
         for info in self.rx {
             match info {
-                TaskInfo::ReInit { tasks } => {
+                TasksRunnerEvent::ReInit { tasks } => {
                     self.thread_pool = Some(
                         ThreadPool::builder()
                             .pool_size(tasks as usize)
@@ -104,7 +104,7 @@ where
                             .expect("Thread pool creation failed"),
                     );
                 }
-                TaskInfo::Spawn {
+                TasksRunnerEvent::Spawn {
                     overlayed_changes,
                     func_ref,
                     payload,
@@ -156,7 +156,7 @@ pub struct TaskSpawner {
 
 impl TaskSpawner {
     fn new(tasks: u8) -> Self {
-        TaskInfo::ReInit { tasks }.send_to_runner();
+        TasksRunnerEvent::ReInit { tasks }.send();
 
         Self {
             counter: 0,
@@ -175,13 +175,13 @@ impl TaskSpawner {
 
         let (rx, tx) = mpsc::sync_channel(1);
 
-        TaskInfo::Spawn {
+        TasksRunnerEvent::Spawn {
             overlayed_changes,
             func_ref,
             payload,
             rx,
         }
-        .send_to_runner();
+        .send();
 
         self.tasks.insert(handle, tx);
         JoinHandle { inner: handle }
