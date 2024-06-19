@@ -22,7 +22,10 @@ use sc_client_api::UsageProvider;
 use sp_api::HashingFor;
 use sp_externalities::Extensions;
 use sp_state_machine::{Ext, OverlayedChanges};
-use std::sync::{Arc, OnceLock};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 use vara_runtime::{Block, ProcessingTasksAmount};
 
 static CLIENT: OnceLock<Arc<TestClient>> = OnceLock::new();
@@ -159,5 +162,20 @@ fn write_has_no_effect() {
 
         assert_eq!(sp_io::storage::get(MAIN_KEY).as_deref(), Some(MAIN_VALUE));
         assert_eq!(sp_io::storage::get(THREAD_KEY), None);
+    });
+}
+
+#[test]
+#[should_panic = "Not every task has been joined"]
+fn unjoined_task_detected() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _handle = gear_tasks::spawn(
+            |_payload| {
+                std::thread::sleep(Duration::MAX);
+                vec![]
+            },
+            vec![],
+        );
     });
 }

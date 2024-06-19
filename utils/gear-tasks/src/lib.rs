@@ -98,6 +98,7 @@ pub enum JoinError {
 
 pub type JoinResult = Result<Vec<u8>, JoinError>;
 
+#[must_use]
 #[derive(Debug, Eq, PartialEq)]
 pub struct JoinHandle {
     pub(crate) inner: u64,
