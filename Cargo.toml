@@ -182,6 +182,7 @@ ark-serialize = { version = "0.4", default-features = false }
 ark-ec = { version = "0.4.2", default-features = false }
 ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
+sha2 = { version = "0.10.8", default-features = false }
 
 # Published deps
 #
@@ -202,6 +203,7 @@ gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
+gnode = { path = "utils/gnode" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
@@ -488,6 +490,7 @@ scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
 glob = "0.3.1"                                                            # cargo-gbuild
+smallvec = "1.13.2"                                                       # utils/gnode
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`

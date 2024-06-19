@@ -4264,6 +4264,7 @@ dependencies = [
  "gear-core-errors",
  "gear-runtime-primitives",
  "gmeta",
+ "gnode",
  "gring",
  "gsdk",
  "hex",
@@ -4318,6 +4319,7 @@ dependencies = [
  "gear-core-errors",
  "gear-utils",
  "gmeta",
+ "gnode",
  "gsdk",
  "gstd",
  "hex",
@@ -4769,6 +4771,10 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "1.4.2"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
+ "ark-scale 0.0.12",
  "byteorder",
  "gear-core",
  "gear-lazy-pages",
@@ -4776,6 +4782,7 @@ dependencies = [
  "gear-sandbox-host",
  "log",
  "parity-scale-codec",
+ "sha2 0.10.8",
  "sp-io",
  "sp-runtime-interface",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
@@ -5225,6 +5232,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gnode"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "rand 0.8.5",
+ "smallvec",
+ "which",
+]
+
+[[package]]
 name = "gprimitives"
 version = "1.4.2"
 dependencies = [
@@ -5284,7 +5301,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-utils",
- "gsdk",
+ "gnode",
  "gsdk-codegen",
  "hex",
  "indexmap 2.2.6",
@@ -5383,6 +5400,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "etc",
+ "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -8252,6 +8270,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-runtime-interface",
  "hex-literal",
  "impl-trait-for-tuples",
  "log",
@@ -8267,6 +8286,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "sha2 0.10.8",
  "sp-core",
  "sp-crypto-ec-utils",
  "sp-externalities",
@@ -12003,9 +12023,9 @@ checksum = "826167069c09b99d56f31e9ae5c99049e932a98c9dc2dac47645b08dbbf76ba7"
 
 [[package]]
 name = "smallvec"
-version = "1.11.0"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
+checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "smol"

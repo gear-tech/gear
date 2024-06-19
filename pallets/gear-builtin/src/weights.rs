@@ -46,6 +46,8 @@ pub trait WeightInfo {
     fn bls12_381_msm_g2(c: u32, ) -> Weight;
     fn bls12_381_mul_projective_g1(c: u32, ) -> Weight;
     fn bls12_381_mul_projective_g2(c: u32, ) -> Weight;
+    fn bls12_381_aggregate_g1(c: u32, ) -> Weight;
+    fn bls12_381_map_to_g2affine(c: u32, ) -> Weight;
 }
 
 /// Weights for pallet_gear_builtin using the Gear node and recommended hardware.
@@ -132,6 +134,26 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             // Standard Error: 31_685
             .saturating_add(Weight::from_parts(172_755_175, 0).saturating_mul(c.into()))
     }
+    /// The range of component `c` is `[1, 1000]`.
+    fn bls12_381_aggregate_g1(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_500_000 picoseconds.
+        Weight::from_parts(15_805_112, 0)
+            // Standard Error: 962
+            .saturating_add(Weight::from_parts(962_975, 0).saturating_mul(c.into()))
+    }
+    /// The range of component `c` is `[0, 8388608]`.
+    fn bls12_381_map_to_g2affine(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 558_009_000 picoseconds.
+        Weight::from_parts(481_741_677, 0)
+            // Standard Error: 11
+            .saturating_add(Weight::from_parts(565, 0).saturating_mul(c.into()))
+    }
 }
 
 // For backwards compatibility and tests
@@ -216,5 +238,25 @@ impl WeightInfo for () {
         Weight::from_parts(26_262_256, 0)
             // Standard Error: 31_685
             .saturating_add(Weight::from_parts(172_755_175, 0).saturating_mul(c.into()))
+    }
+    /// The range of component `c` is `[1, 1000]`.
+    fn bls12_381_aggregate_g1(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_500_000 picoseconds.
+        Weight::from_parts(15_805_112, 0)
+            // Standard Error: 962
+            .saturating_add(Weight::from_parts(962_975, 0).saturating_mul(c.into()))
+    }
+    /// The range of component `c` is `[0, 8388608]`.
+    fn bls12_381_map_to_g2affine(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 558_009_000 picoseconds.
+        Weight::from_parts(481_741_677, 0)
+            // Standard Error: 11
+            .saturating_add(Weight::from_parts(565, 0).saturating_mul(c.into()))
     }
 }

@@ -16,23 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gsdk::{
-    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
-    testing::Node,
-};
+use gnode::{Node, NodeInstance};
+use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
-pub fn dev_node() -> Node {
+pub fn dev_node() -> NodeInstance {
     // Use release build because of performance reasons.
     let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
 
-    let args = vec!["--tmp", "--dev"];
-
-    Node::try_from_path(bin_path, args)
+    Node::from_path(bin_path)
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
-}
-
-pub fn node_uri(node: &Node) -> String {
-    format!("ws://{}", &node.address())
+        .spawn()
+        .expect("Failed to spawn node process")
 }
 
 pub fn alice_account_id() -> AccountId32 {
