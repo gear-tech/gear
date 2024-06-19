@@ -21,7 +21,7 @@ use common::{GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    traits::{ConstBool, ConstU32, ConstU64, ConstU8, FindAuthor, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
