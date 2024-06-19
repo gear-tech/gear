@@ -58,11 +58,13 @@ pub trait RuntimeSetOverlayedChanges<B: BlockT> {
 }
 
 sp_externalities::decl_extension! {
-    /// Set only by `GearTasksRunner` and checked by `gear_tasks::check_context()` host call,
+    /// Set only by `GearTasksRunner`
+    /// and checked by [`gear_tasks::check_context()`](crate::gear_tasks::check_context) host call,
     /// so no one can call API outside.
     pub(crate) struct GearTasksContextExt;
 }
 
+/// The tasks' runner we spawn after node client creation.
 pub struct GearTasksRunner<RA, Block> {
     runtime_api_provider: Arc<RA>,
     rx: mpsc::Receiver<TasksRunnerEvent>,

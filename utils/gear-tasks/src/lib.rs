@@ -43,6 +43,9 @@ pub trait GearTasks {
             .expect("`GearTasks` initialized twice");
     }
 
+    /// Check that nobody calls the API outside.
+    ///
+    /// Used in [`runtime_api_impl`].
     fn check_context(&mut self) {
         self.extension::<host::GearTasksContextExt>()
             .expect("`GearTasksApi::execute_task()` called without context");
@@ -68,8 +71,8 @@ pub trait GearTasks {
     }
 }
 
+/// Implementation of `GearTasksApi::execute_task()`.
 pub fn runtime_api_impl(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
-    // safety check that nobody calls the API outside
     gear_tasks::check_context();
 
     #[cfg(target_arch = "wasm32")]
@@ -91,13 +94,16 @@ pub fn runtime_api_impl(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
     f(payload)
 }
 
+/// Error returned from [`JoinHandle::join()`].
 #[derive(Debug, Encode, Decode)]
 pub enum JoinError {
+    /// `<RuntimeApiImpl as GearTasksApi>::execute_task()` error.
     RuntimeApi(String),
 }
 
 pub type JoinResult = Result<Vec<u8>, JoinError>;
 
+/// Handle returned from [`spawn()`].
 #[must_use]
 #[derive(Debug, Eq, PartialEq)]
 pub struct JoinHandle {
@@ -105,11 +111,13 @@ pub struct JoinHandle {
 }
 
 impl JoinHandle {
+    /// Wait for task completion.
     pub fn join(self) -> JoinResult {
         gear_tasks::join(self.inner)
     }
 }
 
+/// Spawn a new task using static function and payload.
 pub fn spawn(f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
     let inner = gear_tasks::spawn(f as usize as u64, payload);
     JoinHandle { inner }
