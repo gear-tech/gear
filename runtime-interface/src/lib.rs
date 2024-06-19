@@ -62,8 +62,8 @@ const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of:
 // Domain Separation Tag for signatures on G2.
 pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
-pub fn init_tasks() {
-    ::gear_tasks::gear_tasks::init();
+pub fn reinit_tasks(tasks: u8) {
+    ::gear_tasks::gear_tasks::reinit(tasks);
 }
 
 #[derive(Debug, Clone, Encode, Decode)]

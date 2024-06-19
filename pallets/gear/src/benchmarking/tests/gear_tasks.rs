@@ -26,7 +26,7 @@ pub fn smoke<T: Config>() {
     #[cfg(feature = "std")]
     utils::init_logger();
 
-    gear_runtime_interface::init_tasks();
+    gear_runtime_interface::reinit_tasks(T::ProcessingTasksAmount::get());
 
     let unsorted = vec![9, 7, 5, 3, 2, 1];
     let handle = gear_tasks::spawn(

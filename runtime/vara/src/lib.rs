@@ -1029,6 +1029,11 @@ impl pallet_gear_bank::Config for Runtime {
     type GasMultiplier = GasMultiplier;
 }
 
+parameter_types! {
+    // corresponding to the number of cores in reference validator machine
+    pub ProcessingTasksAmount: u8 = 4;
+}
+
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -1047,6 +1052,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type ProcessingTasksAmount = ProcessingTasksAmount;
     type BuiltinDispatcherFactory = GearBuiltin;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;

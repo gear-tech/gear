@@ -252,6 +252,10 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
+        /// Amount of parallel processing tasks.
+        #[pallet::constant]
+        type ProcessingTasksAmount: Get<u8>;
+
         /// The free of charge period of rent.
         #[pallet::constant]
         type ProgramRentFreePeriod: Get<BlockNumberFor<Self>>;

@@ -29,6 +29,7 @@ gear-tasks = { workspace = true, features = ["std", "testing"] }
 sp-io = { workspace = true, features = ["std"] }
 sp-state-machine = { workspace = true, features = ["std"] }
 gear-node-testing.workspace = true
+vara-runtime = { workspace = true, features = ["dev"] }
 
 env_logger.workspace = true
 

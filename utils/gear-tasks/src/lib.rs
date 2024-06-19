@@ -28,20 +28,18 @@ extern crate alloc;
 mod host;
 
 #[cfg(feature = "std")]
-pub use host::{GearTasksRunner, RuntimeSetOverlayedChanges, TaskSpawnerExt};
+pub use host::{GearTasksRunner, RuntimeSetOverlayedChanges};
 
 use alloc::{string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 use sp_externalities::ExternalitiesExt;
 use sp_runtime_interface::runtime_interface;
 
-pub const TASKS_AMOUNT: usize = 4;
-
 /// WASM host functions for managing tasks.
 #[runtime_interface]
 pub trait GearTasks {
-    fn init(&mut self) {
-        self.register_extension(host::TaskSpawnerExt::default())
+    fn reinit(&mut self, tasks: u8) {
+        self.register_extension(host::TaskSpawnerExt::new(tasks))
             .expect("`GearTasks` initialized twice");
     }
 

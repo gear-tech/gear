@@ -16,36 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_node_testing::client::{
-    Backend as TestBackend, Client as TestClient, TestClientBuilder, TestClientBuilderExt,
-};
-use gear_tasks::{GearTasksRunner, TaskSpawnerExt, TASKS_AMOUNT};
-use sc_client_api::{Backend, UsageProvider};
-use sp_externalities::{Extension, Extensions};
+use gear_node_testing::client::{Client as TestClient, TestClientBuilder, TestClientBuilderExt};
+use gear_tasks::GearTasksRunner;
+use sc_client_api::UsageProvider;
+use sp_api::HashingFor;
+use sp_externalities::Extensions;
 use sp_state_machine::{Ext, OverlayedChanges};
 use std::sync::{Arc, OnceLock};
+use vara_runtime::{Block, ProcessingTasksAmount};
 
-static BACKEND: OnceLock<Arc<TestBackend>> = OnceLock::new();
 static CLIENT: OnceLock<Arc<TestClient>> = OnceLock::new();
 
 #[derive(Default)]
 struct BackendExternalities {
     extensions: Extensions,
+    overlay: OverlayedChanges<HashingFor<Block>>,
 }
 
 impl BackendExternalities {
-    fn register_extension<T: Extension>(&mut self, ext: T) {
-        self.extensions.register(ext);
-    }
-
     fn execute_with<R>(&mut self, f: impl FnOnce() -> R) -> R {
         let client = CLIENT.get().unwrap();
         let block_hash = client.usage_info().chain.best_hash;
+        let state = client.state_at(block_hash).unwrap();
 
-        let mut overlay = OverlayedChanges::default();
-        let state = BACKEND.get().unwrap().state_at(block_hash).unwrap();
-        let mut ext = Ext::new(&mut overlay, &state, Some(&mut self.extensions));
-        sp_externalities::set_and_run_with_externalities(&mut ext, f)
+        let mut ext = Ext::new(&mut self.overlay, &state, Some(&mut self.extensions));
+        sp_externalities::set_and_run_with_externalities(&mut ext, || {
+            gear_tasks::gear_tasks::reinit(ProcessingTasksAmount::get());
+            f()
+        })
     }
 }
 
@@ -70,9 +68,7 @@ pub fn init_logger() {
 
 fn new_test_ext() -> BackendExternalities {
     CLIENT.get_or_init(|| {
-        let backend = BACKEND.get_or_init(|| Arc::new(TestBackend::new_test(u32::MAX, u64::MAX)));
-        let builder = TestClientBuilder::with_backend(backend.clone());
-        let mut client = builder.build();
+        let mut client = TestClientBuilder::new().build();
         // Substrate's `CodeExecutor::call()` has explicit flag to use native execution,
         // so it's applicable for `NativeElseWasmExecutor`, too.
         // The flag is always set to `false` in our case, so
@@ -91,9 +87,7 @@ fn new_test_ext() -> BackendExternalities {
         client
     });
 
-    let mut ext = BackendExternalities::default();
-    ext.register_extension(TaskSpawnerExt::default());
-    ext
+    BackendExternalities::default()
 }
 
 #[test]
@@ -103,9 +97,9 @@ fn smoke_native() {
         const PAYLOAD_SIZE: usize = 32 * 1024;
 
         let payload = vec![0xff; PAYLOAD_SIZE];
-        let handles = (0..TASKS_AMOUNT).map(|i| {
+        let handles = (0..ProcessingTasksAmount::get() as usize).map(|i| {
             let mut payload = payload.clone();
-            payload[i * (PAYLOAD_SIZE / TASKS_AMOUNT)] = 0xfe;
+            payload[i * (PAYLOAD_SIZE / ProcessingTasksAmount::get() as usize)] = 0xfe;
             gear_tasks::spawn(
                 |mut payload| {
                     payload.sort();

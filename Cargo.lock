@@ -4941,6 +4941,7 @@ dependencies = [
  "sp-io",
  "sp-runtime-interface",
  "sp-state-machine",
+ "vara-runtime",
 ]
 
 [[package]]
