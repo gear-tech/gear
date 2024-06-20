@@ -72,5 +72,5 @@ jobs:
 
       - name: "Test: Gear tasks"
         run: >-
-          cargo test run -p gear-tasks
+          cargo test -p gear-tasks
           ${{ matrix.profiles.flags }}
