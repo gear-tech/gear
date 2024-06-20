@@ -27,7 +27,7 @@ extern "C" fn handle() {
 
         if msg.expect("Failed to load payload bytes") == b"smash" {
             debug!("smashing, total: {available_value}");
-            msg::reply_bytes(b"send", available_value).unwrap();
+            msg::send(msg::source(), b"send", available_value).unwrap();
         }
     });
 }
