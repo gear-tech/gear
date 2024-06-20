@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 gear-core.workspace = true
+gear-common = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
 core-processor = { workspace = true, features = ["std"] }
 gear-lazy-pages.workspace = true

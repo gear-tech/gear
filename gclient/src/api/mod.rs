@@ -24,17 +24,17 @@ pub mod storage;
 
 use crate::{ws::WSAddress, EventListener};
 use error::*;
+use gnode::{Node, NodeInstance};
 use gsdk::{
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
-    testing::Node,
     Api,
 };
 use std::{ffi::OsStr, sync::Arc};
 
 /// The API instance contains methods to access the node.
 #[derive(Clone)]
-pub struct GearApi(Signer, Option<Arc<Node>>);
+pub struct GearApi(Signer, Option<Arc<NodeInstance>>);
 
 impl GearApi {
     /// Create and init a new `GearApi` specified by its `address` on behalf of
@@ -85,8 +85,8 @@ impl GearApi {
     /// random port number. The node process uses a binary specified by the
     /// `path` param. Ideally, the binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
-        let node = Node::try_from_path(path, vec!["--dev"])?;
-        let api = Self::init(node.address().into()).await?;
+        let node = Node::from_path(path.as_ref())?.spawn()?;
+        let api = Self::init(node.address.into()).await?;
         Ok(Self(api.0, Some(Arc::new(node))))
     }
 
@@ -96,8 +96,8 @@ impl GearApi {
     /// process uses a binary specified by the `path` param. Ideally, the
     /// binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn vara_dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
-        let node = Node::try_from_path(path, vec!["--chain=vara-dev", "--validator", "--tmp"])?;
-        let api = Self::init(node.address().into()).await?;
+        let node = Node::from_path(path.as_ref())?.arg("--validator").spawn()?;
+        let api = Self::init(node.address.into()).await?;
         Ok(Self(api.0, Some(Arc::new(node))))
     }
 
@@ -106,7 +106,8 @@ impl GearApi {
         if let Some(node) = self.1.as_mut() {
             Arc::get_mut(node)
                 .expect("Unable to mutate `Node`")
-                .print_logs();
+                .logs()
+                .expect("Unable to read logs");
         }
     }
 

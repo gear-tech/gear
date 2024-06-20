@@ -30,6 +30,7 @@ core-processor.workspace = true
 gbuiltin-bls381.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
+gear-runtime-interface.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
@@ -60,6 +61,7 @@ ark-bls12-381.workspace = true
 ark-ec.workspace = true
 ark-ff.workspace = true
 ark-std.workspace = true
+sha2 = { workspace = true, features = ["std"] }
 
 [features]
 default = ["std"]
@@ -68,8 +70,9 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"gear-core/std",
+	"gear-runtime-interface/std",
 	"pallet-gear/std",
-    "parity-scale-codec/std",
+	"parity-scale-codec/std",
 	"scale-info/std",
 	"sp-crypto-ec-utils/std",
 	"sp-runtime/std",

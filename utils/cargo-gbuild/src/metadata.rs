@@ -52,10 +52,13 @@ impl Metadata {
         command.manifest_path(&manifest);
 
         let inner = command.exec()?;
-        let mut gbuild =
-            serde_json::from_value::<MetadataField>(inner.workspace_metadata.clone())?.gbuild;
-        gbuild.programs.dedup();
-        gbuild.metas.dedup();
+        let gbuild = serde_json::from_value::<MetadataField>(inner.workspace_metadata.clone())
+            .map(|mut m| {
+                m.gbuild.programs.dedup();
+                m.gbuild.metas.dedup();
+                m.gbuild
+            })
+            .unwrap_or_default();
 
         Ok(Self {
             inner,
