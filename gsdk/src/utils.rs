@@ -109,24 +109,42 @@ pub(crate) fn storage_address_bytes<Address: StorageAddress>(
 }
 
 /// Interface for adapting optional values
-pub trait AsOption<T> {
-    fn as_option(self) -> Option<T>;
+pub trait AsOption<T: ?Sized> {
+    fn as_option(&self) -> Option<&T>;
 }
 
-impl<'a> AsOption<&'a str> for &'a str {
-    fn as_option(self) -> Option<&'a str> {
+impl AsOption<str> for &str {
+    fn as_option(&self) -> Option<&str> {
         Some(self)
     }
 }
 
-impl<'a> AsOption<&'a str> for &'a String {
-    fn as_option(self) -> Option<&'a str> {
+impl AsOption<str> for Option<&str> {
+    fn as_option(&self) -> Option<&str> {
+        self.as_deref()
+    }
+}
+
+impl AsOption<str> for &String {
+    fn as_option(&self) -> Option<&str> {
         Some(self.as_ref())
     }
 }
 
-impl<'a> AsOption<&'a str> for Option<&'a str> {
-    fn as_option(self) -> Option<&'a str> {
-        self
+impl AsOption<str> for String {
+    fn as_option(&self) -> Option<&str> {
+        Some(self)
+    }
+}
+
+impl AsOption<u64> for u64 {
+    fn as_option(&self) -> Option<&u64> {
+        Some(self)
+    }
+}
+
+impl AsOption<u64> for Option<u64> {
+    fn as_option(&self) -> Option<&u64> {
+        self.as_ref()
     }
 }

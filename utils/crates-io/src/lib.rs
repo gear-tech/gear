@@ -29,7 +29,7 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 16] = [
+pub const SAFE_DEPENDENCIES: [&str; 15] = [
     "actor-system-error",
     "galloc",
     "gear-ss58",
@@ -40,7 +40,6 @@ pub const SAFE_DEPENDENCIES: [&str; 16] = [
     "gear-sandbox-env",
     "gear-wasm-instrument",
     "gmeta-codegen",
-    "gnode",
     "gsdk-codegen",
     "gstd-codegen",
     "gsys",

@@ -37,8 +37,8 @@ pub struct Api {
 
 impl Api {
     /// Create new API client.
-    pub async fn new(url: impl AsOption<&str>) -> Result<Self> {
-        Self::new_with_timeout(url.as_option(), None).await
+    pub async fn new(url: impl AsOption<str>) -> Result<Self> {
+        Self::new_with_timeout(url, None).await
     }
 
     /// Gear RPC Client
@@ -47,8 +47,11 @@ impl Api {
     }
 
     /// Create new API client with timeout.
-    pub async fn new_with_timeout(url: impl AsOption<&str>, timeout: Option<u64>) -> Result<Self> {
-        let rpc = Rpc::new(url.as_option(), timeout).await?;
+    pub async fn new_with_timeout(
+        url: impl AsOption<str>,
+        timeout: impl AsOption<u64>,
+    ) -> Result<Self> {
+        let rpc = Rpc::new(url, timeout).await?;
 
         Ok(Self {
             // Retry our failed RPC requests for 5 times by default.
