@@ -47,8 +47,8 @@ impl Api {
     }
 
     /// Create new API client with timeout.
-    pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
-        let rpc = Rpc::new(url, timeout).await?;
+    pub async fn new_with_timeout(url: impl AsOption<&str>, timeout: Option<u64>) -> Result<Self> {
+        let rpc = Rpc::new(url.as_option(), timeout).await?;
 
         Ok(Self {
             // Retry our failed RPC requests for 5 times by default.

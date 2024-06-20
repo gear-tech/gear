@@ -119,6 +119,12 @@ impl<'a> AsOption<&'a str> for &'a str {
     }
 }
 
+impl<'a> AsOption<&'a str> for &'a String {
+    fn as_option(self) -> Option<&'a str> {
+        Some(self.as_ref())
+    }
+}
+
 impl<'a> AsOption<&'a str> for Option<&'a str> {
     fn as_option(self) -> Option<&'a str> {
         self
