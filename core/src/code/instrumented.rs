@@ -31,6 +31,8 @@ use scale_info::{
 };
 
 /// Instantiated section sizes for charging during module instantiation.
+/// By "instantiated sections sizes" we mean the size of the section representation in the executor
+/// during module instantiation.
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub struct InstantiatedSectionSizes {
     /// Code section size in bytes.

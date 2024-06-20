@@ -432,7 +432,10 @@ pub fn check_start_section(module: &Module) -> Result<(), CodeError> {
     }
 }
 
-/// Calculates the data section size based on the number of OS pages used (see `GENERIC_OS_PAGE_SIZE`).
+/// Calculates the instantiated data section size based on the number of OS pages (see `GENERIC_OS_PAGE_SIZE`).
+/// That is, the size of the instantiated data section is the size of the section after the module is instantiated
+/// in the executor's memory. Additionally, the number of OS pages used during instantiation is considered,
+/// as each page contributes to the total weight during instantiation.
 pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
     let Some(data_section) = module.data_section() else {
         // No data section
