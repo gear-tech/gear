@@ -1136,7 +1136,6 @@ impl<T: Config> Default for MemoryWeights<T> {
             upload_page_data: cost(W::<T>::db_write_per_kb)
                 .saturating_mul(KB_AMOUNT_IN_ONE_GEAR_PAGE)
                 .saturating_add(T::DbWeight::get().writes(1)),
-            // TODO: make benches to calculate mem grow cost (issue #2226)
             mem_grow: cost_batched(W::<T>::mem_grow),
             mem_grow_per_page: cost_batched(W::<T>::mem_grow_per_page),
             // TODO: make it non-zero for para-chains (issue #2225)
