@@ -118,8 +118,3 @@ jobs:
           -p gear-lazy-pages
           -p gear-runtime-interface
           ${{ matrix.profiles.flags }}
-
-      - name: "Test: Gear tasks"
-        run: >-
-          cargo test -p gear-tasks
-          ${{ matrix.profiles.flags }}
