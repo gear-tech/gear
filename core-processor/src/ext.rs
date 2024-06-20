@@ -475,7 +475,10 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
             //
             // In this case there is no need to give any thresholds for previous
             // gasless-es: only counter should be increased.
-            (None, false) => Ok(()),
+            (None, false) => {
+                self.outgoing_gasless = self.outgoing_gasless.saturating_add(1);
+                Ok(())
+            }
         }
     }
 
@@ -1498,6 +1501,12 @@ mod tests {
             self
         }
 
+        fn with_mailbox_threshold(mut self, mailbox_threshold: u64) -> Self {
+            self.0.mailbox_threshold = mailbox_threshold;
+
+            self
+        }
+
         fn with_existential_deposit(mut self, ed: u128) -> Self {
             self.0.existential_deposit = ed;
 
@@ -2098,6 +2107,73 @@ mod tests {
                 used: true
             })
         ));
+    }
+
+    #[test]
+    fn test_gasful_after_gasless() {
+        let gas = 1_000_000_000;
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_gas(GasCounter::new(gas))
+                .with_allowance(GasAllowanceCounter::new(gas))
+                .with_mailbox_threshold(1000)
+                .build(),
+        );
+
+        // Sending some gasless messages
+        let gasless_packet = HandlePacket::new(ProgramId::zero(), Default::default(), 0);
+        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 1);
+        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 2);
+        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 3);
+
+        // Sending fee is zero
+        assert_eq!(ext.current_counter_value(), gas);
+
+        // Now sending gasful message
+        let msg_gas = 1000;
+        let gasful_packet =
+            HandlePacket::new_with_gas(ProgramId::zero(), Default::default(), msg_gas, 0);
+        assert!(ext.send(gasful_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 0);
+        assert_eq!(
+            ext.current_counter_value(),
+            // reducing gas for the sent message and for mailbox threshold for each gasless
+            gas - msg_gas - 3 * ext.context.mailbox_threshold
+        );
+
+        // Sending another gasful
+        let gas = ext.current_counter_value();
+        assert!(ext.send(gasful_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 0);
+        assert_eq!(
+            ext.current_counter_value(),
+            // reducing gas the sent message only
+            gas - msg_gas
+        );
+
+        // Sending some more gasless
+        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 1);
+        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 2);
+
+        // And another gasful
+        let gas = ext.current_counter_value();
+        assert!(ext.send(gasful_packet.clone(), 0).is_ok());
+        assert_eq!(ext.outgoing_gasless, 0);
+        assert_eq!(
+            ext.current_counter_value(),
+            // reducing gas for the sent message and for mailbox threshold for each gasless
+            gas - msg_gas - 2 * ext.context.mailbox_threshold
+        );
     }
 
     #[test]

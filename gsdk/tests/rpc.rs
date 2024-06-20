@@ -359,9 +359,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let pid = ProgramId::generate_from_user(CodeId::generate(demo_new_meta::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(Some(&node_uri(&node)))
-        .await?
-        .signer("//Alice", None)?;
+    let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
 
     signer
         .calls
@@ -420,9 +418,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
     let pid = ProgramId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(Some(&node_uri(&node)))
-        .await?
-        .signer("//Alice", None)?;
+    let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
 
     signer
         .calls
