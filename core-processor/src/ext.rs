@@ -121,7 +121,7 @@ impl ProcessorContext {
                 MAX_RESERVATIONS,
             ),
             system_reservation: None,
-            value_counter: ValueCounter::new(0),
+            value_counter: ValueCounter::new(1_000_000),
             allocations_context: AllocationsContext::try_new(
                 Default::default(),
                 Default::default(),
@@ -339,6 +339,229 @@ impl<Context, LP: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L
     }
 }
 
+/// Used to atomically update `Ext` which prevents some errors
+/// when data was updated but operation failed.
+///
+/// Copies some counters into itself and performs operations on them and
+/// incrementally builds list of changes.
+///
+/// Changes are applied after operation is completed
+#[must_use]
+struct ExtMutator<'a, LP: LazyPagesInterface> {
+    ext: &'a mut Ext<LP>,
+    gas_counter: GasCounter,
+    gas_allowance_counter: GasAllowanceCounter,
+    value_counter: ValueCounter,
+    outgoing_gasless: u64,
+    reservation_to_mark: Option<ReservationId>,
+}
+
+impl<'a, LP: LazyPagesInterface> core::ops::Deref for ExtMutator<'a, LP> {
+    type Target = Ext<LP>;
+
+    fn deref(&self) -> &Self::Target {
+        self.ext
+    }
+}
+
+impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
+    fn new(ext: &'a mut Ext<LP>) -> Self {
+        // SAFETY: counters are cloned and modified *only* by mutator
+        unsafe {
+            Self {
+                gas_counter: ext.context.gas_counter.clone(),
+                gas_allowance_counter: ext.context.gas_allowance_counter.clone(),
+                value_counter: ext.context.value_counter.clone(),
+                outgoing_gasless: ext.outgoing_gasless,
+                reservation_to_mark: None,
+                ext,
+            }
+        }
+    }
+
+    fn alloc<Context>(
+        &mut self,
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
+        pages: WasmPagesAmount,
+    ) -> Result<WasmPage, AllocError> {
+        // can't access context inside `alloc` so move here
+        let gas_for_call = self.context.costs.mem_grow.cost_for_one();
+        let gas_for_pages = self.context.costs.mem_grow_per_page;
+        self.ext
+            .context
+            .allocations_context
+            .alloc::<Context, LazyGrowHandler<LP>>(ctx, mem, pages, |pages| {
+                let cost = gas_for_call.saturating_add(gas_for_pages.cost_for(pages));
+                // Inline charge_gas_if_enough because otherwise we have borrow error due to access to `allocations_context` mutable
+                if self.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
+                    return Err(ChargeError::GasLimitExceeded);
+                }
+
+                if self.gas_allowance_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
+                    return Err(ChargeError::GasAllowanceExceeded);
+                }
+                Ok(())
+            })
+            .map_err(Into::into)
+    }
+
+    fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
+        if self.gas_counter.reduce(limit) == ChargeResult::NotEnough {
+            return Err(FallibleExecutionError::NotEnoughGas.into());
+        }
+
+        Ok(())
+    }
+
+    fn charge_message_value(&mut self, value: u128) -> Result<(), FallibleExtError> {
+        if self.value_counter.reduce(value) == ChargeResult::NotEnough {
+            return Err(FallibleExecutionError::NotEnoughValue.into());
+        }
+
+        Ok(())
+    }
+
+    // It's temporary fn, used to solve `core-audit/issue#22`.
+    fn safe_gasfull_sends<T: Packet>(
+        &mut self,
+        packet: &T,
+        delay: u32,
+    ) -> Result<(), FallibleExtError> {
+        // In case of delayed sending from origin message we keep some gas
+        // for it while processing outgoing sending notes so gas for
+        // previously gasless sends should appear to prevent their
+        // invasion for gas for storing delayed message.
+        match (packet.gas_limit(), delay != 0) {
+            // Zero gasfull instant.
+            //
+            // In this case there is nothing to do.
+            (Some(0), false) => Ok(()),
+
+            // Any non-zero gasfull or zero gasfull with delay.
+            //
+            // In case of zero gasfull with delay it's pretty similar to
+            // gasless with delay case.
+            //
+            // In case of any non-zero gasfull we prevent stealing for any
+            // previous gasless-es's thresholds from gas supposed to be
+            // sent with this `packet`.
+            (Some(_), _) => {
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_mul(self.ext.context.mailbox_threshold);
+                self.reduce_gas(prev_gasless_fee)?;
+                self.outgoing_gasless = 0;
+                Ok(())
+            }
+
+            // Gasless with delay.
+            //
+            // In this case we must give threshold for each uncovered gasless-es
+            // sent, otherwise they will steal gas from this `packet` that was
+            // supposed to pay for delay.
+            //
+            // It doesn't guarantee threshold for itself.
+            (None, true) => {
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_mul(self.ext.context.mailbox_threshold);
+                self.reduce_gas(prev_gasless_fee)?;
+                self.outgoing_gasless = 1;
+                Ok(())
+            }
+
+            // Gasless instant.
+            //
+            // In this case there is no need to give any thresholds for previous
+            // gasless-es: only counter should be increased.
+            (None, false) => Ok(()),
+        }
+    }
+
+    fn mark_reservation_used(
+        &mut self,
+        reservation_id: ReservationId,
+    ) -> Result<(), ReservationError> {
+        let _ = self
+            .ext
+            .context
+            .gas_reserver
+            .check_not_used(reservation_id)?;
+        self.reservation_to_mark = Some(reservation_id);
+        Ok(())
+    }
+
+    fn charge_gas_if_enough(&mut self, gas: u64) -> Result<(), ChargeError> {
+        if self.gas_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
+            return Err(ChargeError::GasLimitExceeded);
+        }
+
+        if self.gas_allowance_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
+            return Err(ChargeError::GasAllowanceExceeded);
+        }
+        Ok(())
+    }
+
+    fn charge_expiring_resources<T: Packet>(
+        &mut self,
+        packet: &T,
+        check_gas_limit: bool,
+    ) -> Result<(), FallibleExtError> {
+        let gas_limit = if check_gas_limit {
+            self.check_gas_limit(packet.gas_limit())?
+        } else {
+            packet.gas_limit().unwrap_or(0)
+        };
+
+        self.reduce_gas(gas_limit)?;
+        self.charge_message_value(packet.value())
+    }
+
+    fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
+        if delay == 0 {
+            self.charge_gas_if_enough(self.context.message_context.settings().sending_fee)
+        } else {
+            self.charge_gas_if_enough(
+                self.context
+                    .message_context
+                    .settings()
+                    .scheduled_sending_fee,
+            )
+        }
+    }
+
+    fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), FallibleExtError> {
+        if delay != 0 {
+            let waiting_reserve = self
+                .context
+                .costs
+                .rent
+                .dispatch_stash
+                .cost_for(self.context.reserve_for.saturating_add(delay).into());
+
+            // Reduce gas for block waiting in dispatch stash.
+            return self
+                .reduce_gas(waiting_reserve)
+                .map_err(|_| MessageError::InsufficientGasForDelayedSending.into());
+        }
+
+        Ok(())
+    }
+
+    fn apply(mut self) {
+        if let Some(reservation) = self.reservation_to_mark.take() {
+            let result = self.ext.context.gas_reserver.mark_used(reservation);
+            debug_assert!(result.is_ok());
+        }
+
+        self.ext.context.gas_counter = self.gas_counter;
+        self.ext.context.value_counter = self.value_counter;
+        self.ext.context.gas_allowance_counter = self.gas_allowance_counter;
+        self.ext.outgoing_gasless = self.outgoing_gasless;
+    }
+}
+
 /// Structure providing externalities for running host functions.
 pub struct Ext<LP: LazyPagesInterface> {
     /// Processor context.
@@ -484,10 +707,17 @@ impl<LP: LazyPagesInterface> BackendExternalities for Ext<LP> {
 }
 
 impl<LP: LazyPagesInterface> Ext<LP> {
-    fn check_gas_limit(
-        &mut self,
-        gas_limit: Option<GasLimit>,
-    ) -> Result<GasLimit, FallibleExtError> {
+    fn with_changes<F, R, E>(&mut self, callback: F) -> Result<R, E>
+    where
+        F: FnOnce(&mut ExtMutator<LP>) -> Result<R, E>,
+    {
+        let mut mutator = ExtMutator::new(self);
+        let result = callback(&mut mutator)?;
+        mutator.apply();
+        Ok(result)
+    }
+
+    fn check_gas_limit(&self, gas_limit: Option<GasLimit>) -> Result<GasLimit, FallibleExtError> {
         let mailbox_threshold = self.context.mailbox_threshold;
         let gas_limit = gas_limit.unwrap_or(0);
 
@@ -502,7 +732,7 @@ impl<LP: LazyPagesInterface> Ext<LP> {
     /// Checking that reservation could be charged for
     /// dispatch stash with given delay.
     fn check_reservation_gas_limit_for_delayed_sending(
-        &mut self,
+        &self,
         reservation_id: &ReservationId,
         delay: u32,
     ) -> Result<(), FallibleExtError> {
@@ -528,136 +758,12 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         Ok(())
     }
 
-    fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), FallibleExtError> {
-        if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
-            Err(FallibleExecutionError::NotEnoughGas.into())
-        } else {
-            Ok(())
-        }
-    }
-
-    fn charge_message_value(&mut self, message_value: u128) -> Result<(), FallibleExtError> {
-        if self.context.value_counter.reduce(message_value) != ChargeResult::Enough {
-            Err(FallibleExecutionError::NotEnoughValue.into())
-        } else {
-            Ok(())
-        }
-    }
-
-    // It's temporary fn, used to solve `core-audit/issue#22`.
-    fn safe_gasfull_sends<T: Packet>(
-        &mut self,
-        packet: &T,
-        delay: u32,
-    ) -> Result<(), FallibleExtError> {
-        // In case of delayed sending from origin message we keep some gas
-        // for it while processing outgoing sending notes so gas for
-        // previously gasless sends should appear to prevent their
-        // invasion for gas for storing delayed message.
-        match (packet.gas_limit(), delay != 0) {
-            // Zero gasfull instant.
-            //
-            // In this case there is nothing to do.
-            (Some(0), false) => {}
-
-            // Any non-zero gasfull or zero gasfull with delay.
-            //
-            // In case of zero gasfull with delay it's pretty similar to
-            // gasless with delay case.
-            //
-            // In case of any non-zero gasfull we prevent stealing for any
-            // previous gasless-es's thresholds from gas supposed to be
-            // sent with this `packet`.
-            (Some(_), _) => {
-                let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.context.mailbox_threshold);
-
-                self.reduce_gas(prev_gasless_fee)?;
-
-                self.outgoing_gasless = 0;
-            }
-
-            // Gasless with delay.
-            //
-            // In this case we must give threshold for each uncovered gasless-es
-            // sent, otherwise they will steal gas from this `packet` that was
-            // supposed to pay for delay.
-            //
-            // It doesn't guarantee threshold for itself.
-            (None, true) => {
-                let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.context.mailbox_threshold);
-
-                self.reduce_gas(prev_gasless_fee)?;
-
-                self.outgoing_gasless = 1;
-            }
-
-            // Gasless instant.
-            //
-            // In this case there is no need to give any thresholds for previous
-            // gasless-es: only counter should be increased.
-            (None, false) => self.outgoing_gasless = self.outgoing_gasless.saturating_add(1),
-        };
-
-        Ok(())
-    }
-
-    fn charge_expiring_resources<T: Packet>(
-        &mut self,
-        packet: &T,
-        check_gas_limit: bool,
-    ) -> Result<(), FallibleExtError> {
-        // Charge for using expiring resources. Charge for calling syscall was done earlier.
-        let gas_limit = if check_gas_limit {
-            self.check_gas_limit(packet.gas_limit())?
-        } else {
-            packet.gas_limit().unwrap_or(0)
-        };
-        self.reduce_gas(gas_limit)?;
-        self.charge_message_value(packet.value())?;
-        Ok(())
-    }
-
-    fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), FallibleExtError> {
+    fn check_forbidden_destination(&self, id: ProgramId) -> Result<(), FallibleExtError> {
         if id == ProgramId::SYSTEM {
             Err(FallibleExtError::ForbiddenFunction)
         } else {
             Ok(())
         }
-    }
-
-    fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
-        if delay == 0 {
-            self.charge_gas_if_enough(self.context.message_context.settings().sending_fee)
-        } else {
-            self.charge_gas_if_enough(
-                self.context
-                    .message_context
-                    .settings()
-                    .scheduled_sending_fee,
-            )
-        }
-    }
-
-    fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), FallibleExtError> {
-        if delay != 0 {
-            let waiting_reserve = self
-                .context
-                .costs
-                .rent
-                .dispatch_stash
-                .cost_for(self.context.reserve_for.saturating_add(delay).into());
-
-            // Reduce gas for block waiting in dispatch stash.
-            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                return Err(MessageError::InsufficientGasForDelayedSending.into());
-            }
-        }
-
-        Ok(())
     }
 
     fn charge_gas_if_enough(
@@ -770,18 +876,11 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         let pages = WasmPagesAmount::try_from(pages_num)
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
-        self.context
-            .allocations_context
-            .alloc::<Context, LazyGrowHandler<LP>>(ctx, mem, pages, |pages| {
-                let gas_for_call = self.context.costs.mem_grow.cost_for_one();
-                let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
-                Self::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    gas_for_call.saturating_add(gas_for_pages),
-                )
-            })
-            .map_err(Into::into)
+        self.with_changes(|mutator| {
+            mutator
+                .alloc::<Context>(ctx, mem, pages)
+                .map_err(Into::into)
+        })
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
@@ -794,21 +893,22 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
         let interval = Interval::try_from(start..=end)
             .map_err(|_| AllocExtError::Alloc(AllocError::InvalidFreeRange(start, end)))?;
-
-        Self::charge_gas_if_enough(
-            &mut self.context.gas_counter,
-            &mut self.context.gas_allowance_counter,
-            self.context
-                .costs
-                .syscalls
-                .free_range_per_page
-                .cost_for(interval.len()),
-        )?;
-
-        self.context
-            .allocations_context
-            .free_range(interval)
-            .map_err(Into::into)
+        self.with_changes(|mutator| {
+            mutator.charge_gas_if_enough(
+                mutator
+                    .context
+                    .costs
+                    .syscalls
+                    .free_range_per_page
+                    .cost_for(interval.len()),
+            )?;
+            mutator
+                .ext
+                .context
+                .allocations_context
+                .free_range(interval)
+                .map_err(Into::into)
+        })
     }
 
     fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
@@ -848,19 +948,23 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         len: u32,
     ) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_if_enough(
-            self.context
-                .costs
-                .syscalls
-                .gr_send_push_input_per_byte
-                .cost_for(range.len().into()),
-        )?;
 
-        self.context
-            .message_context
-            .send_push_input(handle, range)?;
-
-        Ok(())
+        self.with_changes(|mutator| {
+            mutator.charge_gas_if_enough(
+                mutator
+                    .context
+                    .costs
+                    .syscalls
+                    .gr_send_push_input_per_byte
+                    .cost_for(range.len().into()),
+            )?;
+            mutator
+                .ext
+                .context
+                .message_context
+                .send_push_input(handle, range)
+                .map_err(Into::into)
+        })
     }
 
     fn send_commit(
@@ -869,18 +973,20 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::FallibleError> {
-        self.check_forbidden_destination(msg.destination())?;
-        self.safe_gasfull_sends(&msg, delay)?;
-        self.charge_expiring_resources(&msg, true)?;
-        self.charge_sending_fee(delay)?;
-        self.charge_for_dispatch_stash_hold(delay)?;
+        self.with_changes(|mutator| {
+            mutator.check_forbidden_destination(msg.destination())?;
+            mutator.safe_gasfull_sends(&msg, delay)?;
+            mutator.charge_expiring_resources(&msg, true)?;
+            mutator.charge_sending_fee(delay)?;
+            mutator.charge_for_dispatch_stash_hold(delay)?;
 
-        let msg_id = self
-            .context
-            .message_context
-            .send_commit(handle, msg, delay, None)?;
-
-        Ok(msg_id)
+            mutator
+                .ext
+                .context
+                .message_context
+                .send_commit(handle, msg, delay, None)
+                .map_err(Into::into)
+        })
     }
 
     fn reservation_send_commit(
@@ -890,21 +996,24 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::FallibleError> {
-        self.check_forbidden_destination(msg.destination())?;
-        // TODO: unify logic around different source of gas (may be origin msg,
-        // or reservation) in order to implement #1828.
-        self.check_reservation_gas_limit_for_delayed_sending(&id, delay)?;
-        // TODO: gasful sending (#1828)
-        self.charge_message_value(msg.value())?;
-        self.charge_sending_fee(delay)?;
+        self.with_changes(|mutator| {
+            mutator.check_forbidden_destination(msg.destination())?;
+            // TODO: unify logic around different source of gas (may be origin msg,
+            // or reservation) in order to implement #1828.
+            mutator.check_reservation_gas_limit_for_delayed_sending(&id, delay)?;
+            // TODO: gasful sending (#1828)
+            mutator.charge_message_value(msg.value())?;
+            mutator.charge_sending_fee(delay)?;
 
-        self.context.gas_reserver.mark_used(id)?;
+            mutator.mark_reservation_used(id)?;
 
-        let msg_id = self
-            .context
-            .message_context
-            .send_commit(handle, msg, delay, Some(id))?;
-        Ok(msg_id)
+            mutator
+                .ext
+                .context
+                .message_context
+                .send_commit(handle, msg, delay, Some(id))
+                .map_err(Into::into)
+        })
     }
 
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::FallibleError> {
@@ -914,13 +1023,20 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
 
     // TODO: Consider per byte charge (issue #2255).
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError> {
-        self.check_forbidden_destination(self.context.message_context.reply_destination())?;
-        self.safe_gasfull_sends(&msg, 0)?;
-        self.charge_expiring_resources(&msg, false)?;
-        self.charge_sending_fee(0)?;
+        self.with_changes(|mutator| {
+            mutator
+                .check_forbidden_destination(mutator.context.message_context.reply_destination())?;
+            mutator.safe_gasfull_sends(&msg, 0)?;
+            mutator.charge_expiring_resources(&msg, false)?;
+            mutator.charge_sending_fee(0)?;
 
-        let msg_id = self.context.message_context.reply_commit(msg, None)?;
-        Ok(msg_id)
+            mutator
+                .ext
+                .context
+                .message_context
+                .reply_commit(msg, None)
+                .map_err(Into::into)
+        })
     }
 
     fn reservation_reply_commit(
@@ -928,15 +1044,22 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         id: ReservationId,
         msg: ReplyPacket,
     ) -> Result<MessageId, Self::FallibleError> {
-        self.check_forbidden_destination(self.context.message_context.reply_destination())?;
-        // TODO: gasful sending (#1828)
-        self.charge_message_value(msg.value())?;
-        self.charge_sending_fee(0)?;
+        self.with_changes(|mutator| {
+            mutator
+                .check_forbidden_destination(mutator.context.message_context.reply_destination())?;
+            // TODO: gasful sending (#1828)
+            mutator.charge_message_value(msg.value())?;
+            mutator.charge_sending_fee(0)?;
 
-        self.context.gas_reserver.mark_used(id)?;
+            mutator.mark_reservation_used(id)?;
 
-        let msg_id = self.context.message_context.reply_commit(msg, Some(id))?;
-        Ok(msg_id)
+            mutator
+                .ext
+                .context
+                .message_context
+                .reply_commit(msg, Some(id))
+                .map_err(Into::into)
+        })
     }
 
     fn reply_to(&self) -> Result<MessageId, Self::FallibleError> {
@@ -958,18 +1081,26 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
-        let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_if_enough(
-            self.context
-                .costs
-                .syscalls
-                .gr_reply_push_input_per_byte
-                .cost_for(range.len().into()),
-        )?;
-
-        self.context.message_context.reply_push_input(range)?;
-
-        Ok(())
+        self.with_changes(|mutator| {
+            let range = mutator
+                .context
+                .message_context
+                .check_input_range(offset, len);
+            mutator.charge_gas_if_enough(
+                mutator
+                    .context
+                    .costs
+                    .syscalls
+                    .gr_reply_push_input_per_byte
+                    .cost_for(range.len().into()),
+            )?;
+            mutator
+                .ext
+                .context
+                .message_context
+                .reply_push_input(range)
+                .map_err(Into::into)
+        })
     }
 
     fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
@@ -1012,18 +1143,21 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError> {
-        let end = at
-            .checked_add(len)
-            .ok_or(FallibleExecutionError::TooBigReadLen)?;
-        self.charge_gas_if_enough(
-            self.context
-                .costs
-                .syscalls
-                .gr_read_per_byte
-                .cost_for(len.into()),
-        )?;
-        PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
-            .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
+        self.with_changes(|mutator| {
+            let end = at
+                .checked_add(len)
+                .ok_or(FallibleExecutionError::TooBigReadLen)?;
+            mutator.charge_gas_if_enough(
+                mutator
+                    .context
+                    .costs
+                    .syscalls
+                    .gr_read_per_byte
+                    .cost_for(len.into()),
+            )?;
+            PayloadSliceLock::try_new((at, end), &mut mutator.ext.context.message_context)
+                .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
+        })
     }
 
     fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
@@ -1039,31 +1173,38 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         amount: u64,
         duration: u32,
     ) -> Result<ReservationId, Self::FallibleError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().reservation_fee)?;
+        self.with_changes(|mutator| {
+            mutator
+                .charge_gas_if_enough(mutator.context.message_context.settings().reservation_fee)?;
 
-        if duration == 0 {
-            return Err(ReservationError::ZeroReservationDuration.into());
-        }
+            if duration == 0 {
+                return Err(ReservationError::ZeroReservationDuration.into());
+            }
 
-        if amount < self.context.mailbox_threshold {
-            return Err(ReservationError::ReservationBelowMailboxThreshold.into());
-        }
+            if amount < mutator.context.mailbox_threshold {
+                return Err(ReservationError::ReservationBelowMailboxThreshold.into());
+            }
 
-        let reserve = self
-            .context
-            .costs
-            .rent
-            .reservation
-            .cost_for(self.context.reserve_for.saturating_add(duration).into());
+            let reserve = mutator
+                .context
+                .costs
+                .rent
+                .reservation
+                .cost_for(mutator.context.reserve_for.saturating_add(duration).into());
 
-        let reduce_amount = amount.saturating_add(reserve);
-        if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
-            return Err(FallibleExecutionError::NotEnoughGas.into());
-        }
+            let reduce_amount = amount.saturating_add(reserve);
 
-        let id = self.context.gas_reserver.reserve(amount, duration)?;
+            mutator
+                .reduce_gas(reduce_amount)
+                .map_err(|_| FallibleExecutionError::NotEnoughGas)?;
 
-        Ok(id)
+            mutator
+                .ext
+                .context
+                .gas_reserver
+                .reserve(amount, duration)
+                .map_err(Into::into)
+        })
     }
 
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
@@ -1111,90 +1252,102 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee)?;
+        self.with_changes(|mutator| {
+            mutator.charge_gas_if_enough(mutator.context.message_context.settings().waiting_fee)?;
 
-        if self.context.message_context.reply_sent() {
-            return Err(UnrecoverableWaitError::WaitAfterReply.into());
-        }
+            if mutator.context.message_context.reply_sent() {
+                return Err(UnrecoverableWaitError::WaitAfterReply.into());
+            }
 
-        let reserve = self
-            .context
-            .costs
-            .rent
-            .waitlist
-            .cost_for(self.context.reserve_for.saturating_add(1).into());
+            let reserve = mutator
+                .context
+                .costs
+                .rent
+                .waitlist
+                .cost_for(mutator.context.reserve_for.saturating_add(1).into());
 
-        if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(UnrecoverableExecutionError::NotEnoughGas.into());
-        }
+            mutator
+                .reduce_gas(reserve)
+                .map_err(|_| UnrecoverableExecutionError::NotEnoughGas)?;
 
-        Ok(())
+            Ok(())
+        })
     }
 
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee)?;
+        self.with_changes(|mutator| {
+            mutator.charge_gas_if_enough(mutator.context.message_context.settings().waiting_fee)?;
 
-        if self.context.message_context.reply_sent() {
-            return Err(UnrecoverableWaitError::WaitAfterReply.into());
-        }
+            if mutator.context.message_context.reply_sent() {
+                return Err(UnrecoverableWaitError::WaitAfterReply.into());
+            }
 
-        if duration == 0 {
-            return Err(UnrecoverableWaitError::ZeroDuration.into());
-        }
+            if duration == 0 {
+                return Err(UnrecoverableWaitError::ZeroDuration.into());
+            }
 
-        let reserve = self
-            .context
-            .costs
-            .rent
-            .waitlist
-            .cost_for(self.context.reserve_for.saturating_add(duration).into());
+            let reserve = mutator
+                .context
+                .costs
+                .rent
+                .waitlist
+                .cost_for(mutator.context.reserve_for.saturating_add(duration).into());
 
-        if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(UnrecoverableExecutionError::NotEnoughGas.into());
-        }
+            if mutator.gas_counter.reduce(reserve) != ChargeResult::Enough {
+                return Err(UnrecoverableExecutionError::NotEnoughGas.into());
+            }
 
-        Ok(())
+            Ok(())
+        })
     }
 
     fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee)?;
+        self.with_changes(|mutator| {
+            mutator.charge_gas_if_enough(mutator.context.message_context.settings().waiting_fee)?;
 
-        if self.context.message_context.reply_sent() {
-            return Err(UnrecoverableWaitError::WaitAfterReply.into());
-        }
+            if mutator.context.message_context.reply_sent() {
+                return Err(UnrecoverableWaitError::WaitAfterReply.into());
+            }
 
-        if duration == 0 {
-            return Err(UnrecoverableWaitError::ZeroDuration.into());
-        }
+            if duration == 0 {
+                return Err(UnrecoverableWaitError::ZeroDuration.into());
+            }
 
-        let reserve = self
-            .context
-            .costs
-            .rent
-            .waitlist
-            .cost_for(self.context.reserve_for.saturating_add(1).into());
+            let reserve = mutator
+                .context
+                .costs
+                .rent
+                .waitlist
+                .cost_for(mutator.context.reserve_for.saturating_add(1).into());
 
-        if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(UnrecoverableExecutionError::NotEnoughGas.into());
-        }
+            if mutator.gas_counter.reduce(reserve) != ChargeResult::Enough {
+                return Err(UnrecoverableExecutionError::NotEnoughGas.into());
+            }
 
-        let reserve_full = self
-            .context
-            .costs
-            .rent
-            .waitlist
-            .cost_for(self.context.reserve_for.saturating_add(duration).into());
+            let reserve_full = mutator
+                .context
+                .costs
+                .rent
+                .waitlist
+                .cost_for(mutator.context.reserve_for.saturating_add(duration).into());
 
-        let reserve_diff = reserve_full - reserve;
+            let reserve_diff = reserve_full - reserve;
 
-        Ok(self.context.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
+            Ok(mutator.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
+        })
     }
 
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waking_fee)?;
+        self.with_changes(|mutator| {
+            mutator.charge_gas_if_enough(mutator.context.message_context.settings().waking_fee)?;
 
-        self.context.message_context.wake(waker_id, delay)?;
-        Ok(())
+            mutator
+                .ext
+                .context
+                .message_context
+                .wake(waker_id, delay)
+                .map_err(Into::into)
+        })
     }
 
     fn create_program(
@@ -1202,34 +1355,38 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
-        // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
-        self.safe_gasfull_sends(&packet, delay)?;
-        self.charge_expiring_resources(&packet, true)?;
-        self.charge_sending_fee(delay)?;
-        self.charge_for_dispatch_stash_hold(delay)?;
+        let ed = self.context.existential_deposit;
+        self.with_changes(|mutator| {
+            // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
+            mutator.safe_gasfull_sends(&packet, delay)?;
+            mutator.charge_expiring_resources(&packet, true)?;
+            mutator.charge_sending_fee(delay)?;
+            mutator.charge_for_dispatch_stash_hold(delay)?;
 
-        // Charge ED to value_counter
-        self.charge_message_value(self.context.existential_deposit)?;
+            // Charge ED to value_counter
+            mutator.charge_message_value(ed)?;
 
-        let code_hash = packet.code_id();
+            let code_hash = packet.code_id();
 
-        // Send a message for program creation
-        let (mid, pid) = self
-            .context
-            .message_context
-            .init_program(packet, delay)
-            .map(|(init_msg_id, new_prog_id)| {
-                // Save a program candidate for this run
-                let entry = self
-                    .context
-                    .program_candidates_data
-                    .entry(code_hash)
-                    .or_default();
-                entry.push((init_msg_id, new_prog_id));
+            // Send a message for program creation
 
-                (init_msg_id, new_prog_id)
-            })?;
-        Ok((mid, pid))
+            mutator
+                .ext
+                .context
+                .message_context
+                .init_program(packet, delay)
+                .map(|(init_msg_id, new_prog_id)| {
+                    let entry = mutator
+                        .ext
+                        .context
+                        .program_candidates_data
+                        .entry(code_hash)
+                        .or_default();
+                    entry.push((init_msg_id, new_prog_id));
+                    (init_msg_id, new_prog_id)
+                })
+                .map_err(Into::into)
+        })
     }
 
     fn reply_deposit(
@@ -1237,13 +1394,15 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         message_id: MessageId,
         amount: u64,
     ) -> Result<(), Self::FallibleError> {
-        self.reduce_gas(amount)?;
-
-        self.context
-            .message_context
-            .reply_deposit(message_id, amount)?;
-
-        Ok(())
+        self.with_changes(|mutator| {
+            mutator.reduce_gas(amount)?;
+            mutator
+                .ext
+                .context
+                .message_context
+                .reply_deposit(message_id, amount)
+                .map_err(Into::into)
+        })
     }
 
     fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
@@ -1262,6 +1421,7 @@ mod tests {
     use gear_core::{
         costs::SyscallCosts,
         message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+        reservation::GasReservationState,
     };
 
     struct MessageContextBuilder {
@@ -1804,11 +1964,7 @@ mod tests {
             HandlePacket::new_with_gas(Default::default(), Default::default(), INIT_GAS, 0),
             0,
         );
-        // replace the following code with `assert!(res.is_ok());`
-        assert_eq!(
-            res.unwrap_err(),
-            FallibleExecutionError::NotEnoughGas.into()
-        );
+        assert!(res.is_ok());
     }
 
     // TODO: fix me (issue #3881)
@@ -1822,6 +1978,7 @@ mod tests {
                         .build(),
                 )
                 .with_gas(GasCounter::new(1_000_000_000))
+                .with_allowance(GasAllowanceCounter::new(1_000_000))
                 .build(),
         );
 
@@ -1840,11 +1997,107 @@ mod tests {
         let i = ext.send_init().expect("Shouldn't fail");
 
         let res = ext.reservation_send_commit(reservation_id, i, Default::default(), 0);
-        // replace the following code with `assert!(res.is_ok());`
-        assert_eq!(
-            res.unwrap_err(),
-            ReservationError::InvalidReservationId.into()
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn rollback_works() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_gas(GasCounter::new(1_000_000_000))
+                .build(),
         );
+
+        let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
+        let remaining_gas = ext.context.gas_counter.to_amount();
+        let remaining_gas_allowance = ext.context.gas_allowance_counter.left();
+        let remaining_value_counter = ext.context.value_counter.left();
+        let result = ext.with_changes::<_, (), _>(|mutator| {
+            mutator.reduce_gas(42)?;
+            mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
+            mutator.charge_message_value(128)?;
+            mutator.outgoing_gasless = 1;
+            mutator.mark_reservation_used(reservation_id)?;
+            Err(FallibleExtError::Charge(ChargeError::GasLimitExceeded))
+        });
+
+        assert!(result.is_err());
+        assert_eq!(ext.context.gas_counter.left(), remaining_gas.left());
+        assert_eq!(ext.context.gas_counter.burned(), remaining_gas.burned());
+        assert_eq!(
+            ext.context.gas_allowance_counter.left(),
+            remaining_gas_allowance
+        );
+        assert_eq!(ext.outgoing_gasless, 0);
+        assert_eq!(ext.context.value_counter.left(), remaining_value_counter);
+        assert!(matches!(
+            ext.context.gas_reserver.states().get(&reservation_id),
+            Some(GasReservationState::Created {
+                amount: 1_000_000,
+                duration: 1_000,
+                used: false
+            })
+        ));
+    }
+
+    #[test]
+    fn changes_do_apply() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_gas(GasCounter::new(1_000_000_000))
+                .with_allowance(GasAllowanceCounter::new(1_000_000))
+                .build(),
+        );
+
+        let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
+        let remaining_gas = ext.context.gas_counter.to_amount();
+        let remaining_gas_allowance = ext.context.gas_allowance_counter.left();
+        let remaining_value_counter = ext.context.value_counter.left();
+        let result = ext.with_changes::<_, (), FallibleExtError>(|mutator| {
+            mutator.reduce_gas(42)?;
+            mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
+            mutator.charge_message_value(128)?;
+            mutator.outgoing_gasless = 1;
+            mutator.mark_reservation_used(reservation_id)?;
+            Ok(())
+        });
+
+        assert!(result.is_ok());
+        assert_eq!(
+            ext.context.gas_counter.left(),
+            remaining_gas.left() - 42 - 84
+        );
+        assert_eq!(ext.outgoing_gasless, 1);
+        assert_eq!(
+            ext.context.gas_counter.burned(),
+            remaining_gas.burned() + 84
+        );
+        assert_eq!(
+            ext.context.gas_allowance_counter.left(),
+            remaining_gas_allowance - 84
+        );
+        assert_eq!(
+            ext.context.value_counter.left(),
+            remaining_value_counter - 128
+        );
+        assert!(matches!(
+            ext.context.gas_reserver.states().get(&reservation_id),
+            Some(GasReservationState::Created {
+                amount: 1_000_000,
+                duration: 1_000,
+                used: true
+            })
+        ));
     }
 
     #[test]

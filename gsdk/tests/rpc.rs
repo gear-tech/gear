@@ -18,7 +18,11 @@
 
 //! Requires node to be built in release mode
 
-use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use gear_core::{
+    ids::{prelude::*, CodeId, ProgramId},
+    message::ReplyInfo,
+};
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
@@ -343,6 +347,136 @@ async fn test_program_counters() -> Result<()> {
         query_program_counters(&uri, None).await?;
     println!("elapsed = {:?}", instant.elapsed());
     println!("testnet block_hash = {block_hash}, block_number = {block_number}, count_program = {count_program}, count_active_program = {count_active_program}, count_memory_page = {count_memory_page}");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_calculate_reply_for_handle() -> Result<()> {
+    let node = dev_node();
+
+    let salt = vec![];
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_new_meta::WASM_BINARY), &salt);
+
+    // 1. upload program.
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
+
+    signer
+        .calls
+        .upload_program(
+            demo_new_meta::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    assert!(
+        signer.api().gprog(pid).await.is_ok(),
+        "Program not exists on chain."
+    );
+
+    let message_in = demo_new_meta::MessageIn {
+        id: demo_new_meta::Id {
+            decimal: 1,
+            hex: [1].to_vec(),
+        },
+    };
+
+    let message_out = demo_new_meta::MessageOut {
+        res: demo_new_meta::Wallet::test_sequence()
+            .iter()
+            .find(|w| w.id.decimal == message_in.id.decimal)
+            .cloned(),
+    };
+
+    // 2. calculate reply for handle
+    let reply_info = signer
+        .rpc
+        .calculate_reply_for_handle(None, pid, message_in.encode(), 100_000_000_000, 0, None)
+        .await?;
+
+    // 3. assert
+    assert_eq!(
+        reply_info,
+        ReplyInfo {
+            payload: message_out.encode(),
+            value: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual)
+        }
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
+    let node = dev_node();
+
+    let salt = vec![];
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
+
+    // 1. upload program.
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
+
+    signer
+        .calls
+        .upload_program(
+            demo_vec::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    assert!(
+        signer.api().gprog(pid).await.is_ok(),
+        "Program not exists on chain."
+    );
+
+    // 2. read initial state
+    let pid_h256 = H256::from_slice(pid.as_ref());
+    let initial_state = signer.api().read_state(pid_h256, vec![], None).await?;
+
+    // 3. calculate reply for handle
+    let reply_info = signer
+        .rpc
+        .calculate_reply_for_handle(None, pid, 42i32.encode(), 100_000_000_000, 0, None)
+        .await?;
+
+    // 4. assert that calculated result correct
+    assert_eq!(
+        reply_info,
+        ReplyInfo {
+            payload: 42i32.encode(),
+            value: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual)
+        }
+    );
+
+    // 5. read state after calculate
+    let calcualted_state = signer.api().read_state(pid_h256, vec![], None).await?;
+
+    // 6. assert that state hasn't changed
+    assert_eq!(initial_state, calcualted_state);
+
+    // 7. make call
+    signer
+        .calls
+        .send_message(pid, 42i32.encode(), 100_000_000_000, 0)
+        .await?;
+
+    // 8. read state after call
+    let updated_state = signer.api().read_state(pid_h256, vec![], None).await?;
+
+    // 9. assert that state has changed
+    assert_ne!(initial_state, updated_state);
 
     Ok(())
 }
