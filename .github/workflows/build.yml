@@ -261,6 +261,13 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
+      - name: "Test: Gear tasks"
+        run: >-
+          cargo xwin test -p gear-tasks
+          ${{ matrix.profiles.flags }}
+        env:
+          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
   win-native:
     needs: [dynamic-profiles, linux]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}

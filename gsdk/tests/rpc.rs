@@ -457,10 +457,10 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
     );
 
     // 5. read state after calculate
-    let calcualted_state = signer.api().read_state(pid_h256, vec![], None).await?;
+    let calculated_state = signer.api().read_state(pid_h256, vec![], None).await?;
 
     // 6. assert that state hasn't changed
-    assert_eq!(initial_state, calcualted_state);
+    assert_eq!(initial_state, calculated_state);
 
     // 7. make call
     signer
