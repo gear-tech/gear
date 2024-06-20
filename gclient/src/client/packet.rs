@@ -24,6 +24,10 @@ pub struct Message {
     pub payload: Vec<u8>,
     /// Value contains in this message.
     pub value: u128,
+    /// Signer address
+    ///
+    /// TODO: introduce a better wrapper
+    pub signer: [u8; 32],
 }
 
 impl Message {
@@ -32,14 +36,16 @@ impl Message {
         Self {
             payload: payload.encode(),
             value: 0,
+            signer: [0; 32],
         }
     }
 
     /// New message from raw bytes
-    pub fn bytes(payload: impl AsRef<u8>) -> Self {
+    pub fn bytes(payload: impl AsRef<[u8]>) -> Self {
         Self {
             payload: payload.as_ref().into(),
             value: 0,
+            signer: [0; 32],
         }
     }
 
@@ -48,9 +54,15 @@ impl Message {
         self.value = value;
         self
     }
+
+    /// Set the signer of this message
+    pub fn signer(mut self, signer: impl Into<[u8; 32]>) -> Self {
+        self.signer = signer.into();
+        self
+    }
 }
 
-impl<T> From<T: Encode> for Message {
+impl<T: Encode> From<T> for Message {
     fn from(payload: T) -> Self {
         Self::new(payload)
     }

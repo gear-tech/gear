@@ -16,23 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![cfg(feature = "client")]
+#![allow(unused)]
 
+mod client;
 mod packet;
 mod program;
 
+pub use self::{packet::Message, program::Program};
 use anyhow::Result;
 use async_trait::async_trait;
 use gear_core::ids::ProgramId;
-use packet::Message;
 use std::{fs, path::PathBuf};
 
 /// Backend for the general client
 #[async_trait]
 pub trait Backend {
     /// Add program to the backend
-    async fn add_program(_id: ProgramId, _code: impl Code) -> Result<()>;
+    async fn deploy(&self, _code: impl Code) -> Result<()>;
+
     /// Send message
-    async fn send(_id: ProgramId, message: impl Into<Message>) -> Result<()>;
+    async fn send(&self, _id: ProgramId, message: impl Into<Message>) -> Result<()>;
 }
 
 /// Generate gear program code, could be path or bytes.

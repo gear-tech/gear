@@ -16,10 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::Backend;
+use crate::client::{Backend, Code, Program};
+use anyhow::Result;
+use gear_core::ids::ProgramId;
 use std::sync::Arc;
 
 /// Gear general client
 pub struct Client<T: Backend> {
     backend: Arc<T>,
+}
+
+impl<T: Backend> Client<T> {
+    /// Get program instance
+    ///
+    /// TODO: error if program not found
+    pub fn program(&self, id: ProgramId) -> Result<Program<T>> {
+        Ok(Program {
+            id,
+            backend: self.backend.clone(),
+        })
+    }
+
+    /// Deploy program to backend
+    pub async fn deploy(&self, code: impl Code) -> Result<()> {
+        self.backend.deploy(code).await
+    }
 }

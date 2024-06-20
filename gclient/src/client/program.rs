@@ -22,6 +22,8 @@ use std::sync::Arc;
 
 /// Gear program instance
 pub struct Program<T: Backend> {
-    id: ProgramId,
-    backend: Arc<T>,
+    /// Id of this program
+    pub(crate) id: ProgramId,
+    /// Backend pointer
+    pub(crate) backend: Arc<T>,
 }
