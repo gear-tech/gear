@@ -107,3 +107,20 @@ pub(crate) fn storage_address_bytes<Address: StorageAddress>(
     addr.append_entry_bytes(metadata, &mut bytes)?;
     Ok(bytes)
 }
+
+/// Interface for adapting optional values
+pub trait AsOption<T> {
+    fn as_option(self) -> Option<T>;
+}
+
+impl<'a> AsOption<&'a str> for &'a str {
+    fn as_option(self) -> Option<&'a str> {
+        Some(self)
+    }
+}
+
+impl<'a> AsOption<&'a str> for Option<&'a str> {
+    fn as_option(self) -> Option<&'a str> {
+        self
+    }
+}

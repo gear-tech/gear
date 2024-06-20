@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, Result,
-    TxInBlock,
+    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, AsOption, Blocks, Events,
+    Result, TxInBlock,
 };
 use core::ops::{Deref, DerefMut};
 use std::result::Result as StdResult;
@@ -37,8 +37,8 @@ pub struct Api {
 
 impl Api {
     /// Create new API client.
-    pub async fn new(url: Option<&str>) -> Result<Self> {
-        Self::new_with_timeout(url, None).await
+    pub async fn new(url: impl AsOption<&str>) -> Result<Self> {
+        Self::new_with_timeout(url.as_option(), None).await
     }
 
     /// Gear RPC Client
