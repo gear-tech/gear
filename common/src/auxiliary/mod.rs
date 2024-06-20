@@ -27,7 +27,7 @@ use alloc::collections::btree_map::{BTreeMap, Entry};
 
 /// Double key `BTreeMap`.
 ///
-/// Basically is just a map for the map.
+/// Basically is just a map of the map.
 pub struct DoubleBTreeMap<K1, K2, V> {
     inner: BTreeMap<K1, BTreeMap<K2, V>>,
 }
