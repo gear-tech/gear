@@ -782,7 +782,7 @@ fn fungible_api_works() {
                 DepositConsequence::Overflow
             );
 
-            // Check below mininum
+            // Check below minimum
             Balances::make_free_balance_be(&charlie.into(), 0);
             assert_eq!(
                 <Balances as fungible::Inspect<AccountId>>::can_deposit(
