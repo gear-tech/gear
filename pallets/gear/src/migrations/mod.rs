@@ -16,4 +16,4 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod wait_init;
+// No migrations are needed for this module since 1.4.1.
