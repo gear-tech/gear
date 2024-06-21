@@ -2186,6 +2186,7 @@ mod tests {
             ProcessorContextBuilder::new()
                 .with_message_context(MessageContextBuilder::new().build())
                 .with_existential_deposit(500)
+                .with_value(0)
                 .build(),
         );
 
@@ -2226,6 +2227,7 @@ mod tests {
                         .build(),
                 )
                 .with_existential_deposit(500)
+                .with_value(0)
                 .build(),
         );
 
