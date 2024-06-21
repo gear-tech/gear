@@ -91,12 +91,11 @@ impl<BlockNumber: Copy> core::convert::TryFrom<Program<BlockNumber>>
 /// Active program in storage.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram<BlockNumber: Copy> {
-    /// Set of wasm pages, that were allocated by the program.
-    pub allocations: IntervalsTree<WasmPage>,
-    /// Set of gear pages, that have data in storage.
-    pub pages_with_data: IntervalsTree<GearPage>,
+    /// +_+_+
+    pub allocations_tree_len: u32,
     /// Infix of memory pages storage (is used for memory wake after pausing)
     pub memory_infix: MemoryInfix,
+    // TODO: investigate whether we need to charge for gas reservation map size +_+_+
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
     /// Code hash of the program.
