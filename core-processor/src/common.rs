@@ -553,31 +553,3 @@ pub(crate) struct WasmExecutionContext {
     /// Size of the memory block.
     pub memory_size: WasmPagesAmount,
 }
-
-/// Struct with dispatch and counters charged for program data.
-#[derive(Debug)]
-pub struct PrechargedDispatch {
-    dispatch: IncomingDispatch,
-    gas: GasCounter,
-    allowance: GasAllowanceCounter,
-}
-
-impl PrechargedDispatch {
-    /// Create new instance from parts.
-    pub(crate) fn from_parts(
-        dispatch: IncomingDispatch,
-        gas: GasCounter,
-        allowance: GasAllowanceCounter,
-    ) -> Self {
-        Self {
-            dispatch,
-            gas,
-            allowance,
-        }
-    }
-
-    /// Decompose the instance into parts.
-    pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
-        (self.dispatch, self.gas, self.allowance)
-    }
-}

@@ -216,7 +216,7 @@ where
         ..pallet_config
     };
 
-    let precharged_dispatch = core_processor::precharge_for_program(
+    let context = core_processor::precharge_for_program(
         &block_config,
         config.gas_allowance,
         queued_dispatch.into_incoming(config.gas_limit),
@@ -229,9 +229,17 @@ where
         _ => return Err("Program not found"),
     };
     let balance = CurrencyOf::<T>::free_balance(&actor_id.cast()).unique_saturated_into();
+
+    let context = core_processor::precharge_for_allocations(
+        &block_config,
+        context,
+        active.allocations_tree_len,
+    )
+    .map_err(|_| "core_processor::precharge_for_allocations failed")?;
+
     let allocations = ProgramStorageOf::<T>::allocations(actor_id).unwrap_or_default();
 
-    let executable_data = ExecutableActorData {
+    let actor_data = ExecutableActorData {
         allocations,
         code_id: active.code_hash.cast(),
         code_exports: active.code_exports,
@@ -240,13 +248,8 @@ where
         memory_infix: active.memory_infix,
     };
 
-    let context = core_processor::precharge_for_code_length(
-        &block_config,
-        precharged_dispatch,
-        actor_id,
-        executable_data,
-    )
-    .map_err(|_| "core_processor::precharge_for_code failed")?;
+    let context = core_processor::precharge_for_code_length(&block_config, context, actor_data)
+        .map_err(|_| "core_processor::precharge_for_code failed")?;
 
     let code =
         T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;

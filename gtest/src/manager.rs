@@ -872,6 +872,7 @@ impl ExtManager {
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
                 static_page: Default::default(),
                 module_instantiation_per_byte: MODULE_INSTANTIATION_BYTE_COST.into(),
+                load_allocations_per_interval: Default::default(),
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -881,7 +882,7 @@ impl ExtManager {
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         };
 
-        let precharged_dispatch = match core_processor::precharge_for_program(
+        let context = match core_processor::precharge_for_program(
             &block_config,
             self.gas_allowance.0,
             dispatch.into_incoming(gas_limit),
@@ -895,16 +896,15 @@ impl ExtManager {
         };
 
         let Some((actor_data, code)) = data else {
-            let journal = core_processor::process_non_executable(precharged_dispatch, dest);
+            let journal = core_processor::process_non_executable(context);
             core_processor::handle_journal(journal, self);
             return;
         };
 
-        let context = match core_processor::precharge_for_code_length(
+        let context = match core_processor::precharge_for_allocations(
             &block_config,
-            precharged_dispatch,
-            dest,
-            actor_data,
+            context,
+            actor_data.allocations.intervals_amount() as u32,
         ) {
             Ok(c) => c,
             Err(journal) => {
@@ -912,6 +912,15 @@ impl ExtManager {
                 return;
             }
         };
+
+        let context =
+            match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
+                Ok(c) => c,
+                Err(journal) => {
+                    core_processor::handle_journal(journal, self);
+                    return;
+                }
+            };
 
         let context = ContextChargedForCode::from((context, code.code().len() as u32));
         let context = ContextChargedForInstrumentation::from(context);

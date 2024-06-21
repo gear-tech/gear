@@ -140,6 +140,17 @@ pub trait ProgramStorage {
     }
 
     fn set_allocations(program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+        Self::update_active_program(program_id, |program| {
+            program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
+                .unwrap_or_else(|err| {
+                    // This panic is impossible because page numbers are u32.
+                    unreachable!("allocations tree length is too big to fit into u32: {err}")
+                });
+        })
+        .unwrap_or_else(|err| {
+            // Set allocations can be called only for active programs.
+            unreachable!("Failed to update program allocations: {err:?}")
+        });
         Self::AllocationsMap::insert(program_id, allocations);
     }
 

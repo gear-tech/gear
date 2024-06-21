@@ -135,6 +135,9 @@ pub struct Schedule<T: Config> {
 
     /// WASM code instrumentation per-byte cost.
     pub code_instrumentation_byte_cost: Weight,
+
+    /// +_+_+
+    pub load_allocations_weight: Weight,
 }
 
 /// Describes the upper limits on various metrics.
@@ -724,6 +727,7 @@ impl<T: Config> Default for Schedule<T> {
             ),
             code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
             code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
+            load_allocations_weight: Default::default(),
         }
     }
 }
@@ -1149,6 +1153,7 @@ impl<T: Config> Schedule<T> {
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
             module_instantiation_per_byte: self.module_instantiation_per_byte.ref_time().into(),
+            load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
         }
     }
 }

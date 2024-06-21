@@ -15,13 +15,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{
-        ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote,
-        PrechargedDispatch,
-    },
+    common::{ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote},
     configs::{BlockConfig, ProcessCosts},
     context::{
-        ContextChargedForCodeLength, ContextChargedForMemory, ContextData, SystemReservationContext,
+        ContextChargedForAllocations, ContextChargedForCodeLength, ContextChargedForMemory,
+        ContextChargedForProgram, ContextData, SystemReservationContext,
     },
     processing::{process_allowance_exceed, process_execution_error, process_success},
     ContextChargedForCode, ContextChargedForInstrumentation,
@@ -56,6 +54,9 @@ pub enum PreChargeGasOperation {
     /// Instrument Wasm module.
     #[display(fmt = "instrument Wasm module")]
     ModuleInstrumentation,
+    /// Obtain program allocations.
+    #[display(fmt = "obtain program allocations")]
+    Allocations,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -165,7 +166,7 @@ impl<'a> GasPrecharger<'a> {
     }
 }
 
-/// Possible variants of the `DispatchResult` if the latter contains value.
+/// Possible variants of the [`DispatchResult`] if the latter contains value.
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub enum SuccessfulDispatchResultKind {
@@ -183,7 +184,7 @@ pub fn precharge_for_program(
     gas_allowance: u64,
     dispatch: IncomingDispatch,
     destination_id: ProgramId,
-) -> PrechargeResult<PrechargedDispatch> {
+) -> PrechargeResult<ContextChargedForProgram> {
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
     let mut charger = GasPrecharger::new(
@@ -193,11 +194,12 @@ pub fn precharge_for_program(
     );
 
     match charger.charge_gas_for_program_data() {
-        Ok(()) => Ok(PrechargedDispatch::from_parts(
+        Ok(()) => Ok(ContextChargedForProgram {
             dispatch,
+            destination_id,
             gas_counter,
             gas_allowance_counter,
-        )),
+        }),
         Err(PrechargeError::BlockGasExceeded) => {
             let gas_burned = gas_counter.burned();
             Err(process_allowance_exceed(
@@ -220,6 +222,52 @@ pub fn precharge_for_program(
     }
 }
 
+/// +_+_+
+pub fn precharge_for_allocations(
+    block_config: &BlockConfig,
+    mut context: ContextChargedForProgram,
+    allocations_tree_len: u32,
+) -> PrechargeResult<ContextChargedForAllocations> {
+    let mut charger = GasPrecharger::new(
+        &mut context.gas_counter,
+        &mut context.gas_allowance_counter,
+        &block_config.costs,
+    );
+
+    if allocations_tree_len == 0 {
+        return Ok(ContextChargedForAllocations(context));
+    }
+
+    let amount = block_config
+        .costs
+        .load_allocations_per_interval
+        .cost_for(allocations_tree_len)
+        .saturating_add(block_config.costs.read.cost_for_one());
+
+    match charger.charge_gas(PreChargeGasOperation::Allocations, amount) {
+        Ok(()) => Ok(ContextChargedForAllocations(context)),
+        Err(PrechargeError::BlockGasExceeded) => {
+            let gas_burned = context.gas_counter.burned();
+            Err(process_allowance_exceed(
+                context.dispatch,
+                context.destination_id,
+                gas_burned,
+            ))
+        }
+        Err(PrechargeError::GasExceeded(op)) => {
+            let gas_burned = context.gas_counter.burned();
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.dispatch);
+            Err(process_execution_error(
+                context.dispatch,
+                context.destination_id,
+                gas_burned,
+                system_reservation_ctx,
+                ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
+            ))
+        }
+    }
+}
+
 /// Charge a message for fetching the actual length of the binary code
 /// from a storage. The updated value of binary code length
 /// should be kept in standalone storage. The caller has to call this
@@ -230,11 +278,15 @@ pub fn precharge_for_program(
 /// - if a required dispatch method is exported.
 pub fn precharge_for_code_length(
     block_config: &BlockConfig,
-    dispatch: PrechargedDispatch,
-    destination_id: ProgramId,
+    context: ContextChargedForAllocations,
     actor_data: ExecutableActorData,
 ) -> PrechargeResult<ContextChargedForCodeLength> {
-    let (dispatch, mut gas_counter, mut gas_allowance_counter) = dispatch.into_parts();
+    let ContextChargedForProgram {
+        dispatch,
+        destination_id,
+        mut gas_counter,
+        mut gas_allowance_counter,
+    } = context.0;
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
         return Err(process_success(
