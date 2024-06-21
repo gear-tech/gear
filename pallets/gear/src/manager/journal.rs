@@ -318,7 +318,7 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        // TODO: pass `memory_infix` as argument #+_+_+
+        // TODO: pass `memory_infix` as argument #4025
         let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             unreachable!(
                 "Program with id {:?} is guaranteed to be active, when updating pages data",
@@ -333,7 +333,7 @@ where
     }
 
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        // TODO: pass `memory_infix` as argument #+_+_+
+        // TODO: pass `memory_infix` as argument #4025
         let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             unreachable!(
                 "Program with id {:?} is guaranteed to be active, when updating pages data",

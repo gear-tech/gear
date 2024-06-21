@@ -222,7 +222,7 @@ pub fn precharge_for_program(
     }
 }
 
-/// +_+_+
+/// Precharge for allocations obtaining from storage.
 pub fn precharge_for_allocations(
     block_config: &BlockConfig,
     mut context: ContextChargedForProgram,

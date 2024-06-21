@@ -608,6 +608,8 @@ benchmarks! {
         let a in 0 .. u16::MAX as u32 / 2;
         let allocations = (0..a).map(|p| WasmPage::from(p as u16 * 2 + 1));
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
     }: {
         let _ = ProgramStorageOf::<T>::allocations(program_id).unwrap();
