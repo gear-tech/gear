@@ -21,7 +21,7 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::DispatchKind,
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    pages::WasmPagesAmount,
     reservation::GasReservationMap,
 };
 use alloc::collections::BTreeSet;

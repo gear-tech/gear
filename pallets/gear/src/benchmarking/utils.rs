@@ -22,7 +22,8 @@ use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, LazyPagesInterface, LazyPagesRuntimeInterface, CurrencyOf, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf,
+    Config, CurrencyOf, LazyPagesInterface, LazyPagesRuntimeInterface, MailboxOf, Pallet as Gear,
+    ProgramStorageOf, QueueOf,
 };
 use common::{storage::*, CodeStorage, Origin, Program, ProgramStorage};
 use core_processor::{

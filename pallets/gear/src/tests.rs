@@ -50,7 +50,7 @@ use gear_core::{
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::WasmPage,
-    program::{ActiveProgram, Program},
+    program::ActiveProgram,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,

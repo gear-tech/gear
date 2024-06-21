@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_core::pages::{numerated::tree::IntervalsTree, WasmPage};
+
 use super::*;
 use crate::storage::{MapStorage, TripleMapStorage};
 use core::fmt::Debug;

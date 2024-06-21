@@ -603,6 +603,8 @@ pub mod runtime_types {
                             runtime_types::gprimitives::ActorId,
                             runtime_types::gprimitives::ReservationId,
                         ),
+                        #[codec(index = 9)]
+                        RemoveResumeSession(::core::primitive::u32),
                     }
                 }
             }
@@ -631,20 +633,6 @@ pub mod runtime_types {
                         pub finish: _0,
                     }
                 }
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct ActiveProgram<_0> {
-                pub allocations_tree_len: ::core::primitive::u32,
-                pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
-                pub gas_reservation_map: ::subxt::utils::KeyedVec<
-                    runtime_types::gear_core::ids::ReservationId,
-                    runtime_types::gear_core::reservation::GasReservationSlot,
-                >,
-                pub code_hash: ::subxt::utils::H256,
-                pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                pub static_pages: runtime_types::gear_core::pages::PagesAmount,
-                pub state: runtime_types::gear_common::ProgramState,
-                pub expiration_block: _0,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct CodeMetadata {
@@ -878,12 +866,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ActiveProgram<_0> {
-                    pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page2,
-                    >,
-                    pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page,
-                    >,
+                    pub allocations_tree_len: ::core::primitive::u32,
                     pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                     pub gas_reservation_map: ::subxt::utils::KeyedVec<
                         runtime_types::gprimitives::ReservationId,
@@ -2786,8 +2769,6 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     CannotFindDataForPage,
                     #[codec(index = 4)]
-                    NotSessionOwner,
-                    #[codec(index = 5)]
                     ProgramCodeNotFound,
                 }
             }

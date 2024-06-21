@@ -205,19 +205,6 @@ where
         !self.check_program_id(id)
     }
 
-    /// Checks if memory pages of a program were loaded.
-    pub fn program_pages_loaded(&self, id: &ProgramId) -> bool {
-        self.program_loaded_pages.contains(id)
-    }
-
-    /// Adds program's id to the collection of programs with
-    /// loaded memory pages.
-    pub fn insert_program_id_loaded_pages(&mut self, id: ProgramId) {
-        debug_assert!(self.check_program_id(&id));
-
-        self.program_loaded_pages.insert(id);
-    }
-
     pub fn set_program(
         &self,
         program_id: ProgramId,
