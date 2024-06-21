@@ -21,6 +21,7 @@ use gstd::{
     errors::{ReplyCode, SignalCode, SimpleExecutionError},
     exec, format,
     msg::{self, MessageHandle},
+    prelude::*,
     prog, ActorId, CodeId, MessageId, ReservationId, Vec,
 };
 use parity_scale_codec::Encode;

@@ -18,14 +18,13 @@
 
 use super::*;
 use crate::queue::QueueStep;
-use common::ActiveProgram;
 use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::TryNewCodeConfig,
     message::ReplyInfo,
     pages::{numerated::tree::IntervalsTree, WasmPage},
-    program::MemoryInfix,
+    program::{ActiveProgram, MemoryInfix},
 };
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
@@ -633,7 +632,6 @@ where
         // Processing of the message, if destination is common program.
         let journal = Self::run_queue_step(QueueStep {
             block_config: &block_config,
-            ext_manager,
             gas_limit,
             dispatch,
             balance: CurrencyOf::<T>::free_balance(&destination.cast()).unique_saturated_into(),

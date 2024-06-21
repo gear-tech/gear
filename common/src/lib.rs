@@ -23,6 +23,8 @@
 #[macro_use]
 extern crate gear_common_codegen;
 
+#[cfg(feature = "std")]
+pub mod auxiliary;
 pub mod event;
 pub mod scheduler;
 pub mod storage;
@@ -32,9 +34,6 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
 pub mod program_storage;
 pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
-
-//pub mod paused_program_storage;
-//pub use paused_program_storage::PausedProgramStorage;
 
 pub mod gas_provider;
 
@@ -54,13 +53,11 @@ use frame_support::{
     },
     traits::Get,
 };
-use gear_core::{
+pub use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
-    message::DispatchKind,
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
-    program::MemoryInfix,
-    reservation::GasReservationMap,
+    pages::GearPage,
+    program::{ActiveProgram, MemoryInfix, Program},
 };
 use primitive_types::H256;
 use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
@@ -68,10 +65,7 @@ use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
 };
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use storage::ValueStorage;
 extern crate alloc;
@@ -225,95 +219,6 @@ pub trait BlockLimiter {
 
     /// Type manages a gas that is available at the moment of call.
     type GasAllowance: storage::Limiter<Value = Self::Balance>;
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub enum Program<BlockNumber: Copy + Saturating> {
-    Active(ActiveProgram<BlockNumber>),
-    Exited(ProgramId),
-    Terminated(ProgramId),
-}
-
-impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
-    pub fn is_active(&self) -> bool {
-        matches!(self, Program::Active(_))
-    }
-
-    pub fn is_exited(&self) -> bool {
-        matches!(self, Program::Exited(_))
-    }
-
-    pub fn is_terminated(&self) -> bool {
-        matches!(self, Program::Terminated(_))
-    }
-
-    pub fn is_initialized(&self) -> bool {
-        matches!(
-            self,
-            Program::Active(ActiveProgram {
-                state: ProgramState::Initialized,
-                ..
-            })
-        )
-    }
-}
-
-#[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "Program is not an active one")]
-pub struct InactiveProgramError;
-
-impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>>
-    for ActiveProgram<BlockNumber>
-{
-    type Error = InactiveProgramError;
-
-    fn try_from(prog_with_status: Program<BlockNumber>) -> Result<Self, Self::Error> {
-        match prog_with_status {
-            Program::Active(p) => Ok(p),
-            _ => Err(InactiveProgramError),
-        }
-    }
-}
-
-// #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-// #[codec(crate = codec)]
-// #[scale_info(crate = scale_info)]
-// pub struct ProgramAllocations(pub IntervalsTree<WasmPage>);
-
-// #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-// #[codec(crate = codec)]
-// #[scale_info(crate = scale_info)]
-// pub struct ProgramPagesWithData(pub IntervalsTree<GearPage>);
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
-    pub allocations_tree_len: u32,
-    pub memory_infix: MemoryInfix,
-    // TODO: investigate whether we need to charge for gas reservation map size +_+_+
-    pub gas_reservation_map: GasReservationMap,
-    pub code_hash: H256,
-    pub code_exports: BTreeSet<DispatchKind>,
-    pub static_pages: WasmPagesAmount,
-    pub state: ProgramState,
-    pub expiration_block: BlockNumber,
-}
-
-/// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub enum ProgramState {
-    /// `init` method of a program has not yet finished its execution so
-    /// the program is not considered as initialized. All messages to such a
-    /// program go to the wait list.
-    /// `message_id` contains identifier of the initialization message.
-    Uninitialized { message_id: MessageId },
-    /// Program has been successfully initialized and can process messages.
-    Initialized,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]

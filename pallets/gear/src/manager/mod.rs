@@ -59,7 +59,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use frame_support::traits::{Currency, ExistenceRequirement};
@@ -69,7 +69,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
-    program::MemoryInfix,
+    program::{ActiveProgram, MemoryInfix, Program, ProgramState},
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -136,8 +136,6 @@ pub struct ExtManager<T: Config> {
     users: BTreeSet<ProgramId>,
     /// Ids checked that they are programs.
     programs: BTreeSet<ProgramId>,
-    /// Ids of programs which memory pages have been loaded earlier during processing a block.
-    program_loaded_pages: BTreeSet<ProgramId>,
     /// Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
@@ -176,7 +174,6 @@ where
             _phantom: PhantomData,
             users: Default::default(),
             programs: Default::default(),
-            program_loaded_pages: Default::default(),
             dispatch_statuses: Default::default(),
             state_changes: Default::default(),
             builtins,
@@ -238,12 +235,12 @@ where
         );
 
         // An empty program has been just constructed: it contains no mem allocations.
-        let program = common::ActiveProgram {
+        let program = ActiveProgram {
             allocations_tree_len: 0,
             code_hash: code_info.id,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
-            state: common::ProgramState::Uninitialized { message_id },
+            state: ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
             expiration_block,
             memory_infix: Default::default(),

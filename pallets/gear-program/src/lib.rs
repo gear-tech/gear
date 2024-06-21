@@ -131,6 +131,8 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+extern crate alloc;
+
 use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
@@ -144,7 +146,7 @@ pub mod pallet_tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{scheduler::*, storage::*, CodeMetadata, Program};
+    use common::{scheduler::*, storage::*, CodeMetadata};
     use frame_support::{
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
@@ -157,12 +159,12 @@ pub mod pallet {
         ids::{CodeId, ProgramId},
         memory::PageBuf,
         pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
-        program::MemoryInfix,
+        program::{MemoryInfix, Program},
     };
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -186,7 +188,6 @@ pub mod pallet {
         ProgramNotFound,
         NotActiveProgram,
         CannotFindDataForPage,
-        NotSessionOwner,
         ProgramCodeNotFound,
     }
 
@@ -205,10 +206,6 @@ pub mod pallet {
 
         fn cannot_find_page_data() -> Self {
             Self::CannotFindDataForPage
-        }
-
-        fn not_session_owner() -> Self {
-            Self::NotSessionOwner
         }
 
         fn program_code_not_found() -> Self {

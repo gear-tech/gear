@@ -21,8 +21,9 @@ use crate::{
     metadata::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
-            gear_common::{storage::primitives::Interval, ActiveProgram, Program},
+            gear_common::storage::primitives::Interval, ActiveProgram, Program},
             gear_core::{
+                program::{ActiveProgram, Program},
                 code::instrumented::InstrumentedCode, message::user::UserStoredMessage, pages::Page,
             },
             numerated::tree::IntervalsTree,

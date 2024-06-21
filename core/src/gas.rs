@@ -150,6 +150,18 @@ impl GasCounter {
             burned: self.burned,
         }
     }
+
+    /// Clone the counter
+    ///
+    /// # Safety
+    ///
+    /// Use only when it's absolutely necessary to clone the counter i.e atomic implementation of `Ext`.
+    pub unsafe fn clone(&self) -> Self {
+        Self {
+            left: self.left,
+            burned: self.burned,
+        }
+    }
 }
 
 /// Read-only representation of consumed `GasCounter`.
@@ -203,6 +215,15 @@ impl ValueCounter {
     pub fn left(&self) -> u128 {
         self.0
     }
+
+    /// Clone the counter
+    ///
+    /// # Safety
+    ///
+    /// Use only when it's absolutely necessary to clone the counter i.e atomic implementation of `Ext`.
+    pub unsafe fn clone(&self) -> Self {
+        Self(self.0)
+    }
 }
 
 /// Gas allowance counter with some predefined maximum value.
@@ -245,6 +266,15 @@ impl GasAllowanceCounter {
         } else {
             ChargeResult::NotEnough
         }
+    }
+
+    /// Clone the counter
+    ///
+    /// # Safety
+    ///
+    /// Use only when it's absolutely necessary to clone the counter i.e atomic implementation of `Ext`.
+    pub unsafe fn clone(&self) -> Self {
+        Self(self.0)
     }
 }
 

@@ -78,6 +78,11 @@ pub enum ScheduledTask<AccountId> {
     /// Remove gas reservation.
     #[codec(index = 8)]
     RemoveGasReservation(ProgramId, ReservationId),
+
+    /// Remove resume program session.
+    #[codec(index = 9)]
+    #[deprecated = "Paused program storage was removed in pallet-gear-program"]
+    RemoveResumeSession(u32),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -103,6 +108,8 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
+            #[allow(deprecated)]
+            RemoveResumeSession(session_id) => handler.remove_resume_session(session_id),
         }
     }
 }
@@ -139,6 +146,9 @@ pub trait TaskHandler<AccountId> {
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> Gas;
+
+    /// Remove data created by resume program session.
+    fn remove_resume_session(&mut self, session_id: u32) -> Gas;
 }
 
 #[test]

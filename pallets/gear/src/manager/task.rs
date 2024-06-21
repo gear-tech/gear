@@ -61,6 +61,8 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         RemoveGasReservation(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
         }
+        #[allow(deprecated)]
+        RemoveResumeSession(_) => 0,
     }
 }
 
@@ -269,5 +271,10 @@ where
         log::trace!("Task gas: tasks_remove_gas_reservation = {gas}");
 
         gas
+    }
+
+    fn remove_resume_session(&mut self, _session_id: u32) -> Gas {
+        log::debug!("Program rent logic is disabled");
+        0
     }
 }

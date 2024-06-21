@@ -21,6 +21,7 @@
 use core::fmt;
 
 pub use gear_core_errors::*;
+pub use gprimitives::ConversionError;
 
 /// `Result` type with a predefined error type ([`ExtError`]).
 pub type Result<T, E = Error> = core::result::Result<T, E>;
@@ -38,7 +39,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::SyscallUsage => write!(f, "syscall usage error"),
-            Error::Ext(e) => write!(f, "{}", e),
+            Error::Ext(e) => write!(f, "{e}"),
         }
     }
 }

@@ -20,7 +20,7 @@ use crate::{
     HandleAction, InitAction, ReplyAction, REPLY_FROM_RESERVATION_PAYLOAD, RESERVATION_AMOUNT,
 };
 use gstd::{
-    errors::{Error, ExecutionError, ExtError, ReservationError},
+    errors::{CoreError, ExecutionError, ExtError, ReservationError},
     exec, msg,
     prelude::*,
     MessageId, ReservationId,
@@ -79,39 +79,37 @@ extern "C" fn init() {
         InitAction::CheckArgs { mailbox_threshold } => {
             assert_eq!(
                 ReservationId::reserve(0, 10),
-                Err(Error::Core(
-                    ExtError::Reservation(ReservationError::ReservationBelowMailboxThreshold)
-                        .into()
-                ))
+                Err(CoreError::Ext(ExtError::Reservation(
+                    ReservationError::ReservationBelowMailboxThreshold
+                )))
             );
 
             assert_eq!(
                 ReservationId::reserve(50_000, 0),
-                Err(Error::Core(
-                    ExtError::Reservation(ReservationError::ZeroReservationDuration).into()
-                ))
+                Err(CoreError::Ext(ExtError::Reservation(
+                    ReservationError::ZeroReservationDuration
+                )))
             );
 
             assert_eq!(
                 ReservationId::reserve(mailbox_threshold - 1, 1),
-                Err(Error::Core(
-                    ExtError::Reservation(ReservationError::ReservationBelowMailboxThreshold)
-                        .into()
-                ))
+                Err(CoreError::Ext(ExtError::Reservation(
+                    ReservationError::ReservationBelowMailboxThreshold
+                )))
             );
 
             assert_eq!(
                 ReservationId::reserve(mailbox_threshold, u32::MAX),
-                Err(Error::Core(
-                    ExtError::Execution(ExecutionError::NotEnoughGas).into()
-                ))
+                Err(CoreError::Ext(ExtError::Execution(
+                    ExecutionError::NotEnoughGas
+                )))
             );
 
             assert_eq!(
                 ReservationId::reserve(u64::MAX, 1),
-                Err(Error::Core(
-                    ExtError::Execution(ExecutionError::NotEnoughGas).into()
-                ))
+                Err(CoreError::Ext(ExtError::Execution(
+                    ExecutionError::NotEnoughGas
+                )))
             );
         }
         InitAction::FreshReserveUnreserve => {
@@ -120,9 +118,9 @@ extern "C" fn init() {
                 .unwrap();
             assert_eq!(
                 id.unreserve(),
-                Err(Error::Core(
-                    ExtError::Reservation(ReservationError::InvalidReservationId).into()
-                ))
+                Err(CoreError::Ext(ExtError::Reservation(
+                    ReservationError::InvalidReservationId
+                )))
             );
         }
     }
@@ -177,9 +175,9 @@ extern "C" fn handle() {
                 .unwrap();
             assert_eq!(
                 id.unreserve(),
-                Err(Error::Core(
-                    ExtError::Reservation(ReservationError::InvalidReservationId).into()
-                ))
+                Err(CoreError::Ext(ExtError::Reservation(
+                    ReservationError::InvalidReservationId
+                )))
             );
         }
     }

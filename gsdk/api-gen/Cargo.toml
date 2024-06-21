@@ -17,6 +17,7 @@ quote.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
 heck.workspace = true
+hex.workspace = true
 # NOTE: only required by this package.
 #
 # Same version from `/Cargo.lock`
@@ -26,4 +27,4 @@ subxt-codegen.workspace = true
 # TODO: inherit from workspace
 #
 # use "2.0.15" because subxt-codegen-0.29.0 requires it.
-syn = { version = "2.0.63", features = ["full", "parsing"] }
+syn = { version = "2.0.66", features = ["full", "parsing"] }

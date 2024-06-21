@@ -43,7 +43,7 @@ mod tests {
         system.init_logger();
 
         let prog1 = Program::current(&system);
-        let prog1_id = ActorId::from_slice(prog1.id().as_ref()).unwrap();
+        let prog1_id = ActorId::try_from(prog1.id().as_ref()).unwrap();
 
         let from = 42;
 
