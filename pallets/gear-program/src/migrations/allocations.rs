@@ -27,6 +27,7 @@ use gear_core::{
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::{ActiveProgram, Program},
 };
+use sp_runtime::SaturatedConversion;
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -67,12 +68,12 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
 
                 Some(match program {
                     v5::Program::Active(p) => {
-                        AllocationsStorage::<T>::insert(
-                            id,
-                            p.allocations
-                                .into_iter()
-                                .collect::<IntervalsTree<WasmPage>>(),
-                        );
+                        let allocations = p
+                            .allocations
+                            .into_iter()
+                            .collect::<IntervalsTree<WasmPage>>();
+                        let allocations_tree_len = allocations.intervals_amount().saturated_into();
+                        AllocationsStorage::<T>::insert(id, allocations);
                         PagesWithDataStorage::<T>::insert(
                             id,
                             p.pages_with_data
@@ -80,7 +81,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                                 .collect::<IntervalsTree<GearPage>>(),
                         );
                         Program::Active(ActiveProgram {
-                            allocations_tree_len: 0,
+                            allocations_tree_len,
                             memory_infix: p.memory_infix,
                             gas_reservation_map: p.gas_reservation_map,
                             code_hash: p.code_hash,
