@@ -14920,7 +14920,6 @@ pub(crate) mod utils {
     };
     use common::{
         event::*,
-        paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
         Origin, ProgramStorage, ReservableTree,
     };
@@ -15547,24 +15546,6 @@ pub(crate) mod utils {
             .expect("Failed to find appropriate MessageWaited event");
 
         (message_id.unwrap(), exp.unwrap())
-    }
-
-    #[track_caller]
-    pub(super) fn get_last_session() -> (
-        SessionId,
-        BlockNumberFor<Test>,
-        ProgramId,
-        <Test as frame_system::Config>::AccountId,
-    ) {
-        match get_last_event() {
-            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
-                session_id,
-                session_end_block,
-                account_id,
-                program_id,
-            }) => (session_id, session_end_block, program_id, account_id),
-            _ => unreachable!(),
-        }
     }
 
     #[track_caller]
