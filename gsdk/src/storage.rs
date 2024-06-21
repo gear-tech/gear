@@ -312,7 +312,7 @@ impl Api {
         }
     }
 
-    /// +_+_+ at specified block.
+    /// Program memory pages which contains data in storage at specified block.
     #[storage_fetch]
     pub async fn pages_with_data_numbers_at(
         &self,
