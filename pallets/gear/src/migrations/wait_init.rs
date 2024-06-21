@@ -41,7 +41,7 @@ pub struct MigrateWaitingInitList<T>(PhantomData<T>);
 
 const MIGRATE_FROM_VERSION: u16 = 4;
 const MIGRATE_TO_VERSION: u16 = 5;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 7;
 
 impl<T> OnRuntimeUpgrade for MigrateWaitingInitList<T>
 where
