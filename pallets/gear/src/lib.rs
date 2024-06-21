@@ -50,7 +50,7 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::{gas::GasInfo, message::ReplyInfo, program::ProgramState};
+pub use gear_core::{gas::GasInfo, message::ReplyInfo};
 pub use weights::WeightInfo;
 
 use alloc::{
@@ -58,9 +58,8 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
-    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
-    PausedProgramStorage, ProgramStorage, QueueRunner,
+    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
+    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -88,7 +87,6 @@ use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
-    program::Program,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
@@ -200,7 +198,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: PausedProgramStorage<
+        type ProgramStorage: ProgramStorage<
             BlockNumber = BlockNumberFor<Self>,
             Error = DispatchError,
             AccountId = Self::AccountId,
@@ -407,18 +405,6 @@ pub mod pallet {
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueNotProcessed,
-
-        /// Program resume session has been started.
-        ProgramResumeSessionStarted {
-            /// Id of the session.
-            session_id: SessionId,
-            /// Owner of the session.
-            account_id: T::AccountId,
-            /// Id of the program affected.
-            program_id: ProgramId,
-            /// Block number when the session will be removed if not finished.
-            session_end_block: BlockNumberFor<T>,
-        },
     }
 
     // Gear pallet error.
@@ -913,7 +899,6 @@ pub mod pallet {
         pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::program_exists(program_id)
-                || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.

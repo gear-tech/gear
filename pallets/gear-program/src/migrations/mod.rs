@@ -17,5 +17,5 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub mod allocations;
-
-pub mod v7;
+pub mod paused_storage;
+pub mod v8;

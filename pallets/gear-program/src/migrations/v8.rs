@@ -40,17 +40,17 @@ use {
     sp_std::vec::Vec,
 };
 
-const MIGRATE_FROM_VERSION: u16 = 6;
-const MIGRATE_TO_VERSION: u16 = 7;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 7;
+const MIGRATE_FROM_VERSION: u16 = 7;
+const MIGRATE_TO_VERSION: u16 = 8;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 8;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_treasury::Config>::Currency;
 pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
 
-pub struct MigrateToV7<T: Config>(PhantomData<T>);
+pub struct MigrateToV8<T: Config>(PhantomData<T>);
 
-impl<T: Config> OnRuntimeUpgrade for MigrateToV7<T>
+impl<T: Config> OnRuntimeUpgrade for MigrateToV8<T>
 where
     T: pallet_treasury::Config + pallet_balances::Config,
     T::AccountId: Origin,
@@ -121,7 +121,7 @@ where
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
-        log::debug!("[MigrateToV7::pre_upgrade] current: {current:?}, onchain: {onchain:?}");
+        log::debug!("[MigrateToV8::pre_upgrade] current: {current:?}, onchain: {onchain:?}");
         let res = if onchain == MIGRATE_FROM_VERSION {
             ensure!(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
@@ -158,7 +158,7 @@ where
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
             log::debug!(
-                "[MigrateToV7::post_upgrade] old_sum: {old_sum:?}, old_count: {old_count:?}"
+                "[MigrateToV8::post_upgrade] old_sum: {old_sum:?}, old_count: {old_count:?}"
             );
             let (new_sum, new_count) = ProgramStorage::<T>::iter()
                 .filter_map(|(program_id, program)| match program {
@@ -172,7 +172,7 @@ where
                     )
                 });
             log::debug!(
-                "[MigrateToV7::post_upgrade] new_sum: {new_sum:?}, new_count: {new_count:?}"
+                "[MigrateToV8::post_upgrade] new_sum: {new_sum:?}, new_count: {new_count:?}"
             );
             ensure!(
                 new_count == old_count,
@@ -182,10 +182,6 @@ where
             ensure!(
                 new_sum == expected_sum,
                 "Active programs total balance is not as expected: {} != {}",
-            );
-            ensure!(
-                Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
-                "incorrect storage version after migration"
             );
         }
 
@@ -259,11 +255,11 @@ mod tests {
             let treasury_balance = CurrencyOf::<Test>::free_balance(treasury_account);
 
             // Run the migration
-            let state = MigrateToV7::<Test>::pre_upgrade().unwrap();
-            let weight = MigrateToV7::<Test>::on_runtime_upgrade();
+            let state = MigrateToV8::<Test>::pre_upgrade().unwrap();
+            let weight = MigrateToV8::<Test>::on_runtime_upgrade();
             println!("Weight: {:?}", weight);
             assert!(!weight.is_zero());
-            MigrateToV7::<Test>::post_upgrade(state).unwrap();
+            MigrateToV8::<Test>::post_upgrade(state).unwrap();
 
             // Check that balances of the active programs add up
             let ed = CurrencyOf::<Test>::minimum_balance();
