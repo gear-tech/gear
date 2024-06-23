@@ -24,7 +24,7 @@ use cargo_metadata::Package;
 use toml_edit::DocumentMut;
 
 /// The working version of sp-wasm-interface.
-pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
+pub const GP_RUNTIME_INTERFACE_VERSION: &str = "19.0.0-pre.0";
 
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
