@@ -2178,7 +2178,7 @@ pub mod runtime_types {
                     #[codec(index = 8)]
                     #[doc = "See [`Pallet::claim_value_to_inheritor`]."]
                     claim_value_to_inheritor {
-                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        program_id: runtime_types::gprimitives::ActorId,
                         depth: ::core::num::NonZeroU32,
                     },
                 }
