@@ -24,7 +24,10 @@ use cargo_metadata::Package;
 use toml_edit::DocumentMut;
 
 /// The working version of sp-wasm-interface.
-pub const GP_RUNTIME_INTERFACE_VERSION: &str = "19.0.0-pre.0";
+pub const GP_RUNTIME_INTERFACE_VERSION: &str = "19.0.0-pre.1";
+
+/// The working version of gp-externalities.
+pub const GP_EXTERNALITIES_VERSION: &str = "0.21.0-pre.1";
 
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
@@ -198,7 +201,7 @@ mod sandbox_host {
 
 /// substrate handler.
 mod substrate {
-    use super::GP_RUNTIME_INTERFACE_VERSION;
+    use super::{GP_EXTERNALITIES_VERSION, GP_RUNTIME_INTERFACE_VERSION};
     use toml_edit::InlineTable;
 
     /// Patch the substrate packages in the manifest of workspace.
@@ -236,7 +239,9 @@ mod substrate {
             }
             // matching `sp-core-23.0.0`
             "sp-externalities" => {
-                table.insert("version", "0.21.0".into());
+                // table.insert("version", "0.21.0".into());
+                table.insert("version", GP_EXTERNALITIES_VERSION.into());
+                table.insert("package", "gp-externalities".into());
             }
             // matching `frame-support-23.0.0`
             "sp-arithmetic" => {
