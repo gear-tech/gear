@@ -104,6 +104,22 @@ impl ActorId {
     }
 }
 
+impl From<H160> for ActorId {
+    fn from(h160: H160) -> Self {
+        let mut actor_id = Self::zero();
+        actor_id.0[12..].copy_from_slice(h160.as_ref());
+        actor_id
+    }
+}
+
+impl From<ActorId> for H160 {
+    fn from(actor_id: ActorId) -> Self {
+        let mut h160 = Self::zero();
+        h160.0.copy_from_slice(actor_id.as_ref());
+        h160
+    }
+}
+
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let byte_array = utils::ByteArray(&self.0);
