@@ -26,7 +26,7 @@ async fn test_command_send_works() -> Result<()> {
     let node = common::create_messager().await?;
 
     // Get balance of the testing address
-    let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws()).await?.signer("//Alice", None)?;
     let mailbox = signer
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
