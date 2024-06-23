@@ -330,19 +330,19 @@ pub fn check_data_section(
 
 pub fn check_table_section(
     module: &Module,
-    table_size_limit: Option<u32>,
+    table_number_limit: Option<u32>,
 ) -> Result<(), CodeError> {
     let Some(table_section) = module.table_section() else {
         // No table section - nothing to check.
         return Ok(());
     };
 
-    if let Some(table_size_limit) = table_size_limit {
-        let number_of_tables = table_section.entries().len() as u32;
-        if number_of_tables > table_size_limit {
+    if let Some(table_number_limit) = table_number_limit {
+        let table_number = table_section.entries().len() as u32;
+        if table_number > table_number_limit {
             Err(TableSectionError::TableNumberLimit {
-                limit: table_size_limit,
-                actual: number_of_tables,
+                limit: table_number_limit,
+                actual: table_number,
             })?;
         }
     }
@@ -429,9 +429,9 @@ pub fn check_start_section(module: &Module) -> Result<(), CodeError> {
     }
 }
 
-/// Calculates the instantiated data section size based on the number of OS pages (see `GENERIC_OS_PAGE_SIZE`).
+/// Calculates the instantiated data section size based on the number of heuristic memory pages (see `GENERIC_OS_PAGE_SIZE`).
 /// That is, the size of the instantiated data section is the size of the section after the module is instantiated
-/// in the executor's memory. Additionally, the number of OS pages used during instantiation is considered,
+/// in the executor's memory. Additionally, the number of heuristic pages used during instantiation is considered,
 /// as each page contributes to the total weight during instantiation.
 pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
     let Some(data_section) = module.data_section() else {

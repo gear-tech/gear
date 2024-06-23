@@ -37,7 +37,7 @@ use scale_info::{
 pub struct InstantiatedSectionSizes {
     /// Code section size in bytes.
     pub code_section: u32,
-    /// Data section size in bytes based on the number of OS pages
+    /// Data section size in bytes based on the number of heuristic memory pages
     /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
     pub data_section: u32,
     /// Global section size in bytes.
