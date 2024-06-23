@@ -36,9 +36,7 @@ mod utils;
 
 pub use errors::*;
 pub use instrumented::*;
-pub use utils::{
-    migration_get_section_sizes, ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS,
-};
+pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
 use utils::CodeTypeSectionSizes;
 

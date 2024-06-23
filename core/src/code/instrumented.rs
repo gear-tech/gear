@@ -50,6 +50,18 @@ pub struct InstantiatedSectionSizes {
     pub type_section: u32,
 }
 
+impl InstantiatedSectionSizes {
+    /// Returns an empty instance of the section sizes.
+    pub const EMPTY: Self = Self {
+        code_section: 0,
+        data_section: 0,
+        global_section: 0,
+        table_section: 0,
+        element_section: 0,
+        type_section: 0,
+    };
+}
+
 /// The newtype contains the instrumented code and the corresponding id (hash).
 #[derive(Clone, Debug, Decode, Encode, TypeInfo)]
 pub struct InstrumentedCode {

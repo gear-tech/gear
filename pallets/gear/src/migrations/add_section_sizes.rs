@@ -21,7 +21,7 @@ use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
-use gear_core::code::{migration_get_section_sizes, InstantiatedSectionSizes, InstrumentedCode};
+use gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -58,51 +58,28 @@ impl<T: pallet_gear_program::Config + Config> OnRuntimeUpgrade for AddSectionSiz
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            let instrumentation_cost = T::Schedule::get().process_costs().instrumentation;
-            let instrumentation_cost_per_byte =
-                T::Schedule::get().process_costs().instrumentation_per_byte;
+            pallet_gear_program::CodeStorage::<T>::translate(|_, code: v6::InstrumentedCode| {
+                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-            pallet_gear_program::CodeStorage::<T>::translate(
-                |code_id, code: v6::InstrumentedCode| {
-                    // Charge for re-instrumentation
-                    weight = weight.saturating_add(Weight::from_parts(
-                        instrumentation_cost.cost_for_with_bytes(
-                            instrumentation_cost_per_byte,
-                            code.original_code_len.into(),
-                        ),
-                        0,
-                    ));
+                counter += 1;
 
-                    counter += 1;
+                // The actual section sizes will be calculated on the next program re-instrumentation.
+                let section_sizes = InstantiatedSectionSizes::EMPTY;
 
-                    let section_sizes = migration_get_section_sizes(&code.code).unwrap_or_else(|err| {
-                    log::error!("❌ Failed to get section sizes for code with id {code_id:?}, error: {err:?}");
-                    // Fallback, should never happen.
-                    InstantiatedSectionSizes {
-                        code_section: code.code.len() as u32,
-                        data_section: 0,
-                        global_section: 0,
-                        table_section: 0,
-                        element_section: 0,
-                        type_section: 0,
-                    }
-                });
+                let code = unsafe {
+                    InstrumentedCode::new_unchecked(
+                        code.code,
+                        code.original_code_len,
+                        code.exports,
+                        code.static_pages,
+                        code.stack_end,
+                        section_sizes,
+                        code.version,
+                    )
+                };
 
-                    let code = unsafe {
-                        InstrumentedCode::new_unchecked(
-                            code.code,
-                            code.original_code_len,
-                            code.exports,
-                            code.static_pages,
-                            code.stack_end,
-                            section_sizes,
-                            code.version,
-                        )
-                    };
-
-                    Some(code)
-                },
-            );
+                Some(code)
+            });
 
             // Put new storage version
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
@@ -262,15 +239,8 @@ mod test {
             assert_eq!(new_code.instruction_weights_version(), code.version);
             assert_eq!(new_code.stack_end(), None);
 
-            assert_eq!(new_code.instantiated_section_sizes(),
-                &InstantiatedSectionSizes {
-                    code_section: 11,
-                    data_section: 4096,
-                    global_section: 16,
-                    table_section: 40,
-                    element_section: 16,
-                    type_section: 33,
-            });
+            // The actual section sizes will be calculated on the program re-instrumentation
+            assert_eq!(new_code.instantiated_section_sizes(), &InstantiatedSectionSizes::EMPTY);
         });
     }
 }
