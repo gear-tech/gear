@@ -50,12 +50,14 @@ pub const SAFE_DEPENDENCIES: [&str; 15] = [
 /// Required packages with local dependencies.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const STACKED_DEPENDENCIES: [&str; 13] = [
+pub const STACKED_DEPENDENCIES: [&str; 15] = [
     "gcore",
     "gmeta",
     "gear-core",
     "gear-utils",
     "gear-common",
+    "gear-tasks-runtime-api",
+    "gear-tasks",
     "gear-sandbox-host",
     "gear-lazy-pages-common",
     "gear-lazy-pages",

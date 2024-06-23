@@ -44,6 +44,7 @@ pub fn patch(pkg: &Package) -> Result<Manifest> {
 
     match manifest.name.as_str() {
         "gear-core-processor" => core_processor::patch(doc),
+        "gear-tasks" => runtime_interface::patch(doc),
         "gear-runtime-interface" => runtime_interface::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
@@ -212,7 +213,7 @@ mod substrate {
     /// <https://github.com/gear-tech/substrate/tree/cl/v1.1.x-crates-io>.
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
-            "frame-support" | "frame-system" | "sp-core" => {
+            "frame-support" | "frame-system" | "sp-core" | "sc-client-api" => {
                 table.insert("version", "22.0.0".into());
             }
             "frame-support-test" => return,
@@ -222,7 +223,7 @@ mod substrate {
             "sc-cli" => {
                 table.insert("version", "0.30.0".into());
             }
-            "sc-client-db" | "sc-service" => {
+            "sc-client-db" | "sc-service" | "sp-externalities" | "sp-state-machine" => {
                 table.insert("version", "0.29.0".into());
             }
             "sp-api" | "sp-rpc" => {
