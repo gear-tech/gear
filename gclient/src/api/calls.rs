@@ -167,11 +167,6 @@ impl GearApi {
             }
         }
 
-        // Sending zero value is a no-op, so now event occurs.
-        if value == 0 {
-            return Ok(tx.block_hash());
-        }
-
         Err(Error::EventNotFound)
     }
 
