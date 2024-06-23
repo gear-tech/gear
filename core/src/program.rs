@@ -19,14 +19,110 @@
 //! Module for programs.
 
 use crate::{
-    code::InstrumentedCode,
-    ids::ProgramId,
-    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
+    ids::{MessageId, ProgramId},
+    message::DispatchKind,
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    reservation::GasReservationMap,
 };
+use alloc::collections::BTreeSet;
+use primitive_types::H256;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+
+/// Program in different states in storage.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub enum Program<BlockNumber: Copy> {
+    /// Program in active state.
+    Active(ActiveProgram<BlockNumber>),
+    /// Program has been exited (gr_exit was called)
+    Exited(ProgramId),
+    /// Program has been terminated (`init` was failed)
+    Terminated(ProgramId),
+}
+
+impl<BlockNumber: Copy> Program<BlockNumber> {
+    /// Returns whether the program is active.
+    pub fn is_active(&self) -> bool {
+        matches!(self, Program::Active(_))
+    }
+
+    /// Returns whether the program is exited.
+    pub fn is_exited(&self) -> bool {
+        matches!(self, Program::Exited(_))
+    }
+
+    /// Returns whether the program is terminated.
+    pub fn is_terminated(&self) -> bool {
+        matches!(self, Program::Terminated(_))
+    }
+
+    /// Returns whether the program is active and initialized.
+    pub fn is_initialized(&self) -> bool {
+        matches!(
+            self,
+            Program::Active(ActiveProgram {
+                state: ProgramState::Initialized,
+                ..
+            })
+        )
+    }
+}
+
+/// Program is not an active one.
+#[derive(Clone, Debug, derive_more::Display)]
+#[display(fmt = "Program is not an active one")]
+pub struct InactiveProgramError;
+
+impl<BlockNumber: Copy> core::convert::TryFrom<Program<BlockNumber>>
+    for ActiveProgram<BlockNumber>
+{
+    type Error = InactiveProgramError;
+
+    fn try_from(prog_with_status: Program<BlockNumber>) -> Result<Self, Self::Error> {
+        match prog_with_status {
+            Program::Active(p) => Ok(p),
+            _ => Err(InactiveProgramError),
+        }
+    }
+}
+
+/// Active program in storage.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct ActiveProgram<BlockNumber: Copy> {
+    /// Set of wasm pages, that were allocated by the program.
+    pub allocations: IntervalsTree<WasmPage>,
+    /// Set of gear pages, that have data in storage.
+    pub pages_with_data: IntervalsTree<GearPage>,
+    /// Infix of memory pages storage (is used for memory wake after pausing)
+    pub memory_infix: MemoryInfix,
+    /// Gas reservation map.
+    pub gas_reservation_map: GasReservationMap,
+    /// Code hash of the program.
+    pub code_hash: H256,
+    /// Set of supported dispatch kinds.
+    pub code_exports: BTreeSet<DispatchKind>,
+    /// Amount of static pages.
+    pub static_pages: WasmPagesAmount,
+    /// Initialization state of the program.
+    pub state: ProgramState,
+    /// Block number when the program will be expired.
+    pub expiration_block: BlockNumber,
+}
+
+/// Enumeration contains variants for program state.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub enum ProgramState {
+    /// `init` method of a program has not yet finished its execution so
+    /// the program is not considered as initialized.
+    Uninitialized {
+        /// identifier of the initialization message.
+        message_id: MessageId,
+    },
+    /// Program has been successfully initialized and can process messages.
+    Initialized,
+}
 
 /// Struct defines infix of memory pages storage.
 #[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
@@ -41,151 +137,5 @@ impl MemoryInfix {
     /// Return inner u32 value.
     pub fn inner(&self) -> u32 {
         self.0
-    }
-}
-
-/// Program.
-#[derive(Clone, Debug)]
-pub struct Program {
-    id: ProgramId,
-    memory_infix: MemoryInfix,
-    code: InstrumentedCode,
-    /// Wasm pages allocated by program.
-    allocations: IntervalsTree<WasmPage>,
-}
-
-impl Program {
-    /// New program with specific `id` and `code`.
-    pub fn new(id: ProgramId, memory_infix: MemoryInfix, code: InstrumentedCode) -> Self {
-        Program {
-            id,
-            memory_infix,
-            code,
-            allocations: Default::default(),
-        }
-    }
-
-    /// New program from stored data
-    pub fn from_parts(
-        id: ProgramId,
-        memory_infix: MemoryInfix,
-        code: InstrumentedCode,
-        allocations: IntervalsTree<WasmPage>,
-    ) -> Self {
-        Self {
-            id,
-            memory_infix,
-            code,
-            allocations,
-        }
-    }
-
-    /// Reference to [`InstrumentedCode`] of this program.
-    pub fn code(&self) -> &InstrumentedCode {
-        &self.code
-    }
-
-    /// Reference to raw binary code of this program.
-    pub fn code_bytes(&self) -> &[u8] {
-        self.code.code()
-    }
-
-    /// Get the [`ProgramId`] of this program.
-    pub fn id(&self) -> ProgramId {
-        self.id
-    }
-
-    /// Get the [`MemoryInfix`] of this program.
-    pub fn memory_infix(&self) -> MemoryInfix {
-        self.memory_infix
-    }
-
-    /// Get initial memory size for this program.
-    pub fn static_pages(&self) -> WasmPagesAmount {
-        self.code.static_pages()
-    }
-
-    /// Get stack end page if exists.
-    pub fn stack_end(&self) -> Option<WasmPage> {
-        self.code.stack_end()
-    }
-
-    /// Get allocations as a set of page numbers.
-    pub fn allocations(&self) -> &IntervalsTree<WasmPage> {
-        &self.allocations
-    }
-
-    /// Set allocations as a set of page numbers.
-    pub fn set_allocations(&mut self, allocations: IntervalsTree<WasmPage>) {
-        self.allocations = allocations;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Program;
-    use crate::{code::Code, ids::ProgramId, pages::WasmPagesAmount};
-    use alloc::vec::Vec;
-    use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
-
-    fn parse_wat(source: &str) -> Vec<u8> {
-        let module_bytes = wabt::Wat2Wasm::new()
-            .validate(false)
-            .convert(source)
-            .expect("failed to parse module")
-            .as_ref()
-            .to_vec();
-        module_bytes
-    }
-
-    #[test]
-    #[should_panic(expected = "Identifier must be 32 length")]
-    /// Test that ProgramId's `from_slice(...)` constructor causes panic
-    /// when the argument has the wrong length
-    fn program_id_from_slice_error_implementation() {
-        let bytes = "foobar";
-        let _: ProgramId = bytes.as_bytes().into();
-    }
-
-    #[test]
-    /// Test static pages.
-    fn program_memory() {
-        let wat = r#"
-            (module
-                (import "env" "gr_reply_to"  (func $gr_reply_to (param i32)))
-                (import "env" "memory" (memory 2))
-                (export "handle" (func $handle))
-                (export "handle_reply" (func $handle))
-                (export "init" (func $init))
-                (func $handle
-                    i32.const 65536
-                    call $gr_reply_to
-                )
-                (func $handle_reply
-                    i32.const 65536
-                    call $gr_reply_to
-                )
-                (func $init)
-            )"#;
-
-        let binary: Vec<u8> = parse_wat(wat);
-
-        let code = Code::try_new(
-            binary,
-            1,
-            |_| CustomConstantCostRules::default(),
-            None,
-            None,
-        )
-        .unwrap();
-        let (code, _) = code.into_parts();
-        let program = Program::new(ProgramId::from(1), Default::default(), code);
-
-        // 2 static pages
-        assert_eq!(program.static_pages(), WasmPagesAmount::from(2));
-
-        // Has no allocations because we do not set them in new
-        // TODO: #3879
-        assert_eq!(program.allocations().points_amount(), Some(0));
     }
 }

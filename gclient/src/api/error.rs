@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Error as AError;
-use gsdk::{testing::Error as NodeError, Error as GearSDKError};
+use gsdk::Error as GearSDKError;
 use std::{io::Error as IOError, result::Result as StdResult};
 use subxt::error::{DispatchError, Error as SubxtError};
 
@@ -86,9 +86,6 @@ pub enum Error {
     /// Occurs when being migrated program already exists in destination node.
     #[error("Program {0} already exists")]
     ProgramAlreadyExists(String),
-    /// Occurs when node spawning failed.
-    #[error(transparent)]
-    Node(#[from] NodeError),
     /// Occurs when parsing websocket domain failed.
     #[error("Failed to parse WebSocket domain.")]
     WSDomainInvalid,

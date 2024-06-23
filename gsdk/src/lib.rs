@@ -27,13 +27,14 @@ pub use crate::{
     result::{Error, Result},
     signer::PairSigner,
     subscription::{Blocks, Events},
+    utils::AsOption,
 };
 pub use gear_core::gas::GasInfo;
 pub use subxt::dynamic::Value;
 
-use crate::metadata::runtime_types::gear_common::{
-    gas_provider::node::{GasNode, GasNodeId},
-    ActiveProgram,
+use crate::metadata::runtime_types::{
+    gear_common::gas_provider::node::{GasNode, GasNodeId},
+    gear_core::program::ActiveProgram,
 };
 use gear_core::ids::{MessageId, ReservationId};
 use parity_scale_codec::Decode;
@@ -56,7 +57,6 @@ mod rpc;
 pub mod signer;
 mod storage;
 pub mod subscription;
-pub mod testing;
 mod utils;
 
 pub mod ext {

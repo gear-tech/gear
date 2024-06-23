@@ -59,21 +59,21 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event,
-    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
-    ProgramStorageOf, QueueOf, Schedule, TaskPoolOf,
+    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event, Ext,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    TaskPoolOf,
 };
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
     self, benchmarking,
     scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
+    CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockConfig,
-    Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
+    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use parity_scale_codec::Encode;
 
@@ -82,10 +82,11 @@ use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     memory::Memory,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
+    program::ActiveProgram,
 };
 use gear_core_backend::{
     env::Environment,
@@ -115,6 +116,7 @@ const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
 const MAX_NUMBER_OF_DATA_SEGMENTS: u32 = 1024;
+const MAX_TABLE_ENTRIES: u32 = 10_000_000;
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
@@ -379,7 +381,7 @@ benchmarks! {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
-        let ext = Externalities::new(ProcessorContext::new_mock());
+        let ext = Ext::new(ProcessorContext::new_mock());
     }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
@@ -389,7 +391,7 @@ benchmarks! {
         let d in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
-        let ext = Externalities::new(ProcessorContext::new_mock());
+        let ext = Ext::new(ProcessorContext::new_mock());
     }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
@@ -399,17 +401,17 @@ benchmarks! {
         let g in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_global_section(g * 1024);
-        let ext = Externalities::new(ProcessorContext::new_mock());
+        let ext = Ext::new(ProcessorContext::new_mock());
     }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
-    // `t`: Size of the table section in kilobytes.
+    // `t`: Size of the memory allocated for the table after instantiation, in kilobytes.
     instantiate_module_table_section_per_kb {
-        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let t in 0 .. MAX_TABLE_ENTRIES / 1024;
 
-        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024);
-        let ext = Externalities::new(ProcessorContext::new_mock());
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024, None);
+        let ext = Ext::new(ProcessorContext::new_mock());
     }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
@@ -419,7 +421,7 @@ benchmarks! {
         let t in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
-        let ext = Externalities::new(ProcessorContext::new_mock());
+        let ext = Ext::new(ProcessorContext::new_mock());
     }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
@@ -623,8 +625,11 @@ benchmarks! {
     // first time after a new schedule was deployed: For every new schedule a program needs
     // to re-run the instrumentation once.
     reinstrument_per_kb {
-        let c in 0 .. T::Schedule::get().limits.code_len / 1_024;
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1_024, Location::Handle);
+        let e in 0 .. T::Schedule::get().limits.code_len / 1_024;
+
+        let max_table_size = T::Schedule::get().limits.code_len;
+        // NOTE: We use a program filled with table/element sections here because it is the heaviest weight-wise.
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
@@ -1774,6 +1779,7 @@ benchmarks! {
             table: Some(TableSegment {
                 num_elements,
                 function_index: OFFSET_AUX,
+                init_elements: Default::default(),
             }),
             .. Default::default()
         }));
@@ -1798,6 +1804,7 @@ benchmarks! {
             table: Some(TableSegment {
                 num_elements,
                 function_index: OFFSET_AUX,
+                init_elements: Default::default(),
             }),
             .. Default::default()
         }));

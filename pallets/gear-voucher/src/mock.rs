@@ -91,8 +91,8 @@ impl crate::PrepaidCallsDispatcher for () {
     }
 }
 
-pub const MAILBOXED_PROGRAM: ProgramId = ProgramId::test_new([0; 32]);
-pub const MAILBOXED_MESSAGE: MessageId = MessageId::test_new([0; 32]);
+pub const MAILBOXED_PROGRAM: ProgramId = ProgramId::zero();
+pub const MAILBOXED_MESSAGE: MessageId = MessageId::zero();
 
 pub struct MailboxMock;
 

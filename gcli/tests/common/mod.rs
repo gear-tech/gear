@@ -18,11 +18,9 @@
 
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec, result::Result};
-use gear_core::ids::{CodeId, ProgramId};
-use gsdk::{
-    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
-    testing::Node,
-};
+use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use gnode::{Node, NodeInstance};
+use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
@@ -37,11 +35,7 @@ mod result;
 pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
 pub const RENT_POOL_SS58_ADDRESS: &str = "kGkkENXuYL4Xw6H1ymWm6VwHLi66s56Ywt45pf9hEx1hmx5MV";
 
-impl NodeExec for Node {
-    fn ws(&self) -> String {
-        "ws://".to_string() + &self.address().to_string()
-    }
-
+impl NodeExec for NodeInstance {
     /// Run binary `gcli`
     fn run(&self, args: Args) -> Result<Output> {
         gcli(Vec::<String>::from(args.endpoint(self.ws())))
@@ -61,17 +55,11 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
 }
 
 /// Run the dev node
-pub fn dev() -> Result<Node> {
+pub fn dev() -> Result<NodeInstance> {
     login_as_alice()?;
-
-    let args = vec!["--tmp", "--dev"];
-    let mut node = Node::try_from_path(env::node_bin(), args)?;
-
-    // TODO: use [`Node::wait_while_initialized`] instead,
-    // it currently presents infinite loop even after capturing
-    // the specified log #3304.
-    node.wait_for_log_record("Imported #1")?;
-    Ok(node)
+    Node::from_path(env::node_bin())?
+        .spawn()
+        .map_err(Into::into)
 }
 
 /// Init env logger
@@ -98,7 +86,7 @@ pub fn alice_account_id() -> AccountId32 {
 }
 
 /// Create program messager
-pub async fn create_messager() -> Result<Node> {
+pub async fn create_messager() -> Result<NodeInstance> {
     let node = dev()?;
 
     let args = Args::new("upload").program(env::wasm_bin("demo_messenger.opt.wasm"));

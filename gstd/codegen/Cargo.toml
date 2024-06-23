@@ -17,8 +17,7 @@ proc-macro = true
 syn = { workspace = true, features = ["default", "full"] }
 quote.workspace = true
 proc-macro2.workspace = true
-gear-ss58.workspace = true
-hex = { workspace = true, features = ["alloc"] }
+gprimitives.workspace = true
 
 [dev-dependencies]
 gstd = { path = ".." }

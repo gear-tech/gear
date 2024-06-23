@@ -129,8 +129,8 @@ where
         let signal_code = SignalCode::RemovedFromWaitlist;
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1099,8 +1099,8 @@ where
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1324,8 +1324,8 @@ where
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1552,13 +1552,13 @@ where
 
     pub fn lazy_pages_load_page_storage_data(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
         let exec = Self::lazy_pages_signal_read(end_page)?;
-        let program_id = exec.context.program().id();
+        let program_id = exec.context.program_id();
         IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
                 ProgramStorageOf::<T>::set_program_page_data(
                     program_id,
-                    exec.context.program().memory_infix(),
+                    exec.context.memory_infix(),
                     page,
                     PageBuf::from_inner(PageBufInner::filled_with(1)),
                 );

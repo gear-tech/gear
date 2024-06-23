@@ -29,7 +29,7 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 14] = [
+pub const SAFE_DEPENDENCIES: [&str; 15] = [
     "actor-system-error",
     "galloc",
     "gear-ss58",
@@ -43,12 +43,15 @@ pub const SAFE_DEPENDENCIES: [&str; 14] = [
     "gsdk-codegen",
     "gstd-codegen",
     "gsys",
+    "gprimitives",
     "numerated",
 ];
 
 /// Required packages with local dependencies.
 ///
-/// NOTE: DO NOT change the order of this array.
+/// NOTE: Each package in this array could possibly depend
+/// on the previous one, please be cautious about changing
+/// the order.
 pub const STACKED_DEPENDENCIES: [&str; 13] = [
     "gcore",
     "gmeta",
@@ -67,10 +70,13 @@ pub const STACKED_DEPENDENCIES: [&str; 13] = [
 
 /// Packages need to be published.
 ///
-/// NOTE: DO NOT change the order of this array.
-pub const PACKAGES: [&str; 7] = [
+/// NOTE: Each package in this array could possibly depend
+/// on the previous one, please be cautious about changing
+/// the order.
+pub const PACKAGES: [&str; 8] = [
     "gring",
     "gear-wasm-builder",
+    "cargo-gbuild",
     "gstd",
     "gtest",
     "gsdk",

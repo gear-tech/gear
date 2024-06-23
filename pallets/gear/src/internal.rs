@@ -41,7 +41,7 @@ use core::{
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, MessageId, ProgramId, ReservationId},
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,
@@ -203,9 +203,8 @@ where
     // Reset of all storages.
     #[cfg(feature = "runtime-benchmarks")]
     pub(crate) fn reset() {
-        use common::{CodeStorage, GasProvider, PausedProgramStorage, ProgramStorage};
+        use common::{CodeStorage, GasProvider, ProgramStorage};
 
-        <<T as Config>::ProgramStorage as PausedProgramStorage>::reset();
         <<T as Config>::ProgramStorage as ProgramStorage>::reset();
         <T as Config>::CodeStorage::reset();
         <T as Config>::GasProvider::reset();

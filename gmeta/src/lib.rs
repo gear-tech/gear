@@ -219,12 +219,15 @@ pub use gmeta_codegen::metawasm;
 pub use scale_info::{MetaType, PortableRegistry, Registry};
 
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
-use blake2_rfc::blake2b;
+use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::{any::TypeId, mem};
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
 };
+
+/// BLAKE2b-256 hasher state.
+type Blake2b256 = Blake2b<U32>;
 
 const METADATA_VERSION: u16 = 2;
 
@@ -381,12 +384,9 @@ impl MetadataRepr {
 
     /// Calculate BLAKE2b hash of metadata bytes.
     pub fn hash(&self) -> [u8; 32] {
-        let mut arr = [0; 32];
-
-        let blake2b_hash = blake2b::blake2b(arr.len(), &[], &self.bytes());
-        arr[..].copy_from_slice(blake2b_hash.as_bytes());
-
-        arr
+        let mut ctx = Blake2b256::new();
+        ctx.update(self.bytes());
+        ctx.finalize().into()
     }
 
     /// Calculate BLAKE2b hash of metadata and encode it into hex string.

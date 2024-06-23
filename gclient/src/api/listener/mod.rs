@@ -28,10 +28,10 @@ use gear_core::ids::MessageId;
 use gear_core_errors::ReplyCode;
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
-    gear_core::{
-        ids::MessageId as GenMId,
-        message::{common::ReplyDetails as GenReplyDetails, user::UserMessage as GenUserMessage},
+    gear_core::message::{
+        common::ReplyDetails as GenReplyDetails, user::UserMessage as GenUserMessage,
     },
+    gprimitives::MessageId as GenMId,
 };
 
 /// Dispatch status returned after processing a message.

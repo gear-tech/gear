@@ -18,16 +18,15 @@
 
 use crate::{
     log::RunResult,
-    manager::{Balance, ExtManager, MintMode, Program as InnerProgram, TestActor},
+    manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
     system::System,
-    Result,
+    Result, GAS_ALLOWANCE,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalMessage},
-    program::Program as CoreProgram,
 };
 use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -41,6 +40,7 @@ use std::{
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 /// Gas for gear programs.
@@ -143,9 +143,7 @@ impl From<ProgramId> for ProgramIdWrapper {
 
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
-        let mut id = [0; 32];
-        id[0..8].copy_from_slice(&other.to_le_bytes()[..]);
-        Self(id.into())
+        Self(other.into())
     }
 }
 
@@ -158,14 +156,9 @@ impl From<[u8; 32]> for ProgramIdWrapper {
 impl From<&[u8]> for ProgramIdWrapper {
     #[track_caller]
     fn from(other: &[u8]) -> Self {
-        if other.len() != 32 {
-            panic!("Invalid identifier: {:?}", other)
-        }
-
-        let mut bytes = [0; 32];
-        bytes.copy_from_slice(other);
-
-        bytes.into()
+        ProgramId::try_from(other)
+            .expect("invalid identifier")
+            .into()
     }
 }
 
@@ -190,15 +183,9 @@ impl From<String> for ProgramIdWrapper {
 impl From<&str> for ProgramIdWrapper {
     #[track_caller]
     fn from(other: &str) -> Self {
-        let id = other.strip_prefix("0x").unwrap_or(other);
-
-        let mut bytes = [0u8; 32];
-
-        if hex::decode_to_slice(id, &mut bytes).is_err() {
-            panic!("Invalid identifier: {:?}", other)
-        }
-
-        Self(bytes.into())
+        ProgramId::from_str(other)
+            .expect("invalid identifier")
+            .into()
     }
 }
 
@@ -371,17 +358,16 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
-        let program = CoreProgram::new(id.0, Default::default(), code);
-
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Genuine {
-                program,
+            InnerProgram::Genuine(GenuineProgram {
+                code,
                 code_id,
+                allocations: Default::default(),
                 pages_data: Default::default(),
                 gas_reservation_map: Default::default(),
-            },
+            }),
         )
     }
 }
@@ -537,14 +523,14 @@ impl<'a> Program<'a> {
 
         let message = Message::new(
             MessageId::generate_from_user(
-                system.block_info.height,
+                system.blocks_manager.get().height,
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
             source,
             self.id,
             payload.into().try_into().unwrap(),
-            Some(u64::MAX),
+            Some(GAS_ALLOWANCE),
             value,
             None,
         );
@@ -571,7 +557,7 @@ impl<'a> Program<'a> {
         let source = from.into().0;
 
         let origin_msg_id = MessageId::generate_from_user(
-            system.block_info.height,
+            system.blocks_manager.get().height,
             source,
             system.fetch_inc_message_nonce() as u128,
         );
@@ -780,7 +766,7 @@ impl<'a> Program<'a> {
 /// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
     if let Some(id) = id {
-        ProgramId::generate_from_program(code_id, salt, id)
+        ProgramId::generate_from_program(id, code_id, salt)
     } else {
         ProgramId::generate_from_user(code_id, salt)
     }
@@ -800,13 +786,18 @@ pub mod gbuild {
     /// NOTE: Release or Debug is decided by the users
     /// who run the command `cargo-gbuild`.
     pub fn wasm_path() -> Result<PathBuf> {
-        let target = etc::find_up("target")
-            .map_err(|_| Error::GbuildArtifactNotFound("Could not find target folder".into()))?;
-        let manifest = Manifest::from_path(
-            etc::find_up("Cargo.toml")
-                .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?,
-        )
-        .map_err(|_| Error::GbuildArtifactNotFound("Failed to parse manifest".into()))?;
+        let manifest_path = etc::find_up("Cargo.toml")
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?;
+        let manifest = Manifest::from_path(&manifest_path)
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not parse manifest".into()))?;
+        let target = etc::find_up("target").unwrap_or(
+            manifest_path
+                .parent()
+                .ok_or(Error::GbuildArtifactNotFound(
+                    "Could not parse target directory".into(),
+                ))?
+                .to_path_buf(),
+        );
 
         let artifact = target
             .join(format!(
@@ -829,15 +820,6 @@ pub mod gbuild {
         if wasm_path().is_err() {
             let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
             if !Command::new("cargo")
-                // NOTE: The `cargo-gbuild` command could be overridden by user defined alias,
-                // this is a workaround for our workspace, for the details, see: issue #10049
-                // <https://github.com/rust-lang/cargo/issues/10049>.
-                .current_dir(
-                    manifest
-                        .ancestors()
-                        .nth(2)
-                        .expect("The project is under the root directory"),
-                )
                 .args(["gbuild", "-m"])
                 .arg(&manifest)
                 .status()

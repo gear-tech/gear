@@ -19,7 +19,7 @@
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, Program, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
@@ -36,7 +36,7 @@ use gear_core::{
         WasmEntryPoint,
     },
     pages::{numerated::tree::IntervalsTree, WasmPage},
-    program::{MemoryInfix, Program},
+    program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -71,24 +71,23 @@ where
         memory_size,
     } = context;
 
-    let program_id = program.id();
     let kind = dispatch.kind();
 
-    log::debug!("Executing program {}", program_id);
+    log::debug!("Executing program {}", program.id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
     // Creating allocations context.
     let allocations_context = AllocationsContext::try_new(
         memory_size,
-        program.allocations().clone(),
-        program.static_pages(),
-        program.stack_end(),
+        program.allocations,
+        program.code.static_pages(),
+        program.code.stack_end(),
         settings.max_pages,
     )
     .map_err(SystemExecutionError::from)?;
 
     // Creating message context.
-    let Some(message_context) = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
+    let Some(message_context) = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings)
     else {
         return Err(ActorExecutionError {
             gas_amount: gas_counter.to_amount(),
@@ -123,7 +122,7 @@ where
         message_context,
         block_info: settings.block_info,
         performance_multiplier: settings.performance_multiplier,
-        program_id,
+        program_id: program.id,
         program_candidates_data: Default::default(),
         forbidden_funcs: settings.forbidden_funcs,
         reserve_for: settings.reserve_for,
@@ -141,18 +140,18 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code_bytes(),
+            program.code.code(),
             kind,
-            program.code().exports().clone(),
+            program.code.exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
-                program_id,
-                program.memory_infix(),
-                program.stack_end(),
+                program.id,
+                program.memory_infix,
+                program.code.stack_end(),
                 globals_config,
                 settings.lazy_pages_costs,
             )
@@ -209,7 +208,10 @@ where
             DispatchResultKind::Success
         }
         ActorTerminationReason::Trap(explanation) => {
-            log::debug!("💥 Trap during execution of {program_id}\n📔 Explanation: {explanation}");
+            log::debug!(
+                "💥 Trap during execution of {}\n📔 Explanation: {explanation}",
+                program.id
+            );
             DispatchResultKind::Trap(explanation)
         }
         ActorTerminationReason::Wait(duration, waited_type) => {
@@ -229,7 +231,7 @@ where
     Ok(DispatchResult {
         kind,
         dispatch,
-        program_id,
+        program_id: program.id,
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,
         awakening: info.awakening,
@@ -264,10 +266,18 @@ where
     EP: WasmEntryPoint,
 {
     let (program_id, memory_infix) = program_info.unwrap_or_default();
-    let program = Program::new(program_id, memory_infix, instrumented_code);
-    let static_pages = program.static_pages();
-    let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
-    let memory_size = allocations.end().map(|p| p.inc()).unwrap_or(static_pages);
+    let program = Program {
+        id: program_id,
+        memory_infix,
+        code: instrumented_code,
+        allocations: allocations.unwrap_or_default(),
+    };
+    let static_pages = program.code.static_pages();
+    let memory_size = program
+        .allocations
+        .end()
+        .map(|p| p.inc())
+        .unwrap_or(static_pages);
 
     let message_context = MessageContext::new(
         IncomingDispatch::new(
@@ -284,7 +294,7 @@ where
             ),
             None,
         ),
-        program.id(),
+        program.id,
         Default::default(),
     )
     .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
@@ -296,16 +306,16 @@ where
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::try_new(
             memory_size,
-            allocations,
+            program.allocations,
             static_pages,
-            program.stack_end(),
+            program.code.stack_end(),
             512.into(),
         )
         .map_err(|e| format!("Failed to create alloc ctx: {e:?}"))?,
         message_context,
         block_info,
         performance_multiplier: gsys::Percent::new(100),
-        program_id: program.id(),
+        program_id: program.id,
         program_candidates_data: Default::default(),
         forbidden_funcs: Default::default(),
         reserve_for: Default::default(),
@@ -324,9 +334,9 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code_bytes(),
+            program.code.code(),
             function,
-            program.code().exports().clone(),
+            program.code.exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -334,8 +344,8 @@ where
                 ctx,
                 memory,
                 program_id,
-                program.memory_infix(),
-                program.stack_end(),
+                program.memory_infix,
+                program.code.stack_end(),
                 globals_config,
                 Default::default(),
             )

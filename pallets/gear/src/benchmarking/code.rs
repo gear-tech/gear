@@ -29,7 +29,7 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
-    ids::CodeId,
+    ids::{prelude::*, CodeId},
     pages::{WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
@@ -104,11 +104,21 @@ pub struct ModuleDefinition {
     pub stack_end: Option<WasmPage>,
 }
 
+#[derive(Default)]
+pub enum InitElements {
+    NoInit,
+    Number(u32),
+    #[default]
+    All,
+}
+
 pub struct TableSegment {
     /// How many elements should be created inside the table.
     pub num_elements: u32,
     /// The function index with which all table elements should be initialized.
     pub function_index: u32,
+    /// Generate element segment which initialize the table.
+    pub init_elements: InitElements,
 }
 
 pub struct TypeSegment {
@@ -312,12 +322,21 @@ where
 
         // Add function pointer table
         if let Some(table) = def.table {
-            program = program
+            let mut table_builder = program
                 .table()
                 .with_min(table.num_elements)
-                .with_max(Some(table.num_elements))
-                .with_element(0, vec![table.function_index; table.num_elements as usize])
-                .build();
+                .with_max(Some(table.num_elements));
+
+            table_builder = match table.init_elements {
+                InitElements::NoInit => table_builder,
+                InitElements::Number(num) => {
+                    table_builder.with_element(0, vec![table.function_index; num as usize])
+                }
+                InitElements::All => table_builder
+                    .with_element(0, vec![table.function_index; table.num_elements as usize]),
+            };
+
+            program = table_builder.build();
         }
 
         // Add the dummy section
@@ -458,9 +477,9 @@ where
         module.into()
     }
 
-    /// Creates a WebAssembly module with a table size of `target_bytes` bytes.
+    /// Creates a WebAssembly module with a table size of `num_elements` bytes.
     /// Each element in the table points to function index `0` and occupies 1 byte.
-    pub fn sized_table_section(target_bytes: u32) -> Self {
+    pub fn sized_table_section(num_elements: u32, init_elements: Option<u32>) -> Self {
         let mut module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             ..Default::default()
@@ -468,12 +487,14 @@ where
 
         module.init_body = Some(body::empty());
 
-        // 1 element with function index value `0` takes 1 byte to encode.
-        let num_elements = target_bytes;
-
+        // 1 element with function index value `0` occupies 1 byte
         module.table = Some(TableSegment {
             num_elements,
             function_index: 0,
+            init_elements: match init_elements {
+                Some(num) => InitElements::Number(num),
+                None => InitElements::NoInit,
+            },
         });
 
         module.into()

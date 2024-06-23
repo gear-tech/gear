@@ -26,8 +26,11 @@ use crate::{
     runtime::{self, BalanceState},
 };
 use gear_call_gen::GearCall;
-use gear_common::{event::ProgramChangeKind, Origin};
-use gear_core::ids::{MessageId, ProgramId};
+use gear_common::{
+    event::{CodeChangeKind, ProgramChangeKind},
+    Origin,
+};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
@@ -148,6 +151,7 @@ pub(crate) struct RuntimeStateViewProducer {
     corpus_id: String,
     sender: AccountId,
     programs: Option<NonEmpty<ProgramId>>,
+    codes: Option<NonEmpty<CodeId>>,
     // TODO #3703. Remove outdated message ids.
     mailbox: Option<NonEmpty<MessageId>>,
 }
@@ -158,6 +162,7 @@ impl RuntimeStateViewProducer {
             corpus_id,
             sender,
             programs: None,
+            codes: None,
             mailbox: None,
         }
     }
@@ -169,6 +174,7 @@ impl RuntimeStateViewProducer {
             corpus_id: &self.corpus_id,
             current_balance: balance_state.into_inner(),
             programs: self.programs.as_ref(),
+            codes: self.codes.as_ref(),
             mailbox: self.mailbox.as_ref(),
             max_gas: runtime::default_gas_limit(),
         }
@@ -190,6 +196,16 @@ impl RuntimeStateViewProducer {
                         programs.push(*id)
                     } else {
                         self.programs = Some(NonEmpty::new(*id));
+                    }
+                }
+                GearEvent::CodeChanged {
+                    id,
+                    change: CodeChangeKind::Active { .. },
+                } => {
+                    if let Some(codes) = self.codes.as_mut() {
+                        codes.push(*id)
+                    } else {
+                        self.codes = Some(NonEmpty::new(*id));
                     }
                 }
                 GearEvent::UserMessageSent {
@@ -219,6 +235,7 @@ pub(crate) struct RuntimeStateView<'a> {
     current_balance: Balance,
     corpus_id: &'a str,
     programs: Option<&'a NonEmpty<ProgramId>>,
+    codes: Option<&'a NonEmpty<CodeId>>,
     max_gas: u64,
     mailbox: Option<&'a NonEmpty<MessageId>>,
 }

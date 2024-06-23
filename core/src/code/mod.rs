@@ -19,7 +19,7 @@
 //! Module for checked code.
 
 use crate::{
-    ids::CodeId,
+    ids::{prelude::*, CodeId},
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
 };

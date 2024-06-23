@@ -42,7 +42,9 @@
 
 use crate::{
     errors::{Error, Result, SyscallError},
-    stack_buffer, ActorId, MessageHandle, MessageId, ReservationId,
+    stack_buffer,
+    utils::AsRawPtr,
+    ActorId, MessageHandle, MessageId, ReservationId,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gsys::{
@@ -294,7 +296,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
     unsafe { gsys::gr_reply(payload.as_ptr(), payload_len, value_ptr, res.as_mut_ptr()) };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`reply`], but it spends gas from a reservation instead of borrowing
@@ -322,7 +324,10 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 /// - [`send_from_reservation`] function sends a new message to the program or
 ///   user by using gas from a reservation.
 pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) -> Result<MessageId> {
-    let rid_value = HashWithValue { hash: id.0, value };
+    let rid_value = HashWithValue {
+        hash: id.into(),
+        value,
+    };
 
     let mut res: ErrorWithHash = Default::default();
 
@@ -338,7 +343,7 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
     };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`reply`], but with an explicit gas limit.
@@ -375,7 +380,7 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
     };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Finalize and send the current reply message.
@@ -421,7 +426,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
     unsafe { gsys::gr_reply_commit(value_ptr, res.as_mut_ptr()) }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`reply_commit`], but with an explicit gas limit.
@@ -450,7 +455,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     unsafe { gsys::gr_reply_commit_wgas(gas_limit, value_ptr, res.as_mut_ptr()) }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`reply_commit`], but it spends gas from a reservation instead of
@@ -474,14 +479,17 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
-    let rid_value = HashWithValue { hash: id.0, value };
+    let rid_value = HashWithValue {
+        hash: id.into(),
+        value,
+    };
 
     let mut res: ErrorWithHash = Default::default();
 
     unsafe { gsys::gr_reservation_reply_commit(rid_value.as_ptr(), res.as_mut_ptr()) };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Push a payload part to the current reply message.
@@ -535,7 +543,7 @@ pub fn reply_to() -> Result<MessageId> {
     unsafe { gsys::gr_reply_to(res.as_mut_ptr()) };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Get an identifier of the message which issued a signal.
@@ -560,7 +568,7 @@ pub fn signal_from() -> Result<MessageId> {
     unsafe { gsys::gr_signal_from(res.as_mut_ptr()) };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`reply`], but relays the incoming message payload.
@@ -575,7 +583,7 @@ pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
 
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`reply_push`] but uses the input buffer as a payload source.
@@ -623,7 +631,7 @@ pub fn reply_input_with_gas(
     }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`send`] but uses the input buffer as a payload source.
@@ -663,7 +671,7 @@ pub fn send_input_delayed(
     delay: u32,
 ) -> Result<MessageId> {
     let pid_value = HashWithValue {
-        hash: destination.0,
+        hash: destination.into(),
         value,
     };
 
@@ -674,7 +682,7 @@ pub fn send_input_delayed(
     }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Send a new message to the program or user.
@@ -695,13 +703,13 @@ pub fn send_input_delayed(
 /// program!):
 ///
 /// ```
-/// use gcore::{msg, ActorId};
+/// use gcore::msg;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send(ActorId(id), b"HELLO", 42).expect("Unable to send");
+///     msg::send(id.into(), b"HELLO", 42).expect("Unable to send");
 /// }
 /// ```
 ///
@@ -730,7 +738,7 @@ pub fn send(destination: ActorId, payload: &[u8], value: u128) -> Result<Message
 /// program!):
 ///
 /// ```
-/// use gcore::{exec, msg, ActorId};
+/// use gcore::{exec, msg};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -738,7 +746,7 @@ pub fn send(destination: ActorId, payload: &[u8], value: u128) -> Result<Message
 ///     let reservation_id = exec::reserve_gas(5_000_000, 100).expect("Unable to reserve");
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let actor_id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send_from_reservation(reservation_id, ActorId(actor_id), b"HELLO", 42)
+///     msg::send_from_reservation(reservation_id, actor_id.into(), b"HELLO", 42)
 ///         .expect("Unable to send");
 /// }
 /// ```
@@ -768,8 +776,8 @@ pub fn send_delayed_from_reservation(
     delay: u32,
 ) -> Result<MessageId> {
     let rid_pid_value = TwoHashesWithValue {
-        hash1: reservation_id.0,
-        hash2: destination.0,
+        hash1: reservation_id.into(),
+        hash2: destination.into(),
         value,
     };
 
@@ -788,7 +796,7 @@ pub fn send_delayed_from_reservation(
     };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`send_push`] but uses the input buffer as a payload source.
@@ -820,7 +828,7 @@ pub fn send_delayed_from_reservation(
 pub fn send_push_input(handle: MessageHandle, offset: u32, len: u32) -> Result<()> {
     let mut error_code = 0u32;
     unsafe {
-        gsys::gr_send_push_input(handle.0, offset, len, &mut error_code as _);
+        gsys::gr_send_push_input(handle.into(), offset, len, &mut error_code as _);
     }
     SyscallError(error_code).into_result()
 }
@@ -846,7 +854,7 @@ pub fn send_input_with_gas_delayed(
     delay: u32,
 ) -> Result<MessageId> {
     let pid_value = HashWithValue {
-        hash: destination.0,
+        hash: destination.into(),
         value,
     };
 
@@ -864,7 +872,7 @@ pub fn send_input_with_gas_delayed(
     }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`send_commit`], but it spends gas from a reservation instead of
@@ -911,19 +919,24 @@ pub fn send_commit_delayed_from_reservation(
     delay: u32,
 ) -> Result<MessageId> {
     let rid_pid_value = TwoHashesWithValue {
-        hash1: reservation_id.0,
-        hash2: destination.0,
+        hash1: reservation_id.into(),
+        hash2: destination.into(),
         value,
     };
 
     let mut res: ErrorWithHash = Default::default();
 
     unsafe {
-        gsys::gr_reservation_send_commit(handle.0, rid_pid_value.as_ptr(), delay, res.as_mut_ptr())
+        gsys::gr_reservation_send_commit(
+            handle.into(),
+            rid_pid_value.as_ptr(),
+            delay,
+            res.as_mut_ptr(),
+        )
     };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`send`], but sends the message after the `delay` expressed in block
@@ -935,7 +948,7 @@ pub fn send_delayed(
     delay: u32,
 ) -> Result<MessageId> {
     let pid_value = HashWithValue {
-        hash: destination.0,
+        hash: destination.into(),
         value,
     };
 
@@ -954,7 +967,7 @@ pub fn send_delayed(
     };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`send`], but with an explicit gas limit.
@@ -962,12 +975,12 @@ pub fn send_delayed(
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, ActorId};
+/// use gcore::msg;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send_with_gas(ActorId(id), b"HELLO", 5_000_000, 42).expect("Unable to send");
+///     msg::send_with_gas(id.into(), b"HELLO", 5_000_000, 42).expect("Unable to send");
 /// }
 /// ```
 ///
@@ -995,7 +1008,7 @@ pub fn send_with_gas_delayed(
     delay: u32,
 ) -> Result<MessageId> {
     let pid_value = HashWithValue {
-        hash: destination.0,
+        hash: destination.into(),
         value,
     };
 
@@ -1015,7 +1028,7 @@ pub fn send_with_gas_delayed(
     }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Finalize and send the message formed in parts.
@@ -1061,16 +1074,16 @@ pub fn send_commit_delayed(
     delay: u32,
 ) -> Result<MessageId> {
     let pid_value = HashWithValue {
-        hash: destination.0,
+        hash: destination.into(),
         value,
     };
 
     let mut res: ErrorWithHash = Default::default();
 
-    unsafe { gsys::gr_send_commit(handle.0, pid_value.as_ptr(), delay, res.as_mut_ptr()) };
+    unsafe { gsys::gr_send_commit(handle.into(), pid_value.as_ptr(), delay, res.as_mut_ptr()) };
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Same as [`send_commit`], but with an explicit gas limit.
@@ -1114,7 +1127,7 @@ pub fn send_commit_with_gas_delayed(
     delay: u32,
 ) -> Result<MessageId> {
     let pid_value = HashWithValue {
-        hash: destination.0,
+        hash: destination.into(),
         value,
     };
 
@@ -1122,7 +1135,7 @@ pub fn send_commit_with_gas_delayed(
 
     unsafe {
         gsys::gr_send_commit_wgas(
-            handle.0,
+            handle.into(),
             pid_value.as_ptr(),
             gas_limit,
             delay,
@@ -1131,7 +1144,7 @@ pub fn send_commit_with_gas_delayed(
     }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(MessageId(res.hash))
+    Ok(res.hash.into())
 }
 
 /// Initialize a message to send formed in parts.
@@ -1163,7 +1176,7 @@ pub fn send_init() -> Result<MessageHandle> {
         let mut res: ErrorWithHandle = Default::default();
         gsys::gr_send_init(res.as_mut_ptr());
         SyscallError(res.error_code).into_result()?;
-        Ok(MessageHandle(res.handle))
+        Ok(res.handle.into())
     }
 }
 
@@ -1201,7 +1214,14 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
     let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     let mut error_code = 0u32;
-    unsafe { gsys::gr_send_push(handle.0, payload.as_ptr(), payload_len, &mut error_code) };
+    unsafe {
+        gsys::gr_send_push(
+            handle.into(),
+            payload.as_ptr(),
+            payload_len,
+            &mut error_code,
+        )
+    };
     SyscallError(error_code).into_result()
 }
 

@@ -59,15 +59,13 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
-    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
-    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
+    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
+    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
 use core::{marker::PhantomData, num::NonZeroU32};
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
-    Ext,
 };
 use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
@@ -82,10 +80,12 @@ use frame_system::{
 };
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
 };
+use gear_lazy_pages_common::LazyPagesInterface;
+use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
 use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
@@ -98,6 +98,8 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
+
+pub type Ext = core_processor::Ext<LazyPagesRuntimeInterface>;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
@@ -191,7 +193,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: PausedProgramStorage<
+        type ProgramStorage: ProgramStorage<
             BlockNumber = BlockNumberFor<Self>,
             Error = DispatchError,
             AccountId = Self::AccountId,
@@ -398,18 +400,6 @@ pub mod pallet {
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueNotProcessed,
-
-        /// Program resume session has been started.
-        ProgramResumeSessionStarted {
-            /// Id of the session.
-            session_id: SessionId,
-            /// Owner of the session.
-            account_id: T::AccountId,
-            /// Id of the program affected.
-            program_id: ProgramId,
-            /// Block number when the session will be removed if not finished.
-            session_end_block: BlockNumberFor<T>,
-        },
     }
 
     // Gear pallet error.
@@ -898,7 +888,6 @@ pub mod pallet {
         pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::program_exists(program_id)
-                || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         /// Returns inheritor of an exited/terminated program.
@@ -1039,7 +1028,7 @@ pub mod pallet {
 
         pub(crate) fn enable_lazy_pages() {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !gear_lazy_pages_interface::try_to_enable_lazy_pages(prefix) {
+            if !LazyPagesRuntimeInterface::try_to_enable_lazy_pages(prefix) {
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }

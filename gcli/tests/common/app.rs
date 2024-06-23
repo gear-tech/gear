@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::{
-    self, env,
-    node::{Convert, NodeExec},
-    Args,
-};
+use crate::common::{self, env, node::Convert, Args};
 use anyhow::{anyhow, Context, Result};
 use std::{
     path::PathBuf,

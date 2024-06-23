@@ -33,8 +33,8 @@ use crate::{
     Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, Program, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
+    ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
@@ -46,19 +46,23 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::WasmPage,
+    program::{ActiveProgram, Program},
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
-use gstd::{collections::BTreeMap, errors::Error as GstdError};
+use gstd::{
+    collections::BTreeMap,
+    errors::{CoreError, Error as GstdError},
+};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
     codec::{Decode, Encode},
@@ -554,9 +558,9 @@ fn delayed_reservations_sending_validation() {
 
         let error_text = format!(
             "panicked with '{SENDING_EXPECT}: {:?}'",
-            GstdError::Core(
-                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-            )
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
         );
 
         assert_failed(
@@ -591,9 +595,9 @@ fn delayed_reservations_sending_validation() {
 
         let error_text = format!(
             "panicked with '{SENDING_EXPECT}: {:?}'",
-            GstdError::Core(
-                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-            )
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
         );
 
         assert_failed(
@@ -7771,7 +7775,7 @@ fn gas_spent_precalculated() {
 
         let get_program_code = |pid| {
             let code_id = ProgramStorageOf::<Test>::get_program(pid)
-                .and_then(|program| common::ActiveProgram::try_from(program).ok())
+                .and_then(|program| ActiveProgram::try_from(program).ok())
                 .expect("program must exist")
                 .code_hash
                 .cast();
@@ -8055,7 +8059,7 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = format!(
             "panicked with 'Failed to create program: {:?}'",
-            GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
+            CoreError::Ext(ExtError::Message(MessageError::InsufficientValue))
         );
 
         assert_failed(
@@ -8105,7 +8109,7 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = format!(
             "panicked with 'Failed to create program: {:?}'",
-            GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
+            CoreError::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
         );
         assert_failed(
             msg_id,
@@ -9870,7 +9874,7 @@ fn program_generator_works() {
         assert_succeed(message_id);
         let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
         let expected_child_id =
-            ProgramId::generate_from_program(code_id, &expected_salt, message_id);
+            ProgramId::generate_from_program(message_id, code_id, &expected_salt);
         assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
     });
 }
@@ -12968,7 +12972,11 @@ fn check_reply_push_payload_exceed() {
 /// Check that random works and it's changing on next epoch.
 #[test]
 fn check_random_works() {
-    use blake2_rfc::blake2b::blake2b;
+    use blake2::{digest::typenum::U32, Blake2b, Digest};
+
+    /// BLAKE2b-256 hasher state.
+    type Blake2b256 = Blake2b<U32>;
+
     let wat = r#"
         (module
             (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
@@ -13034,10 +13042,11 @@ fn check_random_works() {
             .iter()
             .zip(random_data.iter())
             .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(
-                    blake2b(32, &[], random_data).as_bytes(),
-                    msg.payload_bytes()
-                );
+                let mut ctx = Blake2b256::new();
+                ctx.update(random_data);
+                let expected = ctx.finalize();
+
+                assert_eq!(expected.as_slice(), msg.payload_bytes());
             });
 
         // assert_last_dequeued(1);
@@ -15208,7 +15217,6 @@ pub(crate) mod utils {
     };
     use common::{
         event::*,
-        paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
         Origin, ProgramStorage, ReservableTree,
     };
@@ -15221,8 +15229,9 @@ pub(crate) mod utils {
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
-        ids::{CodeId, MessageId, ProgramId},
+        ids::{prelude::*, CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
+        program::{ActiveProgram, Program},
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
@@ -15465,7 +15474,7 @@ pub(crate) mod utils {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
                 ProgramStorageOf::<Test>::get_program(prog_id)
-                    .and_then(|program| common::ActiveProgram::try_from(program).ok())
+                    .and_then(|program| ActiveProgram::try_from(program).ok())
                     .expect("program must exist")
                     .code_hash,
                 generate_code_hash(&expected_code).into(),
@@ -15485,7 +15494,7 @@ pub(crate) mod utils {
         )
         .into();
         let actual_code_hash = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|program| common::ActiveProgram::try_from(program).ok())
+            .and_then(|program| ActiveProgram::try_from(program).ok())
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
         assert_eq!(
@@ -15842,24 +15851,6 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    pub(super) fn get_last_session() -> (
-        SessionId,
-        BlockNumberFor<Test>,
-        ProgramId,
-        <Test as frame_system::Config>::AccountId,
-    ) {
-        match get_last_event() {
-            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
-                session_id,
-                session_end_block,
-                account_id,
-                program_id,
-            }) => (session_id, session_end_block, program_id, account_id),
-            _ => unreachable!(),
-        }
-    }
-
-    #[track_caller]
     pub(super) fn maybe_last_message(account: AccountId) -> Option<UserMessage> {
         System::events().into_iter().rev().find_map(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
@@ -15910,7 +15901,7 @@ pub(crate) mod utils {
     #[track_caller]
     pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
-        if let common::Program::Active(common::ActiveProgram {
+        if let Program::Active(ActiveProgram {
             gas_reservation_map,
             ..
         }) = program
