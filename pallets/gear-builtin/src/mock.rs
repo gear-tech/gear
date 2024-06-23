@@ -32,7 +32,7 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage,
+    BuildStorage, Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -108,6 +108,8 @@ parameter_types! {
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub SplitGas: Option<(Perbill, AccountId)> = None;
+    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 pallet_gear_bank::impl_config!(Test);

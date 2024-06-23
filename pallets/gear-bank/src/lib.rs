@@ -37,6 +37,8 @@ macro_rules! impl_config {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
+            type SplitGas = SplitGas;
+            type SplitTxFeeRatio = SplitTxFeeRatio;
         }
     };
 }
@@ -66,7 +68,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::traits::Zero;
+    use sp_runtime::{traits::Zero, Perbill};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -86,6 +88,11 @@ pub mod pallet {
         #[pallet::constant]
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
+
+        type SplitGas: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+
+        /// The ratio of how much of the tx fees goes to the treasury
+        type SplitTxFeeRatio: Get<Option<u32>>;
     }
 
     // Funds pallets error.
@@ -296,10 +303,25 @@ pub mod pallet {
             Self::ensure_bank_can_transfer(value)?;
 
             OnFinalizeValue::<T>::mutate(|v| *v = v.saturating_add(value));
-            OnFinalizeTransfers::<T>::mutate(account_id, |v| {
-                let inner = v.get_or_insert(Zero::zero());
-                *inner = inner.saturating_add(value);
-            });
+            if let Some((gas_split, split_dest)) = T::SplitGas::get() {
+                // split value by `SplitGas`
+                let to_split = gas_split.mul_floor(value);
+                let to_user = value - to_split;
+
+                OnFinalizeTransfers::<T>::mutate(account_id, |v| {
+                    let inner = v.get_or_insert(Zero::zero());
+                    *inner = inner.saturating_add(to_user);
+                });
+                OnFinalizeTransfers::<T>::mutate(split_dest, |v| {
+                    let inner = v.get_or_insert(Zero::zero());
+                    *inner = inner.saturating_add(to_split);
+                });
+            } else {
+                OnFinalizeTransfers::<T>::mutate(account_id, |v| {
+                    let inner = v.get_or_insert(Zero::zero());
+                    *inner = inner.saturating_add(value);
+                });
+            }
 
             Ok(())
         }
