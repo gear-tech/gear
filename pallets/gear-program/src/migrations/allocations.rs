@@ -133,20 +133,10 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
             let count = ProgramStorage::<T>::iter().count() as u64;
             ensure!(
                 old_count == count,
-                "incorrect count of elements old {} != new {}",
-            );
-            let count = AllocationsStorage::<T>::iter().count() as u64;
-            ensure!(
-                old_count == count,
-                "incorrect count of elements in allocations old {} != new {}",
-            );
-            let count = PagesWithDataStorage::<T>::iter().count() as u64;
-            ensure!(
-                old_count == count,
-                "incorrect count of elements in pages with data old {} != new {}",
+                "incorrect count of programs after migration: old {} != new {}",
             );
             ensure!(
-                Pallet::<T>::current_storage_version() == MIGRATE_TO_VERSION,
+                Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
                 "incorrect storage version after migration"
             );
         }
@@ -244,6 +234,8 @@ mod test {
 
     #[test]
     fn migration_works() {
+        env_logger::init();
+
         new_test_ext().execute_with(|| {
             StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 

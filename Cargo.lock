@@ -8431,6 +8431,7 @@ dependencies = [
 name = "pallet-gear-program"
 version = "1.4.2"
 dependencies = [
+ "env_logger",
  "frame-support",
  "frame-system",
  "gear-common",
