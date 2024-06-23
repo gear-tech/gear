@@ -24,10 +24,10 @@ use cargo_metadata::Package;
 use toml_edit::DocumentMut;
 
 /// The working version of sp-wasm-interface.
-pub const GP_RUNTIME_INTERFACE_VERSION: &str = "19.0.0-pre.1";
+pub const GP_RUNTIME_INTERFACE_VERSION: &str = "22.0.0-pre.1";
 
 /// The working version of gp-externalities.
-pub const GP_EXTERNALITIES_VERSION: &str = "0.21.0-pre.1";
+pub const GP_EXTERNALITIES_VERSION: &str = "0.23.0-pre.1";
 
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
@@ -217,57 +217,59 @@ mod substrate {
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
             "frame-support" | "frame-system" | "sp-core" | "sc-client-api" => {
+                table.insert("version", "25.0.0".into());
+            }
+            // matching `frame-support-25.0.0`
+            "frame-support-test" => return,
+            // matching `frame-support-25.0.0`
+            "frame-benchmarking-cli" => {
+                table.insert("version", "29.0.0".into());
+            }
+            // matching `sp-core-25.0.0`
+            "sc-cli" => {
+                table.insert("version", "0.33.0".into());
+            }
+            // matching `sp-core-25.0.0`
+            "sp-state-machine" | "sc-client-db" | "sc-service" => {
+                table.insert("version", "0.32.0".into());
+            }
+            // matching `sp-core-25.0.0`
+            "sp-api" | "sp-rpc" => {
                 table.insert("version", "23.0.0".into());
             }
-            // matching `frame-support-23.0.0`
-            "frame-support-test" => return,
-            // matching `sp-core-23.0.0`
-            "frame-benchmarking-cli" => {
-                table.insert("version", "27.0.0".into());
-            }
-            // matching `sp-core-23.0.0`
-            "sc-cli" => {
-                table.insert("version", "0.31.0".into());
-            }
-            // matching `sp-core-23.0.0`
-            "sp-state-machine" | "sc-client-db" | "sc-service" => {
-                table.insert("version", "0.30.0".into());
-            }
-            // matching `sp-core-23.0.0`
-            "sp-api" | "sp-rpc" => {
-                table.insert("version", "21.0.0".into());
-            }
-            // matching `sp-core-23.0.0`
+            // matching `sp-core-25.0.0`
             "sp-externalities" => {
-                // table.insert("version", "0.21.0".into());
+                // table.insert("version", "0.23.0".into());
                 table.insert("version", GP_EXTERNALITIES_VERSION.into());
                 table.insert("package", "gp-externalities".into());
             }
-            // matching `frame-support-23.0.0`
+            // matching `frame-support-25.0.0`
             "sp-arithmetic" => {
-                table.insert("version", "18.0.0".into());
+                table.insert("version", "20.0.0".into());
             }
-            // matching `sp-core-23.0.0`
+            // matching `sp-core-25.0.0`
             "sp-debug-derive" | "sp-std" => {
-                table.insert("version", "10.0.0".into());
+                table.insert("version", "12.0.0".into());
             }
-            // matching `sp-core-23.0.0`
+            // matching `sp-core-25.0.0`
             "sp-io" => {
-                table.insert("version", "25.0.0".into());
+                table.insert("version", "27.0.0".into());
             }
-            // matching `sp-core-23.0.0`
+            // matching `sp-core-25.0.0`
             "sp-runtime" => {
+                table.insert("version", "28.0.0".into());
+            }
+            // matching `sp-runtime-28.0.0`
+            "sp-version" => {
                 table.insert("version", "26.0.0".into());
             }
-            // matching `sp-runtime-26.0.0`
-            "sp-version" => {
+            // matching `sp-core-25.0.0`
+            "sp-weights" => {
                 table.insert("version", "24.0.0".into());
             }
-            "sp-weights" => {
-                table.insert("version", "22.0.0".into());
-            }
+            // matching `sp-core-25.0.0`
             "try-runtime-cli" => {
-                table.insert("version", "0.32.0".into());
+                table.insert("version", "0.35.0".into());
             }
             // sp-allocator is outdated on crates.io, last
             // 3.0.0 forever, here we use gp-allocator instead.
