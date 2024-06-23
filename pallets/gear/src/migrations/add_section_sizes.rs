@@ -34,9 +34,9 @@ use {
     sp_std::vec::Vec,
 };
 
-const MIGRATE_FROM_VERSION: u16 = 6;
-const MIGRATE_TO_VERSION: u16 = 7;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 7;
+const MIGRATE_FROM_VERSION: u16 = 7;
+const MIGRATE_TO_VERSION: u16 = 8;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 8;
 
 pub struct AddSectionSizesMigration<T: Config>(PhantomData<T>);
 
