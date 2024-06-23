@@ -165,7 +165,7 @@ pub mod pallet {
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(8);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -216,7 +216,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
+    pub type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
 
     common::wrap_storage_map!(
         storage: CodeStorage,

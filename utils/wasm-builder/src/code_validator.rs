@@ -279,7 +279,13 @@ impl fmt::Display for CodeErrorWithContext {
         write!(f, "code check failed: ")?;
 
         match error {
-            Validation(_) | Codec(_) | Section(_) | Memory(_) | StackEnd(_) | DataSection(_)
+            Validation(_)
+            | Codec(_)
+            | Section(_)
+            | Memory(_)
+            | StackEnd(_)
+            | DataSection(_)
+            | TableSection { .. }
             | Instrumentation(_) => write!(f, "{error}"),
             Export(error) => {
                 let error_with_context: ExportErrorWithContext =
@@ -323,6 +329,7 @@ impl CodeValidator {
             self.code,
             1,
             |_| CustomConstantCostRules::default(),
+            None,
             None,
             None,
         ) {
