@@ -27,6 +27,7 @@ pub use crate::{
     result::{Error, Result},
     signer::PairSigner,
     subscription::{Blocks, Events},
+    utils::AsOption,
 };
 pub use gear_core::gas::GasInfo;
 pub use subxt::dynamic::Value;
