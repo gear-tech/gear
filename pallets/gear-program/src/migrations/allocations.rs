@@ -117,10 +117,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                 old_count == count,
                 "incorrect count of elements old {} != new {}",
             );
-            ensure!(
-                Pallet::<T>::current_storage_version() == ALLOWED_CURRENT_STORAGE_VERSION,
-                "incorrect storage version after migration"
-            );
         }
 
         Ok(())

@@ -115,6 +115,61 @@ impl GearApi {
         Err(Error::EventNotFound)
     }
 
+    /// Transfer `value` to `destination`'s account.
+    ///
+    /// Sends the
+    /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
+    /// extrinsic.
+    ///
+    /// This function returns a hash of the block with the transfer transaction.
+    pub async fn transfer_allow_death(&self, destination: ProgramId, value: u128) -> Result<H256> {
+        let destination: [u8; 32] = destination.into();
+
+        let tx = self
+            .0
+            .calls
+            .transfer_allow_death(destination, value)
+            .await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Balances(BalancesEvent::Transfer { .. }) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok(tx.block_hash());
+            }
+        }
+
+        // Sending zero value is a no-op, so now event occurs.
+        if value == 0 {
+            return Ok(tx.block_hash());
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Transfer `value` to `destination`'s account.
+    ///
+    /// Sends the
+    /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
+    /// extrinsic.
+    ///
+    /// This function returns a hash of the block with the transfer transaction.
+    pub async fn transfer_all(&self, destination: ProgramId, keep_alive: bool) -> Result<H256> {
+        let destination: [u8; 32] = destination.into();
+
+        let tx = self.0.calls.transfer_all(destination, keep_alive).await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Balances(BalancesEvent::Transfer { .. }) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok(tx.block_hash());
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
     /// Create a new program from a previously uploaded code identified by
     /// [`CodeId`](https://docs.gear.rs/gear_core/ids/struct.CodeId.html) and
     /// initialize it with a byte slice `payload`.
