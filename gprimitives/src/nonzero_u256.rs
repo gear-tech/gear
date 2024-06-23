@@ -26,6 +26,7 @@ use core::{
     mem::transmute,
     num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8},
 };
+#[cfg(feature = "codec")]
 use scale_info::{
     prelude::vec::Vec,
     scale::{Decode, Encode, EncodeLike, Error, Input, Output},
@@ -33,7 +34,8 @@ use scale_info::{
 };
 
 /// A value that is known not to equal zero.
-#[derive(Clone, Copy, TypeInfo)]
+#[derive(Clone, Copy)]
+#[cfg_attr(feature = "codec", derive(TypeInfo))]
 #[repr(transparent)]
 pub struct NonZeroU256(U256);
 
@@ -244,6 +246,7 @@ impl TryFrom<u128> for NonZeroU256 {
     }
 }
 
+#[cfg(feature = "codec")]
 macro_rules! impl_for_non_zero {
     ( $( $name:ty ),* $(,)? ) => {
         $(
@@ -277,6 +280,7 @@ macro_rules! impl_for_non_zero {
     }
 }
 
+#[cfg(feature = "codec")]
 impl_for_non_zero!(NonZeroU256);
 
 #[cfg(test)]
