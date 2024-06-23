@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 derive_more.workspace = true
-primitive-types = { workspace = true, features = ["scale-info"] }
+primitive-types = { workspace = true, features = ["scale-info", "rustc-hex"] }
 parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
 scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }

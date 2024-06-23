@@ -115,7 +115,7 @@ impl From<H160> for ActorId {
 impl From<ActorId> for H160 {
     fn from(actor_id: ActorId) -> Self {
         let mut h160 = Self::zero();
-        h160.0.copy_from_slice(actor_id.as_ref());
+        h160.0.copy_from_slice(&actor_id.into_bytes()[12..]);
         h160
     }
 }
@@ -293,7 +293,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display 
 mod tests {
     extern crate alloc;
 
-    use crate::ActorId;
+    use crate::{ActorId, H160};
     use alloc::format;
     use core::str::FromStr;
 
@@ -391,5 +391,28 @@ mod tests {
         let bytes = "foobar";
         let result: Result<ActorId, _> = bytes.as_bytes().try_into();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn actor_id_ethereum_address() {
+        let address: H160 = "0x95222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            format!("{address:?}"),
+            "0x95222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+        );
+
+        let actor_id: ActorId = address.into();
+        assert_eq!(
+            format!("{actor_id}"),
+            "0x00000000000000000000000095222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+        );
+
+        let address: H160 = actor_id.into();
+        assert_eq!(
+            format!("{address:?}"),
+            "0x95222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+        );
     }
 }
