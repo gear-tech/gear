@@ -1021,8 +1021,8 @@ where
     })
 }
 
-// TODO although we do not want to test the business logic,
-// this test is still unstable due to constants
+// TODO: although we do not want to test the business logic,
+// this test is still unstable due to constants #4030
 fn check_gr_gas_available<T>()
 where
     T: Config,
