@@ -38,7 +38,7 @@ pub mod pallet {
     use common::Origin;
     use frame_support::{
         pallet_prelude::*,
-        traits::{OneSessionHandler, StorageVersion},
+        traits::{ConstBool, OneSessionHandler, StorageVersion},
         StorageHasher,
     };
     use frame_system::{
@@ -138,7 +138,7 @@ pub mod pallet {
     ///
     /// Defines if pallet is accepting any mutable requests. Governance-ruled.
     #[pallet::storage]
-    type Paused<T> = StorageValue<_, bool, ValueQuery>;
+    type Paused<T> = StorageValue<_, bool, ValueQuery, ConstBool<false>>;
 
     /// Primary storage.
     ///
