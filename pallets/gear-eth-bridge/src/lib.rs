@@ -373,7 +373,7 @@ pub mod pallet {
 
         fn on_finalize(_bn: BlockNumberFor<T>) {
             // If queue wasn't changed, than nothing to do here.
-            if !QueueChanged::<T>::get() {
+            if !QueueChanged::<T>::take() {
                 return;
             }
 
