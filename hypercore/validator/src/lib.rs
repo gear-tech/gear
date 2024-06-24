@@ -18,7 +18,7 @@
 
 use anyhow::Result;
 use hypercore_network::service::NetworkGossip;
-use hypercore_processor::LocalOutcome;
+use hypercore_processor::{LocalOutcome, TransitionOutcome};
 use hypercore_sequencer::{AggregatedCommitments, CodeCommitment, TransitionCommitment};
 use hypercore_signer::{Address, PublicKey, Signer};
 use parity_scale_codec::Encode;
@@ -100,12 +100,12 @@ impl Validator {
                         approved: false,
                     });
                 }
-                LocalOutcome::Transition {
+                LocalOutcome::Transition(TransitionOutcome {
                     program_id,
                     old_state_hash,
                     new_state_hash,
                     outgoing_messages,
-                } => {
+                }) => {
                     // TODO: they're about to be aggregated before signing: like commitments A0 -> A1 && A1 -> A2 will one single commit A0 -> A2.
                     self.current_transitions.push(TransitionCommitment {
                         program_id: *program_id,

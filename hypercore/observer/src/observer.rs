@@ -1,4 +1,3 @@
-use crate::{BlockEvent, Event};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
@@ -13,11 +12,10 @@ use alloy::{
         },
     },
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
-use hypercore_db::{BlockInfo, Database};
 use hypercore_ethereum::event::{
     ClaimValue, CodeApproved, CodeRejected, CreateProgram, SendMessage, SendReply, UpdatedProgram,
     UploadCode, UserMessageSent, UserReplySent,
@@ -26,8 +24,10 @@ use reqwest::Client;
 use std::{collections::HashSet, hash::RandomState};
 use tokio::time::{self, Duration};
 
+use crate::{event::BlockEventData, BlockEvent, Event};
+
 #[derive(Debug)]
-struct PendingUploadCode {
+pub(crate) struct PendingUploadCode {
     origin: ActorId,
     code_id: CodeId,
     blob_tx: H256,
@@ -44,10 +44,9 @@ impl PendingUploadCode {
     }
 }
 
-type ObserverProvider = RootProvider<PubSubFrontend>;
+pub(crate) type ObserverProvider = RootProvider<PubSubFrontend>;
 
 pub struct Observer {
-    database: Database,
     provider: ObserverProvider,
     ethereum_beacon_rpc: String,
     http_client: Client,
@@ -69,13 +68,11 @@ impl Observer {
     ];
 
     pub async fn new(
-        database: Database,
         ethereum_rpc: String,
         ethereum_beacon_rpc: String,
         router_address: String,
     ) -> Result<Self> {
         Ok(Self {
-            database,
             provider: ProviderBuilder::new()
                 .on_ws(WsConnect::new(ethereum_rpc))
                 .await?,
@@ -105,9 +102,9 @@ impl Observer {
                                 let parent_hash = block_header.parent_hash;
                                 let block_number = block_header.number.expect("failed to get block number");
                                 let timestamp = block_header.timestamp;
-                                log::debug!("block {block_number}, hash {block_hash}");
+                                log::debug!("block {block_number}, hash {block_hash}, parent hash: {parent_hash}");
 
-                                match self.read_events(block_hash, parent_hash, block_number, timestamp).await {
+                                match read_block_events(H256(block_hash.0), &mut self.provider, self.router_address).await {
                                     Ok((pending_upload_codes, events)) => {
                                         for pending_upload_code in pending_upload_codes {
                                             let provider = self.provider.clone();
@@ -131,11 +128,15 @@ impl Observer {
                                             });
                                         }
 
-                                        yield Event::Block {
-                                            parent_hash: H256(parent_hash.0),
+                                        let block_data = BlockEventData {
                                             block_hash: H256(block_hash.0),
+                                            parent_hash: H256(parent_hash.0),
+                                            block_number,
+                                            block_timestamp: timestamp,
                                             events,
                                         };
+
+                                        yield Event::Block(block_data);
                                     }
                                     Err(err) => log::error!("failed to read events: {err}"),
                                 }
@@ -159,123 +160,6 @@ impl Observer {
                 };
             }
         }
-    }
-
-    async fn read_events(
-        &mut self,
-        block_hash: B256,
-        parent_hash: B256,
-        block_number: u64,
-        block_timestamp: u64,
-    ) -> Result<(Vec<PendingUploadCode>, Vec<BlockEvent>)> {
-        let router_filter = self.event_filter(block_hash);
-        let logs = self.provider.get_logs(&router_filter).await?;
-
-        let mut pending_upload_codes = vec![];
-        let block_events: Vec<_> = logs
-            .into_iter()
-            .filter_map(|ref log| match log.topic0().copied().map(|bytes| bytes.0) {
-                Some(UploadCode::SIGNATURE_HASH) => {
-                    let UploadCode {
-                        origin,
-                        code_id,
-                        blob_tx,
-                    } = log.try_into().ok()?;
-
-                    let tx_hash = H256(log.transaction_hash?.0);
-
-                    pending_upload_codes.push(PendingUploadCode {
-                        origin,
-                        code_id,
-                        blob_tx,
-                        tx_hash,
-                    });
-
-                    None
-                }
-                Some(CodeApproved::SIGNATURE_HASH) => {
-                    Some(BlockEvent::CodeApproved(log.try_into().ok()?))
-                }
-                Some(CodeRejected::SIGNATURE_HASH) => {
-                    Some(BlockEvent::CodeRejected(log.try_into().ok()?))
-                }
-                Some(CreateProgram::SIGNATURE_HASH) => {
-                    Some(BlockEvent::CreateProgram(log.try_into().ok()?))
-                }
-                Some(UpdatedProgram::SIGNATURE_HASH) => {
-                    Some(BlockEvent::UpdatedProgram(log.try_into().ok()?))
-                }
-                Some(UserMessageSent::SIGNATURE_HASH) => {
-                    Some(BlockEvent::UserMessageSent(log.try_into().ok()?))
-                }
-                Some(UserReplySent::SIGNATURE_HASH) => {
-                    Some(BlockEvent::UserReplySent(log.try_into().ok()?))
-                }
-                Some(SendMessage::SIGNATURE_HASH) => {
-                    Some(BlockEvent::SendMessage(log.try_into().ok()?))
-                }
-                Some(SendReply::SIGNATURE_HASH) => {
-                    Some(BlockEvent::SendReply(log.try_into().ok()?))
-                }
-                Some(ClaimValue::SIGNATURE_HASH) => {
-                    Some(BlockEvent::ClaimValue(log.try_into().ok()?))
-                }
-                _ => None,
-            })
-            .collect();
-
-        let block_hash = H256(block_hash.0);
-        let parent_hash = H256(parent_hash.0);
-
-        //TODO: handle some start block number here
-        let mut program_state_hashes = self
-            .database
-            .get_block_program_hashes(parent_hash)
-            .unwrap_or_default();
-
-        for event in block_events.iter() {
-            match event {
-                BlockEvent::CreateProgram(CreateProgram { actor_id, .. }) => {
-                    program_state_hashes.insert(*actor_id, H256::zero());
-                }
-                BlockEvent::UpdatedProgram(UpdatedProgram {
-                    actor_id,
-                    old_state_hash,
-                    new_state_hash,
-                }) => {
-                    let state = program_state_hashes
-                        .get_mut(actor_id)
-                        .ok_or_else(|| anyhow!("previous state not found"))?;
-
-                    if state != old_state_hash {
-                        bail!("incorrect state transition");
-                    }
-
-                    *state = *new_state_hash;
-                }
-                _ => {}
-            }
-        }
-
-        self.database
-            .set_block_program_hashes(block_hash, program_state_hashes);
-        self.database.set_block_parent_hash(block_hash, parent_hash);
-        self.database.set_block_info(
-            block_hash,
-            BlockInfo {
-                height: block_number as u32,
-                timestamp: block_timestamp,
-            },
-        );
-
-        Ok((pending_upload_codes, block_events))
-    }
-
-    fn event_filter(&self, block_hash: B256) -> Filter {
-        Filter::new()
-            .at_block_hash(block_hash)
-            .address(self.router_address)
-            .event_signature(Topic::from_iter(Self::ROUTER_EVENT_SIGNATURE_HASHES))
     }
 
     async fn read_code_from_tx_hash(
@@ -376,4 +260,68 @@ impl Observer {
             .json::<BeaconBlobBundle>()
             .await
     }
+}
+
+pub(crate) async fn read_block_events(
+    block_hash: H256,
+    provider: &mut ObserverProvider,
+    router_address: Address,
+) -> Result<(Vec<PendingUploadCode>, Vec<BlockEvent>)> {
+    let router_events_filter = Filter::new()
+        .at_block_hash(block_hash.0)
+        .address(router_address)
+        .event_signature(Topic::from_iter(Observer::ROUTER_EVENT_SIGNATURE_HASHES));
+
+    let logs = provider.get_logs(&router_events_filter).await?;
+
+    let mut pending_upload_codes = vec![];
+    let block_events: Vec<_> = logs
+        .into_iter()
+        .filter_map(|ref log| match log.topic0().copied().map(|bytes| bytes.0) {
+            Some(UploadCode::SIGNATURE_HASH) => {
+                let UploadCode {
+                    origin,
+                    code_id,
+                    blob_tx,
+                } = log.try_into().ok()?;
+
+                let tx_hash = H256(log.transaction_hash?.0);
+
+                pending_upload_codes.push(PendingUploadCode {
+                    origin,
+                    code_id,
+                    blob_tx,
+                    tx_hash,
+                });
+
+                None
+            }
+            Some(CodeApproved::SIGNATURE_HASH) => {
+                Some(BlockEvent::CodeApproved(log.try_into().ok()?))
+            }
+            Some(CodeRejected::SIGNATURE_HASH) => {
+                Some(BlockEvent::CodeRejected(log.try_into().ok()?))
+            }
+            Some(CreateProgram::SIGNATURE_HASH) => {
+                Some(BlockEvent::CreateProgram(log.try_into().ok()?))
+            }
+            Some(UpdatedProgram::SIGNATURE_HASH) => {
+                Some(BlockEvent::UpdatedProgram(log.try_into().ok()?))
+            }
+            Some(UserMessageSent::SIGNATURE_HASH) => {
+                Some(BlockEvent::UserMessageSent(log.try_into().ok()?))
+            }
+            Some(UserReplySent::SIGNATURE_HASH) => {
+                Some(BlockEvent::UserReplySent(log.try_into().ok()?))
+            }
+            Some(SendMessage::SIGNATURE_HASH) => {
+                Some(BlockEvent::SendMessage(log.try_into().ok()?))
+            }
+            Some(SendReply::SIGNATURE_HASH) => Some(BlockEvent::SendReply(log.try_into().ok()?)),
+            Some(ClaimValue::SIGNATURE_HASH) => Some(BlockEvent::ClaimValue(log.try_into().ok()?)),
+            _ => None,
+        })
+        .collect();
+
+    Ok((pending_upload_codes, block_events))
 }

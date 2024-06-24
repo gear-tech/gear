@@ -19,7 +19,7 @@
 use crate::*;
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
-use hypercore_db::{BlockInfo, MemDb};
+use hypercore_db::{BlockInfo, BlockMetaInfo, MemDb};
 use hypercore_ethereum::event::{CreateProgram, SendMessage};
 use std::collections::BTreeMap;
 use utils::*;
@@ -35,17 +35,17 @@ fn init_new_block(processor: &mut Processor, height: u32, timestamp: u64) -> H25
 }
 
 fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H256 {
-    let parent_block_info = processor.db.get_block_info(parent_hash).unwrap_or_default();
+    let parent_block_info = processor.db.block_info(parent_hash).unwrap_or_default();
     let height = parent_block_info.height + 1;
     let timestamp = parent_block_info.timestamp + 12;
     let chain_head = init_new_block(processor, height, timestamp);
     let parent_out_program_hashes = processor
         .db
-        .get_block_end_program_hashes(parent_hash)
+        .block_end_program_states(parent_hash)
         .unwrap_or_default();
     processor
         .db
-        .set_block_program_hashes(chain_head, parent_out_program_hashes);
+        .set_block_start_program_states(chain_head, parent_out_program_hashes);
     chain_head
 }
 
@@ -62,17 +62,10 @@ fn process_observer_event() {
     let code = demo_ping::WASM_BINARY.to_vec();
     let code_id = CodeId::generate(&code);
 
-    let event = Event::UploadCode {
-        origin: ActorId::zero(),
-        code_id,
-        code,
-    };
-
     let outcomes = processor
-        .process_observer_event(&event)
-        .expect("failed to process observer event");
+        .process_upload_code(code_id, &code)
+        .expect("failed to upload code");
     log::debug!("\n\nUpload code outcomes: {outcomes:?}\n\n");
-
     assert_eq!(outcomes, vec![LocalOutcome::CodeApproved(code_id)]);
 
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
@@ -86,15 +79,9 @@ fn process_observer_event() {
         value: 0,
     });
 
-    let event = Event::Block {
-        parent_hash: ch0,
-        block_hash: ch1,
-        events: vec![create_program_event],
-    };
-
     let outcomes = processor
-        .process_observer_event(&event)
-        .expect("failed to process observer event");
+        .process_block_events(ch1, &[create_program_event])
+        .expect("failed to process create program");
     log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
 
     let ch2 = init_new_block_from_parent(&mut processor, ch1);
@@ -107,15 +94,9 @@ fn process_observer_event() {
         value: 0,
     });
 
-    let event = Event::Block {
-        parent_hash: ch1,
-        block_hash: ch2,
-        events: vec![send_message_event],
-    };
-
     let outcomes = processor
-        .process_observer_event(&event)
-        .expect("failed to process observer event");
+        .process_block_events(ch2, &[send_message_event])
+        .expect("failed to process send message");
     log::debug!("\n\nSend message outcomes: {outcomes:?}\n\n");
 }
 

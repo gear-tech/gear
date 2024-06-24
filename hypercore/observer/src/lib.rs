@@ -20,6 +20,8 @@
 
 mod event;
 mod observer;
+mod query;
 
-pub use event::{BlockEvent, Event};
+pub use event::{BlockEvent, BlockEventData, Event};
 pub use observer::Observer;
+pub use query::Query;

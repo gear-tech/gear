@@ -19,15 +19,20 @@ pub enum BlockEvent {
 }
 
 #[derive(Debug, Encode, Decode)]
+pub struct BlockEventData {
+    pub parent_hash: H256,
+    pub block_hash: H256,
+    pub block_number: u64,
+    pub block_timestamp: u64,
+    pub events: Vec<BlockEvent>,
+}
+
+#[derive(Debug, Encode, Decode)]
 pub enum Event {
     UploadCode {
         origin: ActorId,
         code_id: CodeId,
         code: Vec<u8>,
     },
-    Block {
-        parent_hash: H256,
-        block_hash: H256,
-        events: Vec<BlockEvent>,
-    },
+    Block(BlockEventData),
 }
