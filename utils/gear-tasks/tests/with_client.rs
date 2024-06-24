@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_node_testing::client::{Client as TestClient, TestClientBuilder, TestClientBuilderExt};
+use gear_node_testing::client::{
+    Client as TestClient, NativeElseWasmExecutor, TestClientBuilder, TestClientBuilderExt,
+    WasmExecutor,
+};
 use gear_tasks::GearTasksRunner;
 use sc_client_api::UsageProvider;
 use sp_api::HashingFor;
@@ -83,12 +86,15 @@ pub fn init_logger() {
 
 fn new_test_ext() -> BackendExternalities {
     CLIENT.get_or_init(|| {
-        let mut client = TestClientBuilder::new().build();
+        let mut executor =
+            NativeElseWasmExecutor::new_with_wasm_executor(WasmExecutor::builder().build());
         // Substrate's `CodeExecutor::call()` has explicit flag to use native execution,
         // so it's applicable for `NativeElseWasmExecutor`, too.
         // The flag is always set to `false` in our case, so
         // we set it to true
-        client.gear_use_native();
+        executor.gear_force_native();
+        let client = TestClientBuilder::new().build_with_wasm_executor(Some(executor));
+
         let client = Arc::new(client);
 
         let runner = GearTasksRunner::new(client.clone());
