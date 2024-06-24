@@ -256,6 +256,94 @@ impl NonZeroU256 {
             unsafe { (Self::new_unchecked(result.0), result.1) }
         }
     }
+
+    /// Multiplies two non-zero integers together.
+    /// Checks for overflow and returns [`None`] on overflow.
+    /// As a consequence, the result cannot wrap to zero.
+    #[inline]
+    pub fn checked_mul(self, other: Self) -> Option<Self> {
+        // SAFETY:
+        // - `checked_mul` returns `None` on overflow
+        // - `self` and `other` are non-zero
+        // - the only way to get zero from a multiplication without overflow is for one
+        //   of the sides to be zero
+        //
+        // So the result cannot be zero.
+        self.get()
+            .checked_mul(other.get())
+            .map(|result| unsafe { Self::new_unchecked(result) })
+    }
+
+    /// Multiplies two non-zero integers together.
+    #[inline]
+    pub fn saturating_mul(self, other: Self) -> Self {
+        // SAFETY:
+        // - `saturating_mul` returns `u*::MAX`/`i*::MAX`/`i*::MIN` on overflow/underflow,
+        //   all of which are non-zero
+        // - `self` and `other` are non-zero
+        // - the only way to get zero from a multiplication without overflow is for one
+        //   of the sides to be zero
+        //
+        // So the result cannot be zero.
+        unsafe { Self::new_unchecked(self.get().saturating_mul(other.get())) }
+    }
+
+    /// Multiply with overflow, returning a flag if it does.
+    #[inline(always)]
+    pub fn overflowing_mul(self, other: Self) -> (Self, bool) {
+        let result = self.get().overflowing_mul(other.get());
+        if result.0.is_zero() {
+            (Self::MAX, true)
+        } else {
+            unsafe { (Self::new_unchecked(result.0), result.1) }
+        }
+    }
+
+    /// Raises non-zero value to an integer power.
+    /// Checks for overflow and returns [`None`] on overflow.
+    /// As a consequence, the result cannot wrap to zero.
+    #[inline]
+    pub fn checked_pow(self, other: U256) -> Option<Self> {
+        // SAFETY:
+        // - `checked_pow` returns `None` on overflow/underflow
+        // - `self` is non-zero
+        // - the only way to get zero from an exponentiation without overflow is
+        //   for base to be zero
+        //
+        // So the result cannot be zero.
+        self.get()
+            .checked_pow(other)
+            .map(|result| unsafe { Self::new_unchecked(result) })
+    }
+
+    /// Raise non-zero value to an integer power.
+    #[inline]
+    pub fn overflowing_pow(self, other: U256) -> (Self, bool) {
+        let result = self.get().overflowing_pow(other);
+        if result.0.is_zero() {
+            (Self::MAX, true)
+        } else {
+            unsafe { (Self::new_unchecked(result.0), result.1) }
+        }
+    }
+
+    /// Fast exponentiation by squaring
+    /// https://en.wikipedia.org/wiki/Exponentiation_by_squaring
+    ///
+    /// # Panics
+    ///
+    /// Panics if the result overflows the type.
+    #[inline]
+    pub fn pow(self, other: U256) -> Self {
+        // SAFETY:
+        // - `pow` panics on overflow/underflow
+        // - `self` is non-zero
+        // - the only way to get zero from an exponentiation without overflow is
+        //   for base to be zero
+        //
+        // So the result cannot be zero.
+        unsafe { Self::new_unchecked(self.get().pow(other)) }
+    }
 }
 
 impl From<NonZeroU256> for U256 {
@@ -394,6 +482,53 @@ where
     }
 }
 
+impl core::ops::Mul<NonZeroU256> for NonZeroU256 {
+    type Output = NonZeroU256;
+
+    fn mul(self, other: NonZeroU256) -> NonZeroU256 {
+        let (result, overflow) = self.overflowing_mul(other);
+        panic_on_overflow!(overflow);
+        result
+    }
+}
+
+impl<'a> core::ops::Mul<&'a NonZeroU256> for NonZeroU256 {
+    type Output = NonZeroU256;
+
+    fn mul(self, other: &'a NonZeroU256) -> NonZeroU256 {
+        let (result, overflow) = self.overflowing_mul(*other);
+        panic_on_overflow!(overflow);
+        result
+    }
+}
+
+impl<'a> core::ops::Mul<&'a NonZeroU256> for &'a NonZeroU256 {
+    type Output = NonZeroU256;
+
+    fn mul(self, other: &'a NonZeroU256) -> NonZeroU256 {
+        let (result, overflow) = self.overflowing_mul(*other);
+        panic_on_overflow!(overflow);
+        result
+    }
+}
+
+impl<'a> core::ops::Mul<NonZeroU256> for &'a NonZeroU256 {
+    type Output = NonZeroU256;
+
+    fn mul(self, other: NonZeroU256) -> NonZeroU256 {
+        let (result, overflow) = self.overflowing_mul(other);
+        panic_on_overflow!(overflow);
+        result
+    }
+}
+
+impl core::ops::MulAssign<NonZeroU256> for NonZeroU256 {
+    fn mul_assign(&mut self, other: NonZeroU256) {
+        let result = *self * other;
+        *self = result
+    }
+}
+
 #[cfg(feature = "codec")]
 macro_rules! impl_for_non_zero {
     ( $( $name:ty ),* $(,)? ) => {
@@ -465,15 +600,31 @@ mod tests {
 
     #[test]
     fn nonzero_u256_overflowing_add() {
-        let nzu64 = NonZeroU256::MAX;
-        let result = nzu64.overflowing_add(1u64.into());
+        let nzu256 = NonZeroU256::MAX;
+        let result = nzu256.overflowing_add(1u64.into());
         assert_eq!((NonZeroU256::MIN, true), result);
     }
 
     #[test]
     fn nonzero_u256_overflowing_sub() {
-        let nzu64 = NonZeroU256::MIN;
-        let result = nzu64.overflowing_sub(1u64.into());
+        let nzu256 = NonZeroU256::MIN;
+        let result = nzu256.overflowing_sub(1u64.into());
+        assert_eq!((NonZeroU256::MAX, true), result);
+    }
+
+    #[test]
+    fn nonzero_u256_overflowing_mul() {
+        let mut nzu256 = NonZeroU256::from(NonZeroU128::MAX);
+        nzu256 = nzu256 + 1;
+        let result = nzu256.overflowing_mul(nzu256);
+        assert_eq!((NonZeroU256::MAX, true), result);
+    }
+
+    #[test]
+    fn nonzero_u256_overflowing_pow() {
+        let mut nzu256 = NonZeroU256::from(NonZeroU128::MAX);
+        nzu256 = nzu256 + 1;
+        let result: (NonZeroU256, bool) = nzu256.overflowing_pow(2.into());
         assert_eq!((NonZeroU256::MAX, true), result);
     }
 }
