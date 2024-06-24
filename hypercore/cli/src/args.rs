@@ -18,9 +18,9 @@
 
 //! CLI arguments in one place.
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
-use gprimitives::ActorId;
+use gprimitives::{ActorId, CodeId};
 use hypercore_ethereum::Ethereum;
 use hypercore_signer::Address;
 use serde::Deserialize;
@@ -106,10 +106,11 @@ pub enum ExtraCommands {
     ClearKeys,
     InsertKey(InsertKeyArgs),
     Sign(SigningArgs),
-    UploadCode(UploadCodeArgs),
     SetProgram,
     AddValidators(AddValidatorsArgs),
     RemoveValidators(RemoveValidatorsArgs),
+    UploadCode(UploadCodeArgs),
+    CreateProgram(CreateProgramArgs),
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -123,11 +124,6 @@ pub struct InsertKeyArgs {
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
-pub struct UploadCodeArgs {
-    path: PathBuf,
-}
-
-#[derive(Clone, Debug, Deserialize, Parser)]
 pub struct AddValidatorsArgs {
     validators: Vec<String>,
 }
@@ -135,6 +131,19 @@ pub struct AddValidatorsArgs {
 #[derive(Clone, Debug, Deserialize, Parser)]
 pub struct RemoveValidatorsArgs {
     validators: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Parser)]
+pub struct UploadCodeArgs {
+    path: PathBuf,
+}
+
+#[derive(Clone, Debug, Deserialize, Parser)]
+pub struct CreateProgramArgs {
+    code_id: String,
+    init_payload: String,
+    gas_limit: u64,
+    value: u128,
 }
 
 impl ExtraCommands {
@@ -189,7 +198,7 @@ impl ExtraCommands {
                 let key_list = signer.list_keys()?;
 
                 if key_list.is_empty() {
-                    anyhow::bail!("No keys found, please generate a key first");
+                    bail!("No keys found, please generate a key first");
                 }
 
                 println!("Signing with all ({}) keys:", key_list.len());
@@ -215,7 +224,7 @@ impl ExtraCommands {
                 let Some((sender_address, hypercore_ethereum)) =
                     maybe_sender_address.zip(maybe_ethereum)
                 else {
-                    anyhow::bail!("please provide signer address");
+                    bail!("please provide signer address");
                 };
 
                 println!("Setting program {program_impl} for Router from {sender_address}...");
@@ -250,7 +259,7 @@ impl ExtraCommands {
                 let Some((sender_address, hypercore_ethereum)) =
                     maybe_sender_address.zip(maybe_ethereum)
                 else {
-                    anyhow::bail!("please provide signer address");
+                    bail!("please provide signer address");
                 };
 
                 println!("Adding validators for Router from {sender_address}...");
@@ -281,7 +290,7 @@ impl ExtraCommands {
                 let Some((sender_address, hypercore_ethereum)) =
                     maybe_sender_address.zip(maybe_ethereum)
                 else {
-                    anyhow::bail!("please provide signer address");
+                    bail!("please provide signer address");
                 };
 
                 println!("Removing validators for Router from {sender_address}...");
@@ -299,7 +308,7 @@ impl ExtraCommands {
                 let Some((sender_address, hypercore_ethereum)) =
                     maybe_sender_address.zip(maybe_ethereum)
                 else {
-                    anyhow::bail!("please provide signer address");
+                    bail!("please provide signer address");
                 };
 
                 println!(
@@ -317,6 +326,47 @@ impl ExtraCommands {
 
                 router.wait_for_code_approval(code_id).await?;
                 println!("Now you can create program from code id {code_id}!");
+            }
+
+            ExtraCommands::CreateProgram(ref create_program_args) => {
+                let code_id: CodeId = create_program_args
+                    .code_id
+                    .parse()
+                    .map_err(|err| anyhow!("failed to parse code id: {err}"))?;
+                let salt = rand::random();
+                let init_payload = if let Some(init_payload) =
+                    create_program_args.init_payload.strip_prefix("0x")
+                {
+                    hex::decode(init_payload)?
+                } else {
+                    create_program_args.init_payload.clone().into_bytes()
+                };
+                let gas_limit = create_program_args.gas_limit;
+                let value = create_program_args.value;
+
+                let Some((sender_address, hypercore_ethereum)) =
+                    maybe_sender_address.zip(maybe_ethereum)
+                else {
+                    bail!("please provide signer address");
+                };
+
+                println!("Creating program on Ethereum from code id {code_id} and address {sender_address}...",);
+
+                let router = hypercore_ethereum.router();
+
+                let (tx, actor_id) = router
+                    .create_program(code_id, salt, init_payload, gas_limit, value)
+                    .await?;
+
+                let mut program_address = Address([0; 20]);
+                program_address
+                    .0
+                    .copy_from_slice(&actor_id.into_bytes()[12..]);
+
+                println!("Completed in transaction {tx:?}");
+                println!("Waiting for state update of program {program_address}...");
+
+                // TODO: handle events from commitTransitions
             }
         }
 
