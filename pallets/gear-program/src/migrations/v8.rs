@@ -218,8 +218,7 @@ mod tests {
             for i in 0_u64..NUM_ACTIVE_PROGRAMS {
                 let program_id = ProgramId::from(1000_u64 + i);
                 let program = Program::<BlockNumberFor<Test>>::Active(ActiveProgram {
-                    allocations: Default::default(),
-                    pages_with_data: Default::default(),
+                    allocations_tree_len: 0,
                     gas_reservation_map: Default::default(),
                     code_hash: Default::default(),
                     code_exports: Default::default(),
