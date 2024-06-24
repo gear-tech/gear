@@ -102,6 +102,13 @@ impl ActorId {
             .to_ss58check_with_prefix(version)
             .map_err(|_| ConversionError::Ss58Encode)
     }
+
+    /// Returns [`H160`] with possible loss of the first 12 bytes.
+    pub fn to_address_lossy(&self) -> H160 {
+        let mut h160 = H160::zero();
+        h160.0.copy_from_slice(&self.into_bytes()[12..]);
+        h160
+    }
 }
 
 impl From<H160> for ActorId {
@@ -109,14 +116,6 @@ impl From<H160> for ActorId {
         let mut actor_id = Self::zero();
         actor_id.0[12..].copy_from_slice(h160.as_ref());
         actor_id
-    }
-}
-
-impl From<ActorId> for H160 {
-    fn from(actor_id: ActorId) -> Self {
-        let mut h160 = Self::zero();
-        h160.0.copy_from_slice(&actor_id.into_bytes()[12..]);
-        h160
     }
 }
 
@@ -409,7 +408,7 @@ mod tests {
             "0x00000000000000000000000095222290dd7278aa3ddd389cc1e1d165cc4bafe5"
         );
 
-        let address: H160 = actor_id.into();
+        let address = actor_id.to_address_lossy();
         assert_eq!(
             format!("{address:?}"),
             "0x95222290dd7278aa3ddd389cc1e1d165cc4bafe5"
