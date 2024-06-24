@@ -15,16 +15,3 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![cfg(feature = "client")]
-#![allow(unused)]
-
-mod backend;
-mod client;
-mod packet;
-mod program;
-
-pub use self::{
-    backend::{Backend, Code},
-    packet::Message,
-    program::Program,
-};
