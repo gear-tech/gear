@@ -1673,7 +1673,7 @@ pub mod pallet {
             ensure_signed(origin)?;
 
             let depth = depth.try_into().unwrap_or_else(|e| {
-                unreachable!("NonZeroU32 to NoZeroUsize conversion must be infallible: {e}")
+                unreachable!("NonZeroU32 to NonZeroUsize conversion must be infallible: {e}")
             });
             let (destination, holders) = match Self::inheritor_for(program_id, depth) {
                 Ok(res) => res,
