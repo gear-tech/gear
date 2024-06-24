@@ -400,14 +400,6 @@ impl ExtManager {
 
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
-        if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
-            panic!(
-                "Value greater than 0, but less than \
-                required existential deposit ({})",
-                crate::EXISTENTIAL_DEPOSIT
-            );
-        }
-
         if self.is_program(&dispatch.source()) {
             panic!("Sending messages allowed only from users id");
         }
@@ -1120,7 +1112,12 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+    fn store_new_programs(
+        &mut self,
+        program_id: ProgramId,
+        code_id: CodeId,
+        candidates: Vec<(MessageId, ProgramId)>,
+    ) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
@@ -1137,6 +1134,7 @@ impl JournalHandler for ExtManager {
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
+
                     self.store_new_actor(
                         candidate_id,
                         Program::Genuine(GenuineProgram {
@@ -1148,6 +1146,8 @@ impl JournalHandler for ExtManager {
                         }),
                         Some(init_message_id),
                     );
+                    // Transfer the ED from the program-creator to the new program
+                    self.send_value(program_id, Some(candidate_id), crate::EXISTENTIAL_DEPOSIT);
                 } else {
                     log::debug!("Program with id {candidate_id:?} already exists");
                 }

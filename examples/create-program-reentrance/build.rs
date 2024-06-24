@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,20 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{
-    errors::{CoreError, ExecutionError, ExtError},
-    msg,
-    prelude::*,
-    ActorId,
-};
+use gear_wasm_builder::WasmBuilder;
 
-#[no_mangle]
-extern "C" fn init() {
-    let res = msg::send(ActorId::default(), "dummy", u128::MAX / 2);
-    assert_eq!(
-        res,
-        Err(CoreError::Ext(ExtError::Execution(
-            ExecutionError::NotEnoughValue
-        )))
-    );
+fn main() {
+    WasmBuilder::new()
+        .exclude_features(vec!["std", "wasm-wrapper"])
+        .build();
 }
