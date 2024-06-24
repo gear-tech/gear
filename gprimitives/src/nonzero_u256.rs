@@ -615,7 +615,7 @@ mod tests {
     #[test]
     fn nonzero_u256_overflowing_mul() {
         let mut nzu256 = NonZeroU256::from(NonZeroU128::MAX);
-        nzu256 = nzu256 + 1;
+        nzu256 += 1;
         let result = nzu256.overflowing_mul(nzu256);
         assert_eq!((NonZeroU256::MAX, true), result);
     }
@@ -623,7 +623,7 @@ mod tests {
     #[test]
     fn nonzero_u256_overflowing_pow() {
         let mut nzu256 = NonZeroU256::from(NonZeroU128::MAX);
-        nzu256 = nzu256 + 1;
+        nzu256 += 1;
         let result: (NonZeroU256, bool) = nzu256.overflowing_pow(2.into());
         assert_eq!((NonZeroU256::MAX, true), result);
     }
