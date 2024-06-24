@@ -7141,6 +7141,7 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "hypercore-runtime-common",
+ "log",
  "parity-scale-codec",
  "primitive-types",
  "rocksdb",

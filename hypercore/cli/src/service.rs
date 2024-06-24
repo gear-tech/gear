@@ -19,11 +19,13 @@
 //! Main service in hypercore node.
 
 use crate::config::{Config, SequencerConfig, ValidatorConfig};
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use futures::{future, stream::StreamExt};
+use gprimitives::H256;
+use hypercore_db::{BlockInfo, BlockMetaInfo, Database};
 use hypercore_network::service::NetworkGossip;
-use hypercore_processor::LocalOutcome;
-use parity_scale_codec::Decode;
+use hypercore_processor::{LocalOutcome, TransitionOutcome};
+use parity_scale_codec::{Decode, Encode};
 use tokio::{signal, time};
 
 /// Hypercore service.
@@ -31,6 +33,7 @@ pub struct Service {
     db: hypercore_db::Database,
     network: hypercore_network::NetworkWorker,
     observer: hypercore_observer::Observer,
+    query: hypercore_observer::Query,
     processor: hypercore_processor::Processor,
     signer: hypercore_signer::Signer,
     sequencer: Option<hypercore_sequencer::Sequencer>,
@@ -51,9 +54,14 @@ impl Service {
         let db = hypercore_db::Database::from_one(&rocks_db);
         let network = hypercore_network::NetworkWorker::new(config.net_config.clone())?;
         let observer = hypercore_observer::Observer::new(
-            db.clone(),
             config.ethereum_rpc.clone(),
             config.ethereum_beacon_rpc.clone(),
+            config.ethereum_router_address.clone(),
+        )
+        .await?;
+        let query = hypercore_observer::Query::new(
+            Box::new(db.clone()),
+            config.ethereum_rpc.clone(),
             config.ethereum_router_address.clone(),
         )
         .await?;
@@ -92,6 +100,7 @@ impl Service {
             db,
             network,
             observer,
+            query,
             processor,
             sequencer,
             signer,
@@ -99,30 +108,125 @@ impl Service {
         })
     }
 
-    async fn process_observer_event(
-        processor: &mut hypercore_processor::Processor,
-        maybe_sequencer: &mut Option<hypercore_sequencer::Sequencer>,
-        observer_event: &hypercore_observer::Event,
-        outcomes: &mut Vec<LocalOutcome>,
-    ) -> Result<()> {
-        outcomes.extend(
-            processor
-                .process_observer_event(observer_event)?
-                .into_iter(),
-        );
+    async fn sync_block_state(_block_hash: H256) -> Result<()> {
+        // TODO: implement
+        Ok(())
+    }
 
-        if let Some(sequencer) = maybe_sequencer {
-            sequencer.process_observer_event(observer_event)?;
+    async fn process_one_block(
+        db: &Database,
+        query: &mut hypercore_observer::Query,
+        processor: &mut hypercore_processor::Processor,
+        block_hash: H256,
+    ) -> Result<Vec<LocalOutcome>> {
+        if let Some(outcomes_encoded) = db.block_outcome(block_hash) {
+            // If outcomes are already processed for the block, just append them.
+            let transition_outcomes: Vec<TransitionOutcome> =
+                Decode::decode(&mut outcomes_encoded.as_slice())?;
+            let block_outcomes: Vec<_> = transition_outcomes
+                .into_iter()
+                .map(LocalOutcome::Transition)
+                .collect();
+
+            return Ok(block_outcomes);
         }
 
-        Ok(())
+        let parent_hash = query.get_block_parent_hash(block_hash).await?;
+
+        // Check state is valid to continue execution
+        if !db.end_state_is_valid(parent_hash).unwrap_or(false) {
+            // Sync db state for block
+            Self::sync_block_state(block_hash).await?;
+            // Set parent block as valid - means state db has all states for the end of parent block
+            db.set_end_state_is_valid(parent_hash, true);
+        }
+
+        let block_events = query.get_block_events(block_hash).await?;
+
+        query.preset_block_program_hashes(block_hash).await?;
+
+        let block_outcomes = processor.process_block_events(block_hash, &block_events)?;
+
+        let transition_outcomes: Vec<TransitionOutcome> = block_outcomes
+            .iter()
+            .map(|outcome| {
+                let LocalOutcome::Transition(outcome) = outcome else {
+                    unreachable!("Only transitions are expected here");
+                };
+                outcome.clone()
+            })
+            .collect();
+
+        // TODO: consider
+        // if transition_outcomes.is_empty() {
+        //     // Empty outcomes case: consider this block as commitment.
+        //     db.set_block_has_commitment(block_hash, true);
+        // }
+
+        db.set_block_outcome(block_hash, transition_outcomes.encode());
+
+        // Set block as valid - means state db has all states for the end of block
+        db.set_end_state_is_valid(block_hash, true);
+
+        Ok(block_outcomes)
+    }
+
+    async fn process_block_event(
+        db: &Database,
+        query: &mut hypercore_observer::Query,
+        processor: &mut hypercore_processor::Processor,
+        block_data: &hypercore_observer::BlockEventData,
+    ) -> Result<Vec<LocalOutcome>> {
+        db.set_block_events(block_data.block_hash, block_data.events.encode());
+        db.set_parent_hash(block_data.block_hash, block_data.parent_hash);
+        db.set_block_info(
+            block_data.block_hash,
+            BlockInfo {
+                height: block_data.block_number.try_into()?,
+                timestamp: block_data.block_timestamp,
+            },
+        );
+
+        let mut outcomes = vec![];
+        let commitment_chain = query.get_commitment_chain(block_data.block_hash).await?;
+        for block_hash in commitment_chain.into_iter().rev() {
+            outcomes.append(&mut Self::process_one_block(db, query, processor, block_hash).await?);
+        }
+
+        Ok(outcomes)
+    }
+
+    async fn process_observer_event(
+        db: &Database,
+        query: &mut hypercore_observer::Query,
+        processor: &mut hypercore_processor::Processor,
+        maybe_sequencer: &mut Option<hypercore_sequencer::Sequencer>,
+        observer_event: hypercore_observer::Event,
+    ) -> Result<Vec<LocalOutcome>> {
+        let outcomes = match &observer_event {
+            hypercore_observer::Event::Block(block_data) => {
+                Self::process_block_event(db, query, processor, block_data).await?
+            }
+            hypercore_observer::Event::UploadCode {
+                origin: _,
+                code_id,
+                code,
+            } => processor.process_upload_code(*code_id, code.as_slice())?,
+        };
+
+        if let Some(sequencer) = maybe_sequencer {
+            sequencer.process_observer_event(&observer_event)?;
+        }
+
+        Ok(outcomes)
     }
 
     pub async fn run(self) -> Result<()> {
         let Service {
-            db: _db,
+            db,
             network,
             mut observer,
+            mut query,
             mut processor,
             mut sequencer,
             signer: _signer,
@@ -161,13 +265,13 @@ impl Service {
                     break;
                 }
                 observer_event = observer_events.next() => {
-                    let mut outcomes = Vec::new();
                     if let Some(observer_event) = observer_event {
-                        Self::process_observer_event(
+                        let outcomes = Self::process_observer_event(
+                            &db,
+                            &mut query,
                             &mut processor,
                             &mut sequencer,
-                            &observer_event,
-                            &mut outcomes,
+                            observer_event,
                         ).await?;
 
                         if let Some(ref mut validator) = validator {

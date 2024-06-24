@@ -23,7 +23,7 @@ use core::fmt;
 use gear_core::{ids::ProgramId, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
-use hypercore_db::BlockInfo;
+use hypercore_db::{BlockInfo, BlockMetaInfo};
 use hypercore_runtime_common::state::{ActiveProgram, MaybeHash, Program, ProgramState, Storage};
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
@@ -85,7 +85,7 @@ impl PageKey {
 }
 
 pub fn set(db: Database, chain_head: H256, state_hash: H256) {
-    let block_info = db.get_block_info(chain_head).expect("Block info not found");
+    let block_info = db.block_info(chain_head).expect("Block info not found");
     PARAMS.set(Some(ThreadParams {
         db,
         block_info,

@@ -27,8 +27,8 @@ use gear_core::{
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceCreator;
-use hypercore_db::Database;
-use hypercore_observer::{BlockEvent, Event};
+use hypercore_db::{BlockMetaInfo, Database};
+use hypercore_observer::BlockEvent;
 use hypercore_runtime_common::state::{
     self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
 };
@@ -56,6 +56,14 @@ pub struct Processor {
     creator: InstanceCreator,
 }
 
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TransitionOutcome {
+    pub program_id: ProgramId,
+    pub old_state_hash: H256,
+    pub new_state_hash: H256,
+    pub outgoing_messages: Vec<OutgoingMessage>,
+}
+
 /// Local changes that can be committed to the network or local signer.
 #[derive(Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LocalOutcome {
@@ -65,12 +73,7 @@ pub enum LocalOutcome {
     // TODO: add docs
     CodeRejected(CodeId),
 
-    Transition {
-        program_id: ProgramId,
-        old_state_hash: H256,
-        new_state_hash: H256,
-        outgoing_messages: Vec<OutgoingMessage>,
-    },
+    Transition(TransitionOutcome),
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -262,100 +265,101 @@ impl Processor {
         Ok(messages_and_outcomes.1)
     }
 
-    pub fn process_observer_event(&mut self, event: &Event) -> Result<Vec<LocalOutcome>> {
+    pub fn process_upload_code(
+        &mut self,
+        code_id: CodeId,
+        code: &[u8],
+    ) -> Result<Vec<LocalOutcome>> {
+        log::debug!("Processing upload code {code_id:?}");
+
+        if code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
+            Ok(vec![LocalOutcome::CodeRejected(code_id)])
+        } else {
+            Ok(vec![LocalOutcome::CodeApproved(code_id)])
+        }
+    }
+
+    pub fn process_block_events(
+        &mut self,
+        block_hash: H256,
+        events: &[BlockEvent],
+    ) -> Result<Vec<LocalOutcome>> {
+        log::debug!("Processing events for {block_hash:?}: {events:?}");
+
         let mut outcomes = vec![];
 
-        match event {
-            Event::UploadCode { code_id, code, .. } => {
-                log::debug!("Processing upload code {code_id:?}");
+        let initial_program_states = self
+            .db
+            .block_start_program_states(block_hash)
+            .unwrap_or_default();
 
-                if *code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
-                    outcomes.push(LocalOutcome::CodeRejected(*code_id))
-                } else {
-                    outcomes.push(LocalOutcome::CodeApproved(*code_id))
+        let mut programs = initial_program_states.clone();
+
+        for event in events {
+            match event {
+                BlockEvent::CreateProgram(create_program_info) => {
+                    // TODO: set this zero like start of the block data.
+                    let state_hash = self.handle_new_program(
+                        create_program_info.actor_id,
+                        create_program_info.code_id,
+                    )?;
+                    let state_hash = self.handle_user_message(
+                        state_hash,
+                        vec![UserMessage {
+                            // TODO: handle mid.
+                            id: MessageId::zero(),
+                            kind: DispatchKind::Init,
+                            source: create_program_info.origin,
+                            payload: create_program_info.init_payload.clone(),
+                            gas_limit: create_program_info.gas_limit,
+                            value: create_program_info.value,
+                        }],
+                    )?;
+
+                    programs.insert(create_program_info.actor_id, state_hash);
+                }
+                BlockEvent::SendMessage(send_message_info) => {
+                    // TODO: review if observer got lost.
+                    let state_hash = programs
+                        .get(&send_message_info.destination)
+                        .expect("should exist");
+                    let state_hash = self.handle_user_message(
+                        *state_hash,
+                        vec![UserMessage {
+                            id: MessageId::zero(),
+                            kind: DispatchKind::Handle,
+                            source: send_message_info.origin,
+                            payload: send_message_info.payload.clone(),
+                            gas_limit: send_message_info.gas_limit,
+                            value: send_message_info.value,
+                        }],
+                    )?;
+                    programs.insert(send_message_info.destination, state_hash);
+                }
+                event => log::debug!("Handling for {event:?} is not yet implemented; noop"),
+            }
+
+            let mut current_outcomes = self.run(block_hash, &mut programs)?;
+
+            for outcome in current_outcomes.iter_mut() {
+                if let LocalOutcome::Transition(TransitionOutcome {
+                    program_id,
+                    old_state_hash,
+                    ..
+                }) = outcome
+                {
+                    let old_state = initial_program_states
+                        .get(program_id)
+                        .cloned()
+                        .unwrap_or_default();
+                    *old_state_hash = old_state;
                 }
             }
-            Event::Block {
-                parent_hash: _,
-                block_hash,
-                events,
-            } => {
-                log::debug!("Processing events for {block_hash:?}: {events:?}");
 
-                let initial_program_states = self
-                    .db
-                    .get_block_program_hashes(*block_hash)
-                    .unwrap_or_default();
-
-                let mut programs = initial_program_states.clone();
-
-                for event in events {
-                    match event {
-                        BlockEvent::CreateProgram(create_program_info) => {
-                            // TODO: set this zero like start of the block data.
-                            let state_hash = self.handle_new_program(
-                                create_program_info.actor_id,
-                                create_program_info.code_id,
-                            )?;
-                            let state_hash = self.handle_user_message(
-                                state_hash,
-                                vec![UserMessage {
-                                    // TODO: handle mid.
-                                    id: MessageId::zero(),
-                                    kind: DispatchKind::Init,
-                                    source: create_program_info.origin,
-                                    payload: create_program_info.init_payload.clone(),
-                                    gas_limit: create_program_info.gas_limit,
-                                    value: create_program_info.value,
-                                }],
-                            )?;
-
-                            programs.insert(create_program_info.actor_id, state_hash);
-                        }
-                        BlockEvent::SendMessage(send_message_info) => {
-                            // TODO: review if observer got lost.
-                            let state_hash = programs
-                                .get(&send_message_info.destination)
-                                .expect("should exist");
-                            let state_hash = self.handle_user_message(
-                                *state_hash,
-                                vec![UserMessage {
-                                    id: MessageId::zero(),
-                                    kind: DispatchKind::Handle,
-                                    source: send_message_info.origin,
-                                    payload: send_message_info.payload.clone(),
-                                    gas_limit: send_message_info.gas_limit,
-                                    value: send_message_info.value,
-                                }],
-                            )?;
-                            programs.insert(send_message_info.destination, state_hash);
-                        }
-                        event => log::debug!("Handling for {event:?} is not yet implemented; noop"),
-                    }
-
-                    let mut current_outcomes = self.run(*block_hash, &mut programs)?;
-
-                    for outcome in current_outcomes.iter_mut() {
-                        if let LocalOutcome::Transition {
-                            program_id,
-                            old_state_hash,
-                            ..
-                        } = outcome
-                        {
-                            let old_state = initial_program_states
-                                .get(program_id)
-                                .cloned()
-                                .unwrap_or_default();
-                            *old_state_hash = old_state;
-                        }
-                    }
-
-                    outcomes.extend(current_outcomes);
-                }
-
-                self.db.set_block_end_program_hashes(*block_hash, programs);
-            }
+            outcomes.extend(current_outcomes);
         }
+
+        self.db.set_block_end_program_states(block_hash, programs);
 
         Ok(outcomes)
     }

@@ -18,7 +18,7 @@
 
 use crate::{
     host::{InstanceCreator, InstanceWrapper},
-    LocalOutcome, OutgoingMessage,
+    LocalOutcome, OutgoingMessage, TransitionOutcome,
 };
 use core_processor::common::JournalNote;
 use gear_core::{
@@ -134,8 +134,8 @@ async fn run_in_async(
 
     let outcomes = results
         .into_iter()
-        .map(
-            |(id, (old_hash, new_hash, outgoing_messages))| LocalOutcome::Transition {
+        .map(|(id, (old_hash, new_hash, outgoing_messages))| {
+            LocalOutcome::Transition(TransitionOutcome {
                 program_id: id,
                 old_state_hash: old_hash,
                 new_state_hash: new_hash,
@@ -153,8 +153,8 @@ async fn run_in_async(
                         }
                     })
                     .collect(),
-            },
-        )
+            })
+        })
         .collect();
 
     (to_users_messages, outcomes)

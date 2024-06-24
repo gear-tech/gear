@@ -35,14 +35,17 @@ use hypercore_runtime_common::{
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
 
+const LOG_TARGET: &str = "hyper-db";
+
 #[repr(u64)]
 enum KeyPrefix {
     ProgramToCodeId = 0,
     InstrumentedCode = 1,
-    BlockProgramStates = 2,
-    BlockParentHash = 3,
-    BlockInfo = 4,
-    BlockEndProgramHashes = 5,
+    BlockStartProgramStates = 2,
+    BlockEndProgramStates = 3,
+    BlockEvents = 4,
+    BlockOutcome = 5,
+    BlockSmallMeta = 6,
 }
 
 impl KeyPrefix {
@@ -67,6 +70,166 @@ impl Clone for Database {
             cas: self.cas.clone_boxed(),
             kv: self.kv.clone_boxed_kv(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode)]
+struct BlockSmallMetaInfo {
+    number_timestamp: Option<(u32, u64)>,
+    parent_hash: Option<H256>,
+    block_end_state_is_valid: Option<bool>,
+    block_has_commitment: Option<bool>,
+}
+
+pub trait BlockMetaInfo {
+    fn block_info(&self, block_hash: H256) -> Option<BlockInfo>;
+    fn set_block_info(&self, block_hash: H256, block_info: BlockInfo);
+
+    fn parent_hash(&self, block_hash: H256) -> Option<H256>;
+    fn set_parent_hash(&self, block_hash: H256, parent_hash: H256);
+
+    fn end_state_is_valid(&self, block_hash: H256) -> Option<bool>;
+    fn set_end_state_is_valid(&self, block_hash: H256, is_valid: bool);
+
+    fn block_has_commitment(&self, block_hash: H256) -> Option<bool>;
+    fn set_block_has_commitment(&self, block_hash: H256, has_commitment: bool);
+
+    fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
+    fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+
+    fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
+    fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+
+    fn block_events(&self, block_hash: H256) -> Option<Vec<u8>>;
+    fn set_block_events(&self, block_hash: H256, events_encoded: Vec<u8>);
+
+    fn block_outcome(&self, block_hash: H256) -> Option<Vec<u8>>;
+    fn set_block_outcome(&self, block_hash: H256, outcome_encoded: Vec<u8>);
+}
+
+impl BlockMetaInfo for Database {
+    fn block_info(&self, block_hash: H256) -> Option<BlockInfo> {
+        self.get_block_small_meta(block_hash)
+            .and_then(|meta| meta.number_timestamp)
+            .map(|(number, timestamp)| BlockInfo {
+                height: number,
+                timestamp,
+            })
+    }
+
+    fn set_block_info(&self, block_hash: H256, block_info: BlockInfo) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set: {block_info:?}");
+        let BlockInfo { height, timestamp } = block_info;
+        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        self.set_block_small_meta(
+            block_hash,
+            BlockSmallMetaInfo {
+                number_timestamp: Some((height, timestamp)),
+                ..meta
+            },
+        );
+    }
+
+    fn parent_hash(&self, block_hash: H256) -> Option<H256> {
+        self.get_block_small_meta(block_hash)
+            .and_then(|meta| meta.parent_hash)
+    }
+
+    fn set_parent_hash(&self, block_hash: H256, parent_hash: H256) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set parent block: {parent_hash}");
+        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        self.set_block_small_meta(
+            block_hash,
+            BlockSmallMetaInfo {
+                parent_hash: Some(parent_hash),
+                ..meta
+            },
+        );
+    }
+
+    fn end_state_is_valid(&self, block_hash: H256) -> Option<bool> {
+        self.get_block_small_meta(block_hash)
+            .and_then(|meta| meta.block_end_state_is_valid)
+    }
+
+    fn set_end_state_is_valid(&self, block_hash: H256, is_valid: bool) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set end state valid: {is_valid}");
+        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        self.set_block_small_meta(
+            block_hash,
+            BlockSmallMetaInfo {
+                block_end_state_is_valid: Some(is_valid),
+                ..meta
+            },
+        );
+    }
+
+    fn block_has_commitment(&self, block_hash: H256) -> Option<bool> {
+        self.get_block_small_meta(block_hash)
+            .and_then(|meta| meta.block_has_commitment)
+    }
+
+    fn set_block_has_commitment(&self, block_hash: H256, has_commitment: bool) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set has commitment: {has_commitment}");
+        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        self.set_block_small_meta(
+            block_hash,
+            BlockSmallMetaInfo {
+                block_has_commitment: Some(has_commitment),
+                ..meta
+            },
+        );
+    }
+
+    fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+        self.kv
+            .get(&KeyPrefix::BlockStartProgramStates.one(block_hash))
+            .map(|data| {
+                BTreeMap::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
+    }
+
+    fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set start program states: {map:?}");
+        self.kv.put(
+            &KeyPrefix::BlockStartProgramStates.one(block_hash),
+            map.encode(),
+        );
+    }
+
+    fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+        self.kv
+            .get(&KeyPrefix::BlockEndProgramStates.one(block_hash))
+            .map(|data| {
+                BTreeMap::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
+    }
+
+    fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+        self.kv.put(
+            &KeyPrefix::BlockEndProgramStates.one(block_hash),
+            map.encode(),
+        );
+    }
+
+    fn block_events(&self, block_hash: H256) -> Option<Vec<u8>> {
+        self.kv.get(&KeyPrefix::BlockEvents.one(block_hash))
+    }
+
+    fn set_block_events(&self, block_hash: H256, events_encoded: Vec<u8>) {
+        self.kv
+            .put(&KeyPrefix::BlockEvents.one(block_hash), events_encoded);
+    }
+
+    fn block_outcome(&self, block_hash: H256) -> Option<Vec<u8>> {
+        self.kv.get(&KeyPrefix::BlockOutcome.one(block_hash))
+    }
+
+    fn set_block_outcome(&self, block_hash: H256, outcome_encoded: Vec<u8>) {
+        self.kv
+            .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome_encoded);
     }
 }
 
@@ -103,7 +266,7 @@ impl Database {
         self.cas.write(data)
     }
 
-    // Auxiliary KV accesses.
+    // Auxiliary code KV accesses.
 
     pub fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
         self.kv
@@ -145,68 +308,18 @@ impl Database {
         );
     }
 
-    pub fn get_block_program_hashes(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+    fn get_block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
         self.kv
-            .get(&KeyPrefix::BlockProgramStates.one(block_hash))
+            .get(&KeyPrefix::BlockSmallMeta.one(block_hash))
             .map(|data| {
-                BTreeMap::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BTreeMap`")
+                BlockSmallMetaInfo::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BlockSmallMetaInfo`")
             })
     }
 
-    pub fn set_block_program_hashes(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+    fn set_block_small_meta(&self, block_hash: H256, meta: BlockSmallMetaInfo) {
         self.kv
-            .put(&KeyPrefix::BlockProgramStates.one(block_hash), map.encode());
-    }
-
-    pub fn get_block_parent_hash(&self, block_hash: H256) -> Option<H256> {
-        self.kv
-            .get(&KeyPrefix::BlockParentHash.one(block_hash))
-            .map(|data| H256::from_slice(data.as_slice()))
-    }
-
-    pub fn set_block_parent_hash(&self, block_hash: H256, parent_hash: H256) {
-        self.kv.put(
-            &KeyPrefix::BlockParentHash.one(block_hash),
-            parent_hash.as_bytes().to_vec(),
-        );
-    }
-
-    pub fn set_block_info(&self, block_hash: H256, block_info: BlockInfo) {
-        let BlockInfo { height, timestamp } = block_info;
-        self.kv.put(
-            &KeyPrefix::BlockInfo.one(block_hash),
-            (height, timestamp).encode(),
-        );
-    }
-
-    pub fn get_block_info(&self, block_hash: H256) -> Option<BlockInfo> {
-        self.kv
-            .get(&KeyPrefix::BlockInfo.one(block_hash))
-            .map(|data| {
-                let (height, timestamp) = <(u32, u64)>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BlockInfo`");
-                BlockInfo { height, timestamp }
-            })
-    }
-
-    pub fn get_block_end_program_hashes(
-        &self,
-        block_hash: H256,
-    ) -> Option<BTreeMap<ActorId, H256>> {
-        self.kv
-            .get(&KeyPrefix::BlockEndProgramHashes.one(block_hash))
-            .map(|data| {
-                BTreeMap::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BTreeMap`")
-            })
-    }
-
-    pub fn set_block_end_program_hashes(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
-        self.kv.put(
-            &KeyPrefix::BlockEndProgramHashes.one(block_hash),
-            map.encode(),
-        );
+            .put(&KeyPrefix::BlockSmallMeta.one(block_hash), meta.encode());
     }
 }
 
@@ -308,13 +421,10 @@ mod tests {
         let parent_hash = H256::zero();
         let map: BTreeMap<ActorId, H256> = [(ActorId::zero(), H256::zero())].into();
 
-        database.set_block_program_hashes(block_hash, map.clone());
-        assert_eq!(database.get_block_program_hashes(block_hash), Some(map));
+        database.set_block_start_program_states(block_hash, map.clone());
+        assert_eq!(database.block_start_program_states(block_hash), Some(map));
 
-        database.set_block_parent_hash(block_hash, parent_hash);
-        assert_eq!(
-            database.get_block_parent_hash(block_hash),
-            Some(parent_hash)
-        );
+        database.set_parent_hash(block_hash, parent_hash);
+        assert_eq!(database.parent_hash(block_hash), Some(parent_hash));
     }
 }

@@ -66,12 +66,12 @@ impl Sequencer {
     // This function should never block.
     pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
         match event {
-            Event::Block {
-                parent_hash,
-                block_hash,
-                events: _,
-            } => {
-                log::debug!("Processing events for {block_hash:?} (parent: {parent_hash:?})");
+            Event::Block(data) => {
+                log::debug!(
+                    "Processing events for {:?} (parent: {:?})",
+                    data.block_hash,
+                    data.parent_hash
+                );
 
                 if self.codes_aggregation.len() > 0 {
                     log::debug!(
