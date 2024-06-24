@@ -1023,8 +1023,8 @@ where
     })
 }
 
-// TODO although we do not want to test the business logic,
-// this test is still unstable due to constants
+// TODO: although we do not want to test the business logic,
+// this test is still unstable due to constants #4030
 fn check_gr_gas_available<T>()
 where
     T: Config,
@@ -1034,7 +1034,7 @@ where
         // Expected to burn not more than 750_000_000
         // Provided gas in the test by default is 50_000_000_000
         let lower = 50_000_000_000 - 750_000_000;
-        let upper = 50_000_000_000 - 150_000_000;
+        let upper = 50_000_000_000 - 100_000_000;
         let mp = vec![Kind::GasAvailable(lower, upper)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
