@@ -24,6 +24,8 @@ futures.workspace = true
 serde = { workspace = true, features = ["derive"] }
 toml.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+hex.workspace = true
+rand.workspace = true
 
 gprimitives.workspace = true
 

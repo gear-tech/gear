@@ -5,7 +5,7 @@ use abi::{AlloyProgram, AlloyRouter};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
     network::{Ethereum as AlloyEthereum, EthereumSigner, TxSigner},
-    primitives::{Address, Bytes, ChainId, FixedBytes, Signature, B256},
+    primitives::{keccak256, Address, Bytes, ChainId, FixedBytes, Signature, B256},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, SignerFiller},
         ProviderBuilder, RootProvider,
@@ -31,6 +31,7 @@ use hypercore_signer::{
 pub use gear_core::message::ReplyDetails;
 
 mod abi;
+mod eip1167;
 pub mod event;
 
 type AlloyTransport = PubSubFrontend;
@@ -237,7 +238,20 @@ impl Router {
         init_payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<H256> {
+    ) -> Result<(H256, ActorId)> {
+        let mut buffer = vec![];
+        buffer.extend_from_slice(salt.as_ref());
+        buffer.extend_from_slice(code_id.as_ref());
+        let create2_salt = keccak256(buffer);
+        let program = self.0.program().call().await?._0;
+        let proxy_bytecode = eip1167::minimal_proxy_bytecode(*program.0);
+        let actor_id = ActorId::new(
+            self.0
+                .address()
+                .create2_from_code(create2_salt, proxy_bytecode)
+                .into_word()
+                .0,
+        );
         let builder = self
             .0
             .createProgram(
@@ -249,7 +263,7 @@ impl Router {
             .value(value.try_into()?);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
-        Ok(H256(receipt.transaction_hash.0))
+        Ok((H256(receipt.transaction_hash.0), actor_id))
     }
 
     pub async fn commit_codes(
