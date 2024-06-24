@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, CoreLog, Log, RunResult};
+use crate::{
+    manager::{ExtManager, ExtManagerPointer},
+    CoreLog, Log, RunResult,
+};
 use codec::Encode;
 use core_processor::common::JournalHandler;
 use gear_core::{
@@ -24,32 +27,33 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, ReplyDetails, StoredMessage},
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use std::{cell::RefCell, convert::TryInto};
+use parking_lot::RwLock;
+use std::{convert::TryInto, sync::Arc};
 
-pub struct Mailbox<'a> {
-    manager: &'a RefCell<ExtManager>,
+pub struct Mailbox {
+    manager: Arc<RwLock<ExtManager>>,
     user_id: ProgramId,
 }
 
-impl<'a> Mailbox<'a> {
-    pub(crate) fn new(user_id: ProgramId, manager: &'a RefCell<ExtManager>) -> Mailbox<'a> {
+impl Mailbox {
+    pub(crate) fn new(user_id: ProgramId, manager: Arc<RwLock<ExtManager>>) -> Mailbox {
         Mailbox { user_id, manager }
     }
 
     pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
         let log: Log = log.clone().into();
-        if let Some(mailbox) = self.manager.borrow().mailbox.get(&self.user_id) {
+        if let Some(mailbox) = self.manager.read().mailbox.get(&self.user_id) {
             return mailbox.iter().any(|message| log.eq(message));
         }
         self.manager
-            .borrow_mut()
+            .write()
             .mailbox
             .insert(self.user_id, Vec::default());
         false
     }
 
     pub fn take_message<T: Into<Log>>(&self, log: T) -> MessageReplier {
-        MessageReplier::new(self.remove_message(log), self.manager)
+        MessageReplier::new(self.remove_message(log), self.manager.clone())
     }
 
     pub fn reply(&self, log: Log, payload: impl Encode, value: u128) -> RunResult {
@@ -62,7 +66,7 @@ impl<'a> Mailbox<'a> {
 
     pub fn claim_value<T: Into<Log>>(&self, log: T) {
         let message = self.remove_message(log);
-        self.manager.borrow_mut().send_value(
+        self.manager.write().send_value(
             message.source(),
             Some(message.destination()),
             message.value(),
@@ -72,7 +76,7 @@ impl<'a> Mailbox<'a> {
     #[track_caller]
     fn remove_message<T: Into<Log>>(&self, log: T) -> StoredMessage {
         let log = log.into();
-        let mut manager = self.manager.borrow_mut();
+        let mut manager = self.manager.write();
         let messages = manager
             .mailbox
             .get_mut(&self.user_id)
@@ -85,16 +89,13 @@ impl<'a> Mailbox<'a> {
     }
 }
 
-pub struct MessageReplier<'a> {
+pub struct MessageReplier {
     log: CoreLog,
-    manager: &'a RefCell<ExtManager>,
+    manager: ExtManagerPointer,
 }
 
-impl<'a> MessageReplier<'a> {
-    pub(crate) fn new(
-        message: StoredMessage,
-        manager: &'a RefCell<ExtManager>,
-    ) -> MessageReplier<'a> {
+impl MessageReplier {
+    pub(crate) fn new(message: StoredMessage, manager: ExtManagerPointer) -> MessageReplier {
         MessageReplier {
             log: message.into(),
             manager,
@@ -107,7 +108,7 @@ impl<'a> MessageReplier<'a> {
 
     pub fn reply_bytes(&self, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
         let message = Message::new(
-            MessageId::from(self.manager.borrow_mut().fetch_inc_message_nonce()),
+            MessageId::from(self.manager.write().fetch_inc_message_nonce()),
             self.log.destination(),
             self.log.source(),
             raw_payload.as_ref().to_vec().try_into().unwrap(),
@@ -123,7 +124,7 @@ impl<'a> MessageReplier<'a> {
         );
 
         self.manager
-            .borrow_mut()
+            .write()
             .validate_and_run_dispatch(Dispatch::new(DispatchKind::Reply, message))
     }
 }
@@ -395,7 +396,7 @@ mod tests {
 
         let bn_before_schedule = 5;
         let scheduled_delay = 10;
-        system.0.borrow_mut().send_delayed_dispatch(
+        system.0.write().send_delayed_dispatch(
             Dispatch::new(DispatchKind::Handle, message),
             scheduled_delay,
         );
