@@ -188,6 +188,74 @@ impl NonZeroU256 {
             }
         }
     }
+
+    /// Adds an unsigned integer to a non-zero value.
+    /// Checks for overflow and returns [`None`] on overflow.
+    /// As a consequence, the result cannot wrap to zero.
+    #[inline]
+    pub fn checked_add(self, other: U256) -> Option<Self> {
+        // SAFETY:
+        // - `checked_add` returns `None` on overflow
+        // - `self` is non-zero
+        // - the only way to get zero from an addition without overflow is for both
+        //   sides to be zero
+        //
+        // So the result cannot be zero.
+        self.get()
+            .checked_add(other)
+            .map(|result| unsafe { Self::new_unchecked(result) })
+    }
+
+    /// Adds an unsigned integer to a non-zero value.
+    #[inline]
+    pub fn saturating_add(self, other: U256) -> Self {
+        // SAFETY:
+        // - `saturating_add` returns `u*::MAX` on overflow, which is non-zero
+        // - `self` is non-zero
+        // - the only way to get zero from an addition without overflow is for both
+        //   sides to be zero
+        //
+        // So the result cannot be zero.
+        unsafe { Self::new_unchecked(self.get().saturating_add(other)) }
+    }
+
+    /// Addition which overflows and returns a flag if it does.
+    #[inline(always)]
+    pub fn overflowing_add(self, other: U256) -> (Self, bool) {
+        let result = self.get().overflowing_add(other);
+        if result.0.is_zero() {
+            (Self::MIN, true)
+        } else {
+            unsafe { (Self::new_unchecked(result.0), result.1) }
+        }
+    }
+
+    /// Checked subtraction. Returns `None` if overflow occurred.
+    pub fn checked_sub(self, other: U256) -> Option<Self> {
+        match self.get().overflowing_sub(other) {
+            (_, true) => None,
+            (val, _) => Self::new(val),
+        }
+    }
+
+    /// Subtraction which saturates at MIN.
+    pub fn saturating_sub(self, other: U256) -> Self {
+        match self.get().overflowing_sub(other) {
+            (_, true) => Self::MIN,
+            (val, false) => Self::new(val).unwrap_or(Self::MIN),
+        }
+    }
+
+    /// Subtraction which underflows and returns a flag if it does.
+    #[inline(always)]
+    pub fn overflowing_sub(self, other: U256) -> (Self, bool) {
+        let result = self.get().overflowing_sub(other);
+        if result.0.is_zero() {
+            (Self::MAX, true)
+        } else {
+            unsafe { (Self::new_unchecked(result.0), result.1) }
+        }
+    }
 }
 
 impl From<NonZeroU256> for U256 {
@@ -243,6 +311,86 @@ impl TryFrom<u128> for NonZeroU256 {
     #[inline]
     fn try_from(value: u128) -> Result<NonZeroU256, &'static str> {
         NonZeroU256::new(U256::from(value)).ok_or("integer value is zero")
+    }
+}
+
+#[doc(hidden)]
+macro_rules! panic_on_overflow {
+    ($name: expr) => {
+        if $name {
+            panic!("arithmetic operation overflow")
+        }
+    };
+}
+
+impl<T> core::ops::Add<T> for NonZeroU256
+where
+    T: Into<U256>,
+{
+    type Output = NonZeroU256;
+
+    fn add(self, other: T) -> NonZeroU256 {
+        let (result, overflow) = self.overflowing_add(other.into());
+        panic_on_overflow!(overflow);
+        result
+    }
+}
+
+impl<'a, T> core::ops::Add<T> for &'a NonZeroU256
+where
+    T: Into<U256>,
+{
+    type Output = NonZeroU256;
+
+    fn add(self, other: T) -> NonZeroU256 {
+        *self + other
+    }
+}
+
+impl<T> core::ops::AddAssign<T> for NonZeroU256
+where
+    T: Into<U256>,
+{
+    fn add_assign(&mut self, other: T) {
+        let (result, overflow) = self.overflowing_add(other.into());
+        panic_on_overflow!(overflow);
+        *self = result
+    }
+}
+
+impl<T> core::ops::Sub<T> for NonZeroU256
+where
+    T: Into<U256>,
+{
+    type Output = NonZeroU256;
+
+    #[inline]
+    fn sub(self, other: T) -> NonZeroU256 {
+        let (result, overflow) = self.overflowing_sub(other.into());
+        panic_on_overflow!(overflow);
+        result
+    }
+}
+
+impl<'a, T> core::ops::Sub<T> for &'a NonZeroU256
+where
+    T: Into<U256>,
+{
+    type Output = NonZeroU256;
+
+    fn sub(self, other: T) -> NonZeroU256 {
+        *self - other
+    }
+}
+
+impl<T> core::ops::SubAssign<T> for NonZeroU256
+where
+    T: Into<U256>,
+{
+    fn sub_assign(&mut self, other: T) {
+        let (result, overflow) = self.overflowing_sub(other.into());
+        panic_on_overflow!(overflow);
+        *self = result
     }
 }
 
@@ -313,5 +461,19 @@ mod tests {
         assert_eq!(None, opt);
         let res = TryInto::<NonZeroU256>::try_into(zero);
         assert_eq!(Err("integer value is zero"), res);
+    }
+
+    #[test]
+    fn nonzero_u256_overflowing_add() {
+        let nzu64 = NonZeroU256::MAX;
+        let result = nzu64.overflowing_add(1u64.into());
+        assert_eq!((NonZeroU256::MIN, true), result);
+    }
+
+    #[test]
+    fn nonzero_u256_overflowing_sub() {
+        let nzu64 = NonZeroU256::MIN;
+        let result = nzu64.overflowing_sub(1u64.into());
+        assert_eq!((NonZeroU256::MAX, true), result);
     }
 }
