@@ -108,7 +108,7 @@ use sp_consensus_babe::{
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
-    Digest, DigestItem, Perbill,
+    Digest, DigestItem, Perbill, Saturating,
 };
 use sp_std::{num::NonZeroU32, prelude::*};
 
@@ -253,7 +253,12 @@ where
         module: WasmModule<T>,
         data: Vec<u8>,
     ) -> Result<Program<T>, &'static str> {
-        let value = CurrencyOf::<T>::minimum_balance();
+        // In case of the `gr_create_program` syscall testing, we can have as many as
+        // `API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE` repetitions of it in a module,
+        // which requires a transfer of the ED each time the syscall is called.
+        // For the above to always succeed, we need to ensure the contract has enough funds.
+        let value = CurrencyOf::<T>::minimum_balance()
+            .saturating_mul((API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE).into());
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
         let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();

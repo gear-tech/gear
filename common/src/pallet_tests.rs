@@ -25,6 +25,20 @@ use frame_system::limits::BlockWeights;
 
 #[macro_export]
 macro_rules! impl_pallet_balances {
+    ($( $tokens:tt )*) => {
+        #[allow(dead_code)]
+        type BalancesConfigDustRemoval = ();
+
+        mod pallet_tests_balances_config_impl {
+            use super::*;
+
+            $crate::impl_pallet_balances_inner!($( $tokens )*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_pallet_balances_inner {
     ($runtime:ty) => {
         impl pallet_balances::Config for $runtime {
             type MaxLocks = ();
@@ -36,12 +50,18 @@ macro_rules! impl_pallet_balances {
             type RuntimeHoldReason = RuntimeHoldReason;
             type ReserveIdentifier = [u8; 8];
             type Balance = Balance;
-            type DustRemoval = ();
+            type DustRemoval = BalancesConfigDustRemoval;
             type RuntimeEvent = RuntimeEvent;
             type ExistentialDeposit = ExistentialDeposit;
             type AccountStore = System;
             type WeightInfo = ();
         }
+    };
+
+    ($runtime:ty, DustRemoval = $dust_removal:ty $(, $( $rest:tt )*)?) => {
+        type BalancesConfigDustRemoval = $dust_removal;
+
+        $crate::impl_pallet_balances_inner!($runtime $(, $( $rest )*)?);
     };
 }
 

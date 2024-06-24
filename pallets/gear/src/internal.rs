@@ -38,7 +38,7 @@ use core::{
     cmp::{Ord, Ordering},
     num::NonZeroUsize,
 };
-use frame_support::traits::{Currency, ExistenceRequirement};
+use frame_support::traits::{fungible, Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{prelude::*, MessageId, ProgramId, ReservationId},
@@ -47,7 +47,10 @@ use gear_core::{
         UserStoredMessage,
     },
 };
-use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero},
+    DispatchError, TokenError,
+};
 
 /// [`HoldBound`] builder
 #[derive(Clone, Debug)]
@@ -779,8 +782,25 @@ where
             Some(hold.expected())
         } else {
             // Permanently transferring funds.
+            // Note that we have no guarantees of the user account to exist. Since no minimum
+            // transfer value is enforced, the transfer can fail. Handle it gracefully.
+            // TODO #4018 Introduce a safer way to handle this.
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
-                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+                .unwrap_or_else(|e| match e {
+                    DispatchError::Token(TokenError::BelowMinimum) => {
+                        log::debug!(
+                            "Failed to transfer value: {:?}. User account balance is too low.",
+                            e
+                        );
+                        <CurrencyOf<T> as fungible::Unbalanced<_>>::handle_dust(fungible::Dust(
+                            value,
+                        ));
+                    }
+                    _ => {
+                        // Other errors are ruled out by the protocol guarantees.
+                        unreachable!("Failed to transfer value: {:?}", e)
+                    }
+                });
 
             if message.details().is_none() {
                 // Creating auto reply message.
