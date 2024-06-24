@@ -373,6 +373,9 @@ pub mod pallet {
                     // Setting zero queue root, keeping invariant of this key existence.
                     QueueMerkleRoot::<T>::put(H256::zero());
 
+                    // Depositing event about clearing the bridge.
+                    Self::deposit_event(Event::<T>::BridgeCleared);
+
                     // Increasing resulting weight by 3 writes of above keys removal.
                     weight = weight.saturating_add(T::DbWeight::get().writes(4));
                 } else {
@@ -460,6 +463,7 @@ pub mod pallet {
                 debug_assert!(ClearTimer::<T>::get().is_none());
 
                 // Scheduling reset on next block's init.
+                //
                 // Firstly, it will decrease in the same block, because call of
                 // `on_new_session` hook will be performed earlier in the same
                 // block, because `pallet_session` triggers it in its `on_init`
