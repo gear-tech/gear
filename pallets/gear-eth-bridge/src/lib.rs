@@ -138,7 +138,7 @@ pub mod pallet {
     ///
     /// Defines if pallet is accepting any mutable requests. Governance-ruled.
     #[pallet::storage]
-    type Paused<T> = StorageValue<_, bool, ValueQuery, ConstBool<false>>;
+    type Paused<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
     /// Primary storage.
     ///
