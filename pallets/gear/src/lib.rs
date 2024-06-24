@@ -1688,8 +1688,16 @@ pub mod pallet {
             let destination = destination.cast();
 
             for holder in holders {
+                // transfer is the same as in `Self::clean_inactive_program` except
+                // existential deposit is already unlocked
+
                 let holder = holder.cast();
-                let balance = CurrencyOf::<T>::free_balance(&holder);
+                let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                    &holder,
+                    Preservation::Expendable,
+                    Fortitude::Polite,
+                );
+
                 if !balance.is_zero() {
                     CurrencyOf::<T>::transfer(
                         &holder,
