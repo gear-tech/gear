@@ -6303,7 +6303,7 @@ fn exit_locking_funds() {
 
         run_to_next_block(None);
 
-        assert_balance(USER_2, user_2_balance + value, 0u128);
+        assert_balance(USER_2, user_2_balance + value + ed, 0u128);
         assert_balance(program_id, 0u128, 0u128);
     });
 }
@@ -6648,9 +6648,10 @@ fn claim_value_to_inheritor() {
         assert_succeed(value_mid1);
         assert_succeed(value_mid2);
 
-        assert_balance(pid1, value1, 0u128);
-        assert_balance(pid2, value2, 0u128);
-        assert_balance(pid3, 0u128, 0u128);
+        let ed = get_ed();
+        assert_program_balance(pid1, value1, ed, 0u128);
+        assert_program_balance(pid2, value2, ed, 0u128);
+        assert_program_balance(pid3, 0u128, ed, 0u128);
 
         // exit in reverse order so the chain of inheritors will not transfer
         // all the balances to `USER_2`
@@ -6697,9 +6698,16 @@ fn claim_value_to_inheritor() {
         assert_succeed(mid2);
         assert_succeed(mid3);
 
-        assert_balance(pid1, 0u128, 0u128);
-        assert_balance(pid2, value1, 0u128);
-        assert_balance(pid3, value2, 0u128);
+        // `pid1` transferred all the balances to `pid2`
+        assert_program_balance(pid1, 0u128, 0u128, 0u128);
+        // `pid2` transferred `value2` and `ed` to `pid3`
+        // but have `value1` and `ed` of `pid1`
+        assert_balance(pid2, value1 + ed, 0u128);
+        // `pid3` transferred its 0 value and `ed` to `USER_2`
+        // but have `value2` and `ed` of `pid2`
+        assert_balance(pid3, value2 + ed, 0u128);
+        // `USER_2` have `ed` of `pid3`
+        assert_balance(USER_2, user_2_balance + ed, 0u128);
 
         assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
@@ -6709,10 +6717,10 @@ fn claim_value_to_inheritor() {
 
         run_to_next_block(None);
 
-        assert_balance(pid1, 0u128, 0u128);
-        assert_balance(pid2, 0u128, 0u128);
-        assert_balance(pid3, 0u128, 0u128);
-        assert_balance(USER_2, user_2_balance + value1 + value2, 0u128);
+        assert_program_balance(pid1, 0u128, 0u128, 0u128);
+        assert_program_balance(pid2, 0u128, 0u128, 0u128);
+        assert_program_balance(pid3, 0u128, 0u128, 0u128);
+        assert_balance(USER_2, user_2_balance + value1 + value2 + 3 * ed, 0u128);
     });
 }
 
@@ -15615,9 +15623,17 @@ pub(crate) mod utils {
         B: Into<BalanceOf<Test>> + Copy,
     {
         let account_id = origin.cast();
+        let available = available.into();
+        let locked = locked.into();
+        let reserved = reserved.into();
+
         let account_data = System::account(account_id).data;
-        assert_eq!(account_data.free, available.into() + locked.into());
-        assert_eq!(account_data.frozen, locked.into());
+        assert_eq!(
+            account_data.free,
+            available + locked,
+            "Free balance of {available} + {locked} (available + locked)"
+        );
+        assert_eq!(account_data.frozen, locked, "Frozen balance");
         let maybe_ed = Balances::locks(account_id)
             .into_iter()
             .filter_map(|lock| {
@@ -15629,10 +15645,11 @@ pub(crate) mod utils {
             })
             .reduce(|a, b| a + b)
             .unwrap_or_default();
-        assert_eq!(maybe_ed, locked.into());
+        assert_eq!(maybe_ed, locked, "Locked ED");
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
-            reserved.into()
+            reserved,
+            "Reserved balance"
         );
     }
 
