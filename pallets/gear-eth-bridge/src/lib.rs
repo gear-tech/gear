@@ -85,6 +85,10 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(fn deposit_event)]
     pub enum Event<T> {
+        /// Grandpa validator's keys set was hashed and set in storage at
+        /// first block of the last session in the era.
+        AuthoritySetHashChanged(H256),
+
         /// Bridge got cleared on initialization of the second block in a new era.
         BridgeCleared,
 
@@ -98,10 +102,6 @@ pub mod pallet {
 
         /// Bridge was unpaused and from now on processes any incoming requests.
         BridgeUnpaused,
-
-        /// Grandpa validator's keys set was hashed and set in storage at
-        /// first block of the last session in the era.
-        GrandpaSetHashChanged(H256),
 
         /// A new message was queued for bridging.
         MessageQueued { message: EthMessage, hash: H256 },
@@ -147,7 +147,7 @@ pub mod pallet {
     /// **Invariant**: Key exists in storage since first block of some era,
     /// until initialization of the second block of the next era.
     #[pallet::storage]
-    type GrandpaSetHash<T> = StorageValue<_, H256>;
+    type AuthoritySetHash<T> = StorageValue<_, H256>;
 
     /// Primary storage.
     ///
@@ -355,7 +355,7 @@ pub mod pallet {
             // Checking if clear operation was scheduled by session handler.
             if ClearScheduled::<T>::take() {
                 // Removing grandpa set hash from storage.
-                GrandpaSetHash::<T>::kill();
+                AuthoritySetHash::<T>::kill();
 
                 // Removing queued messages from storage.
                 Queue::<T>::kill();
@@ -472,10 +472,10 @@ pub mod pallet {
                     let grandpa_set_hash = Blake2_256::hash(&keys_bytes).into();
 
                     // Setting new grandpa set hash into storage.
-                    GrandpaSetHash::<T>::put(grandpa_set_hash);
+                    AuthoritySetHash::<T>::put(grandpa_set_hash);
 
                     // Depositing event about update in the set.
-                    Self::deposit_event(Event::<T>::GrandpaSetHashChanged(grandpa_set_hash));
+                    Self::deposit_event(Event::<T>::AuthoritySetHashChanged(grandpa_set_hash));
                 }
             }
         }
