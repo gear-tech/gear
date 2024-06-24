@@ -511,8 +511,6 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
         packet: &T,
         check_gas_limit: bool,
     ) -> Result<(), FallibleExtError> {
-        self.ext.check_message_value(packet.value())?;
-
         let gas_limit = if check_gas_limit {
             self.check_gas_limit(packet.gas_limit())?
         } else {
@@ -720,16 +718,6 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         let result = callback(&mut mutator)?;
         mutator.apply();
         Ok(result)
-    }
-
-    fn check_message_value(&self, message_value: u128) -> Result<(), FallibleExtError> {
-        let existential_deposit = self.context.existential_deposit;
-        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
-        if message_value != 0 && message_value < existential_deposit {
-            Err(MessageError::InsufficientValue.into())
-        } else {
-            Ok(())
-        }
     }
 
     fn check_gas_limit(&self, gas_limit: Option<GasLimit>) -> Result<GasLimit, FallibleExtError> {
@@ -1013,7 +1001,6 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     ) -> Result<MessageId, Self::FallibleError> {
         self.with_changes(|mutator| {
             mutator.check_forbidden_destination(msg.destination())?;
-            mutator.check_message_value(msg.value())?;
             // TODO: unify logic around different source of gas (may be origin msg,
             // or reservation) in order to implement #1828.
             mutator.check_reservation_gas_limit_for_delayed_sending(&id, delay)?;
@@ -1063,7 +1050,6 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         self.with_changes(|mutator| {
             mutator
                 .check_forbidden_destination(mutator.context.message_context.reply_destination())?;
-            mutator.check_message_value(msg.value())?;
             // TODO: gasful sending (#1828)
             mutator.charge_message_value(msg.value())?;
             mutator.charge_sending_fee(0)?;
@@ -1372,12 +1358,16 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
+        let ed = self.context.existential_deposit;
         self.with_changes(|mutator| {
             // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
             mutator.safe_gasfull_sends(&packet, delay)?;
             mutator.charge_expiring_resources(&packet, true)?;
             mutator.charge_sending_fee(delay)?;
             mutator.charge_for_dispatch_stash_hold(delay)?;
+
+            // Charge ED to value_counter
+            mutator.charge_message_value(ed)?;
 
             let code_hash = packet.code_id();
 
@@ -1513,6 +1503,18 @@ mod tests {
 
         fn with_mailbox_threshold(mut self, mailbox_threshold: u64) -> Self {
             self.0.mailbox_threshold = mailbox_threshold;
+
+            self
+        }
+
+        fn with_existential_deposit(mut self, ed: u128) -> Self {
+            self.0.existential_deposit = ed;
+
+            self
+        }
+
+        fn with_value(mut self, value: u128) -> Self {
+            self.0.value_counter = ValueCounter::new(value);
 
             self
         }
@@ -2172,5 +2174,96 @@ mod tests {
             // reducing gas for the sent message and for mailbox threshold for each gasless
             gas - msg_gas - 2 * ext.context.mailbox_threshold
         );
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `create_program` fails due to lack of value to pay for ED
+    // - `create_program` is successful
+    fn test_create_program() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_existential_deposit(500)
+                .with_value(0)
+                .build(),
+        );
+
+        let data = InitPacket::default();
+
+        let msg = ext.create_program(data.clone(), 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Execution(
+                FallibleExecutionError::NotEnoughValue
+            ))
+        );
+
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_existential_deposit(500)
+                .with_value(1500)
+                .build(),
+        );
+
+        let msg = ext.create_program(data.clone(), 0);
+        assert!(msg.is_ok());
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `send_commit` with value greater than the ED
+    // - `send_commit` with value below the ED
+    fn test_send_commit_with_value() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_existential_deposit(500)
+                .with_value(0)
+                .build(),
+        );
+
+        let data = HandlePacket::new(ProgramId::default(), Payload::default(), 1000);
+
+        let handle = ext.send_init().expect("No outgoing limit");
+
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Execution(
+                FallibleExecutionError::NotEnoughValue
+            ))
+        );
+
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_existential_deposit(500)
+                .with_value(5000)
+                .build(),
+        );
+
+        let handle = ext.send_init().expect("No outgoing limit");
+        // Sending value greater than ED is ok
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        assert!(msg.is_ok());
+
+        let data = HandlePacket::new(ProgramId::default(), Payload::default(), 100);
+        let handle = ext.send_init().expect("No outgoing limit");
+        let msg = ext.send_commit(handle, data, 0);
+        // Sending value below ED is also fine
+        assert!(msg.is_ok());
     }
 }

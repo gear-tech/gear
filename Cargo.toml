@@ -36,6 +36,7 @@ members = [
     "examples/delayed-reservation-sender",
     "examples/compose",
     "examples/constructor",
+    "examples/create-program-reentrance",
     "examples/delayed-sender",
     "examples/distributor",
     "examples/fungible-token",
@@ -69,6 +70,7 @@ members = [
     "examples/sync-duplicate",
     "examples/syscalls",
     "examples/syscall-error",
+    "examples/value-sender",
     "examples/vec",
     "examples/wait",
     "examples/wait-timeout",
@@ -408,6 +410,7 @@ demo-custom = { path = "examples/custom" }
 demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
+demo-create-program-reentrance = { path = "examples/create-program-reentrance" }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
@@ -439,6 +442,7 @@ demo-signal-entry = { path = "examples/signal-entry", default-features = false }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
+demo-value-sender = { path = "examples/value-sender" }
 demo-wait = { path = "examples/wait" }
 demo-waiter = { path = "examples/waiter", default-features = false }
 demo-wait-timeout = { path = "examples/wait-timeout" }

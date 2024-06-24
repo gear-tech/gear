@@ -555,8 +555,13 @@ where
         gas: u64,
         value: BalanceOf<T>,
     ) -> RawOrigin<AccountIdOf<T>> {
-        // Querying balance of the account.
-        let origin_balance = CurrencyOf::<T>::free_balance(&origin);
+        // Querying transferrable balance of the origin taking into account a possibility of
+        // a part of its `free` balance being `frozen`.
+        let origin_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+            &origin,
+            Preservation::Expendable,
+            Fortitude::Polite,
+        );
 
         // Calculating amount of value to be paid for gas.
         let value_for_gas = <T as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas);
@@ -629,12 +634,19 @@ where
             block_config.forbidden_funcs = forbidden_funcs;
         }
 
+        // Program's balance that it can spend during a message execution.
+        let disposable_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+            &destination.cast(),
+            Preservation::Expendable,
+            Fortitude::Polite,
+        );
+
         // Processing of the message, if destination is common program.
         let journal = Self::run_queue_step(QueueStep {
             block_config: &block_config,
             gas_limit,
             dispatch,
-            balance: CurrencyOf::<T>::free_balance(&destination.cast()).unique_saturated_into(),
+            balance: disposable_balance.unique_saturated_into(),
         });
 
         Ok(Some((processed, journal, false)))

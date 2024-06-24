@@ -52,8 +52,8 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
 use crate::{
-    BuiltinDispatcherFactory, Config, CurrencyOf, Event, GasHandlerOf, Pallet, ProgramStorageOf,
-    QueueOf, TaskPoolOf, WaitlistOf,
+    fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
+    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use common::{
     event::*,
@@ -62,7 +62,7 @@ use common::{
     CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::fmt;
-use frame_support::traits::{Currency, ExistenceRequirement};
+use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
@@ -338,10 +338,23 @@ where
         ProgramStorageOf::<T>::clear_program_memory(program_id, memory_infix);
 
         let program_account = program_id.cast();
-        let balance = CurrencyOf::<T>::free_balance(&program_account);
+
+        // Remove the ED lock to allow the account to be reaped.
+        CurrencyOf::<T>::remove_lock(EXISTENTIAL_DEPOSIT_LOCK_ID, &program_account);
+
+        // The `reducible_balance` should now include the ED since no consumer is left.
+        // If some part of the program account's `free` balance is still `frozen` for some reason
+        // it will be offset against the `reducible_balance`.
+        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+            &program_account,
+            Preservation::Expendable,
+            Fortitude::Polite,
+        );
         if !balance.is_zero() {
             let destination = Pallet::<T>::inheritor_for(value_destination).cast();
 
+            // The transfer is guaranteed to succeed since the amount contains at least the ED
+            // from the deactivated program.
             CurrencyOf::<T>::transfer(
                 &program_account,
                 &destination,

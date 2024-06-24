@@ -2459,6 +2459,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-create-program-reentrance"
+version = "1.4.2"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+]
+
+[[package]]
 name = "demo-custom"
 version = "0.1.0"
 dependencies = [
@@ -2827,6 +2836,14 @@ dependencies = [
  "gsys",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-value-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -8129,6 +8146,7 @@ dependencies = [
  "demo-calc-hash-over-blocks",
  "demo-compose",
  "demo-constructor",
+ "demo-create-program-reentrance",
  "demo-custom",
  "demo-delayed-reservation-sender",
  "demo-delayed-sender",
@@ -8156,6 +8174,7 @@ dependencies = [
  "demo-signal-entry",
  "demo-state-rollback",
  "demo-sync-duplicate",
+ "demo-value-sender",
  "demo-wait",
  "demo-wait-timeout",
  "demo-wait-wake",
@@ -8443,6 +8462,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-scheduler",
  "pallet-timestamp",
+ "pallet-treasury",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
