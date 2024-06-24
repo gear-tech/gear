@@ -417,21 +417,21 @@ mod grandpa_keys_handler {
     /// Due to requirement of pallet_session to have one keys handler for each
     /// type of opaque keys, this implementation is necessary: aggregates
     /// `Grandpa` and `GearEthBridge` handling of grandpa keys rotations.
-    pub struct GrandpaAndGearEthBridge;
+    pub struct GearEthBridgeAndGrandpa;
 
-    impl BoundToRuntimeAppPublic for GrandpaAndGearEthBridge {
+    impl BoundToRuntimeAppPublic for GearEthBridgeAndGrandpa {
         type Public = <Grandpa as BoundToRuntimeAppPublic>::Public;
     }
 
-    impl OneSessionHandler<AccountId> for GrandpaAndGearEthBridge {
+    impl OneSessionHandler<AccountId> for GearEthBridgeAndGrandpa {
         type Key = <Grandpa as OneSessionHandler<AccountId>>::Key;
         fn on_before_session_ending() {
-            Grandpa::on_before_session_ending();
             GearEthBridge::on_before_session_ending();
+            Grandpa::on_before_session_ending();
         }
         fn on_disabled(validator_index: u32) {
-            Grandpa::on_disabled(validator_index);
             GearEthBridge::on_disabled(validator_index);
+            Grandpa::on_disabled(validator_index);
         }
         fn on_genesis_session<'a, I: 'a>(validators: I)
         where
@@ -439,8 +439,8 @@ mod grandpa_keys_handler {
             AccountId: 'a,
         {
             let validators: Vec<_> = validators.collect();
-            Grandpa::on_genesis_session(validators.clone().into_iter());
-            GearEthBridge::on_genesis_session(validators.into_iter());
+            GearEthBridge::on_genesis_session(validators.clone().into_iter());
+            Grandpa::on_genesis_session(validators.into_iter());
         }
         fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued_validators: I)
         where
@@ -449,12 +449,12 @@ mod grandpa_keys_handler {
         {
             let validators: Vec<_> = validators.collect();
             let queued_validators: Vec<_> = queued_validators.collect();
-            Grandpa::on_new_session(
+            GearEthBridge::on_new_session(
                 changed,
                 validators.clone().into_iter(),
                 queued_validators.clone().into_iter(),
             );
-            GearEthBridge::on_new_session(
+            Grandpa::on_new_session(
                 changed,
                 validators.into_iter(),
                 queued_validators.into_iter(),
@@ -466,7 +466,7 @@ mod grandpa_keys_handler {
 #[cfg(feature = "dev")]
 pub type VaraSessionHandler = (
     Babe,
-    grandpa_keys_handler::GrandpaAndGearEthBridge,
+    grandpa_keys_handler::GearEthBridgeAndGrandpa,
     ImOnline,
     AuthorityDiscovery,
 );
