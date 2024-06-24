@@ -2245,7 +2245,7 @@ pub mod runtime_types {
                     #[codec(index = 14)]
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
-                    #[codec(index = 16)]
+                    #[codec(index = 15)]
                     #[doc = "Program is active."]
                     ActiveProgram,
                 }
