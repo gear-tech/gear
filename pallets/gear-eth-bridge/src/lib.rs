@@ -182,7 +182,7 @@ pub mod pallet {
     /// **Invariant**: exist in storage and equals `true` once per era in the
     /// very first block, to perform removal on next block's initialization.
     #[pallet::storage]
-    type ClearScheduled<T> = StorageValue<_, bool, ValueQuery>;
+    type ClearTimer<T> = StorageValue<_, u32>;
 
     /// Operational storage.
     ///
@@ -349,22 +349,39 @@ pub mod pallet {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Resulting weight of the hook.
             //
-            // Initially consists of one read of `ClearScheduled` storage.
+            // Initially consists of one read of `ClearTimer` storage.
             let mut weight = T::DbWeight::get().reads(1);
 
-            // Checking if clear operation was scheduled by session handler.
-            if ClearScheduled::<T>::take() {
-                // Removing grandpa set hash from storage.
-                AuthoritySetHash::<T>::kill();
+            // Querying timer and checking its value if some.
+            if let Some(timer) = ClearTimer::<T>::get() {
+                // Asserting invariant that in case of key existence, it's non-zero.
+                debug_assert!(!timer.is_zero());
 
-                // Removing queued messages from storage.
-                Queue::<T>::kill();
+                // Decreasing timer.
+                let new_timer = timer.saturating_sub(1);
 
-                // Setting zero queue root, keeping invariant of this key existence.
-                QueueMerkleRoot::<T>::put(H256::zero());
+                if new_timer.is_zero() {
+                    // Removing timer for the next session hook.
+                    ClearTimer::<T>::kill();
 
-                // Increasing resulting weight by 3 writes of above keys removal.
-                weight = weight.saturating_add(T::DbWeight::get().writes(3));
+                    // Removing grandpa set hash from storage.
+                    AuthoritySetHash::<T>::kill();
+
+                    // Removing queued messages from storage.
+                    Queue::<T>::kill();
+
+                    // Setting zero queue root, keeping invariant of this key existence.
+                    QueueMerkleRoot::<T>::put(H256::zero());
+
+                    // Increasing resulting weight by 3 writes of above keys removal.
+                    weight = weight.saturating_add(T::DbWeight::get().writes(4));
+                } else {
+                    // Put back non-zero timer to schedule clearing.
+                    ClearTimer::<T>::put(new_timer);
+
+                    // Increasing resulting weight by 1 writes of above keys insertion.
+                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
+                }
             }
 
             // Returning weight.
@@ -440,10 +457,14 @@ pub mod pallet {
                 //
                 // Reset scheduling must be resolved on the first block
                 // after session changed.
-                debug_assert!(!ClearScheduled::<T>::get());
+                debug_assert!(ClearTimer::<T>::get().is_none());
 
                 // Scheduling reset on next block's init.
-                ClearScheduled::<T>::put(true);
+                // Firstly, it will decrease in the same block, because call of
+                // `on_new_session` hook will be performed earlier in the same
+                // block, because `pallet_session` triggers it in its `on_init`
+                // and has smaller pallet id.
+                ClearTimer::<T>::put(2);
 
                 // Checking invariant.
                 //
