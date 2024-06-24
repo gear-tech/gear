@@ -333,7 +333,9 @@ where
         memory_infix: MemoryInfix,
         value_destination: ProgramId,
     ) {
-        ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
+        ProgramStorageOf::<T>::clear_allocations(program_id);
+        ProgramStorageOf::<T>::clear_pages_with_data(program_id);
+        ProgramStorageOf::<T>::clear_program_memory(program_id, memory_infix);
 
         let program_account = program_id.cast();
         let balance = CurrencyOf::<T>::free_balance(&program_account);

@@ -135,6 +135,10 @@ pub trait ProgramStorage {
         });
     }
 
+    fn clear_pages_with_data(program_id: ProgramId) {
+        Self::PagesWithDataMap::remove(program_id);
+    }
+
     fn allocations(program_id: ProgramId) -> Option<IntervalsTree<WasmPage>> {
         Self::AllocationsMap::get(&program_id)
     }
@@ -152,6 +156,10 @@ pub trait ProgramStorage {
             unreachable!("Failed to update program allocations: {err:?}")
         });
         Self::AllocationsMap::insert(program_id, allocations);
+    }
+
+    fn clear_allocations(program_id: ProgramId) {
+        Self::AllocationsMap::remove(program_id);
     }
 
     fn memory_infix(program_id: ProgramId) -> Option<MemoryInfix> {
@@ -219,7 +227,7 @@ pub trait ProgramStorage {
     }
 
     /// Remove all memory page buffers under the given keys `program_id` and `memory_infix`.
-    fn remove_program_pages(program_id: ProgramId, memory_infix: MemoryInfix) {
+    fn clear_program_memory(program_id: ProgramId, memory_infix: MemoryInfix) {
         Self::MemoryPageMap::clear_prefix(program_id, memory_infix);
     }
 
