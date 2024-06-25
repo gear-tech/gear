@@ -348,7 +348,7 @@ where
             .difference(&allocations)
             .flat_map(|i| i.iter())
             .flat_map(|i| i.to_iter());
-        ProgramStorageOf::<T>::remove_pages_data(program_id, memory_infix, remove_pages);
+        ProgramStorageOf::<T>::remove_data_for_pages(program_id, memory_infix, remove_pages);
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 

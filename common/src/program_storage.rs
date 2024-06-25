@@ -106,7 +106,7 @@ pub trait ProgramStorage {
         })
     }
 
-    fn remove_pages_data(
+    fn remove_data_for_pages(
         program_id: ProgramId,
         memory_infix: MemoryInfix,
         pages: impl Iterator<Item = GearPage>,
@@ -129,7 +129,7 @@ pub trait ProgramStorage {
                 });
         })
         .unwrap_or_else(|err| {
-            // Set allocations can be called only for active programs.
+            // set_allocations must be called only for active programs.
             unreachable!("Failed to update program allocations: {err:?}")
         });
         Self::AllocationsMap::insert(program_id, allocations);
