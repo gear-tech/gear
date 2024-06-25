@@ -358,7 +358,7 @@ macro_rules! impl_map_from {
     ($from:ty) => {
         impl From<$from> for NonZeroU256 {
             fn from(value: $from) -> Self {
-                unsafe { Self::new_unchecked(U256::from(value.get() as u64)) }
+                unsafe { Self::new_unchecked(U256::from(value.get())) }
             }
         }
     };
@@ -368,12 +368,7 @@ impl_map_from!(NonZeroU8);
 impl_map_from!(NonZeroU16);
 impl_map_from!(NonZeroU32);
 impl_map_from!(NonZeroU64);
-
-impl From<NonZeroU128> for NonZeroU256 {
-    fn from(value: NonZeroU128) -> Self {
-        unsafe { Self::new_unchecked(U256::from(value.get())) }
-    }
-}
+impl_map_from!(NonZeroU128);
 
 macro_rules! impl_try_from {
     ($from:ty) => {
@@ -382,7 +377,7 @@ macro_rules! impl_try_from {
 
             #[inline]
             fn try_from(value: $from) -> Result<NonZeroU256, &'static str> {
-                NonZeroU256::new(U256::from(value as u64)).ok_or("integer value is zero")
+                NonZeroU256::new(U256::from(value)).ok_or("integer value is zero")
             }
         }
     };
@@ -392,15 +387,7 @@ impl_try_from!(u8);
 impl_try_from!(u16);
 impl_try_from!(u32);
 impl_try_from!(u64);
-
-impl TryFrom<u128> for NonZeroU256 {
-    type Error = &'static str;
-
-    #[inline]
-    fn try_from(value: u128) -> Result<NonZeroU256, &'static str> {
-        NonZeroU256::new(U256::from(value)).ok_or("integer value is zero")
-    }
-}
+impl_try_from!(u128);
 
 #[doc(hidden)]
 macro_rules! panic_on_overflow {
