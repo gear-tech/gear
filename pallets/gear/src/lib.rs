@@ -50,7 +50,7 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::{gas::GasInfo, message::ReplyInfo, program::ProgramState};
+pub use gear_core::{gas::GasInfo, message::ReplyInfo};
 pub use weights::WeightInfo;
 
 use alloc::{
@@ -58,9 +58,8 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
-    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
-    PausedProgramStorage, ProgramStorage, QueueRunner,
+    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
+    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -71,19 +70,23 @@ use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
-    traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
+    traits::{
+        fungible,
+        tokens::{Fortitude, Preservation},
+        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        StorageVersion, WithdrawReasons,
+    },
     weights::Weight,
 };
 use frame_system::{
     pallet_prelude::{BlockNumberFor, *},
-    RawOrigin,
+    Pallet as System, RawOrigin,
 };
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
-    program::Program,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
@@ -131,6 +134,7 @@ pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub(crate) const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
 
 pub trait DebugInfo {
     fn is_remap_id_enabled() -> bool;
@@ -194,7 +198,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: PausedProgramStorage<
+        type ProgramStorage: ProgramStorage<
             BlockNumber = BlockNumberFor<Self>,
             Error = DispatchError,
             AccountId = Self::AccountId,
@@ -401,18 +405,6 @@ pub mod pallet {
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueNotProcessed,
-
-        /// Program resume session has been started.
-        ProgramResumeSessionStarted {
-            /// Id of the session.
-            session_id: SessionId,
-            /// Owner of the session.
-            account_id: T::AccountId,
-            /// Id of the program affected.
-            program_id: ProgramId,
-            /// Block number when the session will be removed if not finished.
-            session_end_block: BlockNumberFor<T>,
-        },
     }
 
     // Gear pallet error.
@@ -453,8 +445,6 @@ pub mod pallet {
         CodeTooLarge,
         /// Failed to create a program.
         ProgramConstructionFailed,
-        /// Value doesn't cover ExistentialDeposit.
-        ValueLessThanMinimal,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
         /// Block count doesn't cover MinimalResumePeriod.
@@ -604,6 +594,16 @@ pub mod pallet {
             ensure!(
                 !Self::program_exists(&builtins, program_id),
                 Error::<T>::ProgramAlreadyExists
+            );
+
+            let program_account = program_id.cast();
+            let ed = CurrencyOf::<T>::minimum_balance();
+            CurrencyOf::<T>::transfer(&who, &program_account, ed, ExistenceRequirement::KeepAlive)?;
+            CurrencyOf::<T>::set_lock(
+                EXISTENTIAL_DEPOSIT_LOCK_ID,
+                &program_account,
+                ed,
+                WithdrawReasons::all(),
             );
 
             // First we reserve enough funds on the account to pay for `gas_limit`
@@ -899,7 +899,6 @@ pub mod pallet {
         pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::program_exists(program_id)
-                || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.
@@ -932,7 +931,7 @@ pub mod pallet {
         pub fn next_message_id(user_id: H256) -> MessageId {
             let nonce = SentOf::<T>::get();
             SentOf::<T>::increase();
-            let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_number = System::<T>::block_number().unique_saturated_into();
 
             MessageId::generate_from_user(block_number, user_id.cast(), nonce.into())
         }
@@ -1178,21 +1177,11 @@ pub mod pallet {
             Ok(CodeAndId::new(code))
         }
 
-        pub(crate) fn check_gas_limit_and_value(
-            gas_limit: u64,
-            value: BalanceOf<T>,
-        ) -> Result<(), DispatchError> {
+        pub(crate) fn check_gas_limit(gas_limit: u64) -> Result<(), DispatchError> {
             // Checking that applied gas limit doesn't exceed block limit.
             ensure!(
                 gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
-            );
-
-            // Checking that applied value fits existence requirements:
-            // it should be zero or not less than existential deposit.
-            ensure!(
-                value.is_zero() || value >= CurrencyOf::<T>::minimum_balance(),
-                Error::<T>::ValueLessThanMinimal
             );
 
             Ok(())
@@ -1246,9 +1235,32 @@ pub mod pallet {
 
             let (builtins, _) = T::BuiltinDispatcherFactory::create();
             let ext_manager = ExtManager::<T>::new(builtins);
-            ext_manager.set_program(packet.destination(), &code_info, message_id, block_number);
 
             let program_id = packet.destination();
+
+            // Before storing the program to `ProgramStorage` we need to make sure that an account
+            // can be created for the program.
+            // Note: making a transfer outside of the `Ext::set_program()` because here a transfer
+            // is allowed to fail (as opposed to creating a program by a program).
+            let program_account = program_id.cast();
+            let ed = CurrencyOf::<T>::minimum_balance();
+            CurrencyOf::<T>::transfer(
+                &who,
+                &program_account,
+                ed,
+                ExistenceRequirement::AllowDeath,
+            )?;
+
+            // Set lock to avoid accidental account removal by the runtime.
+            CurrencyOf::<T>::set_lock(
+                EXISTENTIAL_DEPOSIT_LOCK_ID,
+                &program_account,
+                ed,
+                WithdrawReasons::all(),
+            );
+
+            ext_manager.set_program(program_id, &code_info, message_id, block_number);
+
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {
@@ -1332,6 +1344,15 @@ pub mod pallet {
         /// The origin must be Signed and the sender must have sufficient funds to pay
         /// for `gas` and `value` (in case the latter is being transferred).
         ///
+        /// Gear runtime guarantees that an active program always has an account to store value.
+        /// If the underlying account management platform (e.g. Substrate's System pallet) requires
+        /// an existential deposit to keep an account alive, the related overhead is considered an
+        /// extra cost related with a program instantiation and is charged to the program's creator
+        /// and is released back to the creator when the program is removed.
+        /// In context of the above, the `value` parameter represents the so-called `reducible` balance
+        /// a program should have at its disposal upon instantiation. It is not used to offset the
+        /// existential deposit required for an account creation.
+        ///
         /// Parameters:
         /// - `code`: wasm code of a program as a byte vector.
         /// - `salt`: randomness term (a seed) to allow programs with identical code
@@ -1369,7 +1390,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
+            Self::check_gas_limit(gas_limit)?;
 
             let code_and_id = Self::try_new_code(code)?;
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
@@ -1435,8 +1456,8 @@ pub mod pallet {
             // Check if code exists.
             let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
 
-            // Check `gas_limit` and `value`
-            Self::check_gas_limit_and_value(gas_limit, value)?;
+            // Check `gas_limit`
+            Self::check_gas_limit(gas_limit)?;
 
             // Construct packet.
             let packet = Self::init_packet(
@@ -1603,7 +1624,7 @@ pub mod pallet {
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
             // Subtract extrinsic weight from the current block weight to get used weight in the current block.
-            let weight_used = <frame_system::Pallet<T>>::block_weight()
+            let weight_used = System::<T>::block_weight()
                 .total()
                 .saturating_sub(max_weight);
             let remaining_weight = max_weight.saturating_sub(weight_used);
@@ -1675,8 +1696,6 @@ pub mod pallet {
             let who = origin;
             let origin = who.clone().into_origin();
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
-
             let message = HandleMessage::from_packet(
                 Self::next_message_id(origin),
                 HandlePacket::new_with_gas(
@@ -1693,6 +1712,8 @@ pub mod pallet {
                     Self::is_active(&builtins, destination),
                     Error::<T>::InactiveProgram
                 );
+
+                Self::check_gas_limit(gas_limit)?;
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1767,7 +1788,7 @@ pub mod pallet {
             let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
+            Self::check_gas_limit(gas_limit)?;
 
             let destination = mailboxed.source();
 

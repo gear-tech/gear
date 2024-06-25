@@ -239,6 +239,15 @@ impl GasReserver {
     /// for sending a new message from execution of `message_id`
     /// of current gas reserver.
     pub fn mark_used(&mut self, id: ReservationId) -> Result<(), ReservationError> {
+        let used = self.check_not_used(id)?;
+        *used = true;
+        Ok(())
+    }
+
+    /// Check if reservation is not used.
+    ///
+    /// If reservation does not exist returns `InvalidReservationId` error.
+    pub fn check_not_used(&mut self, id: ReservationId) -> Result<&mut bool, ReservationError> {
         if let Some(
             GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
         ) = self.states.get_mut(&id)
@@ -246,8 +255,7 @@ impl GasReserver {
             if *used {
                 Err(ReservationError::InvalidReservationId)
             } else {
-                *used = true;
-                Ok(())
+                Ok(used)
             }
         } else {
             Err(ReservationError::InvalidReservationId)

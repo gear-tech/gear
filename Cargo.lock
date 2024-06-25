@@ -2459,6 +2459,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-create-program-reentrance"
+version = "1.4.2"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+]
+
+[[package]]
 name = "demo-custom"
 version = "0.1.0"
 dependencies = [
@@ -2827,6 +2836,14 @@ dependencies = [
  "gsys",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-value-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -4754,6 +4771,10 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "1.4.2"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
+ "ark-scale 0.0.12",
  "byteorder",
  "gear-core",
  "gear-lazy-pages",
@@ -4761,6 +4782,7 @@ dependencies = [
  "gear-sandbox-host",
  "log",
  "parity-scale-codec",
+ "sha2 0.10.8",
  "sp-io",
  "sp-runtime-interface",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
@@ -5273,6 +5295,7 @@ dependencies = [
  "colored",
  "demo-messenger",
  "demo-new-meta",
+ "demo-vec",
  "demo-waiter",
  "futures",
  "futures-util",
@@ -8123,6 +8146,7 @@ dependencies = [
  "demo-calc-hash-over-blocks",
  "demo-compose",
  "demo-constructor",
+ "demo-create-program-reentrance",
  "demo-custom",
  "demo-delayed-reservation-sender",
  "demo-delayed-sender",
@@ -8150,6 +8174,7 @@ dependencies = [
  "demo-signal-entry",
  "demo-state-rollback",
  "demo-sync-duplicate",
+ "demo-value-sender",
  "demo-wait",
  "demo-wait-timeout",
  "demo-wait-wake",
@@ -8246,6 +8271,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-runtime-interface",
  "hex-literal",
  "impl-trait-for-tuples",
  "log",
@@ -8261,6 +8287,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "sha2 0.10.8",
  "sp-core",
  "sp-crypto-ec-utils",
  "sp-externalities",
@@ -8434,6 +8461,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-scheduler",
  "pallet-timestamp",
+ "pallet-treasury",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
