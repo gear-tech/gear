@@ -86,7 +86,7 @@ pub struct MessageHandle(u32);
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 try_from_slice debug, ActorId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 try_from_slice debug, ActorId);
 
 impl ActorId {
     /// Returns the ss58-check address with default ss58 version.
@@ -258,7 +258,7 @@ impl<'de> Deserialize<'de> for ActorId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display debug serde, MessageId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, MessageId);
 
 /// Code identifier.
 ///
@@ -274,7 +274,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display 
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str try_from_slice display debug serde, CodeId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str try_from_slice display debug serde, CodeId);
 
 /// Reservation identifier.
 ///
@@ -286,7 +286,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str try_from
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display debug serde, ReservationId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, ReservationId);
 
 #[cfg(test)]
 mod tests {

@@ -64,6 +64,13 @@ macro_rules! impl_primitive {
             }
         }
     };
+    (@into_h256 $ty:ty) => {
+        impl From<$ty> for H256 {
+            fn from(value: $ty) -> Self {
+                Self(value.0)
+            }
+        }
+    };
     (@from_str $ty:ty) => {
         impl FromStr for $ty {
             type Err = ConversionError;
