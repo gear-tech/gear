@@ -527,7 +527,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 3_000_000 picoseconds.
         Weight::from_parts(15_735_686, 3566)
             // Standard Error: 47
-            .saturating_add(Weight::from_parts(29_566, 0).saturating_mul(a.into()))
+            .saturating_add(Weight::from_parts(19_776, 0).saturating_mul(a.into()))
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(Weight::from_parts(0, 8).saturating_mul(a.into()))
     }
@@ -2441,7 +2441,7 @@ impl WeightInfo for () {
         // Minimum execution time: 3_000_000 picoseconds.
         Weight::from_parts(15_735_686, 3566)
             // Standard Error: 47
-            .saturating_add(Weight::from_parts(29_566, 0).saturating_mul(a.into()))
+            .saturating_add(Weight::from_parts(19_776, 0).saturating_mul(a.into()))
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(Weight::from_parts(0, 8).saturating_mul(a.into()))
     }
