@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{AllocationsStorage, Config, PagesWithDataStorage, Pallet, ProgramStorage};
-use common::GearPage;
+use crate::{AllocationsStorage, Config, Pallet, ProgramStorage};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
@@ -74,12 +73,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                             .collect::<IntervalsTree<WasmPage>>();
                         let allocations_tree_len = allocations.intervals_amount().saturated_into();
                         AllocationsStorage::<T>::insert(id, allocations);
-                        PagesWithDataStorage::<T>::insert(
-                            id,
-                            p.pages_with_data
-                                .into_iter()
-                                .collect::<IntervalsTree<GearPage>>(),
-                        );
                         Program::Active(ActiveProgram {
                             allocations_tree_len,
                             memory_infix: p.memory_infix,
@@ -225,11 +218,7 @@ mod test {
     use crate::mock::*;
     use frame_support::traits::StorageVersion;
     use frame_system::pallet_prelude::BlockNumberFor;
-    use gear_core::{
-        ids::ProgramId,
-        pages::{GearPage, WasmPage},
-        program::ProgramState,
-    };
+    use gear_core::{ids::ProgramId, pages::WasmPage, program::ProgramState};
     use sp_runtime::traits::Zero;
 
     #[test]
@@ -281,15 +270,6 @@ mod test {
                 [
                     WasmPage::from(1)..=WasmPage::from(5),
                     WasmPage::from(101)..=WasmPage::from(102)
-                ]
-            );
-
-            let pages_with_data = PagesWithDataStorage::<Test>::get(active_program_id).unwrap();
-            assert_eq!(
-                pages_with_data.to_vec(),
-                [
-                    GearPage::from(4)..=GearPage::from(8),
-                    GearPage::from(400)..=GearPage::from(401)
                 ]
             );
 

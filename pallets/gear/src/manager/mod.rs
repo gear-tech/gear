@@ -334,7 +334,6 @@ where
         value_destination: ProgramId,
     ) {
         ProgramStorageOf::<T>::clear_allocations(program_id);
-        ProgramStorageOf::<T>::clear_pages_with_data(program_id);
         ProgramStorageOf::<T>::clear_program_memory(program_id, memory_infix);
 
         let program_account = program_id.cast();

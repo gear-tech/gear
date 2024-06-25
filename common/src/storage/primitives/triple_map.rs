@@ -81,6 +81,11 @@ pub trait TripleMapStorage {
 
     /// Remove items from the map matching a `key1`/`key2` prefix.
     fn clear_prefix(key1: Self::Key1, key2: Self::Key2);
+
+    fn iter_prefix(
+        key1: &Self::Key1,
+        key2: &Self::Key2,
+    ) -> impl Iterator<Item = (Self::Key3, Self::Value)>;
 }
 
 /// Creates new type with specified name and key1-key2-key3-value types and
@@ -149,6 +154,13 @@ macro_rules! wrap_storage_triple_map {
 
             fn clear_prefix(key1: Self::Key1, key2: Self::Key2) {
                 let _ = $storage::<T>::clear_prefix((key1, key2), u32::MAX, None);
+            }
+
+            fn iter_prefix(
+                key1: &Self::Key1,
+                key2: &Self::Key2,
+            ) -> impl Iterator<Item = (Self::Key3, Self::Value)> {
+                $storage::<T>::iter_prefix((key1, key2))
             }
         }
     };

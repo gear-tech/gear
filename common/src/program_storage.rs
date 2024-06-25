@@ -59,14 +59,12 @@ pub trait ProgramStorage {
         Value = PageBuf,
     >;
     type AllocationsMap: MapStorage<Key = ProgramId, Value = IntervalsTree<WasmPage>>;
-    type PagesWithDataMap: MapStorage<Key = ProgramId, Value = IntervalsTree<GearPage>>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
         Self::ProgramMap::clear();
         Self::MemoryPageMap::clear();
         Self::AllocationsMap::clear();
-        Self::PagesWithDataMap::clear();
     }
 
     /// Store a program to be associated with the given key `program_id` from the map.
@@ -108,35 +106,14 @@ pub trait ProgramStorage {
         })
     }
 
-    fn pages_with_data(program_id: ProgramId) -> Option<IntervalsTree<GearPage>> {
-        Self::PagesWithDataMap::get(&program_id)
-    }
-
-    fn append_pages_with_data(program_id: ProgramId, pages: impl Iterator<Item = GearPage>) {
-        Self::PagesWithDataMap::mutate(program_id, |maybe| {
-            let tree = maybe.get_or_insert(Default::default());
-            pages.for_each(|page| tree.insert(page));
-        });
-    }
-
-    fn remove_pages_with_data(
+    fn remove_pages_data(
         program_id: ProgramId,
         memory_infix: MemoryInfix,
         pages: impl Iterator<Item = GearPage>,
     ) {
-        Self::PagesWithDataMap::mutate(program_id, |maybe| {
-            let tree = maybe.get_or_insert(Default::default());
-            for page in pages {
-                if tree.contains(page) {
-                    tree.remove(page);
-                    Self::remove_program_page_data(program_id, memory_infix, page)
-                }
-            }
-        });
-    }
-
-    fn clear_pages_with_data(program_id: ProgramId) {
-        Self::PagesWithDataMap::remove(program_id);
+        for page in pages {
+            Self::remove_program_page_data(program_id, memory_infix, page);
+        }
     }
 
     fn allocations(program_id: ProgramId) -> Option<IntervalsTree<WasmPage>> {
@@ -191,20 +168,12 @@ pub trait ProgramStorage {
         Ok(result)
     }
 
-    /// Return program data for each page from `pages`.
-    fn get_program_data_for_pages(
+    /// Return data buffer for each memory page, which has data.
+    fn get_program_pages_data(
         program_id: ProgramId,
         memory_infix: MemoryInfix,
-        pages: impl Iterator<Item = GearPage>,
     ) -> Result<MemoryMap, Self::Error> {
-        let mut pages_data = BTreeMap::new();
-        for page in pages {
-            let data = Self::MemoryPageMap::get(&program_id, &memory_infix, &page)
-                .ok_or(Self::InternalError::cannot_find_page_data())?;
-            pages_data.insert(page, data);
-        }
-
-        Ok(pages_data)
+        Ok(Self::MemoryPageMap::iter_prefix(&program_id, &memory_infix).collect())
     }
 
     /// Store a memory page buffer to be associated with the given keys `program_id`, `memory_infix` and `page` from the map.

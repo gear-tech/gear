@@ -8946,7 +8946,6 @@ pub mod storage {
         OriginalCodeStorage,
         MetadataStorage,
         AllocationsStorage,
-        PagesWithDataStorage,
         ProgramStorage,
         MemoryPages,
     }
@@ -8959,7 +8958,6 @@ pub mod storage {
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::MetadataStorage => "MetadataStorage",
                 Self::AllocationsStorage => "AllocationsStorage",
-                Self::PagesWithDataStorage => "PagesWithDataStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
             }

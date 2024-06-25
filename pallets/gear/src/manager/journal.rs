@@ -329,7 +329,6 @@ where
             )
         });
 
-        ProgramStorageOf::<T>::append_pages_with_data(program_id, pages_data.keys().copied());
         for (page, data) in pages_data {
             ProgramStorageOf::<T>::set_program_page_data(program_id, memory_infix, page, data);
         }
@@ -349,7 +348,7 @@ where
             .difference(&allocations)
             .flat_map(|i| i.iter())
             .flat_map(|i| i.to_iter());
-        ProgramStorageOf::<T>::remove_pages_with_data(program_id, memory_infix, remove_pages);
+        ProgramStorageOf::<T>::remove_pages_data(program_id, memory_infix, remove_pages);
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 

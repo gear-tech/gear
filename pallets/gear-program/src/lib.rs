@@ -270,18 +270,6 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type PagesWithDataStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, IntervalsTree<GearPage>>;
-
-    common::wrap_storage_map!(
-        storage: PagesWithDataStorage,
-        name: PagesWithDataStorageWrap,
-        key: ProgramId,
-        value: IntervalsTree<GearPage>
-    );
-
-    #[pallet::storage]
-    #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
         StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 
@@ -327,7 +315,6 @@ pub mod pallet {
         type AccountId = T::AccountId;
 
         type AllocationsMap = AllocationsStorageWrap<T>;
-        type PagesWithDataMap = PagesWithDataStorageWrap<T>;
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
 
