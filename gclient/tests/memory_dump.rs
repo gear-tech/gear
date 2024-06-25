@@ -173,7 +173,10 @@ async fn memory_download() -> Result<()> {
     let pages = api.get_program_pages_data_at(program_id, None).await?;
     let timer_end = gclient::now_micros();
 
-    println!("Storage prefix iteration memory download took: {} ms", (timer_end - timer_start) / 1000);
+    println!(
+        "Storage prefix iteration memory download took: {} ms",
+        (timer_end - timer_start) / 1000
+    );
 
     let mut accessed_pages = BTreeSet::new();
     let mut expected_data = [0u8; 0x4000];
@@ -183,13 +186,24 @@ async fn memory_download() -> Result<()> {
         assert_eq!(data.deref(), expected_data.as_slice());
     }
 
-    assert_eq!(accessed_pages, (0..1000).map(|p| p * 2).map(Into::into).collect::<BTreeSet<GearPage>>());
+    assert_eq!(
+        accessed_pages,
+        (0..1000)
+            .map(|p| p * 2)
+            .map(Into::into)
+            .collect::<BTreeSet<GearPage>>()
+    );
 
     let timer_start = gclient::now_micros();
-    let _pages = api.get_program_specified_pages_data_at(program_id, accessed_pages.into_iter(), None).await?;
+    let _pages = api
+        .get_program_specified_pages_data_at(program_id, accessed_pages.into_iter(), None)
+        .await?;
     let timer_end = gclient::now_micros();
 
-    println!("Memory page by page download took: {} ms", (timer_end - timer_start) / 1000);
+    println!(
+        "Memory page by page download took: {} ms",
+        (timer_end - timer_start) / 1000
+    );
 
     Ok(())
 }
