@@ -521,14 +521,7 @@ async fn query_program_counters(
 
         if let Program::Active(_) = program {
             count_active_program += 1;
-            count_memory_page += signer
-                .api()
-                .pages_with_data_numbers(program_id)
-                .await?
-                .inner
-                .iter()
-                .flat_map(|(start, end)| start.0..=end.0)
-                .count() as u64;
+            count_memory_page += signer.api().gpages(program_id, None).await?.len() as u64;
         }
     }
 

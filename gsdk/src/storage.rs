@@ -25,10 +25,8 @@ use crate::{
             gear_core::{
                 code::instrumented::InstrumentedCode,
                 message::user::UserStoredMessage,
-                pages::Page,
                 program::{ActiveProgram, Program},
             },
-            numerated::tree::IntervalsTree,
             pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
@@ -312,30 +310,6 @@ impl Api {
         }
     }
 
-    /// Program memory pages which contains data in storage at specified block.
-    #[storage_fetch]
-    pub async fn pages_with_data_numbers_at(
-        &self,
-        program_id: ProgramId,
-        block_hash: Option<H256>,
-    ) -> Result<IntervalsTree<Page>> {
-        let addr = Self::storage(
-            GearProgramStorage::PagesWithDataStorage,
-            vec![Value::from_bytes(program_id)],
-        );
-
-        match self
-            .fetch_storage_at::<_, IntervalsTree<Page>>(&addr, block_hash)
-            .await
-        {
-            Ok(pages) => Ok(pages),
-            Err(Error::StorageNotFound) => Ok(IntervalsTree {
-                inner: Default::default(),
-            }),
-            Err(err) => Err(err),
-        }
-    }
-
     /// Get pages of active program at specified block.
     #[storage_fetch]
     pub async fn gpages_at(
@@ -346,20 +320,51 @@ impl Api {
     ) -> Result<GearPages> {
         let mut pages = HashMap::new();
 
-        let pages_with_data = self
-            .pages_with_data_numbers_at(program_id, block_hash)
+        let memory_infix = match memory_infix {
+            Some(infix) => infix,
+            None => self.gprog_at(program_id, block_hash).await?.memory_infix.0,
+        };
+
+        let pages_storage_address = Self::storage(
+            GearProgramStorage::MemoryPages,
+            vec![
+                Value::from_bytes(program_id),
+                Value::u128(memory_infix as u128),
+            ],
+        );
+
+        let mut pages_stream = self
+            .get_storage(block_hash)
+            .await?
+            .iter(pages_storage_address)
             .await?;
+
+        while let Some(Ok((encoded_key, encoded_value))) = pages_stream.next().await {
+            let (_, page) = <([u8; 68], u32)>::decode(&mut encoded_key.as_slice())?;
+            let data = encoded_value.encoded().to_vec();
+            pages.insert(page, data);
+        }
+
+        Ok(pages)
+    }
+
+    /// Get pages of active program at specified block.
+    #[storage_fetch]
+    pub async fn specified_gpages_at(
+        &self,
+        program_id: ProgramId,
+        memory_infix: Option<u32>,
+        page_numbers: impl Iterator<Item = u32>,
+        block_hash: Option<H256>,
+    ) -> Result<GearPages> {
+        let mut pages = HashMap::new();
 
         let memory_infix = match memory_infix {
             Some(infix) => infix,
             None => self.gprog_at(program_id, block_hash).await?.memory_infix.0,
         };
 
-        for page in pages_with_data
-            .inner
-            .iter()
-            .flat_map(|(start, end)| start.0..=end.0)
-        {
+        for page in page_numbers {
             let addr = Self::storage(
                 GearProgramStorage::MemoryPages,
                 vec![
@@ -378,6 +383,7 @@ impl Api {
                 .fetch_raw(lookup_bytes)
                 .await?
                 .ok_or_else(|| Error::PageNotFound(page, program_id.as_ref().encode_hex()))?;
+
             pages.insert(page, encoded_page);
         }
 
