@@ -48,8 +48,13 @@ impl Inner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
         let signer_rpc = SignerRpc(Arc::new(self.clone()));
-        let after = before.saturating_sub(signer_rpc.get_balance().await?);
-        log::info!("\tBalance spent: {after}");
+        match signer_rpc.get_balance().await {
+            Ok(balance) => {
+                let after = before.saturating_sub(balance);
+                log::info!("\tBalance spent: {after}");
+            }
+            Err(e) => log::info!("\tAccount was removed from storage: {e}"),
+        }
 
         Ok(())
     }
