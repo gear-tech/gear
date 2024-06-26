@@ -4802,8 +4802,8 @@ name = "gear-sandbox"
 version = "1.4.2"
 dependencies = [
  "assert_matches",
- "gear-runtime-interface",
  "gear-sandbox-env",
+ "gear-sandbox-interface",
  "log",
  "parity-scale-codec",
  "sp-core",
