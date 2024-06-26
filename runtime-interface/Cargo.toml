@@ -15,7 +15,7 @@ gear-lazy-pages = { workspace = true, optional = true }
 gear-sandbox-interface.workspace = true
 
 sp-io.workspace = true
-sp-runtime-interface.workspace = true
+sp-runtime-interface = { workspace = true, default-features = false }
 sp-std.workspace = true
 
 byteorder.workspace = true
