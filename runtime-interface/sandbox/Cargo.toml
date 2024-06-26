@@ -1,0 +1,26 @@
+[package]
+name = "gear-sandbox-interface"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+sp-runtime-interface.workspace = true
+sp-wasm-interface.workspace = true
+
+codec = { workspace = true }
+gear-sandbox-host = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+
+[features]
+default = ["std"]
+std = [
+  "codec/std",
+  "gear-sandbox-host",
+  "log",
+  "sp-runtime-interface/std",
+  "sp-wasm-interface/std",
+]

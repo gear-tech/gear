@@ -4779,14 +4779,13 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
- "gear-sandbox-host",
+ "gear-sandbox-interface",
  "log",
  "parity-scale-codec",
  "sha2 0.10.8",
  "sp-io",
  "sp-runtime-interface",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
- "sp-wasm-interface",
  "winapi",
 ]
 
@@ -4841,6 +4840,17 @@ dependencies = [
  "wasmer-cache",
  "wasmer-types",
  "wasmi 0.13.2",
+]
+
+[[package]]
+name = "gear-sandbox-interface"
+version = "1.4.2"
+dependencies = [
+ "gear-sandbox-host",
+ "log",
+ "parity-scale-codec",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
 ]
 
 [[package]]

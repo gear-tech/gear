@@ -99,6 +99,7 @@ members = [
     "node/testing",
     "pallets/*",
     "runtime/*",
+    "runtime-interface/sandbox",
     "utils/*",
     "utils/runtime-fuzzer/fuzz"
 ]
@@ -229,6 +230,7 @@ gear-lazy-pages-native-interface = { path = "lazy-pages/native-interface" }
 gear-node-testing = { path = "node/testing" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
+gear-sandbox-interface = { path = "runtime-interface/sandbox", default-features = false }
 gear-runtime-primitives = { path = "runtime/primitives", default-features = false }
 gear-sandbox = { path = "sandbox/sandbox", default-features = false }
 gear-sandbox-env = { path = "sandbox/env", default-features = false }
