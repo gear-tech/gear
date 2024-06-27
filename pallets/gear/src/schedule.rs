@@ -755,7 +755,7 @@ impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1400,
+            version: 1420,
             i64const: cost_instr::<T>(W::<T>::instr_i64const, 1),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
