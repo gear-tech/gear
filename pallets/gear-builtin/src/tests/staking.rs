@@ -19,6 +19,7 @@
 use frame_support::assert_ok;
 
 use util::*;
+use sp_staking::StakingAccount;
 
 #[test]
 fn bonding_works() {
@@ -28,6 +29,7 @@ fn bonding_works() {
         let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
         let contract_account_id = AccountId::from_origin(contract_id.into_origin());
 
+        // This pours the ED onto the contract's account
         deploy_broker_contract();
         run_to_next_block();
 
@@ -76,9 +78,9 @@ fn bonding_works() {
             signer_current_balance_at_blk_1 - 100 * UNITS - gas_price(gas_burned)
         );
 
-        // The contract's account has the same 10 * UNITS of free balance (the ED)
+        // The contract's account has 10 * UNITS of the ED and 100 * UNITS of the bonded funds
         assert_eq!(contract_account_data.free, 110 * UNITS);
-        // and 100 * UNITS of it is frozen as bonded
+        // and all of it is frozen as bonded or locked
         assert_eq!(contract_account_data.frozen, 100 * UNITS);
 
         // Asserting the expected events are present
@@ -312,7 +314,7 @@ fn withdraw_unbonded_works() {
             300 * UNITS
         );
         assert_staking_events(contract_account_id, 200 * UNITS, EventType::Withdrawn);
-        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
         assert_eq!(ledger.active, 300 * UNITS);
     });
 }
@@ -334,7 +336,7 @@ fn set_payee_works() {
         assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
 
         // Assert the `payee` is set to contract's stash
-        let payee = pallet_staking::Pallet::<Test>::payee(contract_account_id);
+        let payee = pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
         assert_eq!(payee, pallet_staking::RewardDestination::Stash);
 
         // Set the `payee` to SIGNER
@@ -353,7 +355,7 @@ fn set_payee_works() {
         run_to_next_block();
 
         // Assert the `payee` is now set to SIGNER
-        let payee = pallet_staking::Pallet::<Test>::payee(contract_account_id);
+        let payee = pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
         assert_eq!(
             payee,
             pallet_staking::RewardDestination::Account(REWARD_PAYEE)
@@ -403,7 +405,7 @@ fn rebond_works() {
         );
 
         // However, the ledger has been updated
-        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
         assert_eq!(ledger.active, 100 * UNITS);
         assert_eq!(ledger.unlocking.len(), 1);
 
@@ -426,7 +428,7 @@ fn rebond_works() {
         );
 
         // However, the ledger has been updated again
-        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
         assert_eq!(ledger.active, 300 * UNITS);
         assert_eq!(ledger.unlocking.len(), 1);
 
@@ -450,7 +452,7 @@ fn rebond_works() {
 
         // The ledger has been updated again, however, the rebonded amount was limited
         // by the actual unlocking amount - not the `value` sent in the message.
-        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
         assert_eq!(ledger.active, 500 * UNITS);
         assert_eq!(ledger.unlocking.len(), 0);
     });
@@ -552,7 +554,7 @@ mod util {
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, pallet_prelude::BlockNumberFor};
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
-    pub(super) use gear_core::ids::{CodeId, ProgramId};
+    pub(super) use gear_core::ids::{prelude::*, CodeId, ProgramId};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
     use pallet_session::historical::{self as pallet_session_historical};
     pub(super) use parity_scale_codec::Encode;
@@ -879,7 +881,7 @@ mod util {
             b"contract".to_vec(),
             Default::default(),
             10_000_000_000,
-            EXISTENTIAL_DEPOSIT, // keep the contract's account "providing"
+            0,
             false,
         ));
     }
