@@ -18,8 +18,8 @@
 
 use frame_support::assert_ok;
 
-use util::*;
 use sp_staking::StakingAccount;
+use util::*;
 
 #[test]
 fn bonding_works() {
@@ -314,7 +314,9 @@ fn withdraw_unbonded_works() {
             300 * UNITS
         );
         assert_staking_events(contract_account_id, 200 * UNITS, EventType::Withdrawn);
-        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
+        let ledger =
+            pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id))
+                .unwrap();
         assert_eq!(ledger.active, 300 * UNITS);
     });
 }
@@ -336,7 +338,8 @@ fn set_payee_works() {
         assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
 
         // Assert the `payee` is set to contract's stash
-        let payee = pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
+        let payee =
+            pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
         assert_eq!(payee, pallet_staking::RewardDestination::Stash);
 
         // Set the `payee` to SIGNER
@@ -355,7 +358,8 @@ fn set_payee_works() {
         run_to_next_block();
 
         // Assert the `payee` is now set to SIGNER
-        let payee = pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
+        let payee =
+            pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
         assert_eq!(
             payee,
             pallet_staking::RewardDestination::Account(REWARD_PAYEE)
@@ -405,7 +409,9 @@ fn rebond_works() {
         );
 
         // However, the ledger has been updated
-        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
+        let ledger =
+            pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id))
+                .unwrap();
         assert_eq!(ledger.active, 100 * UNITS);
         assert_eq!(ledger.unlocking.len(), 1);
 
@@ -428,7 +434,9 @@ fn rebond_works() {
         );
 
         // However, the ledger has been updated again
-        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
+        let ledger =
+            pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id))
+                .unwrap();
         assert_eq!(ledger.active, 300 * UNITS);
         assert_eq!(ledger.unlocking.len(), 1);
 
@@ -452,7 +460,9 @@ fn rebond_works() {
 
         // The ledger has been updated again, however, the rebonded amount was limited
         // by the actual unlocking amount - not the `value` sent in the message.
-        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id)).unwrap();
+        let ledger =
+            pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(contract_account_id))
+                .unwrap();
         assert_eq!(ledger.active, 500 * UNITS);
         assert_eq!(ledger.unlocking.len(), 0);
     });
