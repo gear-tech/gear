@@ -89,6 +89,7 @@ pub(crate) fn generate(
     let value = super::arbitrary_value(unstructured, current_balance)?;
     log::trace!("Random data after value generation {}", unstructured.len());
     log::trace!("Sending value (upload_program) - {value}");
+    log::trace!("Current balance (upload_program - {current_balance}");
 
     let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
     log::trace!("Generated code for program id - {program_id}");
@@ -107,12 +108,12 @@ fn config(
     log_info: Option<String>,
     current_balance: Balance,
 ) -> RandomizedGearWasmConfigBundle {
-    // TODO: PLay with this more: control instructions make us very slow.
-    let no_control = unstructured.ratio(1, 4).unwrap();
+    // TODO: Play with this more: control instructions make us very slow.
+    let no_control = unstructured.ratio(1, 3).unwrap();
     let max_instructions = if no_control {
         // when no control insns are enabled we generate a small amount of instructions
         // as it should be more than enough to test the program and exhaust the gas
-        unstructured.int_in_range(60..=400).unwrap()
+        unstructured.int_in_range(80..=200).unwrap()
     } else {
         unstructured.int_in_range(500..=1000).unwrap()
     };
@@ -123,11 +124,17 @@ fn config(
     // pump up injection rates of syscalls when there's control instructions and lower it when there's no control
     // instructions (no control => all syscalls should be executed, control => some won't be executed due to if's or loops)
     let mut injection_types =
-        SyscallsInjectionTypes::all_with_range(no_control.then_some(1..=3).unwrap_or(1..=10));
+        SyscallsInjectionTypes::all_with_range(no_control.then_some(1..=2).unwrap_or(1..=10));
     injection_types.set_multiple(
         [
-            (SyscallName::SendInit, 3..=5),
-            (SyscallName::ReserveGas, 3..=5),
+            (
+                SyscallName::SendInit,
+                no_control.then(|| 1..=3).unwrap_or(3..=5),
+            ),
+            (
+                SyscallName::ReserveGas,
+                no_control.then(|| 1..=2).unwrap_or(3..=5),
+            ),
             (SyscallName::Debug, 0..=1),
             (SyscallName::Wait, 0..=1),
             (SyscallName::WaitFor, 0..=1),
@@ -141,11 +148,17 @@ fn config(
                 SyscallName::Send,
                 // lower the amount of sends in no_control case because
                 // we do not want to exhaust the gas.
-                no_control.then_some(1..=5).unwrap_or(10..=15),
+                no_control.then_some(1..=3).unwrap_or(10..=15),
             ),
             (SyscallName::Exit, 0..=1),
-            (SyscallName::Alloc, 3..=6),
-            (SyscallName::Free, 3..=6),
+            (
+                SyscallName::Alloc,
+                no_control.then(|| 1..=3).unwrap_or(3..=6),
+            ),
+            (
+                SyscallName::Free,
+                no_control.then(|| 1..=3).unwrap_or(3..=6),
+            ),
         ]
         .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
         .into_iter(),
@@ -209,7 +222,7 @@ fn config(
             log_info,
             params_config,
             initial_pages: initial_pages as u32,
-            waiting_probability: NonZeroU32::new(unstructured.int_in_range(1..=8).unwrap()),
+            waiting_probability: NonZeroU32::new(unstructured.int_in_range(1..=4).unwrap()),
             ..Default::default()
         },
         max_funcs,
