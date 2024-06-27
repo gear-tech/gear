@@ -23,6 +23,7 @@
 
 use super::*;
 
+pub mod gear_tasks;
 pub mod lazy_pages;
 pub mod syscalls_integrity;
 mod utils;

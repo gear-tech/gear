@@ -1,0 +1,48 @@
+[package]
+name = "gear-tasks"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gear-tasks-runtime-api.workspace = true
+
+# substrate
+sp-runtime-interface.workspace = true
+sp-externalities.workspace = true
+sp-api.workspace = true
+# std only
+sc-client-api = { workspace = true, optional = true }
+sp-state-machine = { workspace = true, optional = true, features = ["std"] }
+futures-executor = { workspace = true, optional = true, features = ["thread-pool"] }
+
+# utility
+parity-scale-codec.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+gear-tasks = { workspace = true, features = ["std", "testing"] }
+
+sp-io = { workspace = true, features = ["std"] }
+sp-state-machine = { workspace = true, features = ["std"] }
+gear-node-testing.workspace = true
+vara-runtime = { workspace = true, features = ["dev"] }
+
+env_logger.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "gear-tasks-runtime-api/std",
+    "sp-runtime-interface/std",
+    "sp-externalities/std",
+    "sp-api/std",
+    "sc-client-api",
+    "sp-state-machine",
+    "futures-executor",
+    "parity-scale-codec/std",
+]
+testing = []
