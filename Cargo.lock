@@ -4322,6 +4322,7 @@ dependencies = [
  "gnode",
  "gsdk",
  "gstd",
+ "gtest",
  "hex",
  "hex-literal",
  "log",
