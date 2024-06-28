@@ -106,10 +106,22 @@ impl<'a> BalanceManager<'a> {
 
     pub(crate) fn update_balance(&mut self) -> Result<BalanceState> {
         let max_balance = runtime::gas_to_value(runtime::acc_max_balance_gas());
-        let new_balance = self
-            .unstructured
-            .int_in_range(EXISTENTIAL_DEPOSIT..=max_balance)?;
 
+        let mut new_balance = if self.unstructured.ratio(1, 5)? {
+            max_balance
+            // run with half the max balance divided by random integer in 33.33% of runs
+            // TODO(Adel): play with this range more, maybe decrease it.
+        } else if self.unstructured.ratio(1, 3)? {
+            max_balance.saturating_div(self.unstructured.int_in_range(2..=16)?)
+        // run with balance=existential_depo    sit..=max_balance in 33.33% of runs
+        } else {
+            self.unstructured
+                .int_in_range(EXISTENTIAL_DEPOSIT..=max_balance)?
+        };
+
+        if new_balance < EXISTENTIAL_DEPOSIT {
+            new_balance = EXISTENTIAL_DEPOSIT;
+        }
         runtime::set_balance(self.sender.clone(), new_balance)
             .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
         assert_eq!(

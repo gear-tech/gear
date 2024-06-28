@@ -251,7 +251,11 @@ fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>
 
 fn arbitrary_value(u: &mut Unstructured, current_balance: u128) -> Result<u128> {
     let (lower, upper) = match u.int_in_range(0..=99)? {
-        5..=19 => (0, 0),
+        5..=10 => (0, 0),
+        11..=30 => (
+            EXISTENTIAL_DEPOSIT,
+            (current_balance / 4).max(EXISTENTIAL_DEPOSIT),
+        ),
         0..=2 => (0, EXISTENTIAL_DEPOSIT),
         _ => (EXISTENTIAL_DEPOSIT, current_balance),
     };
