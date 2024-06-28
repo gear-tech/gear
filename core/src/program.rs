@@ -21,7 +21,7 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::DispatchKind,
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    pages::WasmPagesAmount,
     reservation::GasReservationMap,
 };
 use alloc::collections::BTreeSet;
@@ -91,10 +91,8 @@ impl<BlockNumber: Copy> core::convert::TryFrom<Program<BlockNumber>>
 /// Active program in storage.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram<BlockNumber: Copy> {
-    /// Set of wasm pages, that were allocated by the program.
-    pub allocations: IntervalsTree<WasmPage>,
-    /// Set of gear pages, that have data in storage.
-    pub pages_with_data: IntervalsTree<GearPage>,
+    /// Continuous intervals amount in program allocations.
+    pub allocations_tree_len: u32,
     /// Infix of memory pages storage (is used for memory wake after pausing)
     pub memory_infix: MemoryInfix,
     /// Gas reservation map.

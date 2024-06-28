@@ -202,10 +202,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
 
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            program.allocations = allocations.collect();
-        })
-        .expect("Program must be active");
+        ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),

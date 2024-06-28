@@ -50,7 +50,7 @@ use gear_core::{
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::WasmPage,
-    program::{ActiveProgram, Program},
+    program::ActiveProgram,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -14967,12 +14967,9 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
-            program.allocations,
+            allocations,
             [WasmPage::from(static_pages)].into_iter().collect()
         );
 
@@ -14988,11 +14985,8 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
-        assert_eq!(program.allocations, Default::default());
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
+        assert_eq!(allocations, Default::default());
     });
 }
 

@@ -128,8 +128,7 @@ pub fn set_program<ProgramStorage, BlockNumber>(
     ProgramStorage::add_program(
         program_id,
         ActiveProgram {
-            allocations: Default::default(),
-            pages_with_data: Default::default(),
+            allocations_tree_len: 0,
             code_hash: CodeId::generate(&code).into_origin(),
             code_exports: Default::default(),
             static_pages,
