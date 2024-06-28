@@ -302,6 +302,10 @@ case "$COMMAND" in
         header "Running fuzzer for runtime panic checks"
         run_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
 
+      lazy-pages-fuzz)
+        header "Running lazy pages fuzzer smoke test"
+        run_lazy_pages_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
+
       fuzzer-tests)
         header "Running runtime-fuzzer crate tests"
         run_fuzzer_tests ;;

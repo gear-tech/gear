@@ -6,6 +6,7 @@ SCRIPTS="$(cd "$(dirname "$SELF")"/ && pwd)"
 . "$SCRIPTS"/fuzzer_consts.sh
 
 main() {
+    echo " >> Checking runtime fuzzer"
     echo " >> Getting random bytes from /dev/urandom"
     # Fuzzer expects a minimal input size of 350 KiB. Without providing a corpus of the same or larger
     # size fuzzer will stuck for a long time with trying to test the target using 0..100 bytes.

@@ -100,7 +100,8 @@ members = [
     "pallets/*",
     "runtime/*",
     "utils/*",
-    "utils/runtime-fuzzer/fuzz"
+    "utils/runtime-fuzzer/fuzz",
+    "utils/lazy-pages-fuzzer/fuzz"
 ]
 
 [workspace.dependencies]

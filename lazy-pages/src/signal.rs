@@ -28,7 +28,7 @@ use crate::{
 use gear_lazy_pages_common::Status;
 use std::convert::TryFrom;
 
-pub(crate) trait UserSignalHandler {
+pub trait UserSignalHandler {
     /// # Safety
     ///
     /// It's expected handler calls syscalls to protect memory
@@ -44,7 +44,7 @@ impl UserSignalHandler for DefaultUserSignalHandler {
 }
 
 #[derive(Debug)]
-pub(crate) struct ExceptionInfo {
+pub struct ExceptionInfo {
     /// Address where fault is occurred
     pub fault_addr: *const (),
     pub is_write: Option<bool>,
