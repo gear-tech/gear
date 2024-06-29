@@ -19,7 +19,7 @@
 use crate::{self as pallet_gear_staking_rewards, CurrencyOf};
 use core::marker::PhantomData;
 use frame_election_provider_support::{
-    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
+    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, SequentialPhragmen,
 };
 use frame_support::{
     construct_runtime, parameter_types,
@@ -89,7 +89,6 @@ construct_runtime!(
         Session: pallet_session,
         Historical: pallet_session_historical,
         Treasury: pallet_treasury,
-        BagsList: pallet_bags_list::<Instance1>,
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         ElectionProviderMultiPhase: multi_phase,
@@ -101,6 +100,15 @@ common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test, EventHandler = Staking);
 common::impl_pallet_timestamp!(Test);
+common::impl_pallet_staking!(
+    Test,
+    EraPayout = StakingRewards,
+    Slash = Treasury,
+    Reward = StakingRewards,
+    NextNewSession = Session,
+    ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Test>>,
+    GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Test>>,
+);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
@@ -221,17 +229,8 @@ impl pallet_session::SessionHandler<AuthorityId> for TestSessionHandler {
 }
 
 parameter_types! {
-    // 6 sessions in an era
-    pub const SessionsPerEra: u32 = 6;
-    // 8 eras for unbonding
-    pub const BondingDuration: u32 = 8;
-    pub const SlashDeferDuration: u32 = 7;
-    pub const MaxNominatorRewardedPerValidator: u32 = 256;
-    pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     pub const MaxActiveValidators: u32 = 100;
     pub const OffchainRepeat: u64 = 5;
-    pub const HistoryDepth: u32 = 84;
-    pub const MaxNominations: u32 = 16;
     pub const MaxElectingVoters: u32 = 40_000;
     pub const MaxElectableTargets: u16 = 10_000;
     pub const MaxOnChainElectingVoters: u32 = 500;
@@ -258,83 +257,6 @@ impl<T: frame_system::Config + pallet_staking::Config> onchain::Config for OnCha
     type WeightInfo = ();
     type MaxWinners = MaxActiveValidators;
     type Bounds = ElectionBounds;
-}
-
-impl pallet_staking::Config for Test {
-    type Currency = Balances;
-    type UnixTime = Timestamp;
-    type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
-    type CurrencyToVote = ();
-    type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
-    type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
-    type RewardRemainder = ();
-    type RuntimeEvent = RuntimeEvent;
-    type Slash = Treasury;
-    type Reward = StakingRewards;
-    type SessionsPerEra = SessionsPerEra;
-    type BondingDuration = BondingDuration;
-    type SlashDeferDuration = SlashDeferDuration;
-    type AdminOrigin = EnsureRoot<AccountId>;
-    type SessionInterface = Self;
-    type EraPayout = StakingRewards;
-    type NextNewSession = Session;
-    type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
-    type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
-    type VoterList = BagsList;
-    type TargetList = pallet_staking::UseValidatorsMap<Self>;
-    type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
-    type MaxUnlockingChunks = ConstU32<32>;
-    type HistoryDepth = HistoryDepth;
-    type EventListeners = ();
-    type WeightInfo = ();
-    type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
-}
-
-pub const THRESHOLDS: [u64; 32] = [
-    10,
-    20,
-    40,
-    80,
-    160,
-    320,
-    640,
-    1_280,
-    2_560,
-    5_120,
-    10_240,
-    20_480,
-    40_960,
-    81_920,
-    163_840,
-    327_680,
-    1_310_720,
-    2_621_440,
-    5_242_880,
-    10_485_760,
-    20_971_520,
-    41_943_040,
-    83_886_080,
-    167_772_160,
-    335_544_320,
-    671_088_640,
-    1_342_177_280,
-    2_684_354_560,
-    5_368_709_120,
-    10_737_418_240,
-    21_474_836_480,
-    42_949_672_960,
-];
-
-parameter_types! {
-    pub const BagThresholds: &'static [u64] = &THRESHOLDS;
-}
-
-impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type ScoreProvider = Staking;
-    type BagThresholds = BagThresholds;
-    type Score = VoteWeight;
-    type WeightInfo = ();
 }
 
 parameter_types! {
@@ -794,7 +716,6 @@ pub(crate) mod two_block_producers {
             Session: pallet_session,
             Historical: pallet_session_historical,
             Treasury: pallet_treasury,
-            BagsList: pallet_bags_list::<Instance1>,
             Sudo: pallet_sudo,
             Utility: pallet_utility,
             ElectionProviderMultiPhase: multi_phase,
@@ -827,36 +748,15 @@ pub(crate) mod two_block_producers {
 
     common::impl_pallet_authorship!(Test, EventHandler = Staking, FindAuthor = BlockAuthor);
     common::impl_pallet_balances!(Test);
-
-    impl pallet_staking::Config for Test {
-        type Currency = Balances;
-        type UnixTime = Timestamp;
-        type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
-        type CurrencyToVote = ();
-        type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
-        type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
-        type RewardRemainder = ();
-        type RuntimeEvent = RuntimeEvent;
-        type Slash = Treasury;
-        type Reward = StakingRewards;
-        type SessionsPerEra = SessionsPerEra;
-        type BondingDuration = BondingDuration;
-        type SlashDeferDuration = SlashDeferDuration;
-        type AdminOrigin = EnsureRoot<AccountId>;
-        type SessionInterface = Self;
-        type EraPayout = StakingRewards;
-        type NextNewSession = Session;
-        type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
-        type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
-        type VoterList = BagsList;
-        type TargetList = pallet_staking::UseValidatorsMap<Self>;
-        type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
-        type MaxUnlockingChunks = ConstU32<32>;
-        type HistoryDepth = HistoryDepth;
-        type EventListeners = ();
-        type WeightInfo = ();
-        type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
-    }
+    common::impl_pallet_staking!(
+        Test,
+        EraPayout = StakingRewards,
+        Slash = Treasury,
+        Reward = StakingRewards,
+        NextNewSession = Session,
+        ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Test>>,
+        GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Test>>,
+    );
 
     impl pallet_session::Config for Test {
         type RuntimeEvent = RuntimeEvent;
@@ -902,14 +802,6 @@ pub(crate) mod two_block_producers {
         type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
         type BalanceConverter = UnityAssetBalanceConversion;
         type PayoutPeriod = ConstU64<10>;
-    }
-
-    impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
-        type RuntimeEvent = RuntimeEvent;
-        type ScoreProvider = Staking;
-        type BagThresholds = BagThresholds;
-        type Score = VoteWeight;
-        type WeightInfo = ();
     }
 
     impl pallet_sudo::Config for Test {
