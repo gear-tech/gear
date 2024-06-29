@@ -21,7 +21,7 @@ use cargo_gbuild::GBuild;
 use gtest::{state_args, Program, System};
 use std::{fs, path::PathBuf, process::Command};
 
-fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
+fn ping(sys: &System, prog: PathBuf) -> Program {
     // Get program from artifact
     let user = 0;
     let program = Program::from_file(sys, prog);

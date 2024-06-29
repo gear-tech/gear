@@ -18,7 +18,9 @@
 
 use crate::{
     log::RunResult,
-    manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
+    manager::{
+        Balance, ExtManagerPointer, GenuineProgram, MintMode, Program as InnerProgram, TestActor,
+    },
     system::System,
     Result, GAS_ALLOWANCE,
 };
@@ -33,7 +35,6 @@ use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
 use std::{
-    cell::RefCell,
     convert::TryInto,
     env,
     ffi::OsStr,
@@ -95,7 +96,7 @@ impl Gas {
 /// Trait for mocking gear programs.
 ///
 /// See [`Program`] and [`Program::mock`] for the usages.
-pub trait WasmProgram: Debug {
+pub trait WasmProgram: Debug + Send + Sync {
     /// Init wasm program with given `payload`.
     ///
     /// Returns `Ok(Some(payload))` if program has reply logic
@@ -335,7 +336,7 @@ impl ProgramBuilder {
     pub fn build(self, system: &System) -> Program {
         let id = self
             .id
-            .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
+            .unwrap_or_else(|| system.0.write().free_id_nonce().into());
 
         let schedule = Schedule::default();
         let code = Code::try_new(
@@ -351,11 +352,7 @@ impl ProgramBuilder {
         let (code, code_id) = code_and_id.into_parts();
 
         if let Some(metadata) = self.meta {
-            system
-                .0
-                .borrow_mut()
-                .meta_binaries
-                .insert(code_id, metadata);
+            system.0.write().meta_binaries.insert(code_id, metadata);
         }
 
         Program::program_with_id(
@@ -386,14 +383,14 @@ impl ProgramBuilder {
 /// // Initialize the program from user 42 with message "init program".
 /// let _result = program.send(42, "init program");
 /// ```
-pub struct Program<'a> {
-    pub(crate) manager: &'a RefCell<ExtManager>,
+pub struct Program {
+    pub(crate) manager: ExtManagerPointer,
     pub(crate) id: ProgramId,
 }
 
-impl<'a> Program<'a> {
+impl Program {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
+        system: &System,
         id: I,
         program: InnerProgram,
     ) -> Self {
@@ -401,7 +398,7 @@ impl<'a> Program<'a> {
 
         if system
             .0
-            .borrow_mut()
+            .write()
             .store_new_actor(program_id, program, None)
             .is_some()
         {
@@ -412,7 +409,7 @@ impl<'a> Program<'a> {
         }
 
         Self {
-            manager: &system.0,
+            manager: system.0.clone(),
             id: program_id,
         }
     }
@@ -420,7 +417,7 @@ impl<'a> Program<'a> {
     /// Get the program of the root crate with provided `system`.
     ///
     /// See [`ProgramBuilder::current`]
-    pub fn current(system: &'a System) -> Self {
+    pub fn current(system: &System) -> Self {
         ProgramBuilder::current().build(system)
     }
 
@@ -429,7 +426,7 @@ impl<'a> Program<'a> {
     ///
     /// See also [`Program::current`].
     pub fn current_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
+        system: &System,
         id: I,
     ) -> Self {
         ProgramBuilder::current().with_id(id).build(system)
@@ -438,21 +435,21 @@ impl<'a> Program<'a> {
     /// Get optimized program of the root crate with provided `system`,
     ///
     /// See also [`Program::current`].
-    pub fn current_opt(system: &'a System) -> Self {
+    pub fn current_opt(system: &System) -> Self {
         ProgramBuilder::current_opt().build(system)
     }
 
     /// Create a program instance from wasm file.
     ///
     /// See also [`Program::current`].
-    pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
+    pub fn from_file<P: AsRef<Path>>(system: &System, path: P) -> Self {
         ProgramBuilder::from_file(path).build(system)
     }
 
     /// Create a program instance from wasm file with given ID.
     ///
     /// See also [`Program::from_file`].
-    pub fn from_binary_with_id<ID, B>(system: &'a System, id: ID, binary: B) -> Self
+    pub fn from_binary_with_id<ID, B>(system: &System, id: ID, binary: B) -> Self
     where
         ID: Into<ProgramIdWrapper> + Clone + Debug,
         B: Into<Vec<u8>>,
@@ -465,8 +462,8 @@ impl<'a> Program<'a> {
     /// Mock a program with provided `system` and `mock`.
     ///
     /// See [`WasmProgram`] for more details.
-    pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
+    pub fn mock<T: WasmProgram + 'static>(system: &System, mock: T) -> Self {
+        let nonce = system.0.write().free_id_nonce();
 
         Self::mock_with_id(system, nonce, mock)
     }
@@ -475,7 +472,7 @@ impl<'a> Program<'a> {
     /// and initialize it with provided `id`.
     ///
     /// See also [`Program::mock`].
-    pub fn mock_with_id<ID, T>(system: &'a System, id: ID, mock: T) -> Self
+    pub fn mock_with_id<ID, T>(system: &System, id: ID, mock: T) -> Self
     where
         T: WasmProgram + 'static,
         ID: Into<ProgramIdWrapper> + Clone + Debug,
@@ -517,7 +514,7 @@ impl<'a> Program<'a> {
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
     {
-        let mut system = self.manager.borrow_mut();
+        let mut system = self.manager.write();
 
         let source = from.into().0;
 
@@ -552,7 +549,7 @@ impl<'a> Program<'a> {
     /// Send signal to the program.
     #[track_caller]
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
-        let mut system = self.manager.borrow_mut();
+        let mut system = self.manager.write();
 
         let source = from.into().0;
 
@@ -582,9 +579,7 @@ impl<'a> Program<'a> {
 
     /// Reads the program’s state as a byte vector.
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .read_state_bytes(payload, &self.id)
+        self.manager.write().read_state_bytes(payload, &self.id)
     }
 
     /// Reads the program’s transformed state as a byte vector. The transformed
@@ -641,7 +636,7 @@ impl<'a> Program<'a> {
         args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
         self.manager
-            .borrow_mut()
+            .write()
             .read_state_bytes_using_wasm(payload, &self.id, fn_name, wasm, args)
     }
 
@@ -712,18 +707,18 @@ impl<'a> Program<'a> {
     /// Mint balance to the account.
     pub fn mint(&mut self, value: Balance) {
         self.manager
-            .borrow_mut()
+            .write()
             .mint_to(&self.id(), value, MintMode::KeepAlive)
     }
 
     /// Returns the balance of the account.
     pub fn balance(&self) -> Balance {
-        self.manager.borrow().balance_of(&self.id())
+        self.manager.read().balance_of(&self.id())
     }
 
     /// Save the program's memory to path.
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
-        let manager = self.manager.borrow();
+        let manager = self.manager.read();
         let mem = manager.read_memory_pages(&self.id);
         let balance = manager.balance_of(&self.id);
 
@@ -754,12 +749,8 @@ impl<'a> Program<'a> {
             .balance
             .saturating_add(memory_dump.reserved_balance);
 
-        self.manager
-            .borrow_mut()
-            .update_storage_pages(&self.id, mem);
-        self.manager
-            .borrow_mut()
-            .override_balance(&self.id, balance);
+        self.manager.write().update_storage_pages(&self.id, mem);
+        self.manager.write().override_balance(&self.id, balance);
     }
 }
 

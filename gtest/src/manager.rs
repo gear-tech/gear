@@ -50,16 +50,18 @@ use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_wasm_instrument::gas_metering::Schedule;
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
-    cell::{Ref, RefCell, RefMut},
     collections::{BTreeMap, HashMap, VecDeque},
     convert::TryInto,
-    rc::Rc,
+    sync::Arc,
 };
 
 const OUTGOING_LIMIT: u32 = 1024;
 const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
+
+pub(crate) type ExtManagerPointer = Arc<RwLock<ExtManager>>;
 
 pub(crate) type Balance = u128;
 
@@ -178,15 +180,17 @@ impl Program {
 }
 
 #[derive(Default, Debug, Clone)]
-pub(crate) struct Actors(Rc<RefCell<BTreeMap<ProgramId, (TestActor, Balance)>>>);
+pub(crate) struct Actors(Arc<RwLock<BTreeMap<ProgramId, (TestActor, Balance)>>>);
 
 impl Actors {
-    pub fn borrow(&self) -> Ref<'_, BTreeMap<ProgramId, (TestActor, Balance)>> {
-        self.0.borrow()
+    pub fn borrow(&self) -> RwLockReadGuard<'_, BTreeMap<ProgramId, (TestActor, Balance)>> {
+        self.0.read()
     }
 
-    pub fn borrow_mut(&mut self) -> RefMut<'_, BTreeMap<ProgramId, (TestActor, Balance)>> {
-        self.0.borrow_mut()
+    pub fn borrow_mut(
+        &mut self,
+    ) -> RwLockWriteGuard<'_, BTreeMap<ProgramId, (TestActor, Balance)>> {
+        self.0.write()
     }
 
     fn insert(
@@ -194,15 +198,15 @@ impl Actors {
         program_id: ProgramId,
         actor_and_balance: (TestActor, Balance),
     ) -> Option<(TestActor, Balance)> {
-        self.0.borrow_mut().insert(program_id, actor_and_balance)
+        self.0.write().insert(program_id, actor_and_balance)
     }
 
     pub fn contains_key(&self, program_id: &ProgramId) -> bool {
-        self.0.borrow().contains_key(program_id)
+        self.0.write().contains_key(program_id)
     }
 
     fn remove(&mut self, program_id: &ProgramId) -> Option<(TestActor, Balance)> {
-        self.0.borrow_mut().remove(program_id)
+        self.0.write().remove(program_id)
     }
 }
 

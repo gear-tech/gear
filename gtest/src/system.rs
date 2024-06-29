@@ -19,7 +19,7 @@
 use crate::{
     log::RunResult,
     mailbox::Mailbox,
-    manager::{Actors, Balance, ExtManager, MintMode},
+    manager::{Actors, Balance, ExtManager, ExtManagerPointer, MintMode},
     program::{Program, ProgramIdWrapper},
 };
 use codec::{Decode, DecodeAll};
@@ -32,8 +32,9 @@ use gear_core::{
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
+use parking_lot::RwLock;
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, sync::Arc, thread};
 
 thread_local! {
     /// `System` is a singleton with a one instance and no copies returned.
@@ -96,7 +97,7 @@ impl LazyPagesStorage for PagesStorage {
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
 /// ```
-pub struct System(pub(crate) RefCell<ExtManager>);
+pub struct System(pub(crate) ExtManagerPointer);
 
 impl System {
     /// Prefix for lazy pages.
@@ -127,7 +128,7 @@ impl System {
 
             *initialized = true;
 
-            Self(RefCell::new(ext_manager))
+            Self(Arc::new(RwLock::new(ext_manager)))
         })
     }
 
@@ -176,12 +177,12 @@ impl System {
 
     /// Send raw message dispatch.
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
-        self.0.borrow_mut().validate_and_run_dispatch(dispatch)
+        self.0.write().validate_and_run_dispatch(dispatch)
     }
 
     /// Spend blocks and return all results.
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
-        let mut manager = self.0.borrow_mut();
+        let mut manager = self.0.write();
         let block_height = manager.blocks_manager.get().height;
 
         (block_height..block_height + amount)
@@ -200,23 +201,23 @@ impl System {
 
     /// Return the current block height of the testing environment.
     pub fn block_height(&self) -> u32 {
-        self.0.borrow().blocks_manager.get().height
+        self.0.read().blocks_manager.get().height
     }
 
     /// Return the current block timestamp of the testing environment.
     pub fn block_timestamp(&self) -> u64 {
-        self.0.borrow().blocks_manager.get().timestamp
+        self.0.read().blocks_manager.get().timestamp
     }
 
     /// Returns a [`Program`] by `id`.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
         let id = id.into().0;
-        let manager = self.0.borrow();
+        let manager = self.0.read();
 
         if manager.is_program(&id) {
             Some(Program {
                 id,
-                manager: &self.0,
+                manager: self.0.clone(),
             })
         } else {
             None
@@ -230,7 +231,7 @@ impl System {
 
     /// Returns a list of programs.
     pub fn programs(&self) -> Vec<Program> {
-        let manager = self.0.borrow();
+        let manager = self.0.read();
         let actors = manager.actors.borrow();
         actors
             .keys()
@@ -238,7 +239,7 @@ impl System {
             .filter(|id| manager.is_program(id))
             .map(|id| Program {
                 id,
-                manager: &self.0,
+                manager: self.0.clone(),
             })
             .collect()
     }
@@ -250,7 +251,7 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        self.0.borrow().is_active_program(&program_id)
+        self.0.read().is_active_program(&program_id)
     }
 
     /// Saves code to the storage and returns its code hash
@@ -262,7 +263,7 @@ impl System {
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
-        self.0.borrow_mut().store_new_code(binary.into())
+        self.0.write().store_new_code(binary.into())
     }
 
     /// Saves code from file to the storage and returns its code hash
@@ -276,7 +277,7 @@ impl System {
                 code_path.as_ref().to_string_lossy()
             )
         });
-        self.0.borrow_mut().store_new_code(code)
+        self.0.write().store_new_code(code)
     }
 
     /// Saves code to the storage and returns its code hash
@@ -295,7 +296,7 @@ impl System {
 
     /// Returns previously submitted code by its code hash.
     pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        self.0.borrow().read_code(code_id).map(|code| code.to_vec())
+        self.0.read().read_code(code_id).map(|code| code.to_vec())
     }
 
     /// Extract mailbox of user with given `id`.
@@ -305,31 +306,31 @@ impl System {
     #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
-        if !self.0.borrow().is_user(&program_id) {
+        if !self.0.read().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
-        self.0.borrow_mut().mailbox.entry(program_id).or_default();
-        Mailbox::new(program_id, &self.0)
+        self.0.write().mailbox.entry(program_id).or_default();
+        Mailbox::new(program_id, self.0.clone())
     }
 
     /// Mint balance to user with given `id` and `value`.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
         self.0
-            .borrow_mut()
+            .write()
             .mint_to(&actor_id, value, MintMode::KeepAlive);
     }
 
     /// Returns balance of user with given `id`.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
         let actor_id = id.into().0;
-        self.0.borrow().balance_of(&actor_id)
+        self.0.read().balance_of(&actor_id)
     }
 
     /// Claim the user's value from the mailbox with given `id`.
     pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
+        self.0.write().claim_value_from_mailbox(&actor_id);
     }
 }
 
@@ -337,7 +338,7 @@ impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
-        self.0.borrow().gas_tree.reset();
+        self.0.read().gas_tree.reset();
     }
 }
 
