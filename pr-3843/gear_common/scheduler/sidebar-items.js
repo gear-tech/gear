@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ScheduledTask","StorageType"],"struct":["TaskPoolImpl"],"trait":["Scheduler","SchedulingCostsPerBlock","TaskHandler","TaskPool","TaskPoolCallbacks","TaskPoolError"]};
