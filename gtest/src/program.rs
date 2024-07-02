@@ -501,6 +501,21 @@ impl<'a> Program<'a> {
         self.send_bytes_with_value(from, payload.encode(), value)
     }
 
+    /// Send message to the program with gas limit and value.
+    pub fn send_with_gas<ID, C>(
+        &self,
+        from: ID,
+        payload: C,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        C: Codec,
+    {
+        self.send_bytes_with_gas_and_value(from, payload.encode(), gas_limit, value)
+    }
+
     /// Send message to the program with bytes payload.
     pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> RunResult
     where
@@ -513,6 +528,20 @@ impl<'a> Program<'a> {
     /// Send the message to the program with bytes payload and value.
     #[track_caller]
     pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
+        self.send_bytes_with_gas_and_value(from, payload, GAS_ALLOWANCE, value)
+    }
+
+    fn send_bytes_with_gas_and_value<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -530,7 +559,7 @@ impl<'a> Program<'a> {
             source,
             self.id,
             payload.into().try_into().unwrap(),
-            Some(GAS_ALLOWANCE),
+            Some(gas_limit),
             value,
             None,
         );
