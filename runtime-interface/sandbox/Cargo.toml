@@ -18,9 +18,11 @@ log = { workspace = true, optional = true }
 [features]
 default = ["std"]
 std = [
-  "codec/std",
   "gear-sandbox-host",
+
+  "codec/std",
   "log",
+
   "sp-runtime-interface/std",
   "sp-wasm-interface/std",
 ]
