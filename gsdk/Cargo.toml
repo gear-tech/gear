@@ -41,7 +41,7 @@ parity-scale-codec.workspace = true
 rand = { workspace = true, optional = true }
 
 [dev-dependencies]
-gnode.workspace = true
+gear-node-wrapper.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 demo-messenger.workspace = true
 demo-new-meta.workspace = true
