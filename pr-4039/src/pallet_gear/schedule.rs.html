@@ -1525,7 +1525,7 @@
 
 </span><span class="kw">use crate</span>::{<a href="weights.rs.html#39-228">weights::WeightInfo</a>, <a href="lib.rs.html#162-290">Config</a>, <a href="lib.rs.html#123">CostsPerBlockOf</a>, <a href="lib.rs.html#112">DbWeightOf</a>};
 <span class="kw">use </span>common::scheduler::SchedulingCostsPerBlock;
-<span class="kw">use </span>core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
+<span class="kw">use </span>core_processor::configs::{<a href="../../gear_core_processor/configs/struct.ExtCosts.html">ExtCosts</a>, <a href="../../gear_core_processor/configs/struct.ProcessCosts.html">ProcessCosts</a>, <a href="../../gear_core_processor/configs/struct.RentCosts.html">RentCosts</a>};
 <span class="kw">use </span>frame_support::{traits::Get, weights::Weight};
 <span class="kw">use </span>gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
@@ -2633,11 +2633,11 @@
         }
     }
 
-    <span class="kw">pub fn </span>process_costs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProcessCosts {
-        ProcessCosts {
-            ext: ExtCosts {
+    <span class="kw">pub fn </span>process_costs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="../../gear_core_processor/configs/struct.ProcessCosts.html">ProcessCosts</a> {
+        <a href="../../gear_core_processor/configs/struct.ProcessCosts.html">ProcessCosts</a> {
+            ext: <a href="../../gear_core_processor/configs/struct.ExtCosts.html">ExtCosts</a> {
                 syscalls: <a class="self" href="#1132">self</a>.syscall_weights.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">clone</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>(),
-                rent: RentCosts {
+                rent: <a href="../../gear_core_processor/configs/struct.RentCosts.html">RentCosts</a> {
                     waitlist: CostsPerBlockOf::&lt;T&gt;::waitlist().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>(),
                     dispatch_stash: CostsPerBlockOf::&lt;T&gt;::dispatch_stash().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>(),
                     reservation: CostsPerBlockOf::&lt;T&gt;::reservation().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>(),
