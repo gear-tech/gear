@@ -23,7 +23,7 @@
 mod wasmer_backend;
 mod wasmi_backend;
 
-use std::{collections::HashMap, pin::Pin, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, pin::Pin, rc::Rc};
 
 use codec::Decode;
 use env::Instantiate;
@@ -208,29 +208,47 @@ impl SandboxInstance {
     /// of the syscalls that published to a sandboxed module instance.
     pub fn invoke(
         &self,
+        backned_context: &mut BackendContext,
         export_name: &str,
         args: &[Value],
         sandbox_context: &mut dyn SandboxContext,
     ) -> std::result::Result<Option<Value>, error::Error> {
-        match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance) => {
+        match (&self.backend_instance, backned_context) {
+            (BackendInstance::Wasmi(wasmi_instance), BackendContext::Wasmi) => {
                 wasmi_invoke(self, wasmi_instance, export_name, args, sandbox_context)
             }
 
-            BackendInstance::Wasmer(wasmer_instance) => {
-                wasmer_invoke(wasmer_instance, export_name, args, sandbox_context)
+            (BackendInstance::Wasmer(wasmer_instance), BackendContext::Wasmer(wasmer_backend)) => {
+                wasmer_invoke(
+                    wasmer_instance,
+                    wasmer_backend.store_mut(),
+                    export_name,
+                    args,
+                    sandbox_context,
+                )
             }
+            _ => unimplemented!("Mismatch between backend instance and context"),
         }
     }
 
     /// Get the value from a global with the given `name`.
     ///
     /// Returns `Some(_)` if the global could be found.
-    pub fn get_global_val(&self, name: &str) -> Option<Value> {
-        match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance) => wasmi_get_global(wasmi_instance, name),
+    pub fn get_global_val(
+        &self,
+        backned_context: &mut BackendContext,
+        name: &str,
+    ) -> Option<Value> {
+        match (&self.backend_instance, backned_context) {
+            (BackendInstance::Wasmi(wasmi_instance), BackendContext::Wasmi) => {
+                wasmi_get_global(wasmi_instance, name)
+            }
 
-            BackendInstance::Wasmer(wasmer_instance) => wasmer_get_global(wasmer_instance, name),
+            (BackendInstance::Wasmer(wasmer_instance), BackendContext::Wasmer(wasmer_backend)) => {
+                wasmer_get_global(wasmer_instance, wasmer_backend.store_mut(), name)
+            }
+
+            _ => unimplemented!("Mismatch between backend instance and context"),
         }
     }
 
@@ -239,15 +257,20 @@ impl SandboxInstance {
     /// Returns `Ok(Some(()))` if the global could be modified.
     pub fn set_global_val(
         &self,
+        backned_context: &mut BackendContext,
         name: &str,
         value: Value,
     ) -> std::result::Result<Option<()>, error::Error> {
-        match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance) => wasmi_set_global(wasmi_instance, name, value),
-
-            BackendInstance::Wasmer(wasmer_instance) => {
-                wasmer_set_global(wasmer_instance, name, value)
+        match (&self.backend_instance, backned_context) {
+            (BackendInstance::Wasmi(wasmi_instance), BackendContext::Wasmi) => {
+                wasmi_set_global(wasmi_instance, name, value)
             }
+
+            (BackendInstance::Wasmer(wasmer_instance), BackendContext::Wasmer(wasmer_backend)) => {
+                wasmer_set_global(wasmer_instance, wasmer_backend.store_mut(), name, value)
+            }
+
+            _ => unimplemented!("Mismatch between backend instance and context"),
         }
     }
 }
@@ -391,59 +414,106 @@ impl Memory {
 }
 
 impl util::MemoryTransfer for Memory {
-    fn read(&self, source_addr: Pointer<u8>, size: usize) -> Result<Vec<u8>> {
-        match self {
-            Memory::Wasmi(sandboxed_memory) => sandboxed_memory.read(source_addr, size),
+    fn read(
+        &self,
+        backend_context: &BackendContext,
+        source_addr: Pointer<u8>,
+        size: usize,
+    ) -> Result<Vec<u8>> {
+        match (self, backend_context) {
+            (Memory::Wasmi(sandboxed_memory), BackendContext::Wasmi) => {
+                sandboxed_memory.read(source_addr, size)
+            }
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.read(source_addr, size),
+            (Memory::Wasmer(sandboxed_memory), BackendContext::Wasmer(wasmer_backend)) => {
+                sandboxed_memory.read(wasmer_backend.store(), source_addr, size)
+            }
+
+            _ => unimplemented!("Mismatch between memory instance and backend context"),
         }
     }
 
-    fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> Result<()> {
-        match self {
-            Memory::Wasmi(sandboxed_memory) => sandboxed_memory.read_into(source_addr, destination),
-
-            Memory::Wasmer(sandboxed_memory) => {
+    fn read_into(
+        &self,
+        backend_context: &BackendContext,
+        source_addr: Pointer<u8>,
+        destination: &mut [u8],
+    ) -> Result<()> {
+        match (self, backend_context) {
+            (Memory::Wasmi(sandboxed_memory), BackendContext::Wasmi) => {
                 sandboxed_memory.read_into(source_addr, destination)
             }
+
+            (Memory::Wasmer(sandboxed_memory), BackendContext::Wasmer(wasmer_backend)) => {
+                sandboxed_memory.read_into(wasmer_backend.store(), source_addr, destination)
+            }
+
+            _ => unimplemented!("Mismatch between memory instance and backend context"),
         }
     }
 
-    fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> Result<()> {
-        match self {
-            Memory::Wasmi(sandboxed_memory) => sandboxed_memory.write_from(dest_addr, source),
+    fn write_from(
+        &self,
+        backend_context: &BackendContext,
+        dest_addr: Pointer<u8>,
+        source: &[u8],
+    ) -> Result<()> {
+        match (self, backend_context) {
+            (Memory::Wasmi(sandboxed_memory), BackendContext::Wasmi) => {
+                sandboxed_memory.write_from(dest_addr, source)
+            }
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.write_from(dest_addr, source),
+            (Memory::Wasmer(sandboxed_memory), BackendContext::Wasmer(wasmer_backend)) => {
+                sandboxed_memory.write_from(wasmer_backend.store(), dest_addr, source)
+            }
+
+            _ => unimplemented!("Mismatch between memory instance and backend context"),
         }
     }
 
-    fn memory_grow(&mut self, pages: u32) -> Result<u32> {
-        match self {
-            Memory::Wasmi(sandboxed_memory) => sandboxed_memory.memory_grow(pages),
+    fn memory_grow(&mut self, backend_context: &mut BackendContext, pages: u32) -> Result<u32> {
+        match (self, backend_context) {
+            (Memory::Wasmi(sandboxed_memory), BackendContext::Wasmi) => {
+                sandboxed_memory.memory_grow(pages)
+            }
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.memory_grow(pages),
+            (Memory::Wasmer(sandboxed_memory), BackendContext::Wasmer(wasmer_backend)) => {
+                sandboxed_memory.memory_grow(wasmer_backend.store_mut(), pages)
+            }
+
+            _ => unimplemented!("Mismatch between memory instance and backend context"),
         }
     }
 
-    fn memory_size(&mut self) -> u32 {
-        match self {
-            Memory::Wasmi(sandboxed_memory) => sandboxed_memory.memory_size(),
+    fn memory_size(&self, backend_context: &BackendContext) -> u32 {
+        match (self, backend_context) {
+            (Memory::Wasmi(sandboxed_memory), BackendContext::Wasmi) => {
+                sandboxed_memory.memory_size()
+            }
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.memory_size(),
+            (Memory::Wasmer(sandboxed_memory), BackendContext::Wasmer(wasmer_backend)) => {
+                sandboxed_memory.memory_size(wasmer_backend.store())
+            }
+
+            _ => unimplemented!("Mismatch between memory instance and backend context"),
         }
     }
 
-    fn get_buff(&mut self) -> *mut u8 {
-        match self {
-            Memory::Wasmi(sandboxed_memory) => sandboxed_memory.get_buff(),
+    fn get_buff(&self, backend_context: &BackendContext) -> *mut u8 {
+        match (self, backend_context) {
+            (Memory::Wasmi(sandboxed_memory), BackendContext::Wasmi) => sandboxed_memory.get_buff(),
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.get_buff(),
+            (Memory::Wasmer(sandboxed_memory), BackendContext::Wasmer(wasmer_backend)) => {
+                sandboxed_memory.get_buff(wasmer_backend.store())
+            }
+
+            _ => unimplemented!("Mismatch between memory instance and backend context"),
         }
     }
 }
 
 /// Information specific to a particular execution backend
-enum BackendContext {
+pub enum BackendContext {
     /// Wasmi specific context
     Wasmi,
 
@@ -452,6 +522,7 @@ enum BackendContext {
 }
 
 impl BackendContext {
+    /// Create a new backend context
     pub fn new(backend: SandboxBackend) -> BackendContext {
         match backend {
             SandboxBackend::Wasmi => BackendContext::Wasmi,
@@ -471,7 +542,7 @@ pub struct Store<DT> {
     instances: Vec<Option<(Pin<Rc<SandboxInstance>>, DT)>>,
     /// Memories are `Some` until torn down.
     memories: Vec<Option<Memory>>,
-    backend_context: BackendContext,
+    backend_context: Rc<RefCell<BackendContext>>,
 }
 
 impl<DT: Clone> Store<DT> {
@@ -480,7 +551,7 @@ impl<DT: Clone> Store<DT> {
         Store {
             instances: Vec::new(),
             memories: Vec::new(),
-            backend_context: BackendContext::new(backend),
+            backend_context: Rc::new(RefCell::new(BackendContext::new(backend))),
         }
     }
 
@@ -497,10 +568,10 @@ impl<DT: Clone> Store<DT> {
         );
         self.memories.clear();
 
-        match self.backend_context {
+        match &mut *self.backend_context.borrow_mut() {
             BackendContext::Wasmi => (),
-            BackendContext::Wasmer(_) => {
-                self.backend_context = BackendContext::Wasmer(WasmerBackend::new());
+            BackendContext::Wasmer(wasmer_backend) => {
+                *wasmer_backend = WasmerBackend::new();
             }
         }
     }
@@ -513,17 +584,19 @@ impl<DT: Clone> Store<DT> {
     /// Typically happens if `initial` is more than `maximum`.
     pub fn new_memory(&mut self, initial: u32, maximum: u32) -> Result<u32> {
         let memories = &mut self.memories;
-        let backend_context = &self.backend_context;
+        let backend_context = &mut *self.backend_context.borrow_mut();
 
         let maximum = match maximum {
             sandbox_env::MEM_UNLIMITED => None,
             specified_limit => Some(specified_limit),
         };
 
-        let memory = match &backend_context {
+        let memory = match backend_context {
             BackendContext::Wasmi => wasmi_new_memory(initial, maximum)?,
 
-            BackendContext::Wasmer(context) => wasmer_new_memory(context, initial, maximum)?,
+            BackendContext::Wasmer(ref mut context) => {
+                wasmer_new_memory(context, initial, maximum)?
+            }
         };
 
         let mem_idx = memories.len();
@@ -629,15 +702,21 @@ impl<DT: Clone> Store<DT> {
         guest_env: GuestEnvironment,
         sandbox_context: &mut dyn SandboxContext,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
-        let sandbox_instance = match self.backend_context {
+        let context = &mut *RefCell::borrow_mut(&self.backend_context);
+        let sandbox_instance = match context {
             BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, sandbox_context)?,
 
-            BackendContext::Wasmer(ref context) => {
+            BackendContext::Wasmer(context) => {
                 wasmer_instantiate(version, context, wasm, guest_env, sandbox_context)?
             }
         };
 
         Ok(UnregisteredInstance { sandbox_instance })
+    }
+
+    /// Returns the backend context.
+    pub fn backend_context(&self) -> Rc<RefCell<BackendContext>> {
+        self.backend_context.clone()
     }
 }
 

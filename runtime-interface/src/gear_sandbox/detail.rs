@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::cell::RefCell;
+use core::{
+    cell::RefCell,
+    ops::{Deref, DerefMut},
+};
 
 use codec::{Decode, Encode};
 use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
@@ -151,13 +154,16 @@ pub fn get_buff(context: &mut dyn FunctionContext, memory_idx: u32) -> HostPoint
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            let mut memory = sandboxes
-                .borrow_mut()
-                .get(data_ptr as usize)
+            let mut sandboxes = sandboxes.borrow_mut();
+            let sandbox = sandboxes.get(data_ptr as usize);
+
+            let memory = sandbox
                 .memory(memory_idx)
                 .expect("Failed to get memory buffer pointer: cannot get backend memory");
+            let backend_context = sandbox.backend_context();
+            let backend_context = backend_context.borrow();
 
-            memory.get_buff() as HostPointer
+            memory.get_buff(backend_context.deref()) as HostPointer
         });
     });
 
@@ -176,11 +182,12 @@ pub fn get_global_val(
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            sandboxes
-                .borrow_mut()
-                .get(data_ptr as usize)
+            let mut sandboxes = sandboxes.borrow_mut();
+            let sandbox = sandboxes.get(data_ptr as usize);
+
+            sandbox
                 .instance(instance_idx)
-                .map(|i| i.get_global_val(name))
+                .map(|i| i.get_global_val(sandbox.backend_context().borrow_mut().deref_mut(), name))
                 .map_err(|e| e.to_string())
                 .expect("Failed to get global from sandbox")
         });
@@ -330,7 +337,7 @@ pub fn invoke(
             .collect::<Vec<_>>();
 
         let data_ptr: *const _ = caller.data();
-        let (instance, dispatch_thunk) = SANDBOXES.with(|sandboxes| {
+        let (instance, dispatch_thunk, backend_context) = SANDBOXES.with(|sandboxes| {
             let mut store_ref = sandboxes.borrow_mut();
             let store = store_ref.get(data_ptr as usize);
 
@@ -342,7 +349,9 @@ pub fn invoke(
                 .dispatch_thunk(instance_idx)
                 .expect("dispatch_thunk not found");
 
-            (instance, dispatch_thunk)
+            let backend_context = store.backend_context();
+
+            (instance, dispatch_thunk, backend_context)
         });
 
         let mut sandbox_context = SandboxContext {
@@ -350,7 +359,12 @@ pub fn invoke(
             dispatch_thunk,
             state: state_ptr.into(),
         };
-        let result = instance.invoke(function, &args, &mut sandbox_context);
+        let result = instance.invoke(
+            backend_context.borrow_mut().deref_mut(),
+            function,
+            &args,
+            &mut sandbox_context,
+        );
 
         method_result = match result {
             Ok(None) => sandbox_env::env::ERR_OK,
@@ -394,17 +408,23 @@ pub fn memory_get(
         trace("memory_get", caller);
 
         let data_ptr: *const _ = caller.data();
-        let sandboxed_memory = SANDBOXES.with(|sandboxes| {
-            sandboxes
-                .borrow_mut()
-                .get(data_ptr as usize)
-                .memory(memory_idx)
-                .expect("sandboxed memory not found")
+        let (sandboxed_memory, backend_context) = SANDBOXES.with(|sandboxes| {
+            let mut sandboxes = sandboxes.borrow_mut();
+            let sandbox = sandboxes.get(data_ptr as usize);
+
+            (
+                sandbox
+                    .memory(memory_idx)
+                    .expect("sandboxed memory not found"),
+                sandbox.backend_context(),
+            )
         });
 
         let len = buf_len as usize;
+        let backend_context = backend_context.borrow();
 
-        let buffer = match sandboxed_memory.read(Pointer::new(offset), len) {
+        let buffer = match sandboxed_memory.read(backend_context.deref(), Pointer::new(offset), len)
+        {
             Err(_) => {
                 method_result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
                 return;
@@ -431,13 +451,18 @@ pub fn memory_grow(context: &mut dyn FunctionContext, memory_idx: u32, size: u32
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            let mut memory = sandboxes
-                .borrow_mut()
-                .get(data_ptr as usize)
+            let mut sandboxes = sandboxes.borrow_mut();
+            let sandbox = sandboxes.get(data_ptr as usize);
+
+            let mut memory = sandbox
                 .memory(memory_idx)
                 .expect("Failed to grow memory: cannot get backend memory");
+            let backend_context = sandbox.backend_context();
+            let mut backend_context = backend_context.borrow_mut();
 
-            memory.memory_grow(size).expect("Failed to grow memory")
+            memory
+                .memory_grow(backend_context.deref_mut(), size)
+                .expect("Failed to grow memory")
         });
     });
 
@@ -485,13 +510,18 @@ pub fn memory_set(
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            let sandboxed_memory = sandboxes
-                .borrow_mut()
-                .get(data_ptr as usize)
-                .memory(memory_idx)
-                .expect("memory_set: not found");
+            let mut sandboxes = sandboxes.borrow_mut();
+            let sandbox = sandboxes.get(data_ptr as usize);
 
-            match sandboxed_memory.write_from(Pointer::new(offset), &buffer) {
+            let sandboxed_memory = sandbox.memory(memory_idx).expect("memory_set: not found");
+            let backend_context = sandbox.backend_context();
+            let backend_context = backend_context.borrow();
+
+            match sandboxed_memory.write_from(
+                backend_context.deref(),
+                Pointer::new(offset),
+                &buffer,
+            ) {
                 Ok(_) => sandbox_env::env::ERR_OK,
                 Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
             }
@@ -511,13 +541,16 @@ pub fn memory_size(context: &mut dyn FunctionContext, memory_idx: u32) -> u32 {
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            let mut memory = sandboxes
-                .borrow_mut()
-                .get(data_ptr as usize)
+            let mut sandboxes = sandboxes.borrow_mut();
+            let sandbox = sandboxes.get(data_ptr as usize);
+
+            let memory = sandbox
                 .memory(memory_idx)
                 .expect("Failed to get memory size: cannot get backend memory");
+            let backend_context = sandbox.backend_context();
+            let backend_context = backend_context.borrow();
 
-            memory.memory_size()
+            memory.memory_size(backend_context.deref())
         });
     });
 
@@ -554,14 +587,17 @@ pub fn set_global_val(
 
         let data_ptr: *const _ = caller.data();
         let result = SANDBOXES.with(|sandboxes| {
-            let instance = sandboxes
-                .borrow_mut()
-                .get(data_ptr as usize)
+            let mut sandboxes = sandboxes.borrow_mut();
+            let sandbox = sandboxes.get(data_ptr as usize);
+
+            let instance = sandbox
                 .instance(instance_idx)
                 .map_err(|e| e.to_string())
                 .expect("Failed to set global in sandbox");
+            let backend_context = sandbox.backend_context();
+            let mut backend_context = backend_context.borrow_mut();
 
-            instance.set_global_val(name, value)
+            instance.set_global_val(backend_context.deref_mut(), name, value)
         });
 
         log::trace!("set_global_val, name={name}, value={value:?}, result={result:?}",);

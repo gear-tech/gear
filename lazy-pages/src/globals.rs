@@ -23,7 +23,7 @@ use core::any::Any;
 use gear_core::{memory::HostPointer, str::LimitedStr};
 use gear_lazy_pages_common::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
 use gear_sandbox_host::sandbox::SandboxInstance;
-use sp_wasm_interface_common::Value;
+//use sp_wasm_interface_common::Value;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {
@@ -45,22 +45,24 @@ struct GlobalsAccessWasmRuntime<'a> {
 }
 
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
-    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
-        self.instance
-            .get_global_val(name.as_str())
-            .and_then(|value| match value {
-                Value::I64(value) => Some(value),
-                _ => None,
-            })
-            .ok_or(GlobalsAccessError)
+    fn get_i64(&self, _name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
+        let _ = self.instance;
+        //self.instance
+        //    .get_global_val(name.as_str())
+        //    .and_then(|value| match value {
+        //        Value::I64(value) => Some(value),
+        //        _ => None,
+        //    })
+        //    .ok_or(GlobalsAccessError)
+        Ok(0)
     }
 
-    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
-        self.instance
-            .set_global_val(name.as_str(), Value::I64(value))
-            .ok()
-            .flatten()
-            .ok_or(GlobalsAccessError)?;
+    fn set_i64(&mut self, _name: &LimitedStr, _value: i64) -> Result<(), GlobalsAccessError> {
+        //self.instance
+        //    .set_global_val(name.as_str(), Value::I64(value))
+        //    .ok()
+        //    .flatten()
+        //    .ok_or(GlobalsAccessError)?;
         Ok(())
     }
 

@@ -34,7 +34,6 @@ use crate::{
         BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
         InstantiationError, Memory, SandboxContext, SandboxInstance,
     },
-    util::MemoryTransfer,
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
@@ -147,8 +146,8 @@ impl MemoryWrapper {
     }
 }
 
-impl MemoryTransfer for MemoryWrapper {
-    fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
+impl MemoryWrapper {
+    pub fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
         self.0.with_direct_access(|source| {
             let range = util::checked_range(source_addr.into(), size, source.len())
                 .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
@@ -157,7 +156,7 @@ impl MemoryTransfer for MemoryWrapper {
         })
     }
 
-    fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
+    pub fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
         self.0.with_direct_access(|source| {
             let range = util::checked_range(source_addr.into(), destination.len(), source.len())
                 .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
@@ -167,7 +166,7 @@ impl MemoryTransfer for MemoryWrapper {
         })
     }
 
-    fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
+    pub fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
         self.0.with_direct_access_mut(|destination| {
             let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
                 .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
@@ -177,7 +176,7 @@ impl MemoryTransfer for MemoryWrapper {
         })
     }
 
-    fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
+    pub fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
         self.0
             .grow(Pages(pages as usize))
             .map_err(|e| {
@@ -189,11 +188,11 @@ impl MemoryTransfer for MemoryWrapper {
             .map(|p| p.0 as u32)
     }
 
-    fn memory_size(&mut self) -> u32 {
+    pub fn memory_size(&self) -> u32 {
         self.0.current_size().0 as u32
     }
 
-    fn get_buff(&mut self) -> *mut u8 {
+    pub fn get_buff(&self) -> *mut u8 {
         self.0.direct_access_mut().as_mut().as_mut_ptr()
     }
 }
