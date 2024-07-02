@@ -499,7 +499,7 @@
     CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/fmt/index.html">core::fmt</a>;
-<span class="kw">use </span>core_processor::common::{<a href="../../../gear_core_processor/common/struct.Actor.html">Actor</a>, <a href="../../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a>};
+<span class="kw">use </span>core_processor::common::{Actor, ExecutableActorData};
 <span class="kw">use </span>frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 <span class="kw">use </span>frame_system::pallet_prelude::BlockNumberFor;
 <span class="kw">use </span>gear_core::{
@@ -645,7 +645,7 @@
 
     <span class="doccomment">/// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    </span><span class="kw">pub fn </span>get_actor(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ProgramId) -&gt; <span class="prelude-ty">Option</span>&lt;<a href="../../../gear_core_processor/common/struct.Actor.html">Actor</a>&gt; {
+    </span><span class="kw">pub fn </span>get_actor(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ProgramId) -&gt; <span class="prelude-ty">Option</span>&lt;Actor&gt; {
         <span class="kw">let </span>active: ActiveProgram&lt;<span class="kw">_</span>&gt; = ProgramStorageOf::&lt;T&gt;::get_program(<a href="#211">id</a>)<span class="question-mark">?</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">try_into</a>().ok()<span class="question-mark">?</span>;
         <span class="kw">let </span>code_id = <a href="#212">active</a>.code_hash.cast();
 
@@ -656,10 +656,10 @@
         )
         .unique_saturated_into();
 
-        <span class="prelude-val">Some</span>(<a href="../../../gear_core_processor/common/struct.Actor.html">Actor</a> {
+        <span class="prelude-val">Some</span>(Actor {
             <a href="#215">balance</a>,
             destination_program: <a href="#211">id</a>,
-            executable_data: <a href="../../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a> {
+            executable_data: ExecutableActorData {
                 allocations: <a href="#212">active</a>.allocations.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">clone</a>(),
                 <a href="#213">code_id</a>,
                 code_exports: <a href="#212">active</a>.code_exports,

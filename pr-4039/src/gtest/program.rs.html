@@ -1142,6 +1142,21 @@
 <a href="#1140" id="1140">1140</a>
 <a href="#1141" id="1141">1141</a>
 <a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a>
+<a href="#1149" id="1149">1149</a>
+<a href="#1150" id="1150">1150</a>
+<a href="#1151" id="1151">1151</a>
+<a href="#1152" id="1152">1152</a>
+<a href="#1153" id="1153">1153</a>
+<a href="#1154" id="1154">1154</a>
+<a href="#1155" id="1155">1155</a>
+<a href="#1156" id="1156">1156</a>
+<a href="#1157" id="1157">1157</a>
 </pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2021-2024 Gear Technologies Inc.
@@ -1170,7 +1185,7 @@
 <span class="kw">use </span>gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{prelude::<span class="kw-2">*</span>, CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalMessage},
+    message::{Dispatch, DispatchKind, Message, SignalMessage, Value},
 };
 <span class="kw">use </span>gear_core_errors::SignalCode;
 <span class="kw">use </span>gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -1400,7 +1415,7 @@
 
     <span class="kw">fn </span>wasm_path(optimized: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a> {
         <a href="#262-271"><span class="self">Self</span>::wasm_path_from_binpath</a>(<a href="#257">optimized</a>)
-            .unwrap_or_else(|| <a href="#817-845">gbuild::wasm_path</a>().expect(<span class="string">"Unable to find built wasm"</span>))
+            .unwrap_or_else(|| <a href="#832-860">gbuild::wasm_path</a>().expect(<span class="string">"Unable to find built wasm"</span>))
     }
 
     <span class="kw">fn </span>wasm_path_from_binpath(optimized: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <span class="prelude-ty">Option</span>&lt;<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>&gt; {
@@ -1657,7 +1672,7 @@
         </span>ID: Into&lt;<a href="#130">ProgramIdWrapper</a>&gt;,
         C: Codec,
     {
-        <a class="self" href="#506">self</a>.<a href="#538-579">send_bytes_with_gas_and_value</a>(<a href="#507">from</a>, <a href="#508">payload</a>.encode(), <a href="#509">gas_limit</a>, <a href="#510">value</a>)
+        <a class="self" href="#506">self</a>.<a href="#553-594">send_bytes_with_gas_and_value</a>(<a href="#507">from</a>, <a href="#508">payload</a>.encode(), <a href="#509">gas_limit</a>, <a href="#510">value</a>)
     }
 
     <span class="doccomment">/// Send message to the program with bytes payload.
@@ -1676,7 +1691,22 @@
         </span>ID: Into&lt;<a href="#130">ProgramIdWrapper</a>&gt;,
         T: Into&lt;Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;,
     {
-        <a class="self" href="#530">self</a>.<a href="#538-579">send_bytes_with_gas_and_value</a>(<a href="#530">from</a>, <a href="#530">payload</a>, <a href="lib.rs.html#462">GAS_ALLOWANCE</a>, <a href="#530">value</a>)
+        <a class="self" href="#530">self</a>.<a href="#553-594">send_bytes_with_gas_and_value</a>(<a href="#530">from</a>, <a href="#530">payload</a>, <a href="lib.rs.html#462">GAS_ALLOWANCE</a>, <a href="#530">value</a>)
+    }
+
+    <span class="doccomment">/// Send the message to the program with bytes payload, gas limit and value.
+    </span><span class="kw">pub fn </span>send_bytes_with_gas&lt;ID, T&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        from: ID,
+        payload: T,
+        gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    ) -&gt; <a href="log.rs.html#367-375">RunResult</a>
+    <span class="kw">where
+        </span>ID: Into&lt;<a href="#130">ProgramIdWrapper</a>&gt;,
+        T: Into&lt;Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;,
+    {
+        <a class="self" href="#540">self</a>.<a href="#553-594">send_bytes_with_gas_and_value</a>(<a href="#541">from</a>, <a href="#542">payload</a>, <a href="#543">gas_limit</a>, <a href="#544">value</a>)
     }
 
     <span class="kw">fn </span>send_bytes_with_gas_and_value&lt;ID, T&gt;(
@@ -1690,74 +1720,74 @@
         </span>ID: Into&lt;<a href="#130">ProgramIdWrapper</a>&gt;,
         T: Into&lt;Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;,
     {
-        <span class="kw">let </span><span class="kw-2">mut </span>system = <a class="self" href="#539">self</a>.manager.borrow_mut();
+        <span class="kw">let </span><span class="kw-2">mut </span>system = <a class="self" href="#554">self</a>.manager.borrow_mut();
 
-        <span class="kw">let </span>source = <a href="#540">from</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>().<span class="number">0</span>;
+        <span class="kw">let </span>source = <a href="#555">from</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>().<span class="number">0</span>;
 
         <span class="kw">let </span>message = Message::new(
             MessageId::generate_from_user(
-                <a href="#549">system</a>.blocks_manager.<a href="blocks.rs.html#55-61">get</a>().height,
-                <a href="#551">source</a>,
-                <a href="#549">system</a>.<a href="manager.rs.html#294-298">fetch_inc_message_nonce</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+                <a href="#564">system</a>.blocks_manager.<a href="blocks.rs.html#55-61">get</a>().height,
+                <a href="#566">source</a>,
+                <a href="#564">system</a>.<a href="manager.rs.html#294-298">fetch_inc_message_nonce</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
             ),
-            <a href="#551">source</a>,
-            <a class="self" href="#539">self</a>.id,
-            <a href="#541">payload</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">try_into</a>().unwrap(),
-            <span class="prelude-val">Some</span>(<a href="#542">gas_limit</a>),
-            <a href="#543">value</a>,
+            <a href="#566">source</a>,
+            <a class="self" href="#554">self</a>.id,
+            <a href="#556">payload</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">try_into</a>().unwrap(),
+            <span class="prelude-val">Some</span>(<a href="#557">gas_limit</a>),
+            <a href="#558">value</a>,
             <span class="prelude-val">None</span>,
         );
 
-        <span class="kw">let </span><span class="kw-2">mut </span>actors = <a href="#549">system</a>.actors.<a href="manager.rs.html#188-190">borrow_mut</a>();
-        <span class="kw">let </span>(actor, <span class="kw">_</span>) = <a href="#567">actors</a>.get_mut(<span class="kw-2">&amp;</span><a class="self" href="#539">self</a>.id).expect(<span class="string">"Can't fail"</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>actors = <a href="#564">system</a>.actors.<a href="manager.rs.html#188-190">borrow_mut</a>();
+        <span class="kw">let </span>(actor, <span class="kw">_</span>) = <a href="#582">actors</a>.get_mut(<span class="kw-2">&amp;</span><a class="self" href="#554">self</a>.id).expect(<span class="string">"Can't fail"</span>);
 
-        <span class="kw">let </span>kind = <span class="kw">if let </span><a href="manager.rs.html#70">TestActor::Uninitialized</a>(id @ <span class="prelude-val">None</span>, <span class="kw">_</span>) = <a href="#568">actor</a> {
-            <span class="kw-2">*</span><a href="#570">id</a> = <span class="prelude-val">Some</span>(<a href="#553">message</a>.id());
+        <span class="kw">let </span>kind = <span class="kw">if let </span><a href="manager.rs.html#70">TestActor::Uninitialized</a>(id @ <span class="prelude-val">None</span>, <span class="kw">_</span>) = <a href="#583">actor</a> {
+            <span class="kw-2">*</span><a href="#585">id</a> = <span class="prelude-val">Some</span>(<a href="#568">message</a>.id());
             DispatchKind::Init
         } <span class="kw">else </span>{
             DispatchKind::Handle
         };
 
-        <a href="https://doc.rust-lang.org/nightly/core/mem/fn.drop.html">drop</a>(<a href="#567">actors</a>);
-        <a href="#549">system</a>.<a href="manager.rs.html#396-399">validate_and_run_dispatch</a>(Dispatch::new(<a href="#570">kind</a>, <a href="#553">message</a>))
+        <a href="https://doc.rust-lang.org/nightly/core/mem/fn.drop.html">drop</a>(<a href="#582">actors</a>);
+        <a href="#564">system</a>.<a href="manager.rs.html#396-399">validate_and_run_dispatch</a>(Dispatch::new(<a href="#585">kind</a>, <a href="#568">message</a>))
     }
 
     <span class="doccomment">/// Send signal to the program.
     </span><span class="attr">#[track_caller]
     </span><span class="kw">pub fn </span>send_signal&lt;ID: Into&lt;<a href="#130">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, from: ID, code: SignalCode) -&gt; <a href="log.rs.html#367-375">RunResult</a> {
-        <span class="kw">let </span><span class="kw-2">mut </span>system = <a class="self" href="#583">self</a>.manager.borrow_mut();
+        <span class="kw">let </span><span class="kw-2">mut </span>system = <a class="self" href="#598">self</a>.manager.borrow_mut();
 
-        <span class="kw">let </span>source = <a href="#583">from</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>().<span class="number">0</span>;
+        <span class="kw">let </span>source = <a href="#598">from</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>().<span class="number">0</span>;
 
         <span class="kw">let </span>origin_msg_id = MessageId::generate_from_user(
-            <a href="#584">system</a>.blocks_manager.<a href="blocks.rs.html#55-61">get</a>().height,
-            <a href="#586">source</a>,
-            <a href="#584">system</a>.<a href="manager.rs.html#294-298">fetch_inc_message_nonce</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+            <a href="#599">system</a>.blocks_manager.<a href="blocks.rs.html#55-61">get</a>().height,
+            <a href="#601">source</a>,
+            <a href="#599">system</a>.<a href="manager.rs.html#294-298">fetch_inc_message_nonce</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
         );
-        <span class="kw">let </span>message = SignalMessage::new(<a href="#588">origin_msg_id</a>, <a href="#583">code</a>);
+        <span class="kw">let </span>message = SignalMessage::new(<a href="#603">origin_msg_id</a>, <a href="#598">code</a>);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>actors = <a href="#584">system</a>.actors.<a href="manager.rs.html#188-190">borrow_mut</a>();
-        <span class="kw">let </span>(actor, <span class="kw">_</span>) = <a href="#595">actors</a>.get_mut(<span class="kw-2">&amp;</span><a class="self" href="#583">self</a>.id).expect(<span class="string">"Can't fail"</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>actors = <a href="#599">system</a>.actors.<a href="manager.rs.html#188-190">borrow_mut</a>();
+        <span class="kw">let </span>(actor, <span class="kw">_</span>) = <a href="#610">actors</a>.get_mut(<span class="kw-2">&amp;</span><a class="self" href="#598">self</a>.id).expect(<span class="string">"Can't fail"</span>);
 
-        <span class="kw">if let </span><a href="manager.rs.html#70">TestActor::Uninitialized</a>(id @ <span class="prelude-val">None</span>, <span class="kw">_</span>) = <a href="#596">actor</a> {
-            <span class="kw-2">*</span><a href="#598">id</a> = <span class="prelude-val">Some</span>(<a href="#593">message</a>.id());
+        <span class="kw">if let </span><a href="manager.rs.html#70">TestActor::Uninitialized</a>(id @ <span class="prelude-val">None</span>, <span class="kw">_</span>) = <a href="#611">actor</a> {
+            <span class="kw-2">*</span><a href="#613">id</a> = <span class="prelude-val">Some</span>(<a href="#608">message</a>.id());
         };
 
-        <a href="https://doc.rust-lang.org/nightly/core/mem/fn.drop.html">drop</a>(<a href="#595">actors</a>);
-        <span class="kw">let </span>dispatch = <a href="#593">message</a>.into_dispatch(<a href="#588">origin_msg_id</a>, <a class="self" href="#583">self</a>.id);
-        <a href="#584">system</a>.<a href="manager.rs.html#396-399">validate_and_run_dispatch</a>(<a href="#603">dispatch</a>)
+        <a href="https://doc.rust-lang.org/nightly/core/mem/fn.drop.html">drop</a>(<a href="#610">actors</a>);
+        <span class="kw">let </span>dispatch = <a href="#608">message</a>.into_dispatch(<a href="#603">origin_msg_id</a>, <a class="self" href="#598">self</a>.id);
+        <a href="#599">system</a>.<a href="manager.rs.html#396-399">validate_and_run_dispatch</a>(<a href="#618">dispatch</a>)
     }
 
     <span class="doccomment">/// Get program id.
     </span><span class="kw">pub fn </span>id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProgramId {
-        <a class="self" href="#608">self</a>.id
+        <a class="self" href="#623">self</a>.id
     }
 
     <span class="doccomment">/// Reads the program’s state as a byte vector.
     </span><span class="kw">pub fn </span>read_state_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>, payload: Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
-        <a class="self" href="#613">self</a>.manager
+        <a class="self" href="#628">self</a>.manager
             .borrow_mut()
-            .<a href="manager.rs.html#502-532">read_state_bytes</a>(<a href="#613">payload</a>, <span class="kw-2">&amp;</span><a class="self" href="#613">self</a>.id)
+            .<a href="manager.rs.html#502-532">read_state_bytes</a>(<a href="#628">payload</a>, <span class="kw-2">&amp;</span><a class="self" href="#628">self</a>.id)
     }
 
     <span class="doccomment">/// Reads the program’s transformed state as a byte vector. The transformed
@@ -1813,15 +1843,15 @@
         wasm: Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
         args: <span class="prelude-ty">Option</span>&lt;Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
-        <a class="self" href="#666">self</a>.manager
+        <a class="self" href="#681">self</a>.manager
             .borrow_mut()
-            .<a href="manager.rs.html#534-566">read_state_bytes_using_wasm</a>(<a href="#667">payload</a>, <span class="kw-2">&amp;</span><a class="self" href="#666">self</a>.id, <a href="#668">fn_name</a>, <a href="#669">wasm</a>, <a href="#670">args</a>)
+            .<a href="manager.rs.html#534-566">read_state_bytes_using_wasm</a>(<a href="#682">payload</a>, <span class="kw-2">&amp;</span><a class="self" href="#681">self</a>.id, <a href="#683">fn_name</a>, <a href="#684">wasm</a>, <a href="#685">args</a>)
     }
 
     <span class="doccomment">/// Reads and decodes the program's state .
     </span><span class="kw">pub fn </span>read_state&lt;D: Decode, P: Encode&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, payload: P) -&gt; <span class="prelude-ty">Result</span>&lt;D&gt; {
-        <span class="kw">let </span>state_bytes = <a class="self" href="#678">self</a>.<a href="#613-617">read_state_bytes</a>(<a href="#678">payload</a>.encode())<span class="question-mark">?</span>;
-        D::decode(<span class="kw-2">&amp;mut </span><a href="#679">state_bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">as_ref</a>()).map_err(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into::into</a>)
+        <span class="kw">let </span>state_bytes = <a class="self" href="#693">self</a>.<a href="#628-632">read_state_bytes</a>(<a href="#693">payload</a>.encode())<span class="question-mark">?</span>;
+        D::decode(<span class="kw-2">&amp;mut </span><a href="#694">state_bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">as_ref</a>()).map_err(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into::into</a>)
     }
 
     <span class="doccomment">/// Reads and decodes the program’s transformed state. The transformed state
@@ -1876,72 +1906,72 @@
         wasm: Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
         argument: <span class="prelude-ty">Option</span>&lt;E&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;D&gt; {
-        <span class="kw">let </span>argument_bytes = <a href="#733">argument</a>.map(|arg| <a href="#735">arg</a>.encode());
+        <span class="kw">let </span>argument_bytes = <a href="#748">argument</a>.map(|arg| <a href="#750">arg</a>.encode());
         <span class="kw">let </span>state_bytes =
-            <a class="self" href="#729">self</a>.<a href="#665-675">read_state_bytes_using_wasm</a>(<a href="#730">payload</a>.encode(), <a href="#731">fn_name</a>, <a href="#732">wasm</a>, <a href="#735">argument_bytes</a>)<span class="question-mark">?</span>;
-        D::decode(<span class="kw-2">&amp;mut </span><a href="#736">state_bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">as_ref</a>()).map_err(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into::into</a>)
+            <a class="self" href="#744">self</a>.<a href="#680-690">read_state_bytes_using_wasm</a>(<a href="#745">payload</a>.encode(), <a href="#746">fn_name</a>, <a href="#747">wasm</a>, <a href="#750">argument_bytes</a>)<span class="question-mark">?</span>;
+        D::decode(<span class="kw-2">&amp;mut </span><a href="#751">state_bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">as_ref</a>()).map_err(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into::into</a>)
     }
 
     <span class="doccomment">/// Mint balance to the account.
     </span><span class="kw">pub fn </span>mint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: <a href="manager.rs.html#64">Balance</a>) {
-        <a class="self" href="#742">self</a>.manager
+        <a class="self" href="#757">self</a>.manager
             .borrow_mut()
-            .<a href="manager.rs.html#591-603">mint_to</a>(<span class="kw-2">&amp;</span><a class="self" href="#742">self</a>.<a href="#608-610">id</a>(), <a href="#742">value</a>, <a href="manager.rs.html#213">MintMode::KeepAlive</a>)
+            .<a href="manager.rs.html#591-603">mint_to</a>(<span class="kw-2">&amp;</span><a class="self" href="#757">self</a>.<a href="#623-625">id</a>(), <a href="#757">value</a>, <a href="manager.rs.html#213">MintMode::KeepAlive</a>)
     }
 
     <span class="doccomment">/// Returns the balance of the account.
     </span><span class="kw">pub fn </span>balance(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="manager.rs.html#64">Balance</a> {
-        <a class="self" href="#749">self</a>.manager.borrow().<a href="manager.rs.html#605-611">balance_of</a>(<span class="kw-2">&amp;</span><a class="self" href="#749">self</a>.<a href="#608-610">id</a>())
+        <a class="self" href="#764">self</a>.manager.borrow().<a href="manager.rs.html#605-611">balance_of</a>(<span class="kw-2">&amp;</span><a class="self" href="#764">self</a>.<a href="#623-625">id</a>())
     }
 
     <span class="doccomment">/// Save the program's memory to path.
     </span><span class="kw">pub fn </span>save_memory_dump(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw">impl </span>AsRef&lt;<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html">Path</a>&gt;) {
-        <span class="kw">let </span>manager = <a class="self" href="#754">self</a>.manager.borrow();
-        <span class="kw">let </span>mem = <a href="#755">manager</a>.<a href="manager.rs.html#643-660">read_memory_pages</a>(<span class="kw-2">&amp;</span><a class="self" href="#754">self</a>.id);
-        <span class="kw">let </span>balance = <a href="#755">manager</a>.<a href="manager.rs.html#605-611">balance_of</a>(<span class="kw-2">&amp;</span><a class="self" href="#754">self</a>.id);
+        <span class="kw">let </span>manager = <a class="self" href="#769">self</a>.manager.borrow();
+        <span class="kw">let </span>mem = <a href="#770">manager</a>.<a href="manager.rs.html#643-660">read_memory_pages</a>(<span class="kw-2">&amp;</span><a class="self" href="#769">self</a>.id);
+        <span class="kw">let </span>balance = <a href="#770">manager</a>.<a href="manager.rs.html#605-611">balance_of</a>(<span class="kw-2">&amp;</span><a class="self" href="#769">self</a>.id);
 
         ProgramMemoryDump {
-            <a href="#757">balance</a>,
+            <a href="#772">balance</a>,
             reserved_balance: <span class="number">0</span>,
-            pages: <a href="#756">mem</a>
+            pages: <a href="#771">mem</a>
                 .iter()
                 .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">map</a>(|(page_number, page_data)| {
-                    MemoryPageDump::new(<span class="kw-2">*</span><a href="#764">page_number</a>, <a href="#764">page_data</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">clone</a>())
+                    MemoryPageDump::new(<span class="kw-2">*</span><a href="#779">page_number</a>, <a href="#779">page_data</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">clone</a>())
                 })
                 .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">collect</a>(),
         }
-        .save_to_file(<a href="#754">path</a>);
+        .save_to_file(<a href="#769">path</a>);
     }
 
     <span class="doccomment">/// Load the program's memory from path.
     </span><span class="kw">pub fn </span>load_memory_dump(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw">impl </span>AsRef&lt;<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html">Path</a>&gt;) {
-        <span class="kw">let </span>memory_dump = ProgramMemoryDump::load_from_file(<a href="#773">path</a>);
-        <span class="kw">let </span>mem = <a href="#774">memory_dump</a>
+        <span class="kw">let </span>memory_dump = ProgramMemoryDump::load_from_file(<a href="#788">path</a>);
+        <span class="kw">let </span>mem = <a href="#789">memory_dump</a>
             .pages
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/collect/trait.IntoIterator.html">into_iter</a>()
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">map</a>(MemoryPageDump::into_gear_page)
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">collect</a>();
 
         <span class="comment">// @TODO : add support for gas reservation when implemented
-        </span><span class="kw">let </span>balance = <a href="#774">memory_dump</a>
+        </span><span class="kw">let </span>balance = <a href="#789">memory_dump</a>
             .balance
-            .saturating_add(<a href="#774">memory_dump</a>.reserved_balance);
+            .saturating_add(<a href="#789">memory_dump</a>.reserved_balance);
 
-        <a class="self" href="#773">self</a>.manager
+        <a class="self" href="#788">self</a>.manager
             .borrow_mut()
-            .<a href="manager.rs.html#376-394">update_storage_pages</a>(<span class="kw-2">&amp;</span><a class="self" href="#773">self</a>.id, <a href="#775">mem</a>);
-        <a class="self" href="#773">self</a>.manager
+            .<a href="manager.rs.html#376-394">update_storage_pages</a>(<span class="kw-2">&amp;</span><a class="self" href="#788">self</a>.id, <a href="#790">mem</a>);
+        <a class="self" href="#788">self</a>.manager
             .borrow_mut()
-            .<a href="manager.rs.html#628-640">override_balance</a>(<span class="kw-2">&amp;</span><a class="self" href="#773">self</a>.id, <a href="#782">balance</a>);
+            .<a href="manager.rs.html#628-640">override_balance</a>(<span class="kw-2">&amp;</span><a class="self" href="#788">self</a>.id, <a href="#797">balance</a>);
     }
 }
 
 <span class="doccomment">/// Calculate program id from code id and salt.
 </span><span class="kw">pub fn </span><a href="../../gtest/fn.calculate_program_id.html">calculate_program_id</a>(code_id: CodeId, salt: <span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>], id: <span class="prelude-ty">Option</span>&lt;MessageId&gt;) -&gt; ProgramId {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = <a href="#796">id</a> {
-        ProgramId::generate_from_program(<a href="#797">id</a>, <a href="#796">code_id</a>, <a href="#796">salt</a>)
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = <a href="#811">id</a> {
+        ProgramId::generate_from_program(<a href="#812">id</a>, <a href="#811">code_id</a>, <a href="#811">salt</a>)
     } <span class="kw">else </span>{
-        ProgramId::generate_from_user(<a href="#796">code_id</a>, <a href="#796">salt</a>)
+        ProgramId::generate_from_user(<a href="#811">code_id</a>, <a href="#811">salt</a>)
     }
 }
 
@@ -1961,10 +1991,10 @@
     </span><span class="kw">pub fn </span>wasm_path() -&gt; <span class="prelude-ty">Result</span>&lt;<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>&gt; {
         <span class="kw">let </span>manifest_path = etc::find_up(<span class="string">"Cargo.toml"</span>)
             .map_err(|<span class="kw">_</span>| <a href="error.rs.html#89">Error::GbuildArtifactNotFound</a>(<span class="string">"Could not find manifest"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>()))<span class="question-mark">?</span>;
-        <span class="kw">let </span>manifest = Manifest::from_path(<span class="kw-2">&amp;</span><a href="#818">manifest_path</a>)
+        <span class="kw">let </span>manifest = Manifest::from_path(<span class="kw-2">&amp;</span><a href="#833">manifest_path</a>)
             .map_err(|<span class="kw">_</span>| <a href="error.rs.html#89">Error::GbuildArtifactNotFound</a>(<span class="string">"Could not parse manifest"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>()))<span class="question-mark">?</span>;
         <span class="kw">let </span>target = etc::find_up(<span class="string">"target"</span>).unwrap_or(
-            <a href="#818">manifest_path</a>
+            <a href="#833">manifest_path</a>
                 .parent()
                 .ok_or(<a href="error.rs.html#89">Error::GbuildArtifactNotFound</a>(
                     <span class="string">"Could not parse target directory"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">into</a>(),
@@ -1972,7 +2002,7 @@
                 </span>.to_path_buf(),
         );
 
-        <span class="kw">let </span>artifact = <a href="#822">target</a>
+        <span class="kw">let </span>artifact = <a href="#837">target</a>
             .join(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
                 <span class="string">"gbuild/{}"</span>,
                 manifest.package().name().replace(<span class="string">'-'</span>, <span class="string">"_"</span>)
@@ -1980,7 +2010,7 @@
             .with_extension(<span class="string">"wasm"</span>);
 
         <span class="kw">if </span>artifact.exists() {
-            <span class="prelude-val">Ok</span>(<a href="#831">artifact</a>)
+            <span class="prelude-val">Ok</span>(<a href="#846">artifact</a>)
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<a href="error.rs.html#89">Error::GbuildArtifactNotFound</a>(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
                 <span class="string">"Program artifact not exist, {artifact:?}"
