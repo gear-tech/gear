@@ -26,7 +26,7 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalMessage},
+    message::{Dispatch, DispatchKind, Message, SignalMessage, Value},
 };
 use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -533,6 +533,21 @@ impl<'a> Program<'a> {
         T: Into<Vec<u8>>,
     {
         self.send_bytes_with_gas_and_value(from, payload, GAS_ALLOWANCE, value)
+    }
+
+    /// Send the message to the program with bytes payload, gas limit and value.
+    pub fn send_bytes_with_gas<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
+        self.send_bytes_with_gas_and_value(from, payload, gas_limit, value)
     }
 
     fn send_bytes_with_gas_and_value<ID, T>(
