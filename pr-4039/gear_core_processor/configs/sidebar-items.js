@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TESTS_MAX_PAGES_NUMBER"],"struct":["BlockConfig","BlockInfo","ExtCosts","ProcessCosts","RentCosts"]};
