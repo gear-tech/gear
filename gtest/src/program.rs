@@ -26,7 +26,7 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalMessage, Value},
+    message::{Dispatch, DispatchKind, Message, SignalMessage},
 };
 use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -880,7 +880,8 @@ pub mod gbuild {
 mod tests {
     use super::Program;
     use crate::{Log, System};
-    use gear_core_errors::ErrorReplyReason;
+    use gear_core::ids::ActorId;
+    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -1153,5 +1154,29 @@ mod tests {
 
         let run_result = prog.send_bytes(user_id, []);
         assert!(!run_result.main_failed());
+    }
+
+    #[test]
+    fn test_insufficient_gas() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
+
+        let user_id = ActorId::zero();
+
+        // set insufficient gas for execution
+        let res = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+
+        let expected_log =
+            Log::builder()
+                .source(prog.id())
+                .dest(user_id)
+                .reply_code(ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas,
+                )));
+
+        assert!(res.contains(&expected_log));
+        assert!(res.main_failed());
     }
 }
