@@ -15,7 +15,7 @@ main() {
     # Fuzzer expects a minimal input size of 350 KiB. Without providing a corpus of the same or larger
     # size fuzzer will stuck for a long time with trying to test the target using 0..100 bytes.
     mkdir -p utils/lazy-pages-fuzzer/fuzz/corpus/main
-    dd if=/dev/urandom of=utils/runtime-fuzzer/fuzz/corpus/main/check-fuzzer-bytes bs=1 count="$INITIAL_INPUT_SIZE"
+    dd if=/dev/urandom of=utils/lazy-pages-fuzzer/fuzz/corpus/main/check-fuzzer-bytes bs=1 count="$INITIAL_INPUT_SIZE"
 
     # Remove lazy pages fuzzer run file
     rm -f $OUTPUT_FILE
