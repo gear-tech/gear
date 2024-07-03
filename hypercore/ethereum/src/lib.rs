@@ -1,49 +1,51 @@
 #![allow(dead_code, clippy::new_without_default)]
 
 use crate::event::CodeApproved;
-use abi::{AlloyProgram, AlloyRouter};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
-    network::{Ethereum as AlloyEthereum, EthereumSigner, TxSigner},
-    primitives::{keccak256, Address, Bytes, ChainId, FixedBytes, Signature, B256},
+    network::{Ethereum as AlloyEthereum, EthereumWallet, TxSigner},
+    primitives::{keccak256, Address, Bytes, ChainId, FixedBytes, Signature, B256, U256},
     providers::{
-        fillers::{FillProvider, JoinFill, RecommendedFiller, SignerFiller},
-        ProviderBuilder, RootProvider,
+        fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
+        Provider, ProviderBuilder, RootProvider,
     },
-    pubsub::PubSubFrontend,
-    rpc::client::WsConnect,
     signers::{
         self as alloy_signer, sign_transaction_with_chain_id, Error as SignerError,
         Result as SignerResult, Signer, SignerSync,
     },
+    transports::BoxTransport,
 };
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
-use gear_core::code::{Code, CodeAndId};
+use gear_core::{
+    code::{Code, CodeAndId},
+    message::ReplyDetails,
+};
 use gear_wasm_instrument::gas_metering::Schedule;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use hypercore_signer::{
     Address as HypercoreAddress, PublicKey, Signature as HypercoreSignature,
     Signer as HypercoreSigner,
 };
+use std::sync::Arc;
 
-pub use gear_core::message::ReplyDetails;
+pub use abi::{IProgram, IRouter, IWrappedVara};
 
 mod abi;
 mod eip1167;
 pub mod event;
 
-type AlloyTransport = PubSubFrontend;
+type AlloyTransport = BoxTransport;
 type AlloyProvider = FillProvider<
-    JoinFill<RecommendedFiller, SignerFiller<EthereumSigner>>,
+    JoinFill<RecommendedFiller, WalletFiller<EthereumWallet>>,
     RootProvider<AlloyTransport>,
     AlloyTransport,
     AlloyEthereum,
 >;
 
-type AlloyProgramInstance = AlloyProgram::AlloyProgramInstance<AlloyTransport, AlloyProvider>;
-type AlloyRouterInstance = AlloyRouter::AlloyRouterInstance<AlloyTransport, AlloyProvider>;
+type AlloyProgramInstance = IProgram::IProgramInstance<AlloyTransport, Arc<AlloyProvider>>;
+type AlloyRouterInstance = IRouter::IRouterInstance<AlloyTransport, Arc<AlloyProvider>>;
 
 #[derive(Debug, Clone)]
 struct Sender {
@@ -115,7 +117,7 @@ impl SignerSync for Sender {
 #[derive(Debug, Clone)]
 pub struct CodeCommitment {
     pub code_id: CodeId,
-    pub approved: u8,
+    pub approved: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -137,19 +139,12 @@ pub struct OutgoingMessage {
 pub struct Router(AlloyRouterInstance);
 
 impl Router {
-    fn new(address: Address, provider: &AlloyProvider) -> Self {
-        Self(AlloyRouterInstance::new(address, provider.clone()))
+    fn new(address: Address, provider: Arc<AlloyProvider>) -> Self {
+        Self(AlloyRouterInstance::new(address, provider))
     }
 
-    pub async fn set_program(&self, program: ActorId) -> Result<H256> {
-        let builder = self.0.setProgram({
-            let mut address = Address::ZERO;
-            address.0.copy_from_slice(&program.into_bytes()[12..]);
-            address
-        });
-        let tx = builder.send().await?;
-        let receipt = tx.get_receipt().await?;
-        Ok(H256(receipt.transaction_hash.0))
+    pub fn address(&self) -> HypercoreAddress {
+        HypercoreAddress(*self.0.address().0)
     }
 
     pub async fn add_validators(&self, validators: Vec<ActorId>) -> Result<H256> {
@@ -274,7 +269,7 @@ impl Router {
         let builder = self.0.commitCodes(
             commitments
                 .into_iter()
-                .map(|commitment| AlloyRouter::CodeCommitment {
+                .map(|commitment| IRouter::CodeCommitment {
                     codeId: B256::new(commitment.code_id.into_bytes()),
                     approved: commitment.approved,
                 })
@@ -297,7 +292,7 @@ impl Router {
         let builder = self.0.commitTransitions(
             transitions
                 .into_iter()
-                .map(|transition| AlloyRouter::TransitionCommitment {
+                .map(|transition| IRouter::TransitionCommitment {
                     actorId: {
                         let mut address = Address::ZERO;
                         address
@@ -310,7 +305,7 @@ impl Router {
                     outgoingMessages: transition
                         .outgoing_messages
                         .into_iter()
-                        .map(|outgoin_message| AlloyRouter::OutgoingMessage {
+                        .map(|outgoin_message| IRouter::OutgoingMessage {
                             destination: {
                                 let mut address = Address::ZERO;
                                 address.0.copy_from_slice(
@@ -320,7 +315,7 @@ impl Router {
                             },
                             payload: Bytes::copy_from_slice(&outgoin_message.payload),
                             value: outgoin_message.value,
-                            replyDetails: AlloyRouter::ReplyDetails {
+                            replyDetails: IRouter::ReplyDetails {
                                 replyTo: B256::new(
                                     outgoin_message.reply_details.to_message_id().into_bytes(),
                                 ),
@@ -346,8 +341,12 @@ impl Router {
 pub struct Program(AlloyProgramInstance);
 
 impl Program {
-    fn new(address: Address, provider: &AlloyProvider) -> Self {
-        Self(AlloyProgramInstance::new(address, provider.clone()))
+    fn new(address: Address, provider: Arc<AlloyProvider>) -> Self {
+        Self(AlloyProgramInstance::new(address, provider))
+    }
+
+    pub fn address(&self) -> HypercoreAddress {
+        HypercoreAddress(*self.0.address().0)
     }
 
     pub async fn send_message(
@@ -393,9 +392,23 @@ impl Program {
     }
 }
 
+async fn create_provider(
+    rpc_url: &str,
+    signer: HypercoreSigner,
+    sender_address: HypercoreAddress,
+) -> Result<Arc<AlloyProvider>> {
+    Ok(Arc::new(
+        ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
+            .on_builtin(rpc_url)
+            .await?,
+    ))
+}
+
 pub struct Ethereum {
     router_address: Address,
-    provider: AlloyProvider,
+    provider: Arc<AlloyProvider>,
 }
 
 impl Ethereum {
@@ -407,19 +420,66 @@ impl Ethereum {
     ) -> Result<Self> {
         Ok(Self {
             router_address: Address::new(router_address.0),
-            provider: ProviderBuilder::new()
-                .with_recommended_fillers()
-                .signer(EthereumSigner::new(Sender::new(signer, sender_address)?))
-                .on_ws(WsConnect::new(rpc_url))
-                .await?,
+            provider: create_provider(rpc_url, signer, sender_address).await?,
         })
     }
 
+    pub async fn deploy(
+        rpc_url: &str,
+        validators: Vec<HypercoreAddress>,
+        signer: HypercoreSigner,
+        sender_address: HypercoreAddress,
+    ) -> Result<Self> {
+        const VALUE_PER_GAS: u128 = 6;
+
+        let provider = create_provider(rpc_url, signer, sender_address).await?;
+        let validators = validators
+            .into_iter()
+            .map(|validator_address| Address::new(validator_address.0))
+            .collect();
+        let deployer_address = Address::new(sender_address.0);
+
+        let wrapped_vara =
+            IWrappedVara::deploy(provider.clone(), deployer_address, VALUE_PER_GAS).await?;
+        let wrapped_vara_address = *wrapped_vara.address();
+
+        let nonce = provider.get_transaction_count(deployer_address).await?;
+        let program_address = deployer_address.create(
+            nonce
+                .checked_add(1)
+                .ok_or_else(|| anyhow!("failed to add one"))?,
+        );
+
+        let router = IRouter::deploy(
+            provider.clone(),
+            deployer_address,
+            program_address,
+            wrapped_vara_address,
+            validators,
+        )
+        .await?;
+        let router_address = *router.address();
+
+        IProgram::deploy(provider.clone(), router_address).await?;
+
+        let builder = wrapped_vara.approve(router_address, U256::MAX);
+        builder.send().await?.get_receipt().await?;
+
+        Ok(Self {
+            router_address,
+            provider,
+        })
+    }
+
+    pub fn provider(&self) -> Arc<AlloyProvider> {
+        self.provider.clone()
+    }
+
     pub fn router(&self) -> Router {
-        Router::new(self.router_address, &self.provider)
+        Router::new(self.router_address, self.provider.clone())
     }
 
     pub fn program(&self, program_address: HypercoreAddress) -> Program {
-        Program::new(Address::new(program_address.0), &self.provider)
+        Program::new(Address::new(program_address.0), self.provider.clone())
     }
 }

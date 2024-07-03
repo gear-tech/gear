@@ -18,6 +18,7 @@
 
 //! CLI arguments in one place.
 
+use crate::{config, params::NetworkParams};
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
 use gprimitives::{ActorId, CodeId};
@@ -25,10 +26,6 @@ use hypercore_ethereum::Ethereum;
 use hypercore_signer::Address;
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
-
-use crate::params::NetworkParams;
-
-use crate::config;
 
 #[derive(Clone, Debug, Parser, Deserialize)]
 #[command(version, about, long_about = None)]
@@ -106,7 +103,6 @@ pub enum ExtraCommands {
     ClearKeys,
     InsertKey(InsertKeyArgs),
     Sign(SigningArgs),
-    SetProgram,
     AddValidators(AddValidatorsArgs),
     RemoveValidators(RemoveValidatorsArgs),
     UploadCode(UploadCodeArgs),
@@ -216,28 +212,6 @@ impl ExtraCommands {
 
                 println!("Key inserted: {}", pub_key);
                 println!("Ethereum address: {}", pub_key.to_address());
-            }
-
-            ExtraCommands::SetProgram => {
-                let program_impl: Address = config.ethereum_program_address.parse()?;
-
-                let Some((sender_address, hypercore_ethereum)) =
-                    maybe_sender_address.zip(maybe_ethereum)
-                else {
-                    bail!("please provide signer address");
-                };
-
-                println!("Setting program {program_impl} for Router from {sender_address}...");
-
-                let tx = hypercore_ethereum
-                    .router()
-                    .set_program({
-                        let mut actor_id = [0; 32];
-                        actor_id[12..].copy_from_slice(&program_impl.0);
-                        ActorId::new(actor_id)
-                    })
-                    .await?;
-                println!("Completed in transaction {tx:?}");
             }
 
             ExtraCommands::AddValidators(ref add_validators_args) => {

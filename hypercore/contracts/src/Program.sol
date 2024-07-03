@@ -1,26 +1,31 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
+import {IProgram} from "./IProgram.sol";
 import {IRouter} from "./IRouter.sol";
 
-contract Program {
-    address public constant ROUTER = 0x2e234DAe75C793f67A35089C9d99245E1C58470b;
+contract Program is IProgram {
+    address public immutable router;
     bytes32 public stateHash;
 
+    constructor(address _router) {
+        router = _router;
+    }
+
     function sendMessage(bytes calldata payload, uint64 gasLimit) external payable {
-        IRouter(ROUTER).sendMessage(address(this), payload, gasLimit, uint128(msg.value));
+        IRouter(router).sendMessage(address(this), payload, gasLimit, uint128(msg.value));
     }
 
     function sendReply(bytes32 replyToId, bytes calldata payload, uint64 gasLimit) external payable {
-        IRouter(ROUTER).sendReply(replyToId, payload, gasLimit, uint128(msg.value));
+        IRouter(router).sendReply(replyToId, payload, gasLimit, uint128(msg.value));
     }
 
     function claimValue(bytes32 messageId) external {
-        IRouter(ROUTER).claimValue(messageId);
+        IRouter(router).claimValue(messageId);
     }
 
     modifier onlyRouter() {
-        require(msg.sender == ROUTER, "not router");
+        require(msg.sender == router, "not router");
         _;
     }
 

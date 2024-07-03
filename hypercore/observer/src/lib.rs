@@ -18,10 +18,12 @@
 
 //! Ethereum state observer for Hypercore.
 
+mod blobs;
 mod event;
 mod observer;
 mod query;
 
+pub use blobs::{BlobReader, ConsensusLayerBlobReader, MockBlobReader};
 pub use event::{BlockEvent, BlockEventData, Event};
 pub use observer::Observer;
 pub use query::Query;

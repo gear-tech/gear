@@ -1,7 +1,7 @@
 use gprimitives::{ActorId, CodeId, H256};
 pub use hypercore_ethereum::event::{
     ClaimValue, CodeApproved, CodeRejected, CreateProgram, SendMessage, SendReply, UpdatedProgram,
-    UserMessageSent, UserReplySent,
+    UploadCode, UserMessageSent, UserReplySent,
 };
 use parity_scale_codec::{Decode, Encode};
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.25;
 
 interface IProgram {
-    function OWNER() external view returns (address);
+    function router() external view returns (address);
     function stateHash() external view returns (bytes32);
 
     function sendMessage(bytes calldata payload, uint64 gasLimit) external payable;

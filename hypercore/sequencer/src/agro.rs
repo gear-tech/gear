@@ -61,7 +61,7 @@ impl From<CodeCommitment> for hypercore_ethereum::CodeCommitment {
     fn from(value: CodeCommitment) -> Self {
         Self {
             code_id: value.code_id,
-            approved: value.approved as u8,
+            approved: value.approved,
         }
     }
 }
@@ -70,7 +70,7 @@ impl From<CodeCommitment> for hypercore_ethereum::CodeCommitment {
 // identity hashing
 impl SeqHash for CodeCommitment {
     fn hash(&self) -> H256 {
-        hash(&(self.code_id, self.approved as u8).encode())
+        hash(&self.encode())
     }
 }
 

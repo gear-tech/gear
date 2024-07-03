@@ -111,7 +111,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = { git = "https://github.com/alloy-rs/alloy", branch = "main" }
+alloy = "0.1.3"
 anyhow = "1.0.86"
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"

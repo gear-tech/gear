@@ -6,91 +6,34 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {IRouter} from "./IRouter.sol";
 import {IProgram} from "./IProgram.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 
-contract Router is Ownable, ReentrancyGuardTransient {
+contract Router is IRouter, Ownable, ReentrancyGuardTransient {
     using ECDSA for bytes32;
     using MessageHashUtils for address;
 
     uint256 public constant COUNT_OF_VALIDATORS = 1;
     uint256 public constant REQUIRED_SIGNATURES = 1;
 
-    address public constant WRAPPED_VARA = 0x6377Bf194281FF2b14e807CC3740ac937744406f;
+    address public immutable program;
+    address public immutable wrappedVara;
 
-    address public program;
     uint256 public countOfValidators;
     mapping(address => bool) public validators;
     mapping(bytes32 => CodeState) public codes;
     mapping(address => bool) public programs;
 
-    enum CodeState {
-        Unknown,
-        Unconfirmed,
-        Confirmed
-    }
-
-    struct CodeCommitment {
-        bytes32 codeId;
-        uint8 approved;
-    }
-
-    struct ReplyDetails {
-        bytes32 replyTo;
-        bytes4 replyCode;
-    }
-
-    struct OutgoingMessage {
-        address destination;
-        bytes payload;
-        uint128 value;
-        ReplyDetails replyDetails;
-    }
-
-    struct TransitionCommitment {
-        address actorId;
-        bytes32 oldStateHash;
-        bytes32 newStateHash;
-        OutgoingMessage[] outgoingMessages;
-    }
-
-    event UploadCode(address indexed origin, bytes32 indexed codeId, bytes32 indexed blobTx);
-
-    event CodeApproved(bytes32 indexed codeId);
-
-    event CodeRejected(bytes32 indexed codeId);
-
-    event CreateProgram(
-        address indexed origin,
-        address indexed actorId,
-        bytes32 indexed codeId,
-        bytes initPayload,
-        uint64 gasLimit,
-        uint128 value
-    );
-
-    event UpdatedProgram(address indexed actorId, bytes32 oldStateHash, bytes32 newStateHash);
-
-    event UserMessageSent(address indexed destination, bytes payload, uint128 value);
-
-    event UserReplySent(address indexed destination, bytes payload, uint128 value, bytes32 replyTo, bytes4 replyCode);
-
-    event SendMessage(
-        address indexed origin, address indexed destination, bytes payload, uint64 gasLimit, uint128 value
-    );
-
-    event SendReply(address indexed origin, bytes32 indexed replyToId, bytes payload, uint64 gasLimit, uint128 value);
-
-    event ClaimValue(address indexed origin, bytes32 indexed messageId);
-
-    constructor(address initialOwner) Ownable(initialOwner) {}
-
-    function setProgram(address _program) external onlyOwner {
-        require(program == address(0), "program already set");
+    constructor(address initialOwner, address _program, address _wrappedVara, address[] memory validatorsArray)
+        Ownable(initialOwner)
+    {
         program = _program;
+        wrappedVara = _wrappedVara;
+        addValidators(validatorsArray);
     }
 
-    function addValidators(address[] calldata validatorsArray) external onlyOwner {
+    function addValidators(address[] memory validatorsArray) public onlyOwner {
         uint256 newCountOfValidators = countOfValidators + validatorsArray.length;
         require(newCountOfValidators <= COUNT_OF_VALIDATORS, "validator set is limited");
         countOfValidators = newCountOfValidators;
@@ -118,12 +61,14 @@ contract Router is Ownable, ReentrancyGuardTransient {
     function createProgram(bytes32 codeId, bytes32 salt, bytes calldata initPayload, uint64 gasLimit)
         external
         payable
+        returns (address)
     {
         require(codes[codeId] == CodeState.Confirmed, "code is unconfirmed");
         address actorId = Clones.cloneDeterministic(program, keccak256(abi.encodePacked(salt, codeId)), msg.value);
         programs[actorId] = true;
         chargeGas(gasLimit);
         emit CreateProgram(tx.origin, actorId, codeId, initPayload, gasLimit, uint128(msg.value));
+        return actorId;
     }
 
     modifier onlyProgram() {
@@ -152,8 +97,8 @@ contract Router is Ownable, ReentrancyGuardTransient {
     }
 
     function chargeGas(uint64 gas) private {
-        IWrappedVara wrappedVara = IWrappedVara(WRAPPED_VARA);
-        bool success = wrappedVara.transferFrom(tx.origin, address(this), wrappedVara.gasToValue(gas));
+        IWrappedVara wrappedVaraToken = IWrappedVara(wrappedVara);
+        bool success = wrappedVaraToken.transferFrom(tx.origin, address(this), wrappedVaraToken.gasToValue(gas));
         require(success, "failed to transfer tokens");
     }
 
@@ -162,14 +107,12 @@ contract Router is Ownable, ReentrancyGuardTransient {
 
         for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
             CodeCommitment calldata codeCommitment = codeCommitmentsArray[i];
-            require(codeCommitment.approved < 2, "'approved' field should represent bool as uint8");
-
             message = bytes.concat(message, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
 
             bytes32 codeId = codeCommitment.codeId;
             require(codes[codeId] == CodeState.Unconfirmed, "code should be uploaded, but unconfirmed");
 
-            if (codeCommitment.approved == 1) {
+            if (codeCommitment.approved) {
                 codes[codeId] = CodeState.Confirmed;
                 emit CodeApproved(codeId);
             } else {
