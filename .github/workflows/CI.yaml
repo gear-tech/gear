@@ -16,7 +16,7 @@ env:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: [kuberunner, github-runner-01]
     steps:
       - uses: actions/checkout@v4
         with:
