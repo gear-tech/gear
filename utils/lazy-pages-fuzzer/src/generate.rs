@@ -61,8 +61,7 @@ impl<'u> Arbitrary<'u> for GeneratedModule<'u> {
 
 impl GeneratedModule<'_> {
     pub fn enhance(self) -> Result<Self> {
-        let module = self.module;
-        let config = self.config;
+        let GeneratedModule { module, config, u } = self;
 
         let module = InstrumentationBuilder::new(MODULE_ENV)
             .with_gas_limiter(|_| FuzzerCostRules)
