@@ -64,7 +64,6 @@ impl SyscallsParamsConfig {
         }
     }
 
-
     pub fn with_default_regular_config(self) -> Self {
         use RegularParamType::*;
 

@@ -108,14 +108,20 @@ fn config(
     log_info: Option<String>,
     current_balance: Balance,
 ) -> RandomizedGearWasmConfigBundle {
-    // TODO: Play with this more: control instructions make us very slow.
-    let no_control = unstructured.ratio(1, 3).unwrap();
+    // Observation: with balance increased and no control instructions we get *a lot* of programs executed even if we're
+    // running fuzzer for just 5 minutes. Without balance increase disabling control results in gas limit exceeding quite often.
+    let no_control = unstructured.ratio(1, 4).unwrap();
+    // Carefully adjusted to run fine with `account.rs` balance calculation.
+    // 1) When max_balance or max_balance/4 is used we're almost always guaranteed to finish execution of a program so
+    // do not try to get too much instructions in case of control insns enabled to not get infinite loops or recursion.
+    // 2) Otherwise we can run quite a lot of insns
+    // with no control as we're guaranteed to terminate execution.
     let max_instructions = if no_control {
         // when no control insns are enabled we generate a small amount of instructions
         // as it should be more than enough to test the program and exhaust the gas
-        unstructured.int_in_range(80..=200).unwrap()
+        unstructured.int_in_range(80..=400).unwrap()
     } else {
-        unstructured.int_in_range(500..=1000).unwrap()
+        unstructured.int_in_range(500..=1200).unwrap()
     };
 
     let (min_funcs, max_funcs) = no_control.then(|| (1, 1)).unwrap_or((3, 4));
