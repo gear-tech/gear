@@ -24,7 +24,6 @@ use libfuzzer_sys::{fuzz_target, Corpus};
 fuzz_target!(|generated_module: GeneratedModule<'_>| -> Corpus {
     gear_utils::init_default_logger();
 
-    log::info!("Executing generated gear calls");
 
     match lazy_pages_fuzzer::run(generated_module) {
         Err(_) => Corpus::Reject,
