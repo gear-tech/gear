@@ -9,7 +9,11 @@ contract WrappedVaraScript is Script {
 
     function run() public {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
-        vm.broadcast(privateKey);
-        console.log(address(new WrappedVara(vm.addr(privateKey), 6)));
+        address deployerAddress = vm.addr(privateKey);
+
+        vm.startBroadcast(privateKey);
+
+        WrappedVara wrappedVara = new WrappedVara(deployerAddress, 6);
+        console.log(address(wrappedVara));
     }
 }

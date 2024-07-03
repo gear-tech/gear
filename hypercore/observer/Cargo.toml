@@ -12,13 +12,18 @@ anyhow.workspace = true
 alloy = { workspace = true, features = [
     "consensus",
     "eips",
+    "node-bindings",
+    "provider-http",
     "provider-ws",
+    "provider-anvil-api",
     "pubsub",
     "rpc-client",
     "rpc-types-eth",
     "rpc-types-beacon",
+    "signer-local",
 ] }
 async-stream.workspace = true
+async-trait.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tokio = { workspace = true, features = ["fs"] }
 futures.workspace = true
@@ -26,5 +31,9 @@ reqwest = { workspace = true, features = ["default-tls", "json"] }
 log.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
+hypercore-signer.workspace = true
 hypercore-ethereum.workspace = true
 hypercore-db.workspace = true
+
+[dev-dependencies]
+wabt.workspace = true

@@ -1,23 +1,20 @@
-use alloy::{
-    primitives::Address,
-    providers::{Provider, ProviderBuilder},
-    rpc::{
-        client::WsConnect,
-        types::eth::{BlockTransactionsKind, Filter},
-    },
-};
-use anyhow::{anyhow, bail, Ok, Result};
-use gear_core::ids::ProgramId;
-use gprimitives::H256;
-use hypercore_db::BlockMetaInfo;
-use hypercore_ethereum::event::{CreateProgram, UpdatedProgram, UserMessageSent, UserReplySent};
-use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeMap;
-
 use crate::{
+    event::{CreateProgram, UpdatedProgram, UserMessageSent, UserReplySent},
     observer::{read_block_events, ObserverProvider},
     BlockEvent,
 };
+use alloy::{
+    primitives::Address,
+    providers::{Provider, ProviderBuilder},
+    rpc::types::eth::{BlockTransactionsKind, Filter},
+};
+use anyhow::{anyhow, bail, Result};
+use gear_core::ids::ProgramId;
+use gprimitives::H256;
+use hypercore_db::BlockMetaInfo;
+use hypercore_signer::Address as HypercoreAddress;
+use parity_scale_codec::{Decode, Encode};
+use std::collections::BTreeMap;
 
 pub struct Query {
     database: Box<dyn BlockMetaInfo>,
@@ -28,15 +25,13 @@ pub struct Query {
 impl Query {
     pub async fn new(
         database: Box<dyn BlockMetaInfo>,
-        ethereum_rpc: String,
-        router_address: String,
+        ethereum_rpc: &str,
+        router_address: HypercoreAddress,
     ) -> Result<Self> {
         Ok(Self {
             database,
-            provider: ProviderBuilder::new()
-                .on_ws(WsConnect::new(ethereum_rpc))
-                .await?,
-            router_address: Address::parse_checksummed(router_address, None)?,
+            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
+            router_address: Address::new(router_address.0),
         })
     }
 
@@ -211,7 +206,7 @@ impl Query {
 
         // Events not found or corrupted, need to query them from ethereum
         let (_, events) =
-            read_block_events(block_hash, &mut self.provider, self.router_address).await?;
+            read_block_events(block_hash, &self.provider, self.router_address).await?;
         self.database.set_block_events(block_hash, events.encode());
 
         Ok(events)

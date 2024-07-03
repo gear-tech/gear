@@ -26,6 +26,7 @@ use hypercore_db::{BlockInfo, BlockMetaInfo, Database};
 use hypercore_network::service::NetworkGossip;
 use hypercore_processor::{LocalOutcome, TransitionOutcome};
 use parity_scale_codec::{Decode, Encode};
+use std::sync::Arc;
 use tokio::{signal, time};
 
 /// Hypercore service.
@@ -53,16 +54,22 @@ impl Service {
         let rocks_db = hypercore_db::RocksDatabase::open(config.database_path.clone())?;
         let db = hypercore_db::Database::from_one(&rocks_db);
         let network = hypercore_network::NetworkWorker::new(config.net_config.clone())?;
+        let blob_reader = hypercore_observer::ConsensusLayerBlobReader::new(
+            &config.ethereum_rpc,
+            &config.ethereum_beacon_rpc,
+        )
+        .await?;
+        let ethereum_router_address = config.ethereum_router_address.parse()?;
         let observer = hypercore_observer::Observer::new(
-            config.ethereum_rpc.clone(),
-            config.ethereum_beacon_rpc.clone(),
-            config.ethereum_router_address.clone(),
+            &config.ethereum_rpc,
+            ethereum_router_address,
+            Arc::new(blob_reader),
         )
         .await?;
         let query = hypercore_observer::Query::new(
             Box::new(db.clone()),
-            config.ethereum_rpc.clone(),
-            config.ethereum_router_address.clone(),
+            &config.ethereum_rpc,
+            ethereum_router_address,
         )
         .await?;
         let processor = hypercore_processor::Processor::new(db.clone())?;

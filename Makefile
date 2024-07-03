@@ -4,6 +4,16 @@ gpu-pre-commit:
 	@ echo " > Formatting eGPU" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
 	@ echo " >> Clippy checking eGPU" && cargo clippy -p "hypercore-*" --all-targets --all-features -- --no-deps -D warnings
 
+# Bulding contracts
+.PHONY: gpu-contracts-pre-commit
+gpu-contracts-pre-commit:
+	@ echo " > Formatting contracts" && forge fmt --root hypercore/contracts
+	@ echo " > Building contracts" && forge build --root hypercore/contracts
+	@ echo " > Testing contracts" && forge test --root hypercore/contracts -vvvv
+	@ echo " > Copying Router arfitact" && cp ./hypercore/contracts/out/Router.sol/Router.json ./hypercore/ethereum
+	@ echo " > Copying Program arfitact" && cp ./hypercore/contracts/out/Program.sol/Program.json ./hypercore/ethereum
+	@ echo " > Copying WrappedVara arfitact" && cp ./hypercore/contracts/out/WrappedVara.sol/WrappedVara.json ./hypercore/ethereum
+
 # Common section
 .PHONY: show
 show:

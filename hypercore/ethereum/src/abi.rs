@@ -1,15 +1,19 @@
 use alloy::sol;
 
 sol!(
-    #[derive(Debug)]
     #[sol(rpc)]
-    AlloyRouter,
-    "router_abi.json"
+    IProgram,
+    "Program.json"
 );
 
 sol!(
-    #[derive(Debug)]
     #[sol(rpc)]
-    AlloyProgram,
-    "program_abi.json"
+    IRouter,
+    "Router.json"
+);
+
+sol!(
+    #[sol(rpc)]
+    IWrappedVara,
+    "WrappedVara.json"
 );
