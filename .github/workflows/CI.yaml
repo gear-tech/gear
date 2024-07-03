@@ -21,6 +21,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          submodules: recursive
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: "Show: Versioning"
+        run: |
+          ./scripts/gear.sh show
+          forge --version
+
+      - name: "Check: hypercore contracts"
+        run: |
+          cd hypercore/contracts
+          forge fmt --check
+          forge build --sizes
+          forge test -vvv
 
       - name: "Check: workspace formatting"
         run: ./scripts/gear.sh format gear --check
