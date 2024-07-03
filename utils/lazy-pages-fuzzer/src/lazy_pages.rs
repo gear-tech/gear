@@ -217,10 +217,11 @@ unsafe fn mprotect_interval(
 
 // Simulate data load to memory page.
 unsafe fn simulate_data_load(addr: usize) {
+    const DUMMY_BYTE: u8 = 0xA5;
     // SAFETY: these pages still allocated by VM and not freed.
     unsafe {
         mprotect_interval(addr, OS_PAGE_SIZE, true, true, false).expect("mprotect succeeded");
-        memset(addr as *mut u8, 0xA5, OS_PAGE_SIZE);
+        memset(addr as *mut u8, DUMMY_BYTE, OS_PAGE_SIZE);
     }
 }
 

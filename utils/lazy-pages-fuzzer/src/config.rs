@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::num::{NonZeroU32, NonZeroUsize};
-use wasm_smith::InstructionKind;
 
 use gear_wasm_gen::{
-    ConfigsBundle, GearWasmGeneratorConfig, MemoryPagesConfig, SelectableParams,
+    ConfigsBundle, GearWasmGeneratorConfig, InstructionKind, MemoryPagesConfig, SelectableParams,
     SyscallsConfigBuilder, SyscallsInjectionTypes,
 };
 use gear_wasm_instrument::{
@@ -50,7 +49,7 @@ impl ConfigsBundle for FuzzerConfigBundle {
                 },
                 syscalls_config: SyscallsConfigBuilder::new(SyscallsInjectionTypes::all_never())
                     .build(),
-                remove_recursions: true,
+                remove_recursions: false,
                 ..Default::default()
             },
             SelectableParams {
@@ -65,18 +64,23 @@ impl ConfigsBundle for FuzzerConfigBundle {
     }
 }
 
-pub struct FuzzerCostRules;
+/// Dummy cost rules for the fuzzer
+/// We don't care about the actual costs, just that they are non-zero
+pub struct DummyCostRules;
 
-impl Rules for FuzzerCostRules {
+impl Rules for DummyCostRules {
     fn instruction_cost(&self, _instruction: &Instruction) -> Option<u32> {
-        Some(13)
+        const DUMMY_COST: u32 = 13;
+        Some(DUMMY_COST)
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
-        MemoryGrowCost::Linear(NonZeroU32::new(1242).unwrap())
+        const DUMMY_MEMORY_GROW_COST: u32 = 1242;
+        MemoryGrowCost::Linear(NonZeroU32::new(DUMMY_MEMORY_GROW_COST).unwrap())
     }
 
     fn call_per_local_cost(&self) -> u32 {
-        132
+        const DUMMY_COST_PER_CALL: u32 = 132;
+        DUMMY_COST_PER_CALL
     }
 }

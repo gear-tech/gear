@@ -46,7 +46,7 @@ pub struct InjectGlobals<'u> {
     config: InjectGlobalsConfig,
 }
 
-impl InjectGlobals<'_> {
+impl<'u> InjectGlobals<'u> {
     pub fn new(unstructured: Unstructured<'_>, config: InjectGlobalsConfig) -> InjectGlobals<'_> {
         InjectGlobals {
             unstructured,
@@ -54,10 +54,7 @@ impl InjectGlobals<'_> {
         }
     }
 
-    pub fn inject<'this>(mut self, mut module: Module) -> Result<(Module, Unstructured<'this>)>
-    where
-        Self: 'this,
-    {
+    pub fn inject(mut self, mut module: Module) -> Result<(Module, Unstructured<'u>)> {
         let global_names: Vec<_> = ('a'..='z')
             .take(self.config.max_global_number)
             .map(|ch| format!("{GLOBAL_NAME_PREFIX}{ch}"))
@@ -125,5 +122,79 @@ impl InjectGlobals<'_> {
         }
 
         Ok((builder.build(), self.unstructured))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gear_wasm_instrument::parity_wasm::elements::Internal;
+
+    use super::*;
+
+    const TEST_PROGRAM_WAT: &str = r#"
+        (module
+            (func (export "main") (result i32)
+                i32.const 42
+            )
+        )
+    "#;
+
+    #[test]
+    fn test_inject_globals() {
+        let unstructured = Unstructured::new(&[0u8; 32]);
+        let config = InjectGlobalsConfig {
+            max_global_number: 3,
+            max_access_per_func: 3,
+        };
+        let globals = InjectGlobals::new(unstructured, config);
+
+        let wasm = wat::parse_str(TEST_PROGRAM_WAT).unwrap();
+        let module = Module::from_bytes(wasm).unwrap();
+        let (module, _) = globals.inject(module).unwrap();
+
+        assert_eq!(module.globals_space(), 3);
+        assert_eq!(
+            module
+                .export_section()
+                .unwrap()
+                .entries()
+                .iter()
+                .filter(|export| { matches!(export.internal(), Internal::Global(_)) })
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn test_globals_modified() {
+        let unstructured = Unstructured::new(&[3u8; 32]);
+        let config = InjectGlobalsConfig {
+            max_global_number: 3,
+            max_access_per_func: 3,
+        };
+        let globals = InjectGlobals::new(unstructured, config);
+
+        let wasm = wat::parse_str(TEST_PROGRAM_WAT).unwrap();
+        let module = Module::from_bytes(wasm).unwrap();
+        let (module, _) = globals.inject(module).unwrap();
+
+        let module = wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
+        let instance = wasmi::ModuleInstance::new(&module, &wasmi::ImportsBuilder::default())
+            .unwrap()
+            .assert_no_start();
+        let _ = instance
+            .invoke_export("main", &[], &mut wasmi::NopExternals)
+            .unwrap();
+
+        // Assert that global was modified (initially 0)
+        let gear_fuzz_a: u64 = instance
+            .export_by_name("gear_fuzz_a")
+            .unwrap()
+            .as_global()
+            .unwrap()
+            .get()
+            .try_into()
+            .unwrap();
+        assert!(gear_fuzz_a != 0);
     }
 }

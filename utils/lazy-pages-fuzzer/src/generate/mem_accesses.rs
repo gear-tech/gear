@@ -56,7 +56,7 @@ pub struct InjectMemoryAccesses<'u> {
     config: InjectMemoryAccessesConfig,
 }
 
-impl InjectMemoryAccesses<'_> {
+impl<'u> InjectMemoryAccesses<'u> {
     pub fn new(
         unstructured: Unstructured<'_>,
         config: InjectMemoryAccessesConfig,
@@ -72,6 +72,9 @@ impl InjectMemoryAccesses<'_> {
         target_addr: usize,
     ) -> Result<Vec<Instruction>, InjectMemoryAccessesError> {
         use MemoryAccess::*;
+        // Dummy value to write to memory
+        const DUMMY_VALUE: u32 = 0xB6B6B6B6;
+
         Ok(match u.choose(&[ReadI32, WriteI32])? {
             ReadI32 => vec![
                 Instruction::I32Const(target_addr as i32),
@@ -80,19 +83,16 @@ impl InjectMemoryAccesses<'_> {
             ],
             WriteI32 => vec![
                 Instruction::I32Const(target_addr as i32),
-                Instruction::I32Const(0xB6B6B6B6u32 as i32),
+                Instruction::I32Const(DUMMY_VALUE as i32),
                 Instruction::I32Store(0, 0),
             ],
         })
     }
 
-    pub fn inject<'this>(
+    pub fn inject(
         mut self,
         mut module: Module,
-    ) -> Result<(Module, Unstructured<'this>), InjectMemoryAccessesError>
-    where
-        Self: 'this,
-    {
+    ) -> Result<(Module, Unstructured<'u>), InjectMemoryAccessesError> {
         let import_section = module
             .import_section()
             .ok_or(InjectMemoryAccessesError::NoMemoryImports)?;
@@ -145,5 +145,83 @@ impl InjectMemoryAccesses<'_> {
         }
 
         Ok((module, self.unstructured))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
+    use super::*;
+
+    const TEST_PROGRAM_WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (func (export "main") (result i32)
+                i32.const 42
+            )
+        )
+    "#;
+
+    struct Resolver {
+        memory: wasmi::MemoryRef,
+    }
+
+    impl wasmi::ModuleImportResolver for Resolver {
+        fn resolve_memory(
+            &self,
+            _field_name: &str,
+            _memory_type: &wasmi::MemoryDescriptor,
+        ) -> Result<wasmi::MemoryRef, wasmi::Error> {
+            Ok(self.memory.clone())
+        }
+    }
+
+    fn calculate_slice_hash(slice: &[u8]) -> u64 {
+        let mut s = DefaultHasher::new();
+        for b in slice {
+            b.hash(&mut s);
+        }
+        s.finish()
+    }
+
+    #[test]
+    fn test_memory_accesses() {
+        let unstructured = Unstructured::new(&[1u8; 32]);
+        let config = InjectMemoryAccessesConfig {
+            max_accesses_per_func: 10,
+        };
+
+        let wasm = wat::parse_str(TEST_PROGRAM_WAT).unwrap();
+        let module = Module::from_bytes(wasm).unwrap();
+
+        let (module, _) = InjectMemoryAccesses::new(unstructured, config)
+            .inject(module)
+            .unwrap();
+
+        let memory = wasmi::MemoryInstance::alloc(wasmi::memory_units::Pages(1), None).unwrap();
+
+        let original_mem_hash = {
+            let mem_slice = memory.direct_access();
+            calculate_slice_hash(mem_slice.as_ref())
+        };
+
+        let resolver = Resolver { memory };
+        let imports = wasmi::ImportsBuilder::new().with_resolver("env", &resolver);
+
+        let module = wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
+        let instance = wasmi::ModuleInstance::new(&module, &imports)
+            .unwrap()
+            .assert_no_start();
+        let _ = instance
+            .invoke_export("main", &[], &mut wasmi::NopExternals)
+            .unwrap();
+
+        let mem_hash = {
+            let mem_slice = resolver.memory.direct_access();
+            calculate_slice_hash(mem_slice.as_ref())
+        };
+
+        assert_ne!(original_mem_hash, mem_hash);
     }
 }

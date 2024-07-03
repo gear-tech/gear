@@ -24,7 +24,7 @@ use gear_wasm_gen::generate_gear_program_module;
 use gear_wasm_instrument::{parity_wasm::elements::Module, InstrumentationBuilder};
 
 use crate::{
-    config::{FuzzerConfigBundle, FuzzerCostRules},
+    config::{DummyCostRules, FuzzerConfigBundle},
     MODULE_ENV,
 };
 
@@ -64,11 +64,11 @@ impl GeneratedModule<'_> {
         let GeneratedModule { module, config, u } = self;
 
         let module = InstrumentationBuilder::new(MODULE_ENV)
-            .with_gas_limiter(|_| FuzzerCostRules)
+            .with_gas_limiter(|_| DummyCostRules)
             .instrument(module)
             .map_err(anyhow::Error::msg)?;
 
-        let (module, u) = InjectMemoryAccesses::new(self.u, config.memory_accesses.clone())
+        let (module, u) = InjectMemoryAccesses::new(u, config.memory_accesses.clone())
             .inject(module)
             .context("injected memory accesses")?;
 
