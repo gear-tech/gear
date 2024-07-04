@@ -178,12 +178,13 @@ mod tests {
         let module = Module::from_bytes(wasm).unwrap();
         let (module, _) = globals.inject(module).unwrap();
 
-        let module = wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
-        let instance = wasmi::ModuleInstance::new(&module, &wasmi::ImportsBuilder::default())
-            .unwrap()
-            .assert_no_start();
+        let module = sandbox_wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
+        let instance =
+            sandbox_wasmi::ModuleInstance::new(&module, &sandbox_wasmi::ImportsBuilder::default())
+                .unwrap()
+                .assert_no_start();
         let _ = instance
-            .invoke_export("main", &[], &mut wasmi::NopExternals)
+            .invoke_export("main", &[], &mut sandbox_wasmi::NopExternals)
             .unwrap();
 
         // Assert that global was modified (initially 0)

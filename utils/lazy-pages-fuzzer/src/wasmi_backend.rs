@@ -20,7 +20,7 @@ use anyhow::{bail, Context};
 
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
-use wasmi::{
+use sandbox_wasmi::{
     memory_units::Pages, ExternVal, FuncInstance, FuncRef, ImportsBuilder, MemoryInstance,
     MemoryRef, Module as WasmiModule, ModuleImportResolver, ModuleInstance, ModuleRef,
     RuntimeValue, Trap, TrapCode, ValueType,
@@ -43,15 +43,15 @@ impl ModuleImportResolver for Resolver {
     fn resolve_func(
         &self,
         field_name: &str,
-        _signature: &wasmi::Signature,
-    ) -> Result<FuncRef, wasmi::Error> {
+        _signature: &sandbox_wasmi::Signature,
+    ) -> Result<FuncRef, sandbox_wasmi::Error> {
         if field_name == SyscallName::SystemBreak.to_str() {
             Ok(FuncInstance::alloc_host(
-                wasmi::Signature::new([ValueType::I32].as_slice(), None),
+                sandbox_wasmi::Signature::new([ValueType::I32].as_slice(), None),
                 0,
             ))
         } else {
-            Err(wasmi::Error::Instantiation(format!(
+            Err(sandbox_wasmi::Error::Instantiation(format!(
                 "Export '{field_name}' not found"
             )))
         }
@@ -60,8 +60,8 @@ impl ModuleImportResolver for Resolver {
     fn resolve_memory(
         &self,
         _field_name: &str,
-        _memory_type: &wasmi::MemoryDescriptor,
-    ) -> Result<MemoryRef, wasmi::Error> {
+        _memory_type: &sandbox_wasmi::MemoryDescriptor,
+    ) -> Result<MemoryRef, sandbox_wasmi::Error> {
         Ok(self.memory.clone())
     }
 }
@@ -70,14 +70,14 @@ struct Externals {
     gr_system_break_idx: usize,
 }
 
-impl wasmi::Externals for Externals {
+impl sandbox_wasmi::Externals for Externals {
     fn invoke_index(
         &mut self,
         index: usize,
-        _args: wasmi::RuntimeArgs,
-    ) -> Result<Option<wasmi::RuntimeValue>, wasmi::Trap> {
+        _args: sandbox_wasmi::RuntimeArgs,
+    ) -> Result<Option<sandbox_wasmi::RuntimeValue>, sandbox_wasmi::Trap> {
         Err(if index == self.gr_system_break_idx {
-            wasmi::Trap::host(CustomHostError::from("out of gas"))
+            sandbox_wasmi::Trap::host(CustomHostError::from("out of gas"))
         } else {
             TrapCode::Unreachable.into()
         })
@@ -145,7 +145,7 @@ impl Runner for WasmiRunner {
                 gr_system_break_idx: 0,
             },
         ) {
-            if let wasmi::Error::Trap(Trap::Host(_)) = error {
+            if let sandbox_wasmi::Error::Trap(Trap::Host(_)) = error {
                 log::info!("out of gas");
             } else {
                 Err(error)?;

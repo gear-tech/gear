@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use derive_more::Display;
-use wasmi::HostError;
+use sandbox_wasmi::HostError;
 
 #[derive(Debug, Display)]
 #[display(fmt = "{message}")]

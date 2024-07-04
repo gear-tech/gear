@@ -14,7 +14,7 @@ gear-lazy-pages.workspace = true
 gear-lazy-pages-common.workspace = true
 log.workspace = true
 region.workspace = true
-wasmer.workspace = true
+sandbox-wasmer.workspace = true
+sandbox-wasmi.workspace = true
 wasmprinter.workspace = true
 wat.workspace = true
-wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }

@@ -163,15 +163,15 @@ mod tests {
     "#;
 
     struct Resolver {
-        memory: wasmi::MemoryRef,
+        memory: sandbox_wasmi::MemoryRef,
     }
 
-    impl wasmi::ModuleImportResolver for Resolver {
+    impl sandbox_wasmi::ModuleImportResolver for Resolver {
         fn resolve_memory(
             &self,
             _field_name: &str,
-            _memory_type: &wasmi::MemoryDescriptor,
-        ) -> Result<wasmi::MemoryRef, wasmi::Error> {
+            _memory_type: &sandbox_wasmi::MemoryDescriptor,
+        ) -> Result<sandbox_wasmi::MemoryRef, sandbox_wasmi::Error> {
             Ok(self.memory.clone())
         }
     }
@@ -198,7 +198,9 @@ mod tests {
             .inject(module)
             .unwrap();
 
-        let memory = wasmi::MemoryInstance::alloc(wasmi::memory_units::Pages(1), None).unwrap();
+        let memory =
+            sandbox_wasmi::MemoryInstance::alloc(sandbox_wasmi::memory_units::Pages(1), None)
+                .unwrap();
 
         let original_mem_hash = {
             let mem_slice = memory.direct_access();
@@ -206,14 +208,14 @@ mod tests {
         };
 
         let resolver = Resolver { memory };
-        let imports = wasmi::ImportsBuilder::new().with_resolver("env", &resolver);
+        let imports = sandbox_wasmi::ImportsBuilder::new().with_resolver("env", &resolver);
 
-        let module = wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
-        let instance = wasmi::ModuleInstance::new(&module, &imports)
+        let module = sandbox_wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
+        let instance = sandbox_wasmi::ModuleInstance::new(&module, &imports)
             .unwrap()
             .assert_no_start();
         let _ = instance
-            .invoke_export("main", &[], &mut wasmi::NopExternals)
+            .invoke_export("main", &[], &mut sandbox_wasmi::NopExternals)
             .unwrap();
 
         let mem_hash = {
