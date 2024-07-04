@@ -45,7 +45,7 @@ pub enum InjectMemoryAccessesError {
     Arbitrary(arbitrary::Error),
 }
 
-// TODO: different word size accesses
+// TODO: different word size accesses (#4042)
 enum MemoryAccess {
     ReadI32,
     WriteI32,

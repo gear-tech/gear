@@ -6335,7 +6335,6 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "region",
- "wasm-smith",
  "wasmer",
  "wasmi 0.13.2",
  "wasmprinter",
