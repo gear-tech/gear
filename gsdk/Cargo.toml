@@ -1,8 +1,9 @@
 [package]
 name = "gsdk"
-keywords = ["gear", "api", "sdk"]
-categories = ["wasm", "api-bindings"]
 description = "Rust SDK of the Gear network"
+documentation = "https://docs.rs/gsdk"
+categories = ["wasm", "api-bindings"]
+keywords = ["gear", "api", "sdk"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

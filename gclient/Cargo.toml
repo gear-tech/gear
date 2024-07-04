@@ -1,6 +1,7 @@
 [package]
 name = "gclient"
 description = "API client for Gear node in Rust"
+documentation = "https://docs.rs/gclient"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

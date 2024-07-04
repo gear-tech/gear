@@ -1,6 +1,7 @@
 [package]
 name = "gear-core-backend"
 description = "Gear WASM backend"
+documentation = "https://docs.rs/gear-core-backend"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

@@ -1,6 +1,7 @@
 [package]
 name = "gear-common"
 description = "Gear common library for the runtime"
+documentation = "https://docs.rs/gear-common"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 version.workspace = true

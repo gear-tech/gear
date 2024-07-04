@@ -1,6 +1,7 @@
 [package]
 name = "gcore"
 description = "Gear programs core library"
+documentation = "https://docs.rs/gcore"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

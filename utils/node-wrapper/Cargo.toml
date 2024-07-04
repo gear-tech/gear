@@ -1,6 +1,7 @@
 [package]
 name = "gear-node-wrapper"
 description = "Gear protocol node wrapper"
+documentation = "https://docs.rs/gear-node-wrapper"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

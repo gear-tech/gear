@@ -1,6 +1,7 @@
 [package]
 name = "cargo-gbuild"
 description = "Cargo extension for Gear programs"
+documentation = "https://docs.rs/cargo-gbuild"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
