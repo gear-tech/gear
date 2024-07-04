@@ -121,8 +121,7 @@ impl<'u> InjectMemoryAccesses<'u> {
             for _ in 0..=access_count {
                 let target_addr = self
                     .unstructured
-                    .choose_index(initial_memory_limit as usize)
-                    .unwrap()
+                    .choose_index(initial_memory_limit as usize)?
                     .saturating_mul(OS_PAGE_SIZE);
 
                 let code_len = function.code().elements().len();

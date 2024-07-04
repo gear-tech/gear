@@ -63,11 +63,6 @@ impl GeneratedModule<'_> {
     pub fn enhance(self) -> Result<Self> {
         let GeneratedModule { module, config, u } = self;
 
-        let module = InstrumentationBuilder::new(MODULE_ENV)
-            .with_gas_limiter(|_| DummyCostRules)
-            .instrument(module)
-            .map_err(anyhow::Error::msg)?;
-
         let (module, u) = InjectMemoryAccesses::new(u, config.memory_accesses.clone())
             .inject(module)
             .context("injected memory accesses")?;
@@ -75,6 +70,11 @@ impl GeneratedModule<'_> {
         let (module, u) = InjectGlobals::new(u, config.globals.clone())
             .inject(module)
             .context("injected globals")?;
+
+        let module = InstrumentationBuilder::new(MODULE_ENV)
+            .with_gas_limiter(|_| DummyCostRules)
+            .instrument(module)
+            .map_err(anyhow::Error::msg)?;
 
         Ok(GeneratedModule { u, module, config })
     }

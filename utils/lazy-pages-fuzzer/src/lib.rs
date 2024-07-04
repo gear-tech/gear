@@ -39,7 +39,7 @@ mod wasmi_backend;
 
 const INITIAL_PAGES: u32 = 10;
 const WASM_PAGE_SIZE: usize = 0x10_000;
-const PROGRAM_GAS: i64 = 10_000_000;
+const PROGRAM_GAS: i64 = 1_000_000;
 const OS_PAGE_SIZE: usize = 4096;
 const MODULE_ENV: &str = "env";
 
