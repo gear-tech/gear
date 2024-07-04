@@ -502,16 +502,16 @@ impl<'a> Program<'a> {
     }
 
     /// Send message to the program with gas limit and value.
-    pub fn send_with_gas<ID, C>(
+    pub fn send_with_gas<ID, P>(
         &self,
         from: ID,
-        payload: C,
+        payload: P,
         gas_limit: u64,
         value: u128,
     ) -> RunResult
     where
         ID: Into<ProgramIdWrapper>,
-        C: Codec,
+        P: Encode,
     {
         self.send_bytes_with_gas_and_value(from, payload.encode(), gas_limit, value)
     }
