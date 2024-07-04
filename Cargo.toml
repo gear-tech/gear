@@ -203,7 +203,7 @@ gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
-gnode = { path = "utils/gnode" }
+gear-node-wrapper = { path = "utils/node-wrapper" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
@@ -490,7 +490,7 @@ scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
 glob = "0.3.1"                                                            # cargo-gbuild
-smallvec = "1.13.2"                                                       # utils/gnode
+smallvec = "1.13.2"                                                       # utils/node-wrapper
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`
