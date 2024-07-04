@@ -55,7 +55,7 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use gtest::{calculate_program_id, Program, System};
+    use gtest::{calculate_program_id, constants::UNITS, Program, System};
     use std::io::Write;
 
     // Creates a new factory and initializes it.
@@ -67,8 +67,11 @@ mod tests {
         // Instantiate factory
         let factory = Program::current_with_id(sys, 100);
 
+        let user_id = 10001;
+        sys.mint_to(user_id, 100 * UNITS);
+
         // Send `init` msg to factory
-        let res = factory.send_bytes(10001, "EMPTY");
+        let res = factory.send_bytes_with_value(user_id, "EMPTY", 10 * UNITS);
         assert!(!res.main_failed());
         assert!(sys.is_active_program(100));
 

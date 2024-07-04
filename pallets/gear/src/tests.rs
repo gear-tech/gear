@@ -23,7 +23,7 @@ use crate::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
+        DUST_TRAP_TARGET, LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
@@ -131,12 +131,6 @@ fn calculate_reply_for_handle_works() {
         //     value,
         // ).expect("Failed to query reply");
         // assert_eq!(res.value, value);
-
-        // Extrinsic error.
-        let res = Gear::calculate_reply_for_handle(USER_1, ping_pong, vec![], 0, get_ed() - 1)
-            .expect_err("Extrinsic should've failed");
-
-        assert!(res.contains(&format!("{:?}", Error::<Test>::ValueLessThanMinimal)))
     })
 }
 
@@ -785,15 +779,18 @@ fn calculate_gas_returns_not_block_limit() {
 
     init_logger();
     new_test_ext().execute_with(|| {
+        let ed = get_ed();
+
         let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
         assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+        // Generator needs some balance to be able to pay ED for created programs
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0,
+            2 * ed,
             false,
         ));
 
@@ -1088,7 +1085,8 @@ fn auto_reply_out_of_rent_mailbox() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let value = 1_000;
+        let value = 1_000_u128;
+        let ed = get_ed();
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_3),
@@ -1106,7 +1104,7 @@ fn auto_reply_out_of_rent_mailbox() {
         assert!(utils::is_active(program_id));
 
         let user1_balance = Balances::free_balance(USER_1);
-        assert_balance(program_id, value, 0u128);
+        assert_program_balance(program_id, value, ed, 0u128);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_3),
             program_id,
@@ -1121,7 +1119,7 @@ fn auto_reply_out_of_rent_mailbox() {
         run_to_next_block(None);
         assert_succeed(message_id);
 
-        assert_balance(program_id, 0u128, value);
+        assert_program_balance(program_id, 0_u128, ed, value);
 
         let mailed_msg = utils::get_last_mail(USER_1);
         let expiration = utils::get_mailbox_expiration(mailed_msg.id());
@@ -1133,7 +1131,7 @@ fn auto_reply_out_of_rent_mailbox() {
         assert_eq!(user1_balance, Balances::free_balance(USER_1));
 
         run_to_block_maybe_with_queue(expiration, None, Some(false));
-        assert_balance(program_id, 0u128, 0u128);
+        assert_program_balance(program_id, 0u128, ed, 0u128);
         assert_eq!(user1_balance + value, Balances::free_balance(USER_1));
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
@@ -1679,7 +1677,7 @@ fn non_existent_code_id_zero_gas() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
-            0,
+            1000, // value required in init function
             false,
         ));
 
@@ -1822,7 +1820,9 @@ fn terminated_program_zero_gas() {
 }
 
 #[test]
-fn exited_program_zero_gas() {
+fn exited_program_zero_gas_and_value() {
+    use crate::{fungible, Fortitude, Preservation};
+
     init_logger();
 
     let wat = r#"
@@ -1838,6 +1838,7 @@ fn exited_program_zero_gas() {
 
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let ed = get_ed();
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -1850,6 +1851,18 @@ fn exited_program_zero_gas() {
         ));
 
         let program_id = utils::get_last_program_id();
+
+        // Account exists for the program and has exactly the ED locked.
+        assert_program_balance(program_id, 0_u128, ed, 0_u128);
+        // Reducible balance of an active program doesn't include the ED (runtime guarantee)
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &program_id.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            0
+        );
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -1865,6 +1878,9 @@ fn exited_program_zero_gas() {
 
         // Nothing panics here.
         assert_total_dequeued(2);
+
+        // Program's account should have been completely drained.
+        assert_program_balance(program_id, 0_u128, 0_u128, 0_u128);
     })
 }
 
@@ -2401,7 +2417,7 @@ fn delayed_program_creation_no_code() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
-            0,
+            2 * get_ed(), // necessary for init function to succeed
             false,
         ));
 
@@ -3128,6 +3144,7 @@ fn send_message_works() {
     new_test_ext().execute_with(|| {
         let user1_initial_balance = Balances::free_balance(USER_1);
         let user2_initial_balance = Balances::free_balance(USER_2);
+        let ed = get_ed();
 
         // No gas has been created initially
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
@@ -3146,7 +3163,7 @@ fn send_message_works() {
         // User 1 has sent two messages
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_initial_balance - user1_potential_msgs_spends
+            user1_initial_balance - user1_potential_msgs_spends - ed
         );
 
         // Clear messages from the queue to refund unused gas
@@ -3454,6 +3471,7 @@ fn unused_gas_released_back_works() {
         // source of ProgramCodeKind::OutgoingWithValueInHandle so the
         // execution ends in a trap sending a message to user's mailbox.
         let huge_send_message_gas_limit = 40_000;
+        let ed = get_ed();
 
         // Initial value in all gas trees is 0
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
@@ -3473,13 +3491,14 @@ fn unused_gas_released_back_works() {
             false,
         ));
 
-        // Spends for submit program with default gas limit and sending default message with a huge gas limit
+        // Spends for submit program with default gas limit and sending default message with a huge gas limit.
+        // Existential deposit has been charged to create an account for the submitted program.
         let user1_potential_msgs_spends =
             gas_price(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_initial_balance - user1_potential_msgs_spends
+            user1_initial_balance - user1_potential_msgs_spends - ed
         );
         assert_eq!(
             GearBank::<Test>::account_total(&USER_1),
@@ -3498,7 +3517,7 @@ fn unused_gas_released_back_works() {
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_initial_balance - user1_actual_msgs_spends
+            user1_initial_balance - user1_actual_msgs_spends - ed
         );
 
         // All created gas cancels out.
@@ -4940,9 +4959,12 @@ fn distributor_distribute() {
         // We sent two messages to user
         assert_eq!(utils::user_messages_sent(), (2, 0));
 
-        // Despite some messages are still in the mailbox all gas locked in value trees
+        // Despite some messages are still in the mailbox and the program still being active
+        // (therefore, holding the existential deposit), all gas locked in value trees
         // has been refunded to the sender so the free balances should add up
-        let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
+        let final_balance = Balances::free_balance(USER_1)
+            + Balances::free_balance(BLOCK_AUTHOR)
+            + Balances::free_balance(program_id.cast::<AccountId>());
 
         assert_eq!(initial_balance, final_balance);
 
@@ -6222,12 +6244,13 @@ fn exit_locking_funds() {
     init_logger();
     new_test_ext().execute_with(|| {
         let (_init_mid, program_id) = init_constructor(Scheme::empty());
+        let ed = get_ed();
 
         let user_2_balance = Balances::free_balance(USER_2);
 
         assert!(Gear::is_initialized(program_id));
 
-        assert_balance(program_id, 0u128, 0u128);
+        assert_program_balance(program_id, 0_u128, ed, 0_u128);
 
         let value = 1_000;
 
@@ -6258,8 +6281,89 @@ fn exit_locking_funds() {
         assert_succeed(message_1);
         assert_succeed(message_2);
 
-        assert_balance(USER_2, user_2_balance + value, 0u128);
+        // Both `value` and ED from the program's account go to the USER_2 as beneficiary.
+        assert_balance(USER_2, user_2_balance + value + ed, 0u128);
         assert_balance(program_id, 0u128, 0u128);
+    });
+}
+
+#[test]
+fn frozen_funds_remain_on_exit() {
+    use crate::{fungible, Fortitude, Preservation};
+    use demo_constructor::{Calls, Scheme};
+    use frame_support::traits::{LockableCurrency, WithdrawReasons};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, program_id) = init_constructor(Scheme::empty());
+        let ed = get_ed();
+
+        let program_account = program_id.cast();
+
+        // This doesn't include the ED that has already been locked on the `program_account`.
+        let user_2_initial_balance = CurrencyOf::<Test>::free_balance(USER_2);
+
+        assert!(Gear::is_initialized(program_id));
+
+        // Funding program account with this amount
+        let value = 5_000;
+
+        let calls = Calls::builder().send_value(program_id.into_bytes(), [], value);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            calls.encode(),
+            10_000_000_000,
+            value,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // The ED is not offset against `value` but locked separately.
+        assert_program_balance(program_id, value, ed, 0_u128);
+
+        // reducible balance of an active program doesn't include the ED (runtime guarantee)
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &program_account,
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            value
+        );
+
+        <CurrencyOf<Test> as LockableCurrency<AccountId>>::set_lock(
+            *b"py/grlok",
+            &program_account,
+            value / 2,
+            WithdrawReasons::all(),
+        );
+
+        // `exit()` will trigger program deactivation
+        let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let message_id = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(message_id);
+
+        // Frozen amount was not allowed to have been transferred to the beneficiary.
+        assert_eq!(CurrencyOf::<Test>::free_balance(program_account), value / 2);
+        // The beneficiary's account has only been topped up with half of the program's balance.
+        // In addition to that the ED has been transferred to the beneficiary, as well.
+        assert_eq!(
+            CurrencyOf::<Test>::free_balance(USER_2),
+            user_2_initial_balance + value / 2 + ed
+        );
     });
 }
 
@@ -6324,6 +6428,8 @@ fn terminated_locking_funds() {
             + gas_for_module_instantiation
             + gas_for_static_pages;
 
+        let ed = get_ed();
+
         // Value which must be returned to `USER1` after init message processing complete.
         let prog_free = 4000u128;
         // Reserved value, which is sent to user in init and then we wait for reply from user.
@@ -6345,7 +6451,7 @@ fn terminated_locking_funds() {
         // to user. This is because program will stop his execution on first wasm block, because of gas
         // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
         let expected_balance_difference =
-            prog_free + returned_from_wait_list + returned_from_system_reservation;
+            prog_free + returned_from_wait_list + returned_from_system_reservation + ed;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -6360,10 +6466,13 @@ fn terminated_locking_funds() {
         let program_id = get_last_program_id();
         let message_id = get_last_message_id();
 
+        // Before the `init` message is processed the program only has ED on its account.
+        assert_program_balance(program_id, 0_u128, ed, 0_u128);
+
         run_to_next_block(None);
 
         assert!(utils::is_active(program_id));
-        assert_balance(program_id, prog_free, prog_reserve);
+        assert_program_balance(program_id, prog_free, ed, prog_reserve);
 
         let (_message_with_value, interval) = MailboxOf::<Test>::iter_key(USER_3)
             .next()
@@ -6413,7 +6522,9 @@ fn terminated_locking_funds() {
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
         assert!(Gear::is_terminated(program_id));
-        assert_balance(program_id, 0u128, prog_reserve);
+        // ED has been returned to the beneficiary as a part of the `free` balance.
+        // The `reserved` part of the balance is still being held.
+        assert_program_balance(program_id, 0_u128, 0_u128, prog_reserve);
 
         let expected_balance = user_1_balance + expected_balance_difference;
         let user_1_balance = Balances::free_balance(USER_1);
@@ -6433,7 +6544,7 @@ fn terminated_locking_funds() {
                 * GasBalanceOf::<Test>::saturated_from(CostsPerBlockOf::<Test>::reserve_for()),
         );
 
-        assert_balance(program_id, 0u128, 0u128);
+        assert_program_balance(program_id, 0u128, 0u128, 0u128);
         assert_eq!(
             Balances::free_balance(USER_3),
             user_3_balance + prog_reserve
@@ -6542,7 +6653,7 @@ fn test_create_program_no_code_hash() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
-            0,
+            4 * get_ed(),
             false,
         ));
 
@@ -6641,7 +6752,7 @@ fn test_create_program_simple() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
-            0,
+            6 * get_ed(),
             false,
         ));
         run_to_block(2, None);
@@ -6788,7 +6899,7 @@ fn test_create_program_duplicate() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             20_000_000_000,
-            0,
+            4 * get_ed(),
             false,
         ));
         run_to_block(2, None);
@@ -6879,7 +6990,7 @@ fn test_create_program_duplicate_in_one_execution() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             2_000_000_000,
-            0,
+            2 * get_ed(),
             false,
         ));
         run_to_block(2, None);
@@ -6967,7 +7078,7 @@ fn test_create_program_miscellaneous() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
-            0,
+            4 * get_ed(),
             false,
         ));
 
@@ -7082,6 +7193,8 @@ fn no_redundant_gas_value_after_exiting() {
     new_test_ext().execute_with(|| {
         use demo_constructor::demo_exit_handle;
 
+        let ed = get_ed();
+
         let (_init_mid, prog_id) = init_constructor(demo_exit_handle::scheme());
 
         let GasInfo {
@@ -7121,11 +7234,11 @@ fn no_redundant_gas_value_after_exiting() {
             pallet_gear_gas::Error::<Test>::NodeNotFound
         );
 
-        // the (reserved_after_send - gas_spent) has been unreserved
+        // the (reserved_after_send - gas_spent) has been unreserved, the `ed` has been returned
         let free_after_execution = Balances::free_balance(USER_1);
         assert_eq!(
             free_after_execution,
-            free_after_send + (reserved_after_send - gas_price(gas_spent))
+            free_after_send + reserved_after_send - gas_price(gas_spent) + ed
         );
 
         // reserved balance after execution is zero
@@ -7346,6 +7459,7 @@ fn gas_spent_vs_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
         let initial_balance = Balances::free_balance(USER_1);
+        let ed = get_ed();
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -7397,7 +7511,7 @@ fn gas_spent_vs_balance() {
 
         assert_eq!(
             (initial_balance - balance_after_init),
-            gas_price(init_gas_spent)
+            gas_price(init_gas_spent) + ed
         );
 
         run_to_block(4, None);
@@ -7661,18 +7775,10 @@ fn test_two_programs_composition_works() {
     });
 }
 
-// Before introducing this test, upload_program extrinsic didn't check the value.
-// Also value wasn't check in `create_program` syscall. There could be the next test case, which could affect badly.
-//
-// User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with
-// values during the init message processing, internal checks will result in errors (either, because sending value
-// Y <= X < ED is not allowed, or because of Y > X, when X < ED).
-// However, in this same situation of program being initialized and sending some message with value, if program send
-// init message with value Y <= X < ED, no internal checks will occur, so such message sending will be passed further
-// to manager, although having value less than ED.
-//
-// Note: on manager level message will not be included to the queue.
-// But it's is not preferable to enter that `if` clause.
+// Passing value less than the ED to newly-created programs is now legal since the account for a
+// program-in-creation is guaranteed to exists before the program gets stored in `ProgramStorage`.
+// Both `uploade_program` (`create_program`) extrinsic and the `create_program` syscall should
+// successfully handle such cases.
 #[test]
 fn test_create_program_with_value_lt_ed() {
     use demo_constructor::{Calls, Scheme, WASM_BINARY};
@@ -7695,41 +7801,38 @@ fn test_create_program_with_value_lt_ed() {
         let code_id = CodeId::generate(&code).into_bytes();
         assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
 
-        // Can't initialize program with value less than ED
-        assert_noop!(
-            Gear::upload_program(
-                RuntimeOrigin::signed(USER_1),
-                ProgramCodeKind::Default.to_bytes(),
-                b"test0".to_vec(),
-                EMPTY_PAYLOAD.to_vec(),
-                100_000_000,
-                ed - 1,
-                false,
-            ),
-            Error::<Test>::ValueLessThanMinimal,
-        );
+        // Initialization of a program with value less than ED is allowed
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+            b"test0".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000,
+            ed - 1,
+            false,
+        ));
 
         let gas_limit = 200_000_001;
 
-        // Simple passing test with values
-        // Sending 500 value with "handle" messages. This should not fail.
-        // Must be stated, that "handle" messages send value to some non-existing address
-        // so messages will go to mailbox
+        // Simple passing test with values.
+        // Sending 2 x 500 value with "handle" messages. This should not fail.
+        // Should be noted, that "handle" messages send value to some non-existing address
+        // therefore messages will go to the mailbox.
         let calls = default_calls
             .clone()
             .create_program_wgas(code_id, [], [], gas_limit);
 
         let (_init_mid, _pid) =
-            submit_constructor_with_args(USER_1, b"test1", Scheme::direct(calls), 1_000);
+            submit_constructor_with_args(USER_1, b"test1", Scheme::direct(calls), 1_500);
 
         run_to_block(2, None);
 
-        // init messages sent by user and by program
-        assert_total_dequeued(2 + 1);
-        // programs deployed by user and by program
-        assert_init_success(2);
+        // 3 init messages and 1 reply
+        assert_total_dequeued(3 + 1);
+        // 2 programs deployed by the user and 1 program created by a program
+        assert_init_success(3);
 
-        let origin_msg_id = MessageId::generate_from_user(1, USER_1.cast(), 0);
+        let origin_msg_id = MessageId::generate_from_user(1, USER_1.cast(), 1);
         let msg1_mailbox = MessageId::generate_outgoing(origin_msg_id, 0);
         let msg2_mailbox = MessageId::generate_outgoing(origin_msg_id, 1);
         assert!(MailboxOf::<Test>::contains(&msg_receiver_1, &msg1_mailbox));
@@ -7738,8 +7841,7 @@ fn test_create_program_with_value_lt_ed() {
         System::reset_events();
 
         // Trying to send init message from program with value less than ED.
-        // First two messages won't fail, because provided values are in a valid range
-        // The last message value (which is the value of init message) will end execution with trap
+        // All messages popped from the queue should succeed regardless of the value in transfer.
         let calls = default_calls.create_program_value_wgas(code_id, [], [], gas_limit, ed - 1);
 
         assert_ok!(Gear::upload_program(
@@ -7752,23 +7854,9 @@ fn test_create_program_with_value_lt_ed() {
             false,
         ));
 
-        let msg_id = get_last_message_id();
-
         run_to_block(3, None);
 
-        // User's message execution will result in trap, because program tries
-        // to send init message with value in invalid range.
-        assert_total_dequeued(1);
-
-        let error_text = format!(
-            "panicked with 'Failed to create program: {:?}'",
-            CoreError::Ext(ExtError::Message(MessageError::InsufficientValue))
-        );
-
-        assert_failed(
-            msg_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
-        );
+        assert_total_dequeued(3);
     })
 }
 
@@ -7834,7 +7922,7 @@ fn test_create_program_without_gas_works() {
 
         let calls = Calls::builder().create_program(code_id.into_bytes(), [], []);
 
-        let _ = init_constructor(Scheme::direct(calls));
+        let _ = init_constructor_with_value(Scheme::direct(calls), 500);
 
         assert_total_dequeued(2 + 1);
         assert_init_success(2);
@@ -9505,7 +9593,7 @@ fn test_async_program_creation() {
             pid,
             kind.encode(),
             30_000_000_000u64,
-            0,
+            2 * get_ed(), // required to be able to create a program
             false,
         ));
 
@@ -9551,7 +9639,7 @@ fn program_generator_works() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0,
+            1000,
             false,
         ));
 
@@ -9660,6 +9748,7 @@ fn missing_functions_are_not_executed() {
 
     new_test_ext().execute_with(|| {
         let balance_before = Balances::free_balance(USER_1);
+        let ed = get_ed();
 
         let program_id = {
             let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat));
@@ -9687,7 +9776,7 @@ fn missing_functions_are_not_executed() {
         // no execution is performed at all and hence user was not charged for program execution.
         assert_eq!(
             balance_before,
-            Balances::free_balance(USER_1) + gas_price(program_cost)
+            Balances::free_balance(USER_1) + gas_price(program_cost) + ed
         );
 
         // this value is actually a constant in the wat.
@@ -13548,6 +13637,7 @@ fn send_gasless_message_works() {
     new_test_ext().execute_with(|| {
         let user1_initial_balance = Balances::free_balance(USER_1);
         let user2_initial_balance = Balances::free_balance(USER_2);
+        let ed = get_ed();
 
         // No gas has been created initially
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
@@ -13590,7 +13680,7 @@ fn send_gasless_message_works() {
         let user1_potential_msgs_spends = gas_price(2 * DEFAULT_GAS_LIMIT);
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_initial_balance - user1_potential_msgs_spends
+            user1_initial_balance - user1_potential_msgs_spends - ed
         );
 
         // Clear messages from the queue to refund unused gas
@@ -14906,6 +14996,179 @@ fn allocate_in_init_free_in_handle() {
     });
 }
 
+#[test]
+fn create_program_with_reentrance_works() {
+    use crate::{fungible, Fortitude, Preservation};
+    use demo_constructor::demo_ping;
+    use demo_create_program_reentrance::WASM_BINARY;
+    use demo_distributor::WASM_BINARY as CHILD_WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Preparatory steps:
+        // - upload `demo_ping` program;
+        // - upload example program with the logic being tested;
+        // - upload some wasm code to get a valid code id for future use.
+        let (_init_mid, ping_pid) = init_constructor(demo_ping::scheme());
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            CHILD_WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+
+        run_to_next_block(None);
+
+        // Deploy reentrant program (without value first)
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping_pid.into_origin().as_fixed_bytes().encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Test case 1
+        // - Send message to the reentrant program with some `value` and a valid code id.
+        // - Expect: the balance of the `demo_ping` program remains intact because a program
+        //   creation inside the example program should have succeeded and the
+        //   EXISTENTIAL_DEPOSIT has been charged for it thereby effectively having offset
+        //   the available `value` amount.
+
+        let amount = 10_000_u128;
+
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &ping_pid.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            0
+        );
+
+        let payload = (code_id.into_origin().as_fixed_bytes(), amount).encode();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            amount,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &ping_pid.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            0
+        );
+
+        // Test case 2
+        // - Send message to the reentrant program with some `value` and a non-existing code id.
+        // - Expect: the balance of the `demo_ping` program is topped up by exactly `amount`
+        //   owing to two things:
+        //   * EXISTENTIAL_DEPOSIT is not charged when code id in `gr_create_program` is unknown;
+        //   * there's a wait/wake cycle before the transfer attempt that resets the value counter.
+
+        let payload = (crate::H256::random().as_fixed_bytes(), amount).encode();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            amount,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &ping_pid.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            amount
+        );
+    })
+}
+
+#[test]
+fn dust_in_message_to_user_handled_ok() {
+    use demo_value_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let ed = CurrencyOf::<Test>::minimum_balance();
+
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            1_000,
+            false,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+
+        run_to_block(2, None);
+
+        // Remove USER_1 account from the System.
+        CurrencyOf::<Test>::make_free_balance_be(&USER_1, 0);
+
+        // Test case 1: Make the program send a message to USER_1 with the value below the ED
+        // and gas below the mailbox threshold.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            (0_u64, 300_u128).encode(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        // USER_1 account doesn't receive the funds; instead, the dust handler kicks in.
+        assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
+        assert_eq!(CurrencyOf::<Test>::free_balance(DUST_TRAP_TARGET), ed + 300);
+
+        // Test case 2: Make the program send a message to USER_1 with the value below the ED
+        // and gas sufficient for a message to be placed into the mailbox (for 30 blocks).
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            (3_000_u64, 300_u128).encode(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(40, None);
+
+        // USER_1 account doesn't receive the funds again; instead, the value is stored as the
+        // `UnusedValue` in Gear Bank.
+        assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
+        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
+    });
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 
@@ -14916,7 +15179,7 @@ pub(crate) mod utils {
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
         BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, CurrencyOf, GasHandlerOf, GasInfo,
-        GearBank, HandleKind, ProgramStorageOf, SentOf,
+        GearBank, HandleKind, ProgramStorageOf, SentOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
     };
     use common::{
         event::*,
@@ -15034,6 +15297,37 @@ pub(crate) mod utils {
     ) {
         let account_id = origin.cast();
         assert_eq!(Balances::free_balance(account_id), free.into());
+        assert_eq!(
+            GearBank::<Test>::account_total(&account_id),
+            reserved.into()
+        );
+    }
+
+    #[track_caller]
+    pub(super) fn assert_program_balance<B>(
+        origin: impl common::Origin,
+        available: B,
+        locked: B,
+        reserved: B,
+    ) where
+        B: Into<BalanceOf<Test>> + Copy,
+    {
+        let account_id = origin.cast();
+        let account_data = System::account(account_id).data;
+        assert_eq!(account_data.free, available.into() + locked.into());
+        assert_eq!(account_data.frozen, locked.into());
+        let maybe_ed = Balances::locks(account_id)
+            .into_iter()
+            .filter_map(|lock| {
+                if lock.id == EXISTENTIAL_DEPOSIT_LOCK_ID {
+                    Some(lock.amount)
+                } else {
+                    None
+                }
+            })
+            .reduce(|a, b| a + b)
+            .unwrap_or_default();
+        assert_eq!(maybe_ed, locked.into());
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
             reserved.into()

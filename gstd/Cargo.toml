@@ -1,6 +1,7 @@
 [package]
 name = "gstd"
 description = "Gear programs standard library"
+documentation = "https://docs.rs/gstd"
 keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
 categories = ["api-bindings"]
 # Stable version of Rust >=1.73 is required due to new format of panic message.

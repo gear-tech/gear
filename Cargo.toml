@@ -36,6 +36,7 @@ members = [
     "examples/delayed-reservation-sender",
     "examples/compose",
     "examples/constructor",
+    "examples/create-program-reentrance",
     "examples/delayed-sender",
     "examples/distributor",
     "examples/fungible-token",
@@ -69,6 +70,7 @@ members = [
     "examples/sync-duplicate",
     "examples/syscalls",
     "examples/syscall-error",
+    "examples/value-sender",
     "examples/vec",
     "examples/wait",
     "examples/wait-timeout",
@@ -113,12 +115,12 @@ blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.19.2"
 cargo_metadata = "0.18.1"
-clap = "4.5.4"
+clap = "4.5.8"
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
-derive_more = "0.99.17"
+derive_more = "0.99.18"
 dirs = "4.0.0"
 dyn-clonable = "0.9.0"
 enum-iterator = "1.5.0"
@@ -132,9 +134,9 @@ hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 impl-trait-for-tuples = "0.2.2"
 jsonrpsee = { version = "^0.16" }
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 libc = { version = "0.2", default-features = false }
-log = { version = "0.4.21", default-features = false }
+log = { version = "0.4.22", default-features = false }
 num_enum = { version = "0.6.1", default-features = false }
 once_cell = "1.19.0"
 parity-scale-codec = { version = "3.6.4", default-features = false }
@@ -143,7 +145,7 @@ parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
-proptest = "1.4.0"
+proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
 rand = { version = "0.8", default-features = false }
@@ -159,11 +161,11 @@ sha-1 = "0.10.1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.66"
+syn = "2.0.68"
 thiserror = "1.0.61"
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
-url = "2.5.0"
+url = "2.5.2"
 wat = "1.0.83"
 wabt = "0.10.0"
 wasmer = "2.2"
@@ -202,7 +204,7 @@ gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
-gnode = { path = "utils/gnode" }
+gear-node-wrapper = { path = "utils/node-wrapper" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
@@ -409,6 +411,7 @@ demo-custom = { path = "examples/custom" }
 demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
+demo-create-program-reentrance = { path = "examples/create-program-reentrance" }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
@@ -440,6 +443,7 @@ demo-signal-entry = { path = "examples/signal-entry", default-features = false }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
+demo-value-sender = { path = "examples/value-sender" }
 demo-wait = { path = "examples/wait" }
 demo-waiter = { path = "examples/waiter", default-features = false }
 demo-wait-timeout = { path = "examples/wait-timeout" }
@@ -458,7 +462,7 @@ indexmap = "2.2.6"                                                        # util
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.51.4"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.42", default-features = false }               # node/cli
+mimalloc = { version = "0.1.43", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
@@ -487,7 +491,7 @@ scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
 glob = "0.3.1"                                                            # cargo-gbuild
-smallvec = "1.13.2"                                                       # utils/gnode
+smallvec = "1.13.2"                                                       # utils/node-wrapper
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`

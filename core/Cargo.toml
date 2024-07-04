@@ -1,6 +1,7 @@
 [package]
 name = "gear-core"
 description = "Gear core library"
+documentation = "https://docs.rs/gear-core"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 version.workspace = true

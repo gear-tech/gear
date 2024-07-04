@@ -2225,21 +2225,18 @@ pub mod runtime_types {
                     #[doc = "Failed to create a program."]
                     ProgramConstructionFailed,
                     #[codec(index = 10)]
-                    #[doc = "Value doesn't cover ExistentialDeposit."]
-                    ValueLessThanMinimal,
-                    #[codec(index = 11)]
                     #[doc = "Message queue processing is disabled."]
                     MessageQueueProcessingDisabled,
-                    #[codec(index = 12)]
+                    #[codec(index = 11)]
                     #[doc = "Block count doesn't cover MinimalResumePeriod."]
                     ResumePeriodLessThanMinimal,
-                    #[codec(index = 13)]
+                    #[codec(index = 12)]
                     #[doc = "Program with the specified id is not found."]
                     ProgramNotFound,
-                    #[codec(index = 14)]
+                    #[codec(index = 13)]
                     #[doc = "Gear::run() already included in current block."]
                     GearRunAlreadyInBlock,
-                    #[codec(index = 15)]
+                    #[codec(index = 14)]
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
                 }
@@ -2577,6 +2574,10 @@ pub mod runtime_types {
                     #[doc = "Deposit of funds that will not keep bank account alive."]
                     #[doc = "**Must be unreachable in Gear main protocol.**"]
                     InsufficientDeposit,
+                    #[codec(index = 5)]
+                    #[doc = "Overflow during funds transfer."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
+                    Overflow,
                 }
             }
         }
