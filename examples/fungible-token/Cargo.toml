@@ -20,7 +20,7 @@ tokio.workspace = true
 gclient.workspace = true
 futures.workspace = true
 rand.workspace = true
-statrs = "0.16"
+statrs = "0.17"
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
