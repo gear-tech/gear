@@ -4262,9 +4262,9 @@ dependencies = [
  "gclient",
  "gear-core",
  "gear-core-errors",
+ "gear-node-wrapper",
  "gear-runtime-primitives",
  "gmeta",
- "gnode",
  "gring",
  "gsdk",
  "hex",
@@ -4317,9 +4317,9 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
+ "gear-node-wrapper",
  "gear-utils",
  "gmeta",
- "gnode",
  "gsdk",
  "gstd",
  "hex",
@@ -4699,6 +4699,16 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
  "substrate-test-client",
  "vara-runtime",
+]
+
+[[package]]
+name = "gear-node-wrapper"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "rand 0.8.5",
+ "smallvec",
+ "which",
 ]
 
 [[package]]
@@ -5232,16 +5242,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gnode"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "rand 0.8.5",
- "smallvec",
- "which",
-]
-
-[[package]]
 name = "gprimitives"
 version = "1.4.2"
 dependencies = [
@@ -5301,8 +5301,8 @@ dependencies = [
  "futures-util",
  "gear-core",
  "gear-core-errors",
+ "gear-node-wrapper",
  "gear-utils",
- "gnode",
  "gsdk-codegen",
  "hex",
  "indexmap 2.2.6",

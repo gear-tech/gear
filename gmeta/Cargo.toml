@@ -1,6 +1,7 @@
 [package]
 name = "gmeta"
 description = "Metadata library for Gear programs"
+documentation = "https://docs.rs/gmeta"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 version.workspace = true
