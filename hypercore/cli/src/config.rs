@@ -103,7 +103,7 @@ impl TryFrom<Args> for Config {
                 None => {
                     let proj_dirs = ProjectDirs::from("com", "Gear", "Hypercore")
                         .with_context(|| "Invalid home directory path")?;
-                    proj_dirs.config_dir().to_path_buf()
+                    proj_dirs.data_dir().to_path_buf()
                 }
             }
         };
