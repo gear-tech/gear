@@ -35,7 +35,7 @@ mod utils;
 #[tokio::test]
 async fn pallet_errors_formatting() -> Result<()> {
     let node = dev_node();
-    let api = Api::new(node.ws()).await?;
+    let api = Api::new(node.ws().as_str()).await?;
 
     let err = api
         .calculate_upload_gas(
@@ -65,7 +65,7 @@ async fn pallet_errors_formatting() -> Result<()> {
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
     let node = dev_node();
-    let api = Api::new(node.ws()).await?;
+    let api = Api::new(node.ws().as_str()).await?;
 
     let alice: [u8; 32] = *alice_account_id().as_ref();
 
@@ -87,7 +87,9 @@ async fn test_calculate_create_gas() -> Result<()> {
     let node = dev_node();
 
     // 1. upload code.
-    let signer = Api::new(node.ws()).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
     signer
         .calls
         .upload_code(demo_messenger::WASM_BINARY.to_vec())
@@ -116,7 +118,9 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(node.ws()).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
 
     signer
         .calls
@@ -160,7 +164,9 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let payload = demo_waiter::Command::SendUpTo(alice, 10);
 
     // 1. upload program.
-    let signer = Api::new(node.ws()).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
     signer
         .calls
         .upload_program(
@@ -242,7 +248,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     assert_ne!(git_commit_hash, "unknown");
 
     let node = dev_node();
-    let api = Api::new(node.ws()).await?;
+    let api = Api::new(node.ws().as_str()).await?;
     let mut finalized_blocks = api.subscribe_finalized_blocks().await?;
 
     let wasm_blob_version_1 = api.runtime_wasm_blob_version(None).await?;
@@ -267,7 +273,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 
 #[tokio::test]
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
-    let api = Api::new("wss://archive-rpc.vara.network:443".to_string()).await?;
+    let api = Api::new("wss://archive-rpc.vara.network:443").await?;
 
     {
         let no_method_block_hash = sp_core::H256::from_str(
@@ -303,7 +309,9 @@ async fn test_original_code_storage() -> Result<()> {
     let salt = vec![];
     let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
-    let signer = Api::new(node.ws()).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
 
     signer
         .calls
@@ -344,7 +352,7 @@ async fn test_program_counters() -> Result<()> {
     // let block_hash = H256::from_slice(&hex::decode("533ab8551fc1ecc812cfa4fa91d8667bfb3bdbcf64eacc5fccdbbf9b20e539a3")?);
     let instant = Instant::now();
     let (block_hash, block_number, count_program, count_active_program, count_memory_page) =
-        query_program_counters(uri, None).await?;
+        query_program_counters(&uri, None).await?;
     println!("elapsed = {:?}", instant.elapsed());
     println!("testnet block_hash = {block_hash}, block_number = {block_number}, count_program = {count_program}, count_active_program = {count_active_program}, count_memory_page = {count_memory_page}");
 
@@ -359,7 +367,9 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let pid = ProgramId::generate_from_user(CodeId::generate(demo_new_meta::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(node.ws()).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
 
     signer
         .calls
@@ -418,7 +428,9 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
     let pid = ProgramId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(node.ws()).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
 
     signer
         .calls
@@ -478,7 +490,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
 }
 
 async fn query_program_counters(
-    uri: String,
+    uri: &str,
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
     use gsdk::{

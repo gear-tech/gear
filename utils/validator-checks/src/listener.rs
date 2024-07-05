@@ -26,7 +26,7 @@ impl Listener {
     /// Create new block listener.
     pub async fn new(opt: Opt) -> Result<Self> {
         Ok(Self {
-            api: Api::new(opt.endpoint.clone()).await?,
+            api: Api::new(opt.endpoint.as_deref()).await?,
             opt,
         })
     }
