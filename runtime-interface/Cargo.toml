@@ -1,6 +1,7 @@
 [package]
 name = "gear-runtime-interface"
 description = "Gear Runtime Interface"
+documentation = "https://docs.rs/gear-runtime-interface"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
