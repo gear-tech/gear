@@ -13,12 +13,11 @@ repository.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
-gear-sandbox-host = { workspace = true, optional = true }
+gear-sandbox-interface.workspace = true
 
 sp-io.workspace = true
-sp-runtime-interface.workspace = true
+sp-runtime-interface = { workspace = true, default-features = false }
 sp-std.workspace = true
-sp-wasm-interface.workspace = true
 
 byteorder.workspace = true
 codec = { workspace = true }
@@ -38,12 +37,11 @@ default = ["std"]
 std = [
 	"gear-core/std",
 	"gear-lazy-pages",
-	"gear-sandbox-host",
+	"gear-sandbox-interface/std",
 
 	"sp-io/std",
 	"sp-std/std",
 	"sp-runtime-interface/std",
-	"sp-wasm-interface/std",
 
 	"byteorder/std",
 	"codec/std",

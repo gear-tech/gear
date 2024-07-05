@@ -52,7 +52,7 @@ pub const SAFE_DEPENDENCIES: [&str; 15] = [
 /// NOTE: Each package in this array could possibly depend
 /// on the previous one, please be cautious about changing
 /// the order.
-pub const STACKED_DEPENDENCIES: [&str; 14] = [
+pub const STACKED_DEPENDENCIES: [&str; 13] = [
     "gcore",
     "gmeta",
     "gear-core",
@@ -61,8 +61,7 @@ pub const STACKED_DEPENDENCIES: [&str; 14] = [
     "gear-sandbox-host",
     "gear-lazy-pages-common",
     "gear-lazy-pages",
-    "gear-runtime-interface",
-    "gear-lazy-pages-interface",
+    "gear-sandbox-interface",
     "gear-sandbox",
     "gear-core-backend",
     "gear-core-processor",
