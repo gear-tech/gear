@@ -267,7 +267,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 
 #[tokio::test]
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
-    let api = Api::new("wss://archive-rpc.vara.network:443").await?;
+    let api = Api::new("wss://archive-rpc.vara.network:443".to_string()).await?;
 
     {
         let no_method_block_hash = sp_core::H256::from_str(
@@ -344,7 +344,7 @@ async fn test_program_counters() -> Result<()> {
     // let block_hash = H256::from_slice(&hex::decode("533ab8551fc1ecc812cfa4fa91d8667bfb3bdbcf64eacc5fccdbbf9b20e539a3")?);
     let instant = Instant::now();
     let (block_hash, block_number, count_program, count_active_program, count_memory_page) =
-        query_program_counters(&uri, None).await?;
+        query_program_counters(uri, None).await?;
     println!("elapsed = {:?}", instant.elapsed());
     println!("testnet block_hash = {block_hash}, block_number = {block_number}, count_program = {count_program}, count_active_program = {count_active_program}, count_memory_page = {count_memory_page}");
 
@@ -478,7 +478,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
 }
 
 async fn query_program_counters(
-    uri: &str,
+    uri: String,
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
     use gsdk::{

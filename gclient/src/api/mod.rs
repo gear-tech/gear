@@ -52,7 +52,7 @@ impl GearApi {
     pub async fn init_with(address: WSAddress, suri: impl AsRef<str>) -> Result<Self> {
         let mut suri = suri.as_ref().splitn(2, ':');
 
-        Api::new(address.url().as_str())
+        Api::new(address.url())
             .await
             .and_then(|api| {
                 Ok(Self(
