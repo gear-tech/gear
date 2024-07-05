@@ -187,12 +187,18 @@ mod sandbox_host {
 
     /// Replace the wasmi module to the crates-io version.
     pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+        let Some(wasmi) = manifest["dependencies"]["sandbox-wasmi"].as_inline_table_mut() else {
             return;
         };
+        wasmi.insert("package", "wasmi".into());
         wasmi.insert("version", "0.13.2".into());
-        wasmi.remove("branch");
-        wasmi.remove("git");
+        let features = {
+            let mut features = toml_edit::Array::default();
+            features.push("virtual_memory");
+            features
+        };
+        wasmi.insert("features", features.into());
+        wasmi.remove("workspace");
     }
 }
 
