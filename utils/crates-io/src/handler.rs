@@ -192,12 +192,6 @@ mod sandbox_host {
         };
         wasmi.insert("package", "wasmi".into());
         wasmi.insert("version", "0.13.2".into());
-        let features = {
-            let mut features = toml_edit::Array::default();
-            features.push("virtual_memory");
-            features
-        };
-        wasmi.insert("features", features.into());
         wasmi.remove("workspace");
     }
 }
