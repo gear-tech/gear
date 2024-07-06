@@ -369,8 +369,10 @@ pub fn instantiate(
                     sandbox_wasmer::InstantiationError::CpuFeature(_) => {
                         InstantiationError::CpuFeature
                     }
-                    // TODO: handle rest errors
-                    _ => todo!(),
+                    sandbox_wasmer::InstantiationError::DifferentStores
+                    | sandbox_wasmer::InstantiationError::DifferentArchOS => {
+                        InstantiationError::EnvironmentDefinitionCorrupted
+                    }
                 }
             })
         })
