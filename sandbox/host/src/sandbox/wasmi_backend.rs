@@ -31,7 +31,7 @@ use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 use crate::{
     error::{self, Error},
     sandbox::{
-        BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
+        BackendInstanceBundle, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
         InstantiationError, Memory, SandboxContext, SandboxInstance,
     },
     util::MemoryTransfer,
@@ -327,7 +327,9 @@ pub fn instantiate(
         // In general, it's not a very good idea to use `.not_started_instance()` for
         // anything but for extracting memory and tables. But in this particular case, we
         // are extracting for the purpose of running `start` function which should be ok.
-        backend_instance: BackendInstance::Wasmi(wasmi_instance.not_started_instance().clone()),
+        backend_instance: BackendInstanceBundle::Wasmi(
+            wasmi_instance.not_started_instance().clone(),
+        ),
         guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
     };
 

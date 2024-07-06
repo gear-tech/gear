@@ -37,6 +37,9 @@ pub enum Error {
     #[error("Method not found: '{0}'")]
     MethodNotFound(String),
 
+    #[error("Global not found: '{0}'")]
+    GlobalNotFound(String),
+
     #[error("On-chain runtime does not specify version")]
     VersionInvalid,
 

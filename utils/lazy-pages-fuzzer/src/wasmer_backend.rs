@@ -16,13 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//use std::{cell::RefCell, rc::Rc};
+
 use anyhow::{bail, Context, Result};
 
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
 use sandbox_wasmer::{
-    Exports, Extern, Function, FunctionType, ImportObject, Instance, Memory, MemoryType,
-    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Universal, Val,
+    Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
+    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
 };
 
 use crate::{
@@ -31,16 +33,22 @@ use crate::{
     RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
 
-impl InstanceAccessGlobal for Instance {
+#[derive(Clone)]
+struct InstanceBundle {
+    instance: Instance,
+    store: *mut Store,
+}
+
+impl InstanceAccessGlobal for InstanceBundle {
     fn set_global(&self, name: &str, value: i64) -> Result<()> {
-        let global = self.exports.get_global(name)?;
-        global.set(Val::I64(value))?;
+        let global = self.instance.exports.get_global(name)?;
+        global.set(unsafe { &mut *self.store }, Value::I64(value))?;
         Ok(())
     }
 
     fn get_global(&self, name: &str) -> Result<i64> {
-        let global = self.exports.get_global(name)?;
-        let Val::I64(v) = global.get() else {
+        let global = self.instance.exports.get_global(name)?;
+        let Value::I64(v) = global.get(unsafe { &mut *self.store }) else {
             bail!("global is not an i64")
         };
 
@@ -53,7 +61,7 @@ pub struct WasmerRunner;
 impl Runner for WasmerRunner {
     fn run(module: &Module) -> Result<RunResult> {
         let compiler = Singlepass::default();
-        let store = Store::new(&Universal::new(compiler).engine());
+        let mut store = Store::new(compiler);
 
         let wasmer_module = WasmerModule::new(
             &store,
@@ -61,16 +69,17 @@ impl Runner for WasmerRunner {
         )?;
 
         let ty = MemoryType::new(INITIAL_PAGES, None, false);
-        let m = Memory::new(&store, ty).context("memory allocated")?;
-        let mem_ptr = m.data_ptr() as usize;
-        let mem_size = m.data_size() as usize;
+        let m = Memory::new(&mut store, ty).context("memory allocated")?;
+        let mem_view = m.view(&store);
+        let mem_ptr = mem_view.data_ptr() as usize;
+        let mem_size = mem_view.data_size() as usize;
         let memory = Extern::Memory(m);
 
         let mut exports = Exports::new();
         exports.insert("memory".to_string(), memory.clone());
 
         let host_function_signature = FunctionType::new(vec![Type::I32], vec![]);
-        let host_function = Function::new(&store, &host_function_signature, |_args| {
+        let host_function = Function::new(&mut store, &host_function_signature, |_args| {
             Err(RuntimeError::user("out of gas".into()))
         });
 
@@ -79,22 +88,27 @@ impl Runner for WasmerRunner {
             Extern::Function(host_function),
         );
 
-        let mut imports = ImportObject::new();
-        imports.register(MODULE_ENV, exports);
+        let mut imports = Imports::new();
+        imports.register_namespace(MODULE_ENV, exports);
 
-        let instance = match Instance::new(&wasmer_module, &imports) {
+        let instance = match Instance::new(&mut store, &wasmer_module, &imports) {
             Ok(instance) => instance,
             err @ Err(_) => err?,
         };
 
+        let instance_bundle = InstanceBundle {
+            instance: instance.clone(),
+            store: &mut store,
+        };
+
         lazy_pages::init_fuzzer_lazy_pages(FuzzerLazyPagesContext {
-            instance: Box::new(instance.clone()),
+            instance: Box::new(instance_bundle.clone()),
             memory_range: mem_ptr..(mem_ptr + mem_size),
             pages: Default::default(),
             globals_list: globals_list(module),
         });
 
-        instance
+        instance_bundle
             .set_global(GLOBAL_NAME_GAS, PROGRAM_GAS)
             .context("failed to set gas")?;
 
@@ -103,7 +117,7 @@ impl Runner for WasmerRunner {
             .get_function("init")
             .context("init function")?;
 
-        match init_fn.call(&[]) {
+        match init_fn.call(&mut store, &[]) {
             Ok(_) => {}
             Err(e) => {
                 if e.message().contains("out of gas") {
@@ -115,9 +129,9 @@ impl Runner for WasmerRunner {
         }
 
         Ok(RunResult {
-            gas_global: instance.get_global(GLOBAL_NAME_GAS)?,
+            gas_global: instance_bundle.get_global(GLOBAL_NAME_GAS)?,
             pages: lazy_pages::get_touched_pages(),
-            globals: get_globals(&instance, module).context("failed to get globals")?,
+            globals: get_globals(&instance_bundle, module).context("failed to get globals")?,
         })
     }
 }
