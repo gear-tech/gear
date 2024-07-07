@@ -41,7 +41,7 @@ use crate::{
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
 
-// Hack to allow mutable `environmental!` definition per module
+// Hack to allow multiple `environmental!` definition per module
 mod dispatch_function_env {
 
     pub struct Env {
