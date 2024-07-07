@@ -857,6 +857,11 @@ fn fungible_api_works() {
                     Preservation::Expendable,
                     Fortitude::Polite
                 ),
+                EXISTENTIAL_DEPOSIT
+            );
+        });
+}
+
 #[test]
 fn test_fees_and_tip_split() {
     init_logger();
