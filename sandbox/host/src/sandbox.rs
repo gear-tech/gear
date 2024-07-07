@@ -293,7 +293,7 @@ impl SandboxInstance {
         &self,
         name: &str,
         value: Value,
-    ) -> std::result::Result<Option<()>, error::Error> {
+    ) -> Result<Option<()>, error::Error> {
         match &self.backend_instance {
             BackendInstanceBundle::Wasmi(wasmi_instance) => {
                 wasmi_set_global(wasmi_instance, name, value)
