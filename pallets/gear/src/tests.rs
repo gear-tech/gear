@@ -14754,6 +14754,64 @@ fn critical_hook_in_handle_signal() {
 }
 
 #[test]
+fn handle_reply_hook() {
+    use demo_async_reply_hook::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+        dbg!("program id", pid);
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(utils::is_active(pid));
+
+        dbg!("sending message");
+        // Init conversation
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        // Reply to the message
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            [1, 2, 3].to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        // Expect a reply back
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"saw_reply");
+    });
+}
+
+#[test]
 fn program_with_large_indexes() {
     // There is a security problem in module deserialization found by
     // casper-wasm https://github.com/casper-network/casper-wasm/pull/1,

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    async_runtime::{self, signals, Lock, ReplyPoll},
+    async_runtime::{self, clear_reply_hook, signals, Lock, ReplyPoll},
     errors::{Error, Result},
     msg::macros::impl_futures,
     prelude::Vec,
@@ -43,6 +43,9 @@ where
     if let Some((expected, now)) = async_runtime::locks().is_timeout(msg_id, waiting_reply_to) {
         // Remove lock after timeout.
         async_runtime::locks().remove(msg_id, waiting_reply_to);
+
+        // Clear hook after timeout.
+        clear_reply_hook(waiting_reply_to);
 
         return Poll::Ready(Err(Error::Timeout(expected, now)));
     }

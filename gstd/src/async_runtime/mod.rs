@@ -18,17 +18,20 @@
 
 mod futures;
 mod locks;
+mod reply_hooks;
 mod signals;
 mod waker;
 
 pub use self::futures::message_loop;
 pub(crate) use locks::Lock;
+pub(crate) use reply_hooks::{clear_reply_hook, execute_reply_hook, register_reply_hook};
 pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
 use crate::critical;
 use hashbrown::HashMap;
 use locks::LocksMap;
+use reply_hooks::HooksMap;
 use signals::WakeSignals;
 
 static mut FUTURES: Option<FuturesMap> = None;
@@ -49,9 +52,20 @@ pub(crate) fn locks() -> &'static mut LocksMap {
     unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
 }
 
+static mut REPLY_HOOKS: Option<HooksMap> = None;
+
+fn reply_hooks() -> &'static mut HooksMap {
+    unsafe { REPLY_HOOKS.get_or_insert_with(HashMap::new) }
+}
+
 /// Default reply handler.
 pub fn record_reply() {
     signals().record_reply();
+
+    let replied_to = crate::msg::reply_to().expect("record_reply called in wrong context");
+
+    // Execute reply hook (if it was registered)
+    execute_reply_hook(replied_to);
 }
 
 /// Default signal handler.

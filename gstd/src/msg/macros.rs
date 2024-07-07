@@ -64,6 +64,35 @@ macro_rules! impl_futures {
 
                 Ok(self)
             }
+
+            /// Execute a function when the reply is received
+            ///
+            /// # Examples
+            ///
+            /// Send message to echo program and wait for reply
+            ///
+            /// ```
+            /// use gstd::{msg, debug};
+            ///
+            /// #[gstd::async_main]
+            /// async fn main() {
+            ///     msg::send_bytes_for_reply(dest, b"PING", 0, 0)
+            ///         .expect("Unable to send")
+            ///         .handle_reply(|| {
+            ///             debug!("reply code: {:?}", msg::reply_code());
+            ///
+            ///             if msg::load_bytes() == b"PONG" {
+            ///                debug!("successfully received pong");
+            ///             }
+            ///         })
+            ///         .await
+            ///         .expect("Received error");
+            /// }
+            /// ```
+            pub fn handle_reply<F: FnMut() + 'static>(self, f: F) -> Self {
+                async_runtime::register_reply_hook(self.waiting_reply_to.clone(), crate::Box::new(f));
+                self
+            }
         }
     };
 }
