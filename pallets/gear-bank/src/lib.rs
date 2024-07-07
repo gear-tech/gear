@@ -239,11 +239,9 @@ pub mod pallet {
                         );
                     }
                 } else {
-                    if let Err(e) = Self::withdraw(&account_id, value) {
-                        log::error!(
-                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                        );
-                    }
+                    let _ = Self::withdraw(&account_id, value).map_err(|e| log::error!(
+                                "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                            ));
                 }
             }
 
