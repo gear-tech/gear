@@ -72,22 +72,26 @@ macro_rules! impl_futures {
             /// Send message to echo program and wait for reply
             ///
             /// ```
-            /// use gstd::{msg, debug};
+            /// use gstd::{ActorId, msg, debug};
             ///
             /// #[gstd::async_main]
+            ///
             /// async fn main() {
+            ///     let dest = ActorId::from(1); // Replace with correct actor id
+            ///
             ///     msg::send_bytes_for_reply(dest, b"PING", 0, 0)
             ///         .expect("Unable to send")
             ///         .handle_reply(|| {
             ///             debug!("reply code: {:?}", msg::reply_code());
             ///
-            ///             if msg::load_bytes() == b"PONG" {
+            ///             if msg::load_bytes().unwrap_or_default() == b"PONG" {
             ///                debug!("successfully received pong");
             ///             }
             ///         })
             ///         .await
             ///         .expect("Received error");
             /// }
+            /// # fn main() {}
             /// ```
             pub fn handle_reply<F: FnMut() + 'static>(self, f: F) -> Self {
                 async_runtime::register_reply_hook(self.waiting_reply_to.clone(), crate::Box::new(f));
