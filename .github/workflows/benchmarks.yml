@@ -12,14 +12,105 @@ on:
           - ignore
           - commit
           - pull_request
+      instance_type:
+        description: Instance type to provision for benchmarking.
+        required: true
+        default: 'c6i.metal'
+      instance_disk_size:
+        description: Disk size (in GB) for the instance.
+        required: true
+        default: 100
+
+concurrency:
+  group: benchmarks
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
 
 jobs:
+  provision-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      available_region: ${{ steps.get-region.outputs.available_region }}
+    steps:
+    - name: AWS Login
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+
+    - name: Generate Runner Registration Token
+      id: get-runner-token
+      run: |
+        RESPONSE=$(curl -L -X POST \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${{ secrets.RUNNER_TOKEN }}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token)
+        TOKEN=$(echo "$RESPONSE" | jq -r .token)
+        echo "REGISTER_TOKEN=$TOKEN" >> $GITHUB_ENV
+        echo "::add-mask::$TOKEN"
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Check Capacity
+      id: get-region
+      run: |
+        regions=(us-east-1 us-east-2 us-west-1 us-west-2 ap-south-1 ap-southeast-1 ap-southeast-2 ap-southeast-3 ap-northeast-1 ap-northeast-2 ap-northeast-3 ca-central-1 eu-central-1 eu-west-1 eu-west-2 eu-west-3 eu-north-1 sa-east-1)
+        instance_type="${{ inputs.instance_type }}"
+        available_region=""
+        for region in "${regions[@]}"
+        do
+          available_region=$(aws ec2 describe-instance-type-offerings \
+            --location-type availability-zone \
+            --filters Name=instance-type,Values=$instance_type \
+            --region $region \
+            --query "InstanceTypeOfferings[?InstanceType=='$instance_type'].InstanceType" \
+            --output text)
+          if [ -n "$available_region" ]; then
+            echo "AVAILABLE_REGION=$region" >> $GITHUB_ENV
+            echo "available_region=$region" >> $GITHUB_OUTPUT
+            break
+          fi
+        done
+
+    - name: Check Region
+      run: |
+        if [ -z "${{ env.AVAILABLE_REGION }}" ]; then
+          echo "No available regions for instance type ${{ inputs.instance_type }}"
+          exit 1
+        fi
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Apply
+      timeout-minutes: 30
+      run: |
+        cd terraform/bench-runner
+        terraform init
+        terraform apply -auto-approve -var="aws_region=${{ env.AVAILABLE_REGION }}" -var="instance_type=${{ inputs.instance_type }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
+
+    - name: Notify on Failure
+      if: failure()
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
+        token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
+        format: markdown
+        disable_web_page_preview: true
+        message: |
+          *Status*: 🔥
+          *Problem*: Issue with server provisioning - bench-runner-${{ github.run_id }}
+          *Details*: Check [Benchmark Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
   benchmarks:
-    runs-on: bench
+    needs: provision-runner
+    runs-on: [bench]
     permissions:
       contents: write
       pull-requests: write
@@ -36,25 +127,34 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
+          curl -o wasm-opt-linux-x64.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-linux")) | .browser_download_url' |grep -v sha256`
+          tar xzf wasm-opt-linux-x64.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
+          cargo install cargo-script
+          wasm-opt --version
 
       - name: Run all benchmarks
         run: |
-          ./scripts/benchmarking/run_all_benchmarks.sh -c vara-dev -m
+          INSTANCE_TYPE="${{ inputs.instance_type }}"
+          INSTANCE_TYPE=${INSTANCE_TYPE} ./scripts/benchmarking/run_all_benchmarks.sh -c vara-dev -m
           cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
+
+          # apply weight adjustments for baremetal runner to `runtime/vara/src/weights/pallet_gear.rs`
+          if [ "$INSTANCE_TYPE" = "c6i.metal" ]; then
+            echo "Applying baremetal weight patch"
+            ./scripts/benchmarking/apply_baremetal_weight_patch.rs -i runtime/vara/src/weights/pallet_gear.rs -o runtime/vara/src/weights/pallet_gear_patched.rs
+            mv runtime/vara/src/weights/pallet_gear_patched.rs runtime/vara/src/weights/pallet_gear.rs
+          fi
+
           # apply some patches for `pallets/gear/src/weights.rs`
           cp runtime/vara/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
           sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
+
           # apply some patches for `pallets/gear-builtin/src/weights.rs`
           cp runtime/vara/src/weights/pallet_gear_builtin.rs pallets/gear-builtin/src/weights.rs
           sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear-builtin/src/weights.rs
+
           # generate code for lightweight scheduler that is used in gtest and other crates
           ./scripts/weight-dump.sh
-
-      - name: Clear target directory
-        if: ${{ always() }}
-        run: |
-          # clear the target directory because our benchmarking machine is not ephemeral
-          cargo clean
 
       - name: "ACTIONS: Upload artifact with benchmarking errors (if exist)"
         if: ${{ always() }}
@@ -104,3 +204,43 @@ jobs:
           labels: |
             A0-pleasereview
             A4-insubstantial
+
+  destroy-runner:
+    if: always()
+    needs: [provision-runner, benchmarks]
+    runs-on: ubuntu-latest
+    steps:
+    - name: AWS Login
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        sparse-checkout: terraform
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Destroy
+      timeout-minutes: 60
+      run: |
+        cd terraform/bench-runner
+        terraform init
+        terraform destroy -auto-approve -var="aws_region=${{ needs.provision-runner.outputs.available_region }}" -var="instance_type=${{ inputs.instance_type }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
+
+    - name: Notify on Failure
+      if: failure()
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
+        token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
+        format: markdown
+        disable_web_page_preview: true
+        message: |
+          *Status*: 🔥
+          *Problem*: Issue with server destroying - bench-runner-${{ github.run_id }}
+          *Details*: Check [Benchmark Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})

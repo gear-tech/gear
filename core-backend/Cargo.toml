@@ -1,6 +1,7 @@
 [package]
 name = "gear-core-backend"
 description = "Gear WASM backend"
+documentation = "https://docs.rs/gear-core-backend"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -20,7 +21,7 @@ gear-sandbox-env.workspace = true
 
 actor-system-error.workspace = true
 
-blake2-rfc.workspace = true
+blake2.workspace = true
 # Use max_level_debug feature to remove tracing in syscalls by default.
 log.workspace = true
 derive_more.workspace = true

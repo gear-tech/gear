@@ -18,7 +18,7 @@
 
 use super::common::ReplyDetails;
 use crate::{
-    ids::{MessageId, ProgramId},
+    ids::{prelude::*, MessageId, ProgramId},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
         Value,

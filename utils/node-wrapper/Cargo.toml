@@ -1,0 +1,16 @@
+[package]
+name = "gear-node-wrapper"
+description = "Gear protocol node wrapper"
+documentation = "https://docs.rs/gear-node-wrapper"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+rand = { workspace = true, features = [ "getrandom" ] }
+which.workspace = true
+smallvec.workspace = true

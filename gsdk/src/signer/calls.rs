@@ -48,10 +48,44 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
+                BalancesCall::TransferKeepAlive,
+                vec![
+                    Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
+                    Value::u128(value),
+                ],
+            )
+            .await
+    }
+
+    /// `pallet_balances::transfer_allow_death`
+    pub async fn transfer_allow_death(
+        &self,
+        dest: impl Into<AccountId32>,
+        value: u128,
+    ) -> Result<TxInBlock> {
+        self.0
+            .run_tx(
                 BalancesCall::TransferAllowDeath,
                 vec![
                     Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
                     Value::u128(value),
+                ],
+            )
+            .await
+    }
+
+    /// `pallet_balances::transfer_all`
+    pub async fn transfer_all(
+        &self,
+        dest: impl Into<AccountId32>,
+        keep_alive: bool,
+    ) -> Result<TxInBlock> {
+        self.0
+            .run_tx(
+                BalancesCall::TransferAllowDeath,
+                vec![
+                    Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
+                    Value::bool(keep_alive),
                 ],
             )
             .await

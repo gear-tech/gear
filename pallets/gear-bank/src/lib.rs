@@ -28,7 +28,11 @@ mod tests;
 
 pub use pallet::*;
 
-use frame_support::traits::{Currency, StorageVersion};
+use frame_support::traits::{
+    fungible,
+    tokens::{Fortitude, Preservation, Provenance},
+    Currency, StorageVersion,
+};
 
 #[macro_export]
 macro_rules! impl_config {
@@ -59,8 +63,11 @@ pub mod pallet {
     use frame_support::{
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
-        sp_runtime::{traits::CheckedSub, Saturating},
-        traits::{ExistenceRequirement, Get, Hooks, ReservableCurrency},
+        sp_runtime::Saturating,
+        traits::{
+            tokens::DepositConsequence, ExistenceRequirement, Get, Hooks, LockableCurrency,
+            ReservableCurrency,
+        },
         weights::Weight,
         Identity,
     };
@@ -79,7 +86,9 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config + pallet_authorship::Config {
         /// Balances management trait for gas/value migrations.
-        type Currency: ReservableCurrency<AccountIdOf<Self>>;
+        type Currency: ReservableCurrency<AccountIdOf<Self>>
+            + LockableCurrency<AccountIdOf<Self>>
+            + fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
 
         #[pallet::constant]
         /// Bank account address, that will keep all reserved funds.
@@ -110,6 +119,9 @@ pub mod pallet {
         /// Deposit of funds that will not keep bank account alive.
         /// **Must be unreachable in Gear main protocol.**
         InsufficientDeposit,
+        /// Overflow during funds transfer.
+        /// **Must be unreachable in Gear main protocol.**
+        Overflow,
     }
 
     /// Type containing info of locked in special address funds of each account.
@@ -231,11 +243,21 @@ pub mod pallet {
         ) -> Result<(), Error<T>> {
             let bank_address = T::BankAddress::get();
 
-            ensure!(
-                CurrencyOf::<T>::free_balance(&bank_address).saturating_add(value)
-                    >= CurrencyOf::<T>::minimum_balance(),
-                Error::InsufficientDeposit
-            );
+            match <CurrencyOf<T> as fungible::Inspect<_>>::can_deposit(
+                &bank_address,
+                value,
+                Provenance::Extant,
+            ) {
+                DepositConsequence::Success => (), // expected outcome
+                DepositConsequence::BelowMinimum => return Err(Error::<T>::InsufficientDeposit),
+                DepositConsequence::Overflow => return Err(Error::<T>::Overflow),
+                // The rest is unreachable in Gear protocol and can be ignored.
+                DepositConsequence::CannotCreate
+                | DepositConsequence::UnknownAsset
+                | DepositConsequence::Blocked => {
+                    log::error!("Unexpected deposit consequence while depositing to bank address");
+                }
+            };
 
             let existence_requirement = if keep_alive {
                 ExistenceRequirement::KeepAlive
@@ -250,13 +272,15 @@ pub mod pallet {
 
         /// Ensures that bank account is able to transfer requested value.
         fn ensure_bank_can_transfer(value: BalanceOf<T>) -> Result<(), Error<T>> {
-            let minimum_balance = CurrencyOf::<T>::minimum_balance()
-                .saturating_add(UnusedValue::<T>::get())
-                .saturating_add(OnFinalizeValue::<T>::get());
+            let available_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                &T::BankAddress::get(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            )
+            .saturating_sub(UnusedValue::<T>::get())
+            .saturating_sub(OnFinalizeValue::<T>::get());
 
-            CurrencyOf::<T>::free_balance(&T::BankAddress::get())
-                .checked_sub(&value)
-                .map_or(false, |balance| balance >= minimum_balance)
+            (value <= available_balance)
                 .then_some(())
                 .ok_or(Error::<T>::InsufficientBankBalance)
         }
@@ -265,13 +289,17 @@ pub mod pallet {
         fn withdraw(account_id: &AccountIdOf<T>, value: BalanceOf<T>) -> Result<(), Error<T>> {
             Self::ensure_bank_can_transfer(value)?;
 
-            // The check is similar to one that used in transfer implementation.
-            // It allows us define if we cannot transfer funds on early stage
-            // to be able mean any transfer error as insufficient bank
-            // account balance, because other conditions are checked
-            // here and in other caller places.
-            if CurrencyOf::<T>::free_balance(account_id).saturating_add(value)
-                < CurrencyOf::<T>::minimum_balance()
+            // Since funds are not being minted here but transferred, the only error we can
+            // possibly observe is the `TokenError::BelowMinimum` one (no overflow whatsoever).
+            // It means we can check for the outcome being just any error and be sure it is
+            // that the recipient account would die as a result of this transfer.
+            if <CurrencyOf<T> as fungible::Inspect<_>>::can_deposit(
+                account_id,
+                value,
+                Provenance::Extant,
+            )
+            .into_result()
+            .is_err()
             {
                 UnusedValue::<T>::mutate(|unused_value| {
                     *unused_value = unused_value.saturating_add(value);

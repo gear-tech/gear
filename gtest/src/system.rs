@@ -21,7 +21,6 @@ use crate::{
     mailbox::Mailbox,
     manager::{Actors, Balance, ExtManager, MintMode},
     program::{Program, ProgramIdWrapper},
-    BLOCK_DURATION_IN_MSECS,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
@@ -35,6 +34,14 @@ use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
 use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+
+thread_local! {
+    /// `System` is a singleton with a one instance and no copies returned.
+    ///
+    /// `OnceCell` is used to control one-time instantiation, while `RefCell`
+    /// is needed for interior mutability to uninitialize the global.
+    static SYSTEM_INITIALIZED: RefCell<bool> = const { RefCell::new(false) };
+}
 
 #[derive(Decode)]
 #[codec(crate = codec)]
@@ -91,30 +98,37 @@ impl LazyPagesStorage for PagesStorage {
 /// ```
 pub struct System(pub(crate) RefCell<ExtManager>);
 
-impl Default for System {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl System {
     /// Prefix for lazy pages.
     pub(crate) const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestgtestgtestgtestgtestgtest00";
 
     /// Create a new testing environment.
+    ///
+    /// # Panics
+    /// Only one instance in the current thread of the `System` is possible to
+    /// create. Instantiation of the other one leads to runtime panic.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let ext_manager = ExtManager::new();
+        SYSTEM_INITIALIZED.with_borrow_mut(|initialized| {
+            if *initialized {
+                panic!("Impossible to have multiple instances of the `System`.");
+            }
 
-        let actors = ext_manager.actors.clone();
-        let pages_storage = PagesStorage { actors };
-        gear_lazy_pages::init(
-            LazyPagesVersion::Version1,
-            LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
-            pages_storage,
-        )
-        .expect("Failed to init lazy-pages");
+            let ext_manager = ExtManager::new();
 
-        Self(RefCell::new(ext_manager))
+            let actors = ext_manager.actors.clone();
+            let pages_storage = PagesStorage { actors };
+            gear_lazy_pages::init(
+                LazyPagesVersion::Version1,
+                LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
+                pages_storage,
+            )
+            .expect("Failed to init lazy-pages");
+
+            *initialized = true;
+
+            Self(RefCell::new(ext_manager))
+        })
     }
 
     /// Init logger with "gwasm" target set to `debug` level.
@@ -168,17 +182,14 @@ impl System {
     /// Spend blocks and return all results.
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
         let mut manager = self.0.borrow_mut();
+        let block_height = manager.blocks_manager.get().height;
 
-        (manager.block_info.height..manager.block_info.height + amount)
+        (block_height..block_height + amount)
             .map(|_| {
                 manager.check_epoch();
 
-                let next_block_number = manager.block_info.height + 1;
-                manager.block_info.height = next_block_number;
-                manager.block_info.timestamp = manager
-                    .block_info
-                    .timestamp
-                    .saturating_add(BLOCK_DURATION_IN_MSECS);
+                let block_info = manager.blocks_manager.next_block();
+                let next_block_number = block_info.height;
                 let mut results = manager.process_delayed_dispatches(next_block_number);
                 results.extend(manager.process_scheduled_wait_list(next_block_number));
                 results
@@ -189,12 +200,12 @@ impl System {
 
     /// Return the current block height of the testing environment.
     pub fn block_height(&self) -> u32 {
-        self.0.borrow().block_info.height
+        self.0.borrow().blocks_manager.get().height
     }
 
     /// Return the current block timestamp of the testing environment.
     pub fn block_timestamp(&self) -> u64 {
-        self.0.borrow().block_info.timestamp
+        self.0.borrow().blocks_manager.get().timestamp
     }
 
     /// Returns a [`Program`] by `id`.
@@ -319,5 +330,43 @@ impl System {
     pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
         let actor_id = id.into().0;
         self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
+    }
+}
+
+impl Drop for System {
+    fn drop(&mut self) {
+        // Uninitialize
+        SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
+        self.0.borrow().gas_tree.reset();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
+    fn test_system_being_singleton() {
+        let _first_instance = System::new();
+
+        let _second_instance = System::new();
+    }
+
+    #[test]
+    fn test_multithread_copy_singleton() {
+        let first_instance = System::new();
+        first_instance.spend_blocks(5);
+
+        assert_eq!(first_instance.block_height(), 5);
+
+        let h = std::thread::spawn(|| {
+            let second_instance = System::new();
+
+            second_instance.spend_blocks(10);
+            assert_eq!(second_instance.block_height(), 10);
+        });
+
+        h.join().expect("internal error failed joining thread");
     }
 }

@@ -1,6 +1,7 @@
 [package]
 name = "gear-core-processor"
 description = "The core processor for Gear programs"
+documentation = "https://docs.rs/core-processor"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 version.workspace = true
@@ -16,7 +17,6 @@ gear-core-errors = { workspace = true, features = ["codec"] }
 gear-core-backend.workspace = true
 gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
-gear-lazy-pages-interface.workspace = true
 gsys.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
@@ -30,6 +30,6 @@ enum-iterator.workspace = true
 
 [features]
 default = ["std"]
-std = ["gear-lazy-pages-interface/std", "gear-core-backend/std"]
+std = ["gear-core-backend/std"]
 strict = []
 mock = []

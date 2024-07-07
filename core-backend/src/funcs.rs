@@ -33,7 +33,7 @@ use crate::{
     BackendExternalities,
 };
 use alloc::string::{String, ToString};
-use blake2_rfc::blake2b::blake2b;
+use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
@@ -55,6 +55,9 @@ use gsys::{
     ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
     TwoHashesWithValue,
 };
+
+/// BLAKE2b-256 hasher state.
+type Blake2b256 = Blake2b<U32>;
 
 const PTR_SPECIAL: u32 = u32::MAX;
 
@@ -776,12 +779,9 @@ where
             let (random, bn) = ctx.ext_mut().random()?;
             let subject = [&raw_subject, random].concat();
 
-            let hash: [u8; 32] = blake2b(32, &[], &subject)
-                .as_bytes()
-                .try_into()
-                .unwrap_or_else(|e| {
-                    unreachable!("`nn` argument in `blake2b()` must be equal to bytes amount: {e}")
-                });
+            let mut blake2_ctx = Blake2b256::new();
+            blake2_ctx.update(subject);
+            let hash = blake2_ctx.finalize().into();
 
             io.write_as(ctx, write_bn_random, BlockNumberWithHash { bn, hash })
                 .map_err(Into::into)
