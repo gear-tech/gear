@@ -220,10 +220,30 @@ pub mod pallet {
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
                 total = total.saturating_add(value);
 
-                if let Err(e) = Self::withdraw(&account_id, value) {
-                    log::error!(
-                        "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                    );
+                if let Some((gas_split, split_dest)) = T::SplitGas::get() {
+                    // split value by `SplitGas`.
+                    let to_split = gas_split.mul_floor(value);
+                    let to_user = value - to_split;
+
+                    // Withdraw value to user.
+                    if let Err(e) = Self::withdraw(&account_id, to_user) {
+                        log::error!(
+                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                        );
+                    }
+
+                    // Withdraw value to `SplitGas` destination.
+                    if let Err(e) = Self::withdraw(&split_dest, to_split) {
+                        log::error!(
+                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                        );
+                    }
+                } else {
+                    if let Err(e) = Self::withdraw(&account_id, value) {
+                        log::error!(
+                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                        );
+                    }
                 }
             }
 
@@ -331,25 +351,10 @@ pub mod pallet {
             Self::ensure_bank_can_transfer(value)?;
 
             OnFinalizeValue::<T>::mutate(|v| *v = v.saturating_add(value));
-            if let Some((gas_split, split_dest)) = T::SplitGas::get() {
-                // split value by `SplitGas`
-                let to_split = gas_split.mul_floor(value);
-                let to_user = value - to_split;
-
-                OnFinalizeTransfers::<T>::mutate(account_id, |v| {
-                    let inner = v.get_or_insert(Zero::zero());
-                    *inner = inner.saturating_add(to_user);
-                });
-                OnFinalizeTransfers::<T>::mutate(split_dest, |v| {
-                    let inner = v.get_or_insert(Zero::zero());
-                    *inner = inner.saturating_add(to_split);
-                });
-            } else {
-                OnFinalizeTransfers::<T>::mutate(account_id, |v| {
-                    let inner = v.get_or_insert(Zero::zero());
-                    *inner = inner.saturating_add(value);
-                });
-            }
+            OnFinalizeTransfers::<T>::mutate(account_id, |v| {
+                let inner = v.get_or_insert(Zero::zero());
+                *inner = inner.saturating_add(value);
+            });
 
             Ok(())
         }
