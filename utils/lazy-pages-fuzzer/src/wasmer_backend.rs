@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//use std::{cell::RefCell, rc::Rc};
-
 use anyhow::{bail, Context, Result};
 
 use gear_wasm_gen::SyscallName;

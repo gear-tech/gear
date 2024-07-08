@@ -89,6 +89,7 @@ fn main() -> anyhow::Result<()> {
             |module| schedule.rules(module),
             Some(mid),
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 

@@ -25,6 +25,7 @@ use gear_wasm_instrument::parity_wasm::{
 };
 
 pub const GLOBAL_NAME_PREFIX: &str = "gear_fuzz_";
+pub const INITIAL_GLOBAL_VALUE: i64 = 0;
 
 #[derive(Debug, Clone)]
 pub struct InjectGlobalsConfig {
@@ -114,7 +115,7 @@ impl<'u> InjectGlobals<'u> {
                     .mutable()
                     .value_type()
                     .i64()
-                    .init_expr(Instruction::I64Const(0))
+                    .init_expr(Instruction::I64Const(INITIAL_GLOBAL_VALUE))
                     .build(),
             );
 
@@ -167,6 +168,9 @@ mod tests {
 
     #[test]
     fn test_globals_modified() {
+        // Precomputed value of the global after running the program
+        const EXPECTED_GLOBAL_VALUE: i64 = 217020518514230019;
+
         let unstructured = Unstructured::new(&[3u8; 32]);
         let config = InjectGlobalsConfig {
             max_global_number: 3,
@@ -183,12 +187,8 @@ mod tests {
             sandbox_wasmi::ModuleInstance::new(&module, &sandbox_wasmi::ImportsBuilder::default())
                 .unwrap()
                 .assert_no_start();
-        let _ = instance
-            .invoke_export("main", &[], &mut sandbox_wasmi::NopExternals)
-            .unwrap();
 
-        // Assert that global was modified (initially 0)
-        let gear_fuzz_a: u64 = instance
+        let gear_fuzz_a: i64 = instance
             .export_by_name("gear_fuzz_a")
             .unwrap()
             .as_global()
@@ -196,6 +196,21 @@ mod tests {
             .get()
             .try_into()
             .unwrap();
-        assert!(gear_fuzz_a != 0);
+        assert_eq!(gear_fuzz_a, INITIAL_GLOBAL_VALUE);
+
+        let _ = instance
+            .invoke_export("main", &[], &mut sandbox_wasmi::NopExternals)
+            .unwrap();
+
+        // Assert that global was modified (initially 0)
+        let gear_fuzz_a: i64 = instance
+            .export_by_name("gear_fuzz_a")
+            .unwrap()
+            .as_global()
+            .unwrap()
+            .get()
+            .try_into()
+            .unwrap();
+        assert_eq!(gear_fuzz_a, EXPECTED_GLOBAL_VALUE);
     }
 }
