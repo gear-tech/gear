@@ -6360,6 +6360,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy-pages-fuzzer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "derive_more",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
+ "gear-wasm-gen",
+ "gear-wasm-instrument",
+ "log",
+ "region",
+ "wasmer",
+ "wasmi 0.13.2",
+ "wasmprinter",
+ "wat",
+]
+
+[[package]]
+name = "lazy-pages-fuzzer-fuzz"
+version = "0.1.0"
+dependencies = [
+ "gear-utils",
+ "lazy-pages-fuzzer",
+ "libfuzzer-sys",
+ "log",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8463,6 +8492,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
+ "wabt",
 ]
 
 [[package]]

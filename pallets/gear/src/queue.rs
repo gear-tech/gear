@@ -155,7 +155,11 @@ where
             };
 
         // The last one thing is to load program memory. Adjust gas counters for memory pages.
-        let context = match core_processor::precharge_for_memory(block_config, context) {
+        let context = match core_processor::precharge_for_module_instantiation(
+            block_config,
+            context,
+            code.instantiated_section_sizes(),
+        ) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
