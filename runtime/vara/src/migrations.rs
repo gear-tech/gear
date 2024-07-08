@@ -26,5 +26,5 @@ pub type Migrations = (
     pallet_gear_program::migrations::paused_storage::RemovePausedProgramStorageMigration<Runtime>,
     pallet_gear_program::migrations::v8::MigrateToV8<Runtime>,
     // migration for added section sizes
-    pallet_gear::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
+    pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
 );
