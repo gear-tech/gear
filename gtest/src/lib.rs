@@ -510,22 +510,22 @@ pub mod constants {
     pub const MAX_RESERVATIONS: u64 = 256;
     /// Cost of wasm module code section instantiation before execution per byte
     /// of code.
-    pub const MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST: Gas = 20;
+    pub const MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST: Gas = 192;
     /// Cost of wasm module data section instantiation before execution per byte
     /// of code.
-    pub const MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST: Gas = 40;
+    pub const MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST: Gas = 452;
     /// Cost of wasm module global section instantiation before execution per
     /// byte of code.
-    pub const MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST: Gas = 60;
+    pub const MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST: Gas = 2360;
     /// Cost of wasm module table section instantiation before execution per
     /// byte of code.
-    pub const MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST: Gas = 50;
+    pub const MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST: Gas = 350;
     /// Cost of wasm module element section instantiation before execution per
     /// byte of code.
-    pub const MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST: Gas = 100;
+    pub const MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST: Gas = 18492;
     /// Cost of wasm module type section instantiation before execution per byte
     /// of code.
-    pub const MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST: Gas = 30;
+    pub const MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST: Gas = 254;
     /// Cost of instrumenting wasm code on upload.
     pub const MODULE_INSTRUMENTATION_COST: Gas = 297;
     /// Cost of instrumenting wasm code on upload per byte of code.
