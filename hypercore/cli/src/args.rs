@@ -146,20 +146,20 @@ impl ExtraCommands {
     pub async fn run(&self, config: &config::Config) -> anyhow::Result<()> {
         let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
 
+        // TODO: for better UI, we must split commands processing for ones that require ethereum and ones that don't
         let maybe_sender_address = config
             .sender_address
             .as_ref()
             .and_then(|addr| addr.parse::<Address>().ok());
         let maybe_ethereum = if let Some(sender_address) = maybe_sender_address {
-            Some(
-                Ethereum::new(
-                    &config.ethereum_rpc,
-                    config.ethereum_router_address.parse()?,
-                    signer.clone(),
-                    sender_address,
-                )
-                .await?,
+            Ethereum::new(
+                &config.ethereum_rpc,
+                config.ethereum_router_address.parse()?,
+                signer.clone(),
+                sender_address,
             )
+            .await
+            .ok()
         } else {
             None
         };
