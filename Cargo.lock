@@ -8452,6 +8452,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
+ "wabt",
 ]
 
 [[package]]
