@@ -24,15 +24,18 @@ use crate::common::{
 use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 18_000; // 3_000 gas * 6 value per gas
+const ED: u128 = 1_000_000_000_000; // 1 unit of value
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
     // hack to check initial alice balance
-    let (initial_balance, initial_stash, rent_pool_initial) = {
+    let (mut initial_balance, initial_stash, rent_pool_initial) = {
         let node = common::dev()?;
 
         // Get balance of the testing address
-        let signer = Api::new(node.ws()).await?.signer("//Alice//stash", None)?;
+        let signer = Api::new(node.ws().as_str())
+            .await?
+            .signer("//Alice//stash", None)?;
         (
             signer.api().get_balance(ADDRESS).await.unwrap_or(0),
             signer
@@ -48,10 +51,14 @@ async fn test_command_claim_works() -> Result<()> {
         )
     };
 
+    // This will entail the ED payment to create program's account
     let node = common::create_messager().await?;
+    initial_balance -= ED;
 
     // Check the mailbox of the testing account
-    let signer = Api::new(node.ws()).await?.signer("//Alice//stash", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice//stash", None)?;
     let mailbox = signer
         .api()
         .mailbox(Some(common::alice_account_id()), 10)

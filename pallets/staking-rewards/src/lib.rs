@@ -518,22 +518,17 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for OffsetPool<T> {
 pub struct OffsetPoolDust<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnUnbalanced<fungible::Credit<T::AccountId, CurrencyOf<T>>> for OffsetPoolDust<T>
 where
-    CurrencyOf<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>,
-    <T as pallet_staking::Config>::CurrencyBalance:
-        From<<CurrencyOf<T> as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance>,
+    CurrencyOf<T>: fungible::Balanced<T::AccountId, Balance = BalanceOf<T>>,
+    BalanceOf<T>: Send + Sync + 'static,
 {
-    fn on_nonzero_unbalanced(amount: fungible::Credit<T::AccountId, CurrencyOf<T>>)
-    where
-        CurrencyOf<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>
-            + fungible::Inspect<<T as frame_system::Config>::AccountId>,
-    {
+    fn on_nonzero_unbalanced(amount: fungible::Credit<T::AccountId, CurrencyOf<T>>) {
         let numeric_amount = amount.peek();
 
         let result =
             <CurrencyOf<T> as fungible::Balanced<_>>::resolve(&Pallet::<T>::account_id(), amount);
         match result {
             Ok(()) => Pallet::deposit_event(Event::<T>::Minted {
-                amount: numeric_amount.into(),
+                amount: numeric_amount,
             }),
             Err(amount) => log::error!("Balanced::resolve() err: {:?}", amount.peek()),
         }

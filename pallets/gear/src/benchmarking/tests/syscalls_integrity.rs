@@ -36,7 +36,7 @@ use gear_core::ids::{prelude::*, CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SyscallName;
 use pallet_timestamp::Pallet as TimestampPallet;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, FullCodec};
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
 pub fn read_big_state<T>()
@@ -600,13 +600,15 @@ where
             &salt.to_le_bytes(),
         );
 
-        let mp = vec![Kind::CreateProgram(
-            salt,
-            gas,
-            (expected_mid.into(), expected_pid.into()),
-        )]
-        .encode()
-        .into();
+        let mp = MessageParamsBuilder::new(
+            vec![Kind::CreateProgram(
+                salt,
+                gas,
+                (expected_mid.into(), expected_pid.into()),
+            )]
+            .encode(),
+        )
+        .with_value(CurrencyOf::<T>::minimum_balance().unique_saturated_into());
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -1021,8 +1023,8 @@ where
     })
 }
 
-// TODO although we do not want to test the business logic,
-// this test is still unstable due to constants
+// TODO: although we do not want to test the business logic,
+// this test is still unstable due to constants #4030
 fn check_gr_gas_available<T>()
 where
     T: Config,
@@ -1032,7 +1034,7 @@ where
         // Expected to burn not more than 750_000_000
         // Provided gas in the test by default is 50_000_000_000
         let lower = 50_000_000_000 - 750_000_000;
-        let upper = 50_000_000_000 - 150_000_000;
+        let upper = 50_000_000_000 - 100_000_000;
         let mp = vec![Kind::GasAvailable(lower, upper)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -1044,7 +1046,7 @@ where
     T: Config + frame_system::Config<AccountId = Id>,
     // T::AccountId: Origin,
     T::RuntimeOrigin: From<RawOrigin<Id>>,
-    Id: Clone + Origin,
+    Id: Clone + Origin + FullCodec,
     // Post check
     P: FnOnce(),
     // Get syscall and post check
@@ -1056,6 +1058,7 @@ where
     let child_wasm = simplest_gear_wasm::<T>();
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
+    let child_pid = ProgramId::generate_from_user(child_code_hash, b"");
 
     let tester_pid =
         ProgramId::generate_from_user(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
@@ -1140,10 +1143,13 @@ where
 
     // Manually reset the storage
     Gear::<T>::reset();
+    let tester_account_id = tester_pid.cast();
     let _ = CurrencyOf::<T>::slash(
-        &tester_pid.cast(),
-        CurrencyOf::<T>::free_balance(&tester_pid.cast()),
+        &tester_account_id,
+        CurrencyOf::<T>::free_balance(&tester_account_id),
     );
+    frame_system::pallet::Account::<T>::remove(tester_account_id);
+    frame_system::pallet::Account::<T>::remove(child_pid.cast::<T::AccountId>());
 }
 
 type DefaultPostCheck = fn() -> ();

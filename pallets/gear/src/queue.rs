@@ -229,7 +229,11 @@ where
                 continue;
             }
 
-            let balance = CurrencyOf::<T>::free_balance(&program_id.cast());
+            let balance = <CurrencyOf<T> as fungible::Inspect<T::AccountId>>::reducible_balance(
+                &program_id.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            );
 
             let journal = Self::run_queue_step(QueueStep {
                 block_config: &block_config,

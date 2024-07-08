@@ -1,6 +1,7 @@
 [package]
 name = "gear-sandbox-env"
 description = "This crate provides means to instantiate and execute wasm modules."
+documentation = "https://docs.rs/gear-sandbox-env"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
