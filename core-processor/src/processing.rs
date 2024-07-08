@@ -91,6 +91,8 @@ where
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
     let program_id = execution_context.program.id();
+    let initial_reservations_amount = execution_context.gas_reserver.states().len();
+
     let execution_context = WasmExecutionContext {
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
@@ -161,6 +163,12 @@ where
                             .system_reservation_context
                             .previous_reservation
                             .map(|current| initial <= current))
+                        .unwrap_or(true));
+
+                    debug_assert!(res
+                        .gas_reserver
+                        .as_ref()
+                        .map(|reserver| initial_reservations_amount <= reserver.states().len())
                         .unwrap_or(true));
                 }
                 // reservation does not change in case of failure
