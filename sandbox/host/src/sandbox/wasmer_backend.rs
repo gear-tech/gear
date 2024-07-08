@@ -39,23 +39,34 @@ use crate::{
     util::MemoryTransfer,
 };
 
+pub use store_refcell::StoreRefCell;
+mod store_refcell;
+
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
 
 // Hack to allow multiple `environmental!` definition per module
 mod dispatch_function_env {
+    use std::rc::Rc;
+
+    use super::StoreRefCell;
 
     pub struct Env {
         pub gas_global: Option<sandbox_wasmer::Global>,
+        pub store_ref: Rc<StoreRefCell>,
     }
 
     impl Env {
-        pub fn empty() -> Self {
-            Self { gas_global: None }
+        pub fn empty(store: Rc<StoreRefCell>) -> Self {
+            Self {
+                gas_global: None,
+                store_ref: store,
+            }
         }
 
-        pub fn new(gas_global: sandbox_wasmer::Global) -> Self {
+        pub fn new(gas_global: sandbox_wasmer::Global, store: Rc<StoreRefCell>) -> Self {
             Self {
                 gas_global: Some(gas_global),
+                store_ref: store,
             }
         }
     }
@@ -104,7 +115,7 @@ fn cached_modules() -> &'static CachedModules {
 
 /// Wasmer specific context
 pub struct Backend {
-    store: Rc<RefCell<sandbox_wasmer::Store>>,
+    store: Rc<StoreRefCell>,
 }
 
 impl Default for Backend {
@@ -117,19 +128,24 @@ impl Backend {
     pub fn new() -> Self {
         let compiler = sandbox_wasmer::Singlepass::default();
         Backend {
-            store: Rc::new(RefCell::new(sandbox_wasmer::Store::new(compiler))),
+            store: Rc::new(StoreRefCell::new(sandbox_wasmer::Store::new(compiler))),
         }
     }
 
-    pub fn store(&self) -> Rc<RefCell<sandbox_wasmer::Store>> {
+    pub fn store(&self) -> Rc<StoreRefCell> {
         self.store.clone()
+    }
+
+    pub fn _replace_with_new(&self) {
+        let compiler = sandbox_wasmer::Singlepass::default();
+        self.store.replace(sandbox_wasmer::Store::new(compiler));
     }
 }
 
 /// Invoke a function within a sandboxed module
 pub fn invoke(
     instance: &sandbox_wasmer::Instance,
-    store: &mut sandbox_wasmer::Store,
+    store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
     sandbox_context: &mut dyn SandboxContext,
@@ -148,9 +164,9 @@ pub fn invoke(
     let args: Vec<sandbox_wasmer::Value> = args.iter().map(into_wasmer_val).collect();
 
     let wasmer_result = SandboxContextStore::using(sandbox_context, || {
-        dispatch_function_env::using(&mut Env::new(gas_global), || {
+        dispatch_function_env::using(&mut Env::new(gas_global, store.clone()), || {
             function
-                .call(store, &args)
+                .call(&mut store.borrow_mut(), &args)
                 .map_err(|error| {
                     if error.clone().to_trap() == Some(TrapCode::StackOverflow) {
                         // Panic stops process queue execution in that case.
@@ -347,7 +363,7 @@ pub fn instantiate(
 
     // This is sound since we're only instantiating the module and `start` function is restricted by our code checks.
     // Actually, we don't have to `::using` any context here, since absence of `start` function.
-    let mut dispatch_func_env = Env::empty();
+    let mut dispatch_func_env = Env::empty(context.store.clone());
 
     let instance = SandboxContextStore::using(sandbox_context, || {
         dispatch_function_env::using(&mut dispatch_func_env, || {
@@ -485,29 +501,43 @@ fn dispatch_function(
     store: &mut sandbox_wasmer::Store,
     func_ty: &sandbox_wasmer::FunctionType,
 ) -> sandbox_wasmer::Function {
-    sandbox_wasmer::Function::new(store, func_ty, move |params| {
+    let func_env = sandbox_wasmer::FunctionEnv::new(store, ());
+    sandbox_wasmer::Function::new_with_env(store, &func_env, func_ty, move |mut env, params| {
         SandboxContextStore::with(|sandbox_context| {
-            // Serialize arguments into a byte vector.
-            let invoke_args_data = params
-                .iter()
-                .map(|value| {
-                    into_value(value).ok_or_else(|| {
-                        RuntimeError::new(format!("Unsupported function argument: {:?}", value))
+            dispatch_function_env::with(|dispatch_funnction_env| {
+                let storemut = env.as_store_mut();
+                // Return mutable store borrow manually
+                dispatch_funnction_env.store_ref.return_store(storemut);
+
+                // Serialize arguments into a byte vector.
+                let invoke_args_data = params
+                    .iter()
+                    .map(|value| {
+                        into_value(value).ok_or_else(|| {
+                            RuntimeError::new(format!("Unsupported function argument: {:?}", value))
+                        })
                     })
-                })
-                .collect::<std::result::Result<Vec<_>, _>>()?
-                .encode();
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .encode();
 
-            let serialized_result_val =
-                dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
+                let serialized_result_val =
+                    dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
 
-            let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
-                &mut serialized_result_val.as_slice(),
-            )
-            .map_err(|_| RuntimeError::new("Decoding Result<ReturnValue, HostError> failed!"))?
-            .map_err(|_| RuntimeError::new("Supervisor function returned sandbox::HostError"))?;
+                let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
+                    &mut serialized_result_val.as_slice(),
+                )
+                .map_err(|_| RuntimeError::new("Decoding Result<ReturnValue, HostError> failed!"))?
+                .map_err(|_| {
+                    RuntimeError::new("Supervisor function returned sandbox::HostError")
+                })?;
 
-            Ok(into_wasmer_result(deserialized_result))
+                let _storemut = dispatch_funnction_env.store_ref.get_store().map_err(|_| {
+                    RuntimeError::new("Store was not returned after dispatch function")
+                })?;
+
+                Ok(into_wasmer_result(deserialized_result))
+            })
+            .expect("dispatch function environment is set when invoking sandboxed functions; qed")
         })
         .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
     })
@@ -528,6 +558,9 @@ fn dispatch_function_v2(
                     RuntimeError::new("Cannot get gas global from store environment")
                 })?;
                 let gas = gas_global.get(&mut storemut);
+
+                // Return mutable store borrow manually
+                dispatch_funnction_env.store_ref.return_store(storemut);
 
                 // Serialize arguments into a byte vector.
                 let invoke_args_data = [gas]
@@ -555,6 +588,10 @@ fn dispatch_function_v2(
                         RuntimeError::new("Supervisor function returned sandbox::HostError")
                     })?;
 
+                // Get mutable store borrow manually
+                let mut storemut = dispatch_funnction_env.store_ref.get_store().map_err(|_| {
+                    RuntimeError::new("Store was not returned after dispatch function")
+                })?;
                 gas_global
                     .set(
                         &mut storemut,
@@ -574,7 +611,7 @@ fn dispatch_function_v2(
 
 /// Allocate new memory region
 pub fn new_memory(
-    store: Rc<RefCell<sandbox_wasmer::Store>>,
+    store: Rc<StoreRefCell>,
     initial: u32,
     maximum: Option<u32>,
 ) -> crate::error::Result<Memory> {
@@ -590,12 +627,12 @@ pub fn new_memory(
 #[derive(Debug, Clone)]
 pub struct MemoryWrapper {
     buffer: Rc<RefCell<sandbox_wasmer::Memory>>,
-    store: Rc<RefCell<sandbox_wasmer::Store>>,
+    store: Rc<StoreRefCell>,
 }
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    pub fn new(memory: sandbox_wasmer::Memory, store: Rc<RefCell<sandbox_wasmer::Store>>) -> Self {
+    pub fn new(memory: sandbox_wasmer::Memory, store: Rc<StoreRefCell>) -> Self {
         Self {
             buffer: Rc::new(RefCell::new(memory)),
             store,

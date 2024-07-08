@@ -23,7 +23,7 @@
 mod wasmer_backend;
 mod wasmi_backend;
 
-use std::{cell::RefCell, collections::HashMap, pin::Pin, rc::Rc};
+use std::{collections::HashMap, pin::Pin, rc::Rc};
 
 use codec::Decode;
 use env::Instantiate;
@@ -40,6 +40,7 @@ use self::{
         get_global as wasmer_get_global, instantiate as wasmer_instantiate,
         invoke as wasmer_invoke, new_memory as wasmer_new_memory, set_global as wasmer_set_global,
         Backend as WasmerBackend, MemoryWrapper as WasmerMemoryWrapper,
+        StoreRefCell as WasmerStoreRefCell,
     },
     wasmi_backend::{
         get_global as wasmi_get_global, instantiate as wasmi_instantiate, invoke as wasmi_invoke,
@@ -183,7 +184,7 @@ enum BackendInstanceBundle {
         /// Wasmer module instance
         instance: sandbox_wasmer::Instance,
         /// Wasmer store
-        store: Rc<RefCell<sandbox_wasmer::Store>>,
+        store: Rc<WasmerStoreRefCell>,
     },
 }
 
@@ -222,13 +223,9 @@ impl SandboxInstance {
                 wasmi_invoke(self, wasmi_instance, export_name, args, sandbox_context)
             }
 
-            BackendInstanceBundle::Wasmer { instance, store } => wasmer_invoke(
-                instance,
-                &mut store.borrow_mut(),
-                export_name,
-                args,
-                sandbox_context,
-            ),
+            BackendInstanceBundle::Wasmer { instance, store } => {
+                wasmer_invoke(instance, store, export_name, args, sandbox_context)
+            }
         }
     }
 
