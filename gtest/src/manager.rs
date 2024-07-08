@@ -23,13 +23,18 @@ use crate::{
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     GAS_ALLOWANCE, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    MODULE_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
+    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
+    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST,
     READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST,
     WRITE_COST,
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{
+        BlockConfig, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER,
+    },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -862,8 +867,14 @@ impl ExtManager {
                 write: WRITE_COST.into(),
                 instrumentation: MODULE_INSTRUMENTATION_COST.into(),
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
-                static_page: Default::default(),
-                module_instantiation_per_byte: MODULE_INSTANTIATION_BYTE_COST.into(),
+                instantiation_costs: InstantiationCosts {
+                    code_section_per_byte: MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    data_section_per_byte: MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    global_section_per_byte: MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    table_section_per_byte: MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    element_section_per_byte: MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    type_section_per_byte: MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                },
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -905,9 +916,13 @@ impl ExtManager {
             }
         };
 
-        let context = ContextChargedForCode::from((context, code.code().len() as u32));
+        let context = ContextChargedForCode::from(context);
         let context = ContextChargedForInstrumentation::from(context);
-        let context = match core_processor::precharge_for_memory(&block_config, context) {
+        let context = match core_processor::precharge_for_module_instantiation(
+            &block_config,
+            context,
+            code.instantiated_section_sizes(),
+        ) {
             Ok(c) => c,
             Err(journal) => {
                 core_processor::handle_journal(journal, self);
@@ -1128,6 +1143,7 @@ impl JournalHandler for ExtManager {
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
                         schedule.limits.data_segments_amount.into(),
+                        schedule.limits.table_number.into(),
                     )
                     .expect("Program can't be constructed with provided code");
 

@@ -1,0 +1,20 @@
+[package]
+name = "lazy-pages-fuzzer"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+arbitrary = { workspace = true, features = ["derive"] }
+derive_more.workspace = true
+gear-wasm-gen.workspace = true
+gear-wasm-instrument.workspace = true
+gear-lazy-pages.workspace = true
+gear-lazy-pages-common.workspace = true
+log.workspace = true
+region.workspace = true
+sandbox-wasmer.workspace = true
+sandbox-wasmi.workspace = true
+wasmprinter.workspace = true
+wat.workspace = true

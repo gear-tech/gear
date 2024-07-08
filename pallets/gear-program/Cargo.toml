@@ -43,6 +43,7 @@ pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-treasury = { workspace = true, features = ["std"] }
+wabt.workspace = true
 
 [features]
 default = ['std']
