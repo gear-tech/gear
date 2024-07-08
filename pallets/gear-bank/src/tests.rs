@@ -18,7 +18,7 @@
 
 use crate::{mock::*, GasMultiplier, OnFinalizeValue, UnusedValue, *};
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
-use sp_runtime::{traits::Zero, Perbill, StateVersion};
+use sp_runtime::{traits::Zero, StateVersion};
 use utils::*;
 
 #[test]
@@ -499,11 +499,9 @@ fn spend_gas_all_balance_validator_account_deleted() {
 
         assert_bank_balance(0, 0);
 
-        // mul ceil GAS_AMOUNT because of gas fee split 50%
-        assert_balance(
-            &BLOCK_AUTHOR,
-            Perbill::from_percent(50).mul_ceil(gas_price(GAS_AMOUNT)),
-        );
+        // mul ceil GAS_AMOUNT because of gas fee split.
+        let (gas_split, _) = SplitGas::get().unwrap();
+        assert_balance(&BLOCK_AUTHOR, gas_split.mul_ceil(gas_price(GAS_AMOUNT)));
 
         assert_alice_dec(gas_price(GAS_AMOUNT));
         assert_gas_value(&ALICE, 0, 0);
@@ -1570,8 +1568,6 @@ fn spend_gas_on_finalize_single_user() {
 }
 
 mod utils {
-    use sp_runtime::Perbill;
-
     use super::*;
 
     // For some reason `assert_noop!` doesnt work for the pallet fns.
@@ -1642,10 +1638,11 @@ mod utils {
     // Asserts block author balance inc.
     #[track_caller]
     pub fn assert_block_author_inc(diff: Balance) {
-        // mul ceil diff because of gas fee split 50%
+        // mul ceil diff because of gas fee split.
+        let (gas_split, _) = SplitGas::get().unwrap();
         assert_balance(
             &BLOCK_AUTHOR,
-            EXISTENTIAL_DEPOSIT + Perbill::from_percent(50).mul_ceil(diff),
+            EXISTENTIAL_DEPOSIT + gas_split.mul_ceil(diff),
         )
     }
 
