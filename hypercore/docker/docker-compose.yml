@@ -1,0 +1,68 @@
+version: "3"
+services:
+  node_validator:
+    build:
+      context: .
+    ports:
+      - "20333:20333"
+      - "9635:9635"
+    image: gear-tech/gear-egpu:latest
+    environment:
+      VALIDATOR_KEY: ${VALIDATOR_KEY}
+      VALIDATOR_PUB_KEY: ${VALIDATOR_PUB_KEY}
+      RUST_LOG: hypercore=debug
+    volumes:
+      - "gear-data-validator:/data"
+    command: bash -c "ethgpu
+      -d /data
+      insert-key ${VALIDATOR_KEY} &&
+      ethgpu
+      -d /data
+      --ethereum-rpc ws://54.67.75.1:8546
+      --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
+      --ethereum-router-address '0x6d57658Ad056832B6F19d634c5fF8529fF19fE19'
+      --ethereum-program-address '0x0490Ab51505D58D14301969711D77B94aA3DfC36'
+      --validator-key ${VALIDATOR_PUB_KEY}"
+    networks:
+      testing_net:
+        ipv4_address: 172.28.1.1
+
+  node_sequencer:
+    build:
+      context: .
+    ports:
+      - "20334:20334"
+      - "9636:9636"
+    image: gear-tech/gear-egpu:latest
+    volumes:
+      - "gear-data-sequencer:/data"
+    environment:
+      SEQUENCER_KEY: ${SEQUENCER_KEY}
+      SEQUENCER_PUB_KEY: ${SEQUENCER_PUB_KEY}
+      RUST_LOG: hypercore=debug
+    links:
+      - "node_validator:validator"
+    command: bash -c "ethgpu -d /data insert-key ${SEQUENCER_KEY}
+      && ethgpu
+      -d /data
+      --port 20334
+      --bootnodes '/ip4/172.28.1.1/udp/30333/quic-v1'
+      --ethereum-rpc ws://54.67.75.1:8546
+      --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
+      --ethereum-router-address '0x6d57658Ad056832B6F19d634c5fF8529fF19fE19'
+      --ethereum-program-address '0x0490Ab51505D58D14301969711D77B94aA3DfC36'
+      --sequencer-key ${SEQUENCER_PUB_KEY}"
+    networks:
+      testing_net:
+        ipv4_address: 172.28.1.2
+
+volumes:
+  gear-data-validator:
+  gear-data-sequencer:
+
+networks:
+  testing_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
