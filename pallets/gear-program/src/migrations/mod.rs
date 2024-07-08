@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub mod add_section_sizes;
 pub mod allocations;
 pub mod paused_storage;
 pub mod v8;
