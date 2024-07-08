@@ -16,4 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// no migrations currently for pallet-gear-program
+pub mod allocations;
+pub mod paused_storage;
+pub mod v8;

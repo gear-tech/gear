@@ -71,7 +71,7 @@ demo-signal-entry = { workspace = true, optional = true }
 [dev-dependencies]
 wabt.workspace = true
 hex.workspace = true
-blake2-rfc.workspace = true
+blake2.workspace = true
 gstd.workspace = true
 demo-async.workspace = true
 demo-async-init.workspace = true
@@ -117,6 +117,8 @@ demo-sync-duplicate.workspace = true
 demo-custom.workspace = true
 demo-delayed-reservation-sender = { workspace = true, features = ["debug"] }
 demo-async-critical = { workspace = true, features = ["debug"] }
+demo-create-program-reentrance = { workspace = true, features = ["debug"] }
+demo-value-sender.workspace = true
 test-syscalls = { workspace = true, features = ["debug"] }
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }

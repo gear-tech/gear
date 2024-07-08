@@ -49,7 +49,7 @@ impl Keystore {
         if let Some(passphrase) = passphrase {
             Self::encrypt_scrypt(info, passphrase)
         } else {
-            Ok(Self::encrypt_none(info))
+            Self::encrypt_none(info)
         }
     }
 
@@ -74,19 +74,19 @@ impl Keystore {
 
         Ok(Self {
             encoded: STANDARD.encode(&encoded),
-            address: ss58::encode(&info.public),
+            address: ss58::encode(&info.public)?,
             encoding: Encoding::scrypt(),
             ..Default::default()
         })
     }
 
     /// Encrypt keypair without encryption.
-    pub fn encrypt_none(info: KeypairInfo) -> Self {
-        Self {
+    pub fn encrypt_none(info: KeypairInfo) -> Result<Self> {
+        Ok(Self {
             encoded: STANDARD.encode(info.encode()),
-            address: ss58::encode(&info.public),
+            address: ss58::encode(&info.public)?,
             ..Default::default()
-        }
+        })
     }
 
     /// Decrypt keypair from encrypted data.

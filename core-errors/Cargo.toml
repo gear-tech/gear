@@ -1,6 +1,7 @@
 [package]
 name = "gear-core-errors"
 description = "Shared errors for Gear core libraries"
+documentation = "https://docs.rs/gear-core-errors"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -10,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 scale-info = { workspace = true, features = ["derive"], optional = true }
-serde = { workspace = true, features = ["std", "derive"], optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
 derive_more.workspace = true
 enum-iterator.workspace = true
 

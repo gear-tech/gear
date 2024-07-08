@@ -307,7 +307,6 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                 SyscallWeights {
                     _phantom,
                     alloc,
-                    alloc_per_page,
                     free,
                     free_range,
                     free_range_per_page,

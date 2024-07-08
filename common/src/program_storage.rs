@@ -36,20 +36,8 @@ pub trait Error {
     /// There is no data for specified `program_id` and `page`.
     fn cannot_find_page_data() -> Self;
 
-    /// Resume session is not found in the storage.
-    fn resume_session_not_found() -> Self;
-
-    /// Specified user is not an owner of the resume session.
-    fn not_session_owner() -> Self;
-
-    /// Failed to resume the program due to incorrect provided data.
-    fn resume_session_failed() -> Self;
-
     /// Failed to find the program binary code.
     fn program_code_not_found() -> Self;
-
-    /// Resume session with the specified id already exists in storage.
-    fn duplicate_resume_session() -> Self;
 }
 
 pub type MemoryMap = BTreeMap<GearPage, PageBuf>;
@@ -137,16 +125,16 @@ pub trait ProgramStorage {
     }
 
     /// Return program data for each page from `pages`.
-    fn get_program_data_for_pages<'a>(
+    fn get_program_data_for_pages(
         program_id: ProgramId,
         memory_infix: MemoryInfix,
-        pages: impl Iterator<Item = &'a GearPage>,
+        pages: impl Iterator<Item = GearPage>,
     ) -> Result<MemoryMap, Self::Error> {
         let mut pages_data = BTreeMap::new();
         for page in pages {
-            let data = Self::MemoryPageMap::get(&program_id, &memory_infix, page)
+            let data = Self::MemoryPageMap::get(&program_id, &memory_infix, &page)
                 .ok_or(Self::InternalError::cannot_find_page_data())?;
-            pages_data.insert(*page, data);
+            pages_data.insert(page, data);
         }
 
         Ok(pages_data)

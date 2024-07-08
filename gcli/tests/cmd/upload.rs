@@ -22,13 +22,15 @@ use crate::common::{
     node::{Convert, NodeExec},
     Args, Result,
 };
-use gear_core::ids::CodeId;
+use gear_core::ids::{prelude::*, CodeId};
 use gsdk::Api;
 
 #[tokio::test]
 async fn test_command_upload_works() -> Result<()> {
     let node = common::dev()?;
-    let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
     let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
     assert!(
         signer.api().code_storage(code_id).await.is_err(),

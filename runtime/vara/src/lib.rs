@@ -30,7 +30,6 @@ use frame_election_provider_support::{
     bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
     VoteWeight,
 };
-use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
@@ -51,6 +50,13 @@ pub use frame_support::{
         Weight,
     },
     PalletId, StorageValue,
+};
+use frame_support::{
+    dispatch::DispatchInfo,
+    pallet_prelude::{
+        InvalidTransaction, TransactionLongevity, TransactionValidityError, ValidTransaction,
+    },
+    weights::ConstantMultiplier,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
@@ -81,6 +87,7 @@ pub use runtime_common::{
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
+use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
 use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder};
@@ -91,8 +98,8 @@ use sp_runtime::{
     codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
-        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, IdentityLookup, NumberFor,
-        OpaqueKeys,
+        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
+        IdentityLookup, NumberFor, One, OpaqueKeys, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
@@ -162,7 +169,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1410,
+    spec_version: 1420,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1303,7 +1310,7 @@ pub type SignedExtra = (
     frame_system::CheckTxVersion<Runtime>,
     frame_system::CheckGenesis<Runtime>,
     frame_system::CheckEra<Runtime>,
-    frame_system::CheckNonce<Runtime>,
+    CustomCheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
     CustomChargeTransactionPayment<Runtime>,
 );
@@ -1552,5 +1559,105 @@ where
             extensions: core::cell::RefCell::new(params.4),
             extensions_generated_for: core::cell::RefCell::new(params.5),
         }
+    }
+}
+
+/// Nonce check and increment to give replay protection for transactions.
+///
+/// # Transaction Validity
+///
+/// This extension affects `requires` and `provides` tags of validity, but DOES NOT
+/// set the `priority` field. Make sure that AT LEAST one of the signed extension sets
+/// some kind of priority upon validating transactions.
+///
+/// NOTE: Copy-paste from substrate/frame/system/src/extensions/check_nonce.rs,
+/// but without providers and sufficients checks, so contains revert of changes
+/// from substrate v1.3.0 https://github.com/paritytech/polkadot-sdk/pull/1578.
+#[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct CustomCheckNonce<T: frame_system::Config>(#[codec(compact)] pub T::Nonce);
+
+impl<T: frame_system::Config> CustomCheckNonce<T> {
+    /// utility constructor. Used only in client/factory code.
+    pub fn from(nonce: T::Nonce) -> Self {
+        Self(nonce)
+    }
+}
+
+impl<T: frame_system::Config> sp_std::fmt::Debug for CustomCheckNonce<T> {
+    #[cfg(feature = "std")]
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        write!(f, "CustomCheckNonce({})", self.0)
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        Ok(())
+    }
+}
+
+impl<T: frame_system::Config> SignedExtension for CustomCheckNonce<T>
+where
+    T::RuntimeCall: Dispatchable<Info = DispatchInfo>,
+{
+    type AccountId = <frame_system::CheckNonce<T> as SignedExtension>::AccountId;
+    type Call = <frame_system::CheckNonce<T> as SignedExtension>::Call;
+    type AdditionalSigned = <frame_system::CheckNonce<T> as SignedExtension>::AdditionalSigned;
+    type Pre = <frame_system::CheckNonce<T> as SignedExtension>::Pre;
+    const IDENTIFIER: &'static str = <frame_system::CheckNonce<T> as SignedExtension>::IDENTIFIER;
+
+    fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> {
+        Ok(())
+    }
+
+    fn pre_dispatch(
+        self,
+        who: &Self::AccountId,
+        _call: &Self::Call,
+        _info: &DispatchInfoOf<Self::Call>,
+        _len: usize,
+    ) -> Result<(), TransactionValidityError> {
+        let mut account = frame_system::Account::<T>::get(who);
+
+        if self.0 != account.nonce {
+            return Err(if self.0 < account.nonce {
+                InvalidTransaction::Stale
+            } else {
+                InvalidTransaction::Future
+            }
+            .into());
+        }
+        account.nonce += T::Nonce::one();
+        frame_system::Account::<T>::insert(who, account);
+        Ok(())
+    }
+
+    fn validate(
+        &self,
+        who: &Self::AccountId,
+        _call: &Self::Call,
+        _info: &DispatchInfoOf<Self::Call>,
+        _len: usize,
+    ) -> TransactionValidity {
+        let account = frame_system::Account::<T>::get(who);
+
+        if self.0 < account.nonce {
+            return InvalidTransaction::Stale.into();
+        }
+
+        let provides = vec![Encode::encode(&(who, self.0))];
+        let requires = if account.nonce < self.0 {
+            vec![Encode::encode(&(who, self.0 - One::one()))]
+        } else {
+            vec![]
+        };
+
+        Ok(ValidTransaction {
+            priority: 0,
+            requires,
+            provides,
+            longevity: TransactionLongevity::max_value(),
+            propagate: true,
+        })
     }
 }

@@ -23,8 +23,8 @@ use super::{
             event::*,
             gas_provider::node::{GasNodeId, NodeLock},
         },
-        gear_core::{ids as generated_ids, message as generated_message},
-        gear_core_errors as generated_core_errors,
+        gear_core::message as generated_message,
+        gear_core_errors as generated_core_errors, gprimitives as generated_ids,
         pallet_balances::pallet::Call as BalancesCall,
         pallet_gear::pallet::Call as GearCall,
         pallet_sudo::pallet::Call as SudoCall,
@@ -50,14 +50,14 @@ impl From<generated_ids::MessageId> for ids::MessageId {
     }
 }
 
-impl From<ids::ProgramId> for generated_ids::ProgramId {
+impl From<ids::ProgramId> for generated_ids::ActorId {
     fn from(other: ids::ProgramId) -> Self {
         Self(other.into())
     }
 }
 
-impl From<generated_ids::ProgramId> for ids::ProgramId {
-    fn from(other: generated_ids::ProgramId) -> Self {
+impl From<generated_ids::ActorId> for ids::ProgramId {
+    fn from(other: generated_ids::ActorId) -> Self {
         other.0.into()
     }
 }
@@ -160,7 +160,7 @@ macro_rules! impl_basic {
 
 impl_basic! {
     ApiEvent, generated_ids::MessageId,
-    generated_ids::ProgramId, generated_ids::CodeId, generated_ids::ReservationId,
+    generated_ids::ActorId, generated_ids::CodeId, generated_ids::ReservationId,
     Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>,
     generated_core_errors::simple::ReplyCode
 }

@@ -1,6 +1,7 @@
 [package]
 name = "gmeta"
 description = "Metadata library for Gear programs"
+documentation = "https://docs.rs/gmeta"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 version.workspace = true
@@ -12,7 +13,7 @@ repository.workspace = true
 
 [dependencies]
 scale-info.workspace = true
-blake2-rfc.workspace = true
+blake2.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 gmeta-codegen = { workspace = true, optional = true }
 derive_more.workspace = true

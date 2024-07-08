@@ -56,8 +56,10 @@ pub struct ExtCosts {
     pub syscalls: SyscallCosts,
     /// Rent costs.
     pub rent: RentCosts,
-    /// Memory grow cost per page.
-    pub mem_grow: CostOf<WasmPagesAmount>,
+    /// Memory grow cost.
+    pub mem_grow: CostOf<CallsAmount>,
+    /// Memory grow per page cost.
+    pub mem_grow_per_page: CostOf<WasmPagesAmount>,
 }
 
 /// Costs for message processing
