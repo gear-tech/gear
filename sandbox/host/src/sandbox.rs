@@ -176,7 +176,7 @@ pub struct GuestExternals<'a> {
 /// Module instance in terms of selected backend
 enum BackendInstance {
     /// Wasmi module instance
-    Wasmi(wasmi::ModuleRef),
+    Wasmi(sandbox_wasmi::ModuleRef),
 
     /// Wasmer module instance
     Wasmer(sandbox_wasmer::Instance),
