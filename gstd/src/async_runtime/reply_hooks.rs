@@ -26,11 +26,14 @@ pub(crate) type HooksMap = HashMap<MessageId, Box<dyn FnOnce()>>;
 
 /// Register hook to be executed when a reply for message_id is received.
 pub(crate) fn register_reply_hook<F: FnOnce() + 'static>(mid: MessageId, f: F) {
+    if reply_hooks().contains_key(&mid) {
+        panic!("handle_reply: reply hook for this message_id is already registered");
+    }
     reply_hooks().insert(mid, Box::new(f));
 }
 
 /// Execute hook for message_id (if registered)
-pub(crate) fn execute_reply_hook(mid: MessageId) {
+pub(crate) fn execute_and_clear_reply_hook(mid: MessageId) {
     if let Some(f) = reply_hooks().remove(&mid) {
         f();
     }

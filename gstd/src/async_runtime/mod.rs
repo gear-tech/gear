@@ -24,7 +24,7 @@ mod waker;
 
 pub use self::futures::message_loop;
 pub(crate) use locks::Lock;
-pub(crate) use reply_hooks::{clear_reply_hook, execute_reply_hook, register_reply_hook};
+pub(crate) use reply_hooks::{clear_reply_hook, execute_and_clear_reply_hook, register_reply_hook};
 pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
@@ -65,7 +65,7 @@ pub fn record_reply() {
     let replied_to = crate::msg::reply_to().expect("record_reply called in wrong context");
 
     // Execute reply hook (if it was registered)
-    execute_reply_hook(replied_to);
+    execute_and_clear_reply_hook(replied_to);
 }
 
 /// Default signal handler.
@@ -78,4 +78,6 @@ pub fn handle_signal() {
 
     futures().remove(&msg_id);
     locks().remove_message_entry(msg_id);
+
+    clear_reply_hook(msg_id)
 }

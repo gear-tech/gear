@@ -14777,7 +14777,6 @@ fn handle_reply_hook() {
         assert!(Gear::is_initialized(pid));
         assert!(utils::is_active(pid));
 
-        dbg!("sending message");
         // Init conversation
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -14790,24 +14789,52 @@ fn handle_reply_hook() {
 
         run_to_block(3, None);
 
-        let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload_bytes(), b"for_reply");
+        let messages = MailboxOf::<Test>::iter_key(USER_1).map(|(msg, _bn)| msg);
 
-        // Reply to the message
-        assert_ok!(Gear::send_reply(
-            RuntimeOrigin::signed(USER_1),
-            msg.id(),
-            [1, 2, 3].to_vec(),
-            10_000_000_000,
-            0,
-            false,
-        ));
+        for msg in messages {
+            match msg.payload_bytes() {
+                b"for_reply_1" => {
+                    // Reply to the first message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [1].to_vec(),
+                        10_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                b"for_reply_2" => {
+                    // Don't reply, message should time out
+                }
+                b"for_reply_3" => {
+                    // Reply to the third message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [3].to_vec(),
+                        10_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                _ => unreachable!(),
+            }
+        }
 
         run_to_block(4, None);
 
         // Expect a reply back
         let msg = get_last_mail(USER_1);
         assert_eq!(msg.payload_bytes(), b"saw_reply");
+
+        run_to_block(10, None);
+
+        // Program finished
+        let have_confirmation =
+            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"completed");
+
+        assert!(have_confirmation);
     });
 }
 

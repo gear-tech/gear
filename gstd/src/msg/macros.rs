@@ -65,17 +65,18 @@ macro_rules! impl_futures {
                 Ok(self)
             }
 
-            /// Execute a function when the reply is received
+            /// Execute a function when the reply is received.
+            ///
+            /// Note: This callback will run in reply context and consume reply gas.
             ///
             /// # Examples
             ///
-            /// Send message to echo program and wait for reply
+            /// Send message to echo program and wait for reply.
             ///
             /// ```
             /// use gstd::{ActorId, msg, debug};
             ///
             /// #[gstd::async_main]
-            ///
             /// async fn main() {
             ///     let dest = ActorId::from(1); // Replace with correct actor id
             ///
@@ -93,6 +94,10 @@ macro_rules! impl_futures {
             /// }
             /// # fn main() {}
             /// ```
+            ///
+            /// # Panics
+            ///
+            /// Panics if this is called second time.
             pub fn handle_reply<F: FnMut() + 'static>(self, f: F) -> Self {
                 async_runtime::register_reply_hook(self.waiting_reply_to.clone(), crate::Box::new(f));
                 self

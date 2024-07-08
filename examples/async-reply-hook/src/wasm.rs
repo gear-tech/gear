@@ -22,13 +22,38 @@ use gstd::{critical, debug, exec, msg, prelude::*, ActorId};
 async fn main() {
     let source = msg::source();
 
-    gstd::msg::send_bytes_for_reply(source, b"for_reply", 0, 0)
+    // Case 1: Message without reply hook
+    let m1 = gstd::msg::send_bytes_for_reply(source, b"for_reply_1", 0, 0)
+        .expect("Failed to send message");
+
+    // Case 2: Message with reply hook but we don't reply to it
+    let m2 = gstd::msg::send_bytes_for_reply(source, b"for_reply_2", 0, 0)
+        .expect("Failed to send message")
+        .up_to(Some(5))
+        .expect("Failed to set timeout")
+        .handle_reply(|| {
+            unreachable!("This should not be called");
+        });
+
+    // Case 3: Message with reply hook and we reply to it
+    let m3 = gstd::msg::send_bytes_for_reply(source, b"for_reply_3", 0, 0)
         .expect("Failed to send message")
         .handle_reply(|| {
             debug!("reply message_id: {:?}", msg::id());
             debug!("reply payload: {:?}", msg::load_bytes());
+
+            // Check that we indeed have reply for the intended message
+            assert_eq!(msg::load_bytes().unwrap(), [3]);
+
             msg::send_bytes(msg::source(), b"saw_reply", 0);
-        })
-        .await
-        .expect("Received error reply");
+        });
+
+    m1.await.expect("Received error reply");
+    assert_eq!(
+        m2.await.expect_err("Should receive timeout"),
+        gstd::errors::Error::Timeout(8, 8)
+    );
+    m3.await.expect("Received error reply");
+
+    msg::send_bytes(source, b"completed", 0);
 }
