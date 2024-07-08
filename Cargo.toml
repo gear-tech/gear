@@ -11,7 +11,7 @@ resolver = "2"
 
 default-members = ["node/cli"]
 
-exclude = ["hypercore/contracts"]
+exclude = ["hypercore/contracts", "hypercore/docker"]
 
 members = [
     "common",
