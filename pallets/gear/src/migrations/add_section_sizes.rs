@@ -34,9 +34,9 @@ use {
     sp_std::vec::Vec,
 };
 
-const MIGRATE_FROM_VERSION: u16 = 7;
-const MIGRATE_TO_VERSION: u16 = 8;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 8;
+const MIGRATE_FROM_VERSION: u16 = 8;
+const MIGRATE_TO_VERSION: u16 = 9;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 9;
 
 pub struct AddSectionSizesMigration<T: Config>(PhantomData<T>);
 
@@ -58,7 +58,7 @@ impl<T: pallet_gear_program::Config + Config> OnRuntimeUpgrade for AddSectionSiz
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            pallet_gear_program::CodeStorage::<T>::translate(|_, code: v6::InstrumentedCode| {
+            pallet_gear_program::CodeStorage::<T>::translate(|_, code: v8::InstrumentedCode| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                 counter += 1;
@@ -105,7 +105,7 @@ impl<T: pallet_gear_program::Config + Config> OnRuntimeUpgrade for AddSectionSiz
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
             );
 
-            Some(v6::CodeStorage::<T>::iter().count() as u64)
+            Some(v8::CodeStorage::<T>::iter().count() as u64)
         } else {
             None
         };
@@ -126,7 +126,7 @@ impl<T: pallet_gear_program::Config + Config> OnRuntimeUpgrade for AddSectionSiz
     }
 }
 
-mod v6 {
+mod v8 {
     use gear_core::{
         message::DispatchKind,
         pages::{WasmPage, WasmPagesAmount},
@@ -215,7 +215,7 @@ mod test {
                 )
             "#;
 
-            let code = v6::InstrumentedCode {
+            let code = v8::InstrumentedCode {
                 code: wat2wasm(wat),
                 original_code_len: 100,
                 exports: vec![DispatchKind::Init].into_iter().collect(),
@@ -224,7 +224,7 @@ mod test {
                 version: 1,
             };
 
-            v6::CodeStorage::<Test>::insert(CodeId::from(1u64), code.clone());
+            v8::CodeStorage::<Test>::insert(CodeId::from(1u64), code.clone());
 
             let state = AddSectionSizesMigration::<Test>::pre_upgrade().unwrap();
             let w = AddSectionSizesMigration::<Test>::on_runtime_upgrade();
