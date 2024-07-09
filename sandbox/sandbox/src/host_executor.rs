@@ -24,8 +24,8 @@ use crate::{
     env, AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value,
 };
 use alloc::string::String;
-use gear_runtime_interface::sandbox;
 use gear_sandbox_env::WasmReturnValue;
+use gear_sandbox_interface::sandbox;
 use sp_core::RuntimeDebug;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface_common::HostPointer;
@@ -172,7 +172,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         sandbox::memory_size(self.handle.memory_idx)
     }
 
-    unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> HostPointer
+    unsafe fn get_buff<Context>(&self, _ctx: &Context) -> HostPointer
     where
         Context: AsContextExt<State = T>,
     {

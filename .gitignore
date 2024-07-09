@@ -10,3 +10,8 @@ weight-dumps/
 .idea
 .log
 *.meta.txt
+.terraform*
+utils/**/fuzz/corpus/*
+utils/**/fuzz/coverage/*
+utils/**/fuzz/artifacts/*
+utils/**/fuzz/fuzz/*

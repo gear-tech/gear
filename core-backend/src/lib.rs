@@ -30,7 +30,7 @@ pub mod memory;
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
 mod runtime;
-mod state;
+pub mod state;
 
 use gear_core::{
     env::Externalities,
@@ -104,7 +104,7 @@ mod tests {
         let ext = MockExt::default();
         let env =
             Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-        let report = env.execute(|_, _| {}).unwrap();
+        let report = env.execute(|_, _, _| {}).unwrap();
 
         let BackendReport {
             termination_reason, ..

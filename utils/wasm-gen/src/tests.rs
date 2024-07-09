@@ -21,7 +21,7 @@ use arbitrary::Unstructured;
 use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{CodeId, ProgramId},
+    ids::{prelude::*, CodeId, ProgramId},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -33,6 +33,9 @@ use gear_core_backend::{
     error::{ActorTerminationReason, TerminationReason, TrapExplanation},
 };
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
+use gear_lazy_pages::LazyPagesVersion;
+use gear_lazy_pages_common::LazyPagesInitContext;
+use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     gas_metering::CustomConstantCostRules,
@@ -43,6 +46,8 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::num::{NonZeroU32, NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
+
+type Ext = gear_core_processor::Ext<LazyPagesNative>;
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
@@ -59,7 +64,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None);
         assert!(code_res.is_ok());
     }
 
@@ -287,7 +292,7 @@ fn test_existing_address_as_address_param() {
 
     assert_eq!(
         dispatch.destination(),
-        ProgramId::from(some_address.as_ref())
+        ProgramId::try_from(some_address.as_ref()).unwrap()
     );
 }
 
@@ -418,7 +423,10 @@ fn test_msg_value_ptr_dest() {
                 match dest_var {
                     ActorKind::Source => assert_eq!(destination, message_sender()),
                     ActorKind::ExistingAddresses(_) => {
-                        assert_eq!(destination, ProgramId::from(some_address.as_ref()))
+                        assert_eq!(
+                            destination,
+                            ProgramId::try_from(some_address.as_ref()).unwrap()
+                        )
                     }
                     ActorKind::Random => {}
                 }
@@ -597,6 +605,67 @@ fn test_reservation_id_ptr() {
 }
 
 #[test]
+fn test_code_id_with_value_ptr() {
+    gear_utils::init_default_logger();
+
+    const INITIAL_BALANCE: u128 = 10_000;
+    const REPLY_VALUE: u128 = 1_000;
+
+    let some_code_id = CodeId::from([10; 32]);
+
+    let tested_syscalls = [
+        InvocableSyscall::Loose(SyscallName::CreateProgram),
+        InvocableSyscall::Loose(SyscallName::CreateProgramWGas),
+    ];
+
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_rule(RegularParamType::Gas, (0..=0).into())
+        .with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
+            code_ids: NonEmpty::new(some_code_id),
+            range: REPLY_VALUE..=REPLY_VALUE,
+        });
+
+    for syscall in tested_syscalls {
+        let mut rng = SmallRng::seed_from_u64(123);
+        let mut buf = vec![0; UNSTRUCTURED_SIZE];
+        rng.fill_bytes(&mut buf);
+        let mut unstructured = Unstructured::new(&buf);
+
+        let mut injection_types = SyscallsInjectionTypes::all_never();
+        injection_types.set(syscall, 1, 1);
+        let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+            .with_params_config(params_config.clone())
+            .with_error_processing_config(ErrorProcessingConfig::All)
+            .build();
+
+        let backend_report = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            syscalls_config,
+            None,
+            1024,
+            false,
+            INITIAL_BALANCE,
+            0,
+        );
+
+        assert_eq!(
+            backend_report.ext.context.value_counter.left(),
+            INITIAL_BALANCE - REPLY_VALUE
+        );
+        assert!(backend_report
+            .ext
+            .context
+            .program_candidates_data
+            .contains_key(&some_code_id));
+        assert_eq!(
+            backend_report.termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success)
+        );
+    }
+}
+
+#[test]
 fn error_processing_works_for_fallible_syscalls() {
     gear_utils::init_default_logger();
 
@@ -740,13 +809,16 @@ fn execute_wasm_with_custom_configs(
     imitate_reply: bool,
     value: u128,
     gas: u64,
-) -> BackendReport<gear_core_processor::Ext> {
+) -> BackendReport<Ext> {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
     const INITIAL_PAGES: u16 = 1;
 
-    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-        PROGRAM_STORAGE_PREFIX
-    ));
+    gear_lazy_pages::init(
+        LazyPagesVersion::Version1,
+        LazyPagesInitContext::new(PROGRAM_STORAGE_PREFIX),
+        (),
+    )
+    .expect("Failed to init lazy-pages");
 
     let gear_config = (
         GearWasmGeneratorConfigBuilder::new()
@@ -767,8 +839,15 @@ fn execute_wasm_with_custom_configs(
 
     let code =
         generate_gear_program_code(unstructured, gear_config).expect("failed wasm generation");
-    let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
-        .expect("Failed to create Code");
+    let code = Code::try_new(
+        code,
+        1,
+        |_| CustomConstantCostRules::new(0, 0, 0),
+        None,
+        None,
+        None,
+    )
+    .expect("Failed to create Code");
 
     let code_id = CodeId::generate(code.original_code());
     let program_id = ProgramId::generate_from_user(code_id, b"");
@@ -801,7 +880,7 @@ fn execute_wasm_with_custom_configs(
         ..ProcessorContext::new_mock()
     };
 
-    let ext = gear_core_processor::Ext::new(processor_context);
+    let ext = Ext::new(processor_context);
     let env = Environment::new(
         ext,
         code.code(),
@@ -811,13 +890,14 @@ fn execute_wasm_with_custom_configs(
     )
     .expect("Failed to create environment");
 
-    env.execute(|mem, globals_config| {
-        gear_core_processor::Ext::lazy_pages_init_for_program(
+    env.execute(|ctx, mem, globals_config| {
+        Ext::lazy_pages_init_for_program(
+            ctx,
             mem,
             program_id,
             Default::default(),
             Some(
-                mem.size()
+                mem.size(ctx)
                     .to_page_number()
                     .expect("Memory size is 4GB, so cannot be stack end"),
             ),
@@ -826,7 +906,7 @@ fn execute_wasm_with_custom_configs(
         );
 
         if let Some(mem_write) = initial_memory_write {
-            mem.write(mem_write.offset, &mem_write.content)
+            mem.write(ctx, mem_write.offset, &mem_write.content)
                 .expect("Failed to write to memory");
         };
     })
@@ -835,5 +915,5 @@ fn execute_wasm_with_custom_configs(
 
 fn message_sender() -> ProgramId {
     let bytes = [1, 2, 3, 4].repeat(8);
-    ProgramId::from(bytes.as_ref())
+    ProgramId::try_from(bytes.as_ref()).unwrap()
 }

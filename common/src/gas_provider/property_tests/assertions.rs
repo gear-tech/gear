@@ -24,10 +24,10 @@ use utils::{RemainingNodes, RemovedNodes};
 /// Check that removed nodes invariants are met
 #[track_caller]
 pub(super) fn assert_removed_nodes_props(
-    consumed: Key,
+    consumed: NodeId,
     removed_nodes: RemovedNodes,
     remaining_nodes: &RemainingNodes,
-    marked_consumed_nodes: &BTreeSet<Key>,
+    marked_consumed_nodes: &BTreeSet<NodeId>,
 ) {
     if removed_nodes.is_empty() {
         return;
@@ -45,7 +45,7 @@ pub(super) fn assert_removed_nodes_props(
 // Check that if node was consumed, but not removed, it's one of `External`, `Reserved` or
 // `SpecifiedLocal` type. So not `UnspecifiedLocal` or `Cut`
 #[track_caller]
-fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes) {
+fn assert_not_removed_node_type(consumed: NodeId, remaining_nodes: &RemainingNodes) {
     if let Some(consumed) = remaining_nodes.get(&consumed) {
         // Node was not removed after consume, so should be of specific types
         assert!(consumed.is_external() || consumed.is_reserved() || consumed.is_specified_local());
@@ -84,8 +84,8 @@ fn assert_unspec_nodes_amount(removed_nodes: &RemovedNodes) {
 // layer to `consumed`.
 #[track_caller]
 fn assert_removed_nodes_are_consumed(
-    consumed: Key,
-    marked_consumed_nodes: &BTreeSet<Key>,
+    consumed: NodeId,
+    marked_consumed_nodes: &BTreeSet<NodeId>,
     removed_nodes: &RemovedNodes,
 ) {
     for (id, node) in removed_nodes {
@@ -128,7 +128,7 @@ fn assert_removed_nodes_have_no_system_reserve(removed_nodes: &RemovedNodes) {
 // Check that removed nodes form a path (if more than one was removed).
 #[track_caller]
 fn assert_removed_nodes_form_path(
-    consumed: Key,
+    consumed: NodeId,
     remaining_nodes: &RemainingNodes,
     removed_nodes: RemovedNodes,
 ) {
@@ -153,7 +153,7 @@ fn assert_removed_nodes_form_path(
 
 // Check that only `Cut` is removed after `consume`
 #[track_caller]
-fn assert_only_cut_node_removed(consumed: Key, removed_nodes: &RemovedNodes) {
+fn assert_only_cut_node_removed(consumed: NodeId, removed_nodes: &RemovedNodes) {
     if let Some(node) = removed_nodes.get(&consumed) {
         if node.is_cut() {
             // only `Cut` must be removed
@@ -170,7 +170,7 @@ fn assert_only_cut_node_removed(consumed: Key, removed_nodes: &RemovedNodes) {
 // root was removed in the `consume` call.
 #[track_caller]
 pub(super) fn assert_root_children_removed(
-    root_node: impl Into<Key>,
+    root_node: impl Into<NodeId>,
     remaining_nodes: &RemainingNodes,
 ) {
     let root_node = root_node.into();
@@ -191,7 +191,7 @@ pub(super) fn assert_root_children_removed(
 }
 
 #[track_caller]
-fn assert_another_root_not_removed(consumed: Key, removed_nodes: &RemovedNodes) {
+fn assert_another_root_not_removed(consumed: NodeId, removed_nodes: &RemovedNodes) {
     if let Some(node) = removed_nodes.get(&consumed) {
         if node.is_external() || node.is_reserved() {
             assert_eq!(
@@ -207,8 +207,8 @@ fn assert_another_root_not_removed(consumed: Key, removed_nodes: &RemovedNodes) 
 
 // Check that returned dispatch error is not of invariant error variants.
 #[track_caller]
-pub(super) fn assert_not_invariant_error(err: super::Error) {
-    use super::Error::*;
+pub(super) fn assert_not_invariant_error(err: GasTreeError) {
+    use GasTreeError::*;
 
     match err {
         ParentIsLost

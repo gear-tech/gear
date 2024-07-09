@@ -18,16 +18,15 @@
 
 use crate::{
     log::RunResult,
-    manager::{Balance, ExtManager, MintMode, Program as InnerProgram, TestActor},
+    manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
     system::System,
-    Result,
+    Result, GAS_ALLOWANCE,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalMessage},
-    program::Program as CoreProgram,
 };
 use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -41,6 +40,7 @@ use std::{
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 /// Gas for gear programs.
@@ -143,9 +143,7 @@ impl From<ProgramId> for ProgramIdWrapper {
 
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
-        let mut id = [0; 32];
-        id[0..8].copy_from_slice(&other.to_le_bytes()[..]);
-        Self(id.into())
+        Self(other.into())
     }
 }
 
@@ -158,14 +156,9 @@ impl From<[u8; 32]> for ProgramIdWrapper {
 impl From<&[u8]> for ProgramIdWrapper {
     #[track_caller]
     fn from(other: &[u8]) -> Self {
-        if other.len() != 32 {
-            panic!("Invalid identifier: {:?}", other)
-        }
-
-        let mut bytes = [0; 32];
-        bytes.copy_from_slice(other);
-
-        bytes.into()
+        ProgramId::try_from(other)
+            .expect("invalid identifier")
+            .into()
     }
 }
 
@@ -190,15 +183,9 @@ impl From<String> for ProgramIdWrapper {
 impl From<&str> for ProgramIdWrapper {
     #[track_caller]
     fn from(other: &str) -> Self {
-        let id = other.strip_prefix("0x").unwrap_or(other);
-
-        let mut bytes = [0u8; 32];
-
-        if hex::decode_to_slice(id, &mut bytes).is_err() {
-            panic!("Invalid identifier: {:?}", other)
-        }
-
-        Self(bytes.into())
+        ProgramId::from_str(other)
+            .expect("invalid identifier")
+            .into()
     }
 }
 
@@ -268,14 +255,19 @@ impl ProgramBuilder {
     }
 
     fn wasm_path(optimized: bool) -> PathBuf {
+        Self::wasm_path_from_binpath(optimized)
+            .unwrap_or_else(|| gbuild::wasm_path().expect("Unable to find built wasm"))
+    }
+
+    fn wasm_path_from_binpath(optimized: bool) -> Option<PathBuf> {
+        let cwd = env::current_dir().expect("Unable to get current dir");
         let extension = if optimized { "opt.wasm" } else { "wasm" };
-        let current_dir = env::current_dir().expect("Unable to get current dir");
-        let path_file = current_dir.join(".binpath");
-        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
+        let path_file = cwd.join(".binpath");
+        let path_bytes = fs::read(path_file).ok()?;
         let mut relative_path: PathBuf =
             String::from_utf8(path_bytes).expect("Invalid path").into();
         relative_path.set_extension(extension);
-        current_dir.join(relative_path)
+        Some(cwd.join(relative_path))
     }
 
     fn inner_current(optimized: bool) -> Self {
@@ -351,6 +343,8 @@ impl ProgramBuilder {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Failed to create Program from code");
 
@@ -365,17 +359,16 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
-        let program = CoreProgram::new(id.0, Default::default(), code);
-
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Genuine {
-                program,
+            InnerProgram::Genuine(GenuineProgram {
+                code,
                 code_id,
+                allocations: Default::default(),
                 pages_data: Default::default(),
                 gas_reservation_map: Default::default(),
-            },
+            }),
         )
     }
 }
@@ -509,6 +502,21 @@ impl<'a> Program<'a> {
         self.send_bytes_with_value(from, payload.encode(), value)
     }
 
+    /// Send message to the program with gas limit and value.
+    pub fn send_with_gas<ID, P>(
+        &self,
+        from: ID,
+        payload: P,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        P: Encode,
+    {
+        self.send_bytes_with_gas_and_value(from, payload.encode(), gas_limit, value)
+    }
+
     /// Send message to the program with bytes payload.
     pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> RunResult
     where
@@ -525,20 +533,49 @@ impl<'a> Program<'a> {
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
     {
+        self.send_bytes_with_gas_and_value(from, payload, GAS_ALLOWANCE, value)
+    }
+
+    /// Send the message to the program with bytes payload, gas limit and value.
+    pub fn send_bytes_with_gas<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
+        self.send_bytes_with_gas_and_value(from, payload, gas_limit, value)
+    }
+
+    fn send_bytes_with_gas_and_value<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
 
         let message = Message::new(
             MessageId::generate_from_user(
-                system.block_info.height,
+                system.blocks_manager.get().height,
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
             source,
             self.id,
             payload.into().try_into().unwrap(),
-            Some(u64::MAX),
+            Some(gas_limit),
             value,
             None,
         );
@@ -565,7 +602,7 @@ impl<'a> Program<'a> {
         let source = from.into().0;
 
         let origin_msg_id = MessageId::generate_from_user(
-            system.block_info.height,
+            system.blocks_manager.get().height,
             source,
             system.fetch_inc_message_nonce() as u128,
         );
@@ -774,9 +811,69 @@ impl<'a> Program<'a> {
 /// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
     if let Some(id) = id {
-        ProgramId::generate_from_program(code_id, salt, id)
+        ProgramId::generate_from_program(id, code_id, salt)
     } else {
         ProgramId::generate_from_user(code_id, salt)
+    }
+}
+
+/// `cargo-gbuild` utils
+pub mod gbuild {
+    use crate::{error::TestError as Error, Result};
+    use cargo_toml::Manifest;
+    use std::{path::PathBuf, process::Command};
+
+    /// Search program wasm from
+    ///
+    /// - `target/gbuild`
+    /// - `$WORKSPACE_ROOT/target/gbuild`
+    ///
+    /// NOTE: Release or Debug is decided by the users
+    /// who run the command `cargo-gbuild`.
+    pub fn wasm_path() -> Result<PathBuf> {
+        let manifest_path = etc::find_up("Cargo.toml")
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?;
+        let manifest = Manifest::from_path(&manifest_path)
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not parse manifest".into()))?;
+        let target = etc::find_up("target").unwrap_or(
+            manifest_path
+                .parent()
+                .ok_or(Error::GbuildArtifactNotFound(
+                    "Could not parse target directory".into(),
+                ))?
+                .to_path_buf(),
+        );
+
+        let artifact = target
+            .join(format!(
+                "gbuild/{}",
+                manifest.package().name().replace('-', "_")
+            ))
+            .with_extension("wasm");
+
+        if artifact.exists() {
+            Ok(artifact)
+        } else {
+            Err(Error::GbuildArtifactNotFound(format!(
+                "Program artifact not exist, {artifact:?}"
+            )))
+        }
+    }
+
+    /// Ensure the current project has been built by `cargo-gbuild`.
+    pub fn ensure_gbuild() {
+        if wasm_path().is_err() {
+            let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
+            if !Command::new("cargo")
+                .args(["gbuild", "-m"])
+                .arg(&manifest)
+                .status()
+                .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
+                .success()
+            {
+                panic!("Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, manifest path: {manifest:?}")
+            }
+        }
     }
 }
 
@@ -784,7 +881,8 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 mod tests {
     use super::Program;
     use crate::{Log, System};
-    use gear_core_errors::ErrorReplyReason;
+    use gear_core::ids::ActorId;
+    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -878,7 +976,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "An attempt to mint value (1) less than existential deposit (10000000000000)"
+        expected = "An attempt to mint value (1) less than existential deposit (1000000000000)"
     )]
     fn mint_less_than_deposit() {
         System::new().mint_to(1, 1);
@@ -887,7 +985,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Insufficient value: user \
     (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
-    to send (10000000000001) value, while his balance (10000000000000)")]
+    to send (1000000000001) value, while his balance (1000000000000)")]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
 
@@ -1057,5 +1155,29 @@ mod tests {
 
         let run_result = prog.send_bytes(user_id, []);
         assert!(!run_result.main_failed());
+    }
+
+    #[test]
+    fn test_insufficient_gas() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
+
+        let user_id = ActorId::zero();
+
+        // set insufficient gas for execution
+        let res = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+
+        let expected_log =
+            Log::builder()
+                .source(prog.id())
+                .dest(user_id)
+                .reply_code(ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas,
+                )));
+
+        assert!(res.contains(&expected_log));
+        assert!(res.main_failed());
     }
 }

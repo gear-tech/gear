@@ -23,6 +23,12 @@ on:
       number:
         type: string
         description: "Pull request number that triggers this workflow"
+      release:
+        type: boolean
+        default: false
+      production:
+        type: boolean
+        default: false
 
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 
@@ -117,13 +123,13 @@ jobs:
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profiles.flags }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --extrinsic="*" --heap-pages=4096
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --repeat=0 --extrinsic="*" --heap-pages=4096
           # check that read_big_state benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="read_big_state" --heap-pages=4096 --extra
           # check that signal_stack_limit_exceeded_works benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
           # check that check/test benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --heap-pages=4096 --extra
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_all" --heap-pages=4096 --extra
 
       - name: "Test: Syscalls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls ${{ matrix.profiles.flags }}

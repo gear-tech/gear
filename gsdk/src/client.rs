@@ -65,10 +65,13 @@ pub enum RpcClient {
 
 impl RpcClient {
     /// Create RPC client from url and timeout.
-    pub async fn new(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
+    pub async fn new(
+        url: impl Into<Option<&str>>,
+        timeout: impl Into<Option<u64>>,
+    ) -> Result<Self> {
         let (url, timeout) = (
-            url.unwrap_or(DEFAULT_GEAR_ENDPOINT),
-            timeout.unwrap_or(DEFAULT_TIMEOUT),
+            url.into().unwrap_or(DEFAULT_GEAR_ENDPOINT),
+            timeout.into().unwrap_or(DEFAULT_TIMEOUT),
         );
 
         log::info!("Connecting to {url} ...");
@@ -167,7 +170,10 @@ pub struct Rpc {
 
 impl Rpc {
     /// Create RPC client from url and timeout.
-    pub async fn new(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
+    pub async fn new(
+        url: impl Into<Option<&str>>,
+        timeout: impl Into<Option<u64>>,
+    ) -> Result<Self> {
         let rpc = SubxtRpcClient::new(RpcClient::new(url, timeout).await?);
         let methods = LegacyRpcMethods::new(rpc.clone());
         Ok(Self { rpc, methods })

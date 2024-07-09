@@ -18,10 +18,10 @@
 
 use super::*;
 use core_processor::ContextChargedForInstrumentation;
+use gear_core::program::ProgramState;
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
-    pub ext_manager: &'a mut ExtManager<T>,
     pub gas_limit: GasBalanceOf<T>,
     pub dispatch: StoredDispatch,
     pub balance: u128,
@@ -34,7 +34,6 @@ where
     pub(crate) fn run_queue_step(queue_step: QueueStep<'_, T>) -> Vec<JournalNote> {
         let QueueStep {
             block_config,
-            ext_manager,
             gas_limit,
             dispatch,
             balance,
@@ -93,7 +92,6 @@ where
             code_id: program.code_hash.cast(),
             code_exports: program.code_exports,
             static_pages: program.static_pages,
-            pages_with_data: program.pages_with_data,
             gas_reservation_map: program.gas_reservation_map,
             memory_infix: program.memory_infix,
         };
@@ -157,13 +155,14 @@ where
             };
 
         // The last one thing is to load program memory. Adjust gas counters for memory pages.
-        let context = match core_processor::precharge_for_memory(block_config, context) {
+        let context = match core_processor::precharge_for_module_instantiation(
+            block_config,
+            context,
+            code.instantiated_section_sizes(),
+        ) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
-
-        // Load program memory pages.
-        ext_manager.insert_program_id_loaded_pages(destination_id);
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
@@ -230,11 +229,14 @@ where
                 continue;
             }
 
-            let balance = CurrencyOf::<T>::free_balance(&program_id.cast());
+            let balance = <CurrencyOf<T> as fungible::Inspect<T::AccountId>>::reducible_balance(
+                &program_id.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            );
 
             let journal = Self::run_queue_step(QueueStep {
                 block_config: &block_config,
-                ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch,
                 balance: balance.unique_saturated_into(),

@@ -26,13 +26,13 @@ use crate::{
     processing::{process_allowance_exceed, process_execution_error, process_success},
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
 use gear_core::{
+    code::{InstantiatedSectionSizes, SectionName},
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
-    pages::{WasmPage, WasmPagesAmount},
 };
 
 /// Operation related to gas charging.
@@ -50,9 +50,9 @@ pub enum PreChargeGasOperation {
     /// Handle program code.
     #[display(fmt = "handle program code")]
     ProgramCode,
-    /// Instantiate Wasm module.
-    #[display(fmt = "instantiate Wasm module")]
-    ModuleInstantiation,
+    /// Instantiate the type section of the Wasm module.
+    #[display(fmt = "instantiate {_0} of Wasm module")]
+    ModuleInstantiation(SectionName),
     /// Instrument Wasm module.
     #[display(fmt = "instrument Wasm module")]
     ModuleInstrumentation,
@@ -124,13 +124,29 @@ impl<'a> GasPrecharger<'a> {
         )
     }
 
-    pub fn charge_gas_for_instantiation(
+    pub fn charge_gas_for_section_instantiation(
         &mut self,
-        code_len: BytesAmount,
+        section_name: SectionName,
+        section_len: BytesAmount,
     ) -> Result<(), PrechargeError> {
+        let instantiation_costs = &self.costs.instantiation_costs;
+
+        let cost_per_byte = match section_name {
+            SectionName::Function => &instantiation_costs.code_section_per_byte,
+            SectionName::Data => &instantiation_costs.data_section_per_byte,
+            SectionName::Global => &instantiation_costs.global_section_per_byte,
+            SectionName::Table => &instantiation_costs.table_section_per_byte,
+            SectionName::Element => &instantiation_costs.element_section_per_byte,
+            SectionName::Type => &instantiation_costs.type_section_per_byte,
+            _ => {
+                // TODO: change this to a system error in future
+                unimplemented!("Wrong {section_name:?} for section instantiation")
+            }
+        };
+
         self.charge_gas(
-            PreChargeGasOperation::ModuleInstantiation,
-            self.costs.module_instantiation_per_byte.cost_for(code_len),
+            PreChargeGasOperation::ModuleInstantiation(section_name),
+            cost_per_byte.cost_for(section_len),
         )
     }
 
@@ -144,24 +160,6 @@ impl<'a> GasPrecharger<'a> {
                 .instrumentation
                 .cost_for_with_bytes(self.costs.instrumentation_per_byte, original_code_len_bytes),
         )
-    }
-
-    /// Charge gas for pages and checks that there is enough gas for that.
-    /// Returns size of wasm memory buffer which must be created in execution environment.
-    pub fn charge_gas_for_pages(
-        &mut self,
-        allocations: &BTreeSet<WasmPage>,
-        static_pages: WasmPagesAmount,
-    ) -> Result<WasmPagesAmount, PrechargeError> {
-        // Charging gas for static pages.
-        let amount = self.costs.static_page.cost_for(static_pages);
-        self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
-
-        if let Some(page) = allocations.last() {
-            Ok(page.inc())
-        } else {
-            Ok(static_pages)
-        }
     }
 }
 
@@ -289,7 +287,7 @@ pub fn precharge_for_code(
     );
 
     match charger.charge_gas_for_program_code(code_len_bytes.into()) {
-        Ok(()) => Ok((context, code_len_bytes).into()),
+        Ok(()) => Ok(context.into()),
         Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
             context.data.destination_id,
@@ -343,9 +341,10 @@ pub fn precharge_for_instrumentation(
 }
 
 /// Charge a message for program memory and module instantiation beforehand.
-pub fn precharge_for_memory(
+pub fn precharge_for_module_instantiation(
     block_config: &BlockConfig,
     mut context: ContextChargedForInstrumentation,
+    section_sizes: &InstantiatedSectionSizes,
 ) -> PrechargeResult<ContextChargedForMemory> {
     let ContextChargedForInstrumentation {
         data:
@@ -355,17 +354,44 @@ pub fn precharge_for_memory(
                 actor_data,
                 ..
             },
-        code_len_bytes,
+        ..
     } = &mut context;
 
     let mut f = || {
         let mut charger =
             GasPrecharger::new(gas_counter, gas_allowance_counter, &block_config.costs);
 
-        let memory_size =
-            charger.charge_gas_for_pages(&actor_data.allocations, actor_data.static_pages)?;
+        // Calculates size of wasm memory buffer which must be created in execution environment
+        let memory_size = if let Some(page) = actor_data.allocations.end() {
+            page.inc()
+        } else {
+            actor_data.static_pages
+        };
 
-        charger.charge_gas_for_instantiation((*code_len_bytes).into())?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Function,
+            section_sizes.code_section.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Data,
+            section_sizes.data_section.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Global,
+            section_sizes.global_section.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Table,
+            section_sizes.table_section.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Element,
+            section_sizes.element_section.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Type,
+            section_sizes.type_section.into(),
+        )?;
 
         Ok(memory_size)
     };
@@ -400,39 +426,5 @@ pub fn precharge_for_memory(
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
-        (
-            GasCounter::new(1_000_000),
-            GasAllowanceCounter::new(4_000_000),
-        )
-    }
-
-    #[test]
-    fn gas_for_static_pages() {
-        let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-        let costs = ProcessCosts {
-            static_page: 1.into(),
-            ..Default::default()
-        };
-        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter, &costs);
-        let static_pages = 4.into();
-        let allocations = Default::default();
-
-        let res = charger.charge_gas_for_pages(&allocations, static_pages);
-
-        // Result is static pages count
-        assert_eq!(res, Ok(static_pages));
-
-        // Charging for static pages initialization
-        let charge = costs.static_page.cost_for(static_pages);
-        assert_eq!(charger.counter.left(), 1_000_000 - charge);
-        assert_eq!(charger.allowance_counter.left(), 4_000_000 - charge);
     }
 }

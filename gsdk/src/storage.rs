@@ -21,8 +21,12 @@ use crate::{
     metadata::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
-            gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::instrumented::InstrumentedCode, message::user::UserStoredMessage},
+            gear_common::storage::primitives::Interval,
+            gear_core::{
+                code::instrumented::InstrumentedCode,
+                message::user::UserStoredMessage,
+                program::{ActiveProgram, Program},
+            },
             pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
@@ -317,13 +321,18 @@ impl Api {
     ) -> Result<GearPages> {
         let mut pages = HashMap::new();
 
-        for page in &program.pages_with_data {
+        for page in program
+            .pages_with_data
+            .inner
+            .iter()
+            .flat_map(|(start, end)| start.0..=end.0)
+        {
             let addr = Self::storage(
                 GearProgramStorage::MemoryPages,
                 vec![
                     Value::from_bytes(program_id),
                     Value::u128(program.memory_infix.0 as u128),
-                    Value::u128(page.0 as u128),
+                    Value::u128(page as u128),
                 ],
             );
 
@@ -335,8 +344,8 @@ impl Api {
                 .await?
                 .fetch_raw(lookup_bytes)
                 .await?
-                .ok_or_else(|| Error::PageNotFound(page.0, program_id.as_ref().encode_hex()))?;
-            pages.insert(page.0, encoded_page);
+                .ok_or_else(|| Error::PageNotFound(page, program_id.as_ref().encode_hex()))?;
+            pages.insert(page, encoded_page);
         }
 
         Ok(pages)

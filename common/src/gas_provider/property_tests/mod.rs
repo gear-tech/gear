@@ -75,9 +75,10 @@
 //!
 //! 14. Value catch can be performed only on consumed nodes (not tested).
 
-use super::*;
+use super::{auxiliary::gas_provider::*, *};
 use crate::storage::MapStorage;
-use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
+use alloc::collections::BTreeSet;
+use core::iter::FromIterator;
 use enum_iterator::all;
 use frame_support::{assert_err, assert_ok};
 use gear_utils::{NonEmpty, RingGet};
@@ -90,245 +91,22 @@ mod assertions;
 mod strategies;
 mod utils;
 
-type Balance = u64;
-type Funds = u128;
-
-std::thread_local! {
-    static TOTAL_ISSUANCE: RefCell<Option<Balance>> = const { RefCell::new(None) };
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct TotalIssuanceWrap;
-
-impl ValueStorage for TotalIssuanceWrap {
-    type Value = Balance;
-
-    fn exists() -> bool {
-        TOTAL_ISSUANCE.with(|i| i.borrow().is_some())
-    }
-
-    fn get() -> Option<Self::Value> {
-        TOTAL_ISSUANCE.with(|i| *i.borrow())
-    }
-
-    fn kill() {
-        TOTAL_ISSUANCE.with(|i| {
-            *i.borrow_mut() = None;
-        })
-    }
-
-    fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(f: F) -> R {
-        TOTAL_ISSUANCE.with(|i| f(i.borrow_mut().deref_mut()))
-    }
-
-    fn put(value: Self::Value) {
-        TOTAL_ISSUANCE.with(|i| {
-            i.replace(Some(value));
-        })
-    }
-
-    fn set(value: Self::Value) -> Option<Self::Value> {
-        Self::mutate(|opt| {
-            let prev = opt.take();
-            *opt = Some(value);
-            prev
-        })
-    }
-
-    fn take() -> Option<Self::Value> {
-        TOTAL_ISSUANCE.with(|i| i.take())
+impl<U> From<H256> for GasNodeId<PlainNodeId, U> {
+    fn from(raw_id: H256) -> Self {
+        Self::Node(PlainNodeId(raw_id))
     }
 }
 
-type Key = GasNodeId<MapKey, ReservationKey>;
-type GasNode = super::GasNode<ExternalOrigin, Key, Balance, Funds>;
-
-#[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct ExternalOrigin(MapKey);
-
-#[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct MapKey(H256);
-
-impl MapKey {
+impl ReservationNodeId {
     fn random() -> Self {
         Self(H256::random())
     }
 }
 
-impl<U> From<MapKey> for GasNodeId<MapKey, U> {
-    fn from(key: MapKey) -> Self {
-        Self::Node(key)
-    }
-}
+type Gas = <AuxiliaryGasProvider as Provider>::GasTree;
 
-#[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct ReservationKey(H256);
-
-impl ReservationKey {
-    fn random() -> Self {
-        Self(H256::random())
-    }
-}
-
-impl<T> From<ReservationKey> for GasNodeId<T, ReservationKey> {
-    fn from(key: ReservationKey) -> Self {
-        Self::Reservation(key)
-    }
-}
-
-std::thread_local! {
-    static GAS_TREE_NODES: RefCell<BTreeMap<Key, GasNode>> = const { RefCell::new(BTreeMap::new()) };
-}
-
-struct GasTreeNodesWrap;
-
-impl storage::MapStorage for GasTreeNodesWrap {
-    type Key = Key;
-    type Value = GasNode;
-
-    fn contains_key(key: &Self::Key) -> bool {
-        GAS_TREE_NODES.with(|tree| tree.borrow().contains_key(key))
-    }
-
-    fn get(key: &Self::Key) -> Option<Self::Value> {
-        GAS_TREE_NODES.with(|tree| tree.borrow().get(key).cloned())
-    }
-
-    fn insert(key: Self::Key, value: Self::Value) {
-        GAS_TREE_NODES.with(|tree| tree.borrow_mut().insert(key, value));
-    }
-
-    fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(_key: Self::Key, _f: F) -> R {
-        unimplemented!()
-    }
-
-    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(mut _f: F) {
-        unimplemented!()
-    }
-
-    fn remove(key: Self::Key) {
-        GAS_TREE_NODES.with(|tree| tree.borrow_mut().remove(&key));
-    }
-
-    fn clear() {
-        GAS_TREE_NODES.with(|tree| tree.borrow_mut().clear());
-    }
-
-    fn take(key: Self::Key) -> Option<Self::Value> {
-        GAS_TREE_NODES.with(|tree| tree.borrow_mut().remove(&key))
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Error {
-    NodeAlreadyExists,
-    ParentIsLost,
-    ParentHasNoChildren,
-    NodeNotFound,
-    NodeWasConsumed,
-    InsufficientBalance,
-    Forbidden,
-    UnexpectedConsumeOutput,
-    UnexpectedNodeType,
-    ValueIsNotCaught,
-    ValueIsBlocked,
-    ValueIsNotBlocked,
-    ConsumedWithLock,
-    ConsumedWithSystemReservation,
-    TotalValueIsOverflowed,
-    TotalValueIsUnderflowed,
-}
-
-impl super::Error for Error {
-    fn node_already_exists() -> Self {
-        Self::NodeAlreadyExists
-    }
-
-    fn parent_is_lost() -> Self {
-        Self::ParentIsLost
-    }
-
-    fn parent_has_no_children() -> Self {
-        Self::ParentHasNoChildren
-    }
-
-    fn node_not_found() -> Self {
-        Self::NodeNotFound
-    }
-
-    fn node_was_consumed() -> Self {
-        Self::NodeWasConsumed
-    }
-
-    fn insufficient_balance() -> Self {
-        Self::InsufficientBalance
-    }
-
-    fn forbidden() -> Self {
-        Self::Forbidden
-    }
-
-    fn unexpected_consume_output() -> Self {
-        Self::UnexpectedConsumeOutput
-    }
-
-    fn unexpected_node_type() -> Self {
-        Self::UnexpectedNodeType
-    }
-
-    fn value_is_not_caught() -> Self {
-        Self::ValueIsNotCaught
-    }
-
-    fn value_is_blocked() -> Self {
-        Self::ValueIsBlocked
-    }
-
-    fn value_is_not_blocked() -> Self {
-        Self::ValueIsNotBlocked
-    }
-
-    fn consumed_with_lock() -> Self {
-        Self::ConsumedWithLock
-    }
-
-    fn consumed_with_system_reservation() -> Self {
-        Self::ConsumedWithSystemReservation
-    }
-
-    fn total_value_is_overflowed() -> Self {
-        Self::TotalValueIsOverflowed
-    }
-
-    fn total_value_is_underflowed() -> Self {
-        Self::TotalValueIsUnderflowed
-    }
-}
-
-struct GasProvider;
-
-impl super::Provider for GasProvider {
-    type ExternalOrigin = ExternalOrigin;
-    type NodeId = GasNodeId<MapKey, ReservationKey>;
-    type Balance = Balance;
-    type Funds = Funds;
-    type InternalError = Error;
-    type Error = Error;
-
-    type GasTree = TreeImpl<
-        TotalIssuanceWrap,
-        Self::InternalError,
-        Self::Error,
-        ExternalOrigin,
-        Self::NodeId,
-        GasTreeNodesWrap,
-    >;
-}
-
-type Gas = <GasProvider as super::Provider>::GasTree;
-
-fn gas_tree_node_clone() -> BTreeMap<Key, GasNode> {
-    GAS_TREE_NODES.with(|tree| {
+fn gas_tree_node_clone() -> BTreeMap<NodeId, Node> {
+    GAS_NODES.with(|tree| {
         tree.borrow()
             .iter()
             .map(|(k, v)| (*k, v.clone()))
@@ -371,17 +149,17 @@ impl TestTree {
 
 #[derive(Debug)]
 struct TestForest {
-    trees: HashMap<GasNodeId<MapKey, ReservationKey>, TestTree>,
+    trees: HashMap<NodeId, TestTree>,
 }
 
 impl TestForest {
-    fn create(root: MapKey, balance: u64) -> Self {
+    fn create(root: H256, balance: u64) -> Self {
         Self {
             trees: [(root.into(), TestTree::new(balance))].into(),
         }
     }
 
-    fn register_tree(&mut self, root: impl Into<GasNodeId<MapKey, ReservationKey>>, balance: u64) {
+    fn register_tree(&mut self, root: impl Into<NodeId>, balance: u64) {
         let root = root.into();
 
         self.trees
@@ -391,17 +169,14 @@ impl TestForest {
     }
 
     #[track_caller]
-    fn tree_by_origin_mut(
-        &mut self,
-        origin: impl Into<GasNodeId<MapKey, ReservationKey>>,
-    ) -> &mut TestTree {
+    fn tree_by_origin_mut(&mut self, origin: impl Into<NodeId>) -> &mut TestTree {
         self.trees
             .get_mut(&origin.into())
             .expect("tree root not found")
     }
 
     #[track_caller]
-    fn tree_mut(&mut self, node: impl Into<GasNodeId<MapKey, ReservationKey>>) -> &mut TestTree {
+    fn tree_mut(&mut self, node: impl Into<NodeId>) -> &mut TestTree {
         let origin = Gas::get_origin_key(node).expect("child node not found");
         self.tree_by_origin_mut(origin)
     }
@@ -417,14 +192,14 @@ proptest! {
     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
     {
         TotalIssuanceWrap::kill();
-        <GasTreeNodesWrap as storage::MapStorage>::clear();
+        <GasNodesWrap as storage::MapStorage>::clear();
 
-        let external = ExternalOrigin(MapKey::random());
+        let external = ExternalOrigin(H256::random());
         // `actions` can consist only from tree splits. Then it's length will
         // represent a potential amount of nodes in the tree.
         // +1 for the root
         let mut node_ids = Vec::with_capacity(actions.len() + 1);
-        let root_node = MapKey::random();
+        let root_node = H256::random();
         let mut forest = TestForest::create(root_node, max_balance);
         node_ids.push(root_node.into());
 
@@ -448,11 +223,11 @@ proptest! {
         let mut system_reserve_nodes = BTreeSet::new();
 
         for action in actions {
-            // `Error::<T>::NodeNotFound` can't occur, because of `ring_get` approach
+            // `GasTreeError::<T>::NodeNotFound` can't occur, because of `ring_get` approach
             match action {
                 GasTreeAction::SplitWithValue(parent_idx, amount) => {
                     let &parent = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(parent_idx);
-                    let child = MapKey::random();
+                    let child = H256::random();
 
                     if let Err(e) = Gas::split_with_value(parent, child, amount) {
                         assertions::assert_not_invariant_error(e);
@@ -464,7 +239,7 @@ proptest! {
                 }
                 GasTreeAction::Split(parent_idx) => {
                     let &parent = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(parent_idx);
-                    let child = MapKey::random();
+                    let child = H256::random();
 
                     if let Err(e) = Gas::split(parent, child) {
                         assertions::assert_not_invariant_error(e);
@@ -481,7 +256,7 @@ proptest! {
                         if let Err(e) = &res {
                             assertions::assert_not_invariant_error(*e);
                             // The only one possible valid error, because other ones signal about invariant problems.
-                            assert_err!(res, Error::InsufficientBalance);
+                            assert_err!(res, GasTreeError::InsufficientBalance);
                         } else {
                             assert_ok!(res);
                             forest.tree_mut(from).spent += amount;
@@ -526,16 +301,16 @@ proptest! {
                         }
                         Err(e) => {
                             match e {
-                                Error::NodeWasConsumed => {
+                                GasTreeError::NodeWasConsumed => {
                                     // double consume has happened
                                     assert!(marked_consumed.contains(&consuming));
                                     assertions::assert_not_invariant_error(e);
                                 }
-                                Error::ConsumedWithLock => {
+                                GasTreeError::ConsumedWithLock => {
                                     assert!(locked_nodes.contains(&consuming));
                                     assertions::assert_not_invariant_error(e);
                                 }
-                                Error::ConsumedWithSystemReservation if matches!(consuming, GasNodeId::Node(_)) => {
+                                GasTreeError::ConsumedWithSystemReservation if matches!(consuming, GasNodeId::Node(_)) => {
                                     assert!(system_reserve_nodes.contains(&consuming.to_node_id().unwrap()));
                                     assertions::assert_not_invariant_error(e);
                                 }
@@ -546,7 +321,7 @@ proptest! {
                 }
                 GasTreeAction::Cut(from, amount) => {
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
-                    let child = MapKey::random();
+                    let child = H256::random();
 
                     if let Err(e) = Gas::cut(from, child, amount) {
                         assertions::assert_not_invariant_error(e)
@@ -557,7 +332,7 @@ proptest! {
                 }
                 GasTreeAction::Reserve(from, amount) => {
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
-                    let child = ReservationKey::random();
+                    let child = ReservationNodeId::random();
 
 
                     if let GasNodeId::Node(from) = from {
@@ -645,16 +420,16 @@ proptest! {
             if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent, .. } = node {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
-                let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");
+                let parent_node = GasNodesWrap::get(&parent).expect("checked");
                 assert!(parent_node.value().is_some());
             }
 
             // Check property: specified local nodes are created only with `split_with_value` call
             if node.is_specified_local() {
-                assert!(spec_ref_nodes.contains(&node_id.to_node_id().unwrap()));
+                assert!(spec_ref_nodes.contains(&node_id.to_node_id().unwrap().into_origin()));
             } else if node.is_unspecified_local() {
                 // Check property: unspecified local nodes are created only with `split` call
-                assert!(unspec_ref_nodes.contains(&node_id.to_node_id().unwrap()));
+                assert!(unspec_ref_nodes.contains(&node_id.to_node_id().unwrap().into_origin()));
             }
 
             // Check property: for all the nodes with system reservation currently existing in the tree...
@@ -734,14 +509,14 @@ proptest! {
     #[test]
     fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
         TotalIssuanceWrap::kill();
-        GasTreeNodesWrap::clear();
+        GasNodesWrap::clear();
 
         // Tree can be created only with external root
 
         let mut nodes = Vec::with_capacity(actions.len());
 
         for node in &mut nodes {
-            *node = MapKey::random();
+            *node = H256::random();
         }
 
         for action in actions {
@@ -749,7 +524,7 @@ proptest! {
                 GasTreeAction::SplitWithValue(parent_idx, amount) => {
                     if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
                         let &parent = non_empty_nodes.ring_get(parent_idx);
-                        let child = MapKey::random();
+                        let child = H256::random();
 
                         Gas::split_with_value(parent, child, amount).expect("Failed to split with value");
                     }
@@ -757,7 +532,7 @@ proptest! {
                 GasTreeAction::Split(parent_idx) => {
                     if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
                         let &parent = non_empty_nodes.ring_get(parent_idx);
-                        let child = MapKey::random();
+                        let child = H256::random();
 
                         Gas::split(parent, child).expect("Failed to split without value");
                     }
@@ -765,7 +540,7 @@ proptest! {
                 GasTreeAction::Reserve(parent_idx, amount) => {
                     if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
                         let &parent = non_empty_nodes.ring_get(parent_idx);
-                        let child = ReservationKey::random();
+                        let child = ReservationNodeId::random();
 
                         Gas::reserve(parent, child, amount).expect("Failed to create reservation");
                     }
@@ -774,6 +549,6 @@ proptest! {
             }
         }
 
-        assert!(GAS_TREE_NODES.with(|tree| tree.borrow().iter().count()) == 0);
+        assert!(GAS_NODES.with(|tree| tree.borrow().iter().count()) == 0);
     }
 }

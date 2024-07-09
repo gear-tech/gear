@@ -1,10 +1,11 @@
 [package]
 name = "gear-wasm-builder"
+description = "Utility for building Gear programs"
+documentation = "https://docs.rs/gear-wasm-builder"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Utility for building Gear programs"
 include = ["build.rs", "src/**/*", "Cargo.toml", "README.md"]
 readme = "README.md"
 

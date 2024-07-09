@@ -11,7 +11,7 @@ const BUILD_LABELS = [
   "A4-insubstantial",
   "A2-mergeoncegreen",
 ];
-const CHECKS = ["check", "build"];
+const CHECKS = ["check / linux", "build / linux (debug)"];
 const DEPBOT = "[depbot]";
 const WINDOWS_NATIVE = "E1-forcenatwin";
 const MACOS = "E2-forcemacos";
@@ -33,17 +33,17 @@ const [owner, repo] = ["gear-tech", "gear"];
 async function mock(head_sha) {
   const token = core.getInput("token");
   const octokit = github.getOctokit(token);
-  for (const check of CHECKS) {
+  for (const name of CHECKS) {
     const { data: res } = await octokit.rest.checks.create({
       owner,
       repo,
-      name: `${check} / linux`,
+      name,
       head_sha,
       status: "completed",
       conclusion: "success",
     });
 
-    core.info(`Created check "${check} / linux"`);
+    core.info(`Created check "${name}"`);
     core.info(res.html_url);
   }
 }
@@ -55,7 +55,7 @@ async function main() {
   const {
     pull_request: {
       title,
-      head: { sha, ref: branch },
+      head: { sha },
       labels: _labels,
     },
     repository: { full_name: fullName },

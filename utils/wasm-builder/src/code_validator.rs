@@ -279,7 +279,13 @@ impl fmt::Display for CodeErrorWithContext {
         write!(f, "code check failed: ")?;
 
         match error {
-            Validation(_) | Codec(_) | Section(_) | Memory(_) | StackEnd(_) | DataSection(_)
+            Validation(_)
+            | Codec(_)
+            | Section(_)
+            | Memory(_)
+            | StackEnd(_)
+            | DataSection(_)
+            | TableSection { .. }
             | Instrumentation(_) => write!(f, "{error}"),
             Export(error) => {
                 let error_with_context: ExportErrorWithContext =
@@ -319,7 +325,14 @@ impl CodeValidator {
     /// Validates wasm code in the same way as
     /// `pallet_gear::pallet::Pallet::upload_program(...)`.
     pub fn validate_program(self) -> anyhow::Result<()> {
-        match Code::try_new(self.code, 1, |_| CustomConstantCostRules::default(), None) {
+        match Code::try_new(
+            self.code,
+            1,
+            |_| CustomConstantCostRules::default(),
+            None,
+            None,
+            None,
+        ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),
         }

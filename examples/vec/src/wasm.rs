@@ -50,3 +50,9 @@ extern "C" fn handle() {
         MESSAGE_LOG.iter().for_each(|log| debug!("{log}"));
     }
 }
+
+// State-sharing function
+#[no_mangle]
+extern "C" fn state() {
+    msg::reply(unsafe { MESSAGE_LOG.clone() }, 0).expect("Failed to share state");
+}

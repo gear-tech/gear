@@ -6,6 +6,9 @@ edition = "2021"
 [dependencies]
 gstd = { path = "../../../gstd" }
 
+[dev-dependencies]
+gtest = { path = "../../../gtest" }
+
 [features]
 debug = ["gstd/debug"]
 default = []
@@ -15,3 +18,8 @@ std = []
 crate-type = ["cdylib"]
 
 [workspace]
+members = [ "foo", "bar" , "meta"]
+
+[workspace.metadata.gbuild]
+programs = [ "foo", "bar" ]
+metas = ["meta"]

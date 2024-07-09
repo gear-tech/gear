@@ -1,6 +1,7 @@
 [package]
 name = "gstd"
 description = "Gear programs standard library"
+documentation = "https://docs.rs/gstd"
 keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
 categories = ["api-bindings"]
 # Stable version of Rust >=1.73 is required due to new format of panic message.
@@ -23,7 +24,6 @@ gear-core-errors.workspace = true
 hashbrown.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
-primitive-types = { workspace = true, features = ["scale-info"] }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
 

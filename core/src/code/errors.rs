@@ -22,7 +22,7 @@ pub use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationE
 pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(PartialEq, Eq, Debug, derive_more::Display)]
 pub enum SectionName {
     /// Type section.
     #[display(fmt = "Type section")]
@@ -30,9 +30,21 @@ pub enum SectionName {
     /// Import section.
     #[display(fmt = "Import section")]
     Import,
-    /// Function section.
+    /// Function (Code) section.
     #[display(fmt = "Function section")]
     Function,
+    /// Data section.
+    #[display(fmt = "Data section")]
+    Data,
+    /// Global section.
+    #[display(fmt = "Global section")]
+    Global,
+    /// Table section.
+    #[display(fmt = "Table section")]
+    Table,
+    /// Element section.
+    #[display(fmt = "Element section")]
+    Element,
     /// Export section.
     #[display(fmt = "Export section")]
     Export,
@@ -77,7 +89,7 @@ pub enum StackEndError {
     OutOfStatic(u32, u64),
 }
 
-/// Stack end error in WASM module.
+/// Data section error in WASM module.
 #[derive(Debug, derive_more::Display)]
 pub enum DataSectionError {
     /// Unsupported initialization of data segment.
@@ -92,6 +104,27 @@ pub enum DataSectionError {
     /// Data segment end address is out of static memory.
     #[display(fmt = "Data segment {_0:#x}..={_1:#x} is out of static memory 0x0..{_2:#x}")]
     EndAddressOutOfStaticMemory(u32, u32, u64),
+    /// Data segment amount exceeds the limit.
+    #[display(fmt = "Data segment amount limit exceeded: limit={limit}, actual={actual}")]
+    DataSegmentsAmountLimit {
+        /// Limit of data segments.
+        limit: u32,
+        /// Actual amount of data segments.
+        actual: u32,
+    },
+}
+
+/// Table section error in WASM module.
+#[derive(Debug, derive_more::Display)]
+pub enum TableSectionError {
+    /// Number of table exceeds the limit.
+    #[display(fmt = "Number of table limit exceeded: limit={limit}, actual={actual}")]
+    TableNumberLimit {
+        /// Limit on the number of tables.
+        limit: u32,
+        /// Actual number of tables.
+        actual: u32,
+    },
 }
 
 /// Export error in WASM module.
@@ -174,6 +207,9 @@ pub enum CodeError {
     /// The provided code contains data section error.
     #[display(fmt = "Data section error: {_0}")]
     DataSection(DataSectionError),
+    /// The provided code contains table section error.
+    #[display(fmt = "Table section error: {_0}")]
+    TableSection(TableSectionError),
     /// The provided code contains export error.
     #[display(fmt = "Export error: {_0}")]
     Export(ExportError),

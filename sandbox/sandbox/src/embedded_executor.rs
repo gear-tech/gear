@@ -178,11 +178,11 @@ impl<T> super::SandboxMemory<T> for Memory {
         self.memref.current_pages(ctx).into()
     }
 
-    unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> u64
+    unsafe fn get_buff<Context>(&self, ctx: &Context) -> u64
     where
         Context: AsContextExt<State = T>,
     {
-        self.memref.data_mut(ctx).as_mut_ptr() as usize as u64
+        self.memref.data(ctx).as_ptr() as usize as u64
     }
 }
 

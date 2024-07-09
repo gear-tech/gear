@@ -27,7 +27,7 @@ pub mod currency {
     pub const ECONOMIC_CENTIUNITS: Balance = ECONOMIC_UNITS / 100;
 
     /// The existential deposit.
-    pub const EXISTENTIAL_DEPOSIT: Balance = 10 * UNITS; // 10 Vara
+    pub const EXISTENTIAL_DEPOSIT: Balance = UNITS; // 1 Vara
 
     /// The program rent cost per block.
     pub const RENT_COST_PER_BLOCK: Balance = 125_000_000;

@@ -26,14 +26,15 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
+    code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
-    pages::{GearPage, WasmPage, WasmPagesAmount},
-    program::{MemoryInfix, Program},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
 };
 pub use gear_core_backend::error::TrapExplanation;
@@ -82,7 +83,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: Option<BTreeSet<WasmPage>>,
+    pub allocations: Option<IntervalsTree<WasmPage>>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -250,7 +251,7 @@ pub enum JournalNote {
         /// Program id.
         program_id: ProgramId,
         /// New allocations set for the program.
-        allocations: BTreeSet<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
     },
     /// Send value
     SendValue {
@@ -263,6 +264,8 @@ pub enum JournalNote {
     },
     /// Store programs requested by user to be initialized later
     StoreNewPrograms {
+        /// Current program id.
+        program_id: ProgramId,
         /// Code hash used to create new programs with ids in `candidates` field
         code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
@@ -379,13 +382,18 @@ pub trait JournalHandler {
     /// Process page update.
     fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>);
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>);
+    fn store_new_programs(
+        &mut self,
+        program_id: ProgramId,
+        code_id: CodeId,
+        candidates: Vec<(MessageId, ProgramId)>,
+    );
     /// Stop processing queue.
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
@@ -511,12 +519,10 @@ pub struct Actor {
 /// Executable actor data.
 #[derive(Clone, Debug)]
 pub struct ExecutableActorData {
-    /// Set of dynamic wasm page numbers, which are allocated by the program.
-    pub allocations: BTreeSet<WasmPage>,
+    /// Set of wasm pages, which are allocated by the program.
+    pub allocations: IntervalsTree<WasmPage>,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
-    /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: BTreeSet<GearPage>,
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.
@@ -527,9 +533,22 @@ pub struct ExecutableActorData {
     pub gas_reservation_map: GasReservationMap,
 }
 
+/// Program.
+#[derive(Clone, Debug)]
+pub(crate) struct Program {
+    /// Program id.
+    pub id: ProgramId,
+    /// Memory infix.
+    pub memory_infix: MemoryInfix,
+    /// Instrumented code.
+    pub code: InstrumentedCode,
+    /// Allocations.
+    pub allocations: IntervalsTree<WasmPage>,
+}
+
 /// Execution context.
 #[derive(Debug)]
-pub struct WasmExecutionContext {
+pub(crate) struct WasmExecutionContext {
     /// A counter for gas.
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.

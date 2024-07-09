@@ -19,7 +19,11 @@
 use crate::*;
 use frame_support::{
     assert_noop, assert_ok,
-    traits::{OnFinalize, OnInitialize},
+    traits::{
+        fungible,
+        tokens::{DepositConsequence, Fortitude, Preservation, Provenance},
+        LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons,
+    },
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_babe::{
@@ -61,6 +65,7 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     GearProgram::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
+    GearBank::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
     // Session::on_initialize(new_block_number);
 }
@@ -71,6 +76,7 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     GearPayment::on_finalize(current_blk);
     GearGas::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
+    GearBank::on_finalize(current_blk);
     GearMessenger::on_finalize(current_blk);
     GearProgram::on_finalize(current_blk);
     Treasury::on_finalize(current_blk);
@@ -614,5 +620,244 @@ fn slashed_proposals_back_to_treasury() {
 
             // The total issuance has, therefore, persisted
             assert_eq!(Balances::total_issuance(), initial_total_issuance);
+        });
+}
+
+// Setting lock on an account prevents the account from being dusted
+#[test]
+fn dusting_prevented_by_lock() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+    let dave = AccountKeyring::Dave;
+    let ferdie = AccountKeyring::Ferdie;
+
+    let offset_pool_id = StakingRewards::account_id();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                charlie.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                dave.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![charlie.into(), dave.into(), offset_pool_id.clone()])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            let value = 1_000 * UNITS;
+
+            // Sending ED + `value` to `ferdie` to create the account in storage
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value,
+            ));
+            // `ferdie`'s balance is now ED + `value`
+            assert_eq!(
+                Balances::free_balance(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value
+            );
+
+            // Sending out some value to create dust
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(ferdie.to_account_id()),
+                sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                value + 1,
+            ));
+            // `ferdie`'s balance is now 0
+            assert_eq!(Balances::free_balance(ferdie.to_account_id()), 0);
+
+            // Second round
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value,
+            ));
+            // `ferdie`'s balance is now (again) ED + `value`
+            assert_eq!(
+                Balances::free_balance(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT + value
+            );
+
+            // Setting lock on `ferdie`'s account
+            Balances::set_lock(
+                *b"testlock",
+                &ferdie.into(),
+                EXISTENTIAL_DEPOSIT,
+                WithdrawReasons::all(),
+            );
+
+            // Sending out the same amount of value as before will now fail
+            assert_noop!(
+                Balances::transfer_allow_death(
+                    RuntimeOrigin::signed(ferdie.to_account_id()),
+                    sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                    value + 1,
+                ),
+                sp_runtime::TokenError::Frozen
+            );
+
+            // Sending value so that the frozen amount is not touched is ok
+            assert_ok!(Balances::transfer_allow_death(
+                RuntimeOrigin::signed(ferdie.to_account_id()),
+                sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                value,
+            ));
+
+            // `ferdie`'s balance is still greater than 0: exactly ED
+            assert_eq!(
+                Balances::free_balance(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT
+            );
+        });
+}
+
+#[test]
+fn fungible_api_works() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+
+    let offset_pool_id = StakingRewards::account_id();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                alice.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                bob.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![charlie.into(), offset_pool_id.clone()])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            let ok_value = 10 * EXISTENTIAL_DEPOSIT;
+            let low_value = EXISTENTIAL_DEPOSIT / 2;
+
+            // Check overflow
+            Balances::make_free_balance_be(&charlie.into(), u128::MAX);
+            assert_eq!(
+                <Balances as fungible::Inspect<AccountId>>::can_deposit(
+                    &charlie.into(),
+                    ok_value,
+                    Provenance::Extant
+                ),
+                DepositConsequence::Overflow
+            );
+
+            // Check below minimum
+            Balances::make_free_balance_be(&charlie.into(), 0);
+            assert_eq!(
+                <Balances as fungible::Inspect<AccountId>>::can_deposit(
+                    &charlie.into(),
+                    low_value,
+                    Provenance::Extant
+                ),
+                DepositConsequence::BelowMinimum
+            );
+
+            // Ok case
+            assert_ok!(<Balances as fungible::Inspect<AccountId>>::can_deposit(
+                &charlie.into(),
+                ok_value,
+                Provenance::Extant
+            )
+            .into_result());
+
+            // Trivial check of reducible balance
+            Balances::make_free_balance_be(&charlie.into(), 5 * EXISTENTIAL_DEPOSIT);
+            assert_eq!(
+                <Balances as fungible::Inspect<AccountId>>::reducible_balance(
+                    &charlie.into(),
+                    Preservation::Preserve,
+                    Fortitude::Polite
+                ),
+                4 * EXISTENTIAL_DEPOSIT
+            );
+
+            assert_eq!(
+                <Balances as fungible::Inspect<AccountId>>::reducible_balance(
+                    &charlie.into(),
+                    Preservation::Expendable,
+                    Fortitude::Polite
+                ),
+                5 * EXISTENTIAL_DEPOSIT
+            );
+
+            // Reducible balance with a lock
+            <Balances as LockableCurrency<AccountId>>::set_lock(
+                *b"testlock",
+                &charlie.into(),
+                2 * EXISTENTIAL_DEPOSIT,
+                WithdrawReasons::all(),
+            );
+            // Two existential deposits are locked
+            assert_eq!(
+                <Balances as fungible::Inspect<AccountId>>::reducible_balance(
+                    &charlie.into(),
+                    Preservation::Expendable,
+                    Fortitude::Polite
+                ),
+                3 * EXISTENTIAL_DEPOSIT
+            );
+
+            // Set the free balance to the amount below what is frozen, but greater than 0
+            Balances::make_free_balance_be(&charlie.into(), EXISTENTIAL_DEPOSIT);
+            assert_eq!(
+                <Balances as fungible::Inspect<AccountId>>::reducible_balance(
+                    &charlie.into(),
+                    Preservation::Expendable,
+                    Fortitude::Polite
+                ),
+                0
+            );
+
+            // Remove lock
+            <Balances as LockableCurrency<AccountId>>::remove_lock(*b"testlock", &charlie.into());
+            assert_eq!(
+                <Balances as fungible::Inspect<AccountId>>::reducible_balance(
+                    &charlie.into(),
+                    Preservation::Expendable,
+                    Fortitude::Polite
+                ),
+                EXISTENTIAL_DEPOSIT
+            );
         });
 }

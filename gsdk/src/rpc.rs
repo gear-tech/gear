@@ -19,7 +19,10 @@
 //! Gear API RPC methods
 
 use crate::{result::Result, Api, GasInfo};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId},
+    message::ReplyInfo,
+};
 use sp_core::H256;
 use subxt::rpc_params;
 
@@ -182,6 +185,32 @@ impl Api {
     pub async fn runtime_wasm_blob_version(&self, at: Option<H256>) -> Result<String> {
         self.rpc()
             .request("runtime_wasmBlobVersion", rpc_params![at])
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_calculateReplyForHandle
+    pub async fn calculate_reply_for_handle(
+        &self,
+        origin: H256,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        at: Option<H256>,
+    ) -> Result<ReplyInfo> {
+        self.rpc()
+            .request(
+                "gear_calculateReplyForHandle",
+                rpc_params![
+                    origin,
+                    H256(destination.into()),
+                    hex::encode(payload),
+                    gas_limit,
+                    value,
+                    at
+                ],
+            )
             .await
             .map_err(Into::into)
     }

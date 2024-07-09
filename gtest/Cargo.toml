@@ -1,6 +1,7 @@
 [package]
 name = "gtest"
 description = "Testing utils for developing Gear programs."
+documentation = "https://docs.rs/gtest"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -8,10 +9,12 @@ license.workspace = true
 
 [dependencies]
 gear-core.workspace = true
+gear-common = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
 core-processor = { workspace = true, features = ["std"] }
 gear-lazy-pages.workspace = true
 gear-lazy-pages-common.workspace = true
+gear-lazy-pages-native-interface.workspace = true
 gear-utils.workspace = true
 gear-wasm-instrument.workspace = true
 gsys.workspace = true
@@ -25,6 +28,8 @@ path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 log.workspace = true
 indexmap.workspace = true
+cargo_toml.workspace = true
+etc.workspace = true
 
 [dev-dependencies]
 demo-custom.workspace = true

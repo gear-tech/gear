@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mock::*, GasMultiplier, UnusedValue, *};
-use frame_support::{assert_noop, assert_ok};
+use crate::{mock::*, GasMultiplier, OnFinalizeValue, UnusedValue, *};
+use frame_support::{assert_noop, assert_ok, traits::Hooks};
 use sp_runtime::{traits::Zero, StateVersion};
 use utils::*;
 
@@ -403,6 +403,7 @@ fn spend_gas_different_users() {
 
         const ALICE_BURN: u64 = ALICE_GAS - 123_456;
         assert_ok!(GearBank::spend_gas(&ALICE, ALICE_BURN, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS, 0);
 
@@ -416,6 +417,7 @@ fn spend_gas_different_users() {
 
         const BOB_BURN: u64 = BOB_GAS - 1_234;
         assert_ok!(GearBank::spend_gas(&BOB, BOB_BURN, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS - BOB_BURN, 0);
 
@@ -437,6 +439,7 @@ fn spend_gas_single_user() {
 
         const BURN_1: u64 = GAS_AMOUNT - 23_456;
         assert_ok!(GearBank::spend_gas(&ALICE, BURN_1, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(GAS_AMOUNT - BURN_1, 0);
 
@@ -447,6 +450,7 @@ fn spend_gas_single_user() {
 
         const BURN_2: u64 = GAS_AMOUNT - BURN_1 - 10_000;
         assert_ok!(GearBank::spend_gas(&ALICE, BURN_2, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(GAS_AMOUNT - BURN_1 - BURN_2, 0);
 
@@ -464,6 +468,7 @@ fn spend_gas_all_balance() {
         assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(0, 0);
 
@@ -490,6 +495,7 @@ fn spend_gas_all_balance_validator_account_deleted() {
         ));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(0, 0);
 
@@ -510,6 +516,7 @@ fn spend_gas_small_amount() {
         assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(0, 0);
 
@@ -538,6 +545,7 @@ fn spend_gas_small_amount_validator_account_deleted() {
         ));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
@@ -729,9 +737,23 @@ fn deposit_value_zero() {
 }
 
 #[test]
-fn deposit_value_insufficient_balance() {
+fn deposit_value_overflow() {
     new_test_ext().execute_with(|| {
         const VALUE: Balance = Balance::MAX;
+
+        assert!(VALUE > Balances::free_balance(ALICE));
+
+        assert_noop!(
+            GearBank::deposit_value(&ALICE, VALUE, false),
+            Error::<Test>::Overflow
+        );
+    })
+}
+
+#[test]
+fn deposit_value_insufficient_balance() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = Balance::MAX / 2;
 
         assert!(VALUE > Balances::free_balance(ALICE));
 
@@ -1348,6 +1370,7 @@ fn empty_accounts_deleted() {
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
         assert!(GearBank::account(ALICE).is_none());
+        GearBank::on_finalize(1);
 
         const VALUE: Balance = 123_456_000;
 
@@ -1384,6 +1407,7 @@ fn empty_zero_accounts_deleted() {
 
         assert_ok!(GearBank::spend_gas(&Zero::zero(), 0, mult()));
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+        GearBank::on_finalize(1);
 
         assert_ok!(GearBank::deposit_value(&Zero::zero(), 0, false));
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
@@ -1423,6 +1447,7 @@ fn empty_composite_accounts_deleted() {
         const GAS_BURN: u64 = GAS_AMOUNT / 2;
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_BURN, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(GAS_AMOUNT - GAS_BURN, VALUE);
 
@@ -1452,6 +1477,94 @@ fn empty_composite_accounts_deleted() {
     })
 }
 
+#[test]
+fn spend_gas_on_finalize_different_users() {
+    new_test_ext().execute_with(|| {
+        const ALICE_GAS: u64 = 1_234_567;
+        assert_ok!(GearBank::deposit_gas(&ALICE, ALICE_GAS, false));
+
+        const BOB_GAS: u64 = 56_789;
+        assert_ok!(GearBank::deposit_gas(&BOB, BOB_GAS, false));
+
+        assert_eq!(OnFinalizeValue::<Test>::get(), 0);
+
+        const ALICE_BURN: u64 = ALICE_GAS - 123_456;
+        assert_ok!(GearBank::spend_gas(&ALICE, ALICE_BURN, mult()));
+
+        assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS, 0);
+
+        assert_block_author_inc(0);
+        assert_eq!(OnFinalizeValue::<Test>::get(), gas_price(ALICE_BURN));
+
+        assert_alice_dec(gas_price(ALICE_GAS));
+        assert_gas_value(&ALICE, ALICE_GAS - ALICE_BURN, 0);
+
+        assert_bob_dec(gas_price(BOB_GAS));
+        assert_gas_value(&BOB, BOB_GAS, 0);
+
+        const BOB_BURN: u64 = BOB_GAS - 1_234;
+        assert_ok!(GearBank::spend_gas(&BOB, BOB_BURN, mult()));
+
+        assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS - BOB_BURN, 0);
+
+        assert_block_author_inc(0);
+        assert_eq!(
+            OnFinalizeValue::<Test>::get(),
+            gas_price(ALICE_BURN + BOB_BURN)
+        );
+
+        assert_alice_dec(gas_price(ALICE_GAS));
+        assert_gas_value(&ALICE, ALICE_GAS - ALICE_BURN, 0);
+
+        assert_bob_dec(gas_price(BOB_GAS));
+        assert_gas_value(&BOB, BOB_GAS - BOB_BURN, 0);
+
+        /* what happens at the end of block */
+        GearBank::on_finalize(1);
+        assert_eq!(OnFinalizeValue::<Test>::get(), 0);
+        assert_block_author_inc(gas_price(ALICE_BURN + BOB_BURN));
+
+        GearBank::on_initialize(2);
+    })
+}
+
+#[test]
+fn spend_gas_on_finalize_single_user() {
+    new_test_ext().execute_with(|| {
+        const GAS_AMOUNT: u64 = 123_456;
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
+
+        const BURN_1: u64 = GAS_AMOUNT - 23_456;
+        assert_ok!(GearBank::spend_gas(&ALICE, BURN_1, mult()));
+
+        assert_bank_balance(GAS_AMOUNT - BURN_1, 0);
+
+        assert_eq!(OnFinalizeValue::<Test>::get(), gas_price(BURN_1));
+        assert_block_author_inc(0);
+
+        assert_alice_dec(gas_price(GAS_AMOUNT));
+        assert_gas_value(&ALICE, GAS_AMOUNT - BURN_1, 0);
+
+        const BURN_2: u64 = GAS_AMOUNT - BURN_1 - 10_000;
+        assert_ok!(GearBank::spend_gas(&ALICE, BURN_2, mult()));
+
+        assert_bank_balance(GAS_AMOUNT - BURN_1 - BURN_2, 0);
+
+        assert_eq!(OnFinalizeValue::<Test>::get(), gas_price(BURN_1 + BURN_2));
+        assert_block_author_inc(0);
+
+        assert_alice_dec(gas_price(GAS_AMOUNT));
+        assert_gas_value(&ALICE, GAS_AMOUNT - BURN_1 - BURN_2, 0);
+
+        /* what happens at the end of block */
+        GearBank::on_finalize(1);
+        assert_eq!(OnFinalizeValue::<Test>::get(), 0);
+        assert_block_author_inc(gas_price(BURN_1 + BURN_2));
+
+        GearBank::on_initialize(2);
+    })
+}
+
 mod utils {
     use super::*;
 
@@ -1464,6 +1577,7 @@ mod utils {
                 Self::InsufficientGasBalance => matches!(other, Self::InsufficientGasBalance),
                 Self::InsufficientValueBalance => matches!(other, Self::InsufficientValueBalance),
                 Self::InsufficientDeposit => matches!(other, Self::InsufficientDeposit),
+                Self::Overflow => matches!(other, Self::Overflow),
                 _ => unimplemented!(),
             }
         }
@@ -1491,7 +1605,11 @@ mod utils {
         let gas_value = gas_price(gas);
         assert_balance(
             &BANK_ADDRESS,
-            CurrencyOf::<Test>::minimum_balance() + UnusedValue::<Test>::get() + gas_value + value,
+            CurrencyOf::<Test>::minimum_balance()
+                + UnusedValue::<Test>::get()
+                + OnFinalizeValue::<Test>::get()
+                + gas_value
+                + value,
         );
     }
 

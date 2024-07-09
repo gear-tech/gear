@@ -18,14 +18,14 @@
 
 //! Module contains context-structures for processing.
 
-use crate::common::ExecutableActorData;
+use crate::common::{ExecutableActorData, Program};
 use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::IncomingDispatch,
     pages::WasmPagesAmount,
-    program::Program,
+    program::MemoryInfix,
     reservation::GasReserver,
 };
 
@@ -53,15 +53,11 @@ impl ContextChargedForCodeLength {
 /// successfully charged for fetching the binary code from storage.
 pub struct ContextChargedForCode {
     pub(crate) data: ContextData,
-    pub(crate) code_len_bytes: u32,
 }
 
-impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
-    fn from((context, code_len_bytes): (ContextChargedForCodeLength, u32)) -> Self {
-        Self {
-            data: context.data,
-            code_len_bytes,
-        }
+impl From<ContextChargedForCodeLength> for ContextChargedForCode {
+    fn from(context: ContextChargedForCodeLength) -> Self {
+        Self { data: context.data }
     }
 }
 
@@ -70,15 +66,11 @@ impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
 /// successfully charged for reinstrumentation of the code.
 pub struct ContextChargedForInstrumentation {
     pub(crate) data: ContextData,
-    pub(crate) code_len_bytes: u32,
 }
 
 impl From<ContextChargedForCode> for ContextChargedForInstrumentation {
     fn from(context: ContextChargedForCode) -> Self {
-        Self {
-            data: context.data,
-            code_len_bytes: context.code_len_bytes,
-        }
+        Self { data: context.data }
     }
 }
 
@@ -111,6 +103,18 @@ pub struct ProcessExecutionContext {
     pub(crate) memory_size: WasmPagesAmount,
 }
 
+impl ProcessExecutionContext {
+    /// Returns program id.
+    pub fn program_id(&self) -> ProgramId {
+        self.program.id
+    }
+
+    /// Returns memory infix.
+    pub fn memory_infix(&self) -> MemoryInfix {
+        self.program.memory_infix
+    }
+}
+
 impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutionContext {
     fn from(args: (ContextChargedForMemory, InstrumentedCode, u128)) -> Self {
         let (context, code, balance) = args;
@@ -128,12 +132,12 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             memory_size,
         } = context;
 
-        let program = Program::from_parts(
-            destination_id,
-            actor_data.memory_infix,
+        let program = Program {
+            id: destination_id,
+            memory_infix: actor_data.memory_infix,
             code,
-            actor_data.allocations,
-        );
+            allocations: actor_data.allocations,
+        };
 
         // Must be created once per taken from the queue dispatch by program.
         let gas_reserver =
@@ -148,13 +152,6 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             program,
             memory_size,
         }
-    }
-}
-
-impl ProcessExecutionContext {
-    /// Returns ref to program.
-    pub fn program(&self) -> &Program {
-        &self.program
     }
 }
 

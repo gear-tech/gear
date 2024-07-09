@@ -38,7 +38,6 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
     expected: InstructionWeights<T>,
 ) {
     check_instruction_weight(weights.i64const, expected.i64const);
-    check_instruction_weight(weights.i64const, expected.i64const);
     check_instruction_weight(weights.i64load, expected.i64load);
     check_instruction_weight(weights.i32load, expected.i32load);
     check_instruction_weight(weights.i64store, expected.i64store);
@@ -145,7 +144,6 @@ pub fn check_syscall_weights<T: pallet_gear::Config>(
     }
 
     check!(alloc);
-    check!(alloc_per_page);
     check!(free);
     check!(free_range);
     check!(free_range_per_page);
@@ -262,8 +260,8 @@ pub fn check_lazy_pages_costs(
 pub struct PagesCosts {
     pub load_page_data: CostOf<GearPagesAmount>,
     pub upload_page_data: CostOf<GearPagesAmount>,
-    pub static_page: CostOf<GearPagesAmount>,
     pub mem_grow: CostOf<GearPagesAmount>,
+    pub mem_grow_per_page: CostOf<GearPagesAmount>,
     pub parachain_read_heuristic: CostOf<GearPagesAmount>,
 }
 
@@ -272,8 +270,8 @@ impl<T: pallet_gear::Config> From<MemoryWeights<T>> for PagesCosts {
         Self {
             load_page_data: val.load_page_data.ref_time().into(),
             upload_page_data: val.upload_page_data.ref_time().into(),
-            static_page: val.static_page.ref_time().into(),
             mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
             parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
         }
     }
@@ -292,13 +290,13 @@ pub fn check_pages_costs(page_costs: PagesCosts, expected_page_costs: PagesCosts
     );
 
     check_pages_weight(
-        page_costs.static_page.cost_for_one(),
-        expected_page_costs.static_page.cost_for_one(),
+        page_costs.mem_grow.cost_for_one(),
+        expected_page_costs.mem_grow.cost_for_one(),
     );
 
     check_pages_weight(
-        page_costs.mem_grow.cost_for_one(),
-        expected_page_costs.mem_grow.cost_for_one(),
+        page_costs.mem_grow_per_page.cost_for_one(),
+        expected_page_costs.mem_grow_per_page.cost_for_one(),
     );
 
     check_pages_weight(

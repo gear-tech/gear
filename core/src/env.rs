@@ -186,10 +186,11 @@ pub trait Externalities {
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutive memory pages.
-    fn alloc(
+    fn alloc<Context>(
         &mut self,
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
         pages_num: u32,
-        mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError>;
 
     /// Free specific page.

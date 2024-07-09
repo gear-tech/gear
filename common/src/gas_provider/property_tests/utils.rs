@@ -19,13 +19,13 @@
 use super::*;
 
 pub type MaybeCaughtValue = Option<u64>;
-pub type RemainingNodes = BTreeMap<Key, GasNode>;
-pub type RemovedNodes = BTreeMap<Key, GasNode>;
+pub type RemainingNodes = BTreeMap<NodeId, Node>;
+pub type RemovedNodes = BTreeMap<NodeId, Node>;
 
 /// Consumes node with `consuming` id and returns a map of removed nodes
 pub(super) fn consume_node(
-    consuming: Key,
-) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), super::Error> {
+    consuming: NodeId,
+) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), GasTreeError> {
     let nodes_before_consume = gas_tree_node_clone();
     Gas::consume(consuming).map(|maybe_output| {
         let maybe_caught_value = maybe_output.map(|(imb, ..)| imb.peek());

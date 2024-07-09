@@ -18,16 +18,8 @@
 
 //! Utility functions related to the current execution context or program
 //! execution flow.
-//!
-//! Wraps methods from [`gcore::exec`](https://docs.gear.rs/gcore/exec/)
-//! for receiving details about the current execution and controlling it.
 
-pub use basic::*;
-pub use gcore::exec::{
-    block_height, block_timestamp, env_vars, gas_available, leave, random, system_reserve_gas,
-    value_available, wait, wait_for, wait_up_to,
-};
+pub use gcore::exec::*;
 pub use r#async::*;
 
 mod r#async;
-mod basic;

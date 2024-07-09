@@ -233,12 +233,14 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     GearGas::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
+    GearBank::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
     Authorship::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
+    GearBank::on_finalize(current_blk);
     assert!(!System::events().iter().any(|e| {
         matches!(
             e.event,

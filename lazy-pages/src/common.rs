@@ -30,7 +30,7 @@ use std::{fmt, mem, num::NonZeroU32};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub(crate) enum Error {
+pub enum Error {
     #[display(fmt = "Accessed memory interval is out of wasm memory")]
     OutOfWasmMemoryAccess,
     #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]
@@ -168,6 +168,16 @@ pub trait LazyPagesStorage: fmt::Debug {
     fn page_exists(&self, key: &[u8]) -> bool;
 
     fn load_page(&mut self, key: &[u8], buffer: &mut [u8]) -> Option<u32>;
+}
+
+impl LazyPagesStorage for () {
+    fn page_exists(&self, _key: &[u8]) -> bool {
+        unreachable!()
+    }
+
+    fn load_page(&mut self, _key: &[u8], _buffer: &mut [u8]) -> Option<u32> {
+        unreachable!()
+    }
 }
 
 #[derive(Debug)]

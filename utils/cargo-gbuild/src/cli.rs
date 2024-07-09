@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! TODO: Introduce a standard for the project structure of gear programs (#3866)
-
-use crate::Artifact;
+use crate::{artifact::Artifacts, metadata::Metadata, Artifact};
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
@@ -29,21 +27,24 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const ARTIFACT_DIR: &str = "gbuild";
 const DEV_PROFILE: &str = "dev";
 const DEBUG_ARTIFACT: &str = "debug";
 const RELEASE_PROFILE: &str = "release";
 
 /// Command `gbuild` as cargo extension.
-#[derive(Parser)]
+#[derive(Parser, Default)]
 pub struct GBuild {
-    /// The path to the program manifest
-    #[clap(short, long, default_value = "Cargo.toml")]
-    pub manifest_path: PathBuf,
-
     /// Space or comma separated list of features to activate
     #[clap(short = 'F', long)]
     pub features: Vec<String>,
+
+    /// The path to the program manifest
+    #[clap(short, long)]
+    pub manifest_path: Option<PathBuf>,
+
+    /// Build artifacts with the specified profile
+    #[clap(long)]
+    pub profile: Option<String>,
 
     /// If enables the release profile.
     #[clap(short, long)]
@@ -56,80 +57,85 @@ pub struct GBuild {
     #[clap(short, long)]
     pub target_dir: Option<PathBuf>,
 
-    /// Build artifacts with the specified profile
-    #[clap(long)]
-    pub profile: Option<String>,
+    /// If enable workspace build
+    #[clap(short, long)]
+    pub workspace: bool,
 }
 
 impl GBuild {
-    /// Run the gbuild command
-    ///
-    /// TODO: Support `gtest::Program::current` (#3851)
-    pub fn run(self) -> Result<Artifact> {
-        // 1. Get the cargo target directory
-        //
-        // TODO: Detect if the package is part of a workspace. (#3852)
-        // TODO: Support target dir defined in `.cargo/config.toml` (#3852)
-        let absolute_root = fs::canonicalize(self.manifest_path.clone())?;
-        let cargo_target_dir = env::var("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or(
-            absolute_root
-                .parent()
-                .ok_or_else(|| anyhow!("Failed to parse the root directory."))?
-                .join("target"),
-        );
-
-        // 2. Run the cargo command, process optimizations and collect artifacts.
-        let cargo_artifact_dir = self.cargo(&cargo_target_dir)?;
-        let gbuild_artifact_dir = self
-            .target_dir
-            .unwrap_or(cargo_target_dir.clone())
-            .join(ARTIFACT_DIR);
-
-        let artifact = Artifact::new(
-            gbuild_artifact_dir,
-            Manifest::from_path(self.manifest_path.clone())?
-                .package()
-                .name
-                .replace('-', "_"),
-        )?;
-        artifact.process(cargo_artifact_dir)?;
-        Ok(artifact)
+    /// Set manifest and return self
+    pub fn manifest_path(mut self, manifest: PathBuf) -> Self {
+        self.manifest_path = Some(manifest);
+        self
     }
 
-    /// Process the cargo command.
-    ///
-    /// TODO: Support workspace build. (#3852)
-    fn cargo(&self, target_dir: &Path) -> Result<PathBuf> {
-        let mut kargo = CargoCommand::default();
-        let mut artifact = DEBUG_ARTIFACT;
+    /// Set workspace with true
+    pub fn workspace(mut self) -> Self {
+        self.workspace = true;
+        self
+    }
 
-        if let Some(profile) = &self.profile {
+    /// Run the gbuild command
+    pub fn run(&self) -> Result<Artifacts> {
+        let manifest_path = self
+            .manifest_path
+            .clone()
+            .unwrap_or(etc::find_up("Cargo.toml")?);
+
+        let (artifact, profile) = self.artifact_and_profile();
+        let metadata =
+            Metadata::parse(self.workspace, manifest_path.clone(), self.features.clone())?;
+        let target_dir = self
+            .target_dir
+            .clone()
+            .unwrap_or(metadata.target_directory.clone().into());
+
+        // 1. setup cargo command
+        let mut kargo = CargoCommand::default();
+        kargo.set_features(&self.features);
+        kargo.set_target_dir(target_dir.clone());
+        if let Some(profile) = profile {
+            kargo.set_profile(profile);
+        }
+
+        // 2. setup gbuild artifacts.
+        let artifacts = Artifacts::new(
+            target_dir.join("gbuild"),
+            target_dir.join("wasm32-unknown-unknown").join(artifact),
+            metadata,
+            kargo,
+        )?;
+
+        // 3. process artifacts
+        artifacts.process()?;
+        Ok(artifacts)
+    }
+
+    fn artifact_and_profile(&self) -> (String, Option<String>) {
+        let mut artifact = DEBUG_ARTIFACT.to_string();
+        let mut profile: Option<String> = None;
+
+        if let Some(p) = &self.profile {
             if self.release {
                 eprintln!(
                     "{}: conflicting usage of --profile={} and --release
 The `--release` flag is the same as `--profile=release`.
 Remove one flag or the other to continue.",
                     "error".red().bold(),
-                    profile
+                    p
                 );
                 std::process::exit(1);
             }
 
-            kargo.set_profile(profile.clone());
-            if profile != DEV_PROFILE {
-                artifact = profile;
+            profile = Some(p.to_string());
+            if p != DEV_PROFILE {
+                artifact = p.into()
             }
         } else if self.release {
-            kargo.set_profile(RELEASE_PROFILE.into());
-            artifact = RELEASE_PROFILE;
+            artifact = RELEASE_PROFILE.into();
+            profile = Some(artifact.clone());
         }
 
-        kargo.set_manifest_path(self.manifest_path.clone());
-        kargo.set_target_dir(target_dir.to_path_buf());
-        kargo.set_features(&self.features);
-        kargo.run()?;
-
-        // Returns the root of the built artifact
-        Ok(target_dir.join(format!("wasm32-unknown-unknown/{}", artifact)))
+        (artifact, profile)
     }
 }
