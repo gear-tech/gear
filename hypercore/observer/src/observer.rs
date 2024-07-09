@@ -1,7 +1,7 @@
 use crate::{
     event::{
         BlockEventData, ClaimValue, CodeApproved, CodeRejected, CreateProgram, SendMessage,
-        SendReply, UpdatedProgram, UploadCode, UserMessageSent, UserReplySent,
+        SendReply, UpdatedProgram, UploadCode, UploadCodeData, UserMessageSent, UserReplySent,
     },
     BlobReader, BlockEvent, Event,
 };
@@ -15,19 +15,21 @@ use anyhow::{anyhow, Result};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
+use hypercore_ethereum::event::BlockCommitted;
 use hypercore_signer::Address as HypercoreAddress;
+use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub(crate) struct PendingUploadCode {
-    origin: ActorId,
-    code_id: CodeId,
-    blob_tx: H256,
-    tx_hash: H256,
+#[derive(Debug, Encode, Decode)]
+pub struct PendingUploadCode {
+    pub origin: ActorId,
+    pub code_id: CodeId,
+    pub blob_tx: H256,
+    pub tx_hash: H256,
 }
 
 impl PendingUploadCode {
-    fn blob_tx(&self) -> H256 {
+    pub fn blob_tx(&self) -> H256 {
         if self.blob_tx.is_zero() {
             self.tx_hash
         } else {
@@ -45,7 +47,7 @@ pub struct Observer {
 }
 
 impl Observer {
-    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 10] = [
+    const ROUTER_EVENT_SIGNATURE_HASHES: [B256; 11] = [
         B256::new(UploadCode::SIGNATURE_HASH),
         B256::new(CodeApproved::SIGNATURE_HASH),
         B256::new(CodeRejected::SIGNATURE_HASH),
@@ -56,6 +58,7 @@ impl Observer {
         B256::new(SendMessage::SIGNATURE_HASH),
         B256::new(SendReply::SIGNATURE_HASH),
         B256::new(ClaimValue::SIGNATURE_HASH),
+        B256::new(BlockCommitted::SIGNATURE_HASH),
     ];
 
     pub async fn new(
@@ -94,11 +97,11 @@ impl Observer {
                                 let parent_hash = block_header.parent_hash;
                                 let block_number = block_header.number.expect("failed to get block number");
                                 let timestamp = block_header.timestamp;
-                                log::debug!("block {block_number}, hash {block_hash}, parent hash: {parent_hash}");
+                                log::info!("📦 receive block {block_number}, hash {block_hash}, parent hash: {parent_hash}");
 
                                 match read_block_events(H256(block_hash.0), &self.provider, self.router_address).await {
                                     Ok((pending_upload_codes, events)) => {
-                                        for pending_upload_code in pending_upload_codes {
+                                        for pending_upload_code in pending_upload_codes.iter() {
                                             let blob_reader = self.blob_reader.clone();
                                             let origin = pending_upload_code.origin;
                                             let tx_hash = pending_upload_code.blob_tx();
@@ -122,6 +125,7 @@ impl Observer {
                                             block_number,
                                             block_timestamp: timestamp,
                                             events,
+                                            upload_codes: pending_upload_codes,
                                         };
 
                                         yield Event::Block(block_data);
@@ -137,7 +141,7 @@ impl Observer {
                             Some(future) => {
                                 match future {
                                     Ok((origin, code_id, code)) => {
-                                        yield Event::UploadCode { origin, code_id, code };
+                                        yield Event::UploadCode(UploadCodeData { origin, code_id, code });
                                     },
                                     Err(err) => log::error!("failed to handle upload code event: {err}"),
                                 }
@@ -151,7 +155,7 @@ impl Observer {
     }
 }
 
-async fn read_code_from_tx_hash(
+pub(crate) async fn read_code_from_tx_hash(
     blob_reader: Arc<dyn BlobReader>,
     origin: ActorId,
     tx_hash: H256,
@@ -227,9 +231,22 @@ pub(crate) async fn read_block_events(
             }
             Some(SendReply::SIGNATURE_HASH) => Some(BlockEvent::SendReply(log.try_into().ok()?)),
             Some(ClaimValue::SIGNATURE_HASH) => Some(BlockEvent::ClaimValue(log.try_into().ok()?)),
-            _ => None,
+            Some(BlockCommitted::SIGNATURE_HASH) => {
+                Some(BlockEvent::BlockCommitted(log.try_into().ok()?))
+            }
+            Some(hash) => {
+                log::warn!("unexpected event signature hash: {}", H256(hash));
+                None
+            }
+            None => None,
         })
         .collect();
+
+    log::trace!(
+        r#"read events for {block_hash}
+        Upload codes: {pending_upload_codes:?}
+        Block events: {block_events:?}"#
+    );
 
     Ok((pending_upload_codes, block_events))
 }

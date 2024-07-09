@@ -25,12 +25,21 @@ interface IRouter {
         ReplyDetails replyDetails;
     }
 
-    struct TransitionCommitment {
+    struct StateTransition {
         address actorId;
         bytes32 oldStateHash;
         bytes32 newStateHash;
         OutgoingMessage[] outgoingMessages;
     }
+
+    struct BlockCommitment {
+        bytes32 blockHash;
+        bytes32 allowedPrevCommitmentHash;
+        bytes32 allowedPredBlockHash;
+        StateTransition[] transitions;
+    }
+
+    event BlockCommitted(bytes32 indexed blockHash);
 
     event UploadCode(address indexed origin, bytes32 indexed codeId, bytes32 indexed blobTx);
 
@@ -86,7 +95,6 @@ interface IRouter {
 
     function claimValue(bytes32 messageId) external;
 
-    function commitTransitions(TransitionCommitment[] calldata transitionsCommitmentsArray, bytes[] calldata signatures)
-        external;
     function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external;
+    function commitBlocks(BlockCommitment[] calldata blockCommitmentsArray, bytes[] calldata signatures) external;
 }

@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
     let args = {
         let cli_args = Args::parse();
         if fs::metadata(&optional_config_path).is_ok() {
-            // logging might be uninizialized at this point due to it might depend on args.
+            // logging might be uninitialized at this point due to it might depend on args.
             println!(
                 "❗️❗️Using configuration path: {}",
                 optional_config_path.display()
@@ -72,4 +72,8 @@ fn print_info(config: &Config) {
     log::info!("🔑 Key directory: {}", config.key_path.display());
     log::info!("🛜 Network directory: {}", config.network_path.display());
     log::info!("⧫  Ethereum observer RPC: {}", config.ethereum_rpc);
+    log::info!(
+        "📡 Ethereum router address: {}",
+        config.ethereum_router_address
+    );
 }

@@ -75,17 +75,25 @@ impl SeqHash for CodeCommitment {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct TransitionCommitment {
+pub struct StateTransition {
     pub program_id: ProgramId,
     pub old_state_hash: H256,
     pub new_state_hash: H256,
     pub outgoing_messages: Vec<OutgoingMessage>,
 }
 
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct BlockCommitment {
+    pub block_hash: H256,
+    pub allowed_pred_block_hash: H256,
+    pub allowed_prev_commitment_hash: H256,
+    pub transitions: Vec<StateTransition>,
+}
+
 // TODO: REMOVE THIS IMPL. SeqHash makes sense only for `hypercore_ethereum` types.
-impl SeqHash for TransitionCommitment {
+impl SeqHash for StateTransition {
     fn hash(&self) -> H256 {
-        let transition_commitment = hypercore_ethereum::TransitionCommitment::from(self.clone());
+        let transition_commitment = hypercore_ethereum::StateTransition::from(self.clone());
 
         let mut message1 = Vec::with_capacity(
             transition_commitment.outgoing_messages.len() * mem::size_of::<H256>(),
@@ -127,6 +135,24 @@ impl SeqHash for TransitionCommitment {
     }
 }
 
+impl SeqHash for BlockCommitment {
+    fn hash(&self) -> H256 {
+        let mut message = Vec::with_capacity(
+            mem::size_of::<H256>()
+                + mem::size_of::<H256>()
+                + mem::size_of::<H256>()
+                + self.transitions.len() * mem::size_of::<H256>(),
+        );
+
+        message.extend_from_slice(self.block_hash.as_bytes());
+        message.extend_from_slice(self.allowed_pred_block_hash.as_bytes());
+        message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
+        message.extend_from_slice(self.transitions.hash().as_bytes());
+
+        hash(&message)
+    }
+}
+
 fn cast_message(
     OutgoingMessage {
         destination,
@@ -146,8 +172,8 @@ fn cast_message(
     }
 }
 
-impl From<TransitionCommitment> for hypercore_ethereum::TransitionCommitment {
-    fn from(value: TransitionCommitment) -> Self {
+impl From<StateTransition> for hypercore_ethereum::StateTransition {
+    fn from(value: StateTransition) -> Self {
         Self {
             actor_id: value.program_id,
             old_state_hash: value.old_state_hash,
@@ -157,6 +183,17 @@ impl From<TransitionCommitment> for hypercore_ethereum::TransitionCommitment {
                 .into_iter()
                 .map(cast_message)
                 .collect(),
+        }
+    }
+}
+
+impl From<BlockCommitment> for hypercore_ethereum::BlockCommitment {
+    fn from(value: BlockCommitment) -> Self {
+        Self {
+            block_hash: value.block_hash,
+            allowed_pred_block_hash: value.allowed_pred_block_hash,
+            allowed_prev_commitment_hash: value.allowed_prev_commitment_hash,
+            transitions: value.transitions.into_iter().map(Into::into).collect(),
         }
     }
 }

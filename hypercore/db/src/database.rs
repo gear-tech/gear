@@ -18,7 +18,7 @@
 
 //! Database for hypercore.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use crate::{CASDatabase, KVDatabase};
 use gear_core::{
@@ -28,9 +28,8 @@ use gear_core::{
     message::Payload,
     reservation::GasReservationMap,
 };
-use hypercore_runtime_common::{
-    state::{Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist},
-    BlockInfo,
+use hypercore_runtime_common::state::{
+    Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
@@ -46,6 +45,7 @@ enum KeyPrefix {
     BlockEvents = 4,
     BlockOutcome = 5,
     BlockSmallMeta = 6,
+    CodeUpload = 7,
 }
 
 impl KeyPrefix {
@@ -74,25 +74,36 @@ impl Clone for Database {
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode)]
+pub struct BlockHeaderMeta {
+    pub height: u32,
+    pub timestamp: u64,
+    pub parent_hash: H256,
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode)]
 struct BlockSmallMetaInfo {
-    number_timestamp: Option<(u32, u64)>,
-    parent_hash: Option<H256>,
-    block_end_state_is_valid: Option<bool>,
-    block_has_commitment: Option<bool>,
+    header: Option<BlockHeaderMeta>,
+    block_end_state_is_valid: bool,
+    is_empty: Option<bool>,
+    prev_commitment: Option<H256>,
+    commitment_queue: Option<VecDeque<H256>>,
 }
 
 pub trait BlockMetaInfo {
-    fn block_info(&self, block_hash: H256) -> Option<BlockInfo>;
-    fn set_block_info(&self, block_hash: H256, block_info: BlockInfo);
-
-    fn parent_hash(&self, block_hash: H256) -> Option<H256>;
-    fn set_parent_hash(&self, block_hash: H256, parent_hash: H256);
+    fn block_header(&self, block_hash: H256) -> Option<BlockHeaderMeta>;
+    fn set_block_header(&self, block_hash: H256, header: BlockHeaderMeta);
 
     fn end_state_is_valid(&self, block_hash: H256) -> Option<bool>;
     fn set_end_state_is_valid(&self, block_hash: H256, is_valid: bool);
 
-    fn block_has_commitment(&self, block_hash: H256) -> Option<bool>;
-    fn set_block_has_commitment(&self, block_hash: H256, has_commitment: bool);
+    fn block_is_empty(&self, block_hash: H256) -> Option<bool>;
+    fn set_block_is_empty(&self, block_hash: H256, is_empty: bool);
+
+    fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
+    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
+
+    fn block_prev_commitment(&self, block_hash: H256) -> Option<H256>;
+    fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256);
 
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
@@ -108,40 +119,18 @@ pub trait BlockMetaInfo {
 }
 
 impl BlockMetaInfo for Database {
-    fn block_info(&self, block_hash: H256) -> Option<BlockInfo> {
+    fn block_header(&self, block_hash: H256) -> Option<BlockHeaderMeta> {
         self.get_block_small_meta(block_hash)
-            .and_then(|meta| meta.number_timestamp)
-            .map(|(number, timestamp)| BlockInfo {
-                height: number,
-                timestamp,
-            })
+            .and_then(|meta| meta.header)
     }
 
-    fn set_block_info(&self, block_hash: H256, block_info: BlockInfo) {
-        log::trace!(target: LOG_TARGET, "For block {block_hash} set: {block_info:?}");
-        let BlockInfo { height, timestamp } = block_info;
+    fn set_block_header(&self, block_hash: H256, header: BlockHeaderMeta) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set header: {header:?}");
         let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
-                number_timestamp: Some((height, timestamp)),
-                ..meta
-            },
-        );
-    }
-
-    fn parent_hash(&self, block_hash: H256) -> Option<H256> {
-        self.get_block_small_meta(block_hash)
-            .and_then(|meta| meta.parent_hash)
-    }
-
-    fn set_parent_hash(&self, block_hash: H256, parent_hash: H256) {
-        log::trace!(target: LOG_TARGET, "For block {block_hash} set parent block: {parent_hash}");
-        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
-        self.set_block_small_meta(
-            block_hash,
-            BlockSmallMetaInfo {
-                parent_hash: Some(parent_hash),
+                header: Some(header),
                 ..meta
             },
         );
@@ -149,7 +138,7 @@ impl BlockMetaInfo for Database {
 
     fn end_state_is_valid(&self, block_hash: H256) -> Option<bool> {
         self.get_block_small_meta(block_hash)
-            .and_then(|meta| meta.block_end_state_is_valid)
+            .map(|meta| meta.block_end_state_is_valid)
     }
 
     fn set_end_state_is_valid(&self, block_hash: H256, is_valid: bool) {
@@ -158,24 +147,58 @@ impl BlockMetaInfo for Database {
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
-                block_end_state_is_valid: Some(is_valid),
+                block_end_state_is_valid: is_valid,
                 ..meta
             },
         );
     }
 
-    fn block_has_commitment(&self, block_hash: H256) -> Option<bool> {
+    fn block_is_empty(&self, block_hash: H256) -> Option<bool> {
         self.get_block_small_meta(block_hash)
-            .and_then(|meta| meta.block_has_commitment)
+            .and_then(|meta| meta.is_empty)
     }
 
-    fn set_block_has_commitment(&self, block_hash: H256, has_commitment: bool) {
-        log::trace!(target: LOG_TARGET, "For block {block_hash} set has commitment: {has_commitment}");
+    fn set_block_is_empty(&self, block_hash: H256, is_empty: bool) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set is empty: {is_empty}");
         let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
-                block_has_commitment: Some(has_commitment),
+                is_empty: Some(is_empty),
+                ..meta
+            },
+        );
+    }
+
+    fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
+        self.get_block_small_meta(block_hash)
+            .and_then(|meta| meta.commitment_queue)
+    }
+
+    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set commitment queue: {queue:?}");
+        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        self.set_block_small_meta(
+            block_hash,
+            BlockSmallMetaInfo {
+                commitment_queue: Some(queue),
+                ..meta
+            },
+        );
+    }
+
+    fn block_prev_commitment(&self, block_hash: H256) -> Option<H256> {
+        self.get_block_small_meta(block_hash)
+            .and_then(|meta| meta.prev_commitment)
+    }
+
+    fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set prev commitment: {prev_commitment}");
+        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        self.set_block_small_meta(
+            block_hash,
+            BlockSmallMetaInfo {
+                prev_commitment: Some(prev_commitment),
                 ..meta
             },
         );
@@ -308,6 +331,20 @@ impl Database {
         );
     }
 
+    pub fn code_upload_info(&self, code_id: CodeId) -> Option<(ActorId, H256)> {
+        self.kv
+            .get(&KeyPrefix::CodeUpload.one(code_id))
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `(ActorId, H256)`")
+            })
+    }
+
+    pub fn set_code_upload_info(&self, code_id: CodeId, info: (ActorId, H256)) {
+        self.kv
+            .put(&KeyPrefix::CodeUpload.one(code_id), info.encode());
+    }
+
     fn get_block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
         self.kv
             .get(&KeyPrefix::BlockSmallMeta.one(block_hash))
@@ -418,13 +455,13 @@ mod tests {
         let database = crate::Database::from_one(&db);
 
         let block_hash = H256::zero();
-        let parent_hash = H256::zero();
+        // let parent_hash = H256::zero();
         let map: BTreeMap<ActorId, H256> = [(ActorId::zero(), H256::zero())].into();
 
         database.set_block_start_program_states(block_hash, map.clone());
         assert_eq!(database.block_start_program_states(block_hash), Some(map));
 
-        database.set_parent_hash(block_hash, parent_hash);
-        assert_eq!(database.parent_hash(block_hash), Some(parent_hash));
+        // database.set_parent_hash(block_hash, parent_hash);
+        // assert_eq!(database.parent_hash(block_hash), Some(parent_hash));
     }
 }

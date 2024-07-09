@@ -19,26 +19,31 @@
 use crate::*;
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
-use hypercore_db::{BlockInfo, BlockMetaInfo, MemDb};
+use hypercore_db::{BlockHeaderMeta, BlockMetaInfo, MemDb};
 use hypercore_ethereum::event::{CreateProgram, SendMessage};
 use std::collections::BTreeMap;
 use utils::*;
 use wabt::wat2wasm;
 
-fn init_new_block(processor: &mut Processor, height: u32, timestamp: u64) -> H256 {
+fn init_new_block(processor: &mut Processor, meta: BlockHeaderMeta) -> H256 {
     let chain_head = H256::random();
-    processor
-        .db
-        .set_block_info(chain_head, BlockInfo { height, timestamp });
+    processor.db.set_block_header(chain_head, meta);
     processor.creator.set_chain_head(chain_head);
     chain_head
 }
 
 fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H256 {
-    let parent_block_info = processor.db.block_info(parent_hash).unwrap_or_default();
-    let height = parent_block_info.height + 1;
-    let timestamp = parent_block_info.timestamp + 12;
-    let chain_head = init_new_block(processor, height, timestamp);
+    let parent_block_header = processor.db.block_header(parent_hash).unwrap_or_default();
+    let height = parent_block_header.height + 1;
+    let timestamp = parent_block_header.timestamp + 12;
+    let chain_head = init_new_block(
+        processor,
+        BlockHeaderMeta {
+            height,
+            timestamp,
+            parent_hash,
+        },
+    );
     let parent_out_program_hashes = processor
         .db
         .block_end_program_states(parent_hash)
@@ -108,7 +113,7 @@ fn handle_new_code_valid() {
     let mut processor =
         Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
-    init_new_block(&mut processor, 0, 0);
+    init_new_block(&mut processor, Default::default());
 
     let (code_id, original_code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
     let original_code_len = original_code.len();
@@ -152,7 +157,7 @@ fn handle_new_code_invalid() {
     let mut processor =
         Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
-    init_new_block(&mut processor, 0, 0);
+    init_new_block(&mut processor, Default::default());
 
     let (code_id, original_code) = utils::wat_to_wasm(utils::INVALID_PROGRAM);
 
@@ -181,7 +186,7 @@ fn host_ping_pong() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
-    init_new_block(&mut processor, 0, 0);
+    init_new_block(&mut processor, Default::default());
 
     let program_id = 42.into();
 
@@ -208,7 +213,7 @@ fn ping_pong() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
-    init_new_block(&mut processor, 0, 0);
+    init_new_block(&mut processor, Default::default());
 
     let user_id = ActorId::from(10);
     let program_id = ProgramId::from(0x10000);
@@ -281,7 +286,7 @@ fn async_and_ping() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
-    init_new_block(&mut processor, 0, 0);
+    init_new_block(&mut processor, Default::default());
 
     let ping_id = ProgramId::from(0x10000000);
     let async_id = ProgramId::from(0x20000000);
@@ -401,7 +406,7 @@ fn many_waits() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
-    init_new_block(&mut processor, 0, 0);
+    init_new_block(&mut processor, Default::default());
 
     let code_id = processor
         .handle_new_code(code)
@@ -436,7 +441,14 @@ fn many_waits() {
     let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
     assert_eq!(to_users.len(), 0);
 
-    init_new_block(&mut processor, 11, 11);
+    init_new_block(
+        &mut processor,
+        BlockHeaderMeta {
+            height: 11,
+            timestamp: 11,
+            ..Default::default()
+        },
+    );
 
     let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
 
