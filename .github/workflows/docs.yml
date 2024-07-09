@@ -10,7 +10,8 @@ env:
 
 jobs:
   docs:
-    permissions: write-all
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home

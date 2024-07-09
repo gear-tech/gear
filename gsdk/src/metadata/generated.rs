@@ -665,6 +665,17 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
+                    pub struct InstantiatedSectionSizes {
+                        pub code_section: ::core::primitive::u32,
+                        pub data_section: ::core::primitive::u32,
+                        pub global_section: ::core::primitive::u32,
+                        pub table_section: ::core::primitive::u32,
+                        pub element_section: ::core::primitive::u32,
+                        pub type_section: ::core::primitive::u32,
+                    }
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
                     pub struct InstrumentedCode {
                         pub code: ::std::vec::Vec<::core::primitive::u8>,
                         pub original_code_len: ::core::primitive::u32,
@@ -673,6 +684,8 @@ pub mod runtime_types {
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
                             ::core::option::Option<runtime_types::gear_core::pages::Page2>,
+                        pub instantiated_section_sizes:
+                            runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
                         pub version: ::core::primitive::u32,
                     }
                 }
@@ -2330,6 +2343,15 @@ pub mod runtime_types {
             pub mod schedule {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct InstantiationWeights {
+                    pub code_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub data_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub global_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub table_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub element_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub type_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct InstructionWeights {
                     pub version: ::core::primitive::u32,
                     pub i64const: ::core::primitive::u32,
@@ -2428,6 +2450,7 @@ pub mod runtime_types {
                     pub parameters: ::core::primitive::u32,
                     pub memory_pages: ::core::primitive::u16,
                     pub table_size: ::core::primitive::u32,
+                    pub table_number: ::core::primitive::u32,
                     pub br_table_size: ::core::primitive::u32,
                     pub subject_len: ::core::primitive::u32,
                     pub call_depth: ::core::primitive::u32,
@@ -2447,7 +2470,6 @@ pub mod runtime_types {
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub load_page_data: runtime_types::sp_weights::weight_v2::Weight,
                     pub upload_page_data: runtime_types::sp_weights::weight_v2::Weight,
-                    pub static_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
@@ -2459,7 +2481,8 @@ pub mod runtime_types {
                         runtime_types::pallet_gear::schedule::InstructionWeights,
                     pub syscall_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
-                    pub module_instantiation_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub instantiation_weights:
+                        runtime_types::pallet_gear::schedule::InstantiationWeights,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,

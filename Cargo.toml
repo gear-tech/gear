@@ -101,7 +101,8 @@ members = [
     "runtime/*",
     "runtime-interface/sandbox",
     "utils/*",
-    "utils/runtime-fuzzer/fuzz"
+    "utils/runtime-fuzzer/fuzz",
+    "utils/lazy-pages-fuzzer/fuzz"
 ]
 
 [workspace.dependencies]
@@ -161,7 +162,7 @@ sha-1 = "0.10.1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.68"
+syn = "2.0.69"
 thiserror = "1.0.61"
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
@@ -272,6 +273,7 @@ wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-too
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }
 sandbox-wasmer-types = { package = "wasmer-types", version = "2.2" }
+sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
