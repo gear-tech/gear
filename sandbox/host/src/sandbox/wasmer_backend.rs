@@ -21,7 +21,7 @@
 use std::{
     cell::RefCell,
     rc::Rc,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Mutex, OnceLock},
 };
 
 use codec::{Decode, Encode};
@@ -98,7 +98,11 @@ use {
     CachedModuleErr::*,
 };
 
-type CachedModule = (Vec<u8>, Arc<Module>);
+struct CachedModule {
+    wasm: Vec<u8>,
+    // Serialized module (Wasmer's custom binary format)
+    serialized_module: Vec<u8>,
+}
 
 // CachedModules holds a mutex-protected LRU cache of compiled wasm modules.
 // This allows for efficient reuse of modules across invocations.
@@ -202,15 +206,21 @@ pub fn invoke(
 fn get_cached_module(
     wasm: &[u8],
     store: &sandbox_wasmer::Store,
-) -> core::result::Result<Arc<Module>, CachedModuleErr> {
-    let maybe_module = cached_modules()
-        .lock()
-        .expect("CACHED_MODULES lock fail")
-        .find(|x| x.0 == wasm)
-        .cloned();
+) -> core::result::Result<Module, CachedModuleErr> {
+    let mut lru_lock = cached_modules().lock().expect("CACHED_MODULES lock fail");
+
+    let maybe_module = lru_lock.find(|x| x.wasm == wasm);
 
     // Try to load from LRU cache first
-    if let Some((_, module)) = maybe_module {
+    if let Some(CachedModule {
+        serialized_module, ..
+    }) = maybe_module
+    {
+        // SAFETY: Module inside LRU cache cannot be corrupted.
+        let module = unsafe {
+            Module::deserialize_unchecked(store, serialized_module.as_slice())
+                .expect("module in LRU cache is valid")
+        };
         Ok(module)
     } else {
         // Try to load from tempfile cache
@@ -224,15 +234,27 @@ fn get_cached_module(
         let fs_cache = FileSystemCache::new(cache_path).map_err(|_| FileSystemErr)?;
 
         let code_hash = Hash::generate(wasm);
-        let module = Arc::new(unsafe {
+        let module = unsafe {
             fs_cache
                 .load(store, code_hash)
                 .map_err(|_| ModuleLoadErr(fs_cache, code_hash))?
-        });
+        };
+
+        // TODO: That's really bad, we serializing module just loaded which was just deserialized.
+        // Consider to implement custom Wasmer Cache to handle this.
+        let serialized_module = module
+            .serialize()
+            .expect("successfully deserialized module should be serializable");
+
         cached_modules()
             .lock()
             .expect("CACHED_MODULES lock fail")
-            .insert((wasm.to_vec(), module.clone()));
+            .insert(CachedModule {
+                wasm: wasm.to_vec(),
+                // NOTE: `From<Bytes> to Vec<u8>` is zero cost.
+                serialized_module: serialized_module.into(),
+            });
+
         Ok(module)
     }
 }
@@ -242,14 +264,25 @@ fn try_to_store_module_in_cache(
     mut fs_cache: FileSystemCache,
     code_hash: Hash,
     wasm: &[u8],
-    module: &Arc<Module>,
+    module: &Module,
 ) {
-    let _ = cached_modules()
-        .lock()
-        .expect("CACHED_MODULES lock fail")
-        .insert((wasm.to_vec(), module.clone()));
+    // TODO: That's really bad, we serializing module twice here.
+    // Consider to implement custom Wasmer Cache to handle this.
+    let res = module.serialize().map(|serialized_module| {
+        // Store module in LRU cache
+        let _ = cached_modules()
+            .lock()
+            .expect("CACHED_MODULES lock fail")
+            .insert(CachedModule {
+                wasm: wasm.to_vec(),
+                // NOTE: `From<Bytes> to Vec<u8>` is zero cost.
+                serialized_module: serialized_module.into(),
+            });
+    });
+    log::trace!("Store module in LRU cache with result: {:?}", res);
+
     let res = fs_cache.store(code_hash, module);
-    log::trace!("Store module cache with result: {:?}", res);
+    log::trace!("Store module in FS cache with result: {:?}", res);
 }
 
 /// Instantiate a module within a sandbox context
@@ -268,10 +301,8 @@ pub fn instantiate(
         }
         Err(err) => {
             log::trace!("Cache for program has not been found, so compile it now");
-            let module = Arc::new(
-                Module::new(&context.store().borrow(), wasm)
-                    .map_err(|_| InstantiationError::ModuleDecoding)?,
-            );
+            let module = Module::new(&context.store().borrow(), wasm)
+                .map_err(|_| InstantiationError::ModuleDecoding)?;
             match err {
                 CachedModuleErr::FileSystemErr => log::error!("Cannot open fs cache"),
                 CachedModuleErr::ModuleLoadErr(fs_cache, code_hash) => {
