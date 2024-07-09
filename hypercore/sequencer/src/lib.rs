@@ -23,11 +23,11 @@ mod agro;
 use agro::{Aggregator, MultisignedCommitments};
 use anyhow::Result;
 use hypercore_ethereum::Ethereum;
-use hypercore_observer::Event;
+use hypercore_observer::{Event, UploadCodeData};
 use hypercore_signer::{Address, PublicKey, Signer};
 use std::mem;
 
-pub use agro::{AggregatedCommitments, CodeCommitment, TransitionCommitment};
+pub use agro::{AggregatedCommitments, BlockCommitment, CodeCommitment, StateTransition};
 
 pub struct Config {
     pub ethereum_rpc: String,
@@ -41,7 +41,7 @@ pub struct Sequencer {
     ethereum_rpc: String,
     key: PublicKey,
     codes_aggregation: Aggregator<CodeCommitment>,
-    transitions_aggregation: Aggregator<TransitionCommitment>,
+    blocks_aggregation: Aggregator<BlockCommitment>,
     ethereum: Ethereum,
 }
 
@@ -51,7 +51,7 @@ impl Sequencer {
             signer: signer.clone(),
             ethereum_rpc: config.ethereum_rpc.clone(),
             codes_aggregation: Aggregator::new(1),
-            transitions_aggregation: Aggregator::new(1),
+            blocks_aggregation: Aggregator::new(1),
             key: config.sign_tx_public,
             ethereum: Ethereum::new(
                 &config.ethereum_rpc,
@@ -80,7 +80,7 @@ impl Sequencer {
                     );
                 }
             }
-            Event::UploadCode { code_id, .. } => {
+            Event::UploadCode(UploadCodeData { code_id, .. }) => {
                 log::debug!("Observed code_hash#{:?}. Waiting for inclusion...", code_id);
             }
         }
@@ -92,11 +92,10 @@ impl Sequencer {
         log::debug!("Block timeout reached. Submitting aggregated commitments");
 
         let mut codes_future = None;
-        let mut transitions_future = None;
+        let mut blocks_future = None;
 
         let codes_aggregation = mem::replace(&mut self.codes_aggregation, Aggregator::new(1));
-        let transitions_aggregation =
-            mem::replace(&mut self.transitions_aggregation, Aggregator::new(1));
+        let blocks_aggregation = mem::replace(&mut self.blocks_aggregation, Aggregator::new(1));
 
         if codes_aggregation.len() > 0 {
             log::debug!(
@@ -113,23 +112,22 @@ impl Sequencer {
             }
         };
 
-        if transitions_aggregation.len() > 0 {
+        if blocks_aggregation.len() > 0 {
             log::debug!(
                 "Collected some {0} transition commitments. Trying to submit...",
-                transitions_aggregation.len()
+                blocks_aggregation.len()
             );
 
-            if let Some(transition_commitments) = transitions_aggregation.find_root() {
+            if let Some(block_commitments) = blocks_aggregation.find_root() {
                 log::debug!("Achieved consensus on transition commitments. Submitting...");
 
-                transitions_future =
-                    Some(self.submit_transitions_commitment(transition_commitments));
+                blocks_future = Some(self.submit_block_commitments(block_commitments));
             } else {
                 log::debug!("No consensus on code commitments found. Discarding...");
             }
         };
 
-        match (codes_future, transitions_future) {
+        match (codes_future, blocks_future) {
             (Some(codes_future), Some(transitions_future)) => {
                 let (codes_tx, transitions_tx) = futures::join!(codes_future, transitions_future);
                 codes_tx?;
@@ -145,16 +143,16 @@ impl Sequencer {
 
     async fn submit_codes_commitment(
         &self,
-        commitments: MultisignedCommitments<CodeCommitment>,
+        signed_commitments: MultisignedCommitments<CodeCommitment>,
     ) -> Result<()> {
-        log::debug!("Code commitment to submit: {commitments:?}");
+        log::debug!("Code commitment to submit: {signed_commitments:?}");
 
-        let codes = commitments
+        let codes = signed_commitments
             .commitments
             .into_iter()
             .map(Into::into)
             .collect::<Vec<_>>();
-        let signatures = commitments.signatures;
+        let signatures = signed_commitments.signatures;
 
         let router = self.ethereum.router();
         if let Err(e) = router.commit_codes(codes, signatures).await {
@@ -165,23 +163,30 @@ impl Sequencer {
         Ok(())
     }
 
-    async fn submit_transitions_commitment(
+    async fn submit_block_commitments(
         &self,
-        commitments: MultisignedCommitments<TransitionCommitment>,
+        signed_commitments: MultisignedCommitments<BlockCommitment>,
     ) -> Result<()> {
-        log::debug!("Transition commitment to submit: {commitments:?}");
+        log::debug!("Transition commitment to submit: {signed_commitments:?}");
 
-        let transitions = commitments
+        let block_commitments = signed_commitments
             .commitments
             .into_iter()
             .map(Into::into)
             .collect::<Vec<_>>();
-        let signatures = commitments.signatures;
+        let signatures = signed_commitments.signatures;
 
         let router = self.ethereum.router();
-        if let Err(e) = router.commit_transitions(transitions, signatures).await {
-            // TODO: return error?
-            log::error!("Failed to commit transitions: {e}");
+        match router.commit_blocks(block_commitments, signatures).await {
+            Err(e) => {
+                // TODO: return error?
+                log::error!("Failed to commit transitions: {e}");
+            }
+            Ok(tx_hash) => {
+                log::info!(
+                    "Blocks commitment transaction {tx_hash} was added to the pool successfully"
+                );
+            }
         }
 
         Ok(())
@@ -197,13 +202,13 @@ impl Sequencer {
         Ok(())
     }
 
-    pub fn receive_transitions_commitment(
+    pub fn receive_block_commitment(
         &mut self,
         origin: Address,
-        commitments: AggregatedCommitments<TransitionCommitment>,
+        commitments: AggregatedCommitments<BlockCommitment>,
     ) -> Result<()> {
         log::debug!("Received transition commitment from {}", origin);
-        self.transitions_aggregation.push(origin, commitments);
+        self.blocks_aggregation.push(origin, commitments);
         Ok(())
     }
 

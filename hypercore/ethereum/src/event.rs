@@ -272,3 +272,24 @@ impl TryFrom<&Log> for ClaimValue {
         })
     }
 }
+
+#[derive(Debug, Decode, Encode)]
+pub struct BlockCommitted {
+    pub block_hash: H256,
+}
+
+impl BlockCommitted {
+    pub const SIGNATURE_HASH: [u8; 32] = IRouter::BlockCommitted::SIGNATURE_HASH.0;
+}
+
+impl TryFrom<&Log> for BlockCommitted {
+    type Error = anyhow::Error;
+
+    fn try_from(log: &Log) -> Result<Self, Self::Error> {
+        let event: IRouter::BlockCommitted = decode_log(log)?;
+
+        Ok(Self {
+            block_hash: H256(event.blockHash.0),
+        })
+    }
+}

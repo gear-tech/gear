@@ -19,8 +19,10 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
 
     address public immutable program;
     address public immutable wrappedVara;
+    bytes32 public immutable genesisBlockHash;
 
     uint256 public countOfValidators;
+    bytes32 public lastBlockCommitmentHash;
     mapping(address => bool) public validators;
     mapping(bytes32 => CodeState) public codes;
     mapping(address => bool) public programs;
@@ -30,6 +32,7 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
     {
         program = _program;
         wrappedVara = _wrappedVara;
+        genesisBlockHash = blockhash(block.number - 1);
         addValidators(validatorsArray);
     }
 
@@ -124,23 +127,43 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
         validateSignatures(message, signatures);
     }
 
-    function commitTransitions(TransitionCommitment[] calldata transitionsCommitmentsArray, bytes[] calldata signatures)
-        external
-        nonReentrant
-    {
-        bytes memory message;
+    /**
+     * @dev Check if any of the last 256 blocks (excluding the current one) has the given hash.
+     * @param hash The hash to check for.
+     * @return found True if the hash is found, false otherwise.
+     */
+    function checkHashIsPred(bytes32 hash) private view returns (bool found) {
+        for (uint256 i = block.number - 1; i > 0; i--) {
+            if (blockhash(i) == hash) {
+                return true;
+            }
 
-        for (uint256 i = 0; i < transitionsCommitmentsArray.length; i++) {
-            TransitionCommitment calldata transitionCommitment = transitionsCommitmentsArray[i];
-            require(programs[transitionCommitment.actorId], "unknown program");
+            if (block.number - i >= 256) {
+                break;
+            }
+        }
+        return false;
+    }
 
-            bytes memory message1;
-            IProgram _program = IProgram(transitionCommitment.actorId);
+    function commitBlock(BlockCommitment calldata commitment) private returns (bytes32) {
+        require(lastBlockCommitmentHash == commitment.allowedPrevCommitmentHash, "Invalid predecessor commitment");
+        require(checkHashIsPred(commitment.allowedPredBlockHash), "Allowed predecessor not found");
 
-            for (uint256 j = 0; j < transitionCommitment.outgoingMessages.length; j++) {
-                OutgoingMessage calldata outgoingMessage = transitionCommitment.outgoingMessages[j];
-                message1 = bytes.concat(
-                    message1,
+        lastBlockCommitmentHash = commitment.blockHash;
+        emit BlockCommitted(commitment.blockHash);
+
+        bytes memory transitions_bytes;
+        for (uint256 i = 0; i < commitment.transitions.length; i++) {
+            StateTransition calldata transition = commitment.transitions[i];
+            require(programs[transition.actorId], "unknown program");
+
+            IProgram _program = IProgram(transition.actorId);
+
+            bytes memory outgoing_bytes;
+            for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
+                OutgoingMessage calldata outgoingMessage = transition.outgoingMessages[j];
+                outgoing_bytes = bytes.concat(
+                    outgoing_bytes,
                     keccak256(
                         abi.encodePacked(
                             outgoingMessage.destination,
@@ -170,26 +193,40 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
                 }
             }
 
-            message = bytes.concat(
-                message,
+            transitions_bytes = bytes.concat(
+                transitions_bytes,
                 keccak256(
                     abi.encodePacked(
-                        transitionCommitment.actorId,
-                        transitionCommitment.oldStateHash,
-                        transitionCommitment.newStateHash,
-                        keccak256(message1)
+                        transition.actorId, transition.oldStateHash, transition.newStateHash, keccak256(outgoing_bytes)
                     )
                 )
             );
 
-            _program.performStateTransition(transitionCommitment.oldStateHash, transitionCommitment.newStateHash);
+            if (transition.oldStateHash != transition.newStateHash) {
+                _program.performStateTransition(transition.oldStateHash, transition.newStateHash);
 
-            emit UpdatedProgram(
-                transitionCommitment.actorId, transitionCommitment.oldStateHash, transitionCommitment.newStateHash
-            );
+                emit UpdatedProgram(transition.actorId, transition.oldStateHash, transition.newStateHash);
+            }
         }
 
-        validateSignatures(message, signatures);
+        return keccak256(
+            abi.encodePacked(
+                commitment.blockHash,
+                commitment.allowedPredBlockHash,
+                commitment.allowedPrevCommitmentHash,
+                keccak256(transitions_bytes)
+            )
+        );
+    }
+
+    function commitBlocks(BlockCommitment[] calldata commitments, bytes[] calldata signatures) external nonReentrant {
+        bytes memory commitments_bytes;
+        for (uint256 i = 0; i < commitments.length; i++) {
+            BlockCommitment calldata commitment = commitments[i];
+            commitments_bytes = bytes.concat(commitments_bytes, commitBlock(commitment));
+        }
+
+        validateSignatures(commitments_bytes, signatures);
     }
 
     function validateSignatures(bytes memory message, bytes[] calldata signatures) private view {

@@ -18,11 +18,15 @@
 
 use anyhow::Result;
 use hypercore_network::service::NetworkGossip;
-use hypercore_processor::{LocalOutcome, TransitionOutcome};
-use hypercore_sequencer::{AggregatedCommitments, CodeCommitment, TransitionCommitment};
+use hypercore_sequencer::{AggregatedCommitments, BlockCommitment, CodeCommitment};
 use hypercore_signer::{Address, PublicKey, Signer};
 use parity_scale_codec::Encode;
 use std::sync::Arc;
+
+pub enum Commitment {
+    Code(CodeCommitment),
+    Block(BlockCommitment),
+}
 
 pub struct Config {
     pub pub_key: PublicKey,
@@ -33,7 +37,7 @@ pub struct Validator {
     pub_key: PublicKey,
     signer: Signer,
     current_codes: Vec<CodeCommitment>,
-    current_transitions: Vec<TransitionCommitment>,
+    current_blocks: Vec<BlockCommitment>,
     router_address: Address,
 }
 
@@ -43,7 +47,7 @@ impl Validator {
             signer,
             pub_key: config.pub_key,
             current_codes: vec![],
-            current_transitions: vec![],
+            current_blocks: vec![],
             router_address: config.router_address,
         }
     }
@@ -53,7 +57,7 @@ impl Validator {
     }
 
     pub fn has_transitions_commit(&self) -> bool {
-        !self.current_transitions.is_empty()
+        !self.current_blocks.is_empty()
     }
 
     pub fn pub_key(&self) -> PublicKey {
@@ -69,58 +73,31 @@ impl Validator {
         )
     }
 
-    pub fn transitions_aggregation(
-        &mut self,
-    ) -> Result<AggregatedCommitments<TransitionCommitment>> {
+    pub fn blocks_aggregation(&mut self) -> Result<AggregatedCommitments<BlockCommitment>> {
         AggregatedCommitments::aggregate_commitments(
-            self.current_transitions.clone(),
+            self.current_blocks.clone(),
             &self.signer,
             self.pub_key,
             self.router_address,
         )
     }
 
-    pub fn push_commitment<N: NetworkGossip>(
+    pub fn push_commitments<N: NetworkGossip>(
         &mut self,
         network: Arc<N>,
-        outcomes: &[LocalOutcome],
+        commitments: Vec<Commitment>,
     ) -> Result<()> {
-        // parse outcomes
-        for outcome in outcomes {
-            match outcome {
-                LocalOutcome::CodeApproved(code_id) => {
-                    self.current_codes.push(CodeCommitment {
-                        code_id: *code_id,
-                        approved: true,
-                    });
-                }
-                LocalOutcome::CodeRejected(code_id) => {
-                    self.current_codes.push(CodeCommitment {
-                        code_id: *code_id,
-                        approved: false,
-                    });
-                }
-                LocalOutcome::Transition(TransitionOutcome {
-                    program_id,
-                    old_state_hash,
-                    new_state_hash,
-                    outgoing_messages,
-                }) => {
-                    // TODO: they're about to be aggregated before signing: like commitments A0 -> A1 && A1 -> A2 will one single commit A0 -> A2.
-                    self.current_transitions.push(TransitionCommitment {
-                        program_id: *program_id,
-                        old_state_hash: *old_state_hash,
-                        new_state_hash: *new_state_hash,
-                        outgoing_messages: outgoing_messages.clone(),
-                    })
-                }
+        for commitment in commitments {
+            match commitment {
+                Commitment::Code(code_commitment) => self.current_codes.push(code_commitment),
+                Commitment::Block(block_commitment) => self.current_blocks.push(block_commitment),
             }
         }
 
         let origin = self.pub_key.to_address();
 
         // broadcast (aggregated_code_commitments, aggregated_transitions_commitments) to the network peers
-        let commitments = (self.codes_aggregation()?, self.transitions_aggregation()?);
+        let commitments = (self.codes_aggregation()?, self.blocks_aggregation()?);
         network.broadcast_commitments((origin, commitments).encode());
 
         Ok(())
@@ -128,7 +105,7 @@ impl Validator {
 
     pub fn clear(&mut self) {
         self.current_codes.clear();
-        self.current_transitions.clear();
+        self.current_blocks.clear();
     }
 
     pub fn address(&self) -> Address {

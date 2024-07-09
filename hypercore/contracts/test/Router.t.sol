@@ -60,13 +60,19 @@ contract RouterTest is Test {
         assertEq(deployedProgram.router(), address(router));
         assertEq(deployedProgram.stateHash(), 0);
 
+        vm.roll(100);
+
         IRouter.OutgoingMessage[] memory outgoingMessages = new IRouter.OutgoingMessage[](1);
         outgoingMessages[0] = IRouter.OutgoingMessage(deployerAddress, "PONG", 0, IRouter.ReplyDetails(0, 0));
 
-        IRouter.TransitionCommitment[] memory transitionsCommitmentsArray = new IRouter.TransitionCommitment[](1);
-        transitionsCommitmentsArray[0] = IRouter.TransitionCommitment(actorId, 0, bytes32(uint256(1)), outgoingMessages);
+        IRouter.StateTransition[] memory transitionsArray = new IRouter.StateTransition[](1);
+        IRouter.BlockCommitment[] memory blockCommitmentsArray = new IRouter.BlockCommitment[](1);
+        transitionsArray[0] = IRouter.StateTransition(actorId, 0, bytes32(uint256(1)), outgoingMessages);
+        blockCommitmentsArray[0] = IRouter.BlockCommitment(
+            bytes32(uint256(1)), bytes32(uint256(0)), blockhash(block.number - 1), transitionsArray
+        );
 
-        commitTransitions(transitionsCommitmentsArray);
+        commitBlocks(blockCommitmentsArray);
 
         assertEq(deployedProgram.stateHash(), bytes32(uint256(1)));
     }
@@ -86,15 +92,15 @@ contract RouterTest is Test {
         router.commitCodes(codeCommitmentsArray, createSignatures(message));
     }
 
-    function commitTransitions(IRouter.TransitionCommitment[] memory transitionsCommitmentsArray) private {
+    function commitBlock(IRouter.BlockCommitment memory commitment) private pure returns (bytes32) {
         bytes memory message;
+        for (uint256 i = 0; i < commitment.transitions.length; i++) {
+            IRouter.StateTransition memory transition = commitment.transitions[i];
 
-        for (uint256 i = 0; i < transitionsCommitmentsArray.length; i++) {
-            IRouter.TransitionCommitment memory transitionCommitment = transitionsCommitmentsArray[i];
             bytes memory message1;
 
-            for (uint256 j = 0; j < transitionCommitment.outgoingMessages.length; j++) {
-                IRouter.OutgoingMessage memory outgoingMessage = transitionCommitment.outgoingMessages[j];
+            for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
+                IRouter.OutgoingMessage memory outgoingMessage = transition.outgoingMessages[j];
                 message1 = bytes.concat(
                     message1,
                     keccak256(
@@ -113,16 +119,31 @@ contract RouterTest is Test {
                 message,
                 keccak256(
                     abi.encodePacked(
-                        transitionCommitment.actorId,
-                        transitionCommitment.oldStateHash,
-                        transitionCommitment.newStateHash,
-                        keccak256(message1)
+                        transition.actorId, transition.oldStateHash, transition.newStateHash, keccak256(message1)
                     )
                 )
             );
         }
 
-        router.commitTransitions(transitionsCommitmentsArray, createSignatures(message));
+        return keccak256(
+            abi.encodePacked(
+                commitment.blockHash,
+                commitment.allowedPredBlockHash,
+                commitment.allowedPrevCommitmentHash,
+                keccak256(message)
+            )
+        );
+    }
+
+    function commitBlocks(IRouter.BlockCommitment[] memory commitments) private {
+        bytes memory message;
+
+        for (uint256 i = 0; i < commitments.length; i++) {
+            IRouter.BlockCommitment memory commitment = commitments[i];
+            message = bytes.concat(message, commitBlock(commitment));
+        }
+
+        router.commitBlocks(commitments, createSignatures(message));
     }
 
     function createSignatures(bytes memory message) private view returns (bytes[] memory) {

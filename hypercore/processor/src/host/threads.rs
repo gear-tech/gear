@@ -85,10 +85,13 @@ impl PageKey {
 }
 
 pub fn set(db: Database, chain_head: H256, state_hash: H256) {
-    let block_info = db.block_info(chain_head).expect("Block info not found");
+    let header = db.block_header(chain_head).expect("Block info not found");
     PARAMS.set(Some(ThreadParams {
         db,
-        block_info,
+        block_info: BlockInfo {
+            height: header.height,
+            timestamp: header.timestamp,
+        },
         state_hash,
         pages: None,
     }))

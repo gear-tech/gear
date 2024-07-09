@@ -47,6 +47,9 @@ type AlloyProvider = FillProvider<
 type AlloyProgramInstance = IProgram::IProgramInstance<AlloyTransport, Arc<AlloyProvider>>;
 type AlloyRouterInstance = IRouter::IRouterInstance<AlloyTransport, Arc<AlloyProvider>>;
 
+type QueryRouterInstance =
+    IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
+
 #[derive(Debug, Clone)]
 struct Sender {
     signer: HypercoreSigner,
@@ -121,7 +124,7 @@ pub struct CodeCommitment {
 }
 
 #[derive(Debug, Clone)]
-pub struct TransitionCommitment {
+pub struct StateTransition {
     pub actor_id: ActorId,
     pub old_state_hash: H256,
     pub new_state_hash: H256,
@@ -134,6 +137,13 @@ pub struct OutgoingMessage {
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: ReplyDetails,
+}
+
+pub struct BlockCommitment {
+    pub block_hash: H256,
+    pub allowed_pred_block_hash: H256,
+    pub allowed_prev_commitment_hash: H256,
+    pub transitions: Vec<StateTransition>,
 }
 
 pub struct Router(AlloyRouterInstance);
@@ -284,15 +294,12 @@ impl Router {
         Ok(H256(receipt.transaction_hash.0))
     }
 
-    pub async fn commit_transitions(
-        &self,
-        transitions: Vec<TransitionCommitment>,
-        signatures: Vec<HypercoreSignature>,
-    ) -> Result<H256> {
-        let builder = self.0.commitTransitions(
-            transitions
+    fn convert_block_commitment(commitment: BlockCommitment) -> IRouter::BlockCommitment {
+        let transitions =
+            commitment
+                .transitions
                 .into_iter()
-                .map(|transition| IRouter::TransitionCommitment {
+                .map(|transition| IRouter::StateTransition {
                     actorId: {
                         let mut address = Address::ZERO;
                         address
@@ -305,36 +312,89 @@ impl Router {
                     outgoingMessages: transition
                         .outgoing_messages
                         .into_iter()
-                        .map(|outgoin_message| IRouter::OutgoingMessage {
+                        .map(|outgoing_message| IRouter::OutgoingMessage {
                             destination: {
                                 let mut address = Address::ZERO;
                                 address.0.copy_from_slice(
-                                    &outgoin_message.destination.into_bytes()[12..],
+                                    &outgoing_message.destination.into_bytes()[12..],
                                 );
                                 address
                             },
-                            payload: Bytes::copy_from_slice(&outgoin_message.payload),
-                            value: outgoin_message.value,
+                            payload: Bytes::copy_from_slice(&outgoing_message.payload),
+                            value: outgoing_message.value,
                             replyDetails: IRouter::ReplyDetails {
                                 replyTo: B256::new(
-                                    outgoin_message.reply_details.to_message_id().into_bytes(),
+                                    outgoing_message.reply_details.to_message_id().into_bytes(),
                                 ),
                                 replyCode: FixedBytes::new(
-                                    outgoin_message.reply_details.to_reply_code().to_bytes(),
+                                    outgoing_message.reply_details.to_reply_code().to_bytes(),
                                 ),
                             },
                         })
                         .collect(),
-                })
-                .collect(),
-            signatures
-                .into_iter()
-                .map(|signature| Bytes::copy_from_slice(&signature.0))
-                .collect(),
-        );
+                });
+
+        IRouter::BlockCommitment {
+            blockHash: B256::new(commitment.block_hash.to_fixed_bytes()),
+            allowedPredBlockHash: B256::new(commitment.allowed_pred_block_hash.to_fixed_bytes()),
+            allowedPrevCommitmentHash: B256::new(
+                commitment.allowed_prev_commitment_hash.to_fixed_bytes(),
+            ),
+            transitions: transitions.collect(),
+        }
+    }
+
+    pub async fn commit_blocks(
+        &self,
+        commitments: Vec<BlockCommitment>,
+        signatures: Vec<HypercoreSignature>,
+    ) -> Result<H256> {
+        let builder = self
+            .0
+            .commitBlocks(
+                commitments
+                    .into_iter()
+                    .map(Self::convert_block_commitment)
+                    .collect(),
+                signatures
+                    .into_iter()
+                    .map(|signature| Bytes::copy_from_slice(&signature.0))
+                    .collect(),
+            )
+            .gas(10_000_000);
         let tx = builder.send().await?;
         let receipt = tx.get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
+    }
+}
+
+pub struct RouterQuery(QueryRouterInstance);
+
+impl RouterQuery {
+    pub async fn new(rpc_url: &str, router_address: HypercoreAddress) -> Result<Self> {
+        let provider = Arc::new(ProviderBuilder::new().on_builtin(rpc_url).await?);
+        Ok(Self(QueryRouterInstance::new(
+            Address::new(router_address.0),
+            provider,
+        )))
+    }
+
+    pub async fn last_commitment_block_hash(&self) -> Result<H256> {
+        self.0
+            .lastBlockCommitmentHash()
+            .call()
+            .await
+            .map(|res| H256(*res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn genesis_block_hash(&self) -> Result<H256> {
+        self.0
+            .genesisBlockHash()
+            .call()
+            .await
+            .map(|res| H256(*res._0))
+            .map_err(Into::into)
     }
 }
 
