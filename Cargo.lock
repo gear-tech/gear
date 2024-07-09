@@ -9061,9 +9061,9 @@ dependencies = [
 
 [[package]]
 name = "parity-db"
-version = "0.4.9"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dab3ac198341b2f0fec6e7f8a6eeed07a41201d98a124260611598c142e76df"
+checksum = "592a28a24b09c9dc20ac8afaa6839abc417c720afe42c12e1e4a9d6aa2508d2e"
 dependencies = [
  "blake2 0.10.6",
  "crc32fast",
@@ -9077,6 +9077,7 @@ dependencies = [
  "rand 0.8.5",
  "siphasher",
  "snap",
+ "winapi",
 ]
 
 [[package]]
@@ -12573,7 +12574,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.10.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -12612,7 +12613,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -12633,7 +12634,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.25.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -12831,7 +12832,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "24.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -12862,7 +12863,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "17.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "Inflector",
  "expander",
@@ -12960,7 +12961,7 @@ source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.4.0#0
 [[package]]
 name = "sp-std"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 
 [[package]]
 name = "sp-storage"
@@ -12978,7 +12979,7 @@ dependencies = [
 [[package]]
 name = "sp-storage"
 version = "19.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -13015,7 +13016,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "16.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "parity-scale-codec",
  "tracing",
@@ -13117,7 +13118,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "20.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f34d8e3cf033e2a22a41b505c437972a5dc83d78"
+source = "git+https://github.com/paritytech/polkadot-sdk#e434176e0867d17336301388b46a6796b366a976"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
@@ -16056,18 +16057,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.7.34"
+version = "0.7.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae87e3fcd617500e5d106f0380cf7b77f3c6092aae37191433159dda23cfb087"
+checksum = "74d4d3961e53fa4c9a25a8637fc2bfaf2595b3d3ae34875568a5cf64787716be"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.34"
+version = "0.7.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15e934569e47891f7d9411f1a451d947a60e000ab3bd24fbb970f000387d1b3b"
+checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
 dependencies = [
  "proc-macro2",
  "quote",
