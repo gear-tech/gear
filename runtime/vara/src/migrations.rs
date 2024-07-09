@@ -28,6 +28,7 @@ pub type Migrations = (
     // migration for added section sizes
     pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
     // substrate v1.4.0
+    staking_v13::MigrateToV13<Runtime>,
     pallet_staking::migrations::v14::MigrateToV14<Runtime>,
     pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
 );
