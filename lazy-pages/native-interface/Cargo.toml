@@ -1,0 +1,16 @@
+[package]
+name = "gear-lazy-pages-native-interface"
+description = "Gear lazy-pages native interface"
+documentation = "https://docs.rs/gear-lazy-pages-native-interface"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gear-core.workspace = true
+gear-lazy-pages-common.workspace = true
+gear-lazy-pages.workspace = true
+gear-wasm-instrument.workspace = true

@@ -21,12 +21,10 @@
 //! decoded/encoded via SCALE Codec (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 
 use crate::{
-    errors::{Error, IntoResult, Result},
-    msg::utils,
-    prelude::ops::RangeBounds,
-    util::with_optimized_encode,
-    ActorId, MessageId, ReservationId,
+    errors::Error, msg::utils, prelude::ops::RangeBounds, util::with_optimized_encode, ActorId,
+    MessageId, ReservationId,
 };
+use gcore::errors::Result;
 use gstd_codegen::wait_for_reply;
 use scale_info::scale::{Decode, Encode};
 
@@ -58,11 +56,13 @@ use scale_info::scale::{Decode, Encode};
 ///
 /// - [`load_bytes`](super::load_bytes) function returns a payload as a byte
 ///   vector.
-pub fn load<D: Decode>() -> Result<D> {
-    super::basic::with_read_on_stack(|read_result: Result<&mut [u8]>| -> Result<D> {
-        let mut buffer = read_result? as &[u8];
-        D::decode(&mut buffer).map_err(Error::Decode)
-    })
+pub fn load<D: Decode>() -> crate::errors::Result<D> {
+    super::with_read_on_stack(
+        |read_result: Result<&mut [u8]>| -> crate::errors::Result<D> {
+            let mut buffer = read_result? as &[u8];
+            D::decode(&mut buffer).map_err(Error::Decode)
+        },
+    )
 }
 
 /// Send a new message as a reply to the message being
@@ -219,21 +219,21 @@ pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Res
 /// - [`MessageHandle::push_input`](super::MessageHandle::push_input) function
 ///   allows using the input buffer as a payload source for an outcoming
 ///   message.
-pub fn reply_input<Range: RangeBounds<usize>>(value: u128, range: Range) -> Result<MessageId> {
+pub fn reply_input(value: u128, range: impl RangeBounds<usize>) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::reply_input(value, offset, len).into_result()
+    gcore::msg::reply_input(value, offset, len)
 }
 
 /// Same as [`reply_input`], but with an explicit gas limit.
-pub fn reply_input_with_gas<Range: RangeBounds<usize>>(
+pub fn reply_input_with_gas(
     gas_limit: u64,
     value: u128,
-    range: Range,
+    range: impl RangeBounds<usize>,
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::reply_input_with_gas(gas_limit, value, offset, len).into_result()
+    gcore::msg::reply_input_with_gas(gas_limit, value, offset, len)
 }
 
 /// Same as [`send`] but uses the input buffer as a payload source.
@@ -262,55 +262,54 @@ pub fn reply_input_with_gas<Range: RangeBounds<usize>>(
 ///   allows using the input buffer as a payload source for an outcoming
 ///   message.
 #[wait_for_reply]
-pub fn send_input<Range: RangeBounds<usize>>(
+pub fn send_input(
     program: ActorId,
     value: u128,
-    range: Range,
+    range: impl RangeBounds<usize>,
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input(program.into(), value, offset, len).into_result()
+    gcore::msg::send_input(program, value, offset, len)
 }
 
 /// Same as [`send_input`], but sends the message after the `delay` expressed in
 /// block count.
-pub fn send_input_delayed<Range: RangeBounds<usize>>(
+pub fn send_input_delayed(
     program: ActorId,
     value: u128,
-    range: Range,
+    range: impl RangeBounds<usize>,
     delay: u32,
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_delayed(program.into(), value, offset, len, delay).into_result()
+    gcore::msg::send_input_delayed(program, value, offset, len, delay)
 }
 
 /// Same as [`send_input`], but with an explicit gas limit.
 #[wait_for_reply]
-pub fn send_input_with_gas<Range: RangeBounds<usize>>(
+pub fn send_input_with_gas(
     program: ActorId,
     gas_limit: u64,
     value: u128,
-    range: Range,
+    range: impl RangeBounds<usize>,
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_with_gas(program.into(), gas_limit, value, offset, len).into_result()
+    gcore::msg::send_input_with_gas(program, gas_limit, value, offset, len)
 }
 
 /// Same as [`send_input_with_gas`], but sends the message after the `delay`
 /// expressed in block count.
-pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
+pub fn send_input_with_gas_delayed(
     program: ActorId,
     gas_limit: u64,
     value: u128,
-    range: Range,
+    range: impl RangeBounds<usize>,
     delay: u32,
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_with_gas_delayed(program.into(), gas_limit, value, offset, len, delay)
-        .into_result()
+    gcore::msg::send_input_with_gas_delayed(program, gas_limit, value, offset, len, delay)
 }
 
 /// Send a new message to the program or user.

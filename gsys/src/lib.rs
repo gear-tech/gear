@@ -377,8 +377,41 @@ impl GasMultiplier {
     }
 }
 
-#[allow(improper_ctypes)]
-extern "C" {
+macro_rules! syscalls {
+    (
+        $(
+            $(#[$attrs:meta])*
+            $vis:vis fn $symbol:ident(
+                $($arg_name:ident: $arg_ty:ty),* $(,)?
+            ) $(-> $ret_ty:ty)?;
+        )*
+    ) => {
+        #[allow(improper_ctypes)]
+        extern "C" {
+            $(
+                $(#[$attrs])*
+                $vis fn $symbol($($arg_name: $arg_ty),*) $(-> $ret_ty)?;
+            )*
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        mod declarations {
+            use $crate::*;
+
+            $(
+                #[no_mangle]
+                $vis extern "C" fn $symbol($(_: $arg_ty),*) $(-> $ret_ty)? {
+                    unimplemented!(concat!(
+                        stringify!($symbol),
+                        " syscall is only available for wasm32-unknown-unknown target"
+                    ))
+                }
+            )*
+        }
+    };
+}
+
+syscalls! {
     /// Infallible `gr_env_vars` get syscall.
     /// It leaves backend with unrecoverable error if incorrect version is passed.
     ///

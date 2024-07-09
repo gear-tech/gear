@@ -1,6 +1,7 @@
 [package]
 name = "gstd-codegen"
 description = "Code generation library for the Gear standard library"
+documentation = "https://docs.rs/gstd-codegen"
 keywords = ["gear", "codegen", "std"]
 categories = ["api-bindings"]
 version.workspace = true
@@ -17,8 +18,7 @@ proc-macro = true
 syn = { workspace = true, features = ["default", "full"] }
 quote.workspace = true
 proc-macro2.workspace = true
-gear-ss58.workspace = true
-hex = { workspace = true, features = ["alloc"] }
+gprimitives.workspace = true
 
 [dev-dependencies]
 gstd = { path = ".." }

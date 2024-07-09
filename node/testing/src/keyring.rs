@@ -23,8 +23,8 @@ use runtime_primitives::{AccountId, Nonce};
 use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;
 use vara_runtime::{
-    CustomChargeTransactionPayment, RuntimeCall, SessionKeys, SignedExtra, StakingBlackList,
-    UncheckedExtrinsic,
+    CustomChargeTransactionPayment, CustomCheckNonce, RuntimeCall, SessionKeys, SignedExtra,
+    StakingBlackList, UncheckedExtrinsic,
 };
 
 pub type CheckedExtrinsic =
@@ -82,7 +82,7 @@ pub fn signed_extra(nonce: Nonce) -> SignedExtra {
         frame_system::CheckTxVersion::new(),
         frame_system::CheckGenesis::new(),
         frame_system::CheckEra::from(Era::mortal(256, 0)),
-        frame_system::CheckNonce::from(nonce),
+        CustomCheckNonce::from(nonce),
         frame_system::CheckWeight::new(),
         CustomChargeTransactionPayment::from(0),
     )

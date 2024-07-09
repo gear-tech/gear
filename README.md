@@ -6,7 +6,7 @@
 </p>
 
 <h3 align="center">
-Gear Protocol is a Substrate-based solution for developers, enabling anyone to run a dApp in just a few minutes.
+Gear Protocol is a Substrate-based platform for developers, enabling anyone to spin up a dApp in just a few minutes.
 </h3>
 
 #
@@ -35,141 +35,66 @@ Gear Protocol is a Substrate-based solution for developers, enabling anyone to r
 [l2]: https://github.com/gear-tech/gear/blob/master/LICENSE
 </div>
 
-<p align="center">Hit the <a href="https://github.com/gear-tech/gear">:star:</a> button to keep up with daily protocol's development progress!</p>
+<p align="center">Hit the <a href="https://github.com/gear-tech/gear">:star:</a> button to keep up with the daily protocol development progress!</p>
+
+# Overview
+
+Gear Protocol provides a developer-friendly programming platform for decentralized applications, along with custom runtime technology that can be used to deploy Layer-1 networks for running applications in a decentralized manner. The vision for Gear is to empower developers to create and deploy next-generation Web3.0 applications in the easiest and most efficient way possible.
+
+## :fire: Key Features
+
+- **Unique** :crown: : The main idea underpinning the Gear Protocol is the Actor model for message communications - secure, effective, clear.
+- **Unique** :crown: : Parallelizable architecture ensures even greater speed.
+- **Unique** :crown: : Continued messaging automation through delayed messages enables truly on-chain dApps.
+- **Unique** :crown: : Built-in Actors to provide programs with enhanced access to pallets and to offload high-load computations off-chain.
+- **Unique** :crown: : Create a dApp in minutes using Gear Protocol's libraries.
+- Programs run in a Wasm VM, enabling near-native code execution speed.
+- Based on Substrate, Gear Protocol ensures fork-less upgrades and compatibility with other blockchains.
+
+## Capabilities
+
+- Gear Protocol provides dApp developers with a very minimal, intuitive, and sufficient API for writing custom-logic programs in Rust and running them on Gear-powered networks, such as the Vara Network.
+- It provides a technological foundation for constructing highly scalable and rapid decentralized Layer-1 networks.
+- Reduces the computational burden on blockchains by offloading highly intensive calculations using a Vara node with WAVM, and then proving the correctness of these calculations on any blockchain.
+- A Vara node can be used as a standalone instance running microservices, middleware, open API, and more.
+
+For more details refer to the **[Gear Whitepaper](https://whitepaper.gear.foundation)**.
+
+Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf)** for some insights about how it works internally.
 
 # Getting Started
 
-1. :open_hands: The easiest way to get started with Gear Protocol is by using the demo environment at [https://idea.gear-tech.io](https://idea.gear-tech.io).
+1. :book: Visit **[Gear Wiki](https://wiki.gear-tech.io/)** to get all the details about how to start implementing your own blockchain application.
+    1. Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile your first Rust test program to Wasm.
+    2. Upload and run the program on the Vara Network Testnet via **[Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara.network)**, send a message to a program and read the program's state.
+2. :scroll: Write your own program or take one from the comprehensive [examples library](https://wiki.gear-tech.io/docs/examples/prerequisites) as a basis for a convenient and swift onboarding process.
+    1. Explore dApp examples in action and gain a deeper understanding of their functionalities. Write your own program or use one from the available templates. Adapt a template according to your business needs.
+    2. [Test](https://wiki.gear-tech.io/docs/developing-contracts/testing) your program off-chain and on-chain using a [local node](https://wiki.gear-tech.io/docs/node/setting-up).
+    3. Then upload it via Gear Idea to the [Vara Network](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Frpc.vara.network).
+3. :microscope: Dive into the documentation on Gear Protocol crates at https://docs.gear.rs.
+4. :iphone: Implement a frontend application that interacts with your program using the [JS API](https://github.com/gear-tech/gear-js/tree/main/api). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend/apps).
 
-2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test program to Wasm. :running: Upload and run the program on the Vara Network Testnet via [Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara.network), send a message to a program, check how it is going.
+# Run Vara Node
 
-3. :scroll: Write your own program or use one from the comprehensive [examples library](https://github.com/gear-foundation/dapps) as a basis for a convenient and swift onboarding process.
+### Get the binaries
 
-4. :computer: Download and run your Gear node locally or create your own multi-node local testnet.
+To build Vara node binaries from source follow a step by step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/node/README.md).
 
-5. :dolphin: Deep dive to the [Examples section](https://wiki.gear-tech.io/docs/developing-contracts/introduction) of the Gear Wiki for more details about how to implement and run your dApp with Gear.
+Alternatively, you can download pre-built packages for your OS/architecture:
 
-## Run Gear Node
+  - **macOS M-series (ARM)**: [gear-nightly-aarch64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-aarch64-apple-darwin.tar.xz)
+  - **macOS Intel x64**: [gear-nightly-x86_64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-x86_64-apple-darwin.tar.xz)
+  - **Linux x64**: [gear-nightly-x86_64-unknown-linux-gnu.tar.xz](https://get.gear.rs/gear-nightly-x86_64-unknown-linux-gnu.tar.xz)
+  - **Windows x64**: [gear-nightly-x86_64-pc-windows-msvc.zip](https://get.gear.rs/gear-nightly-x86_64-pc-windows-msvc.zip)
 
-For Linux/MacOS users install script is available:
+
+### Run Vara Dev network locally
+
+Running the following command will start a single-node Vara Dev net with two users - Alice and Bob:
 
   ```bash
-  curl --proto '=https' --tlsv1.2 -sSf https://get.gear.rs/install.sh | sh
+  gear --dev
   ```
-
-Gear node can run in a single Dev Net mode or you can create a Multi-Node local testnet or make your own build of Gear node.
-
-1. Compile and launch node as described in [Gear Node README](https://github.com/gear-tech/gear/tree/master/node/README.md). Alternatively, download nightly build of Gear node:
-
-    - **macOS M-series (ARM)**: [gear-nightly-aarch64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-aarch64-apple-darwin.tar.xz)
-    - **macOS Intel x64**: [gear-nightly-x86_64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-x86_64-apple-darwin.tar.xz)
-    - **Linux x64**: [gear-nightly-x86_64-unknown-linux-gnu.tar.xz](https://get.gear.rs/gear-nightly-x86_64-unknown-linux-gnu.tar.xz)
-    - **Windows x64**: [gear-nightly-x86_64-pc-windows-msvc.zip](https://get.gear.rs/gear-nightly-x86_64-pc-windows-msvc.zip)
-
-2. Run Gear node without special arguments to get a node connected to the test network:
-
-    ```bash
-    gear
-    ```
-
-3. Connect to the Vara network:
-
-    ```bash
-    gear --chain=vara
-    ```
-
-4. One may run a local node in development mode for testing purposes. This node will not be connected to any external network. Use `--dev` argument for running the node locally and storing the state in temporary storage:
-
-    ```bash
-    gear --dev
-    ```
-
-5. Get more info about usage details, flags, available options and subcommands:
-
-    ```bash
-    gear --help
-    ```
-
-## Implement and run your own blockchain application
-
-1. Visit the [Gear Wiki](https://wiki.gear-tech.io/docs/examples/prerequisites) to explore dApp examples in action and gain a deeper understanding of their functionalities. Write your own program or take one from the available templates. Adapt a template in accordance with your business needs.
-
-2. Test your program off-chain, test it on-chain using a local node, then upload to Gear-powered network via [Gear Idea](https://idea.gear-tech.io/).
-
-3. Implement frontend application that interacts with your program using [JS API](https://github.com/gear-tech/gear-js/tree/main/api). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend).
-
-# Gear Protocol components
-
-* [core](https://github.com/gear-tech/gear/tree/master/core) - engine for distributed computing core components.
-
-* [node](https://github.com/gear-tech/gear/tree/master/node) - substrate-based node, ready for hacking :rocket:.
-
-* [gstd](https://github.com/gear-tech/gear/tree/master/gstd) - standard library for implementing programs with Gear Protocol.
-
-* [gtest](https://github.com/gear-tech/gear/tree/master/gtest) - fast and lightweight tool for debugging program logic.
-
-* [gclient](https://github.com/gear-tech/gear/tree/master/gclient) - a tool for testing programs with a real blockchain network.
-
-* [gear-js](https://github.com/gear-tech/gear-js/tree/main/api) - JSON-RPC API of Gear backend.
-
-Go to https://docs.gear.rs to dive into the documentation on Gear Protocol crates.
-
-# What does Gear Protocol do?
-
-<p align="center">
-<img src="images/rust.png" height="64"><br>Gear Protocol provides the easiest and most cost-effective way <br>to run Wasm programs compiled from <br>many popular languages, such as Rust, C/C++ and more.
-</p>
-<p align="center">
-<img src="images/api.png" height="64"><br>It ensures very minimal, intuitive, and sufficient API <br>for running both newly written and existing programs <br>on multiple Gear-powered networks without the need to rewrite them.
-</p>
-<p align="center">
-<img src="images/state.png" height="64"><br>Programs are stored in the blockchain’s state <br>and are invoked preserving their state upon request.
-</p>
-<p align="center">
-<img src="images/apps.png" height="64"><br>Gear Protocol facilitates a seamless transition to Web3, <br>enabling the operation of dApps, microservices, middleware, and open APIs.
-</p>
-
-### :fire: Key features
-
- - Programs run in Wasm VM (near-native code execution speed)
- - **Unique** :crown: : Parallelizable architecture (even greater speed)
- - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
- - **Unique** :crown: : Continued messaging automation, payless transactions, and other features enable the implementation of truly on-chain user-friendly dApps.
- - **Unique** :crown: : dApp in minutes using Gear Protocol's libraries
- - Based on Substrate
-
-### Main capabilities
-
-  - Gear Protocol enables anyone to create and run a custom-logic **decentralized programs**.
-  - Programs can support business logic of any other projects running in the **Gear-powered network** (such as the [Vara Network](https://vara.network/)) and interact with them.
-  - Establish cross-chain communications between other Substrate-supported blockchains, allowing anyone to run a dApp in the Dotsama ecosystem in a very **cost-less** manner.
-  - A Gear node can run as a standalone instance running microservices, middleware, open API and more.
-
-# Why?
-
-The blockchain technology launched a rapid transition from centralized, server-based internet (Web2) to decentralized, distributed one (Web3).
-
-Web3 introduces a new type of applications (dApps) that enable the existence of decentralized Gaming, DeFi, DEX, Decentralized marketplaces, NFTs, Creators and Social Tokens.
-
-Programs running on the blockchain network can serve as the equivalent of microservices, which are the essential building blocks of decentralized applications.
-
-Modern blockchains solve many issues of the older blockchain networks, such as:
- - Lack of scalability, low transaction speed, high transaction costs
- - Domain-specific development language (high barrier to entry)
- - Complex and inefficient native consensus protocols
- - Absence of intercommunication tools
-
-But the room for improvements remains related to:
- - Optimisation of the user experience when using Web3 applications
- - Lack of interoperability with other networks
-
-# How does it work?
-
-The internal flow of Gear Protocol:
-
-  <img src="images/internal_flow.jpg" alt="Snow" style="width:100%;">
-
-Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf">technical paper</a> for some insights about how it works internally.
 
 # Performance
 

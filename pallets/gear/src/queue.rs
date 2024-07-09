@@ -18,10 +18,10 @@
 
 use super::*;
 use core_processor::ContextChargedForInstrumentation;
+use gear_core::program::ProgramState;
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
-    pub ext_manager: &'a mut ExtManager<T>,
     pub gas_limit: GasBalanceOf<T>,
     pub dispatch: StoredDispatch,
     pub balance: u128,
@@ -34,7 +34,6 @@ where
     pub(crate) fn run_queue_step(queue_step: QueueStep<'_, T>) -> Vec<JournalNote> {
         let QueueStep {
             block_config,
-            ext_manager,
             gas_limit,
             dispatch,
             balance,
@@ -161,9 +160,6 @@ where
             Err(journal) => return journal,
         };
 
-        // Load program memory pages.
-        ext_manager.insert_program_id_loaded_pages(destination_id);
-
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
         core_processor::process::<Ext>(
@@ -229,11 +225,14 @@ where
                 continue;
             }
 
-            let balance = CurrencyOf::<T>::free_balance(&program_id.cast());
+            let balance = <CurrencyOf<T> as fungible::Inspect<T::AccountId>>::reducible_balance(
+                &program_id.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            );
 
             let journal = Self::run_queue_step(QueueStep {
                 block_config: &block_config,
-                ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch,
                 balance: balance.unique_saturated_into(),

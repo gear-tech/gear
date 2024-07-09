@@ -20,14 +20,11 @@ use crate::*;
 
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
-    /* release v1.3.0 */
-    pallet_gear_program::migration::AppendStackEndMigration<Runtime>,
-    // migration for removed waiting init list
-    pallet_gear::migrations::MigrateWaitingInitList<Runtime>,
-    // substrate v1.3.0
-    pallet_nomination_pools::migration::versioned_migrations::V5toV6<Runtime>,
-    pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
-    staking_v13::MigrateToV13<Runtime>,
+    // migrate allocations from BTreeSet to IntervalsTree
+    pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
+    // migration for removed paused program storage
+    pallet_gear_program::migrations::paused_storage::RemovePausedProgramStorageMigration<Runtime>,
+    pallet_gear_program::migrations::v8::MigrateToV8<Runtime>,
     // substrate v1.4.0
     pallet_staking::migrations::v14::MigrateToV14<Runtime>,
     pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,

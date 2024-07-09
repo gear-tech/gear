@@ -19,31 +19,32 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf,
-    QueueOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet,
+    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, LockableTree, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
+    CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::sp_runtime::Saturating;
+use frame_support::{
+    sp_runtime::Saturating,
+    traits::{Currency, ExistenceRequirement, LockableCurrency, WithdrawReasons},
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, WasmPage},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    program::{Program, ProgramState},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 impl<T> JournalHandler for ExtManager<T>
 where
@@ -341,11 +342,12 @@ where
         });
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            let removed_pages = p.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|page| page.to_iter()) {
-                if p.pages_with_data.remove(&page) {
+            for page in p.allocations.difference(&allocations).flat_map(|i| i.iter()).flat_map(|p| p.to_iter()) {
+                // TODO: do not use `contains` #3879
+                if p.pages_with_data.contains(page) {
+                    p.pages_with_data.remove(page);
                     ProgramStorageOf::<T>::remove_program_page_data(program_id, p.memory_infix, page);
                 }
             }
@@ -365,12 +367,38 @@ where
             .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+    fn store_new_programs(
+        &mut self,
+        program_id: ProgramId,
+        code_id: CodeId,
+        candidates: Vec<(MessageId, ProgramId)>,
+    ) {
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();
+
+                    let candidate_account = candidate_id.cast();
+                    let ed = CurrencyOf::<T>::minimum_balance();
+
+                    // Make sure an account exists for the newly created program.
+                    // Balance validity check has been performed so we don't expect any errors.
+                    CurrencyOf::<T>::transfer(
+                        &program_id.cast(),
+                        &candidate_account,
+                        ed,
+                        ExistenceRequirement::KeepAlive,
+                    )
+                    .unwrap_or_else(|e| unreachable!("Existential deposit transfer error: {e:?}"));
+                    // Set lock to avoid accidental account removal by the runtime.
+                    CurrencyOf::<T>::set_lock(
+                        EXISTENTIAL_DEPOSIT_LOCK_ID,
+                        &candidate_account,
+                        ed,
+                        WithdrawReasons::all(),
+                    );
+
                     self.set_program(candidate_id, &code_info, init_message, block_number);
 
                     Pallet::<T>::deposit_event(Event::ProgramChanged {

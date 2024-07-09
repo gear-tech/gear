@@ -20,7 +20,7 @@
 
 use super::{
     code::{
-        body::{self, unreachable_condition, DynInstr::*},
+        body::{self, unreachable_condition_i32, DynInstr::*},
         max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
     utils::{self, PrepareConfig},
@@ -43,6 +43,8 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
+use rand::{seq::SliceRandom, SeedableRng};
+use rand_pcg::Pcg64;
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
@@ -127,8 +129,8 @@ where
         let signal_code = SignalCode::RemovedFromWaitlist;
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -146,24 +148,6 @@ where
             vec![],
             PrepareConfig {
                 value: value.into(),
-                ..Default::default()
-            },
-        )
-    }
-
-    fn prepare_handle_override_max_pages(
-        module: ModuleDefinition,
-        value: u32,
-        max_pages: WasmPagesAmount,
-    ) -> Result<Exec<T>, &'static str> {
-        let instance = Program::<T>::new(module.into(), vec![])?;
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(instance.addr.cast()),
-            vec![],
-            PrepareConfig {
-                value: value.into(),
-                max_pages_override: Some(max_pages),
                 ..Default::default()
             },
         )
@@ -211,92 +195,124 @@ where
         )
     }
 
-    pub fn alloc(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
-        const MAX_PAGES_OVERRIDE: u16 = u16::MAX;
+    fn prepare_handle_with_allocations(
+        module: ModuleDefinition,
+        allocations: impl Iterator<Item = WasmPage>,
+    ) -> Result<Exec<T>, &'static str> {
+        let instance = Program::<T>::new(module.into(), vec![])?;
 
-        assert!(repetitions * pages * API_BENCHMARK_BATCH_SIZE <= MAX_PAGES_OVERRIDE as u32);
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            program.allocations = allocations.collect();
+        })
+        .expect("Program must be active");
 
-        let mut instructions = vec![
-            Instruction::I32Const(pages as i32),
-            Instruction::Call(0),
-            Instruction::I32Const(-1),
-        ];
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(program_id),
+            vec![],
+            PrepareConfig {
+                max_pages_override: Some(WasmPagesAmount::UPPER),
+                ..Default::default()
+            },
+        )
+    }
 
-        unreachable_condition(&mut instructions, Instruction::I32Eq); // if alloc returns -1 then it's error
+    pub fn alloc(repetitions: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
+        let max_pages_to_allocate = MAX_REPETITIONS.checked_mul(2).unwrap();
+
+        assert!(repetitions <= MAX_REPETITIONS);
+        // Check that max pages to allocate amount is significantly less than max allocated intervals amount.
+        assert!(u16::MAX as u32 > 20 * max_pages_to_allocate);
+
+        // In order to measure the worst case scenario,
+        // allocates as many intervals as possible, but leave some place for further allocations:
+        // allocations == [1, 3, 5, ..., u16::MAX - max_pages_to_allocate]
+        let allocated_amount = (u16::MAX - max_pages_to_allocate as u16) / 2;
+        // Add also last possible allocation in order to skip grow calling in bench.
+        let allocations = (0..allocated_amount)
+            .map(|p| WasmPage::from(p * 2 + 1))
+            .chain([WasmPage::UPPER]);
+
+        let mut instructions = vec![Instruction::I32Const(1), Instruction::Call(0)];
+        unreachable_condition_i32(&mut instructions, Instruction::I32Eq, -1);
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
             imported_functions: vec![SyscallName::Alloc],
-            handle_body: Some(body::repeated(
-                repetitions * API_BENCHMARK_BATCH_SIZE,
-                &instructions,
-            )),
+            handle_body: Some(body::repeated(repetitions, &instructions)),
             ..Default::default()
         };
 
-        Self::prepare_handle_override_max_pages(module, 0, MAX_PAGES_OVERRIDE.into())
+        Self::prepare_handle_with_allocations(module, allocations)
     }
 
-    pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
-        assert!(r <= max_pages::<T>() as u32);
-
+    pub fn free(repetitions: u32) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
-        let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
-            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
-            for page in 0..r {
-                instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
-                unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
-            }
+        let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
+
+        assert!(repetitions <= u16::MAX as u32 / 2 + 1);
+
+        // In order to measure the worst case scenario, allocates as many intervals as possible:
+        // allocations == [1, 3, 5, ..., u16::MAX]
+        let mut pages: Vec<_> = (0..=u16::MAX / 2).map(|p| p * 2 + 1).collect();
+        pages.shuffle(&mut Pcg64::seed_from_u64(1024));
+
+        let mut instructions = vec![];
+        for &page in pages.iter().take(repetitions as usize) {
+            instructions.extend([I32Const(page as i32), Call(0)]);
+            unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
-            imported_functions: vec![SyscallName::Alloc, SyscallName::Free],
+            imported_functions: vec![SyscallName::Free],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_allocations(module, pages.into_iter().map(WasmPage::from))
     }
 
-    pub fn free_range(repetitions: u32, pages_per_call: u32) -> Result<Exec<T>, &'static str> {
+    pub fn free_range(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
 
-        let n_pages = repetitions.checked_mul(pages_per_call).unwrap();
-        assert!(n_pages <= max_pages::<T>() as u32);
+        let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
+
+        assert!(pages > 0);
+        assert!(repetitions * pages <= u16::MAX as u32 + 1);
+
+        // In order to measure the worst case scenario, allocates as many intervals as possible:
+        // allocations == [1, 3, 5, ..., u16::MAX]
+        let allocations = (0..=u16::MAX / 2).map(|p| WasmPage::from(p * 2 + 1));
+
+        let mut numbers: Vec<_> = (0..u16::MAX as u32 / pages).collect();
+        numbers.shuffle(&mut Pcg64::seed_from_u64(1024));
 
         let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            instructions.extend([I32Const(n_pages as i32), Call(0), I32Const(-1)]);
-            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
-
-            for i in 0..repetitions {
-                let start = i.checked_mul(pages_per_call).unwrap();
-                let end = pages_per_call
-                    .checked_sub(1)
-                    .and_then(|x| start.checked_add(x))
-                    .unwrap();
-                instructions.extend([
-                    I32Const(start as i32),
-                    I32Const(end as i32),
-                    Call(1),
-                    I32Const(0),
-                ]);
-                unreachable_condition(&mut instructions, I32Ne);
-            }
+        for start in numbers
+            .into_iter()
+            .take(repetitions as usize)
+            .map(|i| i * pages)
+        {
+            instructions.extend([
+                I32Const(start as i32),
+                I32Const((start + pages) as i32),
+                Call(0),
+            ]);
+            unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
-            imported_functions: vec![SyscallName::Alloc, SyscallName::FreeRange],
+            imported_functions: vec![SyscallName::FreeRange],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_allocations(module, allocations.into_iter())
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1083,8 +1099,8 @@ where
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1308,8 +1324,8 @@ where
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1536,13 +1552,13 @@ where
 
     pub fn lazy_pages_load_page_storage_data(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
         let exec = Self::lazy_pages_signal_read(end_page)?;
-        let program_id = exec.context.program().id();
+        let program_id = exec.context.program_id();
         IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
                 ProgramStorageOf::<T>::set_program_page_data(
                     program_id,
-                    exec.context.program().memory_infix(),
+                    exec.context.memory_infix(),
                     page,
                     PageBuf::from_inner(PageBufInner::filled_with(1)),
                 );

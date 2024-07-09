@@ -59,8 +59,10 @@ fn main() -> Result<()> {
         _ => "trace".into(),
     }));
 
-    tracing_subscriber::fmt().with_env_filter(env).init();
-    let artifact = app.command.run()?;
-    tracing::info!("The artifact has been generated at {:?}", artifact.root);
-    Ok(())
+    tracing_subscriber::fmt()
+        .with_env_filter(env)
+        .without_time()
+        .with_target(false)
+        .init();
+    app.command.run().map(|_| ())
 }

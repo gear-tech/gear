@@ -81,7 +81,7 @@ macro_rules! with_signed_payload {
                     frame_system::CheckMortality::<runtime::Runtime>::from(
                         sp_runtime::generic::Era::mortal($period, $current_block),
                     ),
-                    frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+                    runtime::CustomCheckNonce::<runtime::Runtime>::from($nonce),
                     frame_system::CheckWeight::<runtime::Runtime>::new(),
                     pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
                 );

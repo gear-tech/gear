@@ -31,11 +31,11 @@ use crate::{
 };
 
 use codec::{Decode, Encode};
-use common::Program;
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
+use gear_core::program::Program;
 use gear_runtime_common::constants::BANK_ADDRESS;
 use pallet_gear_rpc_runtime_api::GearApi;
 use parking_lot::{Mutex, RwLock};

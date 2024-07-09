@@ -29,6 +29,8 @@ use crate::{
     SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
+use gear_core::ids::CodeId;
+use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{
@@ -655,6 +657,23 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
                 ret_instr
             }
+            PtrParamAllowedValues::CodeIdsWithValue { code_ids, range } => {
+                let mut ret_instr =
+                    self.build_code_id_instructions(code_ids, (value_set_ptr, None))?;
+
+                // Generate value definition instructions.
+                // Value data is put right after code id bytes (value_set_ptr + hash len).
+                let mut value_instr = utils::translate_ptr_data(
+                    WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes()),
+                    (
+                        value_set_ptr + mem::size_of::<Hash>() as i32,
+                        Some(value_set_ptr),
+                    ),
+                );
+                ret_instr.append(&mut value_instr);
+
+                ret_instr
+            }
         };
 
         Ok(ParamInstructions(ret))
@@ -700,6 +719,19 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         };
 
         Ok(ret)
+    }
+
+    fn build_code_id_instructions(
+        &mut self,
+        code_ids: NonEmpty<CodeId>,
+        (start_offset, end_offset): (i32, Option<i32>),
+    ) -> Result<Vec<Instruction>> {
+        let code_ids = utils::non_empty_to_vec(code_ids);
+        let address = self.unstructured.choose(&code_ids)?;
+        Ok(utils::translate_ptr_data(
+            WasmWords::new(*address),
+            (start_offset, end_offset),
+        ))
     }
 
     fn build_error_processing(
