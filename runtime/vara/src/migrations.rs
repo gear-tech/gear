@@ -50,35 +50,34 @@ mod staking {
     use sp_runtime::TryRuntimeError;
 
     pub struct MigrateToV14<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateToV14<T> {
-		fn on_runtime_upgrade() -> Weight {
-			let current = Pallet::<T>::current_storage_version();
-			let on_chain = Pallet::<T>::on_chain_storage_version();
+    impl<T: Config> OnRuntimeUpgrade for MigrateToV14<T> {
+        fn on_runtime_upgrade() -> Weight {
+            let current = Pallet::<T>::current_storage_version();
+            let on_chain = Pallet::<T>::on_chain_storage_version();
 
-			if current == 14 && on_chain == 13 {
-				current.put::<Pallet<T>>();
+            if current == 14 && on_chain == 13 {
+                current.put::<Pallet<T>>();
 
-				log::info!("v14 applied successfully.");
-				T::DbWeight::get().reads_writes(1, 1)
-			} else {
-				log::warn!("v14 not applied.");
-				T::DbWeight::get().reads(1)
-			}
-		}
+                log::info!("v14 applied successfully.");
+                T::DbWeight::get().reads_writes(1, 1)
+            } else {
+                log::warn!("v14 not applied.");
+                T::DbWeight::get().reads(1)
+            }
+        }
 
-		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        #[cfg(feature = "try-runtime")]
+        fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+            Ok(Default::default())
+        }
 
-			Ok(Default::default())
-		}
-
-		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), TryRuntimeError> {
-			frame_support::ensure!(
-				Pallet::<T>::on_chain_storage_version() == 14,
-				"v14 not applied"
-			);
-			Ok(())
-		}
-	}
+        #[cfg(feature = "try-runtime")]
+        fn post_upgrade(_state: Vec<u8>) -> Result<(), TryRuntimeError> {
+            frame_support::ensure!(
+                Pallet::<T>::on_chain_storage_version() == 14,
+                "v14 not applied"
+            );
+            Ok(())
+        }
+    }
 }
