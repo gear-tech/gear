@@ -16,7 +16,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gprimitives::{ActorId, MessageId, ReservationId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
 pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
@@ -359,8 +359,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
     fn store_new_programs(
         &mut self,
-        code_id: gprimitives::CodeId,
-        candidates: Vec<(MessageId, ProgramId)>,
+        _program_id: ProgramId,
+        _code_id: CodeId,
+        _candidates: Vec<(MessageId, ProgramId)>,
     ) {
         todo!()
     }
