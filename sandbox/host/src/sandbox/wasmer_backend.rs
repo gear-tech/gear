@@ -235,7 +235,7 @@ fn get_cached_module(
                 .map_err(|_| ModuleLoadErr(fs_cache, code_hash))?
         };
 
-        // TODO: That's really bad, we serializing module just loaded which was just deserialized.
+        // TODO(#4050): That's really bad, we serializing module just loaded which was just deserialized.
         // Consider to implement custom Wasmer Cache to handle this.
         let serialized_module = module
             .serialize()
@@ -261,7 +261,7 @@ fn try_to_store_module_in_cache(
     wasm: &[u8],
     module: &Module,
 ) {
-    // TODO: That's really bad, we serializing module twice here.
+    // TODO(#4050): That's really bad, we serializing module twice here.
     // Consider to implement custom Wasmer Cache to handle this.
     let res = module.serialize().map(|serialized_module| {
         // Store module in LRU cache
@@ -387,8 +387,8 @@ pub fn instantiate(
     let mut import_object = sandbox_wasmer::Imports::new();
     import_object.register_namespace("env", exports);
 
-    // This is sound since we're only instantiating the module and `start` function is restricted by our code checks.
-    // Actually, we don't have to `::using` any context here, since absence of `start` function.
+    // This is sound because we're only instantiating the module, and the `start` function is not allowed by our `Code` checks.
+    // No code can access globals during instantiation; therefore, it's fine to create an empty `Env` context here.
     let mut dispatch_func_env = Env::empty(context.store.clone());
 
     let instance = SandboxContextStore::using(sandbox_context, || {
