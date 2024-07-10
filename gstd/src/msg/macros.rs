@@ -82,7 +82,7 @@ macro_rules! impl_futures {
             /// async fn main() {
             ///     let dest = ActorId::from(1); // Replace with correct actor id
             ///
-            ///     msg::send_bytes_for_reply(dest, b"PING", 0, 0)
+            ///     msg::send_bytes_for_reply(dest, b"PING", 0, 1_000_000)
             ///         .expect("Unable to send")
             ///         .handle_reply(|| {
             ///             debug!("reply code: {:?}", msg::reply_code());
@@ -91,6 +91,7 @@ macro_rules! impl_futures {
             ///                debug!("successfully received pong");
             ///             }
             ///         })
+            ///         .expect("Error setting reply hook")
             ///         .await
             ///         .expect("Received error");
             /// }
