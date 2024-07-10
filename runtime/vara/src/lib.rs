@@ -33,6 +33,7 @@ use frame_election_provider_support::{
 pub use frame_support::{
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
+    genesis_builder_helper::{build_config, create_default_config},
     parameter_types,
     traits::{
         fungible::HoldConsideration,
@@ -69,7 +70,7 @@ pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
-use pallet_identity::simple::IdentityInfo;
+use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
@@ -281,7 +282,7 @@ impl pallet_babe::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
-    type MaxNominators = MaxNominatorRewardedPerValidator;
+    type MaxNominators = MaxNominators;
 
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -293,7 +294,7 @@ impl pallet_grandpa::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
-    type MaxNominators = MaxNominatorRewardedPerValidator;
+    type MaxNominators = MaxNominators;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -622,7 +623,11 @@ parameter_types! {
     pub const BondingDuration: sp_staking::EraIndex = 14;
     // 41 eras during which slashes can be cancelled (slightly less than 7 days)
     pub const SlashDeferDuration: sp_staking::EraIndex = 13;
-    pub const MaxNominatorRewardedPerValidator: u32 = 256;
+    pub const MaxExposurePageSize: u32 = 512;
+    // Note: this is not really correct as Max Nominators is (MaxExposurePageSize * page_count) but
+    // this is an unbounded number. We just set it to a reasonably high value, 1 full page
+    // of nominators.
+    pub const MaxNominators: u32 = 512;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     // 2 hour session, 30 min unsigned phase, 16 offchain executions.
     pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 16;
@@ -658,7 +663,7 @@ impl pallet_staking::Config for Runtime {
     type SessionInterface = Self;
     type EraPayout = StakingRewards;
     type NextNewSession = Session;
-    type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+    type MaxExposurePageSize = MaxExposurePageSize;
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
@@ -830,7 +835,7 @@ impl pallet_authority_discovery::Config for Runtime {
 
 parameter_types! {
     pub const BasicDeposit: Balance = 10 * ECONOMIC_UNITS;       // 258 bytes on-chain
-    pub const FieldDeposit: Balance = 250 * ECONOMIC_CENTIUNITS;        // 66 bytes on-chain
+    pub const ByteDeposit: Balance = deposit(0, 1);
     pub const SubAccountDeposit: Balance = 2 * ECONOMIC_UNITS;   // 53 bytes on-chain
     pub const MaxSubAccounts: u32 = 100;
     pub const MaxAdditionalFields: u32 = 100;
@@ -841,10 +846,9 @@ impl pallet_identity::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type BasicDeposit = BasicDeposit;
-    type FieldDeposit = FieldDeposit;
+    type ByteDeposit = ByteDeposit;
     type SubAccountDeposit = SubAccountDeposit;
     type MaxSubAccounts = MaxSubAccounts;
-    type MaxAdditionalFields = MaxAdditionalFields;
     type IdentityInformation = IdentityInfo<MaxAdditionalFields>;
     type MaxRegistrars = MaxRegistrars;
     type Slashed = Treasury;
@@ -1448,9 +1452,13 @@ impl_runtime_apis_plus_common! {
         }
     }
 
-    impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+    impl pallet_staking_runtime_api::StakingApi<Block, Balance, AccountId> for Runtime {
         fn nominations_quota(balance: Balance) -> u32 {
             Staking::api_nominations_quota(balance)
+        }
+
+        fn eras_stakers_page_count(era: sp_staking::EraIndex, account: AccountId) -> sp_staking::Page {
+            Staking::api_eras_stakers_page_count(era, account)
         }
     }
 
@@ -1463,6 +1471,16 @@ impl_runtime_apis_plus_common! {
     impl pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block> for Runtime {
         fn query_actor_id(builtin_id: u64) -> H256 {
             GearBuiltin::generate_actor_id(builtin_id).into_bytes().into()
+        }
+    }
+
+    impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
+        fn create_default_config() -> Vec<u8> {
+            create_default_config::<RuntimeGenesisConfig>()
+        }
+
+        fn build_config(config: Vec<u8>) -> sp_genesis_builder::Result {
+            build_config::<RuntimeGenesisConfig>(config)
         }
     }
 
