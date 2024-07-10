@@ -55,9 +55,6 @@ pub struct Config {
     /// Address of Ethereum Router contract
     pub ethereum_router_address: String,
 
-    /// Address of Ethereum Program contract
-    pub ethereum_program_address: String,
-
     /// Network path
     pub network_path: PathBuf,
 
@@ -108,17 +105,27 @@ impl TryFrom<Args> for Config {
             }
         };
 
+        let chain_spec = match args.chain_spec.as_deref() {
+            Some("dev") => crate::chain_spec::testnet_config(),
+            Some(path) => crate::chain_spec::from_file(path)?,
+            _ => crate::chain_spec::testnet_config(),
+        };
+
+        let mut net_config = args.network_params.network_config(
+            Some(base_path.join("net")),
+            "test",
+            Default::default(),
+            hypercore_network::DEFAULT_LISTEN_PORT,
+        );
+        net_config.boot_nodes.extend(chain_spec.bootnodes);
+
         Ok(Config {
             ethereum_rpc: args.ethereum_rpc,
             ethereum_beacon_rpc: args.ethereum_beacon_rpc,
-            ethereum_router_address: args.ethereum_router_address,
-            ethereum_program_address: args.ethereum_program_address,
-            net_config: args.network_params.network_config(
-                Some(base_path.join("net")),
-                "test",
-                Default::default(),
-                hypercore_network::DEFAULT_LISTEN_PORT,
-            ),
+            ethereum_router_address: args
+                .ethereum_router_address
+                .unwrap_or(chain_spec.ethereum_router_address),
+            net_config,
             database_path: base_path.join("db"),
             network_path: base_path.join("net"),
             key_path: base_path.join("key"),

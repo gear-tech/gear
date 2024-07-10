@@ -47,20 +47,12 @@ pub struct Args {
     pub ethereum_beacon_rpc: String,
 
     /// Address of Ethereum Router contract
-    #[arg(
-        long = "ethereum-router-address",
-        alias = "router",
-        default_value = "0xA2B95aC9aA1E821126Af6FBd65E93a23b2f85C2e"
-    )]
-    pub ethereum_router_address: String,
+    #[arg(long = "ethereum-router-address", alias = "router")]
+    pub ethereum_router_address: Option<String>,
 
-    /// Address of Ethereum Program contract
-    #[arg(
-        long = "ethereum-program-address",
-        alias = "program",
-        default_value = "0xDB4fE5d350a1E84be106Bc8b8f01AB9037fba2A0"
-    )]
-    pub ethereum_program_address: String,
+    /// Path to ChainSpec toml.
+    #[arg(long, short = 'c')]
+    pub chain_spec: Option<String>,
 
     /// Base path where application settings are stored
     #[arg(long, short = 'd', value_name = "PATH")]

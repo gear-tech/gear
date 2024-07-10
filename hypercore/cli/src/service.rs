@@ -449,7 +449,6 @@ mod tests {
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
-            ethereum_program_address: "0x9235cB40e96398582Dff13e8D5eC17Fa3CB7d999".into(),
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
             net_config: hypercore_network::NetworkConfiguration::new_local(),
