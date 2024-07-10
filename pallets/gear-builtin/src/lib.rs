@@ -81,6 +81,9 @@ pub enum BuiltinActorError {
     /// Occurs if the dispatch's message can't be decoded into a known type.
     #[display(fmt = "Failure to decode message")]
     DecodingError,
+    /// Occurs if a message payload size exceeds the maximum possible value.
+    #[display(fmt = "Message payload too large")]
+    PayloadTooLarge,
     /// Actor's inner error encoded as a String.
     #[display(fmt = "Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
@@ -95,6 +98,9 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
             }
             BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
                 TrapExplanation::Panic("Message decoding error".to_string().into()),
+            ),
+            BuiltinActorError::PayloadTooLarge => ActorExecutionErrorReplyReason::Trap(
+                TrapExplanation::Panic("Message payload too large".to_string().into()),
             ),
             BuiltinActorError::Custom(e) => {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
@@ -163,12 +169,11 @@ pub mod pallet {
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_staking::Config {
+    pub trait Config: frame_system::Config {
         /// The overarching call type.
         type RuntimeCall: Parameter
             + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
-            + GetDispatchInfo
-            + From<pallet_staking::Call<Self>>;
+            + GetDispatchInfo;
 
         /// The builtin actor type.
         type Builtins: BuiltinCollection<BuiltinActorError>;

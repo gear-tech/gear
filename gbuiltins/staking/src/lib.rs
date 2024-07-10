@@ -59,9 +59,8 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+use gprimitives::ActorId;
 use scale_info::scale::{self, Decode, Encode};
-
-pub type AccountId = [u8; 32];
 
 /// Type that should be used to create a message to the staking built-in actor.
 ///
@@ -79,14 +78,11 @@ pub enum Request {
     /// Withdraw unbonded chunks for which undonding period has elapsed.
     WithdrawUnbonded { num_slashing_spans: u32 },
     /// Add sender as a nominator of `targets` or update the existing targets.
-    Nominate { targets: Vec<AccountId> },
+    Nominate { targets: Vec<ActorId> },
     /// Declare intention to [temporarily] stop nominating while still having funds bonded.
     Chill,
     /// Request stakers payout for the given era.
-    PayoutStakers {
-        validator_stash: AccountId,
-        era: u32,
-    },
+    PayoutStakers { validator_stash: ActorId, era: u32 },
     /// Rebond a portion of the sender's stash scheduled to be unlocked.
     Rebond { value: u128 },
     /// Set the reward destination.
@@ -105,7 +101,7 @@ pub enum RewardAccount {
     /// without increasing the amount at stake.
     Program,
     /// Pay rewards to a custom account.
-    Custom(AccountId),
+    Custom(ActorId),
     /// Opt for not receiving any rewards at all.
     None,
 }

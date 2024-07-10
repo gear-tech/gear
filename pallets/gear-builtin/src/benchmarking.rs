@@ -26,12 +26,10 @@ use ark_ec::{pairing::Pairing, short_weierstrass::SWCurveConfig, Group, ScalarMu
 use ark_ff::biginteger::BigInt;
 use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
-use common::{benchmarking, Origin};
+use common::Origin;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use gbuiltin_staking::*;
 use gear_core::message::MAX_PAYLOAD_SIZE;
 use parity_scale_codec::{Compact, Encode, Input};
-use primitive_types::H256;
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
@@ -289,24 +287,6 @@ benchmarks! {
         _result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(&message);
     } verify {
         assert!(ArkScale::<G2Affine>::decode(&mut &_result.unwrap()[..]).is_ok())
-    }
-
-    staking_estimate_decode {
-        let l in 1 .. MAX_PAYLOAD_SIZE as u32;
-
-        // Longest payload corresponds to the `Request::Nominate` variant.
-        // Other variants have negligible payload sizes, thereby require near-zero decoding cost.
-        let num_targets = (l / 32).max(1_u32); // 32 bytes per target, at least 1 target.
-        let mut targets = vec![];
-        for i in 0_u32..num_targets {
-            targets.push(benchmarking::account::<T::AccountId>("target", 0, i).cast::<H256>().into());
-        }
-
-        let encoded_request = Request::Nominate { targets }.encode();
-    }: {
-        let _ = Request::decode(&mut encoded_request.as_slice());
-    } verify {
-        // No changes in runtime are expected since the actual dispatch doesn't take place.
     }
 }
 

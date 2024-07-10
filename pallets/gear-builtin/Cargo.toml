@@ -45,6 +45,7 @@ pallet-staking.workspace = true
 [dev-dependencies]
 demo-waiting-proxy.workspace = true
 demo-staking-broker.workspace = true
+gprimitives.workspace = true
 sp-core = { workspace = true, features = ["std"] }
 sp-externalities = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }

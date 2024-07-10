@@ -102,6 +102,7 @@ pallet-gear-rpc-runtime-api.workspace = true
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 pallet-gear-builtin-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
+gbuiltin-staking.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true

@@ -22,7 +22,7 @@
 //! implementation of a liquid staking contract, for example, would be more complex.
 
 use gbuiltin_staking::*;
-use gstd::{debug, msg, prelude::*, ActorId};
+use gstd::{debug, errors::Error, msg, prelude::*, ActorId};
 use hashbrown::HashMap;
 use hex_literal::hex;
 use parity_scale_codec::Encode;
@@ -41,7 +41,7 @@ struct StakingBroker {
     /// Registry of bonded deposits
     bonded: HashMap<ActorId, u128>,
     /// Reward payee account id
-    reward_account: AccountId,
+    reward_account: ActorId,
 }
 
 static mut STATE: Option<StakingBroker> = None;
@@ -59,7 +59,12 @@ async fn do_send_message<E: Encode>(payload: E, mut on_success: impl FnMut()) {
         }
         Err(e) => {
             debug!("[StakingBroker] Error reply from builtin actor received: {e:?}");
-            panic!("Error in upstream program");
+            match e {
+                Error::ErrorReply(payload, _reason) => {
+                    panic!("{}", payload);
+                }
+                _ => panic!("Error in upstream program"),
+            }
         }
     };
 }
@@ -93,7 +98,7 @@ impl StakingBroker {
             self.has_bonded_any = true;
             self.reward_account = match payee {
                 Some(RewardAccount::Custom(account_id)) => account_id,
-                _ => msg::source().into(),
+                _ => msg::source(),
             };
         })
         .await
@@ -126,7 +131,7 @@ impl StakingBroker {
         .await
     }
 
-    async fn nominate(&mut self, targets: Vec<AccountId>) {
+    async fn nominate(&mut self, targets: Vec<ActorId>) {
         // Prepare a message to the built-in actor
         let payload = Request::Nominate { targets };
         debug!(
@@ -193,13 +198,13 @@ impl StakingBroker {
         do_send_message(payload, || {
             self.reward_account = match payee {
                 RewardAccount::Custom(account_id) => account_id,
-                _ => msg::source().into(),
+                _ => msg::source(),
             }
         })
         .await
     }
 
-    async fn payout_stakers(&mut self, validator_stash: AccountId, era: u32) {
+    async fn payout_stakers(&mut self, validator_stash: ActorId, era: u32) {
         // Prepare a message to the built-in actor
         let payload = Request::PayoutStakers {
             validator_stash,

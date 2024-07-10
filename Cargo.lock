@@ -4262,6 +4262,7 @@ name = "gbuiltin-staking"
 version = "1.4.2"
 dependencies = [
  "derive_more",
+ "gprimitives",
  "scale-info",
 ]
 
@@ -8308,6 +8309,7 @@ dependencies = [
  "gear-core-errors",
  "gear-core-processor",
  "gear-runtime-interface",
+ "gprimitives",
  "hex-literal",
  "impl-trait-for-tuples",
  "log",
@@ -14302,6 +14304,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gbuiltin-staking",
  "gear-common",
  "gear-core-processor",
  "gear-lazy-pages-common",

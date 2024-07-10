@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use frame_support::assert_ok;
+use gprimitives::ActorId;
 
 use sp_staking::StakingAccount;
 use util::*;
@@ -181,6 +182,47 @@ fn unbonding_works() {
 }
 
 #[test]
+fn payload_size_matters() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+
+        deploy_broker_contract();
+        run_to_next_block();
+
+        // Prepare large payload
+        let mut targets = Vec::<ActorId>::new();
+        for i in 100_u64..200_u64 {
+            targets.push(i.cast());
+        }
+
+        System::reset_events();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::Nominate {
+                targets: targets.clone()
+            }
+            .encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+        // No staking-related events should have been emitted
+        assert_no_staking_events();
+
+        // Error message has been sent to the user
+        assert_error_message_sent();
+
+        // User message payload indicates the error
+        assert_payload_contains("payload too large");
+    });
+}
+
+#[test]
 fn nominating_works() {
     init_logger();
 
@@ -191,9 +233,9 @@ fn nominating_works() {
         deploy_broker_contract();
         run_to_next_block();
 
-        let targets: Vec<[u8; 32]> = vec![VAL_1_STASH, VAL_2_STASH]
+        let targets: Vec<ActorId> = vec![VAL_1_STASH, VAL_2_STASH]
             .into_iter()
-            .map(|x| x.into_origin().into())
+            .map(|x| x.cast())
             .collect();
 
         // Doesn't work without bonding first
@@ -213,8 +255,8 @@ fn nominating_works() {
         run_to_next_block();
         // No staking-related events should have been emitted
         assert_no_staking_events();
-        // Event with user message has been triggered
-        assert_user_message_sent();
+        // Error message has been sent to the user
+        assert_error_message_sent();
 
         // Bond some funds on behalf of the contract first
         System::reset_events();
@@ -480,7 +522,7 @@ fn payout_stakers_works() {
         run_to_next_block();
 
         // Only nominating one target
-        let targets: Vec<[u8; 32]> = vec![VAL_1_STASH.into_origin().into()];
+        let targets: Vec<ActorId> = vec![VAL_1_STASH.cast()];
 
         // Bonding a quarter of validator's stake for easier calculations
         send_bond_message(
@@ -947,7 +989,7 @@ mod util {
             .all(|e| { !matches!(e.event, RuntimeEvent::Staking(_)) }))
     }
 
-    pub(super) fn assert_user_message_sent() {
+    pub(super) fn assert_error_message_sent() {
         assert!(System::events().into_iter().any(|e| {
             match e.event {
                 RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
@@ -960,6 +1002,21 @@ mod util {
                         }
                         _ => false,
                     }
+                }
+                _ => false,
+            }
+        }))
+    }
+
+    pub(super) fn assert_payload_contains(s: &'static str) {
+        assert!(System::events().into_iter().any(|e| {
+            match e.event {
+                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
+                    let s_bytes = s.as_bytes();
+                    message
+                        .payload_bytes()
+                        .windows(s_bytes.len())
+                        .any(|window| window == s_bytes)
                 }
                 _ => false,
             }
