@@ -161,7 +161,7 @@ where
                 * 11
                 / 10;
         if payload.len() > max_payload_size {
-            return (Err(BuiltinActorError::PayloadTooLarge), 0);
+            return (Err(BuiltinActorError::DecodingError), 0);
         }
 
         // Decode the message payload to derive the desired action

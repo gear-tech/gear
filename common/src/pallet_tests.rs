@@ -272,7 +272,7 @@ macro_rules! impl_pallet_staking_inner {
             type BondingDuration = BondingDuration;
             type SlashDeferDuration = SlashDeferDuration;
             type AdminOrigin = frame_system::EnsureRoot<AccountId>;
-            type SessionInterface = Self;
+            type SessionInterface = ();
             type EraPayout = StakingConfigEraPayout;
             type NextNewSession = StakingConfigNextNewSession;
             type MaxExposurePageSize = MaxExposurePageSize;

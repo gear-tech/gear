@@ -81,7 +81,7 @@ std = [
 	"gear-runtime-interface/std",
 	"pallet-gear/std",
 	"pallet-staking/std",
-    "parity-scale-codec/std",
+	"parity-scale-codec/std",
 	"scale-info/std",
 	"sp-crypto-ec-utils/std",
 	"sp-runtime/std",

@@ -218,7 +218,7 @@ fn payload_size_matters() {
         assert_error_message_sent();
 
         // User message payload indicates the error
-        assert_payload_contains("payload too large");
+        assert_payload_contains("Failure to decode message");
     });
 }
 
