@@ -687,7 +687,6 @@ mod util {
         Test,
         EraPayout = FixedEraPayout::<{ 100 * UNITS }>,
         NextNewSession = Session,
-        MaxNominatorRewardedPerValidator = ConstU32<1>,
         ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>,
         GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>,
     );

@@ -233,9 +233,6 @@ macro_rules! impl_pallet_staking {
         #[allow(dead_code)]
         type StakingConfigGenesisElectionProvider =
             frame_election_provider_support::NoElection<DataProviderInfo>;
-        #[allow(dead_code)]
-        type StakingConfigMaxNominatorRewardedPerValidator =
-            ConstU32<256>;
 
         mod pallet_tests_staking_config_impl {
             use super::*;
@@ -254,6 +251,7 @@ macro_rules! impl_pallet_staking_inner {
             // 8 eras for unbonding
             pub const BondingDuration: u32 = 8;
             pub const SlashDeferDuration: u32 = 7;
+            pub const MaxExposurePageSize: u32 = 512;
             pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
             pub const HistoryDepth: u32 = 84;
             pub const MaxNominations: u32 = 16;
@@ -274,10 +272,10 @@ macro_rules! impl_pallet_staking_inner {
             type BondingDuration = BondingDuration;
             type SlashDeferDuration = SlashDeferDuration;
             type AdminOrigin = frame_system::EnsureRoot<AccountId>;
-            type SessionInterface = ();
+            type SessionInterface = Self;
             type EraPayout = StakingConfigEraPayout;
             type NextNewSession = StakingConfigNextNewSession;
-            type MaxNominatorRewardedPerValidator = StakingConfigMaxNominatorRewardedPerValidator;
+            type MaxExposurePageSize = MaxExposurePageSize;
             type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
             type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Self>;
             type TargetList = pallet_staking::UseValidatorsMap<Self>;
@@ -324,12 +322,6 @@ macro_rules! impl_pallet_staking_inner {
         $runtime:ty, GenesisElectionProvider = $genesis_election_provider:ty $(, $( $rest:tt )*)?
     ) => {
         type StakingConfigGenesisElectionProvider = $genesis_election_provider;
-
-        $crate::impl_pallet_staking_inner!($runtime, $($( $rest )*)?);
-    };
-
-    ($runtime:ty, MaxNominatorRewardedPerValidator = $max_rewarded:ty $(, $( $rest:tt )*)?) => {
-        type StakingConfigMaxNominatorRewardedPerValidator = $max_rewarded;
 
         $crate::impl_pallet_staking_inner!($runtime, $($( $rest )*)?);
     };
