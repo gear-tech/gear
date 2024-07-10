@@ -207,6 +207,7 @@ impl Router {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .map_err(|err| anyhow!("failed to validate code: {err}"))?;
         let (code, code_id) = CodeAndId::new(code).into_parts();

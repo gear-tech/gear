@@ -48,9 +48,9 @@ use {
     gear_lazy_pages::LazyPagesStorage,
 };
 
-pub use gear_sandbox::sandbox;
+pub use gear_sandbox_interface::sandbox;
 #[cfg(feature = "std")]
-pub use gear_sandbox::{detail as sandbox_detail, init as sandbox_init, Instantiate};
+pub use gear_sandbox_interface::{detail as sandbox_detail, init as sandbox_init, Instantiate};
 
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 

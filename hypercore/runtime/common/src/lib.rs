@@ -255,10 +255,12 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         Err(journal) => return journal,
     };
 
-    let context = ContextChargedForCode::from((context, code.code().len() as u32));
-    let context = match core_processor::precharge_for_memory(
+    let context = ContextChargedForCode::from(context);
+    let context = ContextChargedForInstrumentation::from(context);
+    let context = match core_processor::precharge_for_module_instantiation(
         &block_config,
-        ContextChargedForInstrumentation::from(context),
+        context,
+        code.instantiated_section_sizes(),
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
