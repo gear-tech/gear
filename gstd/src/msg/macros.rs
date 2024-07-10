@@ -67,7 +67,9 @@ macro_rules! impl_futures {
 
             /// Execute a function when the reply is received.
             ///
-            /// Note: This callback will run in reply context and consume reply gas.
+            /// This callback will be executed in reply context and consume reply gas, so
+            /// adequate `reply_deposit` should be supplied in `*_for_reply` call
+            /// that comes before this.
             ///
             /// # Examples
             ///
@@ -98,9 +100,14 @@ macro_rules! impl_futures {
             /// # Panics
             ///
             /// Panics if this is called second time.
-            pub fn handle_reply<F: FnMut() + 'static>(self, f: F) -> Self {
+            pub fn handle_reply<F: FnMut() + 'static>(self, f: F) -> Result<Self> {
+                if self.reply_deposit == 0 {
+                    return Err(Error::Gstd(crate::errors::UsageError::ZeroReplyDeposit));
+                }
+
                 async_runtime::register_reply_hook(self.waiting_reply_to.clone(), crate::Box::new(f));
-                self
+
+                Ok(self)
             }
         }
     };

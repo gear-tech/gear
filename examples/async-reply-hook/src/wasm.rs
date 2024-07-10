@@ -27,16 +27,17 @@ async fn main() {
         .expect("Failed to send message");
 
     // Case 2: Message with reply hook but we don't reply to it
-    let m2 = gstd::msg::send_bytes_for_reply(source, b"for_reply_2", 0, 0)
+    let m2 = gstd::msg::send_bytes_for_reply(source, b"for_reply_2", 0, 1_000_000_000)
         .expect("Failed to send message")
         .up_to(Some(5))
         .expect("Failed to set timeout")
         .handle_reply(|| {
             unreachable!("This should not be called");
-        });
+        })
+        .expect("Failed to set reply hook");
 
     // Case 3: Message with reply hook and we reply to it
-    let m3 = gstd::msg::send_bytes_for_reply(source, b"for_reply_3", 0, 0)
+    let m3 = gstd::msg::send_bytes_for_reply(source, b"for_reply_3", 0, 1_000_000_000)
         .expect("Failed to send message")
         .handle_reply(|| {
             debug!("reply message_id: {:?}", msg::id());
@@ -46,7 +47,8 @@ async fn main() {
             assert_eq!(msg::load_bytes().unwrap(), [3]);
 
             msg::send_bytes(msg::source(), b"saw_reply", 0);
-        });
+        })
+        .expect("Failed to set reply hook");
 
     m1.await.expect("Received error reply");
     assert_eq!(

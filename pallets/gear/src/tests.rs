@@ -14876,7 +14876,7 @@ fn handle_reply_hook() {
                         RuntimeOrigin::signed(USER_1),
                         msg.id(),
                         [1].to_vec(),
-                        10_000_000_000,
+                        1_000_000_000,
                         0,
                         false,
                     ));
@@ -14890,7 +14890,7 @@ fn handle_reply_hook() {
                         RuntimeOrigin::signed(USER_1),
                         msg.id(),
                         [3].to_vec(),
-                        10_000_000_000,
+                        1_000_000_000,
                         0,
                         false,
                     ));
@@ -14901,6 +14901,10 @@ fn handle_reply_hook() {
 
         run_to_block(4, None);
 
+        let mailbox = MailboxOf::<Test>::iter_key(USER_1)
+            .map(|(msg, _bn)| msg)
+            .collect::<Vec<_>>();
+        dbg!(mailbox);
         // Expect a reply back
         let msg = get_last_mail(USER_1);
         assert_eq!(msg.payload_bytes(), b"saw_reply");
