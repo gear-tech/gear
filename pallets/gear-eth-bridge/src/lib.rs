@@ -220,11 +220,8 @@ pub mod pallet {
                 Error::<T>::BridgeIsNotYetInitialized
             );
 
-            // Checking if pallet is paused already, otherwise pausing it.
-            if !Paused::<T>::get() {
-                // Updating storage value.
-                Paused::<T>::put(true);
-
+            // Taking value (so pausing it) with checking if it was unpaused.
+            if !Paused::<T>::take() {
                 // Depositing event about bridge being paused.
                 Self::deposit_event(Event::<T>::BridgePaused);
             }
@@ -245,8 +242,11 @@ pub mod pallet {
                 Error::<T>::BridgeIsNotYetInitialized
             );
 
-            // Checking if pallet is paused, removing key, so unpausing it.
-            if Paused::<T>::take() {
+            // Checking if pallet is paused.
+            if Paused::<T>::get() {
+                // Unpausing pallet.
+                Paused::<T>::put(false);
+
                 // Depositing event about bridge being unpaused.
                 Self::deposit_event(Event::<T>::BridgeUnpaused);
             }
