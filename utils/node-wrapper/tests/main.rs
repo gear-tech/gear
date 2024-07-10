@@ -1,4 +1,4 @@
-use gnode::Node;
+use gear_node_wrapper::Node;
 use std::{thread, time::Duration};
 
 #[ignore]

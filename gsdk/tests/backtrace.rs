@@ -24,7 +24,7 @@ mod utils;
 #[tokio::test]
 async fn transfer_backtrace() -> Result<()> {
     let node = dev_node();
-    let api = Api::new(Some(&node.ws())).await?;
+    let api = Api::new(node.ws().as_str()).await?;
     let signer = Signer::new(api, "//Alice", None)?;
     let alice: [u8; 32] = *alice_account_id().as_ref();
 

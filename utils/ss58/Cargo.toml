@@ -1,6 +1,7 @@
 [package]
 name = "gear-ss58"
 description = "Gear implementation ss58 address format"
+documentation = "https://docs.rs/gear-ss58"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
