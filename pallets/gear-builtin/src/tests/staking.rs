@@ -218,7 +218,7 @@ fn payload_size_matters() {
         assert_error_message_sent();
 
         // User message payload indicates the error
-        assert_payload_contains("Failure to decode message");
+        assert_payload_contains("Message decoding error");
     });
 }
 
@@ -571,7 +571,7 @@ fn payout_stakers_works() {
                 era: 1
             }
             .encode(),
-            10_000_000_000,
+            300_000_000_000,
             0,
             false,
         ));
@@ -692,7 +692,7 @@ mod util {
     );
 
     parameter_types! {
-        pub const BlockGasLimit: u64 = 100_000_000_000;
+        pub const BlockGasLimit: u64 = 350_000_000_000;
         pub const OutgoingLimit: u32 = 1024;
         pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
         pub ReserveThreshold: BlockNumber = 1;
