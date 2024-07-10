@@ -2370,6 +2370,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "defer"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "930c7171c8df9fb1782bdf9b918ed9ed2d33d1d22300abb754f9085bc48bf8e8"
+
+[[package]]
 name = "demo-async"
 version = "0.1.0"
 dependencies = [
@@ -4917,6 +4923,7 @@ dependencies = [
 name = "gear-sandbox-host"
 version = "1.4.2"
 dependencies = [
+ "defer",
  "environmental",
  "gear-sandbox-env",
  "log",
@@ -11688,7 +11695,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_derive_internals",
- "syn 2.0.68",
+ "syn 2.0.69",
 ]
 
 [[package]]
@@ -11933,7 +11940,7 @@ checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.68",
+ "syn 2.0.69",
 ]
 
 [[package]]

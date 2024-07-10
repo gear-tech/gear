@@ -139,11 +139,6 @@ impl Backend {
     pub fn store(&self) -> Rc<StoreRefCell> {
         self.store.clone()
     }
-
-    pub fn _replace_with_new(&self) {
-        let compiler = sandbox_wasmer::Singlepass::default();
-        self.store.replace(sandbox_wasmer::Store::new(compiler));
-    }
 }
 
 /// Invoke a function within a sandboxed module
@@ -537,34 +532,41 @@ fn dispatch_function(
         SandboxContextStore::with(|sandbox_context| {
             dispatch_function_env::with(|dispatch_funnction_env| {
                 let storemut = env.as_store_mut();
-                // Return mutable store borrow manually
-                dispatch_funnction_env.store_ref.return_store(storemut);
 
-                // Serialize arguments into a byte vector.
-                let invoke_args_data = params
-                    .iter()
-                    .map(|value| {
-                        into_value(value).ok_or_else(|| {
-                            RuntimeError::new(format!("Unsupported function argument: {:?}", value))
+                let deserialized_result = dispatch_funnction_env
+                    .store_ref
+                    .borrow_scope(storemut, || -> std::result::Result<_, _> {
+                        // Serialize arguments into a byte vector.
+                        let invoke_args_data = params
+                            .iter()
+                            .map(|value| {
+                                into_value(value).ok_or_else(|| {
+                                    RuntimeError::new(format!(
+                                        "Unsupported function argument: {:?}",
+                                        value
+                                    ))
+                                })
+                            })
+                            .collect::<std::result::Result<Vec<_>, _>>()?
+                            .encode();
+
+                        let serialized_result_val = dispatch_common(
+                            supervisor_func_index,
+                            sandbox_context,
+                            invoke_args_data,
+                        )?;
+
+                        std::result::Result::<ReturnValue, HostError>::decode(
+                            &mut serialized_result_val.as_slice(),
+                        )
+                        .map_err(|_| {
+                            RuntimeError::new("Decoding Result<ReturnValue, HostError> failed!")
+                        })?
+                        .map_err(|_| {
+                            RuntimeError::new("Supervisor function returned sandbox::HostError")
                         })
                     })
-                    .collect::<std::result::Result<Vec<_>, _>>()?
-                    .encode();
-
-                let serialized_result_val =
-                    dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
-
-                let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
-                    &mut serialized_result_val.as_slice(),
-                )
-                .map_err(|_| RuntimeError::new("Decoding Result<ReturnValue, HostError> failed!"))?
-                .map_err(|_| {
-                    RuntimeError::new("Supervisor function returned sandbox::HostError")
-                })?;
-
-                let _storemut = dispatch_funnction_env.store_ref.get_store().map_err(|_| {
-                    RuntimeError::new("Store was not returned after dispatch function")
-                })?;
+                    .map_err(|_| RuntimeError::new("StoreRefCell borrow scope error"))??;
 
                 Ok(into_wasmer_result(deserialized_result))
             })
@@ -590,39 +592,42 @@ fn dispatch_function_v2(
                 })?;
                 let gas = gas_global.get(&mut storemut);
 
-                // Return mutable store borrow manually
-                dispatch_funnction_env.store_ref.return_store(storemut);
+                let deserialized_result = dispatch_funnction_env
+                    .store_ref
+                    .borrow_scope(&mut storemut, move || -> std::result::Result<_, _> {
+                        // Serialize arguments into a byte vector.
+                        let invoke_args_data = [gas]
+                            .iter()
+                            .chain(params.iter())
+                            .map(|value| {
+                                into_value(value).ok_or_else(|| {
+                                    RuntimeError::new(format!(
+                                        "Unsupported function argument: {:?}",
+                                        value
+                                    ))
+                                })
+                            })
+                            .collect::<std::result::Result<Vec<_>, _>>()?
+                            .encode();
 
-                // Serialize arguments into a byte vector.
-                let invoke_args_data = [gas]
-                    .iter()
-                    .chain(params.iter())
-                    .map(|value| {
-                        into_value(value).ok_or_else(|| {
-                            RuntimeError::new(format!("Unsupported function argument: {:?}", value))
+                        let serialized_result_val = dispatch_common(
+                            supervisor_func_index,
+                            sandbox_context,
+                            invoke_args_data,
+                        )?;
+
+                        std::result::Result::<WasmReturnValue, HostError>::decode(
+                            &mut serialized_result_val.as_slice(),
+                        )
+                        .map_err(|_| {
+                            RuntimeError::new("Decoding Result<WasmReturnValue, HostError> failed!")
+                        })?
+                        .map_err(|_| {
+                            RuntimeError::new("Supervisor function returned sandbox::HostError")
                         })
                     })
-                    .collect::<std::result::Result<Vec<_>, _>>()?
-                    .encode();
+                    .map_err(|_| RuntimeError::new("StoreRefCell borrow scope error"))??;
 
-                let serialized_result_val =
-                    dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
-
-                let deserialized_result =
-                    std::result::Result::<WasmReturnValue, HostError>::decode(
-                        &mut serialized_result_val.as_slice(),
-                    )
-                    .map_err(|_| {
-                        RuntimeError::new("Decoding Result<WasmReturnValue, HostError> failed!")
-                    })?
-                    .map_err(|_| {
-                        RuntimeError::new("Supervisor function returned sandbox::HostError")
-                    })?;
-
-                // Get mutable store borrow manually
-                let mut storemut = dispatch_funnction_env.store_ref.get_store().map_err(|_| {
-                    RuntimeError::new("Store was not returned after dispatch function")
-                })?;
                 gas_global
                     .set(
                         &mut storemut,
