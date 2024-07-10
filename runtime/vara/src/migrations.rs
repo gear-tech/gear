@@ -34,13 +34,10 @@ pub type Migrations = (
 
 mod staking {
     use frame_support::{
-        pallet_prelude::{ValueQuery, Weight},
-        storage_alias,
+        pallet_prelude::Weight,
         traits::{GetStorageVersion, OnRuntimeUpgrade},
     };
     use pallet_staking::*;
-    use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-    use scale_info::TypeInfo;
     use sp_core::Get;
 
     #[cfg(feature = "try-runtime")]
