@@ -85,16 +85,18 @@ impl SyscallsInjectionTypes {
                     let injection_type = SyscallInjectionType::Function(range);
                     (InvocableSyscall::Loose(name), injection_type)
                 })
-                .chain(SyscallName::instrumentable().filter_map(|name| {
-                    InvocableSyscall::has_precise_variant(name).then(|| {
-                        let injection_type = SyscallInjectionType::Function(
-                            /*unstructured.int_in_range(1..=3).unwrap()
-                            ..=unstructured.int_in_range(3..=20).unwrap(),*/
-                            1..=3,
-                        );
-                        (InvocableSyscall::Precise(name), injection_type.clone())
-                    })
-                }))
+                .chain(
+                    SyscallName::instrumentable()
+                        .filter(|&name| InvocableSyscall::has_precise_variant(name))
+                        .map(|name| {
+                            let injection_type = SyscallInjectionType::Function(
+                                /*unstructured.int_in_range(1..=3).unwrap()
+                                ..=unstructured.int_in_range(3..=20).unwrap(),*/
+                                1..=3,
+                            );
+                            (InvocableSyscall::Precise(name), injection_type.clone())
+                        }),
+                )
                 .collect(),
             order: IndexSet::new(),
         }

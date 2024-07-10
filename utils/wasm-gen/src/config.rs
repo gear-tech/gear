@@ -222,6 +222,7 @@ impl ConfigsBundle for StandardGearWasmConfigsBundle {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RandomizedGearWasmConfigBundle {
     pub max_instructions: usize,
     pub no_control: bool,
@@ -252,41 +253,32 @@ impl RandomizedGearWasmConfigBundle {
             unstructured.int_in_range(500..=800).unwrap()
         };
 
-        let (min_funcs, max_funcs) = no_control.then(|| (1, 1)).unwrap_or((2, 3));
+        let (min_funcs, max_funcs) = if no_control { (1, 1) } else { (2, 3) };
 
         let initial_pages = 2;
         // pump up injection rates of syscalls when there's control instructions and lower it when there's no control
         // instructions (no control => all syscalls should be executed, control => some won't be executed due to if's or loops)
         let mut injection_types =
-            SyscallsInjectionTypes::all_with_range(no_control.then_some(1..=2).unwrap_or(1..=10));
+            SyscallsInjectionTypes::all_with_range(if no_control { 1..=2 } else { 1..=10 });
 
         injection_types.set_multiple(
             [
                 (
                     SyscallName::SendInit,
-                    no_control.then(|| 1..=3).unwrap_or(3..=5),
+                    if no_control { 1..=3 } else { 3..=5 },
                 ),
                 (
                     SyscallName::ReserveGas,
-                    no_control.then(|| 1..=2).unwrap_or(3..=5),
+                    if no_control { 1..=2 } else { 3..=5 },
                 ),
                 (SyscallName::Debug, 0..=1),
-                (
-                    SyscallName::Wait,
-                    no_control.then_some(0..=0).unwrap_or(0..=1),
-                ),
-                (
-                    SyscallName::WaitFor,
-                    no_control.then_some(0..=0).unwrap_or(0..=1),
-                ),
+                (SyscallName::Wait, if no_control { 0..=0 } else { 0..=1 }),
+                (SyscallName::WaitFor, if no_control { 0..=0 } else { 0..=1 }),
                 (
                     SyscallName::WaitUpTo,
-                    no_control.then_some(0..=0).unwrap_or(0..=1),
+                    if no_control { 0..=0 } else { 0..=1 },
                 ),
-                (
-                    SyscallName::Wake,
-                    no_control.then_some(0..=0).unwrap_or(0..=1),
-                ),
+                (SyscallName::Wake, if no_control { 0..=0 } else { 0..=1 }),
                 (SyscallName::Leave, 0..=0),
                 (SyscallName::Panic, 0..=0),
                 (SyscallName::OomPanic, 0..=0),
@@ -295,17 +287,11 @@ impl RandomizedGearWasmConfigBundle {
                     SyscallName::Send,
                     // lower the amount of sends in no_control case because
                     // we do not want to exhaust the gas.
-                    no_control.then_some(1..=2).unwrap_or(10..=15),
+                    if no_control { 1..=2 } else { 10..=15 },
                 ),
                 (SyscallName::Exit, 0..=1),
-                (
-                    SyscallName::Alloc,
-                    no_control.then(|| 0..=1).unwrap_or(3..=6),
-                ),
-                (
-                    SyscallName::Free,
-                    no_control.then(|| 0..=1).unwrap_or(3..=6),
-                ),
+                (SyscallName::Alloc, if no_control { 0..=1 } else { 3..=6 }),
+                (SyscallName::Free, if no_control { 0..=1 } else { 3..=6 }),
             ]
             .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
             .into_iter(),
@@ -350,11 +336,13 @@ impl ConfigsBundle for RandomizedGearWasmConfigBundle {
                 },
         } = self;
 
-        let mut selectable_params = SelectableParams::default();
+        let mut selectable_params = SelectableParams {
+            max_instructions,
+            max_funcs: NonZeroUsize::new(max_funcs).unwrap(),
+            min_funcs: NonZeroUsize::new(min_funcs).unwrap(),
+            ..Default::default()
+        };
 
-        selectable_params.max_instructions = max_instructions;
-        selectable_params.max_funcs = NonZeroUsize::new(max_funcs).unwrap();
-        selectable_params.min_funcs = NonZeroUsize::new(min_funcs).unwrap();
         if no_control {
             let index = selectable_params
                 .allowed_instructions
@@ -372,7 +360,7 @@ impl ConfigsBundle for RandomizedGearWasmConfigBundle {
 
         let memory_pages_config = MemoryPagesConfig {
             initial_size: initial_pages,
-            stack_end_page: stack_end_page,
+            stack_end_page,
             upper_limit: None,
         };
         let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()

@@ -83,7 +83,7 @@ proptest! {
 
     #[test]
     fn test_randomized_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
-        let u = Unstructured::new(&buf);
+        let mut u = Unstructured::new(&buf);
 
         let configs_bundle: RandomizedGearWasmConfigBundle = RandomizedGearWasmConfigBundle::new_arbitrary(
             &mut u,
@@ -94,7 +94,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None);
         assert!(code_res.is_ok());
     }
 
@@ -110,7 +110,7 @@ proptest! {
 
 
 
-        let first = generate_gear_program_code(&mut u, configs_bundle)
+        let first = generate_gear_program_code(&mut u, configs_bundle.clone())
             .expect("failed generating wasm");
         let second = generate_gear_program_code(&mut u2, configs_bundle)
             .expect("failed generating wasm");
