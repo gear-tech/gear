@@ -24,7 +24,11 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 
-use crate::{authorship::MAX_SKIPPED_TRANSACTIONS, block_builder::BlockBuilder, ProposerFactory};
+use crate::{
+    authorship::MAX_SKIPPED_TRANSACTIONS,
+    block_builder::{BlockBuilder, BlockBuilderBuilder},
+    ProposerFactory,
+};
 
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
@@ -265,7 +269,7 @@ pub fn init() -> (
 
 pub fn create_proposal<A>(
     mut client: Arc<TestClient>,
-    backend: Arc<TestBackend>,
+    _backend: Arc<TestBackend>,
     txpool: Arc<A>,
     spawner: sp_core::testing::TaskExecutor,
     parent_number: BlockNumber,
@@ -279,7 +283,6 @@ where
     let mut proposer_factory = ProposerFactory::new(
         spawner.clone(),
         client.clone(),
-        backend.clone(),
         txpool.clone(),
         None,
         None,
@@ -697,7 +700,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
 }
 
 fn test_block_builder_cloned_ok() {
-    let (client, backend, _, _, genesis_hash) = init();
+    let (client, _, _, _, genesis_hash) = init();
 
     let extrinsics = sign_extrinsics(
         checked_extrinsics(5, bob(), 0, || CallBuilder::noop().build()),
@@ -706,15 +709,12 @@ fn test_block_builder_cloned_ok() {
         genesis_hash,
     );
 
-    let mut block_builder = BlockBuilder::new(
-        client.as_ref(),
-        genesis_hash.into(),
-        0_u32,
-        false.into(),
-        pre_digest(1, 0),
-        backend.as_ref(),
-    )
-    .unwrap();
+    let mut block_builder = BlockBuilderBuilder::new(client.as_ref())
+        .on_parent_block(genesis_hash.into())
+        .with_parent_block_number(0)
+        .with_inherent_digests(pre_digest(1, 0))
+        .build()
+        .unwrap();
 
     extrinsics.into_iter().for_each(|xt: OpaqueExtrinsic| {
         assert_ok!(block_builder.push(xt));
@@ -723,15 +723,12 @@ fn test_block_builder_cloned_ok() {
     assert_eq!(block_builder.extrinsics().len(), 5);
 
     // At this point the overlay wrapped in the `Api` instance has some changes
-    let fresh_block_builder = BlockBuilder::new(
-        client.as_ref(),
-        genesis_hash.into(),
-        0_u32,
-        false.into(),
-        pre_digest(1, 0),
-        backend.as_ref(),
-    )
-    .unwrap();
+    let fresh_block_builder = BlockBuilderBuilder::new(client.as_ref())
+        .on_parent_block(genesis_hash.into())
+        .with_parent_block_number(0)
+        .with_inherent_digests(pre_digest(1, 0))
+        .build()
+        .unwrap();
 
     let cloned_block_builder = block_builder.clone();
 
@@ -748,10 +745,10 @@ fn test_block_builder_cloned_ok() {
     assert_ne!(api_1_ptr, api_2_ptr);
 
     // Reconstruct original block builders
-    let block_builder = BlockBuilder::<'_, _, Client<_, _, _, RA>, _>::from_parts(
+    let block_builder = BlockBuilder::<'_, _, Client<_, _, _, RA>>::from_parts(
         ext_1, api_1, ver_1, phash_1, bd_1, hsize_1,
     );
-    let cloned_block_builder = BlockBuilder::<'_, _, Client<_, _, _, RA>, _>::from_parts(
+    let cloned_block_builder = BlockBuilder::<'_, _, Client<_, _, _, RA>>::from_parts(
         ext_2, api_2, ver_2, phash_2, bd_2, hsize_2,
     );
 
@@ -1167,7 +1164,7 @@ mod basic_tests {
     }
 
     pub(super) fn test_building_block_ceased_when_block_limit_is_reached() {
-        let (client, backend, txpool, spawner, genesis_hash) = init();
+        let (client, _, txpool, spawner, genesis_hash) = init();
 
         let block_id = BlockId::number(0);
         let genesis_header = client
@@ -1206,7 +1203,6 @@ mod basic_tests {
         let mut proposer_factory = ProposerFactory::new(
             spawner.clone(),
             client.clone(),
-            backend.clone(),
             txpool.clone(),
             None,
             None,
@@ -1253,7 +1249,6 @@ mod basic_tests {
         let mut proposer_factory = ProposerFactory::with_proof_recording(
             spawner.clone(),
             client.clone(),
-            backend.clone(),
             txpool.clone(),
             None,
             None,
