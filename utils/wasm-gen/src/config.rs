@@ -100,9 +100,12 @@ mod module;
 mod syscalls;
 
 use arbitrary::Unstructured;
+use gear_wasm_instrument::SyscallName;
 pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
+
+use crate::InvocableSyscall;
 
 /// Trait which describes a type that stores and manages data for generating
 /// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
@@ -227,6 +230,105 @@ pub struct RandomizedGearWasmConfigBundle {
     pub standard_gear_wasm_config_bundle: StandardGearWasmConfigsBundle,
 }
 
+impl RandomizedGearWasmConfigBundle {
+    pub fn new_arbitrary(
+        unstructured: &mut Unstructured,
+        log_info: Option<String>,
+        params_config: SyscallsParamsConfig,
+    ) -> Self {
+        // Observation: with balance increased and no control instructions we get *a lot* of programs executed even if we're
+        // running fuzzer for just 5 minutes. Without balance increase disabling control results in gas limit exceeding quite often.
+        let no_control = unstructured.ratio(1, 4).unwrap();
+        // Carefully adjusted to run fine with `account.rs` balance calculation.
+        // 1) When max_balance or max_balance/4 is used we're almost always guaranteed to finish execution of a program so
+        // do not try to get too much instructions in case of control insns enabled to not get infinite loops or recursion.
+        // 2) Otherwise we can run quite a lot of insns
+        // with no control as we're guaranteed to terminate execution.
+        let max_instructions = if no_control {
+            // when no control insns are enabled we generate a small amount of instructions
+            // as it should be more than enough to test the program and exhaust the gas
+            unstructured.int_in_range(80..=120).unwrap()
+        } else {
+            unstructured.int_in_range(500..=800).unwrap()
+        };
+
+        let (min_funcs, max_funcs) = no_control.then(|| (1, 1)).unwrap_or((2, 3));
+
+        let initial_pages = 2;
+        // pump up injection rates of syscalls when there's control instructions and lower it when there's no control
+        // instructions (no control => all syscalls should be executed, control => some won't be executed due to if's or loops)
+        let mut injection_types =
+            SyscallsInjectionTypes::all_with_range(no_control.then_some(1..=2).unwrap_or(1..=10));
+
+        injection_types.set_multiple(
+            [
+                (
+                    SyscallName::SendInit,
+                    no_control.then(|| 1..=3).unwrap_or(3..=5),
+                ),
+                (
+                    SyscallName::ReserveGas,
+                    no_control.then(|| 1..=2).unwrap_or(3..=5),
+                ),
+                (SyscallName::Debug, 0..=1),
+                (
+                    SyscallName::Wait,
+                    no_control.then_some(0..=0).unwrap_or(0..=1),
+                ),
+                (
+                    SyscallName::WaitFor,
+                    no_control.then_some(0..=0).unwrap_or(0..=1),
+                ),
+                (
+                    SyscallName::WaitUpTo,
+                    no_control.then_some(0..=0).unwrap_or(0..=1),
+                ),
+                (
+                    SyscallName::Wake,
+                    no_control.then_some(0..=0).unwrap_or(0..=1),
+                ),
+                (SyscallName::Leave, 0..=0),
+                (SyscallName::Panic, 0..=0),
+                (SyscallName::OomPanic, 0..=0),
+                (SyscallName::EnvVars, 0..=0),
+                (
+                    SyscallName::Send,
+                    // lower the amount of sends in no_control case because
+                    // we do not want to exhaust the gas.
+                    no_control.then_some(1..=2).unwrap_or(10..=15),
+                ),
+                (SyscallName::Exit, 0..=1),
+                (
+                    SyscallName::Alloc,
+                    no_control.then(|| 0..=1).unwrap_or(3..=6),
+                ),
+                (
+                    SyscallName::Free,
+                    no_control.then(|| 0..=1).unwrap_or(3..=6),
+                ),
+            ]
+            .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
+            .into_iter(),
+        );
+
+        RandomizedGearWasmConfigBundle {
+            standard_gear_wasm_config_bundle: StandardGearWasmConfigsBundle {
+                entry_points_set: EntryPointsSet::InitHandleHandleReply,
+                injection_types,
+                log_info,
+                params_config,
+                initial_pages: initial_pages as u32,
+                waiting_probability: NonZeroU32::new(unstructured.int_in_range(1..=4).unwrap()),
+                ..Default::default()
+            },
+            max_funcs,
+            min_funcs,
+            max_instructions,
+            no_control,
+        }
+    }
+}
+
 impl ConfigsBundle for RandomizedGearWasmConfigBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         let RandomizedGearWasmConfigBundle {
@@ -240,7 +342,7 @@ impl ConfigsBundle for RandomizedGearWasmConfigBundle {
                     entry_points_set,
                     initial_pages,
                     injection_types,
-                    log_info,
+                    log_info: _,
                     params_config,
                     remove_recursion,
                     stack_end_page,

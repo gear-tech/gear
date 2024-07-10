@@ -107,12 +107,12 @@ impl<'a> BalanceManager<'a> {
     pub(crate) fn update_balance(&mut self) -> Result<BalanceState> {
         let max_balance = runtime::gas_to_value(runtime::acc_max_balance_gas());
 
-        // In 1/4 cases we're going to get max_balance account which helps us to run code to completion.
+        // In 3/4 cases we're going to get max_balance account which helps us to run code to completion.
         //
         // Note that before there was another branch here that also did more calculation on `max_balance` to get into the sweet spot
         // but it turns out to slightly move the balance of success/failure rate to 50/50 which is not good. With only these two branches
         // we get around 80/20 success/failure rate. Note that this also depends on number of instructions in the program.
-        let mut new_balance = if self.unstructured.ratio(1, 4)? {
+        let mut new_balance = if self.unstructured.ratio(2, 4)? {
             max_balance
         } else {
             self.unstructured

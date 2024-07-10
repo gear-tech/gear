@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::num::NonZeroU32;
+use crate::runtime::acc_max_balance_gas;
 
 use super::{
     RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE, MAX_SALT_SIZE,
@@ -27,9 +27,8 @@ use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     wasm_gen_arbitrary::{Result, Unstructured},
-    ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues,
-    RandomizedGearWasmConfigBundle, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
-    SyscallsInjectionTypes, SyscallsParamsConfig,
+    ActorKind, PtrParamAllowedValues, RandomizedGearWasmConfigBundle, RegularParamType,
+    SyscallsParamsConfig,
 };
 use runtime_primitives::Balance;
 use vara_runtime::EXISTENTIAL_DEPOSIT;
@@ -108,67 +107,7 @@ fn config(
     log_info: Option<String>,
     current_balance: Balance,
 ) -> RandomizedGearWasmConfigBundle {
-    // Observation: with balance increased and no control instructions we get *a lot* of programs executed even if we're
-    // running fuzzer for just 5 minutes. Without balance increase disabling control results in gas limit exceeding quite often.
-    let no_control = unstructured.ratio(1, 4).unwrap();
-    // Carefully adjusted to run fine with `account.rs` balance calculation.
-    // 1) When max_balance or max_balance/4 is used we're almost always guaranteed to finish execution of a program so
-    // do not try to get too much instructions in case of control insns enabled to not get infinite loops or recursion.
-    // 2) Otherwise we can run quite a lot of insns
-    // with no control as we're guaranteed to terminate execution.
-    let max_instructions = if no_control {
-        // when no control insns are enabled we generate a small amount of instructions
-        // as it should be more than enough to test the program and exhaust the gas
-        unstructured.int_in_range(80..=400).unwrap()
-    } else {
-        unstructured.int_in_range(500..=1200).unwrap()
-    };
-
-    let (min_funcs, max_funcs) = no_control.then(|| (1, 1)).unwrap_or((3, 4));
-
     let initial_pages = 2;
-    // pump up injection rates of syscalls when there's control instructions and lower it when there's no control
-    // instructions (no control => all syscalls should be executed, control => some won't be executed due to if's or loops)
-    let mut injection_types =
-        SyscallsInjectionTypes::all_with_range(no_control.then_some(1..=2).unwrap_or(1..=10));
-    injection_types.set_multiple(
-        [
-            (
-                SyscallName::SendInit,
-                no_control.then(|| 1..=3).unwrap_or(3..=5),
-            ),
-            (
-                SyscallName::ReserveGas,
-                no_control.then(|| 1..=2).unwrap_or(3..=5),
-            ),
-            (SyscallName::Debug, 0..=1),
-            (SyscallName::Wait, 0..=1),
-            (SyscallName::WaitFor, 0..=1),
-            (SyscallName::WaitUpTo, 0..=1),
-            (SyscallName::Wake, 0..=1),
-            (SyscallName::Leave, 0..=0),
-            (SyscallName::Panic, 0..=0),
-            (SyscallName::OomPanic, 0..=0),
-            (SyscallName::EnvVars, 0..=0),
-            (
-                SyscallName::Send,
-                // lower the amount of sends in no_control case because
-                // we do not want to exhaust the gas.
-                no_control.then_some(1..=3).unwrap_or(10..=15),
-            ),
-            (SyscallName::Exit, 0..=1),
-            (
-                SyscallName::Alloc,
-                no_control.then(|| 1..=3).unwrap_or(3..=6),
-            ),
-            (
-                SyscallName::Free,
-                no_control.then(|| 1..=3).unwrap_or(3..=6),
-            ),
-        ]
-        .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
-        .into_iter(),
-    );
 
     let max_value = {
         let d = current_balance
@@ -178,6 +117,7 @@ fn config(
 
         current_balance.saturating_div(d)
     };
+    log::info!("Max VALUE: {}", max_value);
     let mut params_config = SyscallsParamsConfig::new()
         .with_default_regular_config()
         .with_rule(RegularParamType::Alloc, (10..=20).into())
@@ -220,20 +160,5 @@ fn config(
             range: EXISTENTIAL_DEPOSIT..=max_value,
         });
     }
-
-    RandomizedGearWasmConfigBundle {
-        standard_gear_wasm_config_bundle: StandardGearWasmConfigsBundle {
-            entry_points_set: EntryPointsSet::InitHandleHandleReply,
-            injection_types,
-            log_info,
-            params_config,
-            initial_pages: initial_pages as u32,
-            waiting_probability: NonZeroU32::new(unstructured.int_in_range(1..=4).unwrap()),
-            ..Default::default()
-        },
-        max_funcs,
-        min_funcs,
-        max_instructions,
-        no_control,
-    }
+    RandomizedGearWasmConfigBundle::new_arbitrary(unstructured, log_info, params_config)
 }
