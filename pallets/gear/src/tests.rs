@@ -6882,11 +6882,23 @@ fn test_inheritor_of() {
             cyclic_programs.push(program_id);
         }
 
+        let cyclic_programs: BTreeSet<ProgramId> = cyclic_programs.into_iter().collect();
+
         let res = Gear::inheritor_for(2000.into(), NonZeroUsize::MAX);
-        assert_eq!(res, Err(InheritorForError::Cyclic));
+        assert_eq!(
+            res,
+            Err(InheritorForError::Cyclic {
+                holders: cyclic_programs.clone(),
+            })
+        );
 
         let res = Gear::inheritor_for(2000.into(), NonZeroUsize::new(101).unwrap());
-        assert_eq!(res, Err(InheritorForError::Cyclic));
+        assert_eq!(
+            res,
+            Err(InheritorForError::Cyclic {
+                holders: cyclic_programs
+            })
+        );
 
         let (inheritor, _holders) =
             Gear::inheritor_for(2000.into(), NonZeroUsize::new(100).unwrap()).unwrap();

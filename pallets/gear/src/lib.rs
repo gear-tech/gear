@@ -1672,7 +1672,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             program_id: ProgramId,
             depth: NonZeroU32,
-        ) -> DispatchResult {
+        ) -> DispatchResultWithPostInfo {
             ensure_signed(origin)?;
 
             let depth = depth.try_into().unwrap_or_else(|e| {
@@ -1680,16 +1680,20 @@ pub mod pallet {
             });
             let (destination, holders) = match Self::inheritor_for(program_id, depth) {
                 Ok(res) => res,
-                Err(InheritorForError::Cyclic) => {
+                Err(InheritorForError::Cyclic { holders }) => {
                     // TODO: send value to treasury (#3979)
                     log::debug!("Cyclic inheritor detected for {program_id}");
-                    return Ok(());
+                    return Ok(Some(<T as Config>::WeightInfo::claim_value_to_inheritor(
+                        holders.len() as u32,
+                    ))
+                    .into());
                 }
                 Err(InheritorForError::NotFound) => return Err(Error::<T>::ActiveProgram.into()),
             };
 
             let destination = destination.cast();
 
+            let holders_amount = holders.len();
             for holder in holders {
                 // transfer is the same as in `Self::clean_inactive_program` except
                 // existential deposit is already unlocked because
@@ -1712,7 +1716,10 @@ pub mod pallet {
                 }
             }
 
-            Ok(())
+            Ok(Some(<T as Config>::WeightInfo::claim_value_to_inheritor(
+                holders_amount as u32,
+            ))
+            .into())
         }
     }
 

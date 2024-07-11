@@ -194,7 +194,7 @@ where
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum InheritorForError {
-    Cyclic,
+    Cyclic { holders: BTreeSet<ProgramId> },
     NotFound,
 }
 
@@ -957,7 +957,7 @@ where
             }
 
             if !holders.insert(next_inheritor) {
-                return Err(InheritorForError::Cyclic);
+                return Err(InheritorForError::Cyclic { holders });
             }
         }
 
