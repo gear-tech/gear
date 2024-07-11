@@ -22,7 +22,7 @@ use crate::{
     manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
-        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearProgram, GearVoucher,
+        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
         DUST_TRAP_TARGET, LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
@@ -6762,7 +6762,7 @@ fn claim_value_to_inheritor() {
 }
 
 #[test]
-fn test_inheritor_of() {
+fn test_sequence_inheritor_of() {
     init_logger();
     new_test_ext().execute_with(|| {
         let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
@@ -6852,8 +6852,25 @@ fn test_inheritor_of() {
         let (inheritor, holders) = inheritor_for(programs[99], 99);
         assert_eq!(inheritor, programs[0]);
         assert_eq!(holders, indexed_programs[1..]);
+    });
+}
 
-        <GearProgram as ProgramStorage>::reset();
+#[test]
+fn test_cyclic_inheritor_of() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let manager = ExtManager::<Test>::new(builtins);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            demo_ping::WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code_info = CodeInfo::from_code(&code_id, &code);
+
+        let message_id = MessageId::from(1);
 
         // cyclic inheritance
         let mut cyclic_programs = vec![];
