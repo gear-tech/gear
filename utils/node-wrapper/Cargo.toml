@@ -1,12 +1,13 @@
 [package]
-name = "gnode"
+name = "gear-node-wrapper"
+description = "Gear protocol node wrapper"
+documentation = "https://docs.rs/gear-node-wrapper"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-description = "Gear protocol node wrapper"
 
 [dependencies]
 anyhow.workspace = true

@@ -22,7 +22,7 @@ use crate::{
     handler, manifest::Workspace, Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES,
 };
 use anyhow::Result;
-use cargo_metadata::{Metadata, MetadataCommand, Package};
+use cargo_metadata::{Metadata, MetadataCommand};
 use std::collections::{BTreeMap, HashMap};
 
 /// crates-io packages publisher.
@@ -62,14 +62,21 @@ impl Publisher {
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
     pub fn build(mut self, verify: bool, version: Option<String>) -> Result<Self> {
-        let index = self.index.keys().map(|s| s.as_ref()).collect::<Vec<_>>();
+        let mut index = self
+            .index
+            .iter()
+            .map(|(k, &v)| (k.clone(), v))
+            .collect::<Vec<_>>();
+
+        index.sort_by_key(|(_, v)| *v);
+
         let mut workspace = Workspace::lookup(version)?;
         let version = workspace.version()?;
 
-        for pkg @ Package { name, .. } in &self.metadata.packages {
-            if !index.contains(&name.as_ref()) {
+        for (name, _) in &index {
+            let Some(pkg) = self.metadata.packages.iter().find(|pkg| pkg.name == *name) else {
                 continue;
-            }
+            };
 
             if verify && crate::verify(name, &version)? {
                 println!("Package {}@{} already published .", &name, &version);
@@ -79,6 +86,8 @@ impl Publisher {
             self.graph
                 .insert(self.index.get(name).cloned(), handler::patch(pkg)?);
         }
+
+        let index = index.iter().map(|(k, _)| k.as_ref()).collect();
 
         workspace.complete(index)?;
 

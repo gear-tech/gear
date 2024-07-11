@@ -18,6 +18,8 @@
 
 //! Runtime interface for gear node
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 #[cfg(feature = "std")]
 use gear_sandbox_host::sandbox::env::Instantiate;
 use sp_runtime_interface::{runtime_interface, Pointer};

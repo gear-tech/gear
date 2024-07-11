@@ -64,9 +64,14 @@ pub struct GenesisParameters;
 
 impl substrate_test_client::GenesisInit for GenesisParameters {
     fn genesis_storage(&self) -> Storage {
-        crate::genesis::genesis_config(None)
-            .build_storage()
-            .unwrap()
+        let mut storage = crate::genesis::genesis_config().build_storage().unwrap();
+        storage.top.insert(
+			sp_core::storage::well_known_keys::CODE.to_vec(),
+			vara_runtime::WASM_BINARY.expect(
+                "Development wasm is not available. Rebuild with the `SKIP_WASM_BUILD` flag disabled.",
+            ).into(),
+		);
+        storage
     }
 }
 

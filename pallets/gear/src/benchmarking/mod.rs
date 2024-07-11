@@ -108,7 +108,7 @@ use sp_consensus_babe::{
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
-    Digest, DigestItem, Perbill,
+    Digest, DigestItem, Perbill, Saturating,
 };
 use sp_std::prelude::*;
 
@@ -253,7 +253,12 @@ where
         module: WasmModule<T>,
         data: Vec<u8>,
     ) -> Result<Program<T>, &'static str> {
-        let value = CurrencyOf::<T>::minimum_balance();
+        // In case of the `gr_create_program` syscall testing, we can have as many as
+        // `API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE` repetitions of it in a module,
+        // which requires a transfer of the ED each time the syscall is called.
+        // For the above to always succeed, we need to ensure the contract has enough funds.
+        let value = CurrencyOf::<T>::minimum_balance()
+            .saturating_mul((API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE).into());
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
         let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
@@ -416,6 +421,17 @@ benchmarks! {
         let t in 0 .. MAX_TABLE_ENTRIES / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024, None);
+        let ext = Ext::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `e`: Size of the element section in kilobytes.
+    instantiate_module_element_section_per_kb {
+        let e in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let max_table_size = T::Schedule::get().limits.code_len;
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();

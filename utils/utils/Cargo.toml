@@ -1,6 +1,7 @@
 [package]
 name = "gear-utils"
 description = "Utils of gear network"
+documentation = "https://docs.rs/gear-utils"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
