@@ -1665,6 +1665,7 @@ pub mod pallet {
         /// Transfers value from terminated or exited program to its inheritor.
         ///
         /// `depth` parameter is how far to traverse to inheritor.
+        /// A value of 10 is sufficient for most cases.
         #[pallet::call_index(8)]
         #[pallet::weight(<T as Config>::WeightInfo::claim_value_to_inheritor(depth.get()))]
         pub fn claim_value_to_inheritor(
