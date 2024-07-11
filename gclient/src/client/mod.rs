@@ -19,12 +19,13 @@
 #![allow(unused)]
 
 mod backend;
-mod client;
+mod instance;
 mod packet;
 mod program;
 
 pub use self::{
     backend::{Backend, Code},
+    instance::Client,
     packet::Message,
     program::Program,
 };

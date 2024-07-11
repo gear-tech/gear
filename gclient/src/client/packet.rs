@@ -20,14 +20,20 @@ use parity_scale_codec::Encode;
 
 /// Message builder
 pub struct Message {
+    /// The maximum gas amount allowed to spend for the program
+    /// creation and initialization;
+    pub gas_limit: u64,
     /// Payload of this message.
     pub payload: Vec<u8>,
-    /// Value contains in this message.
-    pub value: u128,
     /// Signer address
     ///
     /// TODO: introduce a better wrapper
     pub signer: [u8; 32],
+    /// Value contains in this message.
+    pub value: u128,
+    /// The arbitrary data needed to generate an address for a new
+    /// program (control of salt uniqueness is entirely on the function caller’s side);
+    pub salt: Vec<u8>,
 }
 
 impl Message {
@@ -37,6 +43,8 @@ impl Message {
             payload: payload.encode(),
             value: 0,
             signer: [0; 32],
+            gas_limit: 0,
+            salt: Default::default(),
         }
     }
 
@@ -46,6 +54,8 @@ impl Message {
             payload: payload.as_ref().into(),
             value: 0,
             signer: [0; 32],
+            gas_limit: 0,
+            salt: Default::default(),
         }
     }
 
@@ -55,7 +65,14 @@ impl Message {
         self
     }
 
+    /// This field is used for deploying programs,
+    /// you don't need this if you are simply
+    /// sending messages.
+    pub fn salt(mut self, value: impl AsRef<u8>) {}
+
     /// Set the signer of this message
+    ///
+    /// TODO: query the keypair from address
     pub fn signer(mut self, signer: impl Into<[u8; 32]>) -> Self {
         self.signer = signer.into();
         self

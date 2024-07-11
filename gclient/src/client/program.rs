@@ -25,5 +25,5 @@ pub struct Program<T: Backend> {
     /// Id of this program
     pub(crate) id: ProgramId,
     /// Backend pointer
-    pub(crate) backend: Arc<T>,
+    pub(crate) backend: T,
 }

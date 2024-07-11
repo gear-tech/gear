@@ -16,32 +16,39 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::Message;
+use crate::client::{Message, Program};
 use anyhow::Result;
 use async_trait::async_trait;
 use gear_core::ids::ProgramId;
+use gprimitives::MessageId;
 use std::{fs, path::PathBuf};
 
 mod gclient;
-mod gtest;
+// mod gtest;
 
 /// Backend for the general client
 #[async_trait]
-pub trait Backend: Send + Sync {
+pub trait Backend: Sized {
+    /// Get program instance
+    async fn program(&self, id: ProgramId) -> Result<Program<Self>>;
+
     /// Add program to the backend
-    async fn deploy(&self, _code: impl Code) -> Result<()>;
+    ///
+    /// NOTE: This interface implements `create_program` at the moment
+    /// to simplify the usages.
+    async fn deploy<M>(&self, _code: impl Code, message: M) -> Result<Program<Self>>
+    where
+        M: Into<Message> + Send;
 
     /// Send message
-    async fn send<M>(&self, _id: ProgramId, message: M) -> Result<()>
+    async fn send<M>(&self, _id: ProgramId, message: M) -> Result<MessageId>
     where
-        M: Into<Message> + Send,
-    {
-        Ok(())
-    }
+        M: Into<Message> + Send;
 }
 
 /// Generate gear program code, could be path or bytes.
 pub trait Code: Sized + Send {
+    /// Get wasm bytes
     fn wasm(self) -> Result<Vec<u8>>;
 }
 

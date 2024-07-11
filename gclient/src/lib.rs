@@ -143,3 +143,6 @@ pub use gsdk::{
 };
 pub use utils::*;
 pub use ws::WSAddress;
+
+#[cfg(feature = "client")]
+pub use client::*;
