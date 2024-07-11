@@ -344,6 +344,7 @@ impl ProgramBuilder {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Failed to create Program from code");
 
@@ -501,6 +502,21 @@ impl<'a> Program<'a> {
         self.send_bytes_with_value(from, payload.encode(), value)
     }
 
+    /// Send message to the program with gas limit and value.
+    pub fn send_with_gas<ID, P>(
+        &self,
+        from: ID,
+        payload: P,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        P: Encode,
+    {
+        self.send_bytes_with_gas_and_value(from, payload.encode(), gas_limit, value)
+    }
+
     /// Send message to the program with bytes payload.
     pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> RunResult
     where
@@ -513,6 +529,35 @@ impl<'a> Program<'a> {
     /// Send the message to the program with bytes payload and value.
     #[track_caller]
     pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
+        self.send_bytes_with_gas_and_value(from, payload, GAS_ALLOWANCE, value)
+    }
+
+    /// Send the message to the program with bytes payload, gas limit and value.
+    pub fn send_bytes_with_gas<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
+        self.send_bytes_with_gas_and_value(from, payload, gas_limit, value)
+    }
+
+    fn send_bytes_with_gas_and_value<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -530,7 +575,7 @@ impl<'a> Program<'a> {
             source,
             self.id,
             payload.into().try_into().unwrap(),
-            Some(GAS_ALLOWANCE),
+            Some(gas_limit),
             value,
             None,
         );
@@ -836,7 +881,8 @@ pub mod gbuild {
 mod tests {
     use super::Program;
     use crate::{Log, System};
-    use gear_core_errors::ErrorReplyReason;
+    use gear_core::ids::ActorId;
+    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -1109,5 +1155,29 @@ mod tests {
 
         let run_result = prog.send_bytes(user_id, []);
         assert!(!run_result.main_failed());
+    }
+
+    #[test]
+    fn test_insufficient_gas() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
+
+        let user_id = ActorId::zero();
+
+        // set insufficient gas for execution
+        let res = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+
+        let expected_log =
+            Log::builder()
+                .source(prog.id())
+                .dest(user_id)
+                .reply_code(ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas,
+                )));
+
+        assert!(res.contains(&expected_log));
+        assert!(res.main_failed());
     }
 }

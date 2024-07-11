@@ -111,3 +111,6 @@ jobs:
 
       - name: "Check fuzzer competence with mutation test"
         run: ./scripts/check-fuzzer.sh
+
+      - name: "Check lazy pages fuzzer with smoke test"
+        run: ./scripts/check-lazy-pages-fuzzer.sh

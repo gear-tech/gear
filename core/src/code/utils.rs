@@ -18,8 +18,10 @@
 
 //! Module that contains functions to check code.
 
+use core::mem;
+
 use crate::{
-    code::errors::*,
+    code::{errors::*, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
@@ -31,9 +33,12 @@ use gear_wasm_instrument::{
     },
     SyscallName, STACK_END_EXPORT_NAME,
 };
+use wasmparser::Payload;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGES_AMOUNT: u16 = 512;
+/// Reference type size in bytes.
+pub(crate) const REF_TYPE_SIZE: u32 = 4;
 
 /// Name of exports allowed on chain.
 pub const ALLOWED_EXPORTS: [&str; 6] = [
@@ -323,6 +328,28 @@ pub fn check_data_section(
     Ok(())
 }
 
+pub fn check_table_section(
+    module: &Module,
+    table_number_limit: Option<u32>,
+) -> Result<(), CodeError> {
+    let Some(table_section) = module.table_section() else {
+        // No table section - nothing to check.
+        return Ok(());
+    };
+
+    if let Some(table_number_limit) = table_number_limit {
+        let table_number = table_section.entries().len() as u32;
+        if table_number > table_number_limit {
+            Err(TableSectionError::TableNumberLimit {
+                limit: table_number_limit,
+                actual: table_number,
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
 fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
     let Some((export_index, global_index)) =
         get_export_global_with_index(module, STACK_END_EXPORT_NAME)
@@ -400,4 +427,132 @@ pub fn check_start_section(module: &Module) -> Result<(), CodeError> {
     } else {
         Ok(())
     }
+}
+
+/// Calculates the instantiated data section size based on the number of heuristic memory pages (see `GENERIC_OS_PAGE_SIZE`).
+/// That is, the size of the instantiated data section is the size of the section after the module is instantiated
+/// in the executor's memory. Additionally, the number of heuristic pages used during instantiation is considered,
+/// as each page contributes to the total weight during instantiation.
+pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
+    let Some(data_section) = module.data_section() else {
+        // No data section
+        return Ok(0);
+    };
+
+    let mut used_pages = BTreeSet::new();
+    for data_segment in data_section.entries() {
+        let data_segment_offset = data_segment
+            .offset()
+            .as_ref()
+            .and_then(get_init_expr_const_i32)
+            .ok_or(DataSectionError::Initialization)? as u32;
+        let data_segment_start = data_segment_offset / GENERIC_OS_PAGE_SIZE;
+
+        let data_segment_size = data_segment.value().len() as u32;
+
+        if data_segment_size == 0 {
+            // Zero size data segment
+            continue;
+        }
+
+        let data_segment_end = data_segment_offset // We should use `offset` here and not `start`
+                .saturating_add(data_segment_size.saturating_sub(1)) // Round up to the nearest whole number
+                / GENERIC_OS_PAGE_SIZE;
+
+        used_pages.extend(data_segment_start..=data_segment_end);
+    }
+
+    Ok(used_pages.len() as u32 * GENERIC_OS_PAGE_SIZE)
+}
+
+/// Calculates the amount of bytes in the global section will be initialized during module instantiation.
+pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, CodeError> {
+    let Some(global_section) = module.global_section() else {
+        // No element section
+        return Ok(0);
+    };
+
+    Ok(global_section
+        .entries()
+        .iter()
+        .fold(0, |total_bytes, global| {
+            let value_size = match global.global_type().content_type() {
+                ValueType::I32 | ValueType::F32 => mem::size_of::<i32>(),
+                ValueType::I64 | ValueType::F64 => mem::size_of::<i64>(),
+            } as u32;
+            total_bytes.saturating_add(value_size)
+        }))
+}
+
+/// Calculates the amount of bytes in the table section that will be allocated during module instantiation.
+pub fn get_instantiated_table_section_size(module: &Module) -> Result<u32, CodeError> {
+    let Some(table_section) = module.table_section() else {
+        return Ok(0);
+    };
+
+    Ok(table_section
+        .entries()
+        .iter()
+        .fold(0, |total_bytes, table| {
+            let count = table.limits().initial();
+            // Tables may hold only reference types, which are 4 bytes long.
+            total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
+        }))
+}
+
+/// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.
+pub fn get_instantiated_element_section_size(module: &Module) -> Result<u32, CodeError> {
+    if module.table_section().is_none() {
+        return Ok(0);
+    }
+
+    let Some(element_section) = module.elements_section() else {
+        // No element section
+        return Ok(0);
+    };
+
+    Ok(element_section
+        .entries()
+        .iter()
+        .fold(0, |total_bytes, segment| {
+            let count = segment.members().iter().count() as u32;
+            // Tables may hold only reference types, which are 4 bytes long.
+            total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
+        }))
+}
+
+pub struct CodeTypeSectionSizes {
+    pub code_section: u32,
+    pub type_section: u32,
+}
+
+// Calculate the size of the code and type sections in bytes.
+pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSectionSizes, CodeError> {
+    let mut code_start_exists = false;
+    let mut code_section_size = 0;
+    let mut type_section_size = 0;
+
+    let parser = wasmparser::Parser::new(0);
+
+    for item in parser.parse_all(code_bytes) {
+        let item = item.map_err(CodeError::Validation)?;
+        match item {
+            Payload::CodeSectionStart { size, .. } => {
+                code_start_exists = true;
+                code_section_size = size;
+            }
+            Payload::CodeSectionEntry(f) if !code_start_exists => {
+                code_section_size += f.range().len() as u32;
+            }
+            Payload::TypeSection(t) => {
+                type_section_size += t.range().len() as u32;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(CodeTypeSectionSizes {
+        code_section: code_section_size,
+        type_section: type_section_size,
+    })
 }

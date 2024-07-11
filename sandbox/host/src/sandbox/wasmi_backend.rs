@@ -22,11 +22,11 @@ use std::fmt;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
-use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
-use wasmi::{
+use sandbox_wasmi::{
     memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
     RuntimeValue, Trap, TrapCode,
 };
+use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
     error::{self, Error},
@@ -48,7 +48,7 @@ impl fmt::Display for CustomHostError {
     }
 }
 
-impl wasmi::HostError for CustomHostError {}
+impl sandbox_wasmi::HostError for CustomHostError {}
 
 /// Construct trap error from specified message
 fn trap(msg: &'static str) -> Trap {
@@ -60,32 +60,38 @@ impl ImportResolver for Imports {
         &self,
         module_name: &str,
         field_name: &str,
-        signature: &wasmi::Signature,
-    ) -> std::result::Result<wasmi::FuncRef, wasmi::Error> {
+        signature: &sandbox_wasmi::Signature,
+    ) -> std::result::Result<sandbox_wasmi::FuncRef, sandbox_wasmi::Error> {
         let idx = self.func_by_name(module_name, field_name).ok_or_else(|| {
-            wasmi::Error::Instantiation(format!("Export {}:{} not found", module_name, field_name))
+            sandbox_wasmi::Error::Instantiation(format!(
+                "Export {}:{} not found",
+                module_name, field_name
+            ))
         })?;
 
-        Ok(wasmi::FuncInstance::alloc_host(signature.clone(), idx.0))
+        Ok(sandbox_wasmi::FuncInstance::alloc_host(
+            signature.clone(),
+            idx.0,
+        ))
     }
 
     fn resolve_memory(
         &self,
         module_name: &str,
         field_name: &str,
-        _memory_type: &wasmi::MemoryDescriptor,
-    ) -> std::result::Result<wasmi::MemoryRef, wasmi::Error> {
+        _memory_type: &sandbox_wasmi::MemoryDescriptor,
+    ) -> std::result::Result<sandbox_wasmi::MemoryRef, sandbox_wasmi::Error> {
         let mem = self
             .memory_by_name(module_name, field_name)
             .ok_or_else(|| {
-                wasmi::Error::Instantiation(format!(
+                sandbox_wasmi::Error::Instantiation(format!(
                     "Export {}:{} not found",
                     module_name, field_name
                 ))
             })?;
 
         let wrapper = mem.as_wasmi().ok_or_else(|| {
-            wasmi::Error::Instantiation(format!(
+            sandbox_wasmi::Error::Instantiation(format!(
                 "Unsupported non-wasmi export {}:{}",
                 module_name, field_name
             ))
@@ -103,9 +109,9 @@ impl ImportResolver for Imports {
         &self,
         module_name: &str,
         field_name: &str,
-        _global_type: &wasmi::GlobalDescriptor,
-    ) -> std::result::Result<wasmi::GlobalRef, wasmi::Error> {
-        Err(wasmi::Error::Instantiation(format!(
+        _global_type: &sandbox_wasmi::GlobalDescriptor,
+    ) -> std::result::Result<sandbox_wasmi::GlobalRef, sandbox_wasmi::Error> {
+        Err(sandbox_wasmi::Error::Instantiation(format!(
             "Export {}:{} not found",
             module_name, field_name
         )))
@@ -115,9 +121,9 @@ impl ImportResolver for Imports {
         &self,
         module_name: &str,
         field_name: &str,
-        _table_type: &wasmi::TableDescriptor,
-    ) -> std::result::Result<wasmi::TableRef, wasmi::Error> {
-        Err(wasmi::Error::Instantiation(format!(
+        _table_type: &sandbox_wasmi::TableDescriptor,
+    ) -> std::result::Result<sandbox_wasmi::TableRef, sandbox_wasmi::Error> {
+        Err(sandbox_wasmi::Error::Instantiation(format!(
             "Export {}:{} not found",
             module_name, field_name
         )))
@@ -138,11 +144,11 @@ pub fn new_memory(initial: u32, maximum: Option<u32>) -> crate::error::Result<Me
 ///
 /// This wrapper limits the scope where the slice can be taken to
 #[derive(Debug, Clone)]
-pub struct MemoryWrapper(wasmi::MemoryRef);
+pub struct MemoryWrapper(sandbox_wasmi::MemoryRef);
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    fn new(memory: wasmi::MemoryRef) -> Self {
+    fn new(memory: sandbox_wasmi::MemoryRef) -> Self {
         Self(memory)
     }
 }
@@ -198,7 +204,7 @@ impl MemoryTransfer for MemoryWrapper {
     }
 }
 
-impl<'a> wasmi::Externals for GuestExternals<'a> {
+impl<'a> sandbox_wasmi::Externals for GuestExternals<'a> {
     fn invoke_index(
         &mut self,
         index: usize,
@@ -339,7 +345,7 @@ pub fn instantiate(
 /// Invoke a function within a sandboxed module
 pub fn invoke(
     instance: &SandboxInstance,
-    module: &wasmi::ModuleRef,
+    module: &sandbox_wasmi::ModuleRef,
     export_name: &str,
     args: &[Value],
     sandbox_context: &mut dyn SandboxContext,
@@ -352,7 +358,7 @@ pub fn invoke(
                 .invoke_export(export_name, &args, guest_externals)
                 .map(|result| result.map(Into::into))
                 .map_err(|error| {
-                    if matches!(error, wasmi::Error::Trap(Trap::Code(TrapCode::StackOverflow))) {
+                    if matches!(error, sandbox_wasmi::Error::Trap(Trap::Code(TrapCode::StackOverflow))) {
                         // Panic stops process queue execution in that case.
                         // This allows to avoid error lead to consensus failures, that must be handled
                         // in node binaries forever. If this panic occur, then we must increase stack memory size,
@@ -367,7 +373,7 @@ pub fn invoke(
 }
 
 /// Get global value by name
-pub fn get_global(instance: &wasmi::ModuleRef, name: &str) -> Option<Value> {
+pub fn get_global(instance: &sandbox_wasmi::ModuleRef, name: &str) -> Option<Value> {
     Some(Into::into(
         instance.export_by_name(name)?.as_global()?.get(),
     ))
@@ -375,7 +381,7 @@ pub fn get_global(instance: &wasmi::ModuleRef, name: &str) -> Option<Value> {
 
 /// Set global value by name
 pub fn set_global(
-    instance: &wasmi::ModuleRef,
+    instance: &sandbox_wasmi::ModuleRef,
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {

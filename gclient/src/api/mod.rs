@@ -24,7 +24,7 @@ pub mod storage;
 
 use crate::{ws::WSAddress, EventListener};
 use error::*;
-use gnode::{Node, NodeInstance};
+use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
@@ -52,7 +52,7 @@ impl GearApi {
     pub async fn init_with(address: WSAddress, suri: impl AsRef<str>) -> Result<Self> {
         let mut suri = suri.as_ref().splitn(2, ':');
 
-        Api::new(address.url())
+        Api::new(address.url().as_str())
             .await
             .and_then(|api| {
                 Ok(Self(

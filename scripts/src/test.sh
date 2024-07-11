@@ -102,6 +102,24 @@ run_fuzzer() {
   RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
 }
 
+run_lazy_pages_fuzzer() {
+  . $(dirname "$SELF")/fuzzer_consts.sh
+
+  ROOT_DIR="$1"
+  CORPUS_DIR="$2"
+
+  # Navigate to lazy pages fuzzer dir
+  cd $ROOT_DIR/utils/lazy-pages-fuzzer
+
+  # Build/run fuzzer
+  if [ -n "$LAZY_PAGES_FUZZER_ONLY_BUILD" ]
+  then
+    cargo fuzz build --release --sanitizer=none lazy-pages-fuzzer-fuzz $CORPUS_DIR
+  else
+    cargo fuzz run --release --sanitizer=none lazy-pages-fuzzer-fuzz $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
+  fi
+}
+
 run_fuzzer_tests() {
   # This includes property tests for runtime-fuzzer.
   cargo nextest run -p runtime-fuzzer

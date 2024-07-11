@@ -56,6 +56,7 @@ pub trait WeightInfo {
     fn instantiate_module_data_section_per_kb(d: u32, ) -> Weight;
     fn instantiate_module_global_section_per_kb(g: u32, ) -> Weight;
     fn instantiate_module_table_section_per_kb(t: u32, ) -> Weight;
+    fn instantiate_module_element_section_per_kb(e: u32, ) -> Weight;
     fn instantiate_module_type_section_per_kb(t: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
@@ -414,15 +415,25 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             // Standard Error: 1_895
             .saturating_add(Weight::from_parts(2_416_290, 0).saturating_mul(g.into()))
     }
-    /// The range of component `t` is `[0, 512]`.
+    /// The range of component `t` is `[0, 9765]`.
     fn instantiate_module_table_section_per_kb(t: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 35_552_000 picoseconds.
-        Weight::from_parts(3_204_504, 0)
-            // Standard Error: 84_742
-            .saturating_add(Weight::from_parts(17_685_465, 0).saturating_mul(t.into()))
+        // Minimum execution time: 34_160_000 picoseconds.
+        Weight::from_parts(34_614_000, 0)
+            // Standard Error: 2_123
+            .saturating_add(Weight::from_parts(359_300, 0).saturating_mul(t.into()))
+    }
+    /// The range of component `t` is `[0, 512]`.
+    fn instantiate_module_element_section_per_kb(e: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 36_788_000 picoseconds.
+        Weight::from_parts(38_141_151, 0)
+            // Standard Error: 3_777
+            .saturating_add(Weight::from_parts(18_936_755, 0).saturating_mul(e.into()))
     }
     /// The range of component `t` is `[0, 512]`.
     fn instantiate_module_type_section_per_kb(t: u32, ) -> Weight {
@@ -2331,15 +2342,25 @@ impl WeightInfo for () {
             // Standard Error: 1_895
             .saturating_add(Weight::from_parts(2_416_290, 0).saturating_mul(g.into()))
     }
-    /// The range of component `t` is `[0, 512]`.
+    /// The range of component `t` is `[0, 9765]`.
     fn instantiate_module_table_section_per_kb(t: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 35_552_000 picoseconds.
-        Weight::from_parts(3_204_504, 0)
-            // Standard Error: 84_742
-            .saturating_add(Weight::from_parts(17_685_465, 0).saturating_mul(t.into()))
+        // Minimum execution time: 34_160_000 picoseconds.
+        Weight::from_parts(34_614_000, 0)
+            // Standard Error: 2_123
+            .saturating_add(Weight::from_parts(359_300, 0).saturating_mul(t.into()))
+    }
+    /// The range of component `t` is `[0, 512]`.
+    fn instantiate_module_element_section_per_kb(e: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 36_788_000 picoseconds.
+        Weight::from_parts(38_141_151, 0)
+            // Standard Error: 3_777
+            .saturating_add(Weight::from_parts(18_936_755, 0).saturating_mul(e.into()))
     }
     /// The range of component `t` is `[0, 512]`.
     fn instantiate_module_type_section_per_kb(t: u32, ) -> Weight {
