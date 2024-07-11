@@ -65,10 +65,15 @@ impl Message {
         self
     }
 
-    /// This field is used for deploying programs,
-    /// you don't need this if you are simply
+    /// NOTE: you don't need this method if you are simply
     /// sending messages.
-    pub fn salt(mut self, value: impl AsRef<u8>) {}
+    ///
+    /// The arbitrary data needed to generate an address for a new program
+    /// (control of salt uniqueness is entirely on the function caller’s side);
+    pub fn salt(mut self, salt: Vec<u8>) -> Self {
+        self.salt = salt;
+        self
+    }
 
     /// Set the signer of this message
     ///

@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Backend, Code, Message, Program};
+use crate::{
+    client::{Backend, Code, Message, Program},
+    TxResult,
+};
 use anyhow::Result;
 use gear_core::ids::ProgramId;
 use std::sync::Arc;
@@ -28,10 +31,12 @@ pub struct Client<T: Backend> {
 
 impl<T: Backend> Client<T> {
     /// Deploy program to backend
-    pub async fn deploy<M>(&self, code: impl Code, message: M) -> Result<Program<T>>
+    pub async fn deploy<M>(&self, code: impl Code, message: M) -> Result<TxResult<Program<T>>>
     where
         M: Into<Message> + Send,
     {
         self.backend.deploy(code, message).await
     }
+
+    // TODO: signer related methods
 }

@@ -18,12 +18,14 @@
 
 use crate::{
     client::{Backend, Code, Message, Program},
-    GearApi, WSAddress,
+    GearApi, TxResult, WSAddress,
 };
 use anyhow::Result;
 use async_trait::async_trait;
-use gear_core::ids::ProgramId;
+use gear_core::{ids::ProgramId, message::UserStoredMessage};
 use gprimitives::MessageId;
+use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
+use parity_scale_codec::Decode;
 use std::{ops::Deref, sync::Arc};
 
 /// GClient instance
@@ -59,7 +61,7 @@ impl Backend for GClient {
         })
     }
 
-    async fn deploy<M>(&self, code: impl Code, message: M) -> Result<Program<Self>>
+    async fn deploy<M>(&self, code: impl Code, message: M) -> Result<TxResult<Program<Self>>>
     where
         M: Into<Message> + Send,
     {
@@ -75,13 +77,16 @@ impl Backend for GClient {
             )
             .await?;
 
-        Ok(Program {
-            id,
-            backend: self.clone(),
+        Ok(TxResult {
+            result: Program {
+                id,
+                backend: self.clone(),
+            },
+            logs: vec![],
         })
     }
 
-    async fn send<M>(&self, id: ProgramId, message: M) -> Result<MessageId>
+    async fn send<M>(&self, id: ProgramId, message: M) -> Result<TxResult<MessageId>>
     where
         M: Into<Message> + Send,
     {
@@ -90,6 +95,21 @@ impl Backend for GClient {
             .send_message_bytes(id, message.payload, message.gas_limit, message.value)
             .await?;
 
-        Ok(mid)
+        Ok(TxResult {
+            result: mid,
+            logs: vec![],
+        })
+    }
+
+    async fn state<R: Decode>(&self, id: ProgramId, payload: Vec<u8>) -> Result<R> {
+        self.read_state(id, payload).await.map_err(Into::into)
+    }
+
+    async fn state_bytes(&self, id: ProgramId, payload: Vec<u8>) -> Result<Vec<u8>> {
+        self.read_state_bytes(id, payload).await.map_err(Into::into)
+    }
+
+    async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
+        self.get_mailbox_message(mid).await.map_err(Into::into)
     }
 }

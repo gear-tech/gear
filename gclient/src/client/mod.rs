@@ -29,3 +29,14 @@ pub use self::{
     packet::Message,
     program::Program,
 };
+use gear_core::message::UserMessage;
+
+/// Transaction result
+///
+/// TODO: need a refactor on gclient side
+pub struct TxResult<T> {
+    /// Result of this transaction
+    pub result: T,
+    /// Logs emitted in this transaction
+    pub logs: Vec<UserMessage>,
+}

@@ -16,11 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Message, Program};
+use crate::{
+    client::{Message, Program},
+    TxResult,
+};
 use anyhow::Result;
 use async_trait::async_trait;
-use gear_core::ids::ProgramId;
+use gear_core::{ids::ProgramId, message::UserStoredMessage};
 use gprimitives::MessageId;
+use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
+use parity_scale_codec::Decode;
 use std::{fs, path::PathBuf};
 
 mod gclient;
@@ -36,14 +41,23 @@ pub trait Backend: Sized {
     ///
     /// NOTE: This interface implements `create_program` at the moment
     /// to simplify the usages.
-    async fn deploy<M>(&self, _code: impl Code, message: M) -> Result<Program<Self>>
+    async fn deploy<M>(&self, _code: impl Code, message: M) -> Result<TxResult<Program<Self>>>
     where
         M: Into<Message> + Send;
 
     /// Send message
-    async fn send<M>(&self, _id: ProgramId, message: M) -> Result<MessageId>
+    async fn send<M>(&self, _id: ProgramId, message: M) -> Result<TxResult<MessageId>>
     where
         M: Into<Message> + Send;
+
+    /// Get mailbox message from message id
+    async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>>;
+
+    /// Read program state from payload
+    async fn state<R: Decode>(&self, id: ProgramId, payload: Vec<u8>) -> Result<R>;
+
+    /// Read program state as bytes from payload
+    async fn state_bytes(&self, id: ProgramId, payload: Vec<u8>) -> Result<Vec<u8>>;
 }
 
 /// Generate gear program code, could be path or bytes.
