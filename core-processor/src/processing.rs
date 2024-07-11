@@ -149,22 +149,20 @@ where
                     // assert that after processing the initial reservation is less or equal to the current one.
                     // during execution reservation amount might increase due to `system_reserve_gas` calls
                     // thus making initial reservation less than current one.
-                    debug_assert!(system_reservation_ctx
-                        .current_reservation
-                        .and_then(|initial| res
-                            .system_reservation_context
-                            .current_reservation
-                            .map(|current| initial <= current))
-                        .unwrap_or(true));
-
-                    debug_assert!(system_reservation_ctx
-                        .previous_reservation
-                        .and_then(|initial| res
+                    debug_assert!(
+                        res.context_store.system_reservation()
+                            >= system_reservation_ctx.previous_reservation
+                    );
+                    /*debug_assert!(system_reservation_ctx.previous_reservation.and_then(
+                        |initial| res
                             .system_reservation_context
                             .previous_reservation
-                            .map(|current| initial <= current))
-                        .unwrap_or(true));
-
+                            .map(|current| initial == current)
+                    ));*/
+                    debug_assert!(
+                        system_reservation_ctx.previous_reservation
+                            == res.system_reservation_context.previous_reservation
+                    );
                     debug_assert!(res
                         .gas_reserver
                         .as_ref()
