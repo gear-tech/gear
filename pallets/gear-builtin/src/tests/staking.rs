@@ -18,7 +18,6 @@
 
 use frame_support::assert_ok;
 use gprimitives::ActorId;
-use sp_core::ConstU8;
 use sp_staking::StakingAccount;
 use util::*;
 
@@ -610,7 +609,7 @@ mod util {
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
     use pallet_session::historical::{self as pallet_session_historical};
     pub(super) use parity_scale_codec::Encode;
-    use sp_core::{crypto::key_types, H256};
+    use sp_core::{crypto::key_types, ConstU8, H256};
     use sp_runtime::{
         testing::UintAuthorityId,
         traits::{BlakeTwo256, ConstU32, IdentityLookup, OpaqueKeys},
