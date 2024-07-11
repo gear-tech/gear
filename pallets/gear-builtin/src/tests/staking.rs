@@ -18,7 +18,7 @@
 
 use frame_support::assert_ok;
 use gprimitives::ActorId;
-
+use sp_core::ConstU8;
 use sp_staking::StakingAccount;
 use util::*;
 
