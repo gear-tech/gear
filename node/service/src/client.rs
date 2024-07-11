@@ -56,6 +56,7 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
         frame_benchmarking::benchmarking::HostFunctions,
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
+        gear_ri::gear_tasks::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
         gear_ri::gear_bls_12_381::HostFunctions,
     );
@@ -64,6 +65,7 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
     type ExtendHostFunctions = (
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
+        gear_ri::gear_tasks::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
         gear_ri::gear_bls_12_381::HostFunctions,
     );
@@ -95,6 +97,8 @@ pub trait RuntimeApiCollection:
     + pallet_gear_rpc_runtime_api::GearApi<Block>
     + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
     + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
+    + gear_tasks_runtime_api::GearTasksApi<Block>
+    + gear_tasks::RuntimeSetOverlayedChanges<Block>
 {
 }
 
@@ -112,6 +116,8 @@ impl<Api> RuntimeApiCollection for Api where
         + pallet_gear_rpc_runtime_api::GearApi<Block>
         + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
         + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
+        + gear_tasks_runtime_api::GearTasksApi<Block>
+        + gear_tasks::RuntimeSetOverlayedChanges<Block>
 {
 }
 

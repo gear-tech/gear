@@ -1033,6 +1033,11 @@ impl pallet_gear_bank::Config for Runtime {
     type GasMultiplier = GasMultiplier;
 }
 
+parameter_types! {
+    // corresponding to the number of cores in reference validator machine
+    pub ProcessingTasksAmount: u8 = 4;
+}
+
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -1051,6 +1056,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type ProcessingTasksAmount = ProcessingTasksAmount;
     type BuiltinDispatcherFactory = GearBuiltin;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
@@ -1512,6 +1518,23 @@ impl_runtime_apis_plus_common! {
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
         }
+    }
+
+    impl gear_tasks_runtime_api::GearTasksApi<Block> for Runtime {
+        fn execute_task(func_ref: u64, payload: Vec<u8>) -> Vec<u8> {
+            gear_tasks::runtime_api_impl(func_ref, payload)
+        }
+    }
+}
+
+#[cfg(any(feature = "std", test))]
+impl<B, C> gear_tasks::RuntimeSetOverlayedChanges<B> for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+{
+    fn set_overlayed_changes(&mut self, changes: OverlayedChanges<HashingFor<B>>) {
+        let _changes = self.changes.replace(changes);
     }
 }
 

@@ -52,10 +52,17 @@ use {
 pub use gear_sandbox_interface::init as sandbox_init;
 pub use gear_sandbox_interface::sandbox;
 
+#[cfg(feature = "std")]
+pub use gear_tasks::gear_tasks;
+
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
 // Domain Separation Tag for signatures on G2.
 pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+
+pub fn reinit_tasks(tasks: u8) {
+    ::gear_tasks::gear_tasks::reinit(tasks);
+}
 
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]

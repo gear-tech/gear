@@ -121,7 +121,7 @@ macro_rules! unwrap_client {
             #[cfg(feature = "vara-native")]
             service::Client::Vara($client) => $code,
             #[allow(unreachable_patterns)]
-            _ => Err("invalid chain spec".into()),
+            _ => return Err("invalid chain spec".into()),
         }
     };
 }
@@ -228,6 +228,22 @@ pub fn run() -> sc_cli::Result<()> {
                                     .into(),
                             );
                         }
+
+                        let (client, _, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
+
+                        unwrap_client!(client, {
+                            let runner = gear_tasks::GearTasksRunner::new(client.clone());
+                            std::thread::spawn(|| {
+                                futures::executor::block_on(async move {
+                                    runner.run().await;
+                                });
+                            });
+                        });
+
                         match &config.chain_spec {
                             #[cfg(feature = "vara-native")]
                             spec if spec.is_vara() => cmd

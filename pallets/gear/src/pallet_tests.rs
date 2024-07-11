@@ -61,6 +61,7 @@ macro_rules! impl_config_inner {
             type BlockLimiter = GearGas;
             type Scheduler = GearScheduler;
             type QueueRunner = Gear;
+            type ProcessingTasksAmount = ConstU8<4>;
             type BuiltinDispatcherFactory = GearConfigBuiltinDispatcherFactory;
             type ProgramRentFreePeriod = RentFreePeriod;
             type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;

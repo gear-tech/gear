@@ -128,6 +128,8 @@ jobs:
           ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="read_big_state" --heap-pages=4096 --extra
           # check that signal_stack_limit_exceeded_works benchmarks works
           ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
+          # check that gear-tasks works
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_gear_tasks" --heap-pages=4096 --extra
           # check that check/test benchmarks works
           ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_all" --heap-pages=4096 --extra
 
