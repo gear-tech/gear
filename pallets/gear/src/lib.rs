@@ -1662,10 +1662,25 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Transfers value from terminated or exited program to its inheritor.
+        /// Transfers value from chain of terminated or exited programs to its final inheritor.
         ///
         /// `depth` parameter is how far to traverse to inheritor.
         /// A value of 10 is sufficient for most cases.
+        ///
+        /// # Example of chain
+        ///
+        /// - Program #1 exits (e.g `gr_exit syscall) with argument pointing to user.
+        /// Balance of program #1 has been sent to user.
+        /// - Program #2 exits with inheritor pointing to program #1.
+        /// Balance of program #2 has been sent to exited program #1.
+        /// - Program #3 exits with inheritor pointing to program #2
+        /// Balance of program #1 has been sent to exited program #2.
+        ///
+        /// So chain of inheritors looks like: Program #3 -> Program #2 -> Program #1 -> User.
+        ///
+        /// We have programs #1 and #2 with stuck value on their balances.
+        /// The balances should've been transferred to user (final inheritor) according to the chain.
+        /// But protocol doesn't traverse the chain automatically, so user have to call this extrinsic.
         #[pallet::call_index(8)]
         #[pallet::weight(<T as Config>::WeightInfo::claim_value_to_inheritor(depth.get()))]
         pub fn claim_value_to_inheritor(
