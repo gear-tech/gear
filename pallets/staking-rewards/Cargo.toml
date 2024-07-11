@@ -41,7 +41,6 @@ pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-session = { workspace = true, features = ["std"] }
 pallet-sudo = { workspace = true, features = ["std"] }
-pallet-bags-list = { workspace = true, features = ["std"] }
 pallet-utility = { workspace = true, features = ["std"] }
 pallet-election-provider-multi-phase = { workspace = true, features = ["std"] }
 frame-executive = { workspace = true, features = ["std"] }
@@ -55,7 +54,6 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-balances/std",
-    "pallet-bags-list/std",
 	"pallet-staking/std",
 	"pallet-staking-reward-fn/std",
     "parity-scale-codec/std",

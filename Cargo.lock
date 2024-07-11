@@ -2819,6 +2819,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-staking-broker"
+version = "0.1.0"
+dependencies = [
+ "gbuiltin-staking",
+ "gear-wasm-builder",
+ "gstd",
+ "hashbrown 0.14.5",
+ "hex",
+ "hex-literal",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
@@ -4250,6 +4263,15 @@ dependencies = [
  "ark-serialize",
  "derive_more",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "gbuiltin-staking"
+version = "1.4.2"
+dependencies = [
+ "derive_more",
+ "gprimitives",
+ "scale-info",
 ]
 
 [[package]]
@@ -8280,20 +8302,24 @@ dependencies = [
  "ark-scale 0.0.12",
  "ark-serialize",
  "ark-std",
+ "demo-staking-broker",
  "demo-waiting-proxy",
  "derive_more",
  "env_logger",
  "frame-benchmarking",
+ "frame-election-provider-support",
  "frame-executive",
  "frame-support",
  "frame-support-test",
  "frame-system",
  "gbuiltin-bls381",
+ "gbuiltin-staking",
  "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
  "gear-runtime-interface",
+ "gprimitives",
  "hex-literal",
  "impl-trait-for-tuples",
  "log",
@@ -8305,6 +8331,8 @@ dependencies = [
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
+ "pallet-session",
+ "pallet-staking",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
@@ -8315,6 +8343,7 @@ dependencies = [
  "sp-externalities 0.19.0",
  "sp-io",
  "sp-runtime",
+ "sp-staking",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.4.0)",
 ]
 
@@ -8565,7 +8594,6 @@ dependencies = [
  "gear-common",
  "log",
  "pallet-authorship",
- "pallet-bags-list",
  "pallet-balances",
  "pallet-election-provider-multi-phase",
  "pallet-session",
@@ -14471,6 +14499,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gbuiltin-staking",
  "gear-common",
  "gear-core-processor",
  "gear-lazy-pages-common",
