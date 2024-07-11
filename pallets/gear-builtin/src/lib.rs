@@ -50,6 +50,7 @@ use alloc::{
     collections::{btree_map::Entry, BTreeMap},
     string::ToString,
 };
+use core::marker::PhantomData;
 use core_processor::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
     process_execution_error, process_success, SuccessfulDispatchResultKind,
@@ -108,11 +109,26 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
 pub trait BuiltinActor {
     type Error;
 
-    /// The global unique ID of the trait implementer type.
-    const ID: u64;
-
     /// Handles a message and returns a result and the actual gas spent.
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64);
+}
+
+/// A marker struct to associate a builtin actor with its unique ID.
+pub struct ActorWithId<const ID: u64, A: BuiltinActor>(PhantomData<A>);
+
+/// Glue trait to implement `BuiltinActorWithId` for a tuple of `ActorWithId` types.
+trait BuiltinActorWithId {
+    const ID: u64;
+
+    type Error;
+    type Actor: BuiltinActor<Error = Self::Error>;
+}
+
+impl<const ID: u64, E, A: BuiltinActor<Error = E>> BuiltinActorWithId for ActorWithId<ID, A> {
+    const ID: u64 = ID;
+
+    type Error = E;
+    type Actor = A;
 }
 
 /// A trait defining a method to convert a tuple of `BuiltinActor` types into
@@ -126,7 +142,7 @@ pub trait BuiltinCollection<E> {
 
 // Assuming as many as 16 builtin actors for the meantime
 #[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(BuiltinActor<Error = E> + 'static)]
+#[tuple_types_custom_trait_bound(BuiltinActorWithId<Error = E> + 'static)]
 impl<E> BuiltinCollection<E> for Tuple {
     fn collect(
         registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
@@ -136,7 +152,7 @@ impl<E> BuiltinCollection<E> for Tuple {
             #(
                 let actor_id = id_converter(Tuple::ID);
                 if let Entry::Vacant(e) = registry.entry(actor_id) {
-                    e.insert(Box::new(Tuple::handle));
+                    e.insert(Box::new(Tuple::Actor::handle));
                 } else {
                     unreachable!("Duplicate builtin ids");
                 }
