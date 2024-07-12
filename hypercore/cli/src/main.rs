@@ -60,9 +60,25 @@ async fn main() -> anyhow::Result<()> {
     if let Some(extra_command) = args.extra_command {
         extra_command.run(&config).await?;
     } else {
-        let service = Service::new(&config).await?;
+        let mut service = Some(Service::new(&config).await?);
 
-        service.run().await?;
+        async fn run_service(service: &mut Option<Service>) -> anyhow::Result<()> {
+            if let Some(service) = service.take() {
+                service.run().await
+            } else {
+                futures::future::pending().await
+            }
+        }
+
+        loop {
+            tokio::select! {
+                _ = run_service(&mut service) => {}
+                _ = tokio::signal::ctrl_c() => {
+                    log::info!("Received SIGINT, shutting down");
+                    break;
+                }
+            }
+        }
     }
 
     Ok(())
