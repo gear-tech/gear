@@ -20,8 +20,6 @@ services:
       -d /data
       --ethereum-rpc ws://54.67.75.1:8546
       --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
-      --ethereum-router-address '0x6d57658Ad056832B6F19d634c5fF8529fF19fE19'
-      --ethereum-program-address '0x0490Ab51505D58D14301969711D77B94aA3DfC36'
       --validator-key ${VALIDATOR_PUB_KEY}"
     networks:
       testing_net:
@@ -49,8 +47,6 @@ services:
       --bootnodes '/ip4/172.28.1.1/udp/30333/quic-v1'
       --ethereum-rpc ws://54.67.75.1:8546
       --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
-      --ethereum-router-address '0x6d57658Ad056832B6F19d634c5fF8529fF19fE19'
-      --ethereum-program-address '0x0490Ab51505D58D14301969711D77B94aA3DfC36'
       --sequencer-key ${SEQUENCER_PUB_KEY}"
     networks:
       testing_net:
