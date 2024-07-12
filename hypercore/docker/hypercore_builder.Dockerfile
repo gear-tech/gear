@@ -17,14 +17,12 @@ RUN rm cmake-3.24.0-linux-x86_64.sh
 RUN cmake --version
 
 # Install Rust and toolchains
-RUN  wget https://sh.rustup.rs/rustup-init.sh
+RUN wget https://sh.rustup.rs/rustup-init.sh
 RUN chmod +x rustup-init.sh
 RUN ./rustup-init.sh -y
 ENV PATH="/root/.cargo/bin:$PATH"
-#RUN rustup default stable
-RUN rustup toolchain install nightly-2023-04-25
+RUN rustup toolchain install nightly-2024-01-25
 RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2024-01-25
-#RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain
 
 # Build
 RUN cargo build -p hypercore-cli --profile $PROFILE
@@ -35,18 +33,16 @@ FROM --platform=linux/amd64 ubuntu:22.04
 MAINTAINER GEAR
 LABEL description="This is the 2nd stage: a very small image where we copy the Hypercore binary."
 ARG PROFILE=release
-COPY --from=builder /gear/target/$PROFILE/ethgpu /usr/local/bin
-RUN apt-get update && apt-get install -y openssl
+COPY --from=builder /hypercore/target/$PROFILE/ethgpu /usr/local/bin
+RUN apt-get update && apt-get install -y openssl ca-certificates
 RUN useradd -m -u 1000 -U -s /bin/sh -d /hypercore hypercore && \
-	mkdir -p /hypercore/.local/share && \
-	mkdir /data && \
-	chown -R hypercore:hypercore /data && \
-	ln -s /data /hypercore/.local/share/hypercore && \
-	# Sanity checks
-	ldd /usr/local/bin/ethgpu && \
-	# unclutter and minimize the attack surface
-	rm -rf /usr/bin /usr/sbin && \
-	/usr/local/bin/ethgpu --version
+    mkdir -p /hypercore/.local/share && \
+    mkdir /data && \
+    chown -R hypercore:hypercore /data && \
+    ln -s /data /hypercore/.local/share/hypercore && \
+    # Sanity checks
+    ldd /usr/local/bin/ethgpu && \
+    /usr/local/bin/ethgpu --version
 
 USER root
 
