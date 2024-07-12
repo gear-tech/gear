@@ -30,7 +30,7 @@ use hypercore_sequencer::{BlockCommitment, StateTransition};
 use hypercore_validator::Commitment;
 use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
-use tokio::{signal, time};
+use tokio::time;
 
 /// Hypercore service.
 pub struct Service {
@@ -354,10 +354,6 @@ impl Service {
 
         loop {
             tokio::select! {
-                _ = signal::ctrl_c() => {
-                    log::info!("Received SIGINT, shutting down...");
-                    break;
-                }
                 observer_event = observer_events.next() => {
                     let Some(observer_event) = observer_event else {
                         log::info!("Observer stream ended, shutting down...");
