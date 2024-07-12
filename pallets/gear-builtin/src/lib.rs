@@ -116,7 +116,7 @@ pub trait BuiltinActor {
 /// A marker struct to associate a builtin actor with its unique ID.
 pub struct ActorWithId<const ID: u64, A: BuiltinActor>(PhantomData<A>);
 
-/// Glue trait to implement `BuiltinActorWithId` for a tuple of `ActorWithId` types.
+/// Glue trait to implement `BuiltinCollection` for a tuple of `ActorWithId`.
 trait BuiltinActorWithId {
     const ID: u64;
 
