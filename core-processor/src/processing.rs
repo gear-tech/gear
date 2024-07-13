@@ -153,12 +153,6 @@ where
                         res.context_store.system_reservation()
                             >= system_reservation_ctx.previous_reservation
                     );
-                    /*debug_assert!(system_reservation_ctx.previous_reservation.and_then(
-                        |initial| res
-                            .system_reservation_context
-                            .previous_reservation
-                            .map(|current| initial == current)
-                    ));*/
                     debug_assert!(
                         system_reservation_ctx.previous_reservation
                             == res.system_reservation_context.previous_reservation
