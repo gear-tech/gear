@@ -72,7 +72,9 @@ async fn main() -> anyhow::Result<()> {
 
         loop {
             tokio::select! {
-                _ = run_service(&mut service) => {}
+                res = run_service(&mut service) => {
+                    res?;
+                }
                 _ = tokio::signal::ctrl_c() => {
                     log::info!("Received SIGINT, shutting down");
                     break;
