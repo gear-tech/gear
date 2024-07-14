@@ -4,7 +4,7 @@ services:
     build:
       context: .
     ports:
-      - "20333:20333"
+      - "20333:20333/udp"
       - "9635:9635"
     image: gear-tech/gear-egpu:latest
     environment:
@@ -29,7 +29,7 @@ services:
     build:
       context: .
     ports:
-      - "20334:20334"
+      - "20334:20334/udp"
       - "9636:9636"
     image: gear-tech/gear-egpu:latest
     volumes:
@@ -41,10 +41,11 @@ services:
     links:
       - "node_validator:validator"
     command: bash -c "ethgpu -d /data insert-key ${SEQUENCER_KEY}
+      && sleep 1
       && ethgpu
       -d /data
       --port 20334
-      --bootnodes '/ip4/172.28.1.1/udp/30333/quic-v1'
+      --bootnodes '/ip4/172.28.1.1/udp/20333/quic-v1'
       --ethereum-rpc ws://54.67.75.1:8546
       --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
       --sequencer-key ${SEQUENCER_PUB_KEY}"
