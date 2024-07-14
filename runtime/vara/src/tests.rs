@@ -25,6 +25,17 @@ use runtime_common::weights::{
     PagesCosts,
 };
 
+#[cfg(feature = "dev")]
+#[test]
+fn bridge_session_timer_is_correct() {
+    assert_eq!(
+        <Runtime as pallet_gear_eth_bridge::Config>::SessionsPerEra::get(),
+        <Runtime as pallet_staking::Config>::SessionsPerEra::get()
+    );
+
+    assert_eq!(<Runtime as pallet_staking::Config>::SessionsPerEra::get(), 6);
+}
+
 #[test]
 fn instruction_weights_heuristics_test() {
     let weights = InstructionWeights::<Runtime>::default();
