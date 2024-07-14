@@ -29,17 +29,14 @@ use std::{cell::RefCell, convert::TryInto};
 ///
 /// Gives a simplified interface to perform some operations
 /// over a particular user mailbox.
-pub struct MailboxInterface<'a> {
+pub struct Mailbox<'a> {
     manager: &'a RefCell<ExtManager>,
     user_id: ProgramId,
 }
 
-impl<'a> MailboxInterface<'a> {
-    pub(crate) fn new(
-        user_id: ProgramId,
-        manager: &'a RefCell<ExtManager>,
-    ) -> MailboxInterface<'a> {
-        MailboxInterface { user_id, manager }
+impl<'a> Mailbox<'a> {
+    pub(crate) fn new(user_id: ProgramId, manager: &'a RefCell<ExtManager>) -> Mailbox<'a> {
+        Mailbox { user_id, manager }
     }
 
     /// Checks whether message with some traits (defined in `log`) is

@@ -21,50 +21,54 @@
 use core_processor::configs::BlockInfo;
 use std::{
     cell::RefCell,
+    rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use crate::BLOCK_DURATION_IN_MSECS;
 
+type BlockInfoStorageInner = Rc<RefCell<Option<BlockInfo>>>;
+
 thread_local! {
     /// Definition of the storage value storing block info (timestamp and height).
-    static BLOCK_INFO_STORAGE: RefCell<Option<BlockInfo>> = const { RefCell::new(None) };
-    /// `BlocksManager` instances counter.
-    ///
-    /// Used as a reference counter in order to nulify `BLOCK_INFO_STORAGE`,
-    /// if all instances are dropped.
-    static INSTANCES: RefCell<u32> = const { RefCell::new(0) };
+    static BLOCK_INFO_STORAGE: BlockInfoStorageInner = Rc::new(RefCell::new(None));
 }
 
 #[derive(Debug)]
-pub(crate) struct BlocksManager(());
+pub(crate) struct BlocksManager {
+    _unused: BlockInfoStorageInner,
+}
 
 impl BlocksManager {
     /// Create block info storage manager with a further initialization of the
     /// storage.
     pub(crate) fn new() -> Self {
-        INSTANCES.with_borrow_mut(|instances| {
-            *instances += 1;
-        });
-
-        BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
-            if block_info.is_none() {
+        let unused = BLOCK_INFO_STORAGE.with(|bi_rc| {
+            let mut ref_mut = bi_rc.borrow_mut();
+            if ref_mut.is_none() {
                 let info = BlockInfo {
                     height: 0,
                     timestamp: now(),
                 };
 
-                *block_info = Some(info)
+                *ref_mut = Some(info);
             }
+
+            Rc::clone(bi_rc)
         });
 
-        Self(())
+        Self { _unused: unused }
     }
 
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        BLOCK_INFO_STORAGE
-            .with_borrow(|cell| cell.as_ref().copied().expect("instance always initialized"))
+        BLOCK_INFO_STORAGE.with(|bi_rc| {
+            bi_rc
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("instance always initialized")
+        })
     }
 
     /// Move blocks by one.
@@ -74,8 +78,9 @@ impl BlocksManager {
 
     /// Adjusts blocks info by moving blocks by `amount`.
     pub(crate) fn move_blocks_by(&self, amount: u32) -> BlockInfo {
-        BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
-            let Some(block_info) = block_info.as_mut() else {
+        BLOCK_INFO_STORAGE.with(|bi_rc| {
+            let mut bi_ref_mut = bi_rc.borrow_mut();
+            let Some(block_info) = bi_ref_mut.as_mut() else {
                 panic!("instance always initialized");
             };
             block_info.height += amount;
@@ -95,16 +100,11 @@ impl Default for BlocksManager {
 
 impl Drop for BlocksManager {
     fn drop(&mut self) {
-        let remove_data = INSTANCES.with_borrow_mut(|instances| {
-            *instances = instances.saturating_sub(1);
-            *instances == 0
+        BLOCK_INFO_STORAGE.with(|bi_rc| {
+            if Rc::strong_count(bi_rc) == 2 {
+                *bi_rc.borrow_mut() = None;
+            }
         });
-
-        if remove_data {
-            BLOCK_INFO_STORAGE.with_borrow_mut(|block_info| {
-                *block_info = None;
-            })
-        }
     }
 }
 
@@ -129,13 +129,17 @@ mod tests {
 
         // Assert all instance use same data;
         assert_eq!(second_instance.get().height, 2);
+        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_some());
 
         // Drop first instance and check whether data is removed.
         drop(first_instance);
         assert_eq!(second_instance.get().height, 2);
 
+        second_instance.next_block();
+        assert_eq!(second_instance.get().height, 3);
+        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_some());
+
         drop(second_instance);
-        INSTANCES.with_borrow(|count| assert_eq!(*count, 0));
-        BLOCK_INFO_STORAGE.with_borrow(|maybe_bi| assert!(maybe_bi.is_none()));
+        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_none());
     }
 }

@@ -18,7 +18,7 @@
 
 use crate::{
     log::RunResult,
-    mailbox::MailboxInterface,
+    mailbox::Mailbox,
     manager::{Actors, Balance, ExtManager, MintMode},
     program::{Program, ProgramIdWrapper},
 };
@@ -304,12 +304,12 @@ impl System {
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
     #[track_caller]
-    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> MailboxInterface {
+    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
         if !self.0.borrow().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
-        MailboxInterface::new(program_id, &self.0)
+        Mailbox::new(program_id, &self.0)
     }
 
     /// Mint balance to user with given `id` and `value`.
