@@ -18,8 +18,6 @@
 
 //! Rust executor possible errors.
 
-use wasmi;
-
 /// Result type alias.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -28,7 +26,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[allow(missing_docs)]
 pub enum Error {
     #[error(transparent)]
-    Wasmi(#[from] wasmi::Error),
+    Wasmi(#[from] sandbox_wasmi::Error),
 
     #[error("Sandbox error: {0}")]
     Sandbox(String),
@@ -109,7 +107,7 @@ pub enum Error {
     AbortedDueToTrap(MessageWithBacktrace),
 }
 
-impl wasmi::HostError for Error {}
+impl sandbox_wasmi::HostError for Error {}
 
 impl From<&'static str> for Error {
     fn from(err: &'static str) -> Error {

@@ -1,6 +1,7 @@
 [package]
 name = "gear-stack-buffer"
 description = "Gear stack buffer implementation"
+documentation = "https://docs.rs/gear-stack-buffer"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

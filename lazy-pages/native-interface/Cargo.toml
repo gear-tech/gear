@@ -1,6 +1,7 @@
 [package]
 name = "gear-lazy-pages-native-interface"
 description = "Gear lazy-pages native interface"
+documentation = "https://docs.rs/gear-lazy-pages-native-interface"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
