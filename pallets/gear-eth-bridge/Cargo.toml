@@ -35,6 +35,28 @@ sp-consensus-grandpa.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
 
+[dev-dependencies]
+gprimitives.workspace = true
+sp-core = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-staking = { workspace = true, features = ["std"] }
+frame-support-test = { workspace = true, features = ["std"] }
+frame-election-provider-support = { workspace = true, features = ["std"] }
+pallet-authorship = { workspace = true, features = ["std"] }
+pallet-balances = { workspace = true, features = ["std"] }
+pallet-grandpa = { workspace = true, features = ["std"] }
+pallet-session = { workspace = true, features = ["std"] }
+sp-session = { workspace = true, features = ["std"] }
+pallet-gear = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-gear-bank = { workspace = true, features = ["std"] }
+pallet-gear-builtin = { workspace = true, features = ["std"] }
+pallet-gear-gas = { workspace = true, features = ["std"] }
+pallet-gear-messenger = { workspace = true, features = ["std"] }
+pallet-gear-program = { workspace = true, features = ["std"] }
+pallet-gear-scheduler = { workspace = true, features = ["std"] }
+env_logger.workspace = true
+
 [features]
 default = ['std']
 std = [

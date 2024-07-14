@@ -27,9 +27,14 @@ pub use builtin::Actor;
 pub use internal::{EthMessage, Proof};
 pub use pallet::*;
 
-// TODO (breathx): impl `mock` and `tests` modules.
 mod builtin;
 mod internal;
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
 
 #[allow(missing_docs)]
 #[frame_support::pallet]
@@ -112,6 +117,7 @@ pub mod pallet {
 
     /// Pallet Gear Eth Bridge's error.
     #[pallet::error]
+    #[cfg_attr(test, derive(Clone))]
     pub enum Error<T> {
         /// The error happens when bridge got called before
         /// proper initialization after deployment.
@@ -126,28 +132,32 @@ pub mod pallet {
         /// The error happens when bridging queue capacity exceeded,
         /// so message couldn't be sent.
         QueueCapacityExceeded,
+
+        /// The error happens when bridging thorough builtin and message value
+        /// is inapplicable to operation or insufficient.
+        IncorrectValueApplied,
     }
 
     /// Lifecycle storage.
     ///
     /// Defines if pallet got initialized and focused on common session changes.
     #[pallet::storage]
-    type Initialized<T> = StorageValue<_, bool, ValueQuery>;
+    pub(crate) type Initialized<T> = StorageValue<_, bool, ValueQuery>;
 
     /// Lifecycle storage.
     ///
     /// Defines if pallet is accepting any mutable requests. Governance-ruled.
     #[pallet::storage]
-    type Paused<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
+    pub(crate) type Paused<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
     /// Primary storage.
     ///
     /// Keeps hash of queued validator keys for the next era.
     ///
-    /// **Invariant**: Key exists in storage since first block of some era,
-    /// until initialization of the second block of the next era.
+    /// **Invariant**: Key exists in storage since first block of some era's last
+    /// session, until initialization of the second block of the next era.
     #[pallet::storage]
-    type AuthoritySetHash<T> = StorageValue<_, H256>;
+    pub(crate) type AuthoritySetHash<T> = StorageValue<_, H256>;
 
     /// Primary storage.
     ///
@@ -156,13 +166,13 @@ pub mod pallet {
     /// **Invariant**: Key exists since pallet initialization. If queue is empty,
     /// zeroed hash set in storage.
     #[pallet::storage]
-    type QueueMerkleRoot<T> = StorageValue<_, H256>;
+    pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
 
     /// Primary storage.
     ///
     /// Keeps bridge's queued messages keccak hashes.
     #[pallet::storage]
-    type Queue<T> = StorageValue<_, BoundedVec<H256, QueueCapacityOf<T>>, ValueQuery>;
+    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, QueueCapacityOf<T>>, ValueQuery>;
 
     /// Operational storage.
     ///
@@ -173,7 +183,7 @@ pub mod pallet {
     /// since storing grandpa keys hash until next session change,
     /// when it becomes `SessionPerEra - 1`.
     #[pallet::storage]
-    type SessionsTimer<T> = StorageValue<_, u32, ValueQuery>;
+    pub(crate) type SessionsTimer<T> = StorageValue<_, u32, ValueQuery>;
 
     /// Operational storage.
     ///
@@ -182,7 +192,7 @@ pub mod pallet {
     /// **Invariant**: exist in storage and equals `true` once per era in the
     /// very first block, to perform removal on next block's initialization.
     #[pallet::storage]
-    type ClearTimer<T> = StorageValue<_, u32>;
+    pub(crate) type ClearTimer<T> = StorageValue<_, u32>;
 
     /// Operational storage.
     ///
@@ -195,7 +205,7 @@ pub mod pallet {
     /// Defines if queue was changed within the block, it's necessary to
     /// update queue merkle root by the end of the block.
     #[pallet::storage]
-    type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
+    pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
@@ -423,7 +433,7 @@ pub mod pallet {
     impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
         type Key = <Self as BoundToRuntimeAppPublic>::Public;
 
-        // TODO (breathx): support genesis session and avoid `Initialized` storage.
+        // TODO (breathx): consider supporting genesis session, avoiding `Initialized`.
         fn on_genesis_session<'a, I: 'a>(_validators: I) {}
 
         // TODO (breathx): support `Stalled` changes of grandpa.
@@ -437,23 +447,6 @@ pub mod pallet {
                 return;
             }
 
-            // First time facing `changed = true`, so from now on, pallet
-            // is starting handling grandpa sets and queue.
-            if !Initialized::<T>::get() && changed {
-                // Setting pallet status initialized.
-                Initialized::<T>::put(true);
-
-                // Depositing event about getting initialized.
-                Self::deposit_event(Event::<T>::BridgeInitialized);
-
-                // Invariant.
-                //
-                // At any single point of pallet existence, when it's active
-                // and queue is empty, queue merkle root must present
-                // in storage and be zeroed.
-                QueueMerkleRoot::<T>::put(H256::zero());
-            }
-
             // Here starts common processing of properly initialized pallet.
             if changed {
                 // Checking invariant.
@@ -462,13 +455,30 @@ pub mod pallet {
                 // after session changed.
                 debug_assert!(ClearTimer::<T>::get().is_none());
 
-                // Scheduling reset on next block's init.
-                //
-                // Firstly, it will decrease in the same block, because call of
-                // `on_new_session` hook will be performed earlier in the same
-                // block, because `pallet_session` triggers it in its `on_init`
-                // and has smaller pallet id.
-                ClearTimer::<T>::put(2);
+                // First time facing `changed = true`, so from now on, pallet
+                // is starting handling grandpa sets and queue.
+                if !Initialized::<T>::get() {
+                    // Setting pallet status initialized.
+                    Initialized::<T>::put(true);
+
+                    // Depositing event about getting initialized.
+                    Self::deposit_event(Event::<T>::BridgeInitialized);
+
+                    // Invariant.
+                    //
+                    // At any single point of pallet existence, when it's active
+                    // and queue is empty, queue merkle root must present
+                    // in storage and be zeroed.
+                    QueueMerkleRoot::<T>::put(H256::zero());
+                } else {
+                    // Scheduling reset on next block's init.
+                    //
+                    // Firstly, it will decrease in the same block, because call of
+                    // `on_new_session` hook will be performed earlier in the same
+                    // block, because `pallet_session` triggers it in its `on_init`
+                    // and has smaller pallet id.
+                    ClearTimer::<T>::put(2);
+                }
 
                 // Checking invariant.
                 //

@@ -1174,7 +1174,6 @@ pub type BuiltinActors = (
     pallet_gear_builtin::staking::Actor<Runtime>,
 );
 
-// TODO (breathx): impl trait builtin collection without tuple.
 /// Builtin actors arranged in a tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (

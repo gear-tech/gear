@@ -27,6 +27,7 @@ use gear_core::{
 use gprimitives::{ActorId, H160};
 use pallet_gear_builtin::{BuiltinActor, BuiltinActorError};
 use parity_scale_codec::{Decode, Encode};
+use sp_runtime::traits::Zero;
 use sp_std::vec::Vec;
 
 /// Gear builtin actor providing functionality of `pallet-gear-eth-bridge`.
@@ -43,6 +44,15 @@ where
     type Error = BuiltinActorError;
 
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
+        if !dispatch.value().is_zero() {
+            return (
+                Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    error_to_str(&Error::<T>::IncorrectValueApplied),
+                ))),
+                0,
+            );
+        }
+
         let Ok(request) = Request::decode(&mut dispatch.payload_bytes()) else {
             return (Err(BuiltinActorError::DecodingError), 0);
         };
@@ -73,17 +83,18 @@ where
                 .try_into()
                 .unwrap_or_else(|_| unreachable!("response max encoded len is less than maximum"))
         })
-        .map_err(|e| {
-            let error_str = match e {
-                Error::BridgeIsNotYetInitialized => "Send message: bridge is not yet initialized",
-                Error::BridgeIsPaused => "Send message: bridge is paused",
-                Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
-                Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
-                _ => unimplemented!(),
-            };
-
-            BuiltinActorError::Custom(LimitedStr::from_small_str(error_str))
-        });
+        .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))));
 
     (res, gas_limit)
+}
+
+pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
+    match error {
+        Error::BridgeIsNotYetInitialized => "Send message: bridge is not yet initialized",
+        Error::BridgeIsPaused => "Send message: bridge is paused",
+        Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
+        Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
+        Error::IncorrectValueApplied => "Send message: incorrect value applied",
+        _ => unimplemented!(),
+    }
 }
