@@ -3235,6 +3235,24 @@ pub mod runtime_types {
         }
         pub mod pallet_identity {
             use super::runtime_types;
+            pub mod legacy {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IdentityInfo {
+                    pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
+                        runtime_types::pallet_identity::types::Data,
+                        runtime_types::pallet_identity::types::Data,
+                    )>,
+                    pub display: runtime_types::pallet_identity::types::Data,
+                    pub legal: runtime_types::pallet_identity::types::Data,
+                    pub web: runtime_types::pallet_identity::types::Data,
+                    pub riot: runtime_types::pallet_identity::types::Data,
+                    pub email: runtime_types::pallet_identity::types::Data,
+                    pub pgp_fingerprint: ::core::option::Option<[::core::primitive::u8; 20usize]>,
+                    pub image: runtime_types::pallet_identity::types::Data,
+                    pub twitter: runtime_types::pallet_identity::types::Data,
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3249,7 +3267,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::set_identity`]."]
                     set_identity {
                         info:
-                            ::std::boxed::Box<runtime_types::pallet_identity::simple::IdentityInfo>,
+                            ::std::boxed::Box<runtime_types::pallet_identity::legacy::IdentityInfo>,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::set_subs`]."]
@@ -3293,9 +3311,7 @@ pub mod runtime_types {
                     set_fields {
                         #[codec(compact)]
                         index: ::core::primitive::u32,
-                        fields: runtime_types::pallet_identity::types::BitFlags<
-                            runtime_types::pallet_identity::simple::IdentityField,
-                        >,
+                        fields: ::core::primitive::u64,
                     },
                     #[codec(index = 9)]
                     #[doc = "See [`Pallet::provide_judgement`]."]
@@ -3371,24 +3387,21 @@ pub mod runtime_types {
                     #[doc = "The target is invalid."]
                     InvalidTarget,
                     #[codec(index = 11)]
-                    #[doc = "Too many additional fields."]
-                    TooManyFields,
-                    #[codec(index = 12)]
                     #[doc = "Maximum amount of registrars reached. Cannot add any more."]
                     TooManyRegistrars,
-                    #[codec(index = 13)]
+                    #[codec(index = 12)]
                     #[doc = "Account ID is already named."]
                     AlreadyClaimed,
-                    #[codec(index = 14)]
+                    #[codec(index = 13)]
                     #[doc = "Sender is not a sub-account."]
                     NotSub,
-                    #[codec(index = 15)]
+                    #[codec(index = 14)]
                     #[doc = "Sub-account isn't owned by sender."]
                     NotOwned,
-                    #[codec(index = 16)]
+                    #[codec(index = 15)]
                     #[doc = "The provided judgement was for a different identity."]
                     JudgementForDifferentIdentity,
-                    #[codec(index = 17)]
+                    #[codec(index = 16)]
                     #[doc = "Error that occurs when there is an issue paying for judgement."]
                     JudgementPaymentFailed,
                 }
@@ -3457,56 +3470,8 @@ pub mod runtime_types {
                     },
                 }
             }
-            pub mod simple {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum IdentityField {
-                    #[codec(index = 0)]
-                    Display,
-                    #[codec(index = 1)]
-                    Legal,
-                    #[codec(index = 2)]
-                    Web,
-                    #[codec(index = 3)]
-                    Riot,
-                    #[codec(index = 4)]
-                    Email,
-                    #[codec(index = 5)]
-                    PgpFingerprint,
-                    #[codec(index = 6)]
-                    Image,
-                    #[codec(index = 7)]
-                    Twitter,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct IdentityInfo {
-                    pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
-                        runtime_types::pallet_identity::types::Data,
-                        runtime_types::pallet_identity::types::Data,
-                    )>,
-                    pub display: runtime_types::pallet_identity::types::Data,
-                    pub legal: runtime_types::pallet_identity::types::Data,
-                    pub web: runtime_types::pallet_identity::types::Data,
-                    pub riot: runtime_types::pallet_identity::types::Data,
-                    pub email: runtime_types::pallet_identity::types::Data,
-                    pub pgp_fingerprint: ::core::option::Option<[::core::primitive::u8; 20usize]>,
-                    pub image: runtime_types::pallet_identity::types::Data,
-                    pub twitter: runtime_types::pallet_identity::types::Data,
-                }
-            }
             pub mod types {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::CompactAs,
-                    Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
-                )]
-                pub struct BitFlags<_0>(
-                    pub ::core::primitive::u64,
-                    #[codec(skip)] pub ::core::marker::PhantomData<_0>,
-                );
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum Data {
                     #[codec(index = 0)]
@@ -3607,7 +3572,7 @@ pub mod runtime_types {
                 pub struct RegistrarInfo<_0, _1, _2> {
                     pub account: _1,
                     pub fee: _0,
-                    pub fields: runtime_types::pallet_identity::types::BitFlags<_2>,
+                    pub fields: _2,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Registration<_0, _2> {
@@ -3661,7 +3626,7 @@ pub mod runtime_types {
                     SomeOffline {
                         offline: ::std::vec::Vec<(
                             ::subxt::utils::AccountId32,
-                            runtime_types::pallet_staking::Exposure<
+                            runtime_types::sp_staking::Exposure<
                                 ::subxt::utils::AccountId32,
                                 ::core::primitive::u128,
                             >,
@@ -4989,7 +4954,7 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
-                    #[doc = "A deposit has been slashaed."]
+                    #[doc = "A deposit has been slashed."]
                     DepositSlashed {
                         who: ::subxt::utils::AccountId32,
                         amount: ::core::primitive::u128,
@@ -5102,7 +5067,7 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
-                    #[doc = "A deposit has been slashaed."]
+                    #[doc = "A deposit has been slashed."]
                     DepositSlashed {
                         who: ::subxt::utils::AccountId32,
                         amount: ::core::primitive::u128,
@@ -5658,6 +5623,13 @@ pub mod runtime_types {
                         set_min_commission {
                             new: runtime_types::sp_arithmetic::per_things::Perbill,
                         },
+                        #[codec(index = 26)]
+                        #[doc = "See [`Pallet::payout_stakers_by_page`]."]
+                        payout_stakers_by_page {
+                            validator_stash: ::subxt::utils::AccountId32,
+                            era: ::core::primitive::u32,
+                            page: ::core::primitive::u32,
+                        },
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
@@ -5723,35 +5695,38 @@ pub mod runtime_types {
                         #[doc = "Rewards for this era have already been claimed for this validator."]
                         AlreadyClaimed,
                         #[codec(index = 15)]
+                        #[doc = "No nominators exist on this page."]
+                        InvalidPage,
+                        #[codec(index = 16)]
                         #[doc = "Incorrect previous history depth input provided."]
                         IncorrectHistoryDepth,
-                        #[codec(index = 16)]
+                        #[codec(index = 17)]
                         #[doc = "Incorrect number of slashing spans provided."]
                         IncorrectSlashingSpans,
-                        #[codec(index = 17)]
+                        #[codec(index = 18)]
                         #[doc = "Internal state has become somehow corrupted and the operation cannot continue."]
                         BadState,
-                        #[codec(index = 18)]
+                        #[codec(index = 19)]
                         #[doc = "Too many nomination targets supplied."]
                         TooManyTargets,
-                        #[codec(index = 19)]
+                        #[codec(index = 20)]
                         #[doc = "A nomination target was supplied that was blocked or otherwise not a validator."]
                         BadTarget,
-                        #[codec(index = 20)]
+                        #[codec(index = 21)]
                         #[doc = "The user has enough bond and thus cannot be chilled forcefully by an external person."]
                         CannotChillOther,
-                        #[codec(index = 21)]
+                        #[codec(index = 22)]
                         #[doc = "There are too many nominators in the system. Governance needs to adjust the staking"]
                         #[doc = "settings to keep things safe for the runtime."]
                         TooManyNominators,
-                        #[codec(index = 22)]
+                        #[codec(index = 23)]
                         #[doc = "There are too many validator candidates in the system. Governance needs to adjust the"]
                         #[doc = "staking settings to keep things safe for the runtime."]
                         TooManyValidators,
-                        #[codec(index = 23)]
+                        #[codec(index = 24)]
                         #[doc = "Commission is too low. Must be at least `MinCommission`."]
                         CommissionTooLow,
-                        #[codec(index = 24)]
+                        #[codec(index = 25)]
                         #[doc = "Some bound is not met."]
                         BoundNotMet,
                     }
@@ -5886,15 +5861,6 @@ pub mod runtime_types {
                 pub individual: ::subxt::utils::KeyedVec<_0, ::core::primitive::u32>,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct Exposure<_0, _1> {
-                #[codec(compact)]
-                pub total: _1,
-                #[codec(compact)]
-                pub own: _1,
-                pub others:
-                    ::std::vec::Vec<runtime_types::pallet_staking::IndividualExposure<_0, _1>>,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum Forcing {
                 #[codec(index = 0)]
                 NotForcing,
@@ -5904,12 +5870,6 @@ pub mod runtime_types {
                 ForceNone,
                 #[codec(index = 3)]
                 ForceAlways,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct IndividualExposure<_0, _1> {
-                pub who: _0,
-                #[codec(compact)]
-                pub value: _1,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct Nominations {
@@ -5942,9 +5902,10 @@ pub mod runtime_types {
                 pub unlocking: runtime_types::bounded_collections::bounded_vec::BoundedVec<
                     runtime_types::pallet_staking::UnlockChunk<::core::primitive::u128>,
                 >,
-                pub claimed_rewards: runtime_types::bounded_collections::bounded_vec::BoundedVec<
-                    ::core::primitive::u32,
-                >,
+                pub legacy_claimed_rewards:
+                    runtime_types::bounded_collections::bounded_vec::BoundedVec<
+                        ::core::primitive::u32,
+                    >,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct UnappliedSlash<_0, _1> {
@@ -5997,12 +5958,15 @@ pub mod runtime_types {
                         who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
+                    #[codec(index = 4)]
+                    #[doc = "See [`Pallet::remove_key`]."]
+                    remove_key,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Error for the Sudo pallet"]
+                #[doc = "Error for the Sudo pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
-                    #[doc = "Sender must be the Sudo account"]
+                    #[doc = "Sender must be the Sudo account."]
                     RequireSudo,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -6017,9 +5981,13 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "The sudo key has been updated."]
                     KeyChanged {
-                        old_sudoer: ::core::option::Option<::subxt::utils::AccountId32>,
+                        old: ::core::option::Option<::subxt::utils::AccountId32>,
+                        new: ::subxt::utils::AccountId32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "The key was permanently removed."]
+                    KeyRemoved,
+                    #[codec(index = 3)]
                     #[doc = "A [sudo_as](Pallet::sudo_as) call just took place."]
                     SudoAsDone {
                         sudo_result:
@@ -6401,6 +6369,12 @@ pub mod runtime_types {
                     merge_schedules {
                         schedule1_index: ::core::primitive::u32,
                         schedule2_index: ::core::primitive::u32,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "See [`Pallet::force_remove_vesting_schedule`]."]
+                    force_remove_vesting_schedule {
+                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        schedule_index: ::core::primitive::u32,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -7446,6 +7420,35 @@ pub mod runtime_types {
                     pub offender: _1,
                     pub reporters: ::std::vec::Vec<_0>,
                 }
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct Exposure<_0, _1> {
+                #[codec(compact)]
+                pub total: _1,
+                #[codec(compact)]
+                pub own: _1,
+                pub others: ::std::vec::Vec<runtime_types::sp_staking::IndividualExposure<_0, _1>>,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct ExposurePage<_0, _1> {
+                #[codec(compact)]
+                pub page_total: _1,
+                pub others: ::std::vec::Vec<runtime_types::sp_staking::IndividualExposure<_0, _1>>,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct IndividualExposure<_0, _1> {
+                pub who: _0,
+                #[codec(compact)]
+                pub value: _1,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct PagedExposureMetadata<_0> {
+                #[codec(compact)]
+                pub total: _0,
+                #[codec(compact)]
+                pub own: _0,
+                pub nominator_count: ::core::primitive::u32,
+                pub page_count: ::core::primitive::u32,
             }
         }
         pub mod sp_version {
@@ -8538,6 +8541,7 @@ pub mod calls {
         ChillOther,
         ForceApplyMinCommission,
         SetMinCommission,
+        PayoutStakersByPage,
     }
     impl CallInfo for StakingCall {
         const PALLET: &'static str = "Staking";
@@ -8569,6 +8573,7 @@ pub mod calls {
                 Self::ChillOther => "chill_other",
                 Self::ForceApplyMinCommission => "force_apply_min_commission",
                 Self::SetMinCommission => "set_min_commission",
+                Self::PayoutStakersByPage => "payout_stakers_by_page",
             }
         }
     }
@@ -8596,6 +8601,7 @@ pub mod calls {
         SudoUncheckedWeight,
         SetKey,
         SudoAs,
+        RemoveKey,
     }
     impl CallInfo for SudoCall {
         const PALLET: &'static str = "Sudo";
@@ -8605,6 +8611,7 @@ pub mod calls {
                 Self::SudoUncheckedWeight => "sudo_unchecked_weight",
                 Self::SetKey => "set_key",
                 Self::SudoAs => "sudo_as",
+                Self::RemoveKey => "remove_key",
             }
         }
     }
@@ -8703,6 +8710,7 @@ pub mod calls {
         VestedTransfer,
         ForceVestedTransfer,
         MergeSchedules,
+        ForceRemoveVestingSchedule,
     }
     impl CallInfo for VestingCall {
         const PALLET: &'static str = "Vesting";
@@ -8713,6 +8721,7 @@ pub mod calls {
                 Self::VestedTransfer => "vested_transfer",
                 Self::ForceVestedTransfer => "force_vested_transfer",
                 Self::MergeSchedules => "merge_schedules",
+                Self::ForceRemoveVestingSchedule => "force_remove_vesting_schedule",
             }
         }
     }
@@ -9160,6 +9169,7 @@ pub mod storage {
         Stalled,
         CurrentSetId,
         SetIdSession,
+        Authorities,
     }
     impl StorageInfo for GrandpaStorage {
         const PALLET: &'static str = "Grandpa";
@@ -9171,6 +9181,7 @@ pub mod storage {
                 Self::Stalled => "Stalled",
                 Self::CurrentSetId => "CurrentSetId",
                 Self::SetIdSession => "SetIdSession",
+                Self::Authorities => "Authorities",
             }
         }
     }
@@ -9414,7 +9425,10 @@ pub mod storage {
         ActiveEra,
         ErasStartSessionIndex,
         ErasStakers,
+        ErasStakersOverview,
         ErasStakersClipped,
+        ErasStakersPaged,
+        ClaimedRewards,
         ErasValidatorPrefs,
         ErasValidatorReward,
         ErasRewardPoints,
@@ -9456,7 +9470,10 @@ pub mod storage {
                 Self::ActiveEra => "ActiveEra",
                 Self::ErasStartSessionIndex => "ErasStartSessionIndex",
                 Self::ErasStakers => "ErasStakers",
+                Self::ErasStakersOverview => "ErasStakersOverview",
                 Self::ErasStakersClipped => "ErasStakersClipped",
+                Self::ErasStakersPaged => "ErasStakersPaged",
+                Self::ClaimedRewards => "ClaimedRewards",
                 Self::ErasValidatorPrefs => "ErasValidatorPrefs",
                 Self::ErasValidatorReward => "ErasValidatorReward",
                 Self::ErasRewardPoints => "ErasRewardPoints",
