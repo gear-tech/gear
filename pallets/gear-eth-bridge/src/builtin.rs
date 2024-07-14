@@ -39,7 +39,7 @@ impl<T: Config> BuiltinActor for Actor<T>
 where
     T::AccountId: Origin,
 {
-    const ID: u64 = 2;
+    const ID: u64 = 3;
 
     type Error = BuiltinActorError;
 
