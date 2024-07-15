@@ -8,7 +8,7 @@ use crate::{
     BlobReader,
 };
 use alloy::{
-    primitives::Address,
+    primitives::Address as AlloyAddress,
     providers::{Provider, ProviderBuilder},
     rpc::types::eth::BlockTransactionsKind,
 };
@@ -17,13 +17,13 @@ use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
     events::BlockEvent,
 };
-use ethexe_signer::Address as ethexeAddress;
+use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
 pub struct Query {
     database: Box<dyn BlockMetaStorage>,
     provider: ObserverProvider,
-    router_address: Address,
+    router_address: AlloyAddress,
     genesis_block_hash: H256,
     blob_reader: Arc<dyn BlobReader>,
     max_commitment_depth: u32,
@@ -33,7 +33,7 @@ impl Query {
     pub async fn new(
         database: Box<dyn BlockMetaStorage>,
         ethereum_rpc: &str,
-        router_address: ethexeAddress,
+        router_address: Address,
         genesis_block_hash: H256,
         blob_reader: Arc<dyn BlobReader>,
         max_commitment_depth: u32,
@@ -48,7 +48,7 @@ impl Query {
         Ok(Self {
             database,
             provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
-            router_address: Address::new(router_address.0),
+            router_address: AlloyAddress::new(router_address.0),
             genesis_block_hash,
             blob_reader,
             max_commitment_depth,

@@ -1,6 +1,6 @@
 use crate::{BlobReader, BlockData, CodeLoadedData, Event};
 use alloy::{
-    primitives::{Address, B256},
+    primitives::{Address as AlloyAddress, B256},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::eth::{Filter, Topic},
     transports::BoxTransport,
@@ -8,7 +8,7 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use ethexe_common::events::BlockEvent;
 use ethexe_ethereum::event::*;
-use ethexe_signer::Address as ethexeAddress;
+use ethexe_signer::Address;
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
@@ -19,7 +19,7 @@ pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
 pub struct Observer {
     provider: ObserverProvider,
-    router_address: Address,
+    router_address: AlloyAddress,
     blob_reader: Arc<dyn BlobReader>,
     status_sender: watch::Sender<ObserverStatus>,
     status: ObserverStatus,
@@ -35,13 +35,13 @@ pub struct ObserverStatus {
 impl Observer {
     pub async fn new(
         ethereum_rpc: &str,
-        router_address: ethexeAddress,
+        router_address: Address,
         blob_reader: Arc<dyn BlobReader>,
     ) -> Result<Self> {
         let (status_sender, _status_receiver) = watch::channel(ObserverStatus::default());
         Ok(Self {
             provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
-            router_address: Address::new(router_address.0),
+            router_address: AlloyAddress::new(router_address.0),
             blob_reader,
             status: Default::default(),
             status_sender,
@@ -180,7 +180,7 @@ pub(crate) async fn read_code_from_tx_hash(
 pub(crate) async fn read_block_events(
     block_hash: H256,
     provider: &ObserverProvider,
-    router_address: Address,
+    router_address: AlloyAddress,
 ) -> Result<Vec<BlockEvent>> {
     let router_events_filter = Filter::new()
         .at_block_hash(block_hash.0)
