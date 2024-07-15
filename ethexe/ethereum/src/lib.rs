@@ -25,7 +25,7 @@ use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
 use ethexe_common::{events::CodeApproved, BlockCommitment, CodeCommitment};
 use ethexe_signer::{
-    Address as ethexeAddress, PublicKey, Signature as ethexeSignature, Signer as ethexeSigner,
+    Address as LocalAddress, PublicKey, Signature as LocalSignature, Signer as LocalSigner,
 };
 use futures::StreamExt;
 use gear_core::code::{Code, CodeAndId};
@@ -53,13 +53,13 @@ type QueryRouterInstance =
 
 #[derive(Debug, Clone)]
 struct Sender {
-    signer: ethexeSigner,
+    signer: LocalSigner,
     sender: PublicKey,
     chain_id: Option<ChainId>,
 }
 
 impl Sender {
-    pub fn new(signer: ethexeSigner, sender_address: ethexeAddress) -> Result<Self> {
+    pub fn new(signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
         let sender = signer
             .get_key_by_addr(sender_address)?
             .ok_or_else(|| anyhow!("no key found for {sender_address}"))?;
@@ -125,8 +125,8 @@ impl Router {
         Self(AlloyRouterInstance::new(address, provider))
     }
 
-    pub fn address(&self) -> ethexeAddress {
-        ethexeAddress(*self.0.address().0)
+    pub fn address(&self) -> LocalAddress {
+        LocalAddress(*self.0.address().0)
     }
 
     pub async fn add_validators(&self, validators: Vec<ActorId>) -> Result<H256> {
@@ -247,7 +247,7 @@ impl Router {
     pub async fn commit_codes(
         &self,
         commitments: Vec<CodeCommitment>,
-        signatures: Vec<ethexeSignature>,
+        signatures: Vec<LocalSignature>,
     ) -> Result<H256> {
         let builder = self.0.commitCodes(
             commitments.into_iter().map(Into::into).collect(),
@@ -264,7 +264,7 @@ impl Router {
     pub async fn commit_blocks(
         &self,
         commitments: Vec<BlockCommitment>,
-        signatures: Vec<ethexeSignature>,
+        signatures: Vec<LocalSignature>,
     ) -> Result<H256> {
         let builder = self
             .0
@@ -285,7 +285,7 @@ impl Router {
 pub struct RouterQuery(QueryRouterInstance);
 
 impl RouterQuery {
-    pub async fn new(rpc_url: &str, router_address: ethexeAddress) -> Result<Self> {
+    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
         let provider = Arc::new(ProviderBuilder::new().on_builtin(rpc_url).await?);
         Ok(Self(QueryRouterInstance::new(
             Address::new(router_address.0),
@@ -319,8 +319,8 @@ impl Program {
         Self(AlloyProgramInstance::new(address, provider))
     }
 
-    pub fn address(&self) -> ethexeAddress {
-        ethexeAddress(*self.0.address().0)
+    pub fn address(&self) -> LocalAddress {
+        LocalAddress(*self.0.address().0)
     }
 
     pub async fn send_message(
@@ -368,8 +368,8 @@ impl Program {
 
 async fn create_provider(
     rpc_url: &str,
-    signer: ethexeSigner,
-    sender_address: ethexeAddress,
+    signer: LocalSigner,
+    sender_address: LocalAddress,
 ) -> Result<Arc<AlloyProvider>> {
     Ok(Arc::new(
         ProviderBuilder::new()
@@ -388,9 +388,9 @@ pub struct Ethereum {
 impl Ethereum {
     pub async fn new(
         rpc_url: &str,
-        router_address: ethexeAddress,
-        signer: ethexeSigner,
-        sender_address: ethexeAddress,
+        router_address: LocalAddress,
+        signer: LocalSigner,
+        sender_address: LocalAddress,
     ) -> Result<Self> {
         Ok(Self {
             router_address: Address::new(router_address.0),
@@ -400,9 +400,9 @@ impl Ethereum {
 
     pub async fn deploy(
         rpc_url: &str,
-        validators: Vec<ethexeAddress>,
-        signer: ethexeSigner,
-        sender_address: ethexeAddress,
+        validators: Vec<LocalAddress>,
+        signer: LocalSigner,
+        sender_address: LocalAddress,
     ) -> Result<Self> {
         const VALUE_PER_GAS: u128 = 6;
 
@@ -488,7 +488,7 @@ impl Ethereum {
         Router::new(self.router_address, self.provider.clone())
     }
 
-    pub fn program(&self, program_address: ethexeAddress) -> Program {
+    pub fn program(&self, program_address: LocalAddress) -> Program {
         Program::new(Address::new(program_address.0), self.provider.clone())
     }
 }
