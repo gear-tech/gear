@@ -33,7 +33,10 @@ fn bridge_session_timer_is_correct() {
         <Runtime as pallet_staking::Config>::SessionsPerEra::get()
     );
 
-    assert_eq!(<Runtime as pallet_staking::Config>::SessionsPerEra::get(), 6);
+    assert_eq!(
+        <Runtime as pallet_staking::Config>::SessionsPerEra::get(),
+        6
+    );
 }
 
 #[test]
