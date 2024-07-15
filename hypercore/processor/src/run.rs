@@ -18,15 +18,17 @@
 
 use crate::{
     host::{InstanceCreator, InstanceWrapper},
-    LocalOutcome, OutgoingMessage, TransitionOutcome,
+    LocalOutcome,
 };
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{ActorId, ProgramId},
     message::Message,
 };
+use gprimitives::H256;
+use hypercore_common::{OutgoingMessage, StateTransition};
+use hypercore_db::CodesStorage;
 use hypercore_runtime_common::Handler;
-use primitive_types::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 
@@ -135,8 +137,8 @@ async fn run_in_async(
     let outcomes = results
         .into_iter()
         .map(|(id, (old_hash, new_hash, outgoing_messages))| {
-            LocalOutcome::Transition(TransitionOutcome {
-                program_id: id,
+            LocalOutcome::Transition(StateTransition {
+                actor_id: id,
                 old_state_hash: old_hash,
                 new_state_hash: new_hash,
                 outgoing_messages: outgoing_messages
@@ -169,12 +171,12 @@ async fn run_task(executor: &mut InstanceWrapper, task: Task) {
         } => {
             let code_id = executor
                 .db()
-                .get_program_code_id(program_id)
+                .program_code_id(program_id)
                 .expect("Code ID must be set");
 
             let instrumented_code = executor
                 .db()
-                .read_instrumented_code(hypercore_runtime::VERSION, code_id);
+                .instrumented_code(hypercore_runtime::VERSION, code_id);
 
             let journal = executor
                 .run(program_id, code_id, state_hash, instrumented_code)

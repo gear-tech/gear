@@ -22,13 +22,13 @@ use anyhow::Result;
 use core_processor::common::JournalNote;
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
-    message::{DispatchKind, Payload, ReplyDetails},
+    message::{DispatchKind, Payload},
     program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceCreator;
-use hypercore_db::{BlockMetaInfo, Database};
-use hypercore_observer::BlockEvent;
+use hypercore_common::{events::BlockEvent, StateTransition};
+use hypercore_db::{BlockMetaStorage, CodesStorage, Database};
 use hypercore_runtime_common::state::{
     self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
 };
@@ -56,16 +56,8 @@ pub struct Processor {
     creator: InstanceCreator,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TransitionOutcome {
-    pub program_id: ProgramId,
-    pub old_state_hash: H256,
-    pub new_state_hash: H256,
-    pub outgoing_messages: Vec<OutgoingMessage>,
-}
-
 /// Local changes that can be committed to the network or local signer.
-#[derive(Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum LocalOutcome {
     /// Produced when code with specific id is recorded and available in database.
     CodeApproved(CodeId),
@@ -73,15 +65,7 @@ pub enum LocalOutcome {
     // TODO: add docs
     CodeRejected(CodeId),
 
-    Transition(TransitionOutcome),
-}
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct OutgoingMessage {
-    pub destination: ActorId,
-    pub payload: Payload,
-    pub value: u128,
-    pub reply_details: Option<ReplyDetails>,
+    Transition(StateTransition),
 }
 
 /// TODO: consider avoiding re-instantiations on processing events.
@@ -102,9 +86,9 @@ impl Processor {
             return Ok(None);
         };
 
-        let code_id = self.db.write_original_code(original_code);
+        let code_id = self.db.set_original_code(original_code);
 
-        self.db.write_instrumented_code(
+        self.db.set_instrumented_code(
             instrumented_code.instruction_weights_version(),
             code_id,
             instrumented_code,
@@ -115,7 +99,7 @@ impl Processor {
 
     /// Returns bool defining was newly re-instrumented code settled or not.
     pub fn reinstrument_code(&mut self, code_id: CodeId) -> Result<bool> {
-        let Some(original_code) = self.db.read_original_code(code_id) else {
+        let Some(original_code) = self.db.original_code(code_id) else {
             anyhow::bail!("it's impossible to reinstrument inexistent code");
         };
 
@@ -125,7 +109,7 @@ impl Processor {
             return Ok(false);
         };
 
-        self.db.write_instrumented_code(
+        self.db.set_instrumented_code(
             instrumented_code.instruction_weights_version(),
             code_id,
             instrumented_code,
@@ -136,11 +120,11 @@ impl Processor {
 
     // TODO: deal with params on smart contract side.
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<H256> {
-        if self.db.read_original_code(code_id).is_none() {
+        if self.db.original_code(code_id).is_none() {
             anyhow::bail!("code existence should be checked on smart contract side");
         }
 
-        if self.db.get_program_code_id(program_id).is_some() {
+        if self.db.program_code_id(program_id).is_some() {
             anyhow::bail!("program duplicates should be checked on smart contract side");
         }
 
@@ -169,7 +153,6 @@ impl Processor {
         Ok(self.db.write_state(program_state))
     }
 
-    // TODO: remove state hashes from here
     pub fn handle_user_message(
         &mut self,
         program_hash: H256,
@@ -234,11 +217,11 @@ impl Processor {
         program_id: ProgramId,
         program_state: H256,
     ) -> Result<Vec<JournalNote>> {
-        let original_code_id = self.db.get_program_code_id(program_id).unwrap();
+        let original_code_id = self.db.program_code_id(program_id).unwrap();
 
         let maybe_instrumented_code = self
             .db
-            .read_instrumented_code(hypercore_runtime::VERSION, original_code_id);
+            .instrumented_code(hypercore_runtime::VERSION, original_code_id);
 
         let mut executor = self.creator.instantiate()?;
 
@@ -342,8 +325,8 @@ impl Processor {
             let mut current_outcomes = self.run(block_hash, &mut programs)?;
 
             for outcome in current_outcomes.iter_mut() {
-                if let LocalOutcome::Transition(TransitionOutcome {
-                    program_id,
+                if let LocalOutcome::Transition(StateTransition {
+                    actor_id: program_id,
                     old_state_hash,
                     ..
                 }) = outcome

@@ -22,19 +22,19 @@ use crate::config::{Config, SequencerConfig, ValidatorConfig};
 use anyhow::{anyhow, Ok, Result};
 use futures::{future, stream::StreamExt};
 use gprimitives::H256;
-use hypercore_db::{BlockHeaderMeta, BlockMetaInfo, Database};
+use hypercore_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
+use hypercore_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
 use hypercore_network::service::NetworkGossip;
-use hypercore_observer::UploadCodeData;
-use hypercore_processor::{LocalOutcome, TransitionOutcome};
-use hypercore_sequencer::{BlockCommitment, StateTransition};
+use hypercore_observer::{BlockData, CodeLoadedData};
+use hypercore_processor::LocalOutcome;
 use hypercore_validator::Commitment;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Decode;
 use std::sync::Arc;
 use tokio::time;
 
 /// Hypercore service.
 pub struct Service {
-    db: hypercore_db::Database,
+    db: Database,
     network: hypercore_network::NetworkWorker,
     observer: hypercore_observer::Observer,
     query: hypercore_observer::Query,
@@ -140,29 +140,34 @@ impl Service {
         processor: &mut hypercore_processor::Processor,
         block_hash: H256,
     ) -> Result<()> {
-        let (pending_upload_codes, block_events) = query.get_events(block_hash).await?;
-        for pending_upload_code in pending_upload_codes {
-            let code_id = pending_upload_code.code_id;
-            let origin = pending_upload_code.origin;
-            db.set_code_upload_info(code_id, (origin, pending_upload_code.blob_tx()));
-        }
+        let events = query.get_block_events(block_hash).await?;
 
-        for event in block_events.iter() {
-            let hypercore_observer::BlockEvent::CreateProgram(event) = event else {
-                continue;
-            };
+        for event in events {
+            match event {
+                BlockEvent::UploadCode(event) => {
+                    db.set_code_upload_info(
+                        event.code_id,
+                        CodeUploadInfo {
+                            origin: event.origin,
+                            tx_hash: event.blob_tx(),
+                        },
+                    );
+                }
+                BlockEvent::CreateProgram(event) => {
+                    let code_id = event.code_id;
+                    if db.original_code(code_id).is_some() {
+                        continue;
+                    }
 
-            let code_id = event.code_id;
-            if db.read_original_code(code_id).is_some() {
-                continue;
+                    log::debug!("📥 downloading absent code: {code_id}");
+                    let CodeUploadInfo { origin, tx_hash } = db
+                        .code_upload_info(code_id)
+                        .ok_or(anyhow!("Origin and tx hash not found"))?;
+                    let code = query.download_code(code_id, origin, tx_hash).await?;
+                    processor.process_upload_code(code_id, code.as_slice())?;
+                }
+                _ => continue,
             }
-
-            log::debug!("📥 downloading absent code: {code_id}");
-            let (origin, tx_hash) = db
-                .code_upload_info(code_id)
-                .ok_or(anyhow!("Origin and tx hash not found"))?;
-            let code = query.download_code(code_id, origin, tx_hash).await?;
-            processor.process_upload_code(code_id, code.as_slice())?;
         }
 
         Ok(())
@@ -173,12 +178,9 @@ impl Service {
         query: &mut hypercore_observer::Query,
         processor: &mut hypercore_processor::Processor,
         block_hash: H256,
-    ) -> Result<Vec<TransitionOutcome>> {
-        if let Some(outcomes_encoded) = db.block_outcome(block_hash) {
-            // If outcomes are already processed for the block, just use them.
-            let transition_outcomes: Vec<TransitionOutcome> =
-                Decode::decode(&mut outcomes_encoded.as_slice())?;
-            return Ok(transition_outcomes);
+    ) -> Result<Vec<StateTransition>> {
+        if let Some(transitions) = db.block_outcome(block_hash) {
+            return Ok(transitions);
         }
 
         query.propagate_meta_for_block(block_hash).await?;
@@ -189,11 +191,11 @@ impl Service {
 
         let block_outcomes = processor.process_block_events(block_hash, &block_events)?;
 
-        let transition_outcomes: Vec<TransitionOutcome> = block_outcomes
+        let transition_outcomes: Vec<_> = block_outcomes
             .into_iter()
             .map(|outcome| {
-                if let LocalOutcome::Transition(outcome) = outcome {
-                    outcome
+                if let LocalOutcome::Transition(transition) = outcome {
+                    transition
                 } else {
                     unreachable!("Only transitions are expected here")
                 }
@@ -211,10 +213,10 @@ impl Service {
             db.set_block_commitment_queue(block_hash, queue);
         }
 
-        db.set_block_outcome(block_hash, transition_outcomes.encode());
+        db.set_block_outcome(block_hash, transition_outcomes.clone());
 
         // Set block as valid - means state db has all states for the end of the block
-        db.set_end_state_is_valid(block_hash, true);
+        db.set_block_end_state_is_valid(block_hash, true);
 
         Ok(transition_outcomes)
     }
@@ -223,15 +225,12 @@ impl Service {
         db: &Database,
         query: &mut hypercore_observer::Query,
         processor: &mut hypercore_processor::Processor,
-        block_data: hypercore_observer::BlockEventData,
+        block_data: BlockData,
     ) -> Result<Vec<BlockCommitment>> {
-        db.set_block_events(
-            block_data.block_hash,
-            (block_data.upload_codes, block_data.events).encode(),
-        );
+        db.set_block_events(block_data.block_hash, block_data.events.clone());
         db.set_block_header(
             block_data.block_hash,
-            BlockHeaderMeta {
+            BlockHeader {
                 height: block_data.block_number.try_into()?,
                 timestamp: block_data.block_timestamp,
                 parent_hash: block_data.parent_hash,
@@ -243,22 +242,12 @@ impl Service {
             .get_last_committed_chain(block_data.block_hash)
             .await?;
         for block_hash in last_committed_chain.into_iter().rev() {
-            let outcomes = Self::process_one_block(db, query, processor, block_hash).await?;
+            let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
 
-            if outcomes.is_empty() {
+            if transitions.is_empty() {
                 // Skip empty blocks
                 continue;
             }
-
-            let transitions = outcomes
-                .into_iter()
-                .map(|transition| StateTransition {
-                    program_id: transition.program_id,
-                    old_state_hash: transition.old_state_hash,
-                    new_state_hash: transition.new_state_hash,
-                    outgoing_messages: transition.outgoing_messages,
-                })
-                .collect();
 
             commitments.push(BlockCommitment {
                 block_hash,
@@ -290,23 +279,19 @@ impl Service {
                     Self::process_block_event(db, query, processor, block_data).await?;
                 commitments.into_iter().map(Commitment::Block).collect()
             }
-            hypercore_observer::Event::UploadCode(UploadCodeData { code_id, code, .. }) => {
+            hypercore_observer::Event::CodeLoaded(CodeLoadedData { code_id, code, .. }) => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
                 outcomes
                     .into_iter()
                     .map(|outcome| match outcome {
-                        LocalOutcome::CodeApproved(code_id) => {
-                            Commitment::Code(hypercore_sequencer::CodeCommitment {
-                                code_id,
-                                approved: true,
-                            })
-                        }
-                        LocalOutcome::CodeRejected(code_id) => {
-                            Commitment::Code(hypercore_sequencer::CodeCommitment {
-                                code_id,
-                                approved: false,
-                            })
-                        }
+                        LocalOutcome::CodeApproved(code_id) => Commitment::Code(CodeCommitment {
+                            code_id,
+                            approved: true,
+                        }),
+                        LocalOutcome::CodeRejected(code_id) => Commitment::Code(CodeCommitment {
+                            code_id,
+                            approved: false,
+                        }),
                         _ => unreachable!("Only code outcomes are expected here"),
                     })
                     .collect()

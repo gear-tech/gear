@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use hypercore_common::{BlockCommitment, CodeCommitment};
 use hypercore_network::service::NetworkGossip;
-use hypercore_sequencer::{AggregatedCommitments, BlockCommitment, CodeCommitment};
+use hypercore_sequencer::AggregatedCommitments;
 use hypercore_signer::{Address, PublicKey, Signer};
 use parity_scale_codec::Encode;
 use std::sync::Arc;

@@ -1,10 +1,9 @@
 #![allow(dead_code, clippy::new_without_default)]
 
-use crate::event::CodeApproved;
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
     network::{Ethereum as AlloyEthereum, EthereumWallet, TxSigner},
-    primitives::{keccak256, Address, Bytes, ChainId, FixedBytes, Signature, B256, U256},
+    primitives::{keccak256, Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
         Provider, ProviderBuilder, RootProvider,
@@ -18,12 +17,10 @@ use alloy::{
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
-use gear_core::{
-    code::{Code, CodeAndId},
-    message::ReplyDetails,
-};
+use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::Schedule;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
+use hypercore_common::{events::CodeApproved, BlockCommitment, CodeCommitment};
 use hypercore_signer::{
     Address as HypercoreAddress, PublicKey, Signature as HypercoreSignature,
     Signer as HypercoreSigner,
@@ -117,35 +114,6 @@ impl SignerSync for Sender {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CodeCommitment {
-    pub code_id: CodeId,
-    pub approved: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct StateTransition {
-    pub actor_id: ActorId,
-    pub old_state_hash: H256,
-    pub new_state_hash: H256,
-    pub outgoing_messages: Vec<OutgoingMessage>,
-}
-
-#[derive(Debug, Clone)]
-pub struct OutgoingMessage {
-    pub destination: ActorId,
-    pub payload: Vec<u8>,
-    pub value: u128,
-    pub reply_details: ReplyDetails,
-}
-
-pub struct BlockCommitment {
-    pub block_hash: H256,
-    pub allowed_pred_block_hash: H256,
-    pub allowed_prev_commitment_hash: H256,
-    pub transitions: Vec<StateTransition>,
-}
-
 pub struct Router(AlloyRouterInstance);
 
 impl Router {
@@ -234,7 +202,7 @@ impl Router {
             bail!("failed to read CodeApproved event");
         };
 
-        log.try_into()
+        event::decode_log::<IRouter::CodeApproved>(log).map(Into::into)
     }
 
     pub async fn create_program(
@@ -278,13 +246,7 @@ impl Router {
         signatures: Vec<HypercoreSignature>,
     ) -> Result<H256> {
         let builder = self.0.commitCodes(
-            commitments
-                .into_iter()
-                .map(|commitment| IRouter::CodeCommitment {
-                    codeId: B256::new(commitment.code_id.into_bytes()),
-                    approved: commitment.approved,
-                })
-                .collect(),
+            commitments.into_iter().map(Into::into).collect(),
             signatures
                 .into_iter()
                 .map(|signature| Bytes::copy_from_slice(&signature.0))
@@ -295,56 +257,6 @@ impl Router {
         Ok(H256(receipt.transaction_hash.0))
     }
 
-    fn convert_block_commitment(commitment: BlockCommitment) -> IRouter::BlockCommitment {
-        let transitions =
-            commitment
-                .transitions
-                .into_iter()
-                .map(|transition| IRouter::StateTransition {
-                    actorId: {
-                        let mut address = Address::ZERO;
-                        address
-                            .0
-                            .copy_from_slice(&transition.actor_id.into_bytes()[12..]);
-                        address
-                    },
-                    oldStateHash: B256::new(transition.old_state_hash.to_fixed_bytes()),
-                    newStateHash: B256::new(transition.new_state_hash.to_fixed_bytes()),
-                    outgoingMessages: transition
-                        .outgoing_messages
-                        .into_iter()
-                        .map(|outgoing_message| IRouter::OutgoingMessage {
-                            destination: {
-                                let mut address = Address::ZERO;
-                                address.0.copy_from_slice(
-                                    &outgoing_message.destination.into_bytes()[12..],
-                                );
-                                address
-                            },
-                            payload: Bytes::copy_from_slice(&outgoing_message.payload),
-                            value: outgoing_message.value,
-                            replyDetails: IRouter::ReplyDetails {
-                                replyTo: B256::new(
-                                    outgoing_message.reply_details.to_message_id().into_bytes(),
-                                ),
-                                replyCode: FixedBytes::new(
-                                    outgoing_message.reply_details.to_reply_code().to_bytes(),
-                                ),
-                            },
-                        })
-                        .collect(),
-                });
-
-        IRouter::BlockCommitment {
-            blockHash: B256::new(commitment.block_hash.to_fixed_bytes()),
-            allowedPredBlockHash: B256::new(commitment.allowed_pred_block_hash.to_fixed_bytes()),
-            allowedPrevCommitmentHash: B256::new(
-                commitment.allowed_prev_commitment_hash.to_fixed_bytes(),
-            ),
-            transitions: transitions.collect(),
-        }
-    }
-
     pub async fn commit_blocks(
         &self,
         commitments: Vec<BlockCommitment>,
@@ -353,10 +265,7 @@ impl Router {
         let builder = self
             .0
             .commitBlocks(
-                commitments
-                    .into_iter()
-                    .map(Self::convert_block_commitment)
-                    .collect(),
+                commitments.into_iter().map(Into::into).collect(),
                 signatures
                     .into_iter()
                     .map(|signature| Bytes::copy_from_slice(&signature.0))

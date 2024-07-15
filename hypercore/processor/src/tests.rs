@@ -19,13 +19,13 @@
 use crate::*;
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
-use hypercore_db::{BlockHeaderMeta, BlockMetaInfo, MemDb};
-use hypercore_ethereum::event::{CreateProgram, SendMessage};
+use hypercore_common::events::{BlockEvent, CreateProgram, SendMessage};
+use hypercore_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
 use std::collections::BTreeMap;
 use utils::*;
 use wabt::wat2wasm;
 
-fn init_new_block(processor: &mut Processor, meta: BlockHeaderMeta) -> H256 {
+fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
     let chain_head = H256::random();
     processor.db.set_block_header(chain_head, meta);
     processor.creator.set_chain_head(chain_head);
@@ -38,7 +38,7 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
     let timestamp = parent_block_header.timestamp + 12;
     let chain_head = init_new_block(
         processor,
-        BlockHeaderMeta {
+        BlockHeader {
             height,
             timestamp,
             parent_hash,
@@ -118,10 +118,10 @@ fn handle_new_code_valid() {
     let (code_id, original_code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
     let original_code_len = original_code.len();
 
-    assert!(processor.db.read_original_code(code_id).is_none());
+    assert!(processor.db.original_code(code_id).is_none());
     assert!(processor
         .db
-        .read_instrumented_code(hypercore_runtime::VERSION, code_id)
+        .instrumented_code(hypercore_runtime::VERSION, code_id)
         .is_none());
 
     let calculated_id = processor
@@ -134,14 +134,14 @@ fn handle_new_code_valid() {
     assert_eq!(
         processor
             .db
-            .read_original_code(code_id)
+            .original_code(code_id)
             .expect("failed to read original code"),
         original_code
     );
     assert!(
         processor
             .db
-            .read_instrumented_code(hypercore_runtime::VERSION, code_id)
+            .instrumented_code(hypercore_runtime::VERSION, code_id)
             .expect("failed to read original code")
             .code()
             .len()
@@ -161,10 +161,10 @@ fn handle_new_code_invalid() {
 
     let (code_id, original_code) = utils::wat_to_wasm(utils::INVALID_PROGRAM);
 
-    assert!(processor.db.read_original_code(code_id).is_none());
+    assert!(processor.db.original_code(code_id).is_none());
     assert!(processor
         .db
-        .read_instrumented_code(hypercore_runtime::VERSION, code_id)
+        .instrumented_code(hypercore_runtime::VERSION, code_id)
         .is_none());
 
     assert!(processor
@@ -172,10 +172,10 @@ fn handle_new_code_invalid() {
         .expect("failed to call runtime api")
         .is_none());
 
-    assert!(processor.db.read_original_code(code_id).is_none());
+    assert!(processor.db.original_code(code_id).is_none());
     assert!(processor
         .db
-        .read_instrumented_code(hypercore_runtime::VERSION, code_id)
+        .instrumented_code(hypercore_runtime::VERSION, code_id)
         .is_none());
 }
 
@@ -443,7 +443,7 @@ fn many_waits() {
 
     init_new_block(
         &mut processor,
-        BlockHeaderMeta {
+        BlockHeader {
             height: 11,
             timestamp: 11,
             ..Default::default()

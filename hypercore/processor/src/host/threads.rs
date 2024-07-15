@@ -23,8 +23,11 @@ use core::fmt;
 use gear_core::{ids::ProgramId, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
-use hypercore_db::{BlockInfo, BlockMetaInfo};
-use hypercore_runtime_common::state::{ActiveProgram, MaybeHash, Program, ProgramState, Storage};
+use hypercore_db::BlockMetaStorage;
+use hypercore_runtime_common::{
+    state::{ActiveProgram, MaybeHash, Program, ProgramState, Storage},
+    BlockInfo,
+};
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
 

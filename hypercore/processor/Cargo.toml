@@ -9,25 +9,24 @@ repository.workspace = true
 
 
 [dependencies]
-anyhow = { workspace = true, features = ["std"] }
+hypercore-common.workspace = true
 hypercore-db.workspace = true
-primitive-types.workspace = true
-gear-core.workspace = true
+hypercore-runtime-common = { workspace = true, features = ["std"] }
 hypercore-runtime = { workspace = true, features = ["std"] }
-hypercore-signer.workspace = true
-hypercore-observer = { workspace = true }
+gear-core.workspace = true
+gprimitives.workspace = true
+gear-runtime-interface = { workspace = true, features = ["std"] }
+gear-lazy-pages.workspace = true
+core-processor.workspace = true
+
+anyhow = { workspace = true, features = ["std"] }
 wasmtime.workspace = true
 log.workspace = true
 parity-wasm.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-gprimitives.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
-gear-runtime-interface = { workspace = true, features = ["std"] }
-hypercore-runtime-common = { workspace = true, features = ["std"] }
-gear-lazy-pages.workspace = true
-core-processor.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
@@ -35,4 +34,3 @@ wabt.workspace = true
 env_logger.workspace = true
 demo-ping = { workspace = true, features = ["debug"] }
 demo-async = { workspace = true, features = ["debug"] }
-hypercore-ethereum.workspace = true

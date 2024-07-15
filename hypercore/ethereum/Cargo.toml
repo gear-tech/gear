@@ -8,6 +8,13 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+hypercore-signer.workspace = true
+hypercore-common.workspace = true
+gear-core.workspace = true
+gear-core-errors.workspace = true
+gear-wasm-instrument.workspace = true
+gprimitives.workspace = true
+
 anyhow.workspace = true
 async-trait.workspace = true
 alloy = { workspace = true, features = [
@@ -23,10 +30,5 @@ alloy = { workspace = true, features = [
     "kzg",
 ] }
 futures.workspace = true
-gear-core.workspace = true
-gear-core-errors.workspace = true
-gear-wasm-instrument.workspace = true
-gprimitives.workspace = true
-hypercore-signer.workspace = true
-
+log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }

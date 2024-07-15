@@ -22,12 +22,13 @@ mod agro;
 
 use agro::{Aggregator, MultisignedCommitments};
 use anyhow::Result;
+use hypercore_common::{BlockCommitment, CodeCommitment};
 use hypercore_ethereum::Ethereum;
-use hypercore_observer::{Event, UploadCodeData};
+use hypercore_observer::Event;
 use hypercore_signer::{Address, PublicKey, Signer};
 use std::mem;
 
-pub use agro::{AggregatedCommitments, BlockCommitment, CodeCommitment, StateTransition};
+pub use agro::AggregatedCommitments;
 
 pub struct Config {
     pub ethereum_rpc: String,
@@ -80,8 +81,11 @@ impl Sequencer {
                     );
                 }
             }
-            Event::UploadCode(UploadCodeData { code_id, .. }) => {
-                log::debug!("Observed code_hash#{:?}. Waiting for inclusion...", code_id);
+            Event::CodeLoaded(data) => {
+                log::debug!(
+                    "Observed code_hash#{:?}. Waiting for inclusion...",
+                    data.code_id
+                );
             }
         }
 

@@ -8,17 +8,17 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-## Operational deps.
-log.workspace = true
-parity-scale-codec.workspace = true
-
 ## Gear deps.
+hypercore-runtime-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-interface.workspace = true
 gear-wasm-instrument.workspace = true
 gprimitives.workspace = true
-hypercore-runtime-common.workspace = true
+
+## Operational deps.
+log.workspace = true
+parity-scale-codec.workspace = true
 
 [build-dependencies]
 substrate-wasm-builder.workspace = true
