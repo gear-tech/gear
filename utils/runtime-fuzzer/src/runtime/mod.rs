@@ -28,7 +28,7 @@ use vara_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 
-pub use account::{acc_max_balance_gas, account, alice, BalanceManager, BalanceState};
+pub use account::{acc_max_balance_gas, account, BalanceManager, BalanceState};
 pub use block::{default_gas_limit, run_to_next_block};
 
 mod account;
@@ -38,11 +38,17 @@ mod block;
 pub fn new_test_ext() -> TestExternalities {
     let mut t = SystemConfig::<Runtime>::default().build_storage().unwrap();
 
-    let authorities = vec![authority_keys_from_seed("Authority")];
+    // seed: "//Authority"
+    let authorities = vec![authority_keys_from_seed(hex_literal::hex!(
+        "bd8af67855fac56646b6d3e09bdd9b1ec3911df0d8b02c9d773dd4bdcd6f560a"
+    ))];
     // Vector of tuples of accounts and their balances
     let balances = vec![
         (
-            account(account::alice()),
+            // seed: "//Alice"
+            account(AccountId::from(hex_literal::hex!(
+                "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+            ))),
             account::gas_to_value(account::acc_max_balance_gas()),
         ),
         (BankAddress::get(), Balances::minimum_balance()),
