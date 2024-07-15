@@ -1,5 +1,11 @@
 #![allow(dead_code, clippy::new_without_default)]
 
+use abi::{
+    IMinimalProgram, IProgram,
+    IRouter::{self, initializeCall as RouterInitializeCall},
+    ITransparentUpgradeableProxy,
+    IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
+};
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
     network::{Ethereum as AlloyEthereum, EthereumWallet, TxSigner},
@@ -12,6 +18,7 @@ use alloy::{
         self as alloy_signer, sign_transaction_with_chain_id, Error as SignerError,
         Result as SignerResult, Signer, SignerSync,
     },
+    sol_types::SolCall,
     transports::BoxTransport,
 };
 use anyhow::{anyhow, bail, Result};
@@ -26,8 +33,6 @@ use hypercore_signer::{
     Signer as HypercoreSigner,
 };
 use std::sync::Arc;
-
-pub use abi::{IProgram, IRouter, IWrappedVara};
 
 mod abi;
 mod eip1167;
@@ -409,31 +414,66 @@ impl Ethereum {
             .collect();
         let deployer_address = Address::new(sender_address.0);
 
-        let wrapped_vara =
-            IWrappedVara::deploy(provider.clone(), deployer_address, VALUE_PER_GAS).await?;
+        let wrapped_vara_impl = IWrappedVara::deploy(provider.clone()).await?;
+        let proxy = ITransparentUpgradeableProxy::deploy(
+            provider.clone(),
+            *wrapped_vara_impl.address(),
+            deployer_address,
+            Bytes::copy_from_slice(
+                &WrappedVaraInitializeCall {
+                    initialOwner: deployer_address,
+                    _valuePerGas: VALUE_PER_GAS,
+                }
+                .abi_encode(),
+            ),
+        )
+        .await?;
+        let wrapped_vara = IWrappedVara::new(*proxy.address(), provider.clone());
         let wrapped_vara_address = *wrapped_vara.address();
 
         let nonce = provider.get_transaction_count(deployer_address).await?;
         let program_address = deployer_address.create(
             nonce
-                .checked_add(1)
-                .ok_or_else(|| anyhow!("failed to add one"))?,
+                .checked_add(2)
+                .ok_or_else(|| anyhow!("failed to add 2"))?,
+        );
+        let minimal_program_address = deployer_address.create(
+            nonce
+                .checked_add(3)
+                .ok_or_else(|| anyhow!("failed to add 3"))?,
         );
 
-        let router = IRouter::deploy(
+        let router_impl = IRouter::deploy(provider.clone()).await?;
+        let proxy = ITransparentUpgradeableProxy::deploy(
             provider.clone(),
+            *router_impl.address(),
             deployer_address,
-            program_address,
-            wrapped_vara_address,
-            validators,
+            Bytes::copy_from_slice(
+                &RouterInitializeCall {
+                    initialOwner: deployer_address,
+                    _program: program_address,
+                    _minimalProgram: minimal_program_address,
+                    _wrappedVara: wrapped_vara_address,
+                    validatorsArray: validators,
+                }
+                .abi_encode(),
+            ),
         )
         .await?;
-        let router_address = *router.address();
+        let router_address = *proxy.address();
+        let router = IRouter::new(router_address, provider.clone());
 
-        IProgram::deploy(provider.clone(), router_address).await?;
+        let program = IProgram::deploy(provider.clone()).await?;
+        let minimal_program = IMinimalProgram::deploy(provider.clone(), router_address).await?;
 
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.get_receipt().await?;
+
+        assert_eq!(router.program().call().await?._0, *program.address());
+        assert_eq!(
+            router.minimalProgram().call().await?._0,
+            *minimal_program.address()
+        );
 
         Ok(Self {
             router_address,

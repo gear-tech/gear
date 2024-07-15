@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.26;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -10,54 +11,137 @@ import {IRouter} from "./IRouter.sol";
 import {IProgram} from "./IProgram.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 
-contract Router is IRouter, Ownable, ReentrancyGuardTransient {
+contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     using ECDSA for bytes32;
     using MessageHashUtils for address;
 
     uint256 public constant COUNT_OF_VALIDATORS = 1;
     uint256 public constant REQUIRED_SIGNATURES = 1;
 
-    address public immutable program;
-    address public immutable wrappedVara;
-    bytes32 public immutable genesisBlockHash;
+    // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
 
-    uint256 public countOfValidators;
-    bytes32 public lastBlockCommitmentHash;
-    mapping(address => bool) public validators;
-    mapping(bytes32 => CodeState) public codes;
-    mapping(address => bool) public programs;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
-    constructor(address initialOwner, address _program, address _wrappedVara, address[] memory validatorsArray)
-        Ownable(initialOwner)
-    {
-        program = _program;
-        wrappedVara = _wrappedVara;
-        genesisBlockHash = blockhash(block.number - 1);
+    function initialize(
+        address initialOwner,
+        address _program,
+        address _minimalProgram,
+        address _wrappedVara,
+        address[] memory validatorsArray
+    ) public initializer {
+        __Ownable_init(initialOwner);
+
+        setStorageSlot("router.storage.Router");
+        RouterStorage storage router = getRouterStorage();
+
+        router.program = _program;
+        router.minimalProgram = _minimalProgram;
+        router.wrappedVara = _wrappedVara;
+        router.genesisBlockHash = blockhash(block.number - 1);
+
         addValidators(validatorsArray);
     }
 
+    function getRouterStorage() private view returns (RouterStorage storage router) {
+        bytes32 slot = getStorageSlot();
+        /// @solidity memory-safe-assembly
+        assembly {
+            router.slot := slot
+        }
+    }
+
+    function getStorageSlot() public view returns (bytes32) {
+        return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
+    }
+
+    function setStorageSlot(string memory namespace) public onlyOwner {
+        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
+    }
+
+    function program() external view returns (address) {
+        RouterStorage storage router = getRouterStorage();
+        return router.program;
+    }
+
+    function setProgram(address _program) external onlyOwner {
+        RouterStorage storage router = getRouterStorage();
+        router.program = _program;
+    }
+
+    function minimalProgram() external view returns (address) {
+        RouterStorage storage router = getRouterStorage();
+        return router.minimalProgram;
+    }
+
+    function wrappedVara() external view returns (address) {
+        RouterStorage storage router = getRouterStorage();
+        return router.wrappedVara;
+    }
+
+    function genesisBlockHash() external view returns (bytes32) {
+        RouterStorage storage router = getRouterStorage();
+        return router.genesisBlockHash;
+    }
+
+    function lastBlockCommitmentHash() external view returns (bytes32) {
+        RouterStorage storage router = getRouterStorage();
+        return router.lastBlockCommitmentHash;
+    }
+
+    function countOfValidators() external view returns (uint256) {
+        RouterStorage storage router = getRouterStorage();
+        return router.countOfValidators;
+    }
+
+    function validators(address validator) external view returns (bool) {
+        RouterStorage storage router = getRouterStorage();
+        return router.validators[validator];
+    }
+
+    function codes(bytes32 codeId) external view returns (CodeState) {
+        RouterStorage storage router = getRouterStorage();
+        return router.codes[codeId];
+    }
+
+    function programs(address _program) external view returns (bool) {
+        RouterStorage storage router = getRouterStorage();
+        return router.programs[_program];
+    }
+
     function addValidators(address[] memory validatorsArray) public onlyOwner {
-        uint256 newCountOfValidators = countOfValidators + validatorsArray.length;
+        RouterStorage storage router = getRouterStorage();
+
+        uint256 newCountOfValidators = router.countOfValidators + validatorsArray.length;
         require(newCountOfValidators <= COUNT_OF_VALIDATORS, "validator set is limited");
-        countOfValidators = newCountOfValidators;
+        router.countOfValidators = newCountOfValidators;
 
         for (uint256 i = 0; i < validatorsArray.length; i++) {
             address validator = validatorsArray[i];
-            validators[validator] = true;
+            router.validators[validator] = true;
         }
     }
 
     function removeValidators(address[] calldata validatorsArray) external onlyOwner {
+        RouterStorage storage router = getRouterStorage();
+
         for (uint256 i = 0; i < validatorsArray.length; i++) {
             address validator = validatorsArray[i];
-            delete validators[validator];
+            delete router.validators[validator];
         }
     }
 
     function uploadCode(bytes32 codeId, bytes32 blobTx) external {
         require(blobTx != 0 || blobhash(0) != 0, "invalid transaction");
-        require(codes[codeId] == CodeState.Unknown, "code already uploaded");
-        codes[codeId] = CodeState.Unconfirmed;
+
+        RouterStorage storage router = getRouterStorage();
+        require(router.codes[codeId] == CodeState.Unknown, "code already uploaded");
+        router.codes[codeId] = CodeState.Unconfirmed;
+
         emit UploadCode(tx.origin, codeId, blobTx);
     }
 
@@ -66,16 +150,23 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
         payable
         returns (address)
     {
-        require(codes[codeId] == CodeState.Confirmed, "code is unconfirmed");
-        address actorId = Clones.cloneDeterministic(program, keccak256(abi.encodePacked(salt, codeId)), msg.value);
-        programs[actorId] = true;
+        RouterStorage storage router = getRouterStorage();
+        require(router.codes[codeId] == CodeState.Confirmed, "code is unconfirmed");
+
+        address actorId =
+            Clones.cloneDeterministic(router.minimalProgram, keccak256(abi.encodePacked(salt, codeId)), msg.value);
+        router.programs[actorId] = true;
+
         chargeGas(gasLimit);
+
         emit CreateProgram(tx.origin, actorId, codeId, initPayload, gasLimit, uint128(msg.value));
+
         return actorId;
     }
 
     modifier onlyProgram() {
-        require(programs[msg.sender], "unknown program");
+        RouterStorage storage router = getRouterStorage();
+        require(router.programs[msg.sender], "unknown program");
         _;
     }
 
@@ -100,72 +191,75 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
     }
 
     function chargeGas(uint64 gas) private {
-        IWrappedVara wrappedVaraToken = IWrappedVara(wrappedVara);
+        RouterStorage storage router = getRouterStorage();
+
+        IWrappedVara wrappedVaraToken = IWrappedVara(router.wrappedVara);
+
         bool success = wrappedVaraToken.transferFrom(tx.origin, address(this), wrappedVaraToken.gasToValue(gas));
         require(success, "failed to transfer tokens");
     }
 
     function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external {
-        bytes memory message;
+        RouterStorage storage router = getRouterStorage();
+
+        bytes memory codesBytes;
 
         for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
             CodeCommitment calldata codeCommitment = codeCommitmentsArray[i];
-            message = bytes.concat(message, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
+            codesBytes =
+                bytes.concat(codesBytes, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
 
             bytes32 codeId = codeCommitment.codeId;
-            require(codes[codeId] == CodeState.Unconfirmed, "code should be uploaded, but unconfirmed");
+            require(router.codes[codeId] == CodeState.Unconfirmed, "code should be uploaded, but unconfirmed");
 
             if (codeCommitment.approved) {
-                codes[codeId] = CodeState.Confirmed;
+                router.codes[codeId] = CodeState.Confirmed;
                 emit CodeApproved(codeId);
             } else {
-                delete codes[codeId];
+                delete router.codes[codeId];
                 emit CodeRejected(codeId);
             }
         }
 
-        validateSignatures(message, signatures);
+        validateSignatures(codesBytes, signatures);
     }
 
-    /**
-     * @dev Check if any of the last 256 blocks (excluding the current one) has the given hash.
-     * @param hash The hash to check for.
-     * @return found True if the hash is found, false otherwise.
-     */
-    function checkHashIsPred(bytes32 hash) private view returns (bool found) {
-        for (uint256 i = block.number - 1; i > 0; i--) {
-            if (blockhash(i) == hash) {
-                return true;
-            }
-
-            if (block.number - i >= 256) {
-                break;
-            }
+    function commitBlocks(BlockCommitment[] calldata commitments, bytes[] calldata signatures) external nonReentrant {
+        bytes memory commitmentsBytes;
+        for (uint256 i = 0; i < commitments.length; i++) {
+            BlockCommitment calldata commitment = commitments[i];
+            commitmentsBytes = bytes.concat(commitmentsBytes, commitBlock(commitment));
         }
-        return false;
+
+        validateSignatures(commitmentsBytes, signatures);
     }
 
     function commitBlock(BlockCommitment calldata commitment) private returns (bytes32) {
-        require(lastBlockCommitmentHash == commitment.allowedPrevCommitmentHash, "Invalid predecessor commitment");
-        require(checkHashIsPred(commitment.allowedPredBlockHash), "Allowed predecessor not found");
+        RouterStorage storage router = getRouterStorage();
 
-        lastBlockCommitmentHash = commitment.blockHash;
+        require(
+            router.lastBlockCommitmentHash == commitment.allowedPrevCommitmentHash, "invalid predecessor commitment"
+        );
+        require(isPredecessorHash(commitment.allowedPredBlockHash), "allowed predecessor not found");
+
+        router.lastBlockCommitmentHash = commitment.blockHash;
         emit BlockCommitted(commitment.blockHash);
 
-        bytes memory transitions_bytes;
+        bytes memory transitionsBytes;
         for (uint256 i = 0; i < commitment.transitions.length; i++) {
             StateTransition calldata transition = commitment.transitions[i];
-            require(programs[transition.actorId], "unknown program");
+            require(router.programs[transition.actorId], "unknown program");
 
             IProgram _program = IProgram(transition.actorId);
 
-            bytes memory outgoing_bytes;
+            bytes memory outgoingBytes;
             for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
                 OutgoingMessage calldata outgoingMessage = transition.outgoingMessages[j];
-                outgoing_bytes = bytes.concat(
-                    outgoing_bytes,
+                outgoingBytes = bytes.concat(
+                    outgoingBytes,
                     keccak256(
                         abi.encodePacked(
+                            outgoingMessage.messageId,
                             outgoingMessage.destination,
                             outgoingMessage.payload,
                             outgoingMessage.value,
@@ -181,9 +275,15 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
 
                 ReplyDetails calldata replyDetails = outgoingMessage.replyDetails;
                 if (replyDetails.replyTo == 0 && replyDetails.replyCode == 0) {
-                    emit UserMessageSent(outgoingMessage.destination, outgoingMessage.payload, outgoingMessage.value);
+                    emit UserMessageSent(
+                        outgoingMessage.messageId,
+                        outgoingMessage.destination,
+                        outgoingMessage.payload,
+                        outgoingMessage.value
+                    );
                 } else {
                     emit UserReplySent(
+                        outgoingMessage.messageId,
                         outgoingMessage.destination,
                         outgoingMessage.payload,
                         outgoingMessage.value,
@@ -193,11 +293,11 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
                 }
             }
 
-            transitions_bytes = bytes.concat(
-                transitions_bytes,
+            transitionsBytes = bytes.concat(
+                transitionsBytes,
                 keccak256(
                     abi.encodePacked(
-                        transition.actorId, transition.oldStateHash, transition.newStateHash, keccak256(outgoing_bytes)
+                        transition.actorId, transition.oldStateHash, transition.newStateHash, keccak256(outgoingBytes)
                     )
                 )
             );
@@ -214,29 +314,33 @@ contract Router is IRouter, Ownable, ReentrancyGuardTransient {
                 commitment.blockHash,
                 commitment.allowedPredBlockHash,
                 commitment.allowedPrevCommitmentHash,
-                keccak256(transitions_bytes)
+                keccak256(transitionsBytes)
             )
         );
     }
 
-    function commitBlocks(BlockCommitment[] calldata commitments, bytes[] calldata signatures) external nonReentrant {
-        bytes memory commitments_bytes;
-        for (uint256 i = 0; i < commitments.length; i++) {
-            BlockCommitment calldata commitment = commitments[i];
-            commitments_bytes = bytes.concat(commitments_bytes, commitBlock(commitment));
+    function isPredecessorHash(bytes32 hash) private view returns (bool) {
+        for (uint256 i = block.number - 1; i > 0; i--) {
+            bytes32 ret = blockhash(i);
+            if (ret == hash) {
+                return true;
+            } else if (ret == 0) {
+                break;
+            }
         }
-
-        validateSignatures(commitments_bytes, signatures);
+        return false;
     }
 
     function validateSignatures(bytes memory message, bytes[] calldata signatures) private view {
+        RouterStorage storage router = getRouterStorage();
+
         bytes32 messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(message)));
         uint256 k = 0;
 
         for (; k < signatures.length; k++) {
             bytes calldata signature = signatures[k];
             address validator = messageHash.recover(signature);
-            require(validators[validator], "unknown signature");
+            require(router.validators[validator], "unknown signature");
         }
 
         require(k >= REQUIRED_SIGNATURES, "not enough signatures");

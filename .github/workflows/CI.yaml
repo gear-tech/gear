@@ -31,6 +31,11 @@ jobs:
         with:
           version: nightly
 
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
       - name: "Show: Versioning"
         run: |
           ./scripts/gear.sh show

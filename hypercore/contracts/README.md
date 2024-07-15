@@ -49,12 +49,8 @@ $ anvil
 
 ```shell
 $ source .env
-
 $ forge script script/Router.s.sol:RouterScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
-$ forge script script/WrappedVara.s.sol:WrappedVaraScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
-
 $ forge script script/Router.s.sol:RouterScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
-$ forge script script/WrappedVara.s.sol:WrappedVaraScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 ```
 
 ### Cast

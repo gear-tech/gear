@@ -65,6 +65,7 @@ impl SeqHash for StateTransition {
             Vec::with_capacity(self.outgoing_messages.len() * mem::size_of::<H256>());
 
         for OutgoingMessage {
+            message_id,
             destination,
             payload,
             value,
@@ -73,13 +74,15 @@ impl SeqHash for StateTransition {
         {
             let reply_details = reply_details.unwrap_or_default();
             let mut outgoing_message = Vec::with_capacity(
-                mem::size_of::<Address>()
+                mem::size_of::<MessageId>()
+                    + mem::size_of::<Address>()
                     + payload.inner().len()
                     + mem::size_of::<u128>()
                     + mem::size_of::<MessageId>()
                     + mem::size_of::<[u8; 4]>(),
             );
 
+            outgoing_message.extend_from_slice(&message_id.into_bytes());
             outgoing_message.extend_from_slice(&destination.into_bytes()[12..]);
             outgoing_message.extend_from_slice(payload.inner());
             outgoing_message.extend_from_slice(&value.to_be_bytes());

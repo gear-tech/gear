@@ -3,6 +3,13 @@ src = "src"
 out = "out"
 libs = ["lib"]
 evm_version = "cancun"
+# Required for OpenZeppelin Foundry Upgrades https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
+ffi = true
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
+# Warning (3628): This contract has a payable fallback function, but no receive ether function.
+ignored_warnings_from = ["src/MinimalProgram.sol"]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"

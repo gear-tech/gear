@@ -7,12 +7,15 @@ gpu-pre-commit:
 # Bulding contracts
 .PHONY: gpu-contracts-pre-commit
 gpu-contracts-pre-commit:
+	@ echo " > Cleaning contracts" && forge clean --root hypercore/contracts
 	@ echo " > Formatting contracts" && forge fmt --root hypercore/contracts
 	@ echo " > Building contracts" && forge build --root hypercore/contracts
-	@ echo " > Testing contracts" && forge test --root hypercore/contracts -vvvv
+	@ echo " > Testing contracts" && forge test --root hypercore/contracts -vvv
 	@ echo " > Copying Router arfitact" && cp ./hypercore/contracts/out/Router.sol/Router.json ./hypercore/ethereum
 	@ echo " > Copying Program arfitact" && cp ./hypercore/contracts/out/Program.sol/Program.json ./hypercore/ethereum
+	@ echo " > Copying MinimalProgram arfitact" && cp ./hypercore/contracts/out/MinimalProgram.sol/MinimalProgram.json ./hypercore/ethereum
 	@ echo " > Copying WrappedVara arfitact" && cp ./hypercore/contracts/out/WrappedVara.sol/WrappedVara.json ./hypercore/ethereum
+	@ echo " > Copying TransparentUpgradeableProxy arfitact" && cp ./hypercore/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./hypercore/ethereum
 
 # Common section
 .PHONY: show
