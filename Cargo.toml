@@ -11,7 +11,7 @@ resolver = "2"
 
 default-members = ["node/cli"]
 
-exclude = ["hypercore/contracts", "hypercore/docker"]
+exclude = ["ethexe/contracts", "ethexe/docker"]
 
 members = [
     "common",
@@ -106,8 +106,8 @@ members = [
     "utils/*",
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/fuzz",
-    "hypercore/*",
-    "hypercore/runtime/common",
+    "ethexe/*",
+    "ethexe/runtime/common",
 ]
 
 [workspace.dependencies]
@@ -279,22 +279,22 @@ testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 
-# Hypercore deps
-hypercore-cli = { path = "hypercore/cli", default-features = false }
-hypercore-observer = { path = "hypercore/observer", default-features = false }
-hypercore-db = { path = "hypercore/db", default-features = false }
-hypercore-network = { path = "hypercore/network", default-features = false }
-hypercore-processor = { path = "hypercore/processor", default-features = false }
-hypercore-runtime = { path = "hypercore/runtime", default-features = false }
-hypercore-signer = { path = "hypercore/signer", default-features = false }
-hypercore-sequencer = { path = "hypercore/sequencer", default-features = false }
-hypercore-ethereum = { path = "hypercore/ethereum", default-features = false }
-hypercore-runtime-common = { path = "hypercore/runtime/common", default-features = false }
-hypercore-prometheus-endpoint = { path = "hypercore/utils/prometheus", default-features = false }
-hypercore-utils = { path = "hypercore/utils", default-features = false }
-hypercore-validator = { path = "hypercore/validator", default-features = false }
-hypercore-rpc = { path = "hypercore/rpc", default-features = false }
-hypercore-common = { path = "hypercore/common" }
+# ethexe deps
+ethexe-cli = { path = "ethexe/cli", default-features = false }
+ethexe-observer = { path = "ethexe/observer", default-features = false }
+ethexe-db = { path = "ethexe/db", default-features = false }
+ethexe-network = { path = "ethexe/network", default-features = false }
+ethexe-processor = { path = "ethexe/processor", default-features = false }
+ethexe-runtime = { path = "ethexe/runtime", default-features = false }
+ethexe-signer = { path = "ethexe/signer", default-features = false }
+ethexe-sequencer = { path = "ethexe/sequencer", default-features = false }
+ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
+ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
+ethexe-prometheus-endpoint = { path = "ethexe/utils/prometheus", default-features = false }
+ethexe-utils = { path = "ethexe/utils", default-features = false }
+ethexe-validator = { path = "ethexe/validator", default-features = false }
+ethexe-rpc = { path = "ethexe/rpc", default-features = false }
+ethexe-common = { path = "ethexe/common" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = [

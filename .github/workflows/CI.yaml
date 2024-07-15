@@ -41,9 +41,9 @@ jobs:
           ./scripts/gear.sh show
           forge --version
 
-      - name: "Check: hypercore contracts"
+      - name: "Check: ethexe contracts"
         run: |
-          cd hypercore/contracts
+          cd ethexe/contracts
           forge fmt --check
           forge build --sizes
           forge test -vvv
@@ -51,23 +51,23 @@ jobs:
       - name: "Check: workspace formatting"
         run: ./scripts/gear.sh format gear --check
 
-      - name: "Check: hypercore clippy allowing unused code"
-        run: cargo clippy -p "hypercore-*" --all-targets --locked -- --no-deps -D warnings
+      - name: "Check: ethexe clippy allowing unused code"
+        run: cargo clippy -p "ethexe-*" --all-targets --locked -- --no-deps -D warnings
 
-      - name: "Build: Hypercore"
-        run: cargo build --release -p hypercore-cli
+      - name: "Build: ethexe"
+        run: cargo build --release -p ethexe-cli
 
-      - name: "Test: Hypercore CLI"
-        run: cargo test --release -p hypercore-cli
+      - name: "Test: ethexe CLI"
+        run: cargo test --release -p ethexe-cli
 
-      - name: "Test: Hypercore Network"
-        run: cargo test --release -p hypercore-network
+      - name: "Test: ethexe Network"
+        run: cargo test --release -p ethexe-network
 
-      - name: "Test: Hypercore Db"
-        run: cargo test --release -p hypercore-db
+      - name: "Test: ethexe Db"
+        run: cargo test --release -p ethexe-db
 
-      - name: "Test: Hypercore Observer"
-        run: cargo test --release -p hypercore-observer
+      - name: "Test: ethexe Observer"
+        run: cargo test --release -p ethexe-observer
 
-      - name: "Test: Hypercore processor"
-        run: cargo test --release -p hypercore-processor
+      - name: "Test: ethexe processor"
+        run: cargo test --release -p ethexe-processor

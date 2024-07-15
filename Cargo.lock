@@ -4722,6 +4722,287 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-cli"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "clap 4.5.9",
+ "directories",
+ "env_logger",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-network",
+ "ethexe-observer",
+ "ethexe-processor",
+ "ethexe-prometheus-endpoint",
+ "ethexe-rpc",
+ "ethexe-sequencer",
+ "ethexe-signer",
+ "ethexe-utils",
+ "ethexe-validator",
+ "futures",
+ "futures-timer",
+ "gprimitives",
+ "hex",
+ "log",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "serde",
+ "static_init",
+ "tempfile",
+ "tokio",
+ "toml 0.8.14",
+]
+
+[[package]]
+name = "ethexe-common"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "derive_more",
+ "gear-core",
+ "gprimitives",
+ "hex",
+ "parity-scale-codec",
+ "serde",
+]
+
+[[package]]
+name = "ethexe-db"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "dashmap",
+ "ethexe-common",
+ "ethexe-runtime-common",
+ "gear-core",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "rocksdb",
+ "scopeguard",
+ "serde",
+ "tempfile",
+]
+
+[[package]]
+name = "ethexe-ethereum"
+version = "1.4.2"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "async-trait",
+ "ethexe-common",
+ "ethexe-signer",
+ "futures",
+ "gear-core",
+ "gear-core-errors",
+ "gear-wasm-instrument",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "ethexe-network"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "array-bytes 6.2.3",
+ "either",
+ "ethexe-utils",
+ "fnv",
+ "futures",
+ "futures-timer",
+ "libp2p 0.52.4",
+ "linked_hash_set",
+ "log",
+ "parking_lot 0.12.3",
+ "smallvec",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.18",
+ "void",
+ "zeroize",
+]
+
+[[package]]
+name = "ethexe-observer"
+version = "1.4.2"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-signer",
+ "futures",
+ "gear-core",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "reqwest 0.11.27",
+ "tokio",
+ "wabt",
+]
+
+[[package]]
+name = "ethexe-processor"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "demo-async",
+ "demo-ping",
+ "env_logger",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-runtime",
+ "ethexe-runtime-common",
+ "gear-core",
+ "gear-core-processor",
+ "gear-lazy-pages",
+ "gear-runtime-interface",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "parity-wasm",
+ "rand 0.8.5",
+ "sp-allocator",
+ "sp-wasm-interface",
+ "tokio",
+ "wabt",
+ "wasmtime",
+]
+
+[[package]]
+name = "ethexe-prometheus-endpoint"
+version = "1.4.2"
+dependencies = [
+ "hyper 0.14.27",
+ "log",
+ "prometheus",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "ethexe-rpc"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "futures",
+ "gprimitives",
+ "hex",
+ "hyper 1.4.1",
+ "jsonrpsee 0.24.0",
+ "log",
+ "parity-scale-codec",
+ "tokio",
+ "tower",
+]
+
+[[package]]
+name = "ethexe-runtime"
+version = "1.4.2"
+dependencies = [
+ "ethexe-runtime-common",
+ "gear-core",
+ "gear-core-processor",
+ "gear-lazy-pages-interface",
+ "gear-wasm-instrument",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "substrate-wasm-builder",
+]
+
+[[package]]
+name = "ethexe-runtime-common"
+version = "1.4.2"
+dependencies = [
+ "gear-core",
+ "gear-core-errors",
+ "gear-core-processor",
+ "gear-lazy-pages-common",
+ "gprimitives",
+ "gsys",
+ "log",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "ethexe-sequencer"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-ethereum",
+ "ethexe-observer",
+ "ethexe-processor",
+ "ethexe-signer",
+ "futures",
+ "gear-core",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "tokio",
+]
+
+[[package]]
+name = "ethexe-signer"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "derive_more",
+ "ethers",
+ "ethexe-common",
+ "gprimitives",
+ "hex",
+ "parity-scale-codec",
+ "secp256k1 0.29.0",
+ "sha3",
+]
+
+[[package]]
+name = "ethexe-utils"
+version = "1.4.2"
+dependencies = [
+ "async-channel",
+ "futures",
+ "futures-timer",
+ "lazy_static",
+ "log",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "sp-arithmetic",
+ "tokio-test",
+]
+
+[[package]]
+name = "ethexe-validator"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-network",
+ "ethexe-sequencer",
+ "ethexe-signer",
+ "futures",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "static_init",
+ "tempfile",
+]
+
+[[package]]
 name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7243,287 +7524,6 @@ dependencies = [
  "tower",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "hypercore-cli"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "clap 4.5.9",
- "directories",
- "env_logger",
- "futures",
- "futures-timer",
- "gprimitives",
- "hex",
- "hypercore-common",
- "hypercore-db",
- "hypercore-ethereum",
- "hypercore-network",
- "hypercore-observer",
- "hypercore-processor",
- "hypercore-prometheus-endpoint",
- "hypercore-rpc",
- "hypercore-sequencer",
- "hypercore-signer",
- "hypercore-utils",
- "hypercore-validator",
- "log",
- "parity-scale-codec",
- "rand 0.8.5",
- "serde",
- "static_init",
- "tempfile",
- "tokio",
- "toml 0.8.14",
-]
-
-[[package]]
-name = "hypercore-common"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "derive_more",
- "gear-core",
- "gprimitives",
- "hex",
- "parity-scale-codec",
- "serde",
-]
-
-[[package]]
-name = "hypercore-db"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "dashmap",
- "gear-core",
- "gprimitives",
- "hypercore-common",
- "hypercore-runtime-common",
- "log",
- "parity-scale-codec",
- "rocksdb",
- "scopeguard",
- "serde",
- "tempfile",
-]
-
-[[package]]
-name = "hypercore-ethereum"
-version = "1.4.2"
-dependencies = [
- "alloy",
- "anyhow",
- "async-trait",
- "futures",
- "gear-core",
- "gear-core-errors",
- "gear-wasm-instrument",
- "gprimitives",
- "hypercore-common",
- "hypercore-signer",
- "log",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "hypercore-network"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "array-bytes 6.2.3",
- "either",
- "fnv",
- "futures",
- "futures-timer",
- "hypercore-utils",
- "libp2p 0.52.4",
- "linked_hash_set",
- "log",
- "parking_lot 0.12.3",
- "smallvec",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber 0.3.18",
- "void",
- "zeroize",
-]
-
-[[package]]
-name = "hypercore-observer"
-version = "1.4.2"
-dependencies = [
- "alloy",
- "anyhow",
- "async-stream",
- "async-trait",
- "futures",
- "gear-core",
- "gprimitives",
- "hypercore-common",
- "hypercore-db",
- "hypercore-ethereum",
- "hypercore-signer",
- "log",
- "parity-scale-codec",
- "reqwest 0.11.27",
- "tokio",
- "wabt",
-]
-
-[[package]]
-name = "hypercore-processor"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "demo-async",
- "demo-ping",
- "env_logger",
- "gear-core",
- "gear-core-processor",
- "gear-lazy-pages",
- "gear-runtime-interface",
- "gprimitives",
- "hypercore-common",
- "hypercore-db",
- "hypercore-runtime",
- "hypercore-runtime-common",
- "log",
- "parity-scale-codec",
- "parity-wasm",
- "rand 0.8.5",
- "sp-allocator",
- "sp-wasm-interface",
- "tokio",
- "wabt",
- "wasmtime",
-]
-
-[[package]]
-name = "hypercore-prometheus-endpoint"
-version = "1.4.2"
-dependencies = [
- "hyper 0.14.27",
- "log",
- "prometheus",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "hypercore-rpc"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "futures",
- "gprimitives",
- "hex",
- "hyper 1.4.1",
- "hypercore-common",
- "hypercore-db",
- "jsonrpsee 0.24.0",
- "log",
- "parity-scale-codec",
- "tokio",
- "tower",
-]
-
-[[package]]
-name = "hypercore-runtime"
-version = "1.4.2"
-dependencies = [
- "gear-core",
- "gear-core-processor",
- "gear-lazy-pages-interface",
- "gear-wasm-instrument",
- "gprimitives",
- "hypercore-runtime-common",
- "log",
- "parity-scale-codec",
- "substrate-wasm-builder",
-]
-
-[[package]]
-name = "hypercore-runtime-common"
-version = "1.4.2"
-dependencies = [
- "gear-core",
- "gear-core-errors",
- "gear-core-processor",
- "gear-lazy-pages-common",
- "gprimitives",
- "gsys",
- "log",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "hypercore-sequencer"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "futures",
- "gear-core",
- "gprimitives",
- "hypercore-common",
- "hypercore-ethereum",
- "hypercore-observer",
- "hypercore-processor",
- "hypercore-signer",
- "log",
- "parity-scale-codec",
- "tokio",
-]
-
-[[package]]
-name = "hypercore-signer"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "derive_more",
- "ethers",
- "gprimitives",
- "hex",
- "hypercore-common",
- "parity-scale-codec",
- "secp256k1 0.29.0",
- "sha3",
-]
-
-[[package]]
-name = "hypercore-utils"
-version = "1.4.2"
-dependencies = [
- "async-channel",
- "futures",
- "futures-timer",
- "lazy_static",
- "log",
- "parking_lot 0.12.3",
- "prometheus",
- "sp-arithmetic",
- "tokio-test",
-]
-
-[[package]]
-name = "hypercore-validator"
-version = "1.4.2"
-dependencies = [
- "anyhow",
- "futures",
- "gprimitives",
- "hypercore-common",
- "hypercore-network",
- "hypercore-sequencer",
- "hypercore-signer",
- "log",
- "parity-scale-codec",
- "static_init",
- "tempfile",
 ]
 
 [[package]]
