@@ -4,7 +4,7 @@ gpu-pre-commit:
 	@ echo " > Formatting eGPU" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
 	@ echo " >> Clippy checking eGPU" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
 
-# Bulding contracts
+# Building contracts
 .PHONY: gpu-contracts-pre-commit
 gpu-contracts-pre-commit:
 	@ echo " > Cleaning contracts" && forge clean --root ethexe/contracts
@@ -23,7 +23,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit # Here should be no release builds to keep checks fast.
-pre-commit: fmt clippy test check-runtime-imports # TODO: fix typos
+pre-commit: fmt typos clippy test check-runtime-imports
 
 .PHONY: check-spec
 check-spec:
