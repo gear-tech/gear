@@ -83,7 +83,7 @@ use frame_support::{assert_err, assert_ok};
 use gear_utils::{NonEmpty, RingGet};
 use primitive_types::H256;
 use proptest::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use strategies::GasTreeAction;
 
 mod assertions;
