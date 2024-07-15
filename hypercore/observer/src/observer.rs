@@ -13,6 +13,7 @@ use hypercore_common::events::BlockEvent;
 use hypercore_ethereum::event::*;
 use hypercore_signer::Address as HypercoreAddress;
 use std::sync::Arc;
+use tokio::sync::watch;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
@@ -20,6 +21,15 @@ pub struct Observer {
     provider: ObserverProvider,
     router_address: Address,
     blob_reader: Arc<dyn BlobReader>,
+    status_sender: watch::Sender<ObserverStatus>,
+    status: ObserverStatus,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ObserverStatus {
+    pub eth_block_number: u64,
+    pub pending_upload_code: u64,
+    pub last_router_state: u64,
 }
 
 impl Observer {
@@ -28,13 +38,27 @@ impl Observer {
         router_address: HypercoreAddress,
         blob_reader: Arc<dyn BlobReader>,
     ) -> Result<Self> {
+        let (status_sender, _status_receiver) = watch::channel(ObserverStatus::default());
         Ok(Self {
             provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
             router_address: Address::new(router_address.0),
             blob_reader,
+            status: Default::default(),
+            status_sender,
         })
     }
 
+    pub fn get_status_receiver(&self) -> watch::Receiver<ObserverStatus> {
+        self.status_sender.subscribe()
+    }
+
+    fn update_status<F>(&mut self, update_fn: F)
+    where
+        F: FnOnce(&mut ObserverStatus),
+    {
+        update_fn(&mut self.status);
+        let _ = self.status_sender.send_replace(self.status);
+    }
     pub fn provider(&self) -> &ObserverProvider {
         &self.provider
     }
@@ -72,11 +96,15 @@ impl Observer {
                             }
                         };
 
+                        let mut codes_len = 0;
+
                         // Create futures to load codes
                         for event in events.iter() {
                             let BlockEvent::UploadCode(pending_upload_code) = event else {
                                 continue
                             };
+
+                            codes_len += 1;
 
                             let blob_reader = self.blob_reader.clone();
                             let origin = pending_upload_code.origin;
@@ -94,6 +122,12 @@ impl Observer {
                                 ).await
                             });
                         }
+
+                                        self.update_status(|status| {
+                                                status.eth_block_number = block_number;
+                                                if codes_len > 0 { status.last_router_state = block_number };
+                                                status.pending_upload_code = codes_len as u64;
+                                            });
 
                         let block_data = BlockData {
                             block_hash: H256(block_hash.0),

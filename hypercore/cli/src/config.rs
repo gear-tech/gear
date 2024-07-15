@@ -23,9 +23,12 @@ use crate::args::Args;
 use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
 use hypercore_network::NetworkConfiguration;
+use hypercore_prometheus_endpoint::Registry;
 use hypercore_signer::PublicKey;
-use std::path::PathBuf;
+use std::{iter, net::SocketAddr, path::PathBuf};
 use tempfile::TempDir;
+
+const DEFAULT_PROMETHEUS_PORT: u16 = 9635;
 
 #[static_init::dynamic(drop, lazy)]
 static mut BASE_PATH_TEMP: Option<TempDir> = None;
@@ -42,6 +45,27 @@ pub enum ValidatorConfig {
     Enabled(PublicKey),
     #[default]
     Disabled,
+}
+
+/// Configuration of the Prometheus endpoint.
+#[derive(Debug, Clone)]
+pub struct PrometheusConfig {
+    /// Port to use.
+    pub port: SocketAddr,
+    /// A metrics registry to use. Useful for setting the metric prefix.
+    pub registry: Registry,
+}
+
+impl PrometheusConfig {
+    /// Create a new config using the default registry.
+    pub fn new_with_default_registry(port: SocketAddr, chain_id: String) -> Self {
+        let param = iter::once((String::from("chain"), chain_id)).collect();
+        Self {
+            port,
+            registry: Registry::new_custom(None, Some(param))
+                .expect("this can only fail if the prefix is empty"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -78,6 +102,9 @@ pub struct Config {
 
     // Network configuration
     pub net_config: NetworkConfiguration,
+
+    // Prometheus configuration
+    pub prometheus_config: Option<PrometheusConfig>,
 
     /// RPC port
     pub rpc_port: u16,
@@ -133,6 +160,9 @@ impl TryFrom<Args> for Config {
                 .unwrap_or(chain_spec.ethereum_router_address),
             max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
             net_config,
+            prometheus_config: args
+                .prometheus_params
+                .prometheus_config(DEFAULT_PROMETHEUS_PORT, "hypercore-dev".to_string()),
             database_path: base_path.join("db"),
             network_path: base_path.join("net"),
             key_path: base_path.join("key"),

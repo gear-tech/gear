@@ -18,7 +18,10 @@
 
 //! CLI arguments in one place.
 
-use crate::{config, params::NetworkParams};
+use crate::{
+    config,
+    params::{NetworkParams, PrometheusParams},
+};
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
 use gprimitives::{ActorId, CodeId};
@@ -90,6 +93,10 @@ pub struct Args {
     #[allow(missing_docs)]
     #[clap(flatten)]
     pub network_params: NetworkParams,
+
+    #[allow(missing_docs)]
+    #[clap(flatten)]
+    pub prometheus_params: PrometheusParams,
 
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,

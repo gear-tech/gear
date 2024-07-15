@@ -23,6 +23,9 @@ hypercore-sequencer.workspace = true
 hypercore-ethereum.workspace = true
 hypercore-validator.workspace = true
 hypercore-common.workspace = true
+hypercore-prometheus-endpoint.workspace = true
+hypercore-rpc.workspace = true
+hypercore-utils.workspace = true
 gprimitives.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
@@ -44,6 +47,6 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 hex.workspace = true
 rand.workspace = true
 tempfile.workspace = true
-hypercore-rpc.workspace = true
+futures-timer.workspace = true
 
 static_init = "1.0.3"
