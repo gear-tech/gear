@@ -30,7 +30,13 @@ log.workspace = true
 env_logger.workspace = true
 directories.workspace = true
 anyhow.workspace = true
-tokio = { workspace = true, features = ["signal", "macros", "rt", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = [
+    "signal",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "time",
+] }
 futures.workspace = true
 serde = { workspace = true, features = ["derive"] }
 toml.workspace = true
@@ -38,5 +44,6 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 hex.workspace = true
 rand.workspace = true
 tempfile.workspace = true
+hypercore-rpc.workspace = true
 
 static_init = "1.0.3"

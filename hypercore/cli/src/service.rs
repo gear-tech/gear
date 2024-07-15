@@ -42,6 +42,7 @@ pub struct Service {
     signer: hypercore_signer::Signer,
     sequencer: Option<hypercore_sequencer::Sequencer>,
     validator: Option<hypercore_validator::Validator>,
+    rpc: hypercore_rpc::RpcService,
 }
 
 async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
@@ -120,6 +121,8 @@ impl Service {
             ValidatorConfig::Disabled => None,
         };
 
+        let rpc = hypercore_rpc::RpcService::new(config.rpc_port, db.clone());
+
         Ok(Self {
             db,
             network,
@@ -129,6 +132,7 @@ impl Service {
             sequencer,
             signer,
             validator,
+            rpc,
         })
     }
 
@@ -311,6 +315,7 @@ impl Service {
             mut sequencer,
             signer: _signer,
             mut validator,
+            rpc,
         } = self;
 
         let network_service = network.service().clone();
@@ -324,6 +329,10 @@ impl Service {
 
         // spawn network future
         let mut network_handle = tokio::spawn(network_run);
+
+        let (rpc_run, rpc_port) = rpc.run_server().await?;
+        let mut rpc_handle = tokio::spawn(rpc_run.stopped());
+        log::info!("🌐 Rpc server started at: {}", rpc_port);
 
         let mut delay: Option<_> = None;
 
@@ -411,6 +420,11 @@ impl Service {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
                     break;
                 }
+                _ = &mut rpc_handle => {
+                    log::info!("`RPCWorker` has terminated, shutting down...");
+                    break;
+                }
+
             }
         }
 
@@ -420,7 +434,6 @@ impl Service {
 
 #[cfg(test)]
 mod tests {
-
     use super::Service;
     use crate::config::Config;
 
@@ -438,6 +451,7 @@ mod tests {
             sequencer: Default::default(),
             validator: Default::default(),
             sender_address: Default::default(),
+            rpc_port: 9090,
         })
         .await;
 

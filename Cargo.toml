@@ -292,10 +292,13 @@ hypercore-ethereum = { path = "hypercore/ethereum", default-features = false }
 hypercore-runtime-common = { path = "hypercore/runtime/common", default-features = false }
 hypercore-utils = { path = "hypercore/utils", default-features = false }
 hypercore-validator = { path = "hypercore/validator", default-features = false }
+hypercore-rpc = { path = "hypercore/rpc", default-features = false }
 hypercore-common = { path = "hypercore/common" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
-sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }
+sandbox-wasmer = { package = "wasmer", version = "2.2", features = [
+    "singlepass",
+] }
 sandbox-wasmer-types = { package = "wasmer-types", version = "2.2" }
 sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 
@@ -442,7 +445,9 @@ demo-constructor = { path = "examples/constructor", default-features = false }
 demo-create-program-reentrance = { path = "examples/create-program-reentrance" }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
-demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
+demo-futures-unordered = { path = "examples/futures-unordered", features = [
+    "debug",
+] }
 demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
@@ -484,43 +489,44 @@ demo-wat = { path = "examples/wat" }
 # Dependencies that only used in one package
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
-cfg-if = "1.0.0"                                                          # gear-lazy-pages
-errno = "0.3"                                                             # gear-lazy-pages
-nix = "0.26.4"                                                            # gear-lazy-pages
-indexmap = "2.2.6"                                                        # utils/weight-diff
-indicatif = "*"                                                           # utils/wasm-gen
-keyring = "1.2.1"                                                         # gcli
-libp2p = "=0.51.4"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.43", default-features = false }               # node/cli
-nacl = "0.5.3"                                                            # gcli
-nonempty = "0.8.1"                                                        # utils/utils
-libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
-page_size = { version = "0.6", default-features = false }                 # pallets/gear
-pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
-rand_pcg = "0.3.1"                                                        # pallets/gear
-rustc_version = "0.4.0"                                                   # utils/wasm-builder
-schnorrkel = "0.9.1"                                                      # gcli
-scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
-tabled = "0.10.0"                                                         # utils/regression-analysis
-thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.8.14"                                                           # utils/wasm-builder
-tracing = "0.1.40"                                                        # utils/node-loader
-tracing-appender = "0.2"                                                  # utils/node-loader
-tracing-subscriber = "0.3.18"                                             # utils/node-loader
-trybuild = "1"                                                            # gstd/codegen
-wasm-opt = "0.116"                                                        # utils/wasm-builder
-wasmprinter = "0.2"                                                       # utils/wasm-gen
-whoami = "1.5.1"                                                          # gcli
-fail = "0.5"                                                              # gear-common
-scale-value = "^0.12"                                                     # gsdk
-heck = "0.5.0"                                                            # gsdk-api-gen
-etc = "0.1.20"                                                            # gcli
-toml_edit = "0.22.12"                                                     # crates-io
-scale-decode = "0.9.0"                                                    # gsdk
-directories = "5.0.1"                                                     # utils/key-finder
-num-traits = { version = "0.2", default-features = false }                # gear-core
-glob = "0.3.1"                                                            # cargo-gbuild
-smallvec = "1.13.2"                                                       # utils/node-wrapper
+
+cfg-if = "1.0.0"                                             # gear-lazy-pages
+errno = "0.3"                                                # gear-lazy-pages
+nix = "0.26.4"                                               # gear-lazy-pages
+indexmap = "2.2.6"                                           # utils/weight-diff
+indicatif = "*"                                              # utils/wasm-gen
+keyring = "1.2.1"                                            # gcli
+libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.43", default-features = false }  # node/cli
+nacl = "0.5.3"                                               # gcli
+nonempty = "0.8.1"                                           # utils/utils
+libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
+page_size = { version = "0.6", default-features = false }    # pallets/gear
+pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
+rand_pcg = "0.3.1"                                           # pallets/gear
+rustc_version = "0.4.0"                                      # utils/wasm-builder
+schnorrkel = "0.9.1"                                         # gcli
+scopeguard = { version = "1.2.0", default-features = false } # pallets/gear
+tabled = "0.10.0"                                            # utils/regression-analysis
+thousands = "0.2.0"                                          # utils/regression-analysis
+toml = "0.8.14"                                              # utils/wasm-builder
+tracing = "0.1.40"                                           # utils/node-loader
+tracing-appender = "0.2"                                     # utils/node-loader
+tracing-subscriber = "0.3.18"                                # utils/node-loader
+trybuild = "1"                                               # gstd/codegen
+wasm-opt = "0.116"                                           # utils/wasm-builder
+wasmprinter = "0.2"                                          # utils/wasm-gen
+whoami = "1.5.1"                                             # gcli
+fail = "0.5"                                                 # gear-common
+scale-value = "^0.12"                                        # gsdk
+heck = "0.5.0"                                               # gsdk-api-gen
+etc = "0.1.19"                                               # gcli
+toml_edit = "0.22.12"                                        # crates-io
+scale-decode = "0.9.0"                                       # gsdk
+directories = "5.0.1"                                        # utils/key-finder
+num-traits = { version = "0.2", default-features = false }   # gear-core
+glob = "0.3.1"                                               # cargo-gbuild
+smallvec = "1.13.2"                                          # utils/node-wrapper
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`

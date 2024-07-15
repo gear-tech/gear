@@ -70,6 +70,9 @@ pub struct Args {
     #[arg(long = "validator-address")]
     pub sender_address: Option<String>,
 
+    #[arg(long = "rpc-port")]
+    pub rpc_port: Option<u16>,
+
     /// Max depth to discover last commitment.
     #[arg(long = "max-depth")]
     pub max_commitment_depth: Option<u32>,

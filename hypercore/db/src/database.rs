@@ -78,7 +78,7 @@ impl Clone for Database {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode)]
+#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 struct BlockSmallMetaInfo {
     header: Option<BlockHeader>,
     block_end_state_is_valid: bool,
