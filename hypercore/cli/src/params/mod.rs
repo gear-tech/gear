@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod network_params;
+mod network_params;
+mod prometheus_params;
 
 pub use network_params::*;
+pub use prometheus_params::*;

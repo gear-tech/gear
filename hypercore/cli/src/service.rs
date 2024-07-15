@@ -18,9 +18,12 @@
 
 //! Main service in hypercore node.
 
-use crate::config::{Config, SequencerConfig, ValidatorConfig};
+use crate::{
+    config::{Config, PrometheusConfig, SequencerConfig, ValidatorConfig},
+    metrics::MetricsService,
+};
 use anyhow::{anyhow, Ok, Result};
-use futures::{future, stream::StreamExt};
+use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use hypercore_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
 use hypercore_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
@@ -42,6 +45,7 @@ pub struct Service {
     signer: hypercore_signer::Signer,
     sequencer: Option<hypercore_sequencer::Sequencer>,
     validator: Option<hypercore_validator::Validator>,
+    metrics_service: Option<MetricsService>,
     rpc: hypercore_rpc::RpcService,
 }
 
@@ -108,6 +112,19 @@ impl Service {
             SequencerConfig::Disabled => None,
         };
 
+        // Prometheus metrics.
+        let metrics_service = if let Some(PrometheusConfig { port, registry }) =
+            config.prometheus_config.clone()
+        {
+            // Set static metrics.
+            let metrics = MetricsService::with_prometheus(&registry, config)?;
+            tokio::spawn(hypercore_prometheus_endpoint::init_prometheus(port, registry).map(drop));
+
+            Some(metrics)
+        } else {
+            None
+        };
+
         let validator = match config.validator {
             ValidatorConfig::Enabled(ref sign_tx_public) => {
                 Some(hypercore_validator::Validator::new(
@@ -132,6 +149,7 @@ impl Service {
             sequencer,
             signer,
             validator,
+            metrics_service,
             rpc,
         })
     }
@@ -315,10 +333,18 @@ impl Service {
             mut sequencer,
             signer: _signer,
             mut validator,
+            metrics_service,
             rpc,
         } = self;
 
         let network_service = network.service().clone();
+
+        if let Some(metrics_service) = metrics_service {
+            tokio::spawn(metrics_service.run(
+                observer.get_status_receiver(),
+                sequencer.as_mut().map(|s| s.get_status_receiver()),
+            ));
+        }
 
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
@@ -435,7 +461,8 @@ impl Service {
 #[cfg(test)]
 mod tests {
     use super::Service;
-    use crate::config::Config;
+    use crate::config::{Config, PrometheusConfig};
+    use std::net::{Ipv4Addr, SocketAddr};
 
     #[tokio::test]
     async fn basics() {
@@ -448,6 +475,10 @@ mod tests {
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
             net_config: hypercore_network::NetworkConfiguration::new_local(),
+            prometheus_config: Some(PrometheusConfig::new_with_default_registry(
+                SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
+                "dev".to_string(),
+            )),
             sequencer: Default::default(),
             validator: Default::default(),
             sender_address: Default::default(),

@@ -19,6 +19,7 @@
 mod args;
 mod chain_spec;
 mod config;
+mod metrics;
 mod params;
 mod service;
 

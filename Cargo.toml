@@ -290,6 +290,7 @@ hypercore-signer = { path = "hypercore/signer", default-features = false }
 hypercore-sequencer = { path = "hypercore/sequencer", default-features = false }
 hypercore-ethereum = { path = "hypercore/ethereum", default-features = false }
 hypercore-runtime-common = { path = "hypercore/runtime/common", default-features = false }
+hypercore-prometheus-endpoint = { path = "hypercore/utils/prometheus", default-features = false }
 hypercore-utils = { path = "hypercore/utils", default-features = false }
 hypercore-validator = { path = "hypercore/validator", default-features = false }
 hypercore-rpc = { path = "hypercore/rpc", default-features = false }

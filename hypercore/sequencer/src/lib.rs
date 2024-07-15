@@ -27,6 +27,7 @@ use hypercore_ethereum::Ethereum;
 use hypercore_observer::Event;
 use hypercore_signer::{Address, PublicKey, Signer};
 use std::mem;
+use tokio::sync::watch;
 
 pub use agro::AggregatedCommitments;
 
@@ -34,6 +35,13 @@ pub struct Config {
     pub ethereum_rpc: String,
     pub sign_tx_public: PublicKey,
     pub router_address: Address,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SequencerStatus {
+    pub aggregated_commitments: u64,
+    pub submitted_code_commitments: u64,
+    pub submitted_block_commitments: u64,
 }
 
 #[allow(unused)]
@@ -44,10 +52,13 @@ pub struct Sequencer {
     codes_aggregation: Aggregator<CodeCommitment>,
     blocks_aggregation: Aggregator<BlockCommitment>,
     ethereum: Ethereum,
+    status: SequencerStatus,
+    status_sender: watch::Sender<SequencerStatus>,
 }
 
 impl Sequencer {
     pub async fn new(config: &Config, signer: Signer) -> Result<Self> {
+        let (status_sender, _status_receiver) = watch::channel(SequencerStatus::default());
         Ok(Self {
             signer: signer.clone(),
             ethereum_rpc: config.ethereum_rpc.clone(),
@@ -61,11 +72,16 @@ impl Sequencer {
                 config.sign_tx_public.to_address(),
             )
             .await?,
+            status: SequencerStatus::default(),
+            status_sender,
         })
     }
 
     // This function should never block.
     pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
+        self.update_status(|status| {
+            *status = SequencerStatus::default();
+        });
         match event {
             Event::Block(data) => {
                 log::debug!(
@@ -97,6 +113,8 @@ impl Sequencer {
 
         let mut codes_future = None;
         let mut blocks_future = None;
+        let mut code_commitments_len = 0;
+        let mut block_commitments_len = 0;
 
         let codes_aggregation = mem::replace(&mut self.codes_aggregation, Aggregator::new(1));
         let blocks_aggregation = mem::replace(&mut self.blocks_aggregation, Aggregator::new(1));
@@ -110,6 +128,7 @@ impl Sequencer {
             if let Some(code_commitments) = codes_aggregation.find_root() {
                 log::debug!("Achieved consensus on code commitments. Submitting...");
 
+                code_commitments_len = code_commitments.commitments.len() as u64;
                 codes_future = Some(self.submit_codes_commitment(code_commitments));
             } else {
                 log::debug!("No consensus on code commitments found. Discarding...");
@@ -124,7 +143,7 @@ impl Sequencer {
 
             if let Some(block_commitments) = blocks_aggregation.find_root() {
                 log::debug!("Achieved consensus on transition commitments. Submitting...");
-
+                block_commitments_len = block_commitments.commitments.len() as u64;
                 blocks_future = Some(self.submit_block_commitments(block_commitments));
             } else {
                 log::debug!("No consensus on code commitments found. Discarding...");
@@ -141,6 +160,11 @@ impl Sequencer {
             (None, Some(transitions_future)) => transitions_future.await?,
             (None, None) => {}
         }
+
+        self.update_status(|status| {
+            status.submitted_code_commitments += code_commitments_len;
+            status.submitted_block_commitments += block_commitments_len;
+        });
 
         Ok(())
     }
@@ -201,6 +225,9 @@ impl Sequencer {
         origin: Address,
         commitments: AggregatedCommitments<CodeCommitment>,
     ) -> Result<()> {
+        self.update_status(|status| {
+            status.aggregated_commitments += 1;
+        });
         log::debug!("Received codes commitment from {}", origin);
         self.codes_aggregation.push(origin, commitments);
         Ok(())
@@ -218,5 +245,18 @@ impl Sequencer {
 
     pub fn address(&self) -> Address {
         self.key.to_address()
+    }
+
+    pub fn get_status_receiver(&self) -> watch::Receiver<SequencerStatus> {
+        self.status_sender.subscribe()
+    }
+
+    fn update_status<F>(&mut self, update_fn: F)
+    where
+        F: FnOnce(&mut SequencerStatus),
+    {
+        let mut status = self.status;
+        update_fn(&mut status);
+        let _ = self.status_sender.send_replace(status);
     }
 }

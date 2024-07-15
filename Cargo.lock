@@ -7254,6 +7254,7 @@ dependencies = [
  "directories",
  "env_logger",
  "futures",
+ "futures-timer",
  "gprimitives",
  "hex",
  "hypercore-common",
@@ -7262,9 +7263,11 @@ dependencies = [
  "hypercore-network",
  "hypercore-observer",
  "hypercore-processor",
+ "hypercore-prometheus-endpoint",
  "hypercore-rpc",
  "hypercore-sequencer",
  "hypercore-signer",
+ "hypercore-utils",
  "hypercore-validator",
  "log",
  "parity-scale-codec",
@@ -7401,6 +7404,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hypercore-prometheus-endpoint"
+version = "1.4.2"
+dependencies = [
+ "hyper 0.14.27",
+ "log",
+ "prometheus",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "hypercore-rpc"
 version = "1.4.2"
 dependencies = [
@@ -7462,6 +7476,7 @@ dependencies = [
  "hypercore-signer",
  "log",
  "parity-scale-codec",
+ "tokio",
 ]
 
 [[package]]
