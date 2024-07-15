@@ -78,6 +78,9 @@ pub struct Config {
 
     // Network configuration
     pub net_config: NetworkConfiguration,
+
+    /// RPC port
+    pub rpc_port: u16,
 }
 
 impl TryFrom<Args> for Config {
@@ -146,6 +149,7 @@ impl TryFrom<Args> for Config {
                 None => ValidatorConfig::Disabled,
             },
             sender_address: args.sender_address,
+            rpc_port: args.rpc_port.unwrap_or(9090),
         })
     }
 }

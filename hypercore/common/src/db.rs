@@ -30,7 +30,7 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Debug, Clone, Default, Encode, Decode)]
+#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct BlockHeader {
     pub height: u32,
     pub timestamp: u64,

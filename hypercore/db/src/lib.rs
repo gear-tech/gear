@@ -35,7 +35,7 @@ pub fn hash(data: &[u8]) -> H256 {
 }
 
 /// Content-addressable storage database.
-pub trait CASDatabase: Send {
+pub trait CASDatabase: Send + Sync {
     /// Clone ref to database instance.
     fn clone_boxed(&self) -> Box<dyn CASDatabase>;
 
@@ -55,7 +55,7 @@ pub trait CASDatabase: Send {
 }
 
 /// Key-value database.
-pub trait KVDatabase: Send {
+pub trait KVDatabase: Send + Sync {
     /// Clone ref to key-value database instance.
     fn clone_boxed_kv(&self) -> Box<dyn KVDatabase>;
 
