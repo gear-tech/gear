@@ -124,10 +124,10 @@ trait BuiltinActorWithId {
     type Actor: BuiltinActor<Error = Self::Error>;
 }
 
-impl<const ID: u64, E, A: BuiltinActor<Error = E>> BuiltinActorWithId for ActorWithId<ID, A> {
+impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
     const ID: u64 = ID;
 
-    type Error = E;
+    type Error = A::Error;
     type Actor = A;
 }
 
