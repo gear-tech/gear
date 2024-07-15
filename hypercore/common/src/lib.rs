@@ -30,7 +30,7 @@ use gear_core::{
     ids::{ActorId, CodeId},
     message::{Payload, ReplyDetails},
 };
-use gprimitives::H256;
+use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Debug, Clone, Default, Encode, Decode)]
@@ -49,6 +49,7 @@ pub struct StateTransition {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct OutgoingMessage {
+    pub message_id: MessageId,
     pub destination: ActorId,
     pub payload: Payload,
     pub value: u128,

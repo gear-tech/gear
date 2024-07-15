@@ -1,16 +1,39 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.26;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20BurnableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ERC20PermitUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 
-contract WrappedVara is ERC20, ERC20Burnable, Ownable {
-    uint256 public constant INITIAL_SUPPLY = 1_000_000;
+contract WrappedVara is
+    Initializable,
+    ERC20Upgradeable,
+    ERC20BurnableUpgradeable,
+    OwnableUpgradeable,
+    ERC20PermitUpgradeable
+{
+    string private constant TOKEN_NAME = "Wrapped Vara";
+    string private constant TOKEN_SYMBOL = "WVARA";
+    uint256 private constant TOKEN_INITIAL_SUPPLY = 1_000_000;
+
     uint128 public valuePerGas;
 
-    constructor(address initialOwner, uint128 _valuePerGas) ERC20("Wrapped Vara", "WVARA") Ownable(initialOwner) {
-        _mint(initialOwner, INITIAL_SUPPLY * 10 ** decimals());
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address initialOwner, uint128 _valuePerGas) public initializer {
+        __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
+        __ERC20Burnable_init();
+        __Ownable_init(initialOwner);
+        __ERC20Permit_init(TOKEN_NAME);
+
+        _mint(initialOwner, TOKEN_INITIAL_SUPPLY * 10 ** decimals());
         setValuePerGas(_valuePerGas);
     }
 

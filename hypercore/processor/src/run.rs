@@ -144,14 +144,24 @@ async fn run_in_async(
                 outgoing_messages: outgoing_messages
                     .into_iter()
                     .map(|message| {
-                        let (_mid, _source, dest, payload, _gas_limit, value, message_details) =
-                            message.into_parts();
+                        let (
+                            message_id,
+                            _source,
+                            destination,
+                            payload,
+                            _gas_limit,
+                            value,
+                            message_details,
+                        ) = message.into_parts();
+                        let reply_details =
+                            message_details.and_then(|details| details.to_reply_details());
 
                         OutgoingMessage {
-                            destination: dest,
+                            message_id,
+                            destination,
                             payload,
                             value,
-                            reply_details: message_details.and_then(|v| v.to_reply_details()),
+                            reply_details,
                         }
                     })
                     .collect(),

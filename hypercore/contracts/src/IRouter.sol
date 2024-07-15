@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.26;
 
 interface IRouter {
     enum CodeState {
@@ -19,6 +19,7 @@ interface IRouter {
     }
 
     struct OutgoingMessage {
+        bytes32 messageId;
         address destination;
         bytes payload;
         uint128 value;
@@ -37,6 +38,19 @@ interface IRouter {
         bytes32 allowedPrevCommitmentHash;
         bytes32 allowedPredBlockHash;
         StateTransition[] transitions;
+    }
+
+    /// @custom:storage-location erc7201:router.storage.Router
+    struct RouterStorage {
+        address program;
+        address minimalProgram;
+        address wrappedVara;
+        bytes32 genesisBlockHash;
+        bytes32 lastBlockCommitmentHash;
+        uint256 countOfValidators;
+        mapping(address => bool) validators;
+        mapping(bytes32 => CodeState) codes;
+        mapping(address => bool) programs;
     }
 
     event BlockCommitted(bytes32 indexed blockHash);
@@ -58,9 +72,16 @@ interface IRouter {
 
     event UpdatedProgram(address indexed actorId, bytes32 oldStateHash, bytes32 newStateHash);
 
-    event UserMessageSent(address indexed destination, bytes payload, uint128 value);
+    event UserMessageSent(bytes32 indexed messageId, address indexed destination, bytes payload, uint128 value);
 
-    event UserReplySent(address indexed destination, bytes payload, uint128 value, bytes32 replyTo, bytes4 replyCode);
+    event UserReplySent(
+        bytes32 indexed messageId,
+        address indexed destination,
+        bytes payload,
+        uint128 value,
+        bytes32 replyTo,
+        bytes4 replyCode
+    );
 
     event SendMessage(
         address indexed origin, address indexed destination, bytes payload, uint64 gasLimit, uint128 value
@@ -71,12 +92,32 @@ interface IRouter {
     event ClaimValue(address indexed origin, bytes32 indexed messageId);
 
     function COUNT_OF_VALIDATORS() external view returns (uint256);
+
     function REQUIRED_SIGNATURES() external view returns (uint256);
 
+    function getStorageSlot() external view returns (bytes32);
+
+    function setStorageSlot(string calldata namespace) external;
+
     function program() external view returns (address);
+
+    function setProgram(address _program) external;
+
+    function minimalProgram() external view returns (address);
+
     function wrappedVara() external view returns (address);
+
+    function genesisBlockHash() external view returns (bytes32);
+
+    function lastBlockCommitmentHash() external view returns (bytes32);
+
     function countOfValidators() external view returns (uint256);
-    // TODO: support mappings: validators, codeIds, programs
+
+    function validators(address validator) external view returns (bool);
+
+    function codes(bytes32 codeId) external view returns (CodeState);
+
+    function programs(address _program) external view returns (bool);
 
     function addValidators(address[] calldata validatorsArray) external;
 
@@ -96,5 +137,6 @@ interface IRouter {
     function claimValue(bytes32 messageId) external;
 
     function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external;
+
     function commitBlocks(BlockCommitment[] calldata blockCommitmentsArray, bytes[] calldata signatures) external;
 }

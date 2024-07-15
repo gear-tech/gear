@@ -4,3 +4,9 @@
 [submodule "hypercore/contracts/lib/openzeppelin-contracts"]
 	path = hypercore/contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "hypercore/contracts/lib/openzeppelin-foundry-upgrades"]
+	path = hypercore/contracts/lib/openzeppelin-foundry-upgrades
+	url = https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
+[submodule "hypercore/contracts/lib/openzeppelin-contracts-upgradeable"]
+	path = hypercore/contracts/lib/openzeppelin-contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable

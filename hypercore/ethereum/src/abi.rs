@@ -6,6 +6,12 @@ use hypercore_common::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTr
 
 sol!(
     #[sol(rpc)]
+    IMinimalProgram,
+    "MinimalProgram.json"
+);
+
+sol!(
+    #[sol(rpc)]
     IProgram,
     "Program.json"
 );
@@ -17,6 +23,13 @@ sol!(
 );
 
 sol!(
+    #[sol(rpc)]
+    ITransparentUpgradeableProxy,
+    "TransparentUpgradeableProxy.json"
+);
+
+sol!(
+    #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IWrappedVara,
     "WrappedVara.json"
@@ -35,6 +48,7 @@ impl From<OutgoingMessage> for IRouter::OutgoingMessage {
     fn from(msg: OutgoingMessage) -> Self {
         let reply_details = msg.reply_details.unwrap_or_default();
         IRouter::OutgoingMessage {
+            messageId: B256::new(msg.message_id.into_bytes()),
             destination: {
                 let mut address = Address::ZERO;
                 address

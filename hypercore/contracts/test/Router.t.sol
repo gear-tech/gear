@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Test, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {IProgram, Program} from "../src/Program.sol";
+import {MinimalProgram} from "../src/MinimalProgram.sol";
 import {IRouter, Router} from "../src/Router.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
@@ -15,9 +17,10 @@ contract RouterTest is Test {
     address[] public validatorsArray;
     uint256[] public validatorsPrivateKeys;
 
-    WrappedVara public wrapperVara;
-    Program public program;
+    WrappedVara public wrappedVara;
     Router public router;
+    Program public program;
+    MinimalProgram public minimalProgram;
 
     function setUp() public {
         deployerAddress = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
@@ -27,18 +30,34 @@ contract RouterTest is Test {
 
         startPrank(deployerAddress);
 
-        wrapperVara = new WrappedVara(deployerAddress, 6);
+        wrappedVara = WrappedVara(
+            Upgrades.deployTransparentProxy(
+                "WrappedVara.sol", deployerAddress, abi.encodeCall(WrappedVara.initialize, (deployerAddress, 6))
+            )
+        );
 
-        address programAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 1);
-        address wrappedVaraAddress = address(wrapperVara);
+        address programAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
+        address minimalProgramAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+        address wrappedVaraAddress = address(wrappedVara);
 
-        router = new Router(deployerAddress, programAddress, wrappedVaraAddress, validatorsArray);
-        program = new Program(address(router));
+        router = Router(
+            Upgrades.deployTransparentProxy(
+                "Router.sol",
+                deployerAddress,
+                abi.encodeCall(
+                    Router.initialize,
+                    (deployerAddress, programAddress, minimalProgramAddress, wrappedVaraAddress, validatorsArray)
+                )
+            )
+        );
+        program = new Program();
+        minimalProgram = new MinimalProgram(address(router));
 
-        wrapperVara.approve(address(router), type(uint256).max);
+        wrappedVara.approve(address(router), type(uint256).max);
 
         assertEq(router.program(), address(program));
-        assertEq(program.router(), address(router));
+        assertEq(router.minimalProgram(), address(minimalProgram));
+        assertEq(minimalProgram.router(), address(router));
     }
 
     function test_DemoPing() public {
@@ -63,7 +82,7 @@ contract RouterTest is Test {
         vm.roll(100);
 
         IRouter.OutgoingMessage[] memory outgoingMessages = new IRouter.OutgoingMessage[](1);
-        outgoingMessages[0] = IRouter.OutgoingMessage(deployerAddress, "PONG", 0, IRouter.ReplyDetails(0, 0));
+        outgoingMessages[0] = IRouter.OutgoingMessage(0, deployerAddress, "PONG", 0, IRouter.ReplyDetails(0, 0));
 
         IRouter.StateTransition[] memory transitionsArray = new IRouter.StateTransition[](1);
         IRouter.BlockCommitment[] memory blockCommitmentsArray = new IRouter.BlockCommitment[](1);
@@ -82,57 +101,15 @@ contract RouterTest is Test {
     }
 
     function commitCodes(IRouter.CodeCommitment[] memory codeCommitmentsArray) private {
-        bytes memory message;
+        bytes memory codesBytes;
 
         for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
             IRouter.CodeCommitment memory codeCommitment = codeCommitmentsArray[i];
-            message = bytes.concat(message, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
+            codesBytes =
+                bytes.concat(codesBytes, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
         }
 
-        router.commitCodes(codeCommitmentsArray, createSignatures(message));
-    }
-
-    function commitBlock(IRouter.BlockCommitment memory commitment) private pure returns (bytes32) {
-        bytes memory message;
-        for (uint256 i = 0; i < commitment.transitions.length; i++) {
-            IRouter.StateTransition memory transition = commitment.transitions[i];
-
-            bytes memory message1;
-
-            for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
-                IRouter.OutgoingMessage memory outgoingMessage = transition.outgoingMessages[j];
-                message1 = bytes.concat(
-                    message1,
-                    keccak256(
-                        abi.encodePacked(
-                            outgoingMessage.destination,
-                            outgoingMessage.payload,
-                            outgoingMessage.value,
-                            outgoingMessage.replyDetails.replyTo,
-                            outgoingMessage.replyDetails.replyCode
-                        )
-                    )
-                );
-            }
-
-            message = bytes.concat(
-                message,
-                keccak256(
-                    abi.encodePacked(
-                        transition.actorId, transition.oldStateHash, transition.newStateHash, keccak256(message1)
-                    )
-                )
-            );
-        }
-
-        return keccak256(
-            abi.encodePacked(
-                commitment.blockHash,
-                commitment.allowedPredBlockHash,
-                commitment.allowedPrevCommitmentHash,
-                keccak256(message)
-            )
-        );
+        router.commitCodes(codeCommitmentsArray, createSignatures(codesBytes));
     }
 
     function commitBlocks(IRouter.BlockCommitment[] memory commitments) private {
@@ -144,6 +121,52 @@ contract RouterTest is Test {
         }
 
         router.commitBlocks(commitments, createSignatures(message));
+    }
+
+    function commitBlock(IRouter.BlockCommitment memory commitment) private pure returns (bytes32) {
+        bytes memory commitmentsBytes;
+        for (uint256 i = 0; i < commitment.transitions.length; i++) {
+            IRouter.StateTransition memory transition = commitment.transitions[i];
+
+            bytes memory transitionsBytes;
+            for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
+                IRouter.OutgoingMessage memory outgoingMessage = transition.outgoingMessages[j];
+                transitionsBytes = bytes.concat(
+                    transitionsBytes,
+                    keccak256(
+                        abi.encodePacked(
+                            outgoingMessage.messageId,
+                            outgoingMessage.destination,
+                            outgoingMessage.payload,
+                            outgoingMessage.value,
+                            outgoingMessage.replyDetails.replyTo,
+                            outgoingMessage.replyDetails.replyCode
+                        )
+                    )
+                );
+            }
+
+            commitmentsBytes = bytes.concat(
+                commitmentsBytes,
+                keccak256(
+                    abi.encodePacked(
+                        transition.actorId,
+                        transition.oldStateHash,
+                        transition.newStateHash,
+                        keccak256(transitionsBytes)
+                    )
+                )
+            );
+        }
+
+        return keccak256(
+            abi.encodePacked(
+                commitment.blockHash,
+                commitment.allowedPredBlockHash,
+                commitment.allowedPrevCommitmentHash,
+                keccak256(commitmentsBytes)
+            )
+        );
     }
 
     function createSignatures(bytes memory message) private view returns (bytes[] memory) {
