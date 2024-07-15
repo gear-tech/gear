@@ -24,6 +24,7 @@ pub struct Query {
     router_address: Address,
     genesis_block_hash: H256,
     blob_reader: Arc<dyn BlobReader>,
+    max_commitment_depth: u32,
 }
 
 impl Query {
@@ -33,6 +34,7 @@ impl Query {
         router_address: HypercoreAddress,
         genesis_block_hash: H256,
         blob_reader: Arc<dyn BlobReader>,
+        max_commitment_depth: u32,
     ) -> Result<Self> {
         // Init db for genesis block
         database.set_block_commitment_queue(genesis_block_hash, Default::default());
@@ -47,6 +49,7 @@ impl Query {
             router_address: Address::new(router_address.0),
             genesis_block_hash,
             blob_reader,
+            max_commitment_depth,
         })
     }
 
@@ -108,9 +111,9 @@ impl Query {
         };
 
         // Now we need append in chain all blocks from the oldest not committed to the current.
-        let mut deepness = 0;
+        let mut depth = 0;
         loop {
-            if deepness >= 10000 {
+            if depth >= self.max_commitment_depth {
                 return Err(anyhow!("too deep chain"));
             }
 
@@ -123,7 +126,7 @@ impl Query {
             }
 
             hash = self.get_block_parent_hash(hash).await?;
-            deepness += 1;
+            depth += 1;
         }
 
         Ok(chain)

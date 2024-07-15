@@ -55,6 +55,9 @@ pub struct Config {
     /// Address of Ethereum Router contract
     pub ethereum_router_address: String,
 
+    // Max depth to discover last commitment.
+    pub max_commitment_depth: u32,
+
     /// Network path
     pub network_path: PathBuf,
 
@@ -125,6 +128,7 @@ impl TryFrom<Args> for Config {
             ethereum_router_address: args
                 .ethereum_router_address
                 .unwrap_or(chain_spec.ethereum_router_address),
+            max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
             net_config,
             database_path: base_path.join("db"),
             network_path: base_path.join("net"),

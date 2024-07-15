@@ -85,6 +85,7 @@ impl Service {
             ethereum_router_address,
             genesis_block_hash,
             blob_reader,
+            config.max_commitment_depth,
         )
         .await?;
 
@@ -445,6 +446,7 @@ mod tests {
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
+            max_commitment_depth: 1000,
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
             net_config: hypercore_network::NetworkConfiguration::new_local(),
