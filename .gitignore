@@ -15,4 +15,4 @@ utils/**/fuzz/corpus/*
 utils/**/fuzz/coverage/*
 utils/**/fuzz/artifacts/*
 utils/**/fuzz/fuzz/*
-.hypercore.toml
+.ethexe.toml
