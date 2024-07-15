@@ -115,7 +115,7 @@ fn config(
 
         current_balance.saturating_div(d)
     };
-    log::info!("Max VALUE: {}", max_value);
+
     let mut params_config = SyscallsParamsConfig::new()
         .with_default_regular_config()
         .with_rule(RegularParamType::Alloc, (10..=20).into())

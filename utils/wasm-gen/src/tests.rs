@@ -102,17 +102,21 @@ proptest! {
     fn test_randomized_config_reproducible(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
         let mut u = Unstructured::new(&buf);
         let mut u2 = Unstructured::new(&buf);
-        let configs_bundle: RandomizedGearWasmConfigBundle = RandomizedGearWasmConfigBundle::new_arbitrary(
+        let configs_bundle1: RandomizedGearWasmConfigBundle = RandomizedGearWasmConfigBundle::new_arbitrary(
             &mut u,
             Default::default(),
             Default::default()
         );
 
+        let configs_bundle2: RandomizedGearWasmConfigBundle = RandomizedGearWasmConfigBundle::new_arbitrary(
+            &mut u2,
+            Default::default(),
+            Default::default()
+        );
 
-
-        let first = generate_gear_program_code(&mut u, configs_bundle.clone())
+        let first = generate_gear_program_code(&mut u, configs_bundle1)
             .expect("failed generating wasm");
-        let second = generate_gear_program_code(&mut u2, configs_bundle)
+        let second = generate_gear_program_code(&mut u2, configs_bundle2)
             .expect("failed generating wasm");
 
         assert_eq!(first, second);
