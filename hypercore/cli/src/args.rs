@@ -70,6 +70,10 @@ pub struct Args {
     #[arg(long = "validator-address")]
     pub sender_address: Option<String>,
 
+    /// Max depth to discover last commitment.
+    #[arg(long = "max-depth")]
+    pub max_commitment_depth: Option<u32>,
+
     /// Run a temporary node.
     ///
     /// A temporary directory will be created to store the configuration and will be deleted
