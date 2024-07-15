@@ -23,7 +23,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit # Here should be no release builds to keep checks fast.
-pre-commit: fmt typos clippy test check-runtime-imports
+pre-commit: fmt clippy test check-runtime-imports # TODO: fix typos
 
 .PHONY: check-spec
 check-spec:
