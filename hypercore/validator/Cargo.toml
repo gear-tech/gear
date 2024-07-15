@@ -10,16 +10,16 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+hypercore-network.workspace = true
+hypercore-signer.workspace = true
+hypercore-sequencer.workspace = true
+hypercore-common.workspace = true
+gprimitives.workspace = true
+
 log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-
-gprimitives.workspace = true
-
-hypercore-network.workspace = true
-hypercore-processor.workspace = true
-hypercore-signer.workspace = true
-hypercore-sequencer.workspace = true
-static_init = "1.0.3"
 tempfile.workspace = true
+
+static_init = "1.0.3"

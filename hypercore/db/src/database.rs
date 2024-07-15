@@ -28,11 +28,16 @@ use gear_core::{
     message::Payload,
     reservation::GasReservationMap,
 };
+use gprimitives::H256;
+use hypercore_common::{
+    db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage},
+    events::BlockEvent,
+    StateTransition,
+};
 use hypercore_runtime_common::state::{
     Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use parity_scale_codec::{Decode, Encode};
-use primitive_types::H256;
 
 const LOG_TARGET: &str = "hyper-db";
 
@@ -74,59 +79,23 @@ impl Clone for Database {
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode)]
-pub struct BlockHeaderMeta {
-    pub height: u32,
-    pub timestamp: u64,
-    pub parent_hash: H256,
-}
-
-#[derive(Debug, Clone, Default, Encode, Decode)]
 struct BlockSmallMetaInfo {
-    header: Option<BlockHeaderMeta>,
+    header: Option<BlockHeader>,
     block_end_state_is_valid: bool,
     is_empty: Option<bool>,
     prev_commitment: Option<H256>,
     commitment_queue: Option<VecDeque<H256>>,
 }
 
-pub trait BlockMetaInfo {
-    fn block_header(&self, block_hash: H256) -> Option<BlockHeaderMeta>;
-    fn set_block_header(&self, block_hash: H256, header: BlockHeaderMeta);
-
-    fn end_state_is_valid(&self, block_hash: H256) -> Option<bool>;
-    fn set_end_state_is_valid(&self, block_hash: H256, is_valid: bool);
-
-    fn block_is_empty(&self, block_hash: H256) -> Option<bool>;
-    fn set_block_is_empty(&self, block_hash: H256, is_empty: bool);
-
-    fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
-    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
-
-    fn block_prev_commitment(&self, block_hash: H256) -> Option<H256>;
-    fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256);
-
-    fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
-
-    fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
-
-    fn block_events(&self, block_hash: H256) -> Option<Vec<u8>>;
-    fn set_block_events(&self, block_hash: H256, events_encoded: Vec<u8>);
-
-    fn block_outcome(&self, block_hash: H256) -> Option<Vec<u8>>;
-    fn set_block_outcome(&self, block_hash: H256, outcome_encoded: Vec<u8>);
-}
-
-impl BlockMetaInfo for Database {
-    fn block_header(&self, block_hash: H256) -> Option<BlockHeaderMeta> {
-        self.get_block_small_meta(block_hash)
+impl BlockMetaStorage for Database {
+    fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
+        self.block_small_meta(block_hash)
             .and_then(|meta| meta.header)
     }
 
-    fn set_block_header(&self, block_hash: H256, header: BlockHeaderMeta) {
+    fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set header: {header:?}");
-        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        let meta = self.block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
@@ -136,14 +105,14 @@ impl BlockMetaInfo for Database {
         );
     }
 
-    fn end_state_is_valid(&self, block_hash: H256) -> Option<bool> {
-        self.get_block_small_meta(block_hash)
+    fn block_end_state_is_valid(&self, block_hash: H256) -> Option<bool> {
+        self.block_small_meta(block_hash)
             .map(|meta| meta.block_end_state_is_valid)
     }
 
-    fn set_end_state_is_valid(&self, block_hash: H256, is_valid: bool) {
+    fn set_block_end_state_is_valid(&self, block_hash: H256, is_valid: bool) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set end state valid: {is_valid}");
-        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        let meta = self.block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
@@ -154,13 +123,13 @@ impl BlockMetaInfo for Database {
     }
 
     fn block_is_empty(&self, block_hash: H256) -> Option<bool> {
-        self.get_block_small_meta(block_hash)
+        self.block_small_meta(block_hash)
             .and_then(|meta| meta.is_empty)
     }
 
     fn set_block_is_empty(&self, block_hash: H256, is_empty: bool) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set is empty: {is_empty}");
-        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        let meta = self.block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
@@ -171,13 +140,13 @@ impl BlockMetaInfo for Database {
     }
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
-        self.get_block_small_meta(block_hash)
+        self.block_small_meta(block_hash)
             .and_then(|meta| meta.commitment_queue)
     }
 
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set commitment queue: {queue:?}");
-        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        let meta = self.block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
@@ -188,13 +157,13 @@ impl BlockMetaInfo for Database {
     }
 
     fn block_prev_commitment(&self, block_hash: H256) -> Option<H256> {
-        self.get_block_small_meta(block_hash)
+        self.block_small_meta(block_hash)
             .and_then(|meta| meta.prev_commitment)
     }
 
     fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set prev commitment: {prev_commitment}");
-        let meta = self.get_block_small_meta(block_hash).unwrap_or_default();
+        let meta = self.block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
             block_hash,
             BlockSmallMetaInfo {
@@ -237,22 +206,88 @@ impl BlockMetaInfo for Database {
         );
     }
 
-    fn block_events(&self, block_hash: H256) -> Option<Vec<u8>> {
-        self.kv.get(&KeyPrefix::BlockEvents.one(block_hash))
-    }
-
-    fn set_block_events(&self, block_hash: H256, events_encoded: Vec<u8>) {
+    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
         self.kv
-            .put(&KeyPrefix::BlockEvents.one(block_hash), events_encoded);
+            .get(&KeyPrefix::BlockEvents.one(block_hash))
+            .map(|data| {
+                Vec::<BlockEvent>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<BlockEvent>`")
+            })
     }
 
-    fn block_outcome(&self, block_hash: H256) -> Option<Vec<u8>> {
-        self.kv.get(&KeyPrefix::BlockOutcome.one(block_hash))
-    }
-
-    fn set_block_outcome(&self, block_hash: H256, outcome_encoded: Vec<u8>) {
+    fn set_block_events(&self, block_hash: H256, events: Vec<BlockEvent>) {
         self.kv
-            .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome_encoded);
+            .put(&KeyPrefix::BlockEvents.one(block_hash), events.encode());
+    }
+
+    fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
+        self.kv
+            .get(&KeyPrefix::BlockOutcome.one(block_hash))
+            .map(|data| {
+                Vec::<StateTransition>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
+            })
+    }
+
+    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
+        self.kv
+            .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
+    }
+}
+
+impl CodesStorage for Database {
+    fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        let hash = H256::from(code_id.into_bytes());
+        self.cas.read(&hash)
+    }
+
+    fn set_original_code(&self, code: &[u8]) -> CodeId {
+        self.cas.write(code).into()
+    }
+
+    fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
+        self.kv
+            .get(&KeyPrefix::ProgramToCodeId.one(program_id))
+            .map(|data| {
+                CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`")
+            })
+    }
+
+    fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
+        self.kv.put(
+            &KeyPrefix::ProgramToCodeId.one(program_id),
+            code_id.into_bytes().to_vec(),
+        );
+    }
+
+    fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
+        self.kv
+            .get(&KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id))
+            .map(|data| {
+                InstrumentedCode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `InstrumentedCode`")
+            })
+    }
+
+    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
+        self.kv.put(
+            &KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id),
+            code.encode(),
+        );
+    }
+
+    fn code_upload_info(&self, code_id: CodeId) -> Option<CodeUploadInfo> {
+        self.kv
+            .get(&KeyPrefix::CodeUpload.one(code_id))
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `(ActorId, H256)`")
+            })
+    }
+
+    fn set_code_upload_info(&self, code_id: CodeId, info: CodeUploadInfo) {
+        self.kv
+            .put(&KeyPrefix::CodeUpload.one(code_id), info.encode());
     }
 }
 
@@ -268,17 +303,6 @@ impl Database {
         }
     }
 
-    // CAS accesses.
-
-    pub fn read_original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        let hash = H256::from(code_id.into_bytes());
-        self.cas.read(&hash)
-    }
-
-    pub fn write_original_code(&self, code: &[u8]) -> CodeId {
-        self.cas.write(code).into()
-    }
-
     // TODO: temporary solution for MVP runtime-interfaces db access.
     pub fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
         self.cas.read(&hash)
@@ -289,63 +313,7 @@ impl Database {
         self.cas.write(data)
     }
 
-    // Auxiliary code KV accesses.
-
-    pub fn get_program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
-        self.kv
-            .get(&KeyPrefix::ProgramToCodeId.one(program_id))
-            .map(|data| {
-                CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`")
-            })
-    }
-
-    pub fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
-        self.kv.put(
-            &KeyPrefix::ProgramToCodeId.one(program_id),
-            code_id.into_bytes().to_vec(),
-        );
-    }
-
-    pub fn read_instrumented_code(
-        &self,
-        runtime_id: u32,
-        code_id: CodeId,
-    ) -> Option<InstrumentedCode> {
-        self.kv
-            .get(&KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id))
-            .map(|data| {
-                InstrumentedCode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `InstrumentedCode`")
-            })
-    }
-
-    pub fn write_instrumented_code(
-        &self,
-        runtime_id: u32,
-        code_id: CodeId,
-        code: InstrumentedCode,
-    ) {
-        self.kv.put(
-            &KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id),
-            code.encode(),
-        );
-    }
-
-    pub fn code_upload_info(&self, code_id: CodeId) -> Option<(ActorId, H256)> {
-        self.kv
-            .get(&KeyPrefix::CodeUpload.one(code_id))
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `(ActorId, H256)`")
-            })
-    }
-
-    pub fn set_code_upload_info(&self, code_id: CodeId, info: (ActorId, H256)) {
-        self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), info.encode());
-    }
-
-    fn get_block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
+    fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
         self.kv
             .get(&KeyPrefix::BlockSmallMeta.one(block_hash))
             .map(|data| {

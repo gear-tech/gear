@@ -8,6 +8,13 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+hypercore-common.workspace = true
+hypercore-signer.workspace = true
+hypercore-ethereum.workspace = true
+hypercore-db.workspace = true
+gear-core.workspace = true
+gprimitives.workspace = true
+
 anyhow.workspace = true
 alloy = { workspace = true, features = [
     "consensus",
@@ -29,11 +36,6 @@ tokio = { workspace = true, features = ["fs"] }
 futures.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
 log.workspace = true
-gear-core.workspace = true
-gprimitives.workspace = true
-hypercore-signer.workspace = true
-hypercore-ethereum.workspace = true
-hypercore-db.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true

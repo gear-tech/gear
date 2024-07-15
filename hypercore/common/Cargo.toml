@@ -1,5 +1,5 @@
 [package]
-name = "hypercore-runtime-common"
+name = "hypercore-common"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,18 +7,13 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gear-lazy-pages-common.workspace = true
-core-processor.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
-gsys.workspace = true
-gear-core-errors.workspace = true
 
 parity-scale-codec.workspace = true
-log.workspace = true
-
-[features]
-default = ["std"]
-std = ["core-processor/std", "log/std"]
+derive_more.workspace = true
+hex.workspace = true
+anyhow.workspace = true

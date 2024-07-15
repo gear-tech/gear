@@ -7226,6 +7226,7 @@ dependencies = [
  "futures",
  "gprimitives",
  "hex",
+ "hypercore-common",
  "hypercore-db",
  "hypercore-ethereum",
  "hypercore-network",
@@ -7245,6 +7246,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hypercore-common"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "derive_more",
+ "gear-core",
+ "gprimitives",
+ "hex",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "hypercore-db"
 version = "1.4.2"
 dependencies = [
@@ -7252,10 +7265,10 @@ dependencies = [
  "dashmap",
  "gear-core",
  "gprimitives",
+ "hypercore-common",
  "hypercore-runtime-common",
  "log",
  "parity-scale-codec",
- "primitive-types",
  "rocksdb",
  "scopeguard",
  "tempfile",
@@ -7273,7 +7286,9 @@ dependencies = [
  "gear-core-errors",
  "gear-wasm-instrument",
  "gprimitives",
+ "hypercore-common",
  "hypercore-signer",
+ "log",
  "parity-scale-codec",
 ]
 
@@ -7313,6 +7328,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
+ "hypercore-common",
  "hypercore-db",
  "hypercore-ethereum",
  "hypercore-signer",
@@ -7336,16 +7352,13 @@ dependencies = [
  "gear-lazy-pages",
  "gear-runtime-interface",
  "gprimitives",
+ "hypercore-common",
  "hypercore-db",
- "hypercore-ethereum",
- "hypercore-observer",
  "hypercore-runtime",
  "hypercore-runtime-common",
- "hypercore-signer",
  "log",
  "parity-scale-codec",
  "parity-wasm",
- "primitive-types",
  "rand 0.8.5",
  "sp-allocator",
  "sp-wasm-interface",
@@ -7381,7 +7394,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
- "primitive-types",
 ]
 
 [[package]]
@@ -7392,6 +7404,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
+ "hypercore-common",
  "hypercore-ethereum",
  "hypercore-observer",
  "hypercore-processor",
@@ -7405,9 +7418,11 @@ name = "hypercore-signer"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "derive_more",
  "ethers",
  "gprimitives",
  "hex",
+ "hypercore-common",
  "parity-scale-codec",
  "secp256k1 0.29.0",
  "sha3",
@@ -7435,8 +7450,8 @@ dependencies = [
  "anyhow",
  "futures",
  "gprimitives",
+ "hypercore-common",
  "hypercore-network",
- "hypercore-processor",
  "hypercore-sequencer",
  "hypercore-signer",
  "log",

@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    observer::{read_block_events, read_code_from_tx_hash, ObserverProvider, PendingUploadCode},
-    BlobReader, BlockEvent,
+    observer::{read_block_events, read_code_from_tx_hash, ObserverProvider},
+    BlobReader,
 };
 use alloy::{
     primitives::Address,
@@ -14,12 +14,14 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use gprimitives::{ActorId, CodeId, H256};
-use hypercore_db::{BlockHeaderMeta, BlockMetaInfo};
+use hypercore_common::{
+    db::{BlockHeader, BlockMetaStorage},
+    events::BlockEvent,
+};
 use hypercore_signer::Address as HypercoreAddress;
-use parity_scale_codec::{Decode, Encode};
 
 pub struct Query {
-    database: Box<dyn BlockMetaInfo>,
+    database: Box<dyn BlockMetaStorage>,
     provider: ObserverProvider,
     router_address: Address,
     genesis_block_hash: H256,
@@ -29,7 +31,7 @@ pub struct Query {
 
 impl Query {
     pub async fn new(
-        database: Box<dyn BlockMetaInfo>,
+        database: Box<dyn BlockMetaStorage>,
         ethereum_rpc: &str,
         router_address: HypercoreAddress,
         genesis_block_hash: H256,
@@ -39,7 +41,7 @@ impl Query {
         // Init db for genesis block
         database.set_block_commitment_queue(genesis_block_hash, Default::default());
         database.set_block_prev_commitment(genesis_block_hash, H256::zero());
-        database.set_end_state_is_valid(genesis_block_hash, true);
+        database.set_block_end_state_is_valid(genesis_block_hash, true);
         database.set_block_is_empty(genesis_block_hash, true);
         database.set_block_end_program_states(genesis_block_hash, Default::default());
 
@@ -83,7 +85,11 @@ impl Query {
                 break;
             }
 
-            if self.database.end_state_is_valid(hash).unwrap_or(false) {
+            if self
+                .database
+                .block_end_state_is_valid(hash)
+                .unwrap_or(false)
+            {
                 log::trace!("Nearest valid in db block found: {hash}");
                 break;
             }
@@ -135,7 +141,11 @@ impl Query {
     pub async fn propagate_meta_for_block(&mut self, block_hash: H256) -> Result<()> {
         let parent = self.get_block_parent_hash(block_hash).await?;
 
-        if !self.database.end_state_is_valid(parent).unwrap_or(false) {
+        if !self
+            .database
+            .block_end_state_is_valid(parent)
+            .unwrap_or(false)
+        {
             return Err(anyhow!("parent block is not valid"));
         }
 
@@ -179,7 +189,7 @@ impl Query {
         Ok(())
     }
 
-    pub async fn get_block_header_meta(&mut self, block_hash: H256) -> Result<BlockHeaderMeta> {
+    pub async fn get_block_header_meta(&mut self, block_hash: H256) -> Result<BlockHeader> {
         match self.database.block_header(block_hash) {
             Some(meta) => Ok(meta),
             None => {
@@ -199,7 +209,7 @@ impl Query {
                 let timestamp = block.header.timestamp;
                 let parent_hash = H256(block.header.parent_hash.0);
 
-                let meta = BlockHeaderMeta {
+                let meta = BlockHeader {
                     height,
                     timestamp,
                     parent_hash,
@@ -216,29 +226,15 @@ impl Query {
         Ok(self.get_block_header_meta(block_hash).await?.parent_hash)
     }
 
-    pub async fn get_events(
-        &mut self,
-        block_hash: H256,
-    ) -> Result<(Vec<PendingUploadCode>, Vec<BlockEvent>)> {
-        if let Some(events) = self
-            .database
-            .block_events(block_hash)
-            .and_then(|events_encoded| {
-                <(Vec<PendingUploadCode>, Vec<BlockEvent>)>::decode(&mut events_encoded.as_slice())
-                    .ok()
-            })
-        {
+    pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
+        if let Some(events) = self.database.block_events(block_hash) {
             return Ok(events);
         }
 
         let events = read_block_events(block_hash, &self.provider, self.router_address).await?;
-        self.database.set_block_events(block_hash, events.encode());
+        self.database.set_block_events(block_hash, events.clone());
 
         Ok(events)
-    }
-
-    pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
-        self.get_events(block_hash).await.map(|(_, events)| events)
     }
 
     pub async fn download_code(

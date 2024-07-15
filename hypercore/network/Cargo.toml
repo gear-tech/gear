@@ -10,9 +10,21 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+hypercore-utils.workspace = true
+
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+log = { workspace = true, default-features = true }
+thiserror.workspace = true
+tokio = { workspace = true, features = [
+    "signal",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "time",
+] }
+
 libp2p = { version = "0.52.4", features = [
     "dns",
     "identify",
@@ -22,7 +34,6 @@ libp2p = { version = "0.52.4", features = [
     "quic",
     "gossipsub",
 ] }
-log = { workspace = true, default-features = true }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 fnv = "1.0.6"
@@ -30,20 +41,9 @@ parking_lot = "0.12.1"
 linked_hash_set = "0.1.4"
 smallvec = "1.11.0"
 either = "1.5.3"
-
-tokio = { workspace = true, features = [
-    "signal",
-    "macros",
-    "rt",
-    "rt-multi-thread",
-    "time",
-] }
 array-bytes = "6.2.3"
 zeroize = "1.8.1"
-thiserror.workspace = true
 void = "1.0.2"
-
-hypercore-utils.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
