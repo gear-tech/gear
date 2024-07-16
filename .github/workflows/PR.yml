@@ -15,80 +15,62 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  dynamic-profiles:
+  status:
     runs-on: ubuntu-latest
     outputs:
-      profiles: ${{ steps.set-matrix.outputs.profiles }}
-    steps:
-      - id: set-matrix
-        run: |
-          profiles='{"name": "debug", "flags": ""}'
-          if [ "${{ inputs.release }}" = "true" ]; then
-            profiles+=', {"name": "release", "flags": "--release"}'
-          fi
-          profiles="[${profiles}]"
-          echo "Profiles: ${profiles}"
-          echo "profiles=${profiles}" >> $GITHUB_OUTPUT
-
-  check:
-    runs-on: [kuberunner, github-runner-02]
-    needs: dynamic-profiles
-    strategy:
-      matrix:
-        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
-      fail-fast: false
-    name: check-linux (${{ matrix.profiles.name }})
+      build: ${{ steps.config.outputs.build }}
+      check: ${{ steps.config.outputs.check }}
+      win-native: ${{ steps.config.outputs.win-native }}
+      macos: ${{ steps.config.outputs.macos }}
+      validator: ${{ steps.config.outputs.validator }}
+      release: ${{ steps.config.outputs.release }}
+      production: ${{ steps.config.outputs.production }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          submodules: recursive
 
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+      - run: npm install
+        working-directory: .github/actions/message
 
-      - name: "Install: Foundry"
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Configure
+        id: config
+        uses: ./.github/actions/message
         with:
-          version: nightly
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v4
+  docs:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docs
         with:
-          node-version: 20.x
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Show: Versioning"
-        run: |
-          ./scripts/gear.sh show
-          forge --version
+  check:
+    needs: status
+    if: ${{ needs.status.outputs.check == 'true' }}
+    uses: ./.github/workflows/check.yml
 
-      - name: "Check: ethexe contracts"
-        run: |
-          cd ethexe/contracts
-          forge fmt --check
-          forge build --sizes
-          forge test -vvv
+  build:
+    needs: status
+    if: ${{ needs.status.outputs.build == 'true' }}
+    uses: ./.github/workflows/build.yml
+    with:
+      macos: ${{ needs.status.outputs.macos == 'true' }}
+      win-native: ${{ needs.status.outputs.win-native == 'true' }}
+      release: ${{ needs.status.outputs.release == 'true' }}
+      production: ${{ needs.status.outputs.production == 'true' }}
 
-      - name: "Check: workspace formatting"
-        run: ./scripts/gear.sh format gear --check
-
-      - name: "Check: ethexe clippy allowing unused code"
-        run: cargo clippy -p "ethexe-*" --all-targets --locked -- --no-deps -D warnings
-
-      - name: "Build: ethexe"
-        run: cargo build --release -p ethexe-cli
-
-      - name: "Test: ethexe CLI"
-        run: cargo test --release -p ethexe-cli
-
-      - name: "Test: ethexe Network"
-        run: cargo test --release -p ethexe-network
-
-      - name: "Test: ethexe Db"
-        run: cargo test --release -p ethexe-db
-
-      - name: "Test: ethexe Observer"
-        run: cargo test --release -p ethexe-observer
-
-      - name: "Test: ethexe processor"
-        run: cargo test --release -p ethexe-processor
+  validator:
+    needs: status
+    if: ${{ needs.status.outputs.validator == 'true' }}
+    uses: ./.github/workflows/validation.yml
+    secrets:
+      VARA_VALIDATOR_8: ${{ secrets.VARA_VALIDATOR_8 }}
+      SSH_VARA_USERNAME: ${{ secrets.SSH_VARA_USERNAME }}
+      VARA_SSH_PRIVATE_KEY: ${{ secrets.VARA_SSH_PRIVATE_KEY }}
