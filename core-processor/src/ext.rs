@@ -422,66 +422,6 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
         Ok(())
     }
 
-    // It's temporary fn, used to solve `core-audit/issue#22`.
-    fn safe_gasfull_sends<T: Packet>(
-        &mut self,
-        packet: &T,
-        delay: u32,
-    ) -> Result<(), FallibleExtError> {
-        // In case of delayed sending from origin message we keep some gas
-        // for it while processing outgoing sending notes so gas for
-        // previously gasless sends should appear to prevent their
-        // invasion for gas for storing delayed message.
-        match (packet.gas_limit(), delay != 0) {
-            // Zero gasfull instant.
-            //
-            // In this case there is nothing to do.
-            (Some(0), false) => Ok(()),
-
-            // Any non-zero gasfull or zero gasfull with delay.
-            //
-            // In case of zero gasfull with delay it's pretty similar to
-            // gasless with delay case.
-            //
-            // In case of any non-zero gasfull we prevent stealing for any
-            // previous gasless-es's thresholds from gas supposed to be
-            // sent with this `packet`.
-            (Some(_), _) => {
-                let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.ext.context.mailbox_threshold);
-                self.reduce_gas(prev_gasless_fee)?;
-                self.outgoing_gasless = 0;
-                Ok(())
-            }
-
-            // Gasless with delay.
-            //
-            // In this case we must give threshold for each uncovered gasless-es
-            // sent, otherwise they will steal gas from this `packet` that was
-            // supposed to pay for delay.
-            //
-            // It doesn't guarantee threshold for itself.
-            (None, true) => {
-                let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.ext.context.mailbox_threshold);
-                self.reduce_gas(prev_gasless_fee)?;
-                self.outgoing_gasless = 1;
-                Ok(())
-            }
-
-            // Gasless instant.
-            //
-            // In this case there is no need to give any thresholds for previous
-            // gasless-es: only counter should be increased.
-            (None, false) => {
-                self.outgoing_gasless = self.outgoing_gasless.saturating_add(1);
-                Ok(())
-            }
-        }
-    }
-
     fn mark_reservation_used(
         &mut self,
         reservation_id: ReservationId,
@@ -509,15 +449,21 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
     fn charge_expiring_resources<T: Packet>(
         &mut self,
         packet: &T,
-        check_gas_limit: bool,
+        cover_mailbox_threshold: bool,
     ) -> Result<(), FallibleExtError> {
-        let gas_limit = if check_gas_limit {
-            self.check_gas_limit(packet.gas_limit())?
-        } else {
-            packet.gas_limit().unwrap_or(0)
-        };
+        let mailbox_threshold = self.context.mailbox_threshold;
+        let reducing_gas_limit = packet
+            .gas_limit()
+            .or(cover_mailbox_threshold
+                .then_some(mailbox_threshold)
+                .or(Some(0)))
+            .expect("always results in `Some`");
 
-        self.reduce_gas(gas_limit)?;
+        if cover_mailbox_threshold && reducing_gas_limit < mailbox_threshold {
+            return Err(MessageError::InsufficientGasLimit.into());
+        }
+
+        self.reduce_gas(reducing_gas_limit)?;
         self.charge_message_value(packet.value())
     }
 
@@ -718,18 +664,6 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         let result = callback(&mut mutator)?;
         mutator.apply();
         Ok(result)
-    }
-
-    fn check_gas_limit(&self, gas_limit: Option<GasLimit>) -> Result<GasLimit, FallibleExtError> {
-        let mailbox_threshold = self.context.mailbox_threshold;
-        let gas_limit = gas_limit.unwrap_or(0);
-
-        // Sending gas should apply the range {0} ∪ [mailbox_threshold; +inf)
-        if gas_limit < mailbox_threshold && gas_limit != 0 {
-            Err(MessageError::InsufficientGasLimit.into())
-        } else {
-            Ok(gas_limit)
-        }
     }
 
     /// Checking that reservation could be charged for
@@ -978,7 +912,10 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     ) -> Result<MessageId, Self::FallibleError> {
         self.with_changes(|mutator| {
             mutator.check_forbidden_destination(msg.destination())?;
-            mutator.safe_gasfull_sends(&msg, delay)?;
+            // Any "handle" message must cover mailbox threshold.
+            // That's because destination of the message is unknown,
+            // so it could be a user, and if gasless message is sent,
+            // there must be a guaranteed gas to cover mailbox.
             mutator.charge_expiring_resources(&msg, true)?;
             mutator.charge_sending_fee(delay)?;
             mutator.charge_for_dispatch_stash_hold(delay)?;
@@ -1029,7 +966,8 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         self.with_changes(|mutator| {
             mutator
                 .check_forbidden_destination(mutator.context.message_context.reply_destination())?;
-            mutator.safe_gasfull_sends(&msg, 0)?;
+            // No need to cover mailbox thershold as no reply to user messages go to mailbox.
+            // I.e., they all are emitted within events.
             mutator.charge_expiring_resources(&msg, false)?;
             mutator.charge_sending_fee(0)?;
 
@@ -1360,9 +1298,13 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
         let ed = self.context.existential_deposit;
         self.with_changes(|mutator| {
-            // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
-            mutator.safe_gasfull_sends(&packet, delay)?;
-            mutator.charge_expiring_resources(&packet, true)?;
+            // We don't check for forbidden destination here, since dest is always unique
+            // and almost impossible to match SYSTEM_ID
+
+            // Init messages never go to mailbox. Even if there's no code with a provided
+            // code id, the init message still goes to queue and then is handled as non
+            // executable, as there is no code for the destination actor.
+            mutator.charge_expiring_resources(&packet, false)?;
             mutator.charge_sending_fee(delay)?;
             mutator.charge_for_dispatch_stash_hold(delay)?;
 

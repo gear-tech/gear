@@ -239,10 +239,30 @@ impl Calls {
     }
 
     pub fn reply(self, payload: impl Into<Arg<Vec<u8>>>) -> Self {
-        self.add_call(Call::Reply(payload.into(), None, 0.into()))
+        self.reply_value(payload, 0)
+    }
+
+    pub fn reply_value(
+        self,
+        payload: impl Into<Arg<Vec<u8>>>,
+        value: impl Into<Arg<u128>>,
+    ) -> Self {
+        self.add_call(Call::Reply(payload.into(), None, value.into()))
     }
 
     pub fn reply_wgas<T: TryInto<u64>>(self, payload: impl Into<Arg<Vec<u8>>>, gas_limit: T) -> Self
+    where
+        T::Error: Debug,
+    {
+        self.reply_value_wgas(payload, gas_limit, 0)
+    }
+
+    pub fn reply_value_wgas<T: TryInto<u64>>(
+        self,
+        payload: impl Into<Arg<Vec<u8>>>,
+        gas_limit: T,
+        value: impl Into<Arg<u128>>,
+    ) -> Self
     where
         T::Error: Debug,
     {
@@ -252,7 +272,7 @@ impl Calls {
         self.add_call(Call::Reply(
             payload.into(),
             Some(gas_limit.into()),
-            0.into(),
+            value.into(),
         ))
     }
 
