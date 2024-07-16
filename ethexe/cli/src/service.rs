@@ -151,6 +151,34 @@ impl Service {
         })
     }
 
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_from_parts(
+        db: Database,
+        network: ethexe_network::NetworkWorker,
+        observer: ethexe_observer::Observer,
+        query: ethexe_observer::Query,
+        processor: ethexe_processor::Processor,
+        signer: ethexe_signer::Signer,
+        sequencer: Option<ethexe_sequencer::Sequencer>,
+        validator: Option<ethexe_validator::Validator>,
+        metrics_service: Option<MetricsService>,
+        rpc: ethexe_rpc::RpcService,
+    ) -> Self {
+        Self {
+            db,
+            network,
+            observer,
+            query,
+            processor,
+            signer,
+            sequencer,
+            validator,
+            metrics_service,
+            rpc,
+        }
+    }
+
     // TODO: remove this function.
     // This is a temporary solution to download absent codes from already processed blocks.
     async fn process_upload_codes(
@@ -294,6 +322,12 @@ impl Service {
 
         let commitments = match observer_event {
             ethexe_observer::Event::Block(block_data) => {
+                log::info!(
+                    "📦 receive a new block {}, hash {}, parent hash {}",
+                    block_data.block_number,
+                    block_data.block_hash,
+                    block_data.parent_hash
+                );
                 let commitments =
                     Self::process_block_event(db, query, processor, block_data).await?;
                 commitments.into_iter().map(Commitment::Block).collect()
@@ -378,8 +412,6 @@ impl Service {
                         break;
                     };
 
-                    let is_block_event = matches!(observer_event, ethexe_observer::Event::Block(_));
-
                     let commitments = Self::process_observer_event(
                         &db,
                         &mut query,
@@ -408,12 +440,7 @@ impl Service {
                         }
                     }
 
-                    if is_block_event {
-                        // After 3 seconds of block event:
-                        // - if validator, clean commitments
-                        // - if sequencer, send commitments transactions
-                        delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
-                    }
+                    delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
                 }
                 message = gossip_stream.next() => {
                     if let Some(message) = message {

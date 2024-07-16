@@ -23,6 +23,9 @@ mod metrics;
 mod params;
 mod service;
 
+#[cfg(test)]
+mod tests;
+
 use crate::{args::Args, config::Config, service::Service};
 use anyhow::Context;
 use clap::Parser;

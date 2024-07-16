@@ -50,3 +50,20 @@ tempfile.workspace = true
 futures-timer.workspace = true
 
 static_init = "1.0.3"
+
+#[dev-dependencies]
+alloy = { workspace = true, features = [
+    "consensus",
+    "eips",
+    "node-bindings",
+    "provider-http",
+    "provider-ws",
+    "provider-anvil-api",
+    "pubsub",
+    "rpc-client",
+    "rpc-types-eth",
+    "rpc-types-beacon",
+    "signer-local",
+] }
+demo-ping = { workspace = true, features = ["debug"] }
+ntest = "0.9.3"
