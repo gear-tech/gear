@@ -1,0 +1,34 @@
+[package]
+name = "ethexe-ethereum"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+ethexe-signer.workspace = true
+ethexe-common.workspace = true
+gear-core.workspace = true
+gear-core-errors.workspace = true
+gear-wasm-instrument.workspace = true
+gprimitives.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+alloy = { workspace = true, features = [
+    "consensus",
+    "contract",
+    "network",
+    "provider-http",
+    "provider-ws",
+    "pubsub",
+    "rpc-types-eth",
+    "rpc-client",
+    "signers",
+    "kzg",
+] }
+futures.workspace = true
+log.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }

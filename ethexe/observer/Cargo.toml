@@ -1,0 +1,41 @@
+[package]
+name = "ethexe-observer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+ethexe-common.workspace = true
+ethexe-signer.workspace = true
+ethexe-ethereum.workspace = true
+ethexe-db.workspace = true
+gear-core.workspace = true
+gprimitives.workspace = true
+
+anyhow.workspace = true
+alloy = { workspace = true, features = [
+    "consensus",
+    "eips",
+    "node-bindings",
+    "provider-http",
+    "provider-ws",
+    "provider-anvil-api",
+    "pubsub",
+    "rpc-client",
+    "rpc-types-eth",
+    "rpc-types-beacon",
+    "signer-local",
+] }
+async-stream.workspace = true
+async-trait.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+tokio = { workspace = true, features = ["fs"] }
+futures.workspace = true
+reqwest = { workspace = true, features = ["default-tls", "json"] }
+log.workspace = true
+
+[dev-dependencies]
+wabt.workspace = true

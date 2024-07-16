@@ -85,6 +85,29 @@ impl Message {
         }
     }
 
+    /// Into parts.
+    pub fn into_parts(
+        self,
+    ) -> (
+        MessageId,
+        ProgramId,
+        ProgramId,
+        Payload,
+        Option<GasLimit>,
+        Value,
+        Option<MessageDetails>,
+    ) {
+        (
+            self.id,
+            self.source,
+            self.destination,
+            self.payload,
+            self.gas_limit,
+            self.value,
+            self.details,
+        )
+    }
+
     /// Convert Message into gasless StoredMessage.
     pub fn into_stored(self) -> StoredMessage {
         self.into()
