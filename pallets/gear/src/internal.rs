@@ -355,6 +355,14 @@ where
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
+            let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            log::error!(
+                "Failed try to create a hold bound for wait {:?}. Hold bound has zero duration for dispatch {:#?} with gas limit {}".,
+                reason,
+                dispatch.id(),
+                gas_limit,
+            );
             unreachable!("Failed to figure out correct wait hold bound");
         }
 

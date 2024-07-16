@@ -948,11 +948,6 @@ fn auto_reply_sent() {
     })
 }
 
-// todo auto_reply_from_user_no_mailbox
-// must be tested with a reservation send
-// but can be removed as the only way to have no mailbox auto reply is from reply,
-// which doesn't have any delay cases.
-
 #[test]
 fn auto_reply_out_of_rent_waitlist() {
     use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
@@ -1924,8 +1919,6 @@ fn delayed_user_replacement() {
 
     init_logger();
 
-    // Todo [sab] delayed user messages still go to mailbox
-
     // Scenario planned to enter mailbox.
     new_test_ext().execute_with(|| {
         let gas_limit_to_forward = DEFAULT_GAS_LIMIT * 100;
@@ -1934,8 +1927,6 @@ fn delayed_user_replacement() {
         scenario(gas_limit_to_forward, true)
     });
 }
-
-// Todo [sab] the test is useless as delay user message always goes to mailbox
 
 #[test]
 fn delayed_send_user_message_with_reservation() {
@@ -15037,8 +15028,6 @@ fn dust_in_message_to_user_handled_ok() {
             false,
         ));
 
-        log::warn!("GAS INFO! {:?}", gas_info);
-
         // Remove USER_1 account from the System.
         CurrencyOf::<Test>::make_free_balance_be(&USER_2, 0);
         run_to_block(40, None);
@@ -15111,8 +15100,6 @@ fn test_gasless_steal_gas_for_wait() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
     })
 }
-
-// todo test sending reply with a huge gas to user and it all goes to event
 
 pub(crate) mod utils {
     #![allow(unused)]
