@@ -228,7 +228,7 @@ mod tests {
         wat2wasm_with_validate(s, true)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_deployment() -> Result<()> {
         let anvil = Anvil::new().try_spawn()?;
         let ethereum_rpc = anvil.ws_endpoint();
