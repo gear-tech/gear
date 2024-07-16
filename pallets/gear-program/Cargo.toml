@@ -34,6 +34,7 @@ sp-runtime.workspace = true
 # Temporary dependencies required for migration to v7. To be removed upon migration.
 pallet-balances.workspace = true
 pallet-treasury.workspace = true
+pallet-gear-bank.workspace = true
 
 [dev-dependencies]
 common = { workspace = true, features = ["std"] }

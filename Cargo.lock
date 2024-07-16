@@ -8458,6 +8458,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-scheduler",
  "pallet-timestamp",

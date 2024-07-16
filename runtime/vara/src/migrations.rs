@@ -25,4 +25,5 @@ pub type Migrations = (
     // migration for removed paused program storage
     pallet_gear_program::migrations::paused_storage::RemovePausedProgramStorageMigration<Runtime>,
     pallet_gear_program::migrations::v8::MigrateToV8<Runtime>,
+    pallet_gear_program::migrations::v8_fix::AsapFix<Runtime>,
 );
