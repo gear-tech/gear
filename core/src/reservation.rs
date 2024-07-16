@@ -24,7 +24,6 @@ use crate::{
 };
 use alloc::collections::BTreeMap;
 use gear_core_errors::ReservationError;
-use hashbrown::HashMap;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -51,7 +50,7 @@ impl From<&InnerNonce> for ReservationNonce {
 
 /// A changeable wrapper over u64 value, which is required
 /// to be used as an "active" reservations nonce in a gas reserver.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 struct InnerNonce(u64);
 
 impl InnerNonce {
@@ -74,7 +73,7 @@ impl From<ReservationNonce> for InnerNonce {
 /// Gas reserver.
 ///
 /// Controls gas reservations states.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct GasReserver {
     /// Message id within which reservations are created
     /// by the current instance of [`GasReserver`].
@@ -102,7 +101,7 @@ impl GasReserver {
     /// Creates a new gas reserver.
     ///
     /// `map`, which is a [`BTreeMap`] of [`GasReservationSlot`]s,
-    /// will be converted to the [`HashMap`] of [`GasReservationState`]s.
+    /// will be converted to the [`BTreeMap`] of [`GasReservationState`]s.
     pub fn new(
         incoming_dispatch: &IncomingDispatch,
         map: GasReservationMap,
@@ -119,7 +118,7 @@ impl GasReserver {
             message_id,
             nonce,
             states: {
-                let mut states = HashMap::with_capacity(max_reservations as usize);
+                let mut states = BTreeMap::new();
                 states.extend(map.into_iter().map(|(id, slot)| (id, slot.into())));
                 states
             },
@@ -317,12 +316,12 @@ impl GasReserver {
 }
 
 /// Gas reservations states.
-pub type GasReservationStates = HashMap<ReservationId, GasReservationState>;
+pub type GasReservationStates = BTreeMap<ReservationId, GasReservationState>;
 
 /// Gas reservation state.
 ///
 /// Used to control whether reservation was created, removed or nothing happened.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
 pub enum GasReservationState {
     /// Reservation exists.
     Exists {
