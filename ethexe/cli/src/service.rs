@@ -236,6 +236,7 @@ impl Service {
 
         // Set block as valid - means state db has all states for the end of the block
         db.set_block_end_state_is_valid(block_hash, true);
+        db.set_latest_valid_block(block_hash);
 
         Ok(transition_outcomes)
     }

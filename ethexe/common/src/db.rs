@@ -70,6 +70,9 @@ pub trait BlockMetaStorage {
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
+
+    fn latest_valid_block(&self) -> Option<H256>;
+    fn set_latest_valid_block(&self, block_hash: H256);
 }
 
 pub trait CodesStorage {
