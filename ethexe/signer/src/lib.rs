@@ -175,7 +175,7 @@ impl Signer {
     }
 
     pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
-        let secret_key = self.get_key(public_key)?;
+        let secret_key = self.get_private_key(public_key)?;
 
         let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
             .with_context(|| "Invalid secret key format for {:?}")?;
@@ -280,7 +280,7 @@ impl Signer {
         Ok(keys)
     }
 
-    fn get_key(&self, key: PublicKey) -> Result<PrivateKey> {
+    pub fn get_private_key(&self, key: PublicKey) -> Result<PrivateKey> {
         let mut buf = [0u8; 32];
 
         let key_path = self.key_store.join(key.to_hex());

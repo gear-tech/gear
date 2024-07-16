@@ -23,7 +23,11 @@ mod metrics;
 mod params;
 mod service;
 
-use crate::{args::Args, config::Config, service::Service};
+use crate::{
+    args::{Args, ArgsOnConfig},
+    config::Config,
+    service::Service,
+};
 use anyhow::Context;
 use clap::Parser;
 use env_logger::Env;
@@ -33,7 +37,6 @@ use std::{env, fs};
 async fn main() -> anyhow::Result<()> {
     let optional_config_path = env::current_dir()?.join(".ethexe.toml");
     let args = {
-        let cli_args = Args::parse();
         if fs::metadata(&optional_config_path).is_ok() {
             // logging might be uninitialized at this point due to it might depend on args.
             println!(
@@ -42,10 +45,10 @@ async fn main() -> anyhow::Result<()> {
             );
             let str = fs::read_to_string(optional_config_path)?;
             let mut file_args: Args = toml::from_str(&str)?;
-            file_args.extra_command = cli_args.extra_command;
+            file_args.extra_command = ArgsOnConfig::parse().extra_command;
             file_args
         } else {
-            cli_args
+            Args::parse()
         }
     };
 
@@ -90,7 +93,10 @@ async fn main() -> anyhow::Result<()> {
 fn print_info(config: &Config) {
     log::info!("💾 Database: {}", config.database_path.display());
     log::info!("🔑 Key directory: {}", config.key_path.display());
-    log::info!("🛜 Network directory: {}", config.network_path.display());
+    log::info!(
+        "🛜 Network directory: {}",
+        config.net_config.config_dir.display()
+    );
     log::info!("⧫  Ethereum observer RPC: {}", config.ethereum_rpc);
     log::info!(
         "📡 Ethereum router address: {}",

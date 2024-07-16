@@ -130,7 +130,7 @@ impl MetricsService {
     /// Creates a `MetricsService` that sends metrics
     /// to prometheus alongside the telemetry.
     pub fn with_prometheus(registry: &Registry, config: &Config) -> Result<Self, PrometheusError> {
-        PrometheusMetrics::setup(registry, &config.net_config.node_name).map(|p| MetricsService {
+        PrometheusMetrics::setup(registry, &config.node_name).map(|p| MetricsService {
             metrics: Some(p),
             last_update: Instant::now(),
         })
