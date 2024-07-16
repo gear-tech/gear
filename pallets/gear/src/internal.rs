@@ -921,9 +921,10 @@ where
         message: Message,
         reservation: Option<ReservationId>,
     ) {
-        // Querying `MailboxThreshold`, that represents minimal amount of gas
-        // for message to be added to mailbox.
-        let threshold = T::MailboxThreshold::get();
+        // Taking data for funds manipulations.
+        let from = message.source().cast();
+        let to = message.destination().cast();
+        let value = message.value().unique_saturated_into();
 
         let msg_id = reservation
             .map(GasNodeId::Reservation)
@@ -975,10 +976,6 @@ where
         let from = message.source().cast();
         let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
-
-        // If gas limit can cover threshold, message will be added to mailbox,
-        // task created and funds reserved.
-        let expiration = if message.details().is_none() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
