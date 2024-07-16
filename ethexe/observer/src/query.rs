@@ -8,15 +8,17 @@ use crate::{
     BlobReader,
 };
 use alloy::{
-    primitives::Address as AlloyAddress,
+    eips::BlockNumberOrTag,
+    primitives::{Address as AlloyAddress, B256},
     providers::{Provider, ProviderBuilder},
-    rpc::types::eth::BlockTransactionsKind,
+    rpc::types::{eth::BlockTransactionsKind, Filter},
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
-    events::BlockEvent,
+    events::{BlockCommitted, BlockEvent},
 };
+use ethexe_ethereum::event::{match_log, signature_hash};
 use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
@@ -70,34 +72,107 @@ impl Query {
             .collect())
     }
 
+    async fn get_all_committed_blocks(
+        &mut self,
+        from_block: u32,
+        to_block: u32,
+    ) -> Result<Vec<H256>> {
+        let router_events_filter = Filter::new()
+            .from_block(from_block as u64)
+            .to_block(to_block as u64)
+            .address(self.router_address)
+            .event_signature(B256::new(signature_hash::BLOCK_COMMITTED));
+
+        let logs = self.provider.get_logs(&router_events_filter).await?;
+
+        let mut commited_blocks = vec![];
+        for log in logs.iter() {
+            let Some(BlockEvent::BlockCommitted(BlockCommitted { block_hash })) = match_log(log)?
+            else {
+                continue;
+            };
+            commited_blocks.push(block_hash);
+        }
+
+        log::trace!("Read committed blocks from {from_block} to {to_block}");
+
+        Ok(commited_blocks)
+    }
+
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
         let mut chain = Vec::new();
-        let mut committed_blocks = BTreeSet::new();
 
-        // First we need to find the nearest valid block
+        let current_block = self.get_block_header_meta(block_hash).await?;
+
+        // Find latest_valid_block or use genesis.
+        let (latest_valid_block, latest_valid_block_hash) =
+            if let Some(block_hash) = self.database.latest_valid_block() {
+                let header = self
+                    .database
+                    .block_header(block_hash)
+                    .ok_or(anyhow!("{block_hash} not found in db. Corrupted"))?;
+
+                let block = self
+                    .provider
+                    .get_block_by_number((header.height as u64).into(), false)
+                    .await?
+                    .ok_or(anyhow!("Block #{} not found on-chain.", header.height))?;
+                if block.header.hash.map(|h| h.0) == Some(block_hash.0) {
+                    (header, block_hash)
+                } else {
+                    let finalized_block = self
+                        .provider
+                        .get_block_by_number(BlockNumberOrTag::Finalized, false)
+                        .await?
+                        .ok_or(anyhow!("Failed to get finalized block"))?;
+                    if finalized_block.header.number.unwrap() >= header.height as u64 {
+                        log::warn!("Latest valid block doesn't match on-chain block.");
+                        let hash = H256(block.header.hash.unwrap().0);
+                        (self.get_block_header_meta(hash).await?, hash)
+                    } else {
+                        (header, block_hash)
+                    }
+                }
+            } else {
+                log::warn!("Latest valid block not found, sync to genesis.");
+                (
+                    self.get_block_header_meta(self.genesis_block_hash).await?,
+                    self.genesis_block_hash,
+                )
+            };
+
+        log::trace!("Nearest valid in db block: {latest_valid_block:?}");
+
+        if current_block.height - latest_valid_block.height >= self.max_commitment_depth {
+            return Err(anyhow!("too deep chain"));
+        }
+
+        let committed_blocks = self
+            .get_all_committed_blocks(latest_valid_block.height, current_block.height)
+            .await?;
+
+        // Populate db to the latest valid block.
         let mut hash = block_hash;
         loop {
-            // TODO: limit deepness
-
-            if hash == self.genesis_block_hash {
-                // Genesis block is always valid
-                log::trace!("Genesis block reached: {hash}");
+            if hash == latest_valid_block_hash {
+                log::trace!("Chain loaded to the nearest valid block: {hash}");
                 break;
             }
 
+            // Reset latest_valid_block if found.
+            // TODO: Remove once all db pruned or updated.
             if self
                 .database
                 .block_end_state_is_valid(hash)
                 .unwrap_or(false)
             {
+                self.database.set_latest_valid_block(hash);
                 log::trace!("Nearest valid in db block found: {hash}");
                 break;
             }
 
             log::trace!("Include block {hash} in chain for processing");
             chain.push(hash);
-
-            committed_blocks.extend(self.get_committed_blocks(hash).await?);
 
             hash = self.get_block_parent_hash(hash).await?;
         }
@@ -117,12 +192,7 @@ impl Query {
         };
 
         // Now we need append in chain all blocks from the oldest not committed to the current.
-        let mut depth = 0;
         loop {
-            if depth >= self.max_commitment_depth {
-                return Err(anyhow!("too deep chain"));
-            }
-
             log::trace!("Include block {hash} in chain for processing");
             chain.push(hash);
 
@@ -132,7 +202,6 @@ impl Query {
             }
 
             hash = self.get_block_parent_hash(hash).await?;
-            depth += 1;
         }
 
         Ok(chain)
