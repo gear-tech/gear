@@ -47,6 +47,8 @@ pub mod v8_fix {
     {
         fn on_runtime_upgrade() -> Weight {
             let mut weight = Weight::from_parts(0, 0);
+            let mut count_without_lock = 0;
+            let mut count_without_balance_and_lock = 0;
 
             if Pallet::<T>::on_chain_storage_version() == StorageVersion::new(8) {
                 log::info!("Running asap fix migrations");
@@ -60,14 +62,16 @@ pub mod v8_fix {
                         if CurrencyOf::<T>::total_balance(&program_id) - CurrencyOf::<T>::free_balance(&program_id) != ed
                         {
                             let mut to_set_lock = true;
+                            count_without_lock += 1;
 
                             if CurrencyOf::<T>::free_balance(&program_id) < ed {
+                                count_without_balance_and_lock += 1;
                                 match <T as pallet_treasury::Config>::Paymaster::pay(
                                     &program_id,
                                     (),
                                     ed,
                                 ) {
-                                    Ok(_) => {}
+                                    Ok(_) => {},
                                     Err(e) => {
                                         to_set_lock = false;
 
@@ -92,7 +96,11 @@ pub mod v8_fix {
 
                 weight = Weight::from_parts(200_000_000, 0);
 
-                log::info!("✅ Successfully fixed migrated storage");
+                log::info!(
+                    "✅ Successfully fixed migrated storage: wout lock {}, wout lock and balance {}",
+                    count_without_lock,
+                    count_without_balance_and_lock
+                );
             } else {
                 log::info!("🟠 Migration requires onchain version 8, so was skipped");
             }
