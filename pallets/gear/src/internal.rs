@@ -358,7 +358,7 @@ where
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             log::error!(
-                "Failed try to create a hold bound for wait {:?}. Hold bound has zero duration for dispatch {:#?} with gas limit {}".,
+                "Failed try to create a hold bound for wait {:?}. Hold bound has zero duration for dispatch {:#?} with gas limit {}",
                 reason,
                 dispatch.id(),
                 gas_limit,
@@ -741,6 +741,12 @@ where
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 if gas_limit < threshold {
+                    log::error!(
+                        "Message {} doesn't have enough gas for the mailbox threshold. Gas - {}, threshold - {}",
+                        origin_msg,
+                        gas_limit,
+                        threshold,
+                    );
                     unreachable!("Mailbox message gas coverage invalidated!");
                 }
 
