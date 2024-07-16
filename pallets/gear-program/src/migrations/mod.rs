@@ -46,7 +46,7 @@ pub mod v8_fix {
         T::Paymaster: Pay<Beneficiary = T::AccountId, AssetKind = (), Balance = BalanceOf<T>>,
     {
         fn on_runtime_upgrade() -> Weight {
-            let mut weight = 0;
+            let mut weight = Weight::from_parts(0, 0);
 
             if Pallet::<T>::on_chain_storage_version() == StorageVersion::new(8) {
                 log::info!("Running asap fix migrations");
@@ -90,14 +90,14 @@ pub mod v8_fix {
                     };
                 });
 
-                weight = 200_000_000;
+                weight = Weight::from_parts(200_000_000, 0);
 
                 log::info!("✅ Successfully fixed migrated storage");
             } else {
                 log::info!("🟠 Migration requires onchain version 8, so was skipped");
             }
 
-            weight.into()
+            weight
         }
     }
 }
