@@ -99,47 +99,52 @@ impl Query {
         Ok(commited_blocks)
     }
 
+    async fn get_latest_valid_block(&mut self) -> Result<(H256, BlockHeader)> {
+        if let Some(block_hash) = self.database.latest_valid_block() {
+            let header = self
+                .database
+                .block_header(block_hash)
+                .ok_or(anyhow!("{block_hash} not found in db. Corrupted"))?;
+
+            let Some(block) = self
+                .provider
+                .get_block_by_number((header.height as u64).into(), false)
+                .await?
+            else {
+                return Ok((block_hash, header));
+            };
+            if block.header.hash.map(|h| h.0) == Some(block_hash.0) {
+                Ok((block_hash, header))
+            } else {
+                let finalized_block = self
+                    .provider
+                    .get_block_by_number(BlockNumberOrTag::Finalized, false)
+                    .await?
+                    .ok_or(anyhow!("Failed to get finalized block"))?;
+                if finalized_block.header.number.unwrap() >= header.height as u64 {
+                    log::warn!("Latest valid block doesn't match on-chain block.");
+                    let hash = H256(block.header.hash.unwrap().0);
+                    Ok((hash, self.get_block_header_meta(hash).await?))
+                } else {
+                    Ok((block_hash, header))
+                }
+            }
+        } else {
+            log::warn!("Latest valid block not found, sync to genesis.");
+            Ok((
+                self.genesis_block_hash,
+                self.get_block_header_meta(self.genesis_block_hash).await?,
+            ))
+        }
+    }
+
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
         let mut chain = Vec::new();
 
         let current_block = self.get_block_header_meta(block_hash).await?;
 
         // Find latest_valid_block or use genesis.
-        let (latest_valid_block, latest_valid_block_hash) =
-            if let Some(block_hash) = self.database.latest_valid_block() {
-                let header = self
-                    .database
-                    .block_header(block_hash)
-                    .ok_or(anyhow!("{block_hash} not found in db. Corrupted"))?;
-
-                let block = self
-                    .provider
-                    .get_block_by_number((header.height as u64).into(), false)
-                    .await?
-                    .ok_or(anyhow!("Block #{} not found on-chain.", header.height))?;
-                if block.header.hash.map(|h| h.0) == Some(block_hash.0) {
-                    (header, block_hash)
-                } else {
-                    let finalized_block = self
-                        .provider
-                        .get_block_by_number(BlockNumberOrTag::Finalized, false)
-                        .await?
-                        .ok_or(anyhow!("Failed to get finalized block"))?;
-                    if finalized_block.header.number.unwrap() >= header.height as u64 {
-                        log::warn!("Latest valid block doesn't match on-chain block.");
-                        let hash = H256(block.header.hash.unwrap().0);
-                        (self.get_block_header_meta(hash).await?, hash)
-                    } else {
-                        (header, block_hash)
-                    }
-                }
-            } else {
-                log::warn!("Latest valid block not found, sync to genesis.");
-                (
-                    self.get_block_header_meta(self.genesis_block_hash).await?,
-                    self.genesis_block_hash,
-                )
-            };
+        let (latest_valid_block_hash, latest_valid_block) = self.get_latest_valid_block().await?;
 
         log::trace!("Nearest valid in db block: {latest_valid_block:?}");
 
