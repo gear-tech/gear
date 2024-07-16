@@ -53,14 +53,15 @@ use crate::{
         WasmSizeNo, SIZES_AMOUNT,
     },
 };
-pub use common::LazyPagesVersion;
+pub use common::{Error as LazyPagesError, LazyPagesVersion};
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 pub use host_func::pre_process_memory_accesses;
 use mprotect::MprotectError;
 use numerated::iterators::IntervalIterator;
 use pages::GearPage;
-use signal::{DefaultUserSignalHandler, UserSignalHandler};
+use signal::DefaultUserSignalHandler;
+pub use signal::{ExceptionInfo, UserSignalHandler};
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 
 /// Initialize lazy-pages once for process.
@@ -377,7 +378,7 @@ pub(crate) fn reset_init_flag() {
 }
 
 /// Initialize lazy-pages for current thread.
-fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
+pub fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
     _version: LazyPagesVersion,
     ctx: LazyPagesInitContext,
     pages_storage: S,

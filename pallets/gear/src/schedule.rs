@@ -21,7 +21,7 @@
 
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
-use core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
+use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
@@ -70,6 +70,11 @@ pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 /// It has been determined that the maximum number of data segments in a wasm module
 /// does not exceed 1024 by a large margin.
 pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
+
+/// Maximum number of wasm tables in a wasm module.
+/// The same limit also imposed by `wasmparser`,
+/// see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>
+pub const TABLE_NUMBER_LIMIT: u32 = 100;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -121,8 +126,8 @@ pub struct Schedule<T: Config> {
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
 
-    /// WASM module instantiation per byte cost.
-    pub module_instantiation_per_byte: Weight,
+    /// The weights for instantiation of the module.
+    pub instantiation_weights: InstantiationWeights,
 
     /// Single db write per byte cost.
     pub db_write_per_byte: Weight,
@@ -188,6 +193,11 @@ pub struct Limits {
     ///
     /// Currently, the only type of element that is allowed in a table is funcref.
     pub table_size: u32,
+
+    /// Maximum number of tables allowed for a program.
+    /// The same limit also imposed by `wasmparser`,
+    /// see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>
+    pub table_number: u32,
 
     /// Maximum number of elements that can appear as immediate value to the br_table instruction.
     pub br_table_size: u32,
@@ -602,10 +612,6 @@ pub struct MemoryWeights<T: Config> {
     /// cause it is taken in account separately.
     pub upload_page_data: Weight,
 
-    /// Cost per one [WasmPage] static page. Static pages can have static data,
-    /// and executor must to move this data to static pages before execution.
-    pub static_page: Weight,
-
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: Weight,
 
@@ -656,6 +662,29 @@ impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
                 .into(),
         }
     }
+}
+
+/// Describes the weight for instantiation of the module.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct InstantiationWeights {
+    /// WASM module code section instantiation per byte cost.
+    pub code_section_per_byte: Weight,
+
+    /// WASM module data section instantiation per byte cost.
+    pub data_section_per_byte: Weight,
+
+    /// WASM module global section instantiation per byte cost.
+    pub global_section_per_byte: Weight,
+
+    /// WASM module table section instantiation per byte cost.
+    pub table_section_per_byte: Weight,
+
+    /// WASM module element section instantiation per byte cost.
+    pub element_section_per_byte: Weight,
+
+    /// WASM module type section instantiation per byte cost.
+    pub type_section_per_byte: Weight,
 }
 
 #[inline]
@@ -719,9 +748,18 @@ impl<T: Config> Default for Schedule<T> {
             memory_weights: Default::default(),
             db_write_per_byte: cost_byte(W::<T>::db_write_per_kb),
             db_read_per_byte: cost_byte(W::<T>::db_read_per_kb),
-            module_instantiation_per_byte: cost_byte(
-                W::<T>::instantiate_module_code_section_per_kb,
-            ),
+            instantiation_weights: InstantiationWeights {
+                code_section_per_byte: cost_byte(W::<T>::instantiate_module_code_section_per_kb),
+                data_section_per_byte: cost_byte(W::<T>::instantiate_module_data_section_per_kb),
+                global_section_per_byte: cost_byte(
+                    W::<T>::instantiate_module_global_section_per_kb,
+                ),
+                table_section_per_byte: cost_byte(W::<T>::instantiate_module_table_section_per_kb),
+                element_section_per_byte: cost_byte(
+                    W::<T>::instantiate_module_element_section_per_kb,
+                ),
+                type_section_per_byte: cost_byte(W::<T>::instantiate_module_type_section_per_kb),
+            },
             code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
             code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
         }
@@ -742,6 +780,7 @@ impl Default for Limits {
             memory_pages: MAX_WASM_PAGES_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
+            table_number: TABLE_NUMBER_LIMIT,
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
@@ -755,7 +794,7 @@ impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1420,
+            version: 1500,
             i64const: cost_instr::<T>(W::<T>::instr_i64const, 1),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
@@ -1097,8 +1136,6 @@ impl<T: Config> Default for MemoryWeights<T> {
             upload_page_data: cost(W::<T>::db_write_per_kb)
                 .saturating_mul(KB_AMOUNT_IN_ONE_GEAR_PAGE)
                 .saturating_add(T::DbWeight::get().writes(1)),
-            // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
-            static_page: Weight::from_parts(100, 0),
             mem_grow: cost_batched(W::<T>::mem_grow),
             mem_grow_per_page: cost_batched(W::<T>::mem_grow_per_page),
             // TODO: make it non-zero for para-chains (issue #2225)
@@ -1145,10 +1182,40 @@ impl<T: Config> Schedule<T> {
             read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
             read_per_byte: self.db_read_per_byte.ref_time().into(),
             write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
-            static_page: self.memory_weights.static_page.ref_time().into(),
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
-            module_instantiation_per_byte: self.module_instantiation_per_byte.ref_time().into(),
+            instantiation_costs: InstantiationCosts {
+                code_section_per_byte: self
+                    .instantiation_weights
+                    .code_section_per_byte
+                    .ref_time()
+                    .into(),
+                data_section_per_byte: self
+                    .instantiation_weights
+                    .data_section_per_byte
+                    .ref_time()
+                    .into(),
+                global_section_per_byte: self
+                    .instantiation_weights
+                    .global_section_per_byte
+                    .ref_time()
+                    .into(),
+                table_section_per_byte: self
+                    .instantiation_weights
+                    .table_section_per_byte
+                    .ref_time()
+                    .into(),
+                element_section_per_byte: self
+                    .instantiation_weights
+                    .element_section_per_byte
+                    .ref_time()
+                    .into(),
+                type_section_per_byte: self
+                    .instantiation_weights
+                    .type_section_per_byte
+                    .ref_time()
+                    .into(),
+            },
         }
     }
 }

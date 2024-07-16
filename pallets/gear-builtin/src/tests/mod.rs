@@ -21,3 +21,4 @@
 pub mod bad_builtin_ids;
 pub mod basic;
 pub mod bls381;
+pub mod staking;

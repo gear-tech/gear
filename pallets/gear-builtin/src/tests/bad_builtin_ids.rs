@@ -30,7 +30,7 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill,
+    BuildStorage, Perbill, Permill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -47,6 +47,7 @@ construct_runtime!(
         Balances: pallet_balances,
         Authorship: pallet_authorship,
         Timestamp: pallet_timestamp,
+        Staking: pallet_staking,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
@@ -66,6 +67,7 @@ common::impl_pallet_system!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
+common::impl_pallet_staking!(Test);
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
@@ -161,6 +163,7 @@ impl BuiltinActor for DuplicateBuiltinActor {
 }
 
 impl pallet_gear_builtin::Config for Test {
+    type RuntimeCall = RuntimeCall;
     type Builtins = (
         FirstBuiltinActor,
         SecondBuiltinActor,

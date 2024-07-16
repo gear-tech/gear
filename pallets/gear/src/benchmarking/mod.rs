@@ -421,6 +421,17 @@ benchmarks! {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
+    // `e`: Size of the element section in kilobytes.
+    instantiate_module_element_section_per_kb {
+        let e in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let max_table_size = T::Schedule::get().limits.code_len;
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
+        let ext = Ext::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
     // `t`: Size of the type section in kilobytes.
     instantiate_module_type_section_per_kb {
         let t in 0 .. T::Schedule::get().limits.code_len / 1024;

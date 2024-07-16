@@ -37,7 +37,7 @@ use {
 
 const MIGRATE_FROM_VERSION: u16 = 5;
 const MIGRATE_TO_VERSION: u16 = 6;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 8;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 9;
 
 pub struct MigrateAllocations<T: Config>(PhantomData<T>);
 

@@ -32,7 +32,7 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill,
+    BuildStorage, Perbill, Permill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -46,7 +46,10 @@ pub(crate) type GasHandlerOf<T> = <<T as pallet_gear::Config>::GasProvider as Ga
 pub(crate) type GasTreeOf<T> = pallet_gear_gas::GasNodes<T>;
 
 pub(crate) const SIGNER: AccountId = 1;
-pub(crate) const BLOCK_AUTHOR: AccountId = 10;
+pub(crate) const VAL_1_STASH: AccountId = 10;
+pub(crate) const VAL_2_STASH: AccountId = 20;
+pub(crate) const VAL_3_STASH: AccountId = 30;
+pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
 
 pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * UNITS;
 pub(crate) const ENDOWMENT: u128 = 1_000 * UNITS;
@@ -75,6 +78,7 @@ construct_runtime!(
         Balances: pallet_balances,
         Authorship: pallet_authorship,
         Timestamp: pallet_timestamp,
+        Staking: pallet_staking,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
@@ -94,6 +98,7 @@ common::impl_pallet_system!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
+common::impl_pallet_staking!(Test);
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
@@ -213,6 +218,7 @@ impl BuiltinActor for HonestBuiltinActor {
 }
 
 impl pallet_gear_builtin::Config for Test {
+    type RuntimeCall = RuntimeCall;
     type Builtins = (
         SuccessBuiltinActor,
         ErrorBuiltinActor,
@@ -225,6 +231,7 @@ impl pallet_gear_builtin::Config for Test {
 // Build genesis storage according to the mock runtime.
 #[derive(Default)]
 pub struct ExtBuilder {
+    initial_authorities: Vec<AccountId>,
     endowed_accounts: Vec<AccountId>,
     endowment: Balance,
 }
@@ -251,6 +258,28 @@ impl ExtBuilder {
                 .iter()
                 .map(|k| (*k, self.endowment))
                 .collect(),
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
+
+        pallet_staking::GenesisConfig::<Test> {
+            validator_count: self.initial_authorities.len() as u32,
+            minimum_validator_count: self.initial_authorities.len() as u32,
+            stakers: self
+                .initial_authorities
+                .iter()
+                .map(|x| {
+                    (
+                        *x,
+                        *x,
+                        self.endowment,
+                        pallet_staking::StakerStatus::<AccountId>::Validator,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            invulnerables: self.initial_authorities.to_vec(),
+            slash_reward_fraction: Perbill::from_percent(10),
+            ..Default::default()
         }
         .assimilate_storage(&mut storage)
         .unwrap();
