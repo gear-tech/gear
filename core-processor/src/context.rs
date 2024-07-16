@@ -64,15 +64,11 @@ impl ContextChargedForCodeLength {
 /// successfully charged for fetching the binary code from storage.
 pub struct ContextChargedForCode {
     pub(crate) data: ContextData,
-    pub(crate) code_len_bytes: u32,
 }
 
-impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
-    fn from((context, code_len_bytes): (ContextChargedForCodeLength, u32)) -> Self {
-        Self {
-            data: context.data,
-            code_len_bytes,
-        }
+impl From<ContextChargedForCodeLength> for ContextChargedForCode {
+    fn from(context: ContextChargedForCodeLength) -> Self {
+        Self { data: context.data }
     }
 }
 
@@ -81,15 +77,11 @@ impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
 /// successfully charged for reinstrumentation of the code.
 pub struct ContextChargedForInstrumentation {
     pub(crate) data: ContextData,
-    pub(crate) code_len_bytes: u32,
 }
 
 impl From<ContextChargedForCode> for ContextChargedForInstrumentation {
     fn from(context: ContextChargedForCode) -> Self {
-        Self {
-            data: context.data,
-            code_len_bytes: context.code_len_bytes,
-        }
+        Self { data: context.data }
     }
 }
 

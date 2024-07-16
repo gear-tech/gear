@@ -95,6 +95,7 @@ where
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.table_number.into(),
             )
             .map_err(|_| "Code failed to load")?;
 
@@ -254,12 +255,13 @@ where
     let code =
         T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
 
-    let context = ContextChargedForCode::from((context, code.code().len() as u32));
-    let context = core_processor::precharge_for_memory(
+    let context = ContextChargedForCode::from(context);
+    let context = core_processor::precharge_for_module_instantiation(
         &block_config,
         ContextChargedForInstrumentation::from(context),
+        code.instantiated_section_sizes(),
     )
-    .map_err(|_| "core_processor::precharge_for_memory failed")?;
+    .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
 
     Ok(Exec {
         ext_manager,

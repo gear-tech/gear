@@ -2,7 +2,7 @@ name: PR
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,6 +40,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   docs:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home

@@ -42,7 +42,7 @@ use {
 
 const MIGRATE_FROM_VERSION: u16 = 7;
 const MIGRATE_TO_VERSION: u16 = 8;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 8;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 9;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_treasury::Config>::Currency;

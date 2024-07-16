@@ -1,6 +1,7 @@
 [package]
 name = "gstd-codegen"
 description = "Code generation library for the Gear standard library"
+documentation = "https://docs.rs/gstd-codegen"
 keywords = ["gear", "codegen", "std"]
 categories = ["api-bindings"]
 version.workspace = true

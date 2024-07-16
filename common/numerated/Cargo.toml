@@ -1,6 +1,7 @@
 [package]
 name = "numerated"
 description = "A library for working with intervals and sets of numerated values"
+documentation = "https://docs.rs/numerated"
 keywords = ["gear", "tree", "interval", "numerated", "no-std"]
 categories = ["mathematics", "no-std"]
 version.workspace = true

@@ -33,7 +33,9 @@ async fn test_command_claim_works() -> Result<()> {
         let node = common::dev()?;
 
         // Get balance of the testing address
-        let signer = Api::new(node.ws()).await?.signer("//Alice//stash", None)?;
+        let signer = Api::new(node.ws().as_str())
+            .await?
+            .signer("//Alice//stash", None)?;
         (
             signer.api().get_balance(ADDRESS).await.unwrap_or(0),
             signer
@@ -54,7 +56,9 @@ async fn test_command_claim_works() -> Result<()> {
     initial_balance -= ED;
 
     // Check the mailbox of the testing account
-    let signer = Api::new(node.ws()).await?.signer("//Alice//stash", None)?;
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice//stash", None)?;
     let mailbox = signer
         .api()
         .mailbox(Some(common::alice_account_id()), 10)

@@ -1,6 +1,7 @@
 [package]
 name = "gsdk-codegen"
 description = "Code generation library for the Rust SDK of Gear network"
+documentation = "https://docs.rs/gsdk-codegen"
 keywords = ["gear", "sdk", "codegen"]
 categories = ["api-bindings"]
 version.workspace = true

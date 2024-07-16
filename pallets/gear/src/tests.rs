@@ -43,7 +43,10 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
+    code::{
+        self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
+        InstrumentedCodeAndId,
+    },
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -222,6 +225,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -4994,6 +4998,7 @@ fn test_code_submission_pass() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
@@ -6403,10 +6408,50 @@ fn terminated_locking_funds() {
         let reply_duration = demo_init_fail_sender::reply_duration();
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let gas_for_module_instantiation = schedule
-            .module_instantiation_per_byte
-            .ref_time()
-            .saturating_mul(code_length);
+        let gas_for_module_instantiation = {
+            let InstantiatedSectionSizes {
+                code_section: code_section_bytes,
+                data_section: data_section_bytes,
+                global_section: global_section_bytes,
+                table_section: table_section_bytes,
+                element_section: element_section_bytes,
+                type_section: type_section_bytes,
+            } = *code.instantiated_section_sizes();
+
+            let instantiation_weights = schedule.instantiation_weights;
+
+            let mut gas_for_code_instantiation = instantiation_weights
+                .code_section_per_byte
+                .ref_time()
+                .saturating_mul(code_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .data_section_per_byte
+                .ref_time()
+                .saturating_mul(data_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .global_section_per_byte
+                .ref_time()
+                .saturating_mul(global_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .table_section_per_byte
+                .ref_time()
+                .saturating_mul(table_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .element_section_per_byte
+                .ref_time()
+                .saturating_mul(element_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .type_section_per_byte
+                .ref_time()
+                .saturating_mul(type_section_bytes as u64);
+
+            gas_for_code_instantiation
+        };
         let gas_for_code_len = read_cost;
         let gas_for_program = read_cost;
         let gas_for_code = schedule
@@ -6414,19 +6459,11 @@ fn terminated_locking_funds() {
             .ref_time()
             .saturating_mul(code_length)
             .saturating_add(read_cost);
-        let gas_for_static_pages = schedule
-            .memory_weights
-            .static_page
-            .ref_time()
-            .saturating_mul(u32::from(code.static_pages()) as u64);
 
         // Additional gas for loading resources on next wake up.
         // Must be exactly equal to gas, which we must pre-charge for program execution.
-        let gas_for_second_init_execution = gas_for_program
-            + gas_for_code_len
-            + gas_for_code
-            + gas_for_module_instantiation
-            + gas_for_static_pages;
+        let gas_for_second_init_execution =
+            gas_for_program + gas_for_code_len + gas_for_code + gas_for_module_instantiation;
 
         let ed = get_ed();
 
@@ -6579,6 +6616,7 @@ fn test_create_program_works() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Code failed to load");
 
@@ -7603,16 +7641,55 @@ fn gas_spent_precalculated() {
         let get_gas_charged_for_code = |pid| {
             let schedule = <Test as Config>::Schedule::get();
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-            let code_len = get_program_code(pid).code().len() as u64;
+            let instrumented_prog = get_program_code(pid);
+            let code_len = instrumented_prog.code().len() as u64;
             let gas_for_code_read = schedule
                 .db_read_per_byte
                 .ref_time()
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
-            let gas_for_code_instantiation = schedule
-                .module_instantiation_per_byte
+
+            let InstantiatedSectionSizes {
+                code_section: code_section_bytes,
+                data_section: data_section_bytes,
+                global_section: global_section_bytes,
+                table_section: table_section_bytes,
+                element_section: element_section_bytes,
+                type_section: type_section_bytes,
+            } = *instrumented_prog.instantiated_section_sizes();
+
+            let instantiation_weights = schedule.instantiation_weights;
+
+            let mut gas_for_code_instantiation = instantiation_weights
+                .code_section_per_byte
                 .ref_time()
-                .saturating_mul(code_len);
+                .saturating_mul(code_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .data_section_per_byte
+                .ref_time()
+                .saturating_mul(data_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .global_section_per_byte
+                .ref_time()
+                .saturating_mul(global_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .table_section_per_byte
+                .ref_time()
+                .saturating_mul(table_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .element_section_per_byte
+                .ref_time()
+                .saturating_mul(element_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .type_section_per_byte
+                .ref_time()
+                .saturating_mul(type_section_bytes as u64);
+
             gas_for_code_read + gas_for_code_instantiation
         };
 
@@ -7680,8 +7757,6 @@ fn gas_spent_precalculated() {
                 + read_cost
                 // cost for code loading and instantiation
                 + get_gas_charged_for_code(pid)
-                // cost for one static page in program
-                + <Test as Config>::Schedule::get().memory_weights.static_page.ref_time()
         };
 
         let make_check = |gas_spent_expected| {
@@ -10097,6 +10172,7 @@ fn test_mad_big_prog_instrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13167,6 +13243,7 @@ fn wrong_entry_type() {
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| CustomConstantCostRules::default(),
+                None,
                 None,
                 None,
             ),

@@ -1,6 +1,7 @@
 [package]
 name = "gprimitives"
 description = "Gear programs' primitives"
+documentation = "https://docs.rs/gprimitives"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

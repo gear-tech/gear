@@ -62,6 +62,23 @@ pub struct ExtCosts {
     pub mem_grow_per_page: CostOf<WasmPagesAmount>,
 }
 
+/// Module instantiation costs.
+#[derive(Debug, Default, Clone)]
+pub struct InstantiationCosts {
+    /// WASM module code section instantiation per byte cost.
+    pub code_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module data section instantiation per byte cost.
+    pub data_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module global section instantiation per byte cost.
+    pub global_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module table section instantiation per byte cost.
+    pub table_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module element section instantiation per byte cost.
+    pub element_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module type section instantiation per byte cost.
+    pub type_section_per_byte: CostOf<BytesAmount>,
+}
+
 /// Costs for message processing
 #[derive(Clone, Debug, Default)]
 pub struct ProcessCosts {
@@ -79,10 +96,8 @@ pub struct ProcessCosts {
     pub instrumentation: CostOf<CallsAmount>,
     /// Code instrumentation per byte cost.
     pub instrumentation_per_byte: CostOf<BytesAmount>,
-    /// Static page cost.
-    pub static_page: CostOf<WasmPagesAmount>,
-    /// WASM module instantiation per byte cost.
-    pub module_instantiation_per_byte: CostOf<BytesAmount>,
+    /// Module instantiation costs.
+    pub instantiation_costs: InstantiationCosts,
     /// Load program allocations cost per interval.
     pub load_allocations_per_interval: CostOf<u32>,
 }

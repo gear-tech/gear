@@ -1,6 +1,7 @@
 [package]
 name = "gear-runtime-primitives"
 description = "Gear Runtime primitives"
+documentation = "https://docs.rs/gear-runtime-primitives"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
