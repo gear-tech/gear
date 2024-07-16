@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod interface;
+mod actor;
 mod manager;
 
-pub use interface::ActorMailbox;
+pub use actor::ActorMailbox;
 pub(crate) use manager::MailboxManager;
