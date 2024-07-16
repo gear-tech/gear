@@ -286,7 +286,10 @@ impl Log {
 impl PartialEq<UserStoredMessage> for Log {
     fn eq(&self, other: &UserStoredMessage) -> bool {
         // Any log field is set.
-        let has_any = self.source.is_some() || self.destination.is_some() || self.payload.is_some();
+        let has_any = self.source.is_some()
+            || self.destination.is_some()
+            || self.payload.is_some()
+            || self.reply_to.is_some();
 
         // If any of log field doesn't match, then there's no equality.
         if matches!(self.source, Some(source) if source != other.source()) {
@@ -298,6 +301,10 @@ impl PartialEq<UserStoredMessage> for Log {
         }
 
         if matches!(&self.payload, Some(payload) if payload.inner() != other.payload_bytes()) {
+            return false;
+        }
+
+        if matches!(self.reply_to, Some(reply_to) if reply_to != other.id()) {
             return false;
         }
 

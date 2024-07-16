@@ -19,5 +19,5 @@
 mod interface;
 mod manager;
 
-pub use interface::Mailbox;
+pub use interface::ActorMailbox;
 pub(crate) use manager::MailboxManager;
