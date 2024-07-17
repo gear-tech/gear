@@ -241,14 +241,11 @@ fn get_cached_module(
             .serialize()
             .expect("successfully deserialized module should be serializable");
 
-        cached_modules()
-            .lock()
-            .expect("CACHED_MODULES lock fail")
-            .insert(CachedModule {
-                wasm: wasm.to_vec(),
-                // NOTE: `From<Bytes> to Vec<u8>` is zero cost.
-                serialized_module: serialized_module.into(),
-            });
+        lru_lock.insert(CachedModule {
+            wasm: wasm.to_vec(),
+            // NOTE: `From<Bytes> to Vec<u8>` is zero cost.
+            serialized_module: serialized_module.into(),
+        });
 
         Ok(module)
     }
