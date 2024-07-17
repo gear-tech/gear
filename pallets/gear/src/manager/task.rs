@@ -306,7 +306,7 @@ where
         gas
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas {
+    fn send_user_message(&mut self, stashed_message_id: MessageId) -> Gas {
         // TODO: validate here destination and send error reply, if required.
         // Atm despite the fact that program may exist, message goes into mailbox / event.
         let (message, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)

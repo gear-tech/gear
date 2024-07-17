@@ -320,6 +320,9 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         run_to_next_block(None);
         assert!(Gear::is_initialized(pid));
 
+        let reservation_amount = <Test as Config>::MailboxThreshold::get();
+        let sending_delay = 1;
+        let sending_delay_gas = 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -337,11 +340,20 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         let mid = utils::get_last_message_id();
 
         run_to_next_block(None);
-        assert_succeed(mid);
+        let error_text = format!(
+            "panicked with '{SENDING_EXPECT}: {:?}'",
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
+        );
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into()))
+        );
 
         let outgoing = MessageId::generate_outgoing(mid, 0);
 
-        assert!(DispatchStashOf::<Test>::contains_key(&outgoing));
+        assert!(!DispatchStashOf::<Test>::contains_key(&outgoing));
 
         run_to_next_block(None);
 

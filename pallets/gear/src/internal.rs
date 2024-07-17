@@ -677,9 +677,6 @@ where
             unreachable!("{err_msg}");
         }
 
-        // Indicates that message goes to mailbox and gas should be charged for holding
-        let mut to_mailbox = false;
-
         // Sender node of the dispatch.
         let sender_node = reservation
             .map(GasNodeId::Reservation)
@@ -707,7 +704,7 @@ where
             // finding available funds and trying to take threshold from them.
             let gas_limit = dispatch
                 .gas_limit()
-                .or_else(|| {
+                .unwrap_or_else(|| {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
                     let gas_limit = GasHandlerOf::<T>::get_limit(sender_node).unwrap_or_else(|e| {
                         let err_msg = format!(
@@ -719,15 +716,13 @@ where
                         unreachable!("{err_msg}");
                     });
 
-                    // If available gas is greater then threshold,
-                    // than threshold can be used.
-                    //
-                    // Here we subtract gas for delay from gas limit to prevent
-                    // case when gasless message steal threshold from gas for
-                    // delay payment and delay payment becomes insufficient.
-                    (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
-                })
-                .unwrap_or_default();
+                    // Explain
+                    if gas_limit.saturating_sub(gas_for_delay) < threshold {
+                        unreachable!("todo!");
+                    }
+
+                    threshold
+                });
 
             // Message is going to be inserted into mailbox.
             //
@@ -751,17 +746,6 @@ where
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}");
             });
-
-            // Generating gas node for future auto reply.
-            // TODO: use `sender_node` (e.g. reservation case) as first argument after #1828.
-            if !to_mailbox {
-                Self::split_with_value(
-                    origin_msg,
-                    MessageId::generate_reply(dispatch.id()),
-                    0,
-                    true,
-                );
-            }
 
             // TODO: adapt this line if gasful sending appears for reservations (#1828)
             if let Some(reservation_id) = reservation {
@@ -894,7 +878,6 @@ where
         let task = if to_user {
             ScheduledTask::SendUserMessage {
                 message_id,
-                to_mailbox,
             }
         } else {
             ScheduledTask::SendDispatch(message_id)

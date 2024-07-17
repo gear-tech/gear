@@ -72,7 +72,6 @@ pub enum ScheduledTask<AccountId> {
     #[codec(index = 7)]
     SendUserMessage {
         message_id: MessageId,
-        to_mailbox: bool,
     },
 
     /// Remove gas reservation.
@@ -103,7 +102,6 @@ impl<AccountId> ScheduledTask<AccountId> {
             SendDispatch(message_id) => handler.send_dispatch(message_id),
             SendUserMessage {
                 message_id,
-                to_mailbox,
             } => handler.send_user_message(message_id, to_mailbox),
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
@@ -139,7 +137,7 @@ pub trait TaskHandler<AccountId> {
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas;
 
     // Send delayed message to user action.
-    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas;
+    fn send_user_message(&mut self, stashed_message_id: MessageId) -> Gas;
 
     /// Remove gas reservation action.
     fn remove_gas_reservation(
