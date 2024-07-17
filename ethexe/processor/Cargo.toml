@@ -1,0 +1,36 @@
+[package]
+name = "ethexe-processor"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+
+[dependencies]
+ethexe-common.workspace = true
+ethexe-db.workspace = true
+ethexe-runtime-common = { workspace = true, features = ["std"] }
+ethexe-runtime = { workspace = true, features = ["std"] }
+gear-core.workspace = true
+gprimitives.workspace = true
+gear-runtime-interface = { workspace = true, features = ["std"] }
+gear-lazy-pages.workspace = true
+core-processor.workspace = true
+
+anyhow = { workspace = true, features = ["std"] }
+wasmtime.workspace = true
+log.workspace = true
+parity-wasm.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+sp-allocator = { workspace = true, features = ["std"] }
+sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
+tokio = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+wabt.workspace = true
+env_logger.workspace = true
+demo-ping = { workspace = true, features = ["debug"] }
+demo-async = { workspace = true, features = ["debug"] }
