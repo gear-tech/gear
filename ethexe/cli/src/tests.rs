@@ -32,17 +32,21 @@ use ethexe_validator::Validator;
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use std::sync::Arc;
+use tokio::{
+    sync::mpsc::{self, Receiver},
+    task::{self, JoinHandle},
+};
 
 struct Listener {
-    receiver: tokio::sync::mpsc::Receiver<Event>,
-    _handle: tokio::task::JoinHandle<()>,
+    receiver: Receiver<Event>,
+    _handle: JoinHandle<()>,
 }
 
 impl Listener {
     pub fn new(mut observer: Observer) -> Self {
-        let (sender, receiver) = tokio::sync::mpsc::channel::<Event>(8 * 1024 * 1024);
+        let (sender, receiver) = mpsc::channel::<Event>(8 * 1024 * 1024);
 
-        let _handle = tokio::task::spawn(async move {
+        let _handle = task::spawn(async move {
             let observer_events = observer.events();
             futures::pin_mut!(observer_events);
 
@@ -217,7 +221,7 @@ async fn ping() {
     let mut listener = env.new_listener();
 
     let service = env.service.take().unwrap();
-    let service_handle = tokio::task::spawn(service.run());
+    let service_handle = task::spawn(service.run());
 
     let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
 
