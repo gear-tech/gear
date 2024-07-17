@@ -44,8 +44,6 @@ pub struct UserMessage {
     kind: DispatchKind,
     source: ActorId,
     payload: Vec<u8>,
-    #[allow(unused)] // TODO (breathx): remove me.
-    gas_limit: u64,
     value: u128,
 }
 
@@ -293,7 +291,6 @@ impl Processor {
                             kind: DispatchKind::Init,
                             source: create_program_info.origin,
                             payload: create_program_info.init_payload.clone(),
-                            gas_limit: create_program_info.gas_limit,
                             value: create_program_info.value,
                         }],
                     )?;
@@ -308,11 +305,11 @@ impl Processor {
                     let state_hash = self.handle_user_message(
                         *state_hash,
                         vec![UserMessage {
+                            // TODO: handle mid.
                             id: MessageId::zero(),
                             kind: DispatchKind::Handle,
                             source: send_message_info.origin,
                             payload: send_message_info.payload.clone(),
-                            gas_limit: send_message_info.gas_limit,
                             value: send_message_info.value,
                         }],
                     )?;
