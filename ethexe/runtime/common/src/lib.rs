@@ -28,7 +28,7 @@ use alloc::{
 use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
-    configs::BlockConfig,
+    configs::{BlockConfig, SyscallName},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use gear_core::{
@@ -151,7 +151,34 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     let block_config = BlockConfig {
         block_info,
         performance_multiplier: Percent::new(100),
-        forbidden_funcs: Default::default(),
+        forbidden_funcs: [
+            // Deprecated
+            SyscallName::CreateProgramWGas,
+            SyscallName::ReplyCommitWGas,
+            SyscallName::ReplyDeposit,
+            SyscallName::ReplyInputWGas,
+            SyscallName::ReplyWGas,
+            SyscallName::ReservationReplyCommit,
+            SyscallName::ReservationReply,
+            SyscallName::ReservationSendCommit,
+            SyscallName::ReservationSend,
+            SyscallName::ReserveGas,
+            SyscallName::SendCommitWGas,
+            SyscallName::SendInputWGas,
+            SyscallName::SendWGas,
+            SyscallName::SystemReserveGas,
+            SyscallName::UnreserveGas,
+            // TBD about deprecation
+            SyscallName::SignalCode,
+            SyscallName::SignalFrom,
+            // TODO: refactor asap
+            SyscallName::GasAvailable,
+            // Temporary forbidden (unimplemented)
+            SyscallName::CreateProgram,
+            SyscallName::Exit,
+            SyscallName::Random,
+        ]
+        .into(),
         reserve_for: 125_000_000,
         gas_multiplier: GasMultiplier::from_gas_per_value(1), // TODO
         costs: Default::default(),                            // TODO

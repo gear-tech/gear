@@ -24,7 +24,8 @@ use gear_core::{
     pages::WasmPagesAmount,
 };
 use gear_lazy_pages_common::LazyPagesCosts;
-use gear_wasm_instrument::syscalls::SyscallName;
+
+pub use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Number of max pages number to use it in tests.
 pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
