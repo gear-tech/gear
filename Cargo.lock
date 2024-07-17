@@ -4765,6 +4765,7 @@ dependencies = [
  "ethexe-validator",
  "futures",
  "futures-timer",
+ "gear-utils",
  "gprimitives",
  "hex",
  "log",

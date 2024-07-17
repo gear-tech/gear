@@ -21,7 +21,7 @@
 use crate::service::Service;
 use alloy::node_bindings::Anvil;
 use anyhow::{anyhow, Result};
-use ethexe_common::events::BlockEvent;
+use ethexe_common::{db::CodesStorage, events::BlockEvent};
 use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::{Ethereum, RouterQuery};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
@@ -91,11 +91,11 @@ impl Listener {
 }
 
 struct TestEnv {
-    pub _db: Database,
-    pub blob_reader: Arc<MockBlobReader>,
-    pub observer: Observer,
-    pub ethereum: Ethereum,
-    pub _router_query: RouterQuery,
+    db: Database,
+    blob_reader: Arc<MockBlobReader>,
+    observer: Observer,
+    ethereum: Ethereum,
+    router_query: RouterQuery,
     service: Option<Service>,
 }
 
@@ -178,11 +178,11 @@ impl TestEnv {
         );
 
         let env = TestEnv {
-            _db: db,
+            db,
             blob_reader,
             observer,
             ethereum,
-            _router_query: router_query,
+            router_query,
             service: Some(service),
         };
 
@@ -209,7 +209,7 @@ impl TestEnv {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
-    let _ = env_logger::try_init();
+    gear_utils::init_default_logger();
 
     let anvil = Anvil::new().try_spawn().unwrap();
 
@@ -248,6 +248,16 @@ async fn ping() {
         .await
         .unwrap();
 
+    let code = env
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    let _ = env
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    assert_eq!(code, demo_ping::WASM_BINARY);
+
     let _ = env
         .ethereum
         .router()
@@ -258,6 +268,7 @@ async fn ping() {
     log::info!("📗 Waiting for program create, PONG reply and program update");
     let mut reply_sent = false;
     let mut program_id = ActorId::default();
+    let mut block_committed = None;
     listener
         .apply_until_block_event(|event| {
             match event {
@@ -277,6 +288,9 @@ async fn ping() {
                     assert_eq!(updated.actor_id, program_id);
                     assert_eq!(updated.old_state_hash, H256::zero());
                     assert!(reply_sent);
+                }
+                BlockEvent::BlockCommitted(committed) => {
+                    block_committed = Some(committed.block_hash);
                     return Ok(Some(()));
                 }
                 _ => {}
@@ -285,6 +299,9 @@ async fn ping() {
         })
         .await
         .unwrap();
+
+    let block_committed_on_router = env.router_query.last_commitment_block_hash().await.unwrap();
+    assert_eq!(block_committed, Some(block_committed_on_router));
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
     let ping_program = env.ethereum.program(program_address);
