@@ -286,7 +286,7 @@ mod substrate {
             "sp-crypto-ec-utils" => {
                 table.insert("package", "gp-crypto-ec-utils".into());
             }
-            _ => {}
+            _ => return,
         }
 
         table.remove("branch");

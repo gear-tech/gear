@@ -70,6 +70,27 @@ impl StoredMessage {
         }
     }
 
+    /// Into parts.
+    pub fn into_parts(
+        self,
+    ) -> (
+        MessageId,
+        ProgramId,
+        ProgramId,
+        Payload,
+        Value,
+        Option<MessageDetails>,
+    ) {
+        (
+            self.id,
+            self.source,
+            self.destination,
+            self.payload,
+            self.value,
+            self.details,
+        )
+    }
+
     /// Convert StoredMessage into IncomingMessage for program processing.
     pub fn into_incoming(self, gas_limit: GasLimit) -> IncomingMessage {
         IncomingMessage::new(

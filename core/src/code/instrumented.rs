@@ -19,7 +19,7 @@
 //! Module for instrumented code.
 
 use crate::{
-    code::CodeAndId,
+    code::{Code, CodeAndId},
     ids::CodeId,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
@@ -138,6 +138,12 @@ impl InstrumentedCode {
     /// Consumes the instance and returns the instrumented code.
     pub fn into_code(self) -> Vec<u8> {
         self.code
+    }
+}
+
+impl From<Code> for InstrumentedCode {
+    fn from(code: Code) -> Self {
+        code.into_parts().0
     }
 }
 

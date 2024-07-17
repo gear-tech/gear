@@ -16,7 +16,7 @@ repository.workspace = true
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false, optional = true }
 const_format = { version = "0.2.32", optional = true }
-document-features = { version = "0.2.8", optional = true }
+document-features = { version = "0.2.10", optional = true }
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen.workspace = true
