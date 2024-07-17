@@ -370,45 +370,31 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         todo!()
     }
 
-    fn reserve_gas(
-        &mut self,
-        message_id: MessageId,
-        reservation_id: ReservationId,
-        program_id: ProgramId,
-        amount: u64,
-        bn: u32,
-    ) {
-        todo!()
+    fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ProgramId, _: u64, _: u32) {
+        unreachable!("deprecated");
     }
 
-    fn unreserve_gas(
-        &mut self,
-        reservation_id: ReservationId,
-        program_id: ProgramId,
-        expiration: u32,
-    ) {
-        todo!()
+    fn unreserve_gas(&mut self, _: ReservationId, _: ProgramId, _: u32) {
+        unreachable!("deprecated");
     }
 
-    fn update_gas_reservation(&mut self, _program_id: ProgramId, _reserver: GasReserver) {
-        // TODO: Implement
+    fn update_gas_reservation(&mut self, _: ProgramId, _: GasReserver) {
+        unreachable!("deprecated");
     }
 
-    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        log::trace!("System reserve gas {amount} for {message_id}")
-        // TODO: Implement
+    fn system_reserve_gas(&mut self, _: MessageId, _: u64) {
+        unreachable!("deprecated");
     }
 
-    fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        log::trace!("System unreserve gas for {message_id}")
-        // TODO: Implement
+    fn system_unreserve_gas(&mut self, _: MessageId) {
+        unreachable!("deprecated");
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
-        todo!()
+    fn send_signal(&mut self, _: MessageId, _: ProgramId, _: SignalCode) {
+        unreachable!("deprecated");
     }
 
-    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
-        todo!()
+    fn reply_deposit(&mut self, _: MessageId, _: MessageId, _: u64) {
+        unreachable!("deprecated");
     }
 }
