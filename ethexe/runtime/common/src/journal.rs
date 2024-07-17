@@ -103,7 +103,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 });
                 // TODO: return gas reservations
             }
-            DispatchOutcome::MessageTrap { .. } => todo!(),
+            DispatchOutcome::MessageTrap { trap, .. } => {
+                todo!("message trap handling is not yet implemented, but got: {trap}")
+            }
             DispatchOutcome::Success => {
                 // TODO: Implement
             }
