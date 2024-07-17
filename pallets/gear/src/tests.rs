@@ -14868,6 +14868,8 @@ fn handle_reply_hook() {
 
         let messages = MailboxOf::<Test>::iter_key(USER_1).map(|(msg, _bn)| msg);
 
+        let mut timeout_msg_id = None;
+
         for msg in messages {
             match msg.payload_bytes() {
                 b"for_reply_1" => {
@@ -14895,27 +14897,42 @@ fn handle_reply_hook() {
                         false,
                     ));
                 }
+                b"for_reply_4" => {
+                    // reply later
+                    timeout_msg_id = Some(msg.id());
+                }
                 _ => unreachable!(),
             }
         }
 
         run_to_block(4, None);
-
-        let mailbox = MailboxOf::<Test>::iter_key(USER_1)
-            .map(|(msg, _bn)| msg)
-            .collect::<Vec<_>>();
-        dbg!(mailbox);
         // Expect a reply back
-        let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload_bytes(), b"saw_reply");
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"saw_reply_3")
+        );
 
         run_to_block(10, None);
 
         // Program finished
-        let have_confirmation =
-            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"completed");
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"completed")
+        );
 
-        assert!(have_confirmation);
+        // Reply to a message that timed out
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            timeout_msg_id.unwrap(),
+            [4].to_vec(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+        run_to_block(11, None);
+
+        // Hook should still be executed
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"saw_reply_4")
+        );
     });
 }
 

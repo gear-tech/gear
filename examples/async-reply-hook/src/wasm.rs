@@ -43,10 +43,24 @@ async fn main() {
             debug!("reply message_id: {:?}", msg::id());
             debug!("reply payload: {:?}", msg::load_bytes());
 
-            // Check that we indeed have reply for the intended message
             assert_eq!(msg::load_bytes().unwrap(), [3]);
 
-            msg::send_bytes(msg::source(), b"saw_reply", 0);
+            msg::send_bytes(msg::source(), b"saw_reply_3", 0);
+        })
+        .expect("Failed to set reply hook");
+
+    // Case 4: We reply to message after timeout
+    let m4 = gstd::msg::send_bytes_for_reply(source, b"for_reply_4", 0, 1_000_000_000)
+        .expect("Failed to send message")
+        .up_to(Some(5))
+        .expect("Failed to set timeout")
+        .handle_reply(|| {
+            debug!("reply message_id: {:?}", msg::id());
+            debug!("reply payload: {:?}", msg::load_bytes());
+
+            assert_eq!(msg::load_bytes().unwrap(), [4]);
+
+            msg::send_bytes(msg::source(), b"saw_reply_4", 0);
         })
         .expect("Failed to set reply hook");
 
@@ -56,6 +70,10 @@ async fn main() {
         gstd::errors::Error::Timeout(8, 8)
     );
     m3.await.expect("Received error reply");
+    assert_eq!(
+        m4.await.expect_err("Should receive timeout"),
+        gstd::errors::Error::Timeout(8, 8)
+    );
 
     msg::send_bytes(source, b"completed", 0);
 }

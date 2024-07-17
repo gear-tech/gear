@@ -186,7 +186,9 @@ impl fmt::Display for UsageError {
                 write!(f, "System reservation amount can not be zero in config")
             }
             UsageError::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero"),
-            UsageError::ZeroReplyDeposit => write!(f, "Reply deposit can not be zero"),
+            UsageError::ZeroReplyDeposit => {
+                write!(f, "Reply deposit can not be zero when setting reply hook")
+            }
         }
     }
 }
