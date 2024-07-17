@@ -44,7 +44,7 @@ struct Listener {
 
 impl Listener {
     pub fn new(mut observer: Observer) -> Self {
-        let (sender, receiver) = mpsc::channel::<Event>(8 * 1024 * 1024);
+        let (sender, receiver) = mpsc::channel::<Event>(1024);
 
         let _handle = task::spawn(async move {
             let observer_events = observer.events();
