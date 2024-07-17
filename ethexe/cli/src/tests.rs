@@ -217,7 +217,7 @@ async fn ping() {
     let mut listener = env.new_listener();
 
     let service = env.service.take().unwrap();
-    let _ = tokio::task::spawn(service.run());
+    let service_handle = tokio::task::spawn(service.run());
 
     let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
 
@@ -229,7 +229,7 @@ async fn ping() {
                 assert_eq!(loaded.code.as_slice(), demo_ping::WASM_BINARY);
                 Ok(Some(()))
             } else {
-                return Ok(None);
+                Ok(None)
             }
         })
         .await
@@ -306,4 +306,6 @@ async fn ping() {
         })
         .await
         .unwrap();
+
+    service_handle.abort();
 }
