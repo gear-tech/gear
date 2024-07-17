@@ -1,7 +1,26 @@
+// This file is part of Gear.
+
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Wasmer's module caches
+
 use std::{
     fs::{self, File},
-    io,
-    io::Write,
+    io::{self, Write},
     path::PathBuf,
     sync::{Mutex, OnceLock},
 };
@@ -51,7 +70,7 @@ fn fs_cache() -> Result<FileSystemCache, CachedModuleErr> {
 pub fn get_cached_module(
     wasm: &[u8],
     store: &sandbox_wasmer::Store,
-) -> core::result::Result<Module, CachedModuleErr> {
+) -> Result<Module, CachedModuleErr> {
     let mut lru_lock = lru_cache().lock().expect("CACHED_MODULES lock fail");
 
     let maybe_module = lru_lock.find(|x| x.wasm == wasm);
@@ -75,13 +94,10 @@ pub fn get_cached_module(
             .load(code_hash)
             .map_err(|_| CacheMissErr(fs_cache.clone(), code_hash))?;
 
-        lru_cache()
-            .lock()
-            .expect("CACHED_MODULES lock fail")
-            .insert(CachedModule {
-                wasm: wasm.to_vec(),
-                serialized_module: serialized_module.clone(),
-            });
+        lru_lock.insert(CachedModule {
+            wasm: wasm.to_vec(),
+            serialized_module: serialized_module.clone(),
+        });
 
         // SAFETY: We trust the module in FS cache.
         let module = unsafe {
@@ -109,14 +125,14 @@ pub fn try_to_store_module_in_cache(
         .into();
 
     // Store module in LRU cache
-    let res = lru_cache()
+    let _ = lru_cache()
         .lock()
         .expect("CACHED_MODULES lock fail")
         .insert(CachedModule {
             wasm: wasm.to_vec(),
             serialized_module: serialized_module.clone(),
         });
-    log::trace!("Store module in LRU cache with result: {:?}", res.is_some());
+    log::trace!("Store module in LRU cache");
 
     let res = fs_cache.store(code_hash, &serialized_module);
     log::trace!("Store module in FS cache with result: {:?}", res);
@@ -184,28 +200,29 @@ impl FileSystemCache {
     /// If an error occurs while deserializing then we can not trust it anymore
     /// so delete the cache file
     fn remove_key(&self, key: Hash) {
-        let filename = if let Some(ref ext) = self.ext {
-            format!("{}.{}", key, ext)
-        } else {
-            key.to_string()
-        };
+        let filename = Self::compose_filename(self.ext.as_deref(), key);
         let path = self.path.join(filename);
 
-        let _ = fs::remove_file(path);
+        let res = fs::remove_file(path);
+        log::trace!("Remove module from FS cache with result: {:?}", res);
     }
 
     /// Store the serialized module in the cache.
     fn store(&mut self, key: Hash, serialized_module: &[u8]) -> Result<(), io::Error> {
-        let filename = if let Some(ref ext) = self.ext {
-            format!("{}.{}", key, ext)
-        } else {
-            key.to_string()
-        };
+        let filename = Self::compose_filename(self.ext.as_deref(), key);
         let path = self.path.join(filename);
         let mut file = File::create(path)?;
 
         file.write_all(serialized_module)?;
 
         Ok(())
+    }
+
+    fn compose_filename(extension: Option<&str>, key: Hash) -> PathBuf {
+        match extension {
+            Some(extension) => format!("{key}.{extension}"),
+            None => key.to_string(),
+        }
+        .into()
     }
 }
