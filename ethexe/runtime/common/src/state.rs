@@ -170,12 +170,6 @@ pub trait Storage {
     /// Writes allocations and returns its hash.
     fn write_allocations(&self, allocations: Allocations) -> H256;
 
-    /// Reads gas reservation map by gas reservation map hash.
-    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap>;
-
-    /// Writes gas reservation map and returns its hash.
-    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256;
-
     /// Reads payload by payload hash.
     fn read_payload(&self, hash: H256) -> Option<Payload>;
 

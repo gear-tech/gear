@@ -250,14 +250,6 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             .expect("Cannot get allocations")
     });
 
-    let gas_reservation_map = active_state
-        .gas_reservation_map_hash
-        .with_hash_or_default(|hash| {
-            ri.storage()
-                .read_gas_reservation_map(hash)
-                .expect("Cannot get gas reservation map")
-        });
-
     let pages_map = active_state.pages_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_pages(hash)
@@ -268,7 +260,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         code_id,
         code_exports: code.exports().clone(),
         static_pages: code.static_pages(),
-        gas_reservation_map,
+        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
         memory_infix: active_state.memory_infix,
     };
 
