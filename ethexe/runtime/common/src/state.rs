@@ -28,7 +28,7 @@ use gear_core::{
     code::InstrumentedCode,
     ids::ProgramId,
     memory::PageBuf,
-    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, Value},
+    message::{Payload, StoredDispatch, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
     reservation::GasReservationMap,
@@ -111,29 +111,9 @@ pub struct ProgramState {
     pub balance: Value,
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
-pub struct Dispatch {
-    /// Message id.
-    pub id: MessageId,
-    /// Dispatch kind.
-    pub kind: DispatchKind,
-    /// Message source.
-    pub source: ProgramId,
-    /// Message payload.
-    pub payload_hash: MaybeHash,
-    /// Message gas limit. Required here.
-    pub gas_limit: GasLimit,
-    /// Message value.
-    pub value: Value,
-    /// Message details like reply message ID, status code, etc.
-    pub details: Option<MessageDetails>,
-    /// Message previous executions context.
-    pub context: Option<ContextStore>,
-}
+pub type MessageQueue = VecDeque<StoredDispatch<MaybeHash>>;
 
-pub type MessageQueue = VecDeque<Dispatch>;
-
-pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
+pub type Waitlist = BTreeMap<BlockNumber, Vec<StoredDispatch<MaybeHash>>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 

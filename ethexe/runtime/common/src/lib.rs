@@ -44,8 +44,7 @@ use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use state::{
-    ActiveProgram, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState,
-    Storage, Waitlist,
+    ActiveProgram, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState, Storage, Waitlist,
 };
 
 extern crate alloc;
@@ -198,16 +197,10 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         }
     };
 
-    let Dispatch {
-        id: dispatch_id,
-        kind,
-        source,
-        payload_hash,
-        gas_limit,
-        value,
-        details,
-        context,
-    } = queue.pop_front().unwrap();
+    let stored_dispatch_with_hash = queue.pop_front().unwrap();
+
+    let dispatch_id = stored_dispatch_with_hash.id();
+    let kind = stored_dispatch_with_hash.kind();
 
     if active_state.initialized && kind == DispatchKind::Init {
         // Panic is impossible, because gear protocol does not provide functionality
@@ -224,13 +217,15 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         todo!("Process messages to uninitialized program");
     }
 
-    let payload = payload_hash
+    let payload = stored_dispatch_with_hash
+        .payload()
         .with_hash_or_default(|hash| ri.storage().read_payload(hash).expect("Cannot get payload"));
 
-    let incoming_message =
-        IncomingMessage::new(dispatch_id, source, payload, gas_limit, value, details);
+    let stored_dispatch = stored_dispatch_with_hash.cast(|_hash| payload);
 
-    let dispatch = IncomingDispatch::new(kind, incoming_message, context);
+    let gas_limit = 100_000_000_000; // TODO (breathx): set execution balance.
+
+    let dispatch = stored_dispatch.into_incoming(gas_limit);
 
     let precharged_dispatch = match core_processor::precharge_for_program(
         &block_config,

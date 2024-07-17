@@ -1,4 +1,4 @@
-use crate::state::{self, Dispatch, HashAndLen, MaybeHash, ProgramState, Storage};
+use crate::state::{self, HashAndLen, MaybeHash, ProgramState, Storage};
 use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
@@ -7,10 +7,7 @@ use core_processor::{
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
-    message::{
-        Dispatch as CoreDispatch, Message, MessageWaitedType, Payload, StoredDispatch,
-        StoredMessage,
-    },
+    message::{Dispatch, MessageWaitedType, Payload, StoredDispatch, StoredMessage},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::ProgramState as InitStatus,
     reservation::GasReserver,
@@ -25,7 +22,7 @@ pub struct Handler<'a, S: Storage> {
     pub block_info: BlockInfo,
     // TODO: replace with something reasonable.
     pub results: BTreeMap<ActorId, (H256, H256)>,
-    pub to_users_messages: Vec<Message>,
+    pub to_users_messages: Vec<StoredMessage>,
 }
 
 impl<S: Storage> Handler<'_, S> {
@@ -67,7 +64,7 @@ impl<S: Storage> Handler<'_, S> {
 
         let new_queue_hash = storage.write_queue(queue);
 
-        (new_queue_hash, dispatch.id)
+        (new_queue_hash, dispatch.id())
     }
 }
 
@@ -151,43 +148,34 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn send_dispatch(
         &mut self,
         message_id: MessageId,
-        dispatch: CoreDispatch,
+        dispatch: Dispatch,
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
+        let dispatch = dispatch.into_stored();
+
         if reservation.is_some() {
-            todo!()
+            unreachable!("deprecated");
         }
 
         if delay != 0 {
-            todo!()
+            todo!("delayed sending isn't supported yet")
         }
 
         if !self.program_states.contains_key(&dispatch.destination()) {
             self.to_users_messages.push(dispatch.into_parts().1);
             return;
-        }
+        };
 
-        let (kind, message) = dispatch.into_parts();
-        let (id, source, destination, payload, gas_limit, value, details) = message.into_parts();
+        let dispatch = dispatch.cast(|payload| self.storage.write_payload(payload).into());
 
-        let payload_hash = self.storage.write_payload(payload).into();
-
-        self.update_program(destination, |state, storage| {
+        self.update_program(dispatch.destination(), |state, storage| {
             let mut queue = state.queue_hash.with_hash_or_default(|hash| {
                 storage.read_queue(hash).expect("Failed to read queue")
             });
-            let dispatch = Dispatch {
-                id,
-                kind,
-                source,
-                payload_hash,
-                gas_limit: gas_limit.unwrap_or(100_000_000_000), // TODO
-                value,
-                details,
-                context: None,
-            };
+
             queue.push_back(dispatch);
+
             let queue_hash = storage.write_queue(queue).into();
             Some(ProgramState {
                 queue_hash,
@@ -202,36 +190,24 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         duration: Option<u32>,
         waited_type: MessageWaitedType,
     ) {
-        let (kind, message, context) = dispatch.into_parts();
         let Some(duration) = duration else {
             todo!("Wait dispatch without specified duration");
         };
+
+        let dispatch = dispatch.cast(|payload| self.storage.write_payload(payload).into());
+
         let block = self.block_info.height.saturating_add(duration);
 
-        let (id, source, destination, payload, value, details) = message.into_parts();
+        log::trace!("Adding {:?} to waitlist (#{block})", dispatch);
 
-        let payload_hash = self.storage.write_payload(payload).into();
-
-        let dispatch = Dispatch {
-            id,
-            kind,
-            source,
-            payload_hash,
-            gas_limit: 100_000_000_000, // TODO
-            value,
-            details,
-            context,
-        };
-
-        log::trace!("{:?} was added to waitlist block {block}", dispatch);
-
-        self.update_program(destination, |state, storage| {
+        self.update_program(dispatch.destination(), |state, storage| {
             let (queue_hash, pop_id) = Self::pop_queue_message(&state, storage);
 
-            if pop_id != dispatch.id {
+            if pop_id != dispatch.id() {
+                // TODO (breathx): figure out what's it.
                 unreachable!(
                     "First message in queue is {pop_id}, but {} was waited",
-                    dispatch.id
+                    dispatch.id()
                 );
             }
 
@@ -240,6 +216,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                     .read_waitlist(hash)
                     .expect("Failed to read waitlist")
             });
+
             waitlist.entry(block).or_default().push(dispatch);
 
             Some(ProgramState {
@@ -280,7 +257,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 let Some(index) = list
                     .iter()
                     .enumerate()
-                    .find_map(|(index, dispatch)| (dispatch.id == awakening_id).then_some(index))
+                    .find_map(|(index, dispatch)| (dispatch.id() == awakening_id).then_some(index))
                 else {
                     continue;
                 };

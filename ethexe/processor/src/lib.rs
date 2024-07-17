@@ -22,12 +22,10 @@ use anyhow::Result;
 use core_processor::common::JournalNote;
 use ethexe_common::{events::BlockEvent, StateTransition};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::{
-    self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
-};
+use ethexe_runtime_common::state::{self, ActiveProgram, MaybeHash, ProgramState, Storage};
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
-    message::{DispatchKind, Payload},
+    message::{DispatchKind, Payload, StoredDispatch, StoredMessage},
     program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
@@ -41,12 +39,12 @@ mod run;
 #[cfg(test)]
 mod tests;
 
-#[allow(unused)]
 pub struct UserMessage {
     id: MessageId,
     kind: DispatchKind,
     source: ActorId,
     payload: Vec<u8>,
+    #[allow(unused)] // TODO (breathx): remove me.
     gas_limit: u64,
     value: u128,
 }
@@ -174,17 +172,19 @@ impl Processor {
                 .then_some(MaybeHash::Empty)
                 .unwrap_or_else(|| self.db.write_payload(payload).into());
 
-            let dispatch = Dispatch {
-                id: message.id,
-                kind: message.kind,
-                source: message.source,
-                payload_hash,
-                gas_limit: message.gas_limit,
-                value: message.value,
-                // TODO: handle replies.
-                details: None,
-                context: None,
-            };
+            // TODO: handle replies.
+            let dispatch = StoredDispatch::new(
+                message.kind,
+                StoredMessage::new(
+                    message.id,
+                    message.source,
+                    ActorId::zero(), // TODO (breathx): set program id
+                    payload_hash,
+                    message.value,
+                    None,
+                ),
+                None,
+            );
 
             dispatches.push(dispatch);
         }

@@ -26,7 +26,7 @@ use ethexe_db::CodesStorage;
 use ethexe_runtime_common::Handler;
 use gear_core::{
     ids::{ActorId, ProgramId},
-    message::Message,
+    message::StoredMessage,
 };
 use gprimitives::H256;
 use std::collections::BTreeMap;
@@ -49,7 +49,7 @@ pub fn run(
     threads_amount: usize,
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
-) -> (Vec<Message>, Vec<LocalOutcome>) {
+) -> (Vec<StoredMessage>, Vec<LocalOutcome>) {
     tokio::task::block_in_place(|| {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(threads_amount)
@@ -66,7 +66,7 @@ pub fn run(
 async fn run_in_async(
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
-) -> (Vec<Message>, Vec<LocalOutcome>) {
+) -> (Vec<StoredMessage>, Vec<LocalOutcome>) {
     let mut to_users_messages = vec![];
     let mut results = BTreeMap::new();
 
@@ -144,15 +144,8 @@ async fn run_in_async(
                 outgoing_messages: outgoing_messages
                     .into_iter()
                     .map(|message| {
-                        let (
-                            message_id,
-                            _source,
-                            destination,
-                            payload,
-                            _gas_limit,
-                            value,
-                            message_details,
-                        ) = message.into_parts();
+                        let (message_id, _source, destination, payload, value, message_details) =
+                            message.into_parts();
                         let reply_details =
                             message_details.and_then(|details| details.to_reply_details());
 
