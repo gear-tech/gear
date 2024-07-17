@@ -69,7 +69,8 @@ macro_rules! impl_futures {
             ///
             /// This callback will be executed in reply context and consume reply gas, so
             /// adequate `reply_deposit` should be supplied in `*_for_reply` call
-            /// that comes before this.
+            /// that comes before this. Note that the hook will still be executed on reply
+            /// even after original future resolves in timeout.
             ///
             /// # Examples
             ///
