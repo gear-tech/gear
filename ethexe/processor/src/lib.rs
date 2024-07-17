@@ -133,7 +133,6 @@ impl Processor {
         let active_program = ActiveProgram {
             allocations_hash: MaybeHash::Empty,
             pages_hash: MaybeHash::Empty,
-            gas_reservation_map_hash: MaybeHash::Empty,
             memory_infix: MemoryInfix::new(0),
             initialized: false,
         };

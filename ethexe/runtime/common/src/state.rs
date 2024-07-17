@@ -83,8 +83,6 @@ pub struct ActiveProgram {
     pub allocations_hash: MaybeHash,
     /// Hash of memory pages table, see [`MemoryPages`].
     pub pages_hash: MaybeHash,
-    /// Hash of gas reservations map, see [`GasReservationMap`].
-    pub gas_reservation_map_hash: MaybeHash,
     /// Program memory infix.
     pub memory_infix: MemoryInfix,
     /// Program initialization status.
