@@ -350,20 +350,37 @@ pub struct GasMultiplier {
     value_per_gas: Value,
 }
 
+// TODO: handle overflows.
 impl GasMultiplier {
+    /// Creates GasMultiplier with gas == value.
+    pub fn one() -> Self {
+        Self {
+            gas_per_value: 1,
+            value_per_gas: 1,
+        }
+    }
+
     /// Creates GasMultiplier from gas per value multiplier.
     pub fn from_gas_per_value(gas_per_value: Gas) -> Self {
-        Self {
-            gas_per_value,
-            value_per_gas: 0,
+        if gas_per_value == 1 {
+            Self::one()
+        } else {
+            Self {
+                gas_per_value,
+                value_per_gas: 0,
+            }
         }
     }
 
     /// Creates GasMultiplier from value per gas multiplier.
     pub fn from_value_per_gas(value_per_gas: Value) -> Self {
-        Self {
-            gas_per_value: 0,
-            value_per_gas,
+        if value_per_gas == 1 {
+            Self::one()
+        } else {
+            Self {
+                gas_per_value: 0,
+                value_per_gas,
+            }
         }
     }
 
@@ -374,6 +391,16 @@ impl GasMultiplier {
             unimplemented!("Currently unsupported that 1 Value > 1 Gas");
         }
         (gas as u128).saturating_mul(self.value_per_gas)
+    }
+
+    /// Converts given value amount into its gas equivalent, rounding to lower.
+    pub fn value_to_gas(&self, value: Value) -> Gas {
+        if self.gas_per_value == 0 {
+            // Consider option to return `(*cost*, *amount of gas to be bought*)`.
+            unimplemented!("Currently unsupported that 1 Value > 1 Gas");
+        }
+
+        value.saturating_mul(self.gas_per_value as u128) as Gas
     }
 }
 

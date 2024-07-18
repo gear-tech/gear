@@ -140,8 +140,8 @@ impl Processor {
             state: state::Program::Active(active_program),
             queue_hash: MaybeHash::Empty,
             waitlist_hash: MaybeHash::Empty,
-            // TODO: remove program balance from here.
             balance: 0,
+            executable_balance: 10_000_000_000_000, // TODO: remove this minting
         };
 
         // TODO: not write zero state, but just register it (or support default on get)
@@ -175,7 +175,7 @@ impl Processor {
                 StoredMessage::new(
                     message.id,
                     message.source,
-                    ActorId::zero(), // TODO (breathx): set program id
+                    ActorId::zero(), // TODO: store IncomingMessages without gas
                     payload_hash,
                     message.value,
                     None,

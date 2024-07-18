@@ -105,8 +105,10 @@ pub struct ProgramState {
     pub queue_hash: MaybeHash,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHash,
-    /// Balance
+    /// Reducible balance.
     pub balance: Value,
+    /// Executable balance.
+    pub executable_balance: Value,
 }
 
 pub type MessageQueue = VecDeque<StoredDispatch<MaybeHash>>;

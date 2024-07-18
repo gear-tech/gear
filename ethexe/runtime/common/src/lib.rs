@@ -57,6 +57,8 @@ pub use journal::Handler;
 
 const RUNTIME_ID: u32 = 0;
 
+pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
+
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
 
@@ -217,13 +219,16 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         todo!("Process messages to uninitialized program");
     }
 
-    let payload = stored_dispatch_with_hash
-        .payload()
-        .with_hash_or_default(|hash| ri.storage().read_payload(hash).expect("Cannot get payload"));
+    let stored_dispatch = stored_dispatch_with_hash.cast(|maybe_hash| {
+        maybe_hash.with_hash_or_default(|hash| {
+            ri.storage().read_payload(hash).expect("Cannot get payload")
+        })
+    });
 
-    let stored_dispatch = stored_dispatch_with_hash.cast(|_hash| payload);
-
-    let gas_limit = 100_000_000_000; // TODO (breathx): set execution balance.
+    let gas_limit = block_config
+        .gas_multiplier
+        .value_to_gas(program_state.executable_balance)
+        .min(BLOCK_GAS_LIMIT);
 
     let dispatch = stored_dispatch.into_incoming(gas_limit);
 
