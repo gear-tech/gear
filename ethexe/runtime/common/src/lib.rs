@@ -217,7 +217,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
 
     let code = instrumented_code.expect("Instrumented code must be provided if program is active");
 
-    // TODO: support normal allocations len +_+_+
+    // TODO: support normal allocations len #4068
     let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_allocations(hash)
