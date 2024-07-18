@@ -34,8 +34,11 @@ use common::{
     storage::*,
     GasTree, LockId, LockableTree, Origin,
 };
-use core::cmp::{Ord, Ordering};
-use frame_support::traits::{Currency, ExistenceRequirement};
+use core::{
+    cmp::{Ord, Ordering},
+    num::NonZeroUsize,
+};
+use frame_support::traits::{fungible, Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{prelude::*, MessageId, ProgramId, ReservationId},
@@ -44,7 +47,10 @@ use gear_core::{
         UserStoredMessage,
     },
 };
-use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero},
+    DispatchError, TokenError,
+};
 
 /// [`HoldBound`] builder
 #[derive(Clone, Debug)]
@@ -186,6 +192,12 @@ where
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum InheritorForError {
+    Cyclic { holders: BTreeSet<ProgramId> },
+    NotFound,
+}
+
 // Internal functionality implementation.
 impl<T: Config> Pallet<T>
 where
@@ -194,9 +206,8 @@ where
     // Reset of all storages.
     #[cfg(feature = "runtime-benchmarks")]
     pub(crate) fn reset() {
-        use common::{CodeStorage, GasProvider, PausedProgramStorage, ProgramStorage};
+        use common::{CodeStorage, GasProvider, ProgramStorage};
 
-        <<T as Config>::ProgramStorage as PausedProgramStorage>::reset();
         <<T as Config>::ProgramStorage as ProgramStorage>::reset();
         <T as Config>::CodeStorage::reset();
         <T as Config>::GasProvider::reset();
@@ -771,8 +782,25 @@ where
             Some(hold.expected())
         } else {
             // Permanently transferring funds.
+            // Note that we have no guarantees of the user account to exist. Since no minimum
+            // transfer value is enforced, the transfer can fail. Handle it gracefully.
+            // TODO #4018 Introduce a safer way to handle this.
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
-                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+                .unwrap_or_else(|e| match e {
+                    DispatchError::Token(TokenError::BelowMinimum) => {
+                        log::debug!(
+                            "Failed to transfer value: {:?}. User account balance is too low.",
+                            e
+                        );
+                        <CurrencyOf<T> as fungible::Unbalanced<_>>::handle_dust(fungible::Dust(
+                            value,
+                        ));
+                    }
+                    _ => {
+                        // Other errors are ruled out by the protocol guarantees.
+                        unreachable!("Failed to transfer value: {:?}", e)
+                    }
+                });
 
             if message.details().is_none() {
                 // Creating auto reply message.
@@ -903,22 +931,37 @@ where
         );
     }
 
-    pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
+    pub(crate) fn inheritor_for(
+        program_id: ProgramId,
+        max_depth: NonZeroUsize,
+    ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
+        let max_depth = max_depth.get();
+
         let mut inheritor = program_id;
+        let mut holders: BTreeSet<_> = [program_id].into();
 
-        let mut visited_ids: BTreeSet<_> = [program_id].into();
+        loop {
+            let next_inheritor =
+                Self::first_inheritor_of(inheritor).ok_or(InheritorForError::NotFound)?;
 
-        while let Some(id) =
-            Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
-        {
-            if !visited_ids.insert(id) {
+            inheritor = next_inheritor;
+
+            // don't insert user or active program
+            // because it's the final inheritor we already return
+            if Self::first_inheritor_of(next_inheritor).is_none() {
                 break;
             }
 
-            inheritor = id
+            if holders.len() == max_depth {
+                break;
+            }
+
+            if !holders.insert(next_inheritor) {
+                return Err(InheritorForError::Cyclic { holders });
+            }
         }
 
-        inheritor
+        Ok((inheritor, holders))
     }
 
     /// This fn and [`split_with_value`] works the same: they call api of gas

@@ -24,10 +24,11 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 pub use gear_ss58::Ss58Address;
-#[cfg(feature = "codec")]
+pub use nonzero_u256::NonZeroU256;
 pub use primitive_types::{H160, H256, U256};
 
 mod macros;
+mod nonzero_u256;
 mod utils;
 
 use core::{
@@ -85,7 +86,7 @@ pub struct MessageHandle(u32);
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 try_from_slice debug, ActorId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 try_from_slice debug, ActorId);
 
 impl ActorId {
     /// Returns the ss58-check address with default ss58 version.
@@ -100,6 +101,21 @@ impl ActorId {
         RawSs58Address::from(self.0)
             .to_ss58check_with_prefix(version)
             .map_err(|_| ConversionError::Ss58Encode)
+    }
+
+    /// Returns [`H160`] with possible loss of the first 12 bytes.
+    pub fn to_address_lossy(&self) -> H160 {
+        let mut h160 = H160::zero();
+        h160.0.copy_from_slice(&self.into_bytes()[12..]);
+        h160
+    }
+}
+
+impl From<H160> for ActorId {
+    fn from(h160: H160) -> Self {
+        let mut actor_id = Self::zero();
+        actor_id.0[12..].copy_from_slice(h160.as_ref());
+        actor_id
     }
 }
 
@@ -242,7 +258,7 @@ impl<'de> Deserialize<'de> for ActorId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display debug serde, MessageId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, MessageId);
 
 /// Code identifier.
 ///
@@ -258,7 +274,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display 
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str try_from_slice display debug serde, CodeId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str try_from_slice display debug serde, CodeId);
 
 /// Reservation identifier.
 ///
@@ -270,13 +286,13 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str try_from
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display debug serde, ReservationId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, ReservationId);
 
 #[cfg(test)]
 mod tests {
     extern crate alloc;
 
-    use crate::ActorId;
+    use crate::{ActorId, H160};
     use alloc::format;
     use core::str::FromStr;
 
@@ -374,5 +390,28 @@ mod tests {
         let bytes = "foobar";
         let result: Result<ActorId, _> = bytes.as_bytes().try_into();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn actor_id_ethereum_address() {
+        let address: H160 = "0x95222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            format!("{address:?}"),
+            "0x95222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+        );
+
+        let actor_id: ActorId = address.into();
+        assert_eq!(
+            format!("{actor_id}"),
+            "0x00000000000000000000000095222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+        );
+
+        let address = actor_id.to_address_lossy();
+        assert_eq!(
+            format!("{address:?}"),
+            "0x95222290dd7278aa3ddd389cc1e1d165cc4bafe5"
+        );
     }
 }

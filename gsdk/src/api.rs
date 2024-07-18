@@ -37,8 +37,8 @@ pub struct Api {
 
 impl Api {
     /// Create new API client.
-    pub async fn new(url: Option<&str>) -> Result<Self> {
-        Self::new_with_timeout(url, None).await
+    pub async fn new(url: impl Into<Option<&str>>) -> Result<Self> {
+        Self::new_with_timeout(url.into(), None).await
     }
 
     /// Gear RPC Client
@@ -47,7 +47,10 @@ impl Api {
     }
 
     /// Create new API client with timeout.
-    pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
+    pub async fn new_with_timeout(
+        url: impl Into<Option<&str>>,
+        timeout: impl Into<Option<u64>>,
+    ) -> Result<Self> {
         let rpc = Rpc::new(url, timeout).await?;
 
         Ok(Self {

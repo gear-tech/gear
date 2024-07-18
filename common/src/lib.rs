@@ -35,9 +35,6 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 pub mod program_storage;
 pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
 
-pub mod paused_program_storage;
-pub use paused_program_storage::PausedProgramStorage;
-
 pub mod gas_provider;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -56,12 +53,11 @@ use frame_support::{
     },
     traits::Get,
 };
-use gear_core::{
+pub use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
-    pages::{GearPage, WasmPage},
+    pages::GearPage,
     program::{ActiveProgram, MemoryInfix, Program},
-    reservation::GasReservationMap,
 };
 use primitive_types::H256;
 use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
@@ -69,10 +65,7 @@ use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
 };
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use storage::ValueStorage;
 extern crate alloc;

@@ -44,9 +44,9 @@ pub fn patch(pkg: &Package) -> Result<Manifest> {
 
     match manifest.name.as_str() {
         "gear-core-processor" => core_processor::patch(doc),
-        "gear-runtime-interface" => runtime_interface::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
+        "gear-sandbox-interface" => sandbox_interface::patch(doc),
         "gmeta" => gmeta::patch(doc),
         "gmeta-codegen" => gmeta_codegen::patch(doc),
         _ => {}
@@ -145,7 +145,24 @@ mod gmeta_codegen {
     }
 }
 
-mod runtime_interface {
+/// sandbox handler.
+mod sandbox {
+    use toml_edit::DocumentMut;
+
+    /// Replace the wasmi module to the crates-io version.
+    pub fn patch(manifest: &mut DocumentMut) {
+        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+            return;
+        };
+        wasmi.insert("package", "gwasmi".into());
+        wasmi.insert("version", "0.30.0".into());
+        wasmi.remove("branch");
+        wasmi.remove("git");
+    }
+}
+
+/// sandbox interface handler
+mod sandbox_interface {
     use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::DocumentMut;
 
@@ -164,34 +181,18 @@ mod runtime_interface {
     }
 }
 
-/// sandbox handler.
-mod sandbox {
-    use toml_edit::DocumentMut;
-
-    /// Replace the wasmi module to the crates-io version.
-    pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
-            return;
-        };
-        wasmi.insert("package", "gwasmi".into());
-        wasmi.insert("version", "0.30.0".into());
-        wasmi.remove("branch");
-        wasmi.remove("git");
-    }
-}
-
 /// sandbox_host handler.
 mod sandbox_host {
     use toml_edit::DocumentMut;
 
     /// Replace the wasmi module to the crates-io version.
     pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+        let Some(wasmi) = manifest["dependencies"]["sandbox-wasmi"].as_inline_table_mut() else {
             return;
         };
+        wasmi.insert("package", "wasmi".into());
         wasmi.insert("version", "0.13.2".into());
-        wasmi.remove("branch");
-        wasmi.remove("git");
+        wasmi.remove("workspace");
     }
 }
 
@@ -285,7 +286,7 @@ mod substrate {
             "sp-crypto-ec-utils" => {
                 table.insert("package", "gp-crypto-ec-utils".into());
             }
-            _ => {}
+            _ => return,
         }
 
         table.remove("branch");

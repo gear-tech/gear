@@ -75,15 +75,15 @@
 //!
 //! 14. Value catch can be performed only on consumed nodes (not tested).
 
-use super::{auxiliary::gas_provider::*, *};
-use crate::storage::MapStorage;
+use super::*;
+use crate::{auxiliary::gas_provider::*, storage::MapStorage};
 use core::iter::FromIterator;
 use enum_iterator::all;
 use frame_support::{assert_err, assert_ok};
 use gear_utils::{NonEmpty, RingGet};
 use primitive_types::H256;
 use proptest::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use strategies::GasTreeAction;
 
 mod assertions;

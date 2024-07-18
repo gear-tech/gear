@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Auxiliary implementations of the complext data structures,
+//! Auxiliary implementations of the complex data structures,
 //! which manage important for the gear runtime storages. These
 //! implementations can be used in a non-wasm environment.
 
 pub mod gas_provider;
 pub mod mailbox;
 
-use alloc::collections::btree_map::{BTreeMap, Entry};
+use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter};
 
 /// Double key `BTreeMap`.
 ///
-/// Basically is just a map fo the map.
+/// Basically is just a map of the map.
 pub struct DoubleBTreeMap<K1, K2, V> {
     inner: BTreeMap<K1, BTreeMap<K2, V>>,
 }
@@ -49,6 +49,16 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
         self.inner
             .get(key1)
             .map(|map| map.contains_key(key2))
+            .unwrap_or_default()
+    }
+
+    pub fn count_key(&self, key1: &K1) -> usize
+    where
+        K1: Ord,
+    {
+        self.inner
+            .get(key1)
+            .map(|key2_map| key2_map.len())
             .unwrap_or_default()
     }
 
@@ -92,6 +102,32 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
     /// Clears the map, removing all elements.
     pub fn clear(&mut self) {
         self.inner.clear()
+    }
+}
+
+// Iterator related impl
+impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
+    pub fn iter_key(&self, key1: &K1) -> IntoIter<K2, V>
+    where
+        K1: Ord,
+        K2: Clone,
+        V: Clone,
+    {
+        self.inner
+            .get(key1)
+            .cloned()
+            .map(|key2_map| key2_map.into_iter())
+            .unwrap_or_default()
+    }
+
+    pub fn drain_key(&mut self, key1: &K1) -> IntoIter<K2, V>
+    where
+        K1: Ord,
+    {
+        self.inner
+            .remove(key1)
+            .map(|key2_map| key2_map.into_iter())
+            .unwrap_or_default()
     }
 }
 

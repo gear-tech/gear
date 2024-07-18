@@ -344,6 +344,7 @@ impl ProgramBuilder {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Failed to create Program from code");
 
@@ -501,6 +502,21 @@ impl<'a> Program<'a> {
         self.send_bytes_with_value(from, payload.encode(), value)
     }
 
+    /// Send message to the program with gas limit and value.
+    pub fn send_with_gas<ID, P>(
+        &self,
+        from: ID,
+        payload: P,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        P: Encode,
+    {
+        self.send_bytes_with_gas_and_value(from, payload.encode(), gas_limit, value)
+    }
+
     /// Send message to the program with bytes payload.
     pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> RunResult
     where
@@ -513,6 +529,35 @@ impl<'a> Program<'a> {
     /// Send the message to the program with bytes payload and value.
     #[track_caller]
     pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
+        self.send_bytes_with_gas_and_value(from, payload, GAS_ALLOWANCE, value)
+    }
+
+    /// Send the message to the program with bytes payload, gas limit and value.
+    pub fn send_bytes_with_gas<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
+        self.send_bytes_with_gas_and_value(from, payload, gas_limit, value)
+    }
+
+    fn send_bytes_with_gas_and_value<ID, T>(
+        &self,
+        from: ID,
+        payload: T,
+        gas_limit: u64,
+        value: u128,
+    ) -> RunResult
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -530,7 +575,7 @@ impl<'a> Program<'a> {
             source,
             self.id,
             payload.into().try_into().unwrap(),
-            Some(GAS_ALLOWANCE),
+            Some(gas_limit),
             value,
             None,
         );
@@ -836,7 +881,8 @@ pub mod gbuild {
 mod tests {
     use super::Program;
     use crate::{Log, System};
-    use gear_core_errors::ErrorReplyReason;
+    use gear_core::ids::ActorId;
+    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -917,8 +963,26 @@ mod tests {
         assert_eq!(prog.balance(), (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT);
 
         // Request to smash the piggy bank and send the value to the receiver address
-        prog.send_bytes(receiver, b"smash");
-        sys.claim_value_from_mailbox(receiver);
+        let res = prog.send_bytes(receiver, b"smash");
+        let reply_to_id = {
+            let log = res.log();
+            // 1 auto reply and 1 message from program
+            assert_eq!(log.len(), 2);
+
+            let core_log = log
+                .iter()
+                .find(|&core_log| {
+                    core_log.eq(&Log::builder().dest(receiver).payload_bytes(b"send"))
+                })
+                .expect("message not found");
+
+            core_log.id()
+        };
+
+        assert!(sys
+            .get_mailbox(receiver)
+            .claim_value(Log::builder().reply_to(reply_to_id))
+            .is_ok());
         assert_eq!(
             sys.balance_of(receiver),
             (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT
@@ -970,12 +1034,20 @@ mod tests {
         // Get zero value to the receiver's mailbox
         prog.send_bytes(receiver, b"smash");
 
+        let receiver_mailbox = sys.get_mailbox(receiver);
+        assert!(receiver_mailbox
+            .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+            .is_ok());
+        assert_eq!(sys.balance_of(receiver), 0);
+
         // Get the value > ED to the receiver's mailbox
         prog.send_bytes_with_value(sender, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
         prog.send_bytes(receiver, b"smash");
 
         // Check receiver's balance
-        sys.claim_value_from_mailbox(receiver);
+        assert!(receiver_mailbox
+            .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+            .is_ok());
         assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
     }
 
@@ -999,6 +1071,7 @@ mod tests {
         let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
         let signer = 42;
+        let signer_mailbox = sys.get_mailbox(signer);
 
         // Init capacitor with limit = 15
         prog.send(signer, InitMessage::Capacitor("15".to_string()));
@@ -1024,7 +1097,7 @@ mod tests {
             .payload_bytes("Discharged: 20");
         // dbg!(log.clone());
         assert!(response.contains(&log));
-        sys.claim_value_from_mailbox(signer);
+        assert!(signer_mailbox.claim_value(log).is_ok());
 
         prog.load_memory_dump("./296c6962726/demo_custom.dump");
         drop(cleanup);
@@ -1036,7 +1109,7 @@ mod tests {
             .dest(signer)
             .payload_bytes("Discharged: 20");
         assert!(response.contains(&log));
-        sys.claim_value_from_mailbox(signer);
+        assert!(signer_mailbox.claim_value(log).is_ok());
     }
 
     #[test]
@@ -1109,5 +1182,29 @@ mod tests {
 
         let run_result = prog.send_bytes(user_id, []);
         assert!(!run_result.main_failed());
+    }
+
+    #[test]
+    fn test_insufficient_gas() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
+
+        let user_id = ActorId::zero();
+
+        // set insufficient gas for execution
+        let res = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+
+        let expected_log =
+            Log::builder()
+                .source(prog.id())
+                .dest(user_id)
+                .reply_code(ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas,
+                )));
+
+        assert!(res.contains(&expected_log));
+        assert!(res.main_failed());
     }
 }
