@@ -25,4 +25,4 @@ gstd = { path = ".." }
 trybuild.workspace = true
 
 [features]
-ethexe = []
+ethexe = ["gstd/ethexe"]

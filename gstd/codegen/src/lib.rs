@@ -135,8 +135,16 @@ impl Parse for MainAttrs {
                 "handle_reply" => {
                     attrs.handle_reply = Some(path);
                 }
+                #[cfg(not(feature = "ethexe"))]
                 "handle_signal" => {
                     attrs.handle_signal = Some(path);
+                }
+                #[cfg(feature = "ethexe")]
+                "handle_signal" => {
+                    return Err(syn::Error::new_spanned(
+                        name,
+                        "`handle_signal` is forbidden with `ethexe` feature on",
+                    ));
                 }
                 _ => return Err(syn::Error::new_spanned(name, "unknown parameter")),
             }
@@ -320,7 +328,7 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// handlers. Note that custom reply and signal handlers derive their default
 /// behavior.
 ///
-/// ```
+/// ```ignore
 /// #[gstd::async_init(handle_signal = my_handle_signal)]
 /// async fn init() {
 ///     // ...
@@ -682,9 +690,18 @@ mod tests {
     #[test]
     fn ui() {
         let t = trybuild::TestCases::new();
-        t.pass("tests/ui/async_init_works.rs");
-        t.pass("tests/ui/async_main_works.rs");
-        t.compile_fail("tests/ui/signal_double_definition_not_work.rs");
-        t.compile_fail("tests/ui/reply_double_definition_not_work.rs");
+
+        #[cfg(not(feature = "ethexe"))]
+        {
+            t.pass("tests/ui/async_init_works.rs");
+            t.pass("tests/ui/async_main_works.rs");
+            t.compile_fail("tests/ui/signal_double_definition_not_work.rs");
+            t.compile_fail("tests/ui/reply_double_definition_not_work.rs");
+        }
+
+        #[cfg(feature = "ethexe")]
+        {
+            t.compile_fail("tests/ui/signal_doesnt_work_with_ethexe.rs");
+        }
     }
 }
