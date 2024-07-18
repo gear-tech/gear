@@ -23,3 +23,6 @@ gprimitives.workspace = true
 [dev-dependencies]
 gstd = { path = ".." }
 trybuild.workspace = true
+
+[features]
+ethexe = []

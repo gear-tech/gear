@@ -157,26 +157,32 @@ extern crate galloc;
 mod async_runtime;
 mod common;
 mod config;
+#[cfg(not(feature = "ethexe"))]
 pub mod critical;
 pub mod exec;
 mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
+#[cfg(not(feature = "ethexe"))]
 mod reservations;
 pub mod sync;
 pub mod util;
 
-pub use async_runtime::{handle_signal, message_loop, record_reply};
-pub use common::{errors, primitives_ext::*};
+pub use async_runtime::{message_loop, record_reply};
+pub use common::errors;
 pub use config::Config;
 pub use gcore::{
     ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
-    ReservationId, Ss58Address, Value,
+    Ss58Address, Value,
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
-pub use reservations::*;
+
+#[cfg(not(feature = "ethexe"))]
+pub use {
+    async_runtime::handle_signal, common::primitives_ext::*, gcore::ReservationId, reservations::*,
+};
 
 // This allows all casts from u32 into usize be safe.
 const _: () = assert!(core::mem::size_of::<u32>() <= core::mem::size_of::<usize>());
