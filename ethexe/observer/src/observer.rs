@@ -206,6 +206,8 @@ pub(crate) async fn read_block_events(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::MockBlobReader;
     use alloy::node_bindings::Anvil;
@@ -240,7 +242,7 @@ mod tests {
         let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
         let ethereum = Ethereum::deploy(&ethereum_rpc, validators, signer, sender_address).await?;
-        let blob_reader = Arc::new(MockBlobReader::default());
+        let blob_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
 
         let router_address = ethereum.router().address();
         let cloned_blob_reader = blob_reader.clone();

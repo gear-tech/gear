@@ -31,7 +31,7 @@ use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::mpsc::{self, Receiver},
     task::{self, JoinHandle},
@@ -105,6 +105,8 @@ struct TestEnv {
 
 impl TestEnv {
     async fn new(rpc: String) -> Result<TestEnv> {
+        let block_time = Duration::from_secs(1);
+
         let db = Database::from_one(&MemDb::default());
 
         let net_config = ethexe_network::NetworkConfiguration::new_local();
@@ -125,7 +127,7 @@ impl TestEnv {
         let sender_address = sender_public_key.to_address();
         let validators = vec![validator_public_key.to_address()];
         let ethereum = Ethereum::deploy(&rpc, validators, signer.clone(), sender_address).await?;
-        let blob_reader = Arc::new(MockBlobReader::default());
+        let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
         let router_address = ethereum.router().address();
 
@@ -179,6 +181,7 @@ impl TestEnv {
             Some(validator),
             None,
             rpc,
+            block_time,
         );
 
         let env = TestEnv {
