@@ -20,8 +20,12 @@
 
 use crate::{
     auxiliary::DoubleBTreeMap,
-    storage::{DoubleMapStorage, Interval, MailboxError, MailboxImpl, MailboxKeyGen},
+    storage::{
+        CountedByKey, DoubleMapStorage, GetSecondPos, Interval, IterableByKeyMap, IteratorWrap,
+        MailboxError, MailboxImpl, MailboxKeyGen,
+    },
 };
+use alloc::collections::btree_map::IntoIter;
 use core::cell::RefCell;
 use gear_core::{
     ids::{MessageId, ProgramId},
@@ -94,6 +98,41 @@ impl DoubleMapStorage for MailboxStorageWrap {
 
     fn clear_prefix(_first_key: Self::Key1) {
         unimplemented!()
+    }
+}
+
+impl CountedByKey for MailboxStorageWrap {
+    type Key = ProgramId;
+    type Length = usize;
+
+    fn len(key: &Self::Key) -> Self::Length {
+        MAILBOX_STORAGE.with_borrow(|map| map.count_key(key))
+    }
+}
+
+impl IterableByKeyMap<(MailboxedMessage, Interval<BlockNumber>)> for MailboxStorageWrap {
+    type Key = ProgramId;
+
+    type DrainIter = IteratorWrap<
+        IntoIter<MessageId, (MailboxedMessage, Interval<BlockNumber>)>,
+        (MailboxedMessage, Interval<BlockNumber>),
+        GetSecondPos,
+    >;
+
+    type Iter = IteratorWrap<
+        IntoIter<MessageId, (MailboxedMessage, Interval<BlockNumber>)>,
+        (MailboxedMessage, Interval<BlockNumber>),
+        GetSecondPos,
+    >;
+
+    fn drain_key(key: Self::Key) -> Self::DrainIter {
+        MAILBOX_STORAGE
+            .with_borrow_mut(|map| map.drain_key(&key))
+            .into()
+    }
+
+    fn iter_key(key: Self::Key) -> Self::Iter {
+        MAILBOX_STORAGE.with_borrow(|map| map.iter_key(&key)).into()
     }
 }
 

@@ -61,7 +61,7 @@ use common::{
     storage::{Interval, IterableByKeyMap, Queue},
     CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
-use core::fmt;
+use core::{fmt, mem};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -69,7 +69,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
-    program::{ActiveProgram, MemoryInfix, Program, ProgramState},
+    program::{ActiveProgram, Program, ProgramState},
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -277,7 +277,7 @@ where
         Self::remove_gas_reservation_slot(reservation_id, slot)
     }
 
-    pub fn remove_gas_reservation_map(
+    fn remove_gas_reservation_map(
         program_id: ProgramId,
         gas_reservation_map: BTreeMap<ReservationId, GasReservationSlot>,
     ) {
@@ -327,16 +327,19 @@ where
         }
     }
 
-    /// Removes memory pages of the program and transfers program balance to the `value_destination`.
+    /// Removes reservation map and memory pages of the program
     fn clean_inactive_program(
         program_id: ProgramId,
-        memory_infix: MemoryInfix,
+        program: &mut ActiveProgram<BlockNumberFor<T>>,
         value_destination: ProgramId,
     ) {
+        Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
+
         ProgramStorageOf::<T>::clear_allocations(program_id);
-        ProgramStorageOf::<T>::clear_program_memory(program_id, memory_infix);
+        ProgramStorageOf::<T>::clear_program_memory(program_id, program.memory_infix);
 
         let program_account = program_id.cast();
+        let value_destination = value_destination.cast();
 
         // Remove the ED lock to allow the account to be reaped.
         CurrencyOf::<T>::remove_lock(EXISTENTIAL_DEPOSIT_LOCK_ID, &program_account);
@@ -350,13 +353,11 @@ where
             Fortitude::Polite,
         );
         if !balance.is_zero() {
-            let destination = Pallet::<T>::inheritor_for(value_destination).cast();
-
             // The transfer is guaranteed to succeed since the amount contains at least the ED
             // from the deactivated program.
             CurrencyOf::<T>::transfer(
                 &program_account,
-                &destination,
+                &value_destination,
                 balance,
                 ExistenceRequirement::AllowDeath,
             )
@@ -388,12 +389,7 @@ where
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
 
             if let Program::Active(program) = p {
-                Self::remove_gas_reservation_map(
-                    program_id,
-                    core::mem::take(&mut program.gas_reservation_map),
-                );
-
-                Self::clean_inactive_program(program_id, program.memory_infix, origin);
+                Self::clean_inactive_program(program_id, program, origin);
             }
 
             *p = Program::Terminated(origin);
