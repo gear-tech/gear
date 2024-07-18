@@ -716,9 +716,9 @@ where
                     // Explain
                     if gas_limit.saturating_sub(gas_for_delay) < threshold {
                         log::error!(
-                            "Insufficient gas for sending dispatch {} to mailbox with a {} delay. \
+                            "Insufficient gas in {} message to cover the mailbox threhsold with a {} delay. \
                             Gas limit - {}, gas for delay - {}, threshold - {}, reservation - {:?}.",
-                            dispatch.id(), delay, gas_limit, gas_for_delay, threshold, reservation,
+                            origin_msg, delay, gas_limit, gas_for_delay, threshold, reservation,
                         );
                         unreachable!("Mailbox message with delay gas coverage invalidated!");
                     }
