@@ -16,12 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Backend, Code, Message};
+use crate::{
+    client::{Message, Program},
+    Backend, Code, TxResult,
+};
 use anyhow::Result;
 use async_trait::async_trait;
-use gear_core::ids::ProgramId;
-use gtest::{Program, System};
-use std::{collections::HashMap, sync::Arc};
+use gear_core::{ids::ProgramId, message::UserStoredMessage};
+use gprimitives::MessageId;
+use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
+use gtest::System;
+use parity_scale_codec::Decode;
+use std::{fs, path::PathBuf, sync::Arc};
 
 /// gear general client gtest backend
 pub struct Gtest {
@@ -31,14 +37,33 @@ pub struct Gtest {
 
 #[async_trait]
 impl Backend for Gtest {
-    async fn deploy(&self, _code: impl Code) -> Result<()> {
-        Ok(())
+    async fn program(&self, id: ProgramId) -> Result<Program<Self>> {
+        todo!()
     }
 
-    async fn send<M>(&self, _id: ProgramId, message: M) -> Result<()>
+    async fn deploy<M>(&self, _code: impl Code, message: M) -> Result<TxResult<Program<Self>>>
     where
         M: Into<Message> + Send,
     {
-        Ok(())
+        todo!()
+    }
+
+    async fn send<M>(&self, _id: ProgramId, message: M) -> Result<TxResult<MessageId>>
+    where
+        M: Into<Message> + Send,
+    {
+        todo!()
+    }
+
+    async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
+        todo!()
+    }
+
+    async fn state<R: Decode>(&self, id: ProgramId, payload: Vec<u8>) -> Result<R> {
+        todo!()
+    }
+
+    async fn state_bytes(&self, id: ProgramId, payload: Vec<u8>) -> Result<Vec<u8>> {
+        todo!()
     }
 }

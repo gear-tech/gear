@@ -29,7 +29,7 @@ use parity_scale_codec::Decode;
 use std::{fs, path::PathBuf};
 
 mod gclient;
-// mod gtest;
+mod gtest;
 
 /// Backend for the general client
 #[async_trait]
