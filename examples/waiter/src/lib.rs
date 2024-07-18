@@ -39,12 +39,7 @@ mod wasm;
 
 #[cfg(feature = "std")]
 pub fn system_reserve() -> u64 {
-    match () {
-        #[cfg(not(feature = "ethexe"))]
-        () => gstd::Config::system_reserve(),
-        #[cfg(feature = "ethexe")]
-        () => 0,
-    }
+    gstd::Config::system_reserve()
 }
 
 // Re-exports for testing
