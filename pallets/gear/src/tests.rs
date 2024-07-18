@@ -2129,8 +2129,6 @@ fn delayed_send_program_message_payment() {
 
         // Check that gas was charged correctly.
         assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
-        // TODO [sab] to make the test correct you have to count the cost of pre-charges as it fails
-        // on some pre-charge step.
     }
 
     init_logger();
