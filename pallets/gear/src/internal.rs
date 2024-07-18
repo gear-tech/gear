@@ -34,7 +34,10 @@ use common::{
     storage::*,
     GasTree, LockId, LockableTree, Origin,
 };
-use core::cmp::{Ord, Ordering};
+use core::{
+    cmp::{Ord, Ordering},
+    num::NonZeroUsize,
+};
 use frame_support::traits::{fungible, Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -187,6 +190,12 @@ where
     fn cmp(&self, other: &Self) -> Ordering {
         self.expected.cmp(&other.expected)
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum InheritorForError {
+    Cyclic { holders: BTreeSet<ProgramId> },
+    NotFound,
 }
 
 // Internal functionality implementation.
@@ -922,22 +931,37 @@ where
         );
     }
 
-    pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
+    pub(crate) fn inheritor_for(
+        program_id: ProgramId,
+        max_depth: NonZeroUsize,
+    ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
+        let max_depth = max_depth.get();
+
         let mut inheritor = program_id;
+        let mut holders: BTreeSet<_> = [program_id].into();
 
-        let mut visited_ids: BTreeSet<_> = [program_id].into();
+        loop {
+            let next_inheritor =
+                Self::first_inheritor_of(inheritor).ok_or(InheritorForError::NotFound)?;
 
-        while let Some(id) =
-            Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
-        {
-            if !visited_ids.insert(id) {
+            inheritor = next_inheritor;
+
+            // don't insert user or active program
+            // because it's the final inheritor we already return
+            if Self::first_inheritor_of(next_inheritor).is_none() {
                 break;
             }
 
-            inheritor = id
+            if holders.len() == max_depth {
+                break;
+            }
+
+            if !holders.insert(next_inheritor) {
+                return Err(InheritorForError::Cyclic { holders });
+            }
         }
 
-        inheritor
+        Ok((inheritor, holders))
     }
 
     /// This fn and [`split_with_value`] works the same: they call api of gas
