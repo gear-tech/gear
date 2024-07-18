@@ -30,6 +30,7 @@ use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use futures::StreamExt;
+use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -201,14 +202,14 @@ impl TestEnv {
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
-        let (tx_hash, code_id) = self
-            .ethereum
-            .router()
-            .upload_code_with_sidecar(code)
-            .await?;
+        let code_id = CodeId::generate(code);
+        let blob_tx = H256::random();
+
         self.blob_reader
-            .add_blob_transaction(tx_hash, code.to_vec())
+            .add_blob_transaction(blob_tx, code.to_vec())
             .await;
+        let tx_hash = self.ethereum.router().upload_code(code_id, blob_tx).await?;
+
         Ok((tx_hash, code_id))
     }
 }

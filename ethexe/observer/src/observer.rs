@@ -125,7 +125,9 @@ impl Observer {
 
                         self.update_status(|status| {
                             status.eth_block_number = block_number;
-                            if codes_len > 0 { status.last_router_state = block_number };
+                            if codes_len > 0 {
+                                status.last_router_state = block_number;
+                            }
                             status.pending_upload_code = codes_len as u64;
                         });
 
@@ -230,6 +232,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_deployment() -> Result<()> {
+        gear_utils::init_default_logger();
+
         let anvil = Anvil::new().try_spawn()?;
         let ethereum_rpc = anvil.ws_endpoint();
 
@@ -273,8 +277,11 @@ mod tests {
         "#;
         let wasm = wat2wasm(wat);
 
-        let (tx_hash, _) = ethereum.router().upload_code_with_sidecar(&wasm).await?;
-        blob_reader.add_blob_transaction(tx_hash, wasm).await;
+        let code_id = CodeId::generate(&wasm);
+        let blob_tx = H256::random();
+
+        blob_reader.add_blob_transaction(blob_tx, wasm).await;
+        ethereum.router().upload_code(code_id, blob_tx).await?;
 
         assert!(
             handle.await?.is_some(),
