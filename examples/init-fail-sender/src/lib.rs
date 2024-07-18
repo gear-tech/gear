@@ -9,7 +9,12 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 pub fn system_reserve() -> u64 {
-    gstd::Config::system_reserve()
+    match () {
+        #[cfg(not(feature = "ethexe"))]
+        () => gstd::Config::system_reserve(),
+        #[cfg(feature = "ethexe")]
+        () => 0,
+    }
 }
 
 pub fn reply_duration() -> u32 {
