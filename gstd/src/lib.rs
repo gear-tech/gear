@@ -171,7 +171,7 @@ pub mod util;
 
 pub use async_runtime::{message_loop, record_reply};
 pub use common::errors;
-pub use config::Config;
+pub use config::{Config, SYSTEM_RESERVE};
 pub use gcore::{
     ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
     Ss58Address, Value,

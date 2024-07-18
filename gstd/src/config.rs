@@ -25,6 +25,10 @@ use crate::{
     BlockCount,
 };
 
+/// Constant declaring default `Config::system_reserve()` in case of not
+/// "ethexe" feature.
+pub const SYSTEM_RESERVE: u64 = 1_000_000_000;
+
 /// Wait types.
 #[derive(Clone, Copy, Default)]
 pub(crate) enum WaitType {
@@ -70,7 +74,7 @@ impl Config {
             wait_for: 100,
             mx_lock_duration: 100,
             #[cfg(not(feature = "ethexe"))]
-            system_reserve: 1_000_000_000,
+            system_reserve: SYSTEM_RESERVE,
             wait_type: WaitType::WaitUpTo,
         }
     }
