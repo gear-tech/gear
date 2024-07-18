@@ -17,6 +17,7 @@ use tokio::sync::watch;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
+#[derive(Clone)]
 pub struct Observer {
     provider: ObserverProvider,
     router_address: AlloyAddress,
@@ -86,7 +87,6 @@ impl Observer {
                         let parent_hash = block_header.parent_hash;
                         let block_number = block_header.number.expect("failed to get block number");
                         let timestamp = block_header.timestamp;
-                        log::info!("📦 receive block {block_number}, hash {block_hash}, parent hash: {parent_hash}");
 
                         let events = match read_block_events(H256(block_hash.0), &self.provider, self.router_address).await {
                             Ok(events) => events,
@@ -123,11 +123,11 @@ impl Observer {
                             });
                         }
 
-                                        self.update_status(|status| {
-                                                status.eth_block_number = block_number;
-                                                if codes_len > 0 { status.last_router_state = block_number };
-                                                status.pending_upload_code = codes_len as u64;
-                                            });
+                        self.update_status(|status| {
+                            status.eth_block_number = block_number;
+                            if codes_len > 0 { status.last_router_state = block_number };
+                            status.pending_upload_code = codes_len as u64;
+                        });
 
                         let block_data = BlockData {
                             block_hash: H256(block_hash.0),
@@ -200,8 +200,6 @@ pub(crate) async fn read_block_events(
         };
         events.push(event);
     }
-
-    log::trace!("Read events for {block_hash}: {events:?}");
 
     Ok(events)
 }
