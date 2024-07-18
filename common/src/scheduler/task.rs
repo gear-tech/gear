@@ -70,9 +70,7 @@ pub enum ScheduledTask<AccountId> {
     ///
     /// The message itself stored in DispatchStash.
     #[codec(index = 7)]
-    SendUserMessage {
-        message_id: MessageId,
-    },
+    SendUserMessage(MessageId),
 
     /// Remove gas reservation.
     #[codec(index = 8)]
@@ -100,9 +98,7 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemovePausedProgram(program_id) => handler.remove_paused_program(program_id),
             WakeMessage(program_id, message_id) => handler.wake_message(program_id, message_id),
             SendDispatch(message_id) => handler.send_dispatch(message_id),
-            SendUserMessage {
-                message_id,
-            } => handler.send_user_message(message_id, to_mailbox),
+            SendUserMessage(message_id) => handler.send_user_message(message_id),
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }

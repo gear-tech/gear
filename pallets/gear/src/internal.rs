@@ -20,8 +20,8 @@
 
 use crate::{
     AccountIdOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
-    SchedulingCostOf, TaskPoolOf, WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, SchedulingCostOf,
+    TaskPoolOf, WaitlistOf,
 };
 use alloc::{collections::BTreeSet, format};
 use common::{
@@ -41,11 +41,8 @@ use core::{
 use frame_support::traits::{fungible, Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{prelude::*, MessageId, ProgramId, ReservationId},
-    message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
-        UserStoredMessage,
-    },
+    ids::{MessageId, ProgramId, ReservationId},
+    message::{Dispatch, DispatchKind, Message, StoredDispatch, UserMessage, UserStoredMessage},
 };
 use sp_runtime::{
     traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero},
@@ -694,10 +691,6 @@ where
         let gas_for_delay = delay_hold.lock_amount();
 
         let interval_finish = if to_user {
-            // Querying `MailboxThreshold`, that represents minimal amount of gas
-            // for message to be added to mailbox.
-            let threshold = T::MailboxThreshold::get();
-
             // Figuring out gas limit for insertion.
             //
             // In case of sending with gas, we use applied gas limit, otherwise
@@ -705,6 +698,10 @@ where
             let gas_limit = dispatch
                 .gas_limit()
                 .unwrap_or_else(|| {
+                    // Querying `MailboxThreshold`, that represents minimal amount of gas
+                    // for message to be added to mailbox.
+                    let threshold = T::MailboxThreshold::get();
+
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
                     let gas_limit = GasHandlerOf::<T>::get_limit(sender_node).unwrap_or_else(|e| {
                         let err_msg = format!(
@@ -718,7 +715,12 @@ where
 
                     // Explain
                     if gas_limit.saturating_sub(gas_for_delay) < threshold {
-                        unreachable!("todo!");
+                        log::error!(
+                            "Insufficient gas for sending dispatch {} to mailbox with a {} delay. \
+                            Gas limit - {}, gas for delay - {}, threshold - {}, reservation - {:?}.",
+                            dispatch.id(), delay, gas_limit, gas_for_delay, threshold, reservation,
+                        );
+                        unreachable!("Mailbox message with delay gas coverage invalidated!");
                     }
 
                     threshold
@@ -876,9 +878,7 @@ where
         DispatchStashOf::<T>::insert(message_id, (dispatch.into_stored_delayed(), delay_interval));
 
         let task = if to_user {
-            ScheduledTask::SendUserMessage {
-                message_id,
-            }
+            ScheduledTask::SendUserMessage(message_id)
         } else {
             ScheduledTask::SendDispatch(message_id)
         };
@@ -1128,8 +1128,9 @@ where
         let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
 
-        // If gas limit can cover threshold, message will be added to mailbox,
-        // task created and funds reserved.
+        // Querying gas limit. Fails in cases of `GasTree` invalidations.
+        let gas_limit = GasHandlerOf::<T>::get_limit(message.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         let expiration = if to_mailbox {
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
@@ -1143,9 +1144,6 @@ where
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}");
             });
-
-            // Figuring out hold bound for given gas limit.
-            let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
             // Validating holding duration.
             if hold.expected_duration().is_zero() {
@@ -1263,7 +1261,7 @@ where
         // Depositing appropriate event.
         Self::deposit_event(Event::UserMessageSent {
             message,
-            expiration,
+            expiration: Some(hold.expected()),
         });
     }
 

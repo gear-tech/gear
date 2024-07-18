@@ -25,7 +25,7 @@
 //! EXECUTION: , WASM-EXECUTION: Compiled, CHAIN: Some("vara-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/gear benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear --extrinsic=alloc,claim_value,create_program,db_read_per_kb,db_write_per_kb,free,free_range,free_range_per_page,gr_block_height,gr_block_timestamp,gr_create_program,gr_create_program_per_kb,gr_create_program_wgas,gr_create_program_wgas_per_kb,gr_debug,gr_debug_per_kb,gr_env_vars,gr_gas_available,gr_message_id,gr_program_id,gr_random,gr_read,gr_read_per_kb,gr_reply_code,gr_reply_deposit,gr_reply_per_kb,gr_reply_push,gr_reply_push_input,gr_reply_push_input_per_kb,gr_reply_push_per_kb,gr_reply_to,gr_reply_wgas_per_kb,gr_reservation_reply_commit_per_kb,gr_reservation_reply_per_kb,gr_reservation_send,gr_reservation_send_commit,gr_reservation_send_per_kb,gr_reserve_gas,gr_send,gr_send_commit,gr_send_commit_wgas,gr_send_init,gr_send_input,gr_send_input_wgas,gr_send_per_kb,gr_send_push,gr_send_push_input,gr_send_push_input_per_kb,gr_send_push_per_kb,gr_send_wgas,gr_send_wgas_per_kb,gr_signal_code,gr_signal_from,gr_size,gr_source,gr_system_reserve_gas,gr_unreserve_gas,gr_value,gr_value_available,gr_wake,instantiate_module_code_section_per_kb,instantiate_module_data_section_per_kb,instantiate_module_global_section_per_kb,instantiate_module_table_section_per_kb,instantiate_module_type_section_per_kb,instr_br,instr_br_if,instr_br_table,instr_br_table_per_entry,instr_call,instr_call_const,instr_call_indirect,instr_call_indirect_per_param,instr_call_per_local,instr_global_get,instr_global_set,instr_i32add,instr_i32and,instr_i32clz,instr_i32ctz,instr_i32divs,instr_i32divu,instr_i32eq,instr_i32eqz,instr_i32extend16s,instr_i32extend8s,instr_i32ges,instr_i32geu,instr_i32gts,instr_i32gtu,instr_i32les,instr_i32leu,instr_i32load,instr_i32lts,instr_i32ltu,instr_i32mul,instr_i32ne,instr_i32or,instr_i32popcnt,instr_i32rems,instr_i32remu,instr_i32rotl,instr_i32rotr,instr_i32shl,instr_i32shrs,instr_i32shru,instr_i32store,instr_i32sub,instr_i32wrapi64,instr_i32xor,instr_i64add,instr_i64and,instr_i64clz,instr_i64ctz,instr_i64divs,instr_i64divu,instr_i64eq,instr_i64eqz,instr_i64extend16s,instr_i64extend32s,instr_i64extend8s,instr_i64extendsi32,instr_i64extendui32,instr_i64ges,instr_i64geu,instr_i64gts,instr_i64gtu,instr_i64les,instr_i64leu,instr_i64load,instr_i64lts,instr_i64ltu,instr_i64mul,instr_i64ne,instr_i64or,instr_i64popcnt,instr_i64rems,instr_i64remu,instr_i64rotl,instr_i64rotr,instr_i64shl,instr_i64shrs,instr_i64shru,instr_i64store,instr_i64sub,instr_i64xor,instr_if,instr_local_get,instr_local_set,instr_local_tee,instr_memory_current,instr_select,lazy_pages_host_func_read,lazy_pages_host_func_write,lazy_pages_host_func_write_after_read,lazy_pages_load_page_storage_data,lazy_pages_signal_read,lazy_pages_signal_write,lazy_pages_signal_write_after_read,mem_grow,mem_grow_per_page,reinstrument_per_kb,send_message,send_reply,tasks_remove_from_mailbox,tasks_remove_from_waitlist,tasks_remove_gas_reservation,tasks_send_dispatch,tasks_send_user_message,tasks_send_user_message_to_mailbox,tasks_wake_message,tasks_wake_message_no_wake,upload_code,upload_program --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear.rs --template=.maintain/frame-weight-template.hbs
+// ./target/production/gear benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear --extrinsic=alloc,claim_value,create_program,db_read_per_kb,db_write_per_kb,free,free_range,free_range_per_page,gr_block_height,gr_block_timestamp,gr_create_program,gr_create_program_per_kb,gr_create_program_wgas,gr_create_program_wgas_per_kb,gr_debug,gr_debug_per_kb,gr_env_vars,gr_gas_available,gr_message_id,gr_program_id,gr_random,gr_read,gr_read_per_kb,gr_reply_code,gr_reply_deposit,gr_reply_per_kb,gr_reply_push,gr_reply_push_input,gr_reply_push_input_per_kb,gr_reply_push_per_kb,gr_reply_to,gr_reply_wgas_per_kb,gr_reservation_reply_commit_per_kb,gr_reservation_reply_per_kb,gr_reservation_send,gr_reservation_send_commit,gr_reservation_send_per_kb,gr_reserve_gas,gr_send,gr_send_commit,gr_send_commit_wgas,gr_send_init,gr_send_input,gr_send_input_wgas,gr_send_per_kb,gr_send_push,gr_send_push_input,gr_send_push_input_per_kb,gr_send_push_per_kb,gr_send_wgas,gr_send_wgas_per_kb,gr_signal_code,gr_signal_from,gr_size,gr_source,gr_system_reserve_gas,gr_unreserve_gas,gr_value,gr_value_available,gr_wake,instantiate_module_code_section_per_kb,instantiate_module_data_section_per_kb,instantiate_module_global_section_per_kb,instantiate_module_table_section_per_kb,instantiate_module_type_section_per_kb,instr_br,instr_br_if,instr_br_table,instr_br_table_per_entry,instr_call,instr_call_const,instr_call_indirect,instr_call_indirect_per_param,instr_call_per_local,instr_global_get,instr_global_set,instr_i32add,instr_i32and,instr_i32clz,instr_i32ctz,instr_i32divs,instr_i32divu,instr_i32eq,instr_i32eqz,instr_i32extend16s,instr_i32extend8s,instr_i32ges,instr_i32geu,instr_i32gts,instr_i32gtu,instr_i32les,instr_i32leu,instr_i32load,instr_i32lts,instr_i32ltu,instr_i32mul,instr_i32ne,instr_i32or,instr_i32popcnt,instr_i32rems,instr_i32remu,instr_i32rotl,instr_i32rotr,instr_i32shl,instr_i32shrs,instr_i32shru,instr_i32store,instr_i32sub,instr_i32wrapi64,instr_i32xor,instr_i64add,instr_i64and,instr_i64clz,instr_i64ctz,instr_i64divs,instr_i64divu,instr_i64eq,instr_i64eqz,instr_i64extend16s,instr_i64extend32s,instr_i64extend8s,instr_i64extendsi32,instr_i64extendui32,instr_i64ges,instr_i64geu,instr_i64gts,instr_i64gtu,instr_i64les,instr_i64leu,instr_i64load,instr_i64lts,instr_i64ltu,instr_i64mul,instr_i64ne,instr_i64or,instr_i64popcnt,instr_i64rems,instr_i64remu,instr_i64rotl,instr_i64rotr,instr_i64shl,instr_i64shrs,instr_i64shru,instr_i64store,instr_i64sub,instr_i64xor,instr_if,instr_local_get,instr_local_set,instr_local_tee,instr_memory_current,instr_select,lazy_pages_host_func_read,lazy_pages_host_func_write,lazy_pages_host_func_write_after_read,lazy_pages_load_page_storage_data,lazy_pages_signal_read,lazy_pages_signal_write,lazy_pages_signal_write_after_read,mem_grow,mem_grow_per_page,reinstrument_per_kb,send_message,send_reply,tasks_remove_from_mailbox,tasks_remove_from_waitlist,tasks_remove_gas_reservation,tasks_send_dispatch,tasks_send_user_message_to_mailbox,tasks_wake_message,tasks_wake_message_no_wake,upload_code,upload_program --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear.rs --template=.maintain/frame-weight-template.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -220,7 +220,6 @@ pub trait WeightInfo {
     fn instr_i32rotr(r: u32, ) -> Weight;
     fn tasks_remove_gas_reservation() -> Weight;
     fn tasks_send_user_message_to_mailbox() -> Weight;
-    fn tasks_send_user_message() -> Weight;
     fn tasks_send_dispatch() -> Weight;
     fn tasks_wake_message() -> Weight;
     fn tasks_wake_message_no_wake() -> Weight;
@@ -2101,15 +2100,6 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(42_239_000, 4323)
             .saturating_add(T::DbWeight::get().reads(6_u64))
             .saturating_add(T::DbWeight::get().writes(5_u64))
-    }
-    fn tasks_send_user_message() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `1079`
-        //  Estimated: `6196`
-        // Minimum execution time: 84_821_000 picoseconds.
-        Weight::from_parts(86_439_000, 6196)
-            .saturating_add(T::DbWeight::get().reads(13_u64))
-            .saturating_add(T::DbWeight::get().writes(10_u64))
     }
     fn tasks_send_dispatch() -> Weight {
         // Proof Size summary in bytes:
@@ -4028,15 +4018,6 @@ impl WeightInfo for () {
         Weight::from_parts(42_239_000, 4323)
             .saturating_add(RocksDbWeight::get().reads(6_u64))
             .saturating_add(RocksDbWeight::get().writes(5_u64))
-    }
-    fn tasks_send_user_message() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `1079`
-        //  Estimated: `6196`
-        // Minimum execution time: 84_821_000 picoseconds.
-        Weight::from_parts(86_439_000, 6196)
-            .saturating_add(RocksDbWeight::get().reads(13_u64))
-            .saturating_add(RocksDbWeight::get().writes(10_u64))
     }
     fn tasks_send_dispatch() -> Weight {
         // Proof Size summary in bytes:

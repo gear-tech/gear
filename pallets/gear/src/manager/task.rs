@@ -54,10 +54,9 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
             <T as Config>::WeightInfo::tasks_wake_message_no_wake().ref_time(),
         ),
         SendDispatch(_) => <T as Config>::WeightInfo::tasks_send_dispatch().ref_time(),
-        SendUserMessage { .. } => cmp::max(
-            <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time(),
-            <T as Config>::WeightInfo::tasks_send_user_message().ref_time(),
-        ),
+        SendUserMessage(_) => {
+            <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time()
+        }
         RemoveGasReservation(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
         }
@@ -340,17 +339,10 @@ where
         });
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
 
-        if to_mailbox {
-            let gas = <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time();
-            log::trace!("Task gas: tasks_send_user_message_to_mailbox = {gas}");
+        let gas = <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time();
+        log::trace!("Task gas: tasks_send_user_message_to_mailbox = {gas}");
 
-            gas
-        } else {
-            let gas = <T as Config>::WeightInfo::tasks_send_user_message().ref_time();
-            log::trace!("Task gas: tasks_send_user_message = {gas}");
-
-            gas
-        }
+        gas
     }
 
     fn remove_gas_reservation(

@@ -103,14 +103,9 @@ where
     let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
         .next()
         .expect("task should be scheduled");
-    let (message_id, to_mailbox) = match task {
-        ScheduledTask::SendUserMessage {
-            message_id,
-            to_mailbox,
-        } => (message_id, to_mailbox),
-        _ => unreachable!("task should be SendUserMessage"),
+    let ScheduledTask::SendUserMessage(message_id) = task else {
+        unreachable!("task should be SendUserMessage")
     };
-    assert!(to_mailbox);
 
     message_id
 }

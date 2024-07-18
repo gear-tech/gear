@@ -301,7 +301,9 @@ fn calculate_gas_zero_balance() {
 
 #[test]
 fn delayed_send_from_reservation_not_for_mailbox() {
-    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
+    use demo_delayed_reservation_sender::{
+        ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
+    };
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -321,15 +323,21 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         assert!(Gear::is_initialized(pid));
 
         let reservation_amount = <Test as Config>::MailboxThreshold::get();
-        let sending_delay = 1;
-        let sending_delay_gas = 
+        let sending_delay = 1u32;
+        let sending_delay_hold_bound: HoldBound<Test> =
+            HoldBoundBuilder::new(StorageType::DispatchStash).duration(sending_delay as u64);
+        let sending_delay_gas = sending_delay_hold_bound.lock_amount();
+        // Sending delayed msg from a reservation checks: reservation_amount - delay_hold - mailbox_therhsold.
+        // Current example sets reseravtion_amount to mailbox_threshold. So, obviously, sending message
+        // from a reservation is impossible - reservation has insufficient gas reserved.
+        assert_ne!(sending_delay_gas, 0);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1_000,
-                sending_delay: 1,
+                sending_delay,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -348,10 +356,12 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         );
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into()))
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
 
+        // Possibly sent message from reservation with a 1 block delay duration.
         let outgoing = MessageId::generate_outgoing(mid, 0);
+        let err_reply = MessageId::generate_reply(mid);
 
         assert!(!DispatchStashOf::<Test>::contains_key(&outgoing));
 
@@ -361,7 +371,7 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         assert!(!MailboxOf::<Test>::contains(&USER_1, &outgoing));
 
         let message = maybe_any_last_message().expect("Should be");
-        assert_eq!(message.id(), outgoing);
+        assert_eq!(message.id(), err_reply);
         assert_eq!(message.destination(), USER_1.into());
     });
 }
@@ -1860,7 +1870,7 @@ fn exited_program_zero_gas_and_value() {
 fn delayed_user_replacement() {
     use demo_constructor::demo_proxy_with_gas;
 
-    fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
+    fn scenario(gas_limit_to_forward: u64) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let future_program_address =
             ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
@@ -1901,10 +1911,7 @@ fn delayed_user_replacement() {
         // Message sending delayed.
         assert!(TaskPoolOf::<Test>::contains(
             &5,
-            &ScheduledTask::SendUserMessage {
-                message_id: delayed_id,
-                to_mailbox
-            }
+            &ScheduledTask::SendUserMessage(delayed_id)
         ));
 
         System::reset_events();
@@ -1915,10 +1922,7 @@ fn delayed_user_replacement() {
         // Delayed message sent.
         assert!(!TaskPoolOf::<Test>::contains(
             &5,
-            &ScheduledTask::SendUserMessage {
-                message_id: delayed_id,
-                to_mailbox
-            }
+            &ScheduledTask::SendUserMessage(delayed_id)
         ));
 
         // Replace following lines once added validation to task handling of send_user_message.
@@ -1943,7 +1947,7 @@ fn delayed_user_replacement() {
         let gas_limit_to_forward = DEFAULT_GAS_LIMIT * 100;
         assert!(<Test as Config>::MailboxThreshold::get() <= gas_limit_to_forward);
 
-        scenario(gas_limit_to_forward, true)
+        scenario(gas_limit_to_forward);
     });
 }
 
@@ -2021,10 +2025,7 @@ fn delayed_send_user_message_with_reservation() {
         // Check that delayed task was created.
         assert!(TaskPoolOf::<Test>::contains(
             &(delay + 3),
-            &ScheduledTask::SendUserMessage {
-                message_id: delayed_id,
-                to_mailbox: true
-            }
+            &ScheduledTask::SendUserMessage(delayed_id)
         ));
 
         // Mailbox should be empty.

@@ -707,9 +707,6 @@ impl<LP: LazyPagesInterface> Ext<LP> {
                 .dispatch_stash
                 .cost_for(self.context.reserve_for.saturating_add(delay).into());
 
-            log::warn!("WR - {waiting_reserve:?}");
-            log::warn!("FULL - {:?}", waiting_reserve + self.context.mailbox_threshold);
-
             // Gas reservation is known for covering mailbox threshold, as reservation
             // is created after passing a check for that.
             // By this check we guarantee that reservation is enough both for delay
