@@ -32,7 +32,7 @@ use ethexe_validator::Commitment;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::Decode;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::time;
 
 /// ethexe service.
@@ -47,6 +47,7 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
     rpc: ethexe_rpc::RpcService,
+    block_time: Duration,
 }
 
 async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
@@ -66,6 +67,7 @@ impl Service {
             ethexe_observer::ConsensusLayerBlobReader::new(
                 &config.ethereum_rpc,
                 &config.ethereum_beacon_rpc,
+                config.block_time,
             )
             .await?,
         );
@@ -148,6 +150,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            block_time: config.block_time,
         })
     }
 
@@ -164,6 +167,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: ethexe_rpc::RpcService,
+        block_time: Duration,
     ) -> Self {
         Self {
             db,
@@ -176,6 +180,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            block_time,
         }
     }
 
@@ -366,6 +371,7 @@ impl Service {
             mut validator,
             metrics_service,
             rpc,
+            block_time,
         } = self;
 
         let network_service = network.service().clone();
@@ -440,7 +446,7 @@ impl Service {
                         }
                     }
 
-                    delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
+                    delay = Some(tokio::time::sleep(block_time / 4));
                 }
                 message = gossip_stream.next() => {
                     if let Some(message) = message {
@@ -486,7 +492,10 @@ impl Service {
 mod tests {
     use super::Service;
     use crate::config::{Config, PrometheusConfig};
-    use std::net::{Ipv4Addr, SocketAddr};
+    use std::{
+        net::{Ipv4Addr, SocketAddr},
+        time::Duration,
+    };
 
     #[tokio::test]
     async fn basics() {
@@ -496,6 +505,7 @@ mod tests {
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
             max_commitment_depth: 1000,
+            block_time: Duration::from_secs(1),
             key_path: "/tmp/key".into(),
             network_path: "/tmp/net".into(),
             net_config: ethexe_network::NetworkConfiguration::new_local(),
