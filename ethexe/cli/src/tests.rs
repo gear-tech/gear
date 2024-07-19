@@ -219,7 +219,8 @@ impl TestEnv {
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let anvil = Anvil::new().try_spawn().unwrap();
+    let mut anvil = Anvil::new().block_time(1).try_spawn().unwrap();
+    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
 
     let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
     let mut listener = env.new_listener();

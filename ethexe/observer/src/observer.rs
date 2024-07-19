@@ -234,7 +234,9 @@ mod tests {
     async fn test_deployment() -> Result<()> {
         gear_utils::init_default_logger();
 
-        let anvil = Anvil::new().try_spawn()?;
+        let mut anvil = Anvil::new().block_time(1).try_spawn()?;
+        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+
         let ethereum_rpc = anvil.ws_endpoint();
 
         let signer = Signer::new("/tmp/keys".into())?;
