@@ -34,6 +34,7 @@ use gear_core::{
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
+    env::GLOBAL_NAME_GAS,
     SandboxEnvironmentBuilder, SandboxMemory,
 };
 use gear_wasm_instrument::{
@@ -294,6 +295,20 @@ where
                     .build()
             }
         }
+
+        // Add mandatory gas global with export
+        program = program
+            .global()
+            .value_type()
+            .i64()
+            .mutable()
+            .init_expr(Instruction::I64Const(0))
+            .build()
+            .export()
+            .field(GLOBAL_NAME_GAS)
+            .internal()
+            .global(def.num_globals)
+            .build();
 
         // Add stack end export
         let stack_end = def.stack_end.unwrap_or(
