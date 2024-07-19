@@ -24,7 +24,7 @@ pub type Migrations = (
     pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
     // migration for removed paused program storage
     pallet_gear_program::migrations::paused_storage::RemovePausedProgramStorageMigration<Runtime>,
-    pallet_gear_program::migrations::v8::MigrateToV8<Runtime>,
+    pallet_gear_program::migrations::ed_locks::SetLocksOnED<Runtime>,
     // migration for added section sizes
     pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
     // substrate v1.4.0
