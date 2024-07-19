@@ -147,7 +147,7 @@ pub fn invoke(
         .get_function(export_name)
         .map_err(|error| Error::Sandbox(error.to_string()))?;
 
-    // Allowing gas global to be optional to allow run non-instrumented programs (used for tests, benches).
+    // Gas global is optional to allow run non-instrumented programs (used for tests, benches).
     let gas_global = instance.exports.get_global(GLOBAL_NAME_GAS).ok().cloned();
     let args: Vec<sandbox_wasmer::Value> = args.iter().map(into_wasmer_val).collect();
 
