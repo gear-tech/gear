@@ -15,7 +15,10 @@ pub struct ChainSpec {
 pub fn testnet_config() -> ChainSpec {
     ChainSpec {
         ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".to_string(),
-        bootnodes: vec![],
+        bootnodes: vec![
+            "/ip4/54.183.94.171/udp/20333/quic-v1/p2p/12D3KooWQ5kJQs2WK5kzmBMShCNidpySDuLjt7aqZoVimdyCPRDz".parse().unwrap(),
+            "/ip4/54.183.94.171/udp/20334/quic-v1/p2p/12D3KooWAivseD2rweVeS2fyNuVFP1hWZ2gXRtMzrNK1ci4mmoMj".parse().unwrap()
+        ],
     }
 }
 
