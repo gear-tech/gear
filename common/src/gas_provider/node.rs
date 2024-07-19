@@ -481,3 +481,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
         }
     }
 }
+
+/* todo [sab]
+Introduce a test for checking that all nodes that have external_data
+do not have root id. By that you guarantee that unreachable is really
+not reachable
+*/

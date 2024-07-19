@@ -184,10 +184,12 @@ impl GasReserver {
         );
 
         if maybe_reservation.is_some() {
-            unreachable!(
+            log::error!(
                 "Duplicate reservation was created with message id {} and nonce {}",
-                self.message_id, self.nonce.0,
+                self.message_id,
+                self.nonce.0,
             );
+            unreachable!("Duplicate reservation was created");
         }
 
         Ok(id)

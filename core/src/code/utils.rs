@@ -122,6 +122,8 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             ExportError::ExportReferencesToImportFunction(export_index as u32, func_index),
         )?;
 
+        // todo [sab] a separate check for wasms
+
         // Panic is impossible, unless the Module structure is invalid.
         let type_id = funcs
             .get(index as usize)

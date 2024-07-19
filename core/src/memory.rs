@@ -410,6 +410,7 @@ impl AllocationsContext {
         // TODO: store `heap` as field in `Self` instead of `static_pages` and `max_pages` #3932
         let heap = match Interval::try_from(self.static_pages..self.max_pages) {
             Ok(interval) => interval,
+            // todo [sab] decide whether any log error is needed here
             Err(TryFromRangeError::IncorrectRange) => unreachable!(
                 "Must be self.static_pages <= self.max_pages. This is guaranteed by `Self::try_new`."
             ),
@@ -439,6 +440,7 @@ impl AllocationsContext {
             charge_gas_for_grow(grow.len())?;
             let grow_handler = G::before_grow_action(ctx, mem);
             mem.grow(ctx, grow.len())
+                // todo [sab] definetely need here
                 .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
             grow_handler.after_grow_action(ctx, mem);
         }

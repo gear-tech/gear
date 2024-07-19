@@ -327,6 +327,7 @@ impl<Context, LP: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L
         // Add new allocations to lazy pages.
         // Protect all lazy pages including new allocations.
         let new_mem_addr = mem.get_buffer_host_addr(ctx).unwrap_or_else(|| {
+            // todo [sab] message is obvious here
             unreachable!("Memory size cannot be zero after grow is applied for memory")
         });
         LP::update_lazy_pages_and_protect_again(
