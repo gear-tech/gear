@@ -33,7 +33,7 @@ FROM --platform=linux/amd64 ubuntu:22.04
 MAINTAINER GEAR
 LABEL description="This is the 2nd stage: a very small image where we copy the ethexe binary."
 ARG PROFILE=release
-COPY --from=builder /ethexe/target/$PROFILE/ethgpu /usr/local/bin
+COPY --from=builder /ethexe/target/$PROFILE/ethexe /usr/local/bin
 RUN apt-get update && apt-get install -y openssl ca-certificates
 RUN useradd -m -u 1000 -U -s /bin/sh -d /ethexe ethexe && \
     mkdir -p /ethexe/.local/share && \
@@ -41,10 +41,10 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /ethexe ethexe && \
     chown -R ethexe:ethexe /data && \
     ln -s /data /ethexe/.local/share/ethexe && \
     # Sanity checks
-    ldd /usr/local/bin/ethgpu && \
-    /usr/local/bin/ethgpu --version
+    ldd /usr/local/bin/ethexe && \
+    /usr/local/bin/ethexe --version
 
 USER root
 
 EXPOSE 20333 9635
-CMD ["/usr/local/bin/ethgpu"]
+CMD ["/usr/local/bin/ethexe"]
