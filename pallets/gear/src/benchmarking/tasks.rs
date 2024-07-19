@@ -143,10 +143,11 @@ where
     .expect("submit program failed");
 
     let delay = 1u32;
+    let mailbox_threshold = T::MailboxThreshold::get();
     let calls = Calls::builder().add_call(Call::Send(
         <[u8; 32]>::from(program_id.into_origin()).into(),
         [].into(),
-        Some(0u64.into()),
+        Some(mailbox_threshold.into()),
         0u128.into(),
         delay.into(),
     ));

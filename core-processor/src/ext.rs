@@ -454,10 +454,8 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
         let mailbox_threshold = self.context.mailbox_threshold;
         let reducing_gas_limit = packet
             .gas_limit()
-            .or(cover_mailbox_threshold
-                .then_some(mailbox_threshold)
-                .or(Some(0)))
-            .expect("always results in `Some`");
+            .or(cover_mailbox_threshold.then_some(mailbox_threshold))
+            .unwrap_or(0);
 
         if cover_mailbox_threshold && reducing_gas_limit < mailbox_threshold {
             return Err(MessageError::InsufficientGasLimit.into());
@@ -1439,12 +1437,6 @@ mod tests {
 
         fn with_allocation_context(mut self, ctx: AllocationsContext) -> Self {
             self.0.allocations_context = ctx;
-
-            self
-        }
-
-        fn with_mailbox_threshold(mut self, mailbox_threshold: u64) -> Self {
-            self.0.mailbox_threshold = mailbox_threshold;
 
             self
         }

@@ -18,7 +18,7 @@
 
 use crate::{
     builtin::BuiltinDispatcherFactory,
-    internal::{HoldBound, HoldBoundBuilder, InheritorForError},
+    internal::{HoldBoundBuilder, InheritorForError},
     manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
@@ -1151,13 +1151,13 @@ fn reply_deposit_to_user_auto_reply() {
     init_logger();
 
     let checker = USER_1;
-
+    let gas_to_send = <Test as Config>::MailboxThreshold::get();
     // To user case.
     new_test_ext().execute_with(|| {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             <[u8; 32]>::from(USER_2.into_origin()),
-            <Test as Config>::MailboxThreshold::get(),
+            gas_to_send,
         ));
 
         assert_ok!(Gear::send_message(
@@ -1169,7 +1169,11 @@ fn reply_deposit_to_user_auto_reply() {
             false,
         ));
 
-        run_to_block(40, None);
+        run_to_next_block(None);
+
+        let hold_bound =
+            HoldBoundBuilder::<Test>::new(StorageType::Mailbox).maximum_for(gas_to_send);
+        run_to_block(hold_bound.expected(), None);
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(!MailboxOf::<Test>::is_empty(&checker));
@@ -1184,12 +1188,13 @@ fn reply_deposit_panic_in_handle_reply() {
 
     let checker = USER_1;
 
+    let gas_to_spend = <Test as Config>::MailboxThreshold::get();
     // To user case with fail in handling reply.
     new_test_ext().execute_with(|| {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             <[u8; 32]>::from(USER_2.into_origin()),
-            <Test as Config>::MailboxThreshold::get(),
+            gas_to_spend,
         ));
 
         assert_ok!(Gear::send_message(
@@ -1201,7 +1206,12 @@ fn reply_deposit_panic_in_handle_reply() {
             false,
         ));
 
-        run_to_block(40, None);
+        run_to_next_block(None);
+
+        // let current_bn = Gear::block_number();
+        let hold_bound =
+            HoldBoundBuilder::<Test>::new(StorageType::Mailbox).maximum_for(gas_to_spend);
+        run_to_block(hold_bound.expected(), None);
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(MailboxOf::<Test>::is_empty(&checker));
@@ -1612,7 +1622,7 @@ fn non_existent_code_id_zero_gas() {
         i32.const 0     ;; salt len
         i32.const 0     ;; payload ptr
         i32.const 0     ;; payload len
-        i64.const 3000  ;; gas limit
+        i64.const 3000  ;; gas limit of mailbox threshold (minimal gas)
         i32.const 0     ;; delay
         i32.const 111               ;; err_mid_pid ptr
         call $create_program_wgas   ;; calling fn
@@ -15405,7 +15415,7 @@ fn test_gasless_steal_gas_for_wait() {
             true,
         )
         .expect("calculate_gas_info failed");
-        let waiting_bound: HoldBound<Test> = HoldBoundBuilder::new(StorageType::Waitlist)
+        let waiting_bound = HoldBoundBuilder::<Test>::new(StorageType::Waitlist)
             .duration(wait_duration.unique_saturated_into());
 
         assert_ok!(Gear::send_message(
