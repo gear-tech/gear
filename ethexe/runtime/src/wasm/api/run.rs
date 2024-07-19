@@ -27,7 +27,7 @@ use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
 
 pub fn wake_messages(program_id: ProgramId, state_hash: H256) -> H256 {
-    log::info!("You're calling 'wake_messages(..)'");
+    log::debug!("You're calling 'wake_messages(..)'");
 
     let block_info = BlockInfo {
         height: database_ri::get_block_height(),
@@ -50,7 +50,7 @@ pub fn run(
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
 ) -> Vec<JournalNote> {
-    log::info!("You're calling 'run(..)'");
+    log::debug!("You're calling 'run(..)'");
 
     let block_info = BlockInfo {
         height: database_ri::get_block_height(),
