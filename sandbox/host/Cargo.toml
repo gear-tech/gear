@@ -1,6 +1,7 @@
 [package]
 name = "gear-sandbox-host"
 description = "A set of common definitions that are needed for defining execution engines."
+documentation = "https://docs.rs/gear-sandbox-host"
 readme = "README.md"
 authors.workspace = true
 edition.workspace = true
@@ -19,12 +20,12 @@ thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
 sandbox-wasmer.workspace = true
 sandbox-wasmer-types.workspace = true
-wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
+sandbox-wasmi = { workspace = true, features = ["virtual_memory"] }
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface-common = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
 wasmer-cache = { workspace = true, optional = true }
-tempfile.workspace = true 
+tempfile.workspace = true
 uluru = { workspace = true, optional = true }
 
 [features]

@@ -56,6 +56,7 @@ pub trait WeightInfo {
     fn instantiate_module_data_section_per_kb(d: u32, ) -> Weight;
     fn instantiate_module_global_section_per_kb(g: u32, ) -> Weight;
     fn instantiate_module_table_section_per_kb(t: u32, ) -> Weight;
+    fn instantiate_module_element_section_per_kb(e: u32, ) -> Weight;
     fn instantiate_module_type_section_per_kb(t: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
@@ -63,6 +64,7 @@ pub trait WeightInfo {
     fn upload_program(c: u32, s: u32, ) -> Weight;
     fn send_message(p: u32, ) -> Weight;
     fn send_reply(p: u32, ) -> Weight;
+    fn claim_value_to_inheritor(d: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
     fn mem_grow(r: u32, ) -> Weight;
@@ -413,15 +415,25 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 1_895
             .saturating_add(Weight::from_parts(2_416_290, 0).saturating_mul(g.into()))
     }
-    /// The range of component `t` is `[0, 512]`.
+    /// The range of component `t` is `[0, 9765]`.
     fn instantiate_module_table_section_per_kb(t: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 35_552_000 picoseconds.
-        Weight::from_parts(3_204_504, 0)
-            // Standard Error: 84_742
-            .saturating_add(Weight::from_parts(17_685_465, 0).saturating_mul(t.into()))
+        // Minimum execution time: 34_160_000 picoseconds.
+        Weight::from_parts(34_614_000, 0)
+            // Standard Error: 2_123
+            .saturating_add(Weight::from_parts(359_300, 0).saturating_mul(t.into()))
+    }
+    /// The range of component `t` is `[0, 512]`.
+    fn instantiate_module_element_section_per_kb(e: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 36_788_000 picoseconds.
+        Weight::from_parts(38_141_151, 0)
+            // Standard Error: 3_777
+            .saturating_add(Weight::from_parts(18_936_755, 0).saturating_mul(e.into()))
     }
     /// The range of component `t` is `[0, 512]`.
     fn instantiate_module_type_section_per_kb(t: u32, ) -> Weight {
@@ -504,6 +516,21 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(1_018, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(18_u64))
             .saturating_add(T::DbWeight::get().writes(13_u64))
+    }
+    /// The range of component `d` is `[1, 1024]`.
+    fn claim_value_to_inheritor(d: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0 + d * (207 ±0)`
+        //  Estimated: `3593 + d * (2683 ±0)`
+        // Minimum execution time: 62_000_000 picoseconds.
+        Weight::from_parts(63_000_000, 3593)
+            // Standard Error: 24_979
+            .saturating_add(Weight::from_parts(50_498_014, 0).saturating_mul(d.into()))
+            .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().reads((2_u64).saturating_mul(d.into())))
+            .saturating_add(RocksDbWeight::get().writes(1_u64))
+            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(d.into())))
+            .saturating_add(Weight::from_parts(0, 2683).saturating_mul(d.into()))
     }
     /// The range of component `e` is `[0, 512]`.
     fn reinstrument_per_kb(e: u32, ) -> Weight {
@@ -2315,15 +2342,25 @@ impl WeightInfo for () {
             // Standard Error: 1_895
             .saturating_add(Weight::from_parts(2_416_290, 0).saturating_mul(g.into()))
     }
-    /// The range of component `t` is `[0, 512]`.
+    /// The range of component `t` is `[0, 9765]`.
     fn instantiate_module_table_section_per_kb(t: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 35_552_000 picoseconds.
-        Weight::from_parts(3_204_504, 0)
-            // Standard Error: 84_742
-            .saturating_add(Weight::from_parts(17_685_465, 0).saturating_mul(t.into()))
+        // Minimum execution time: 34_160_000 picoseconds.
+        Weight::from_parts(34_614_000, 0)
+            // Standard Error: 2_123
+            .saturating_add(Weight::from_parts(359_300, 0).saturating_mul(t.into()))
+    }
+    /// The range of component `t` is `[0, 512]`.
+    fn instantiate_module_element_section_per_kb(e: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 36_788_000 picoseconds.
+        Weight::from_parts(38_141_151, 0)
+            // Standard Error: 3_777
+            .saturating_add(Weight::from_parts(18_936_755, 0).saturating_mul(e.into()))
     }
     /// The range of component `t` is `[0, 512]`.
     fn instantiate_module_type_section_per_kb(t: u32, ) -> Weight {
@@ -2406,6 +2443,21 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(1_018, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(18_u64))
             .saturating_add(RocksDbWeight::get().writes(13_u64))
+    }
+    /// The range of component `d` is `[1, 1024]`.
+    fn claim_value_to_inheritor(d: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0 + d * (207 ±0)`
+        //  Estimated: `3593 + d * (2683 ±0)`
+        // Minimum execution time: 62_000_000 picoseconds.
+        Weight::from_parts(63_000_000, 3593)
+            // Standard Error: 24_979
+            .saturating_add(Weight::from_parts(50_498_014, 0).saturating_mul(d.into()))
+            .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().reads((2_u64).saturating_mul(d.into())))
+            .saturating_add(RocksDbWeight::get().writes(1_u64))
+            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(d.into())))
+            .saturating_add(Weight::from_parts(0, 2683).saturating_mul(d.into()))
     }
     /// The range of component `e` is `[0, 512]`.
     fn reinstrument_per_kb(e: u32, ) -> Weight {

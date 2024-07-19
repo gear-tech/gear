@@ -1,6 +1,7 @@
 [package]
 name = "gtest"
 description = "Testing utils for developing Gear programs."
+documentation = "https://docs.rs/gtest"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

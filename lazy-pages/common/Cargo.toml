@@ -1,6 +1,7 @@
 [package]
 name = "gear-lazy-pages-common"
 description = "Gear lazy-pages commons"
+documentation = "https://docs.rs/gear-lazy-pages-common"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

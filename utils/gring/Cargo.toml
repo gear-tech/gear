@@ -1,6 +1,7 @@
 [package]
 name = "gring"
 description = "Substrate keystore implementation"
+documentation = "https://docs.rs/gring"
 keywords = [ "substrate", "gear", "keystore" ]
 version.workspace = true
 authors.workspace = true

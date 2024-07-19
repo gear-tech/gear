@@ -110,7 +110,7 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill, Saturating,
 };
-use sp_std::prelude::*;
+use sp_std::{num::NonZeroU32, prelude::*};
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
@@ -421,6 +421,17 @@ benchmarks! {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
+    // `e`: Size of the element section in kilobytes.
+    instantiate_module_element_section_per_kb {
+        let e in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let max_table_size = T::Schedule::get().limits.code_len;
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
+        let ext = Ext::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
     // `t`: Size of the type section in kilobytes.
     instantiate_module_type_section_per_kb {
         let t in 0 .. T::Schedule::get().limits.code_len / 1024;
@@ -581,6 +592,49 @@ benchmarks! {
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))
+    }
+
+    claim_value_to_inheritor {
+        let d in 1 .. 1024;
+
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
+
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
+
+        let mut inheritor = caller.clone().cast();
+        let mut programs = vec![];
+        for i in 0..d {
+            let program_id = benchmarking::account::<T::AccountId>("program", i, 100);
+            programs.push(program_id.clone());
+            let _ = CurrencyOf::<T>::deposit_creating(&program_id, minimum_balance);
+            let program_id = program_id.cast();
+            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
+
+            ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
+                if i % 2 == 0 {
+                    *program = common::Program::Terminated(inheritor);
+                } else {
+                    *program = common::Program::Exited(inheritor);
+                }
+            })
+            .unwrap();
+
+            inheritor = program_id;
+        }
+
+        let program_id = inheritor;
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller.clone()), program_id, NonZeroU32::MAX)
+    verify {
+        assert_eq!(
+            CurrencyOf::<T>::free_balance(&caller),
+            minimum_balance * d.unique_saturated_into()
+        );
+
+        for program_id in programs {
+            assert_eq!(CurrencyOf::<T>::free_balance(&program_id), BalanceOf::<T>::zero());
+        }
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the

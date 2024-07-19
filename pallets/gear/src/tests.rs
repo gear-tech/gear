@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBoundBuilder,
-    manager::HandleKind,
+    builtin::BuiltinDispatcherFactory,
+    internal::{HoldBoundBuilder, InheritorForError},
+    manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
@@ -28,14 +29,15 @@ use crate::{
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
-    ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
+    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
+    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
     ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
+use demo_constructor::{Calls, Scheme};
 use frame_support::{
     assert_noop, assert_ok,
     sp_runtime::traits::{TypedGet, Zero},
@@ -43,7 +45,10 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
+    code::{
+        self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
+        InstrumentedCodeAndId,
+    },
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -68,6 +73,10 @@ use sp_runtime::{
     SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
+use std::{
+    collections::BTreeSet,
+    num::{NonZeroU32, NonZeroUsize},
+};
 pub use utils::init_logger;
 use utils::*;
 
@@ -222,6 +231,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -4994,6 +5004,7 @@ fn test_code_submission_pass() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
@@ -6265,6 +6276,10 @@ fn exit_locking_funds() {
         ));
         let message_1 = utils::get_last_message_id();
 
+        run_to_next_block(None);
+
+        assert_succeed(message_1);
+
         let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -6278,10 +6293,21 @@ fn exit_locking_funds() {
 
         run_to_next_block(None);
 
-        assert_succeed(message_1);
         assert_succeed(message_2);
 
         // Both `value` and ED from the program's account go to the USER_2 as beneficiary.
+        assert_balance(USER_2, user_2_balance + value + ed, 0u128);
+        assert_balance(program_id, 0u128, 0u128);
+
+        // nothing should change
+        assert_ok!(Gear::claim_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            NonZeroU32::MAX,
+        ));
+
+        run_to_next_block(None);
+
         assert_balance(USER_2, user_2_balance + value + ed, 0u128);
         assert_balance(program_id, 0u128, 0u128);
     });
@@ -6403,10 +6429,50 @@ fn terminated_locking_funds() {
         let reply_duration = demo_init_fail_sender::reply_duration();
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let gas_for_module_instantiation = schedule
-            .module_instantiation_per_byte
-            .ref_time()
-            .saturating_mul(code_length);
+        let gas_for_module_instantiation = {
+            let InstantiatedSectionSizes {
+                code_section: code_section_bytes,
+                data_section: data_section_bytes,
+                global_section: global_section_bytes,
+                table_section: table_section_bytes,
+                element_section: element_section_bytes,
+                type_section: type_section_bytes,
+            } = *code.instantiated_section_sizes();
+
+            let instantiation_weights = schedule.instantiation_weights;
+
+            let mut gas_for_code_instantiation = instantiation_weights
+                .code_section_per_byte
+                .ref_time()
+                .saturating_mul(code_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .data_section_per_byte
+                .ref_time()
+                .saturating_mul(data_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .global_section_per_byte
+                .ref_time()
+                .saturating_mul(global_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .table_section_per_byte
+                .ref_time()
+                .saturating_mul(table_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .element_section_per_byte
+                .ref_time()
+                .saturating_mul(element_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .type_section_per_byte
+                .ref_time()
+                .saturating_mul(type_section_bytes as u64);
+
+            gas_for_code_instantiation
+        };
         let gas_for_code_len = read_cost;
         let gas_for_program = read_cost;
         let gas_for_code = schedule
@@ -6414,19 +6480,11 @@ fn terminated_locking_funds() {
             .ref_time()
             .saturating_mul(code_length)
             .saturating_add(read_cost);
-        let gas_for_static_pages = schedule
-            .memory_weights
-            .static_page
-            .ref_time()
-            .saturating_mul(u32::from(code.static_pages()) as u64);
 
         // Additional gas for loading resources on next wake up.
         // Must be exactly equal to gas, which we must pre-charge for program execution.
-        let gas_for_second_init_execution = gas_for_program
-            + gas_for_code_len
-            + gas_for_code
-            + gas_for_module_instantiation
-            + gas_for_static_pages;
+        let gas_for_second_init_execution =
+            gas_for_program + gas_for_code_len + gas_for_code + gas_for_module_instantiation;
 
         let ed = get_ed();
 
@@ -6553,6 +6611,319 @@ fn terminated_locking_funds() {
             Balances::free_balance(USER_1),
             user_1_balance + extra_gas_to_mb
         );
+
+        // nothing should change
+        assert_ok!(Gear::claim_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            NonZeroU32::MAX,
+        ));
+
+        run_to_next_block(None);
+
+        assert_balance(program_id, 0u128, 0u128);
+        assert_eq!(
+            Balances::free_balance(USER_3),
+            user_3_balance + prog_reserve
+        );
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + extra_gas_to_mb,
+        );
+    });
+}
+
+#[test]
+fn claim_value_to_inheritor() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, pid1) =
+            submit_constructor_with_args(USER_1, "constructor1", Scheme::empty(), 0);
+        let (_init_mid, pid2) =
+            submit_constructor_with_args(USER_1, "constructor2", Scheme::empty(), 0);
+        let (_init_mid, pid3) =
+            submit_constructor_with_args(USER_1, "constructor3", Scheme::empty(), 0);
+
+        run_to_next_block(None);
+
+        // also, noop cases are in `*_locking_funds` tests
+        assert_noop!(
+            Gear::claim_value_to_inheritor(RuntimeOrigin::signed(USER_1), pid1, NonZeroU32::MAX),
+            Error::<Test>::ActiveProgram
+        );
+
+        run_to_next_block(None);
+
+        let user_2_balance = Balances::free_balance(USER_2);
+
+        // add value to `pid1`
+        let value1 = 1_000;
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            Calls::default().encode(),
+            10_000_000_000,
+            value1,
+            false,
+        ));
+        let value_mid1 = utils::get_last_message_id();
+
+        // add value to `pid2`
+        let value2 = 4_000;
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            Calls::default().encode(),
+            10_000_000_000,
+            value2,
+            false,
+        ));
+        let value_mid2 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(value_mid1);
+        assert_succeed(value_mid2);
+
+        let ed = get_ed();
+        assert_program_balance(pid1, value1, ed, 0u128);
+        assert_program_balance(pid2, value2, ed, 0u128);
+        assert_program_balance(pid3, 0u128, ed, 0u128);
+
+        // exit in reverse order so the chain of inheritors will not transfer
+        // all the balances to `USER_2`
+
+        // make `pid3` exit and refer to `USER_2`
+        let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid3,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid3 = utils::get_last_message_id();
+
+        // make `pid2` exit and refer to `pid3`
+        let calls = Calls::builder().exit(pid3.into_bytes());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid2 = utils::get_last_message_id();
+
+        // make `pid1` exit and refer to `pid2`
+        let calls = Calls::builder().exit(pid2.into_bytes());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid1 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid1);
+        assert_succeed(mid2);
+        assert_succeed(mid3);
+
+        // `pid1` transferred all the balances to `pid2`
+        assert_program_balance(pid1, 0u128, 0u128, 0u128);
+        // `pid2` transferred `value2` and `ed` to `pid3`
+        // but have `value1` and `ed` of `pid1`
+        assert_balance(pid2, value1 + ed, 0u128);
+        // `pid3` transferred its 0 value and `ed` to `USER_2`
+        // but have `value2` and `ed` of `pid2`
+        assert_balance(pid3, value2 + ed, 0u128);
+        // `USER_2` have `ed` of `pid3`
+        assert_balance(USER_2, user_2_balance + ed, 0u128);
+
+        assert_ok!(Gear::claim_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            NonZeroU32::MAX,
+        ));
+
+        run_to_next_block(None);
+
+        assert_program_balance(pid1, 0u128, 0u128, 0u128);
+        assert_program_balance(pid2, 0u128, 0u128, 0u128);
+        assert_program_balance(pid3, 0u128, 0u128, 0u128);
+        assert_balance(USER_2, user_2_balance + value1 + value2 + 3 * ed, 0u128);
+    });
+}
+
+#[test]
+fn test_sequence_inheritor_of() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let manager = ExtManager::<Test>::new(builtins);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            demo_ping::WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code_info = CodeInfo::from_code(&code_id, &code);
+
+        let message_id = MessageId::from(1);
+
+        // serial inheritance
+        let mut programs = vec![];
+        for i in 1000..1100 {
+            let program_id = ProgramId::from(i);
+            manager.set_program(
+                program_id,
+                &code_info,
+                message_id,
+                1.unique_saturated_into(),
+            );
+
+            ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
+                let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.into());
+                if i % 2 == 0 {
+                    *program = Program::Exited(inheritor);
+                } else {
+                    *program = Program::Terminated(inheritor);
+                }
+            })
+            .unwrap();
+
+            programs.push(program_id);
+        }
+
+        let indexed_programs: Vec<u64> = (1000..1100).collect();
+        let convert_holders = |holders: BTreeSet<ProgramId>| {
+            let mut holders = holders
+                .into_iter()
+                .map(|x| u64::from_le_bytes(*x.into_bytes().split_first_chunk::<8>().unwrap().0))
+                .collect::<Vec<u64>>();
+            holders.sort();
+            holders
+        };
+        let inheritor_for = |id, max_depth| {
+            let max_depth = NonZeroUsize::new(max_depth).unwrap();
+            let (inheritor, holders) = Gear::inheritor_for(id, max_depth).unwrap();
+            let holders = convert_holders(holders);
+            (inheritor, holders)
+        };
+
+        let res = Gear::inheritor_for(USER_1.into(), NonZeroUsize::MAX);
+        assert_eq!(res, Err(InheritorForError::NotFound));
+
+        let (inheritor, holders) = inheritor_for(programs[99], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs);
+
+        let (inheritor, holders) = inheritor_for(programs[49], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=49]);
+
+        let (inheritor, holders) = inheritor_for(programs[0], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=0]);
+
+        let (inheritor, holders) = inheritor_for(programs[0], 1);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=0]);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 10);
+        assert_eq!(inheritor, programs[89]);
+        assert_eq!(holders, indexed_programs[90..]);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 50);
+        assert_eq!(inheritor, programs[49]);
+        assert_eq!(holders, indexed_programs[50..]);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 100);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 99);
+        assert_eq!(inheritor, programs[0]);
+        assert_eq!(holders, indexed_programs[1..]);
+    });
+}
+
+#[test]
+fn test_cyclic_inheritor_of() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let manager = ExtManager::<Test>::new(builtins);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            demo_ping::WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code_info = CodeInfo::from_code(&code_id, &code);
+
+        let message_id = MessageId::from(1);
+
+        // cyclic inheritance
+        let mut cyclic_programs = vec![];
+        for i in 2000..2100 {
+            let program_id = ProgramId::from(i);
+            manager.set_program(
+                program_id,
+                &code_info,
+                message_id,
+                1.unique_saturated_into(),
+            );
+
+            ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
+                let inheritor = cyclic_programs
+                    .last()
+                    .copied()
+                    .unwrap_or_else(|| 2099.into());
+                if i % 2 == 0 {
+                    *program = Program::Exited(inheritor);
+                } else {
+                    *program = Program::Terminated(inheritor);
+                }
+            })
+            .unwrap();
+
+            cyclic_programs.push(program_id);
+        }
+
+        let cyclic_programs: BTreeSet<ProgramId> = cyclic_programs.into_iter().collect();
+
+        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::MAX);
+        assert_eq!(
+            res,
+            Err(InheritorForError::Cyclic {
+                holders: cyclic_programs.clone(),
+            })
+        );
+
+        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::new(101).unwrap());
+        assert_eq!(
+            res,
+            Err(InheritorForError::Cyclic {
+                holders: cyclic_programs
+            })
+        );
+
+        let (inheritor, _holders) =
+            Gear::inheritor_for(2000.into(), NonZeroUsize::new(100).unwrap()).unwrap();
+        assert_eq!(inheritor, 2000.into());
+
+        let (inheritor, _holders) =
+            Gear::inheritor_for(2000.into(), NonZeroUsize::new(99).unwrap()).unwrap();
+        assert_eq!(inheritor, 2001.into());
     });
 }
 
@@ -6579,6 +6950,7 @@ fn test_create_program_works() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         )
         .expect("Code failed to load");
 
@@ -7603,16 +7975,55 @@ fn gas_spent_precalculated() {
         let get_gas_charged_for_code = |pid| {
             let schedule = <Test as Config>::Schedule::get();
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-            let code_len = get_program_code(pid).code().len() as u64;
+            let instrumented_prog = get_program_code(pid);
+            let code_len = instrumented_prog.code().len() as u64;
             let gas_for_code_read = schedule
                 .db_read_per_byte
                 .ref_time()
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
-            let gas_for_code_instantiation = schedule
-                .module_instantiation_per_byte
+
+            let InstantiatedSectionSizes {
+                code_section: code_section_bytes,
+                data_section: data_section_bytes,
+                global_section: global_section_bytes,
+                table_section: table_section_bytes,
+                element_section: element_section_bytes,
+                type_section: type_section_bytes,
+            } = *instrumented_prog.instantiated_section_sizes();
+
+            let instantiation_weights = schedule.instantiation_weights;
+
+            let mut gas_for_code_instantiation = instantiation_weights
+                .code_section_per_byte
                 .ref_time()
-                .saturating_mul(code_len);
+                .saturating_mul(code_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .data_section_per_byte
+                .ref_time()
+                .saturating_mul(data_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .global_section_per_byte
+                .ref_time()
+                .saturating_mul(global_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .table_section_per_byte
+                .ref_time()
+                .saturating_mul(table_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .element_section_per_byte
+                .ref_time()
+                .saturating_mul(element_section_bytes as u64);
+
+            gas_for_code_instantiation += instantiation_weights
+                .type_section_per_byte
+                .ref_time()
+                .saturating_mul(type_section_bytes as u64);
+
             gas_for_code_read + gas_for_code_instantiation
         };
 
@@ -7680,8 +8091,6 @@ fn gas_spent_precalculated() {
                 + read_cost
                 // cost for code loading and instantiation
                 + get_gas_charged_for_code(pid)
-                // cost for one static page in program
-                + <Test as Config>::Schedule::get().memory_weights.static_page.ref_time()
         };
 
         let make_check = |gas_spent_expected| {
@@ -10097,6 +10506,7 @@ fn test_mad_big_prog_instrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13169,6 +13579,7 @@ fn wrong_entry_type() {
                 |_| CustomConstantCostRules::default(),
                 None,
                 None,
+                None,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));
@@ -15296,10 +15707,15 @@ pub(crate) mod utils {
         reserved: impl Into<BalanceOf<Test>>,
     ) {
         let account_id = origin.cast();
-        assert_eq!(Balances::free_balance(account_id), free.into());
+        assert_eq!(
+            Balances::free_balance(account_id),
+            free.into(),
+            "Free balance"
+        );
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
-            reserved.into()
+            reserved.into(),
+            "Reserved balance"
         );
     }
 
@@ -15313,9 +15729,17 @@ pub(crate) mod utils {
         B: Into<BalanceOf<Test>> + Copy,
     {
         let account_id = origin.cast();
+        let available = available.into();
+        let locked = locked.into();
+        let reserved = reserved.into();
+
         let account_data = System::account(account_id).data;
-        assert_eq!(account_data.free, available.into() + locked.into());
-        assert_eq!(account_data.frozen, locked.into());
+        assert_eq!(
+            account_data.free,
+            available + locked,
+            "Free balance of {available} + {locked} (available + locked)"
+        );
+        assert_eq!(account_data.frozen, locked, "Frozen balance");
         let maybe_ed = Balances::locks(account_id)
             .into_iter()
             .filter_map(|lock| {
@@ -15327,10 +15751,11 @@ pub(crate) mod utils {
             })
             .reduce(|a, b| a + b)
             .unwrap_or_default();
-        assert_eq!(maybe_ed, locked.into());
+        assert_eq!(maybe_ed, locked, "Locked ED");
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
-            reserved.into()
+            reserved,
+            "Reserved balance"
         );
     }
 

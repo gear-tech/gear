@@ -20,18 +20,25 @@ use crate::{
     blocks::BlocksManager,
     gas_tree::GasTreeManager,
     log::{CoreLog, RunResult},
+    mailbox::MailboxManager,
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     GAS_ALLOWANCE, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    MODULE_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
+    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
+    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST,
     READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST,
     WRITE_COST,
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{
+        BlockConfig, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER,
+    },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
+use gear_common::auxiliary::mailbox::MailboxErrorImpl;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
@@ -234,7 +241,7 @@ pub(crate) struct ExtManager {
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
-    pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
+    pub(crate) mailbox: MailboxManager,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_list_schedules: BTreeMap<u32, Vec<(ProgramId, MessageId)>>,
     pub(crate) gas_tree: GasTreeManager,
@@ -302,9 +309,7 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while self.actors.contains_key(&self.id_nonce.into())
-            || self.mailbox.contains_key(&self.id_nonce.into())
-        {
+        while self.actors.contains_key(&self.id_nonce.into()) {
             self.id_nonce += 1;
         }
         self.id_nonce
@@ -431,7 +436,7 @@ impl ExtManager {
 
     #[track_caller]
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch, from_task_pool: bool) -> RunResult {
-        self.prepare_for(&dispatch);
+        self.prepare_for(&dispatch, !from_task_pool);
 
         if self.is_program(&dispatch.destination()) {
             if !from_task_pool {
@@ -447,17 +452,20 @@ impl ExtManager {
                     .unwrap_or_else(|| unreachable!("message from program API has always gas"));
                 self.gas_tree
                     .create(dispatch.source(), dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupter! {:?}", e));
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
-
-            self.mailbox
-                .entry(message.destination())
-                .or_default()
-                .push(message.clone());
+            if let (Ok(mailbox_msg), true) = (
+                message.clone().try_into(),
+                self.is_program(&message.source()),
+            ) {
+                self.mailbox
+                    .insert(mailbox_msg)
+                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+            }
 
             self.log.push(message)
         }
@@ -614,18 +622,21 @@ impl ExtManager {
             .unwrap_or_default()
     }
 
-    pub(crate) fn claim_value_from_mailbox(&mut self, id: &ProgramId) {
-        let messages = self.mailbox.remove(id);
-        if let Some(messages) = messages {
-            messages.into_iter().for_each(|message| {
-                self.send_value(
-                    message.source(),
-                    Some(message.destination()),
-                    message.value(),
-                );
-                self.message_consumed(message.id());
-            });
-        }
+    pub(crate) fn claim_value_from_mailbox(
+        &mut self,
+        to: ProgramId,
+        from_mid: MessageId,
+    ) -> Result<(), MailboxErrorImpl> {
+        let (message, _) = self.mailbox.remove(to, from_mid)?;
+
+        self.send_value(
+            message.source(),
+            Some(message.destination()),
+            message.value(),
+        );
+        self.message_consumed(message.id());
+
+        Ok(())
     }
 
     #[track_caller]
@@ -664,7 +675,7 @@ impl ExtManager {
     }
 
     #[track_caller]
-    fn prepare_for(&mut self, dispatch: &Dispatch) {
+    fn prepare_for(&mut self, dispatch: &Dispatch, update_block: bool) {
         self.msg_id = dispatch.id();
         self.origin = dispatch.source();
         self.log.clear();
@@ -679,6 +690,9 @@ impl ExtManager {
             m
         };
         self.gas_allowance = Gas(GAS_ALLOWANCE);
+        if update_block {
+            let _ = self.blocks_manager.next_block();
+        }
     }
 
     fn mark_failed(&mut self, msg_id: MessageId) {
@@ -866,8 +880,14 @@ impl ExtManager {
                 write: WRITE_COST.into(),
                 instrumentation: MODULE_INSTRUMENTATION_COST.into(),
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
-                static_page: Default::default(),
-                module_instantiation_per_byte: MODULE_INSTANTIATION_BYTE_COST.into(),
+                instantiation_costs: InstantiationCosts {
+                    code_section_per_byte: MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    data_section_per_byte: MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    global_section_per_byte: MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    table_section_per_byte: MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    element_section_per_byte: MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    type_section_per_byte: MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                },
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -909,9 +929,13 @@ impl ExtManager {
             }
         };
 
-        let context = ContextChargedForCode::from((context, code.code().len() as u32));
+        let context = ContextChargedForCode::from(context);
         let context = ContextChargedForInstrumentation::from(context);
-        let context = match core_processor::precharge_for_memory(&block_config, context) {
+        let context = match core_processor::precharge_for_module_instantiation(
+            &block_config,
+            context,
+            code.instantiated_section_sizes(),
+        ) {
             Ok(c) => c,
             Err(journal) => {
                 core_processor::handle_journal(journal, self);
@@ -1009,14 +1033,17 @@ impl JournalHandler for ExtManager {
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
 
-            self.gas_tree
-                .cut(message_id, stored_message.id(), gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            if let Ok(mailbox_msg) = stored_message.clone().try_into() {
+                self.gas_tree
+                    .cut(message_id, stored_message.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            self.mailbox
-                .entry(stored_message.destination())
-                .or_default()
-                .push(stored_message.clone());
+                self.mailbox
+                    .insert(mailbox_msg)
+                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+            } else {
+                log::debug!("A reply message is sent to user: {stored_message:?}");
+            };
 
             self.log.push(stored_message);
         }
@@ -1132,6 +1159,7 @@ impl JournalHandler for ExtManager {
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
                         schedule.limits.data_segments_amount.into(),
+                        schedule.limits.table_number.into(),
                     )
                     .expect("Program can't be constructed with provided code");
 

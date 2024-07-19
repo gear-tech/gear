@@ -18,7 +18,7 @@
 
 use crate::{
     log::RunResult,
-    mailbox::Mailbox,
+    mailbox::ActorMailbox,
     manager::{Actors, Balance, ExtManager, ExtManagerPointer, MintMode},
     program::{Program, ProgramIdWrapper},
 };
@@ -304,13 +304,12 @@ impl System {
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
     #[track_caller]
-    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
+    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
         let program_id = id.into().0;
         if !self.0.read().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
-        self.0.write().mailbox.entry(program_id).or_default();
-        Mailbox::new(program_id, self.0.clone())
+        ActorMailbox::new(program_id, self.0.clone())
     }
 
     /// Mint balance to user with given `id` and `value`.
@@ -326,19 +325,14 @@ impl System {
         let actor_id = id.into().0;
         self.0.read().balance_of(&actor_id)
     }
-
-    /// Claim the user's value from the mailbox with given `id`.
-    pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
-        let actor_id = id.into().0;
-        self.0.write().claim_value_from_mailbox(&actor_id);
-    }
 }
 
 impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
-        self.0.read().gas_tree.reset();
+        self.0.write().gas_tree.reset();
+        self.0.write().mailbox.reset();
     }
 }
 

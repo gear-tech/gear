@@ -53,6 +53,7 @@ pub use crate::{
 pub use gear_core::{gas::GasInfo, message::ReplyInfo};
 pub use weights::WeightInfo;
 
+use crate::internal::InheritorForError;
 use alloc::{
     format,
     string::{String, ToString},
@@ -61,7 +62,7 @@ use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
-use core::marker::PhantomData;
+use core::{marker::PhantomData, num::NonZeroU32};
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
@@ -455,6 +456,8 @@ pub mod pallet {
         GearRunAlreadyInBlock,
         /// The program rent logic is disabled.
         ProgramRentDisabled,
+        /// Program is active.
+        ActiveProgram,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -901,30 +904,13 @@ pub mod pallet {
                 || ProgramStorageOf::<T>::program_exists(program_id)
         }
 
-        /// Returns exit argument of an exited program.
-        pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| {
-                    if let Program::Exited(inheritor) = program {
-                        Some(inheritor)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default()
-        }
-
-        /// Returns inheritor of terminated (failed it's init) program.
-        pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| {
-                    if let Program::Terminated(inheritor) = program {
-                        Some(inheritor)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default()
+        /// Returns inheritor of an exited/terminated program.
+        pub fn first_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+            ProgramStorageOf::<T>::get_program(program_id).and_then(|program| match program {
+                Program::Active(_) => None,
+                Program::Exited(id) => Some(id),
+                Program::Terminated(id) => Some(id),
+            })
         }
 
         /// Returns MessageId for newly created user message.
@@ -1139,6 +1125,7 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.table_number.into(),
             )?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
@@ -1163,6 +1150,7 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.table_number.into(),
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");
@@ -1672,6 +1660,81 @@ pub mod pallet {
             ExecuteInherent::<T>::put(value);
 
             Ok(())
+        }
+
+        /// Transfers value from chain of terminated or exited programs to its final inheritor.
+        ///
+        /// `depth` parameter is how far to traverse to inheritor.
+        /// A value of 10 is sufficient for most cases.
+        ///
+        /// # Example of chain
+        ///
+        /// - Program #1 exits (e.g `gr_exit syscall) with argument pointing to user.
+        /// Balance of program #1 has been sent to user.
+        /// - Program #2 exits with inheritor pointing to program #1.
+        /// Balance of program #2 has been sent to exited program #1.
+        /// - Program #3 exits with inheritor pointing to program #2
+        /// Balance of program #1 has been sent to exited program #2.
+        ///
+        /// So chain of inheritors looks like: Program #3 -> Program #2 -> Program #1 -> User.
+        ///
+        /// We have programs #1 and #2 with stuck value on their balances.
+        /// The balances should've been transferred to user (final inheritor) according to the chain.
+        /// But protocol doesn't traverse the chain automatically, so user have to call this extrinsic.
+        #[pallet::call_index(8)]
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value_to_inheritor(depth.get()))]
+        pub fn claim_value_to_inheritor(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            depth: NonZeroU32,
+        ) -> DispatchResultWithPostInfo {
+            ensure_signed(origin)?;
+
+            let depth = depth.try_into().unwrap_or_else(|e| {
+                unreachable!("NonZeroU32 to NonZeroUsize conversion must be infallible: {e}")
+            });
+            let (destination, holders) = match Self::inheritor_for(program_id, depth) {
+                Ok(res) => res,
+                Err(InheritorForError::Cyclic { holders }) => {
+                    // TODO: send value to treasury (#3979)
+                    log::debug!("Cyclic inheritor detected for {program_id}");
+                    return Ok(Some(<T as Config>::WeightInfo::claim_value_to_inheritor(
+                        holders.len() as u32,
+                    ))
+                    .into());
+                }
+                Err(InheritorForError::NotFound) => return Err(Error::<T>::ActiveProgram.into()),
+            };
+
+            let destination = destination.cast();
+
+            let holders_amount = holders.len();
+            for holder in holders {
+                // transfer is the same as in `Self::clean_inactive_program` except
+                // existential deposit is already unlocked because
+                // we work only with terminated/exited programs
+
+                let holder = holder.cast();
+                let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                    &holder,
+                    Preservation::Expendable,
+                    Fortitude::Polite,
+                );
+
+                if !balance.is_zero() {
+                    CurrencyOf::<T>::transfer(
+                        &holder,
+                        &destination,
+                        balance,
+                        ExistenceRequirement::AllowDeath,
+                    )?;
+                }
+            }
+
+            Ok(Some(<T as Config>::WeightInfo::claim_value_to_inheritor(
+                holders_amount as u32,
+            ))
+            .into())
         }
     }
 
