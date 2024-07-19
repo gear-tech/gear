@@ -20,8 +20,9 @@ use ethexe_common::{
 use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
+#[derive(Clone)]
 pub struct Query {
-    database: Box<dyn BlockMetaStorage>,
+    database: Arc<dyn BlockMetaStorage>,
     provider: ObserverProvider,
     router_address: AlloyAddress,
     genesis_block_hash: H256,
@@ -31,7 +32,7 @@ pub struct Query {
 
 impl Query {
     pub async fn new(
-        database: Box<dyn BlockMetaStorage>,
+        database: Arc<dyn BlockMetaStorage>,
         ethereum_rpc: &str,
         router_address: Address,
         genesis_block_hash: H256,

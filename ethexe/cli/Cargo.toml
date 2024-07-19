@@ -69,3 +69,4 @@ demo-ping = { workspace = true, features = ["debug"] }
 ntest = "0.9.3"
 gear-core.workspace = true
 gear-utils.workspace = true
+serde_json.workspace = true

@@ -19,7 +19,12 @@
 //! Integration tests.
 
 use crate::service::Service;
-use alloy::node_bindings::Anvil;
+use alloy::{
+    node_bindings::Anvil,
+    providers::{ext::AnvilApi, Provider, RootProvider},
+    rpc::types::anvil::MineOptions,
+    transports::BoxTransport,
+};
 use anyhow::{anyhow, Result};
 use ethexe_common::{db::CodesStorage, events::BlockEvent};
 use ethexe_db::{Database, MemDb};
@@ -93,6 +98,52 @@ impl Listener {
             }
         }
     }
+
+    pub async fn wait_event<R: Sized>(
+        &mut self,
+        provider: &RootProvider<BoxTransport>,
+        mut f: impl FnMut(Event) -> Result<Option<R>>,
+    ) -> Result<R> {
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                    provider.evm_mine(None).await?;
+                }
+                event = self.next_event() => {
+                    let event = event?;
+                    if let Some(res) = f(event)? {
+                        return Ok(res);
+                    }
+                }
+            }
+        }
+    }
+
+    pub async fn wait_block_event<R: Sized>(
+        &mut self,
+        provider: &RootProvider<BoxTransport>,
+        mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
+    ) -> Result<R> {
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                    provider.evm_mine(None).await?;
+                }
+                event = self.next_event() => {
+                    let event = event?;
+                    let Event::Block(block) = event else {
+                        continue;
+                    };
+
+                    for event in block.events {
+                        if let Some(res) = f(event)? {
+                            return Ok(res);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 struct TestEnv {
@@ -100,8 +151,14 @@ struct TestEnv {
     blob_reader: Arc<MockBlobReader>,
     observer: Observer,
     ethereum: Ethereum,
+    query: Query,
     router_query: RouterQuery,
-    service: Option<Service>,
+    signer: Signer,
+    rpc_url: String,
+    sequencer_public_key: ethexe_signer::PublicKey,
+    validator_public_key: ethexe_signer::PublicKey,
+    router_address: ethexe_signer::Address,
+    block_time: Duration,
 }
 
 impl TestEnv {
@@ -109,9 +166,6 @@ impl TestEnv {
         let block_time = Duration::from_secs(1);
 
         let db = Database::from_one(&MemDb::default());
-
-        let net_config = ethexe_network::NetworkConfiguration::new_local();
-        let network = ethexe_network::NetworkWorker::new(net_config)?;
 
         let tempdir = tempfile::tempdir()?;
         let signer = Signer::new(tempdir.into_path())?;
@@ -136,7 +190,7 @@ impl TestEnv {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         let query = Query::new(
-            Box::new(db.clone()),
+            Arc::new(db.clone()),
             &rpc,
             router_address,
             genesis_block_hash,
@@ -145,53 +199,23 @@ impl TestEnv {
         )
         .await?;
 
-        let processor = Processor::new(db.clone())?;
-
-        let sequencer = Sequencer::new(
-            &ethexe_sequencer::Config {
-                ethereum_rpc: rpc.clone(),
-                sign_tx_public: sequencer_public_key,
-                router_address,
-            },
-            signer.clone(),
-        )
-        .await?;
-
-        let validator = Validator::new(
-            &ethexe_validator::Config {
-                pub_key: validator_public_key,
-                router_address,
-            },
-            signer.clone(),
-        );
-
         let observer = Observer::new(&rpc, router_address, blob_reader.clone())
             .await
             .expect("failed to create observer");
 
-        let rpc = ethexe_rpc::RpcService::new(9090, db.clone());
-
-        let service = Service::new_from_parts(
-            db.clone(),
-            network,
-            observer.clone(),
-            query,
-            processor,
-            signer,
-            Some(sequencer),
-            Some(validator),
-            None,
-            rpc,
-            block_time,
-        );
-
         let env = TestEnv {
             db,
+            query,
             blob_reader,
             observer,
             ethereum,
             router_query,
-            service: Some(service),
+            signer,
+            rpc_url: rpc,
+            sequencer_public_key,
+            validator_public_key,
+            router_address,
+            block_time,
         };
 
         Ok(env)
@@ -199,6 +223,47 @@ impl TestEnv {
 
     pub fn new_listener(&self) -> Listener {
         Listener::new(self.observer.clone())
+    }
+
+    pub async fn new_service(&self) -> Result<Service> {
+        let net_config = ethexe_network::NetworkConfiguration::new_local();
+        let network = ethexe_network::NetworkWorker::new(net_config)?;
+
+        let processor = Processor::new(self.db.clone())?;
+
+        let sequencer = Sequencer::new(
+            &ethexe_sequencer::Config {
+                ethereum_rpc: self.rpc_url.clone(),
+                sign_tx_public: self.sequencer_public_key,
+                router_address: self.router_address,
+            },
+            self.signer.clone(),
+        )
+        .await?;
+
+        let validator = Validator::new(
+            &ethexe_validator::Config {
+                pub_key: self.validator_public_key,
+                router_address: self.router_address,
+            },
+            self.signer.clone(),
+        );
+
+        let rpc = ethexe_rpc::RpcService::new(9090, self.db.clone());
+
+        Ok(Service::new_from_parts(
+            self.db.clone(),
+            network,
+            self.observer.clone(),
+            self.query.clone(),
+            processor,
+            self.signer.clone(),
+            Some(sequencer),
+            Some(validator),
+            None,
+            rpc,
+            self.block_time,
+        ))
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
@@ -221,10 +286,10 @@ async fn ping() {
 
     let anvil = Anvil::new().try_spawn().unwrap();
 
-    let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
     let mut listener = env.new_listener();
 
-    let service = env.service.take().unwrap();
+    let service = env.new_service().await.unwrap();
     let service_handle = task::spawn(service.run());
 
     let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
@@ -334,3 +399,110 @@ async fn ping() {
 
     service_handle.abort();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn ping_reorg() {
+    gear_utils::init_default_logger();
+
+    let anvil = Anvil::new().block_time(1).try_spawn().unwrap();
+
+    let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let mut listener = env.new_listener();
+
+
+    let service = env.new_service().await.unwrap();
+    let service_handle = task::spawn(service.run());
+
+    let provider = env.observer.provider().clone();
+    // provider.anvil_set_auto_mine(false).await.unwrap();
+    // let res = provider.anvil_get_auto_mine().await.unwrap();
+    // assert!(!res);
+
+    log::info!("📗 upload code");
+    let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
+
+    log::info!("📗 Waiting for code loaded");
+    listener
+        .wait_event(&provider, |event| {
+            if let Event::CodeLoaded(loaded) = event {
+                assert_eq!(loaded.code_id, code_id);
+                assert_eq!(loaded.code.as_slice(), demo_ping::WASM_BINARY);
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    let code_loaded_snapshot_id = provider.anvil_snapshot().await.unwrap();
+
+    log::info!("📗 Waiting for code approval #1");
+    listener
+        .wait_block_event(&provider, |event| {
+            if let BlockEvent::CodeApproved(approved) = event {
+                assert_eq!(approved.code_id, code_id);
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    for _ in 0..1 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        provider.evm_mine(None).await.unwrap();
+    }
+
+    // Now returns to the block before approval and waits for approval again
+    let res = provider.anvil_revert(code_loaded_snapshot_id).await.unwrap();
+    assert!(res);
+    log::info!("📗 Waiting for code approval #2");
+    listener
+        .wait_block_event(&provider, |event| {
+            if let BlockEvent::CodeApproved(approved) = event {
+                assert_eq!(approved.code_id, code_id);
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    service_handle.abort();
+}
+
+// #[tokio::test(flavor = "multi_thread")]
+// #[ntest::timeout(60_000)]
+// async fn kek() {
+//     gear_utils::init_default_logger();
+
+//     let anvil = Anvil::new().try_spawn().unwrap();
+
+//     let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+
+//     let provider = env.observer.provider().clone();
+
+//     provider.anvil_set_auto_mine(false).await.unwrap();
+//     let res = provider.anvil_get_auto_mine().await.unwrap();
+//     assert_eq!(res, false);
+
+//     dbg!(provider.get_block_number().await.unwrap());
+//     let snapshot_id = provider.anvil_snapshot().await.unwrap();
+
+//     provider
+//         .evm_mine(Some(MineOptions::Options {
+//             timestamp: None,
+//             blocks: Some(10),
+//         }))
+//         .await
+//         .unwrap();
+//     dbg!(provider.get_block_number().await.unwrap());
+
+//     let res = provider.anvil_revert(snapshot_id).await.unwrap();
+//     assert_eq!(res, true);
+//     dbg!(provider.get_block_number().await.unwrap());
+// }

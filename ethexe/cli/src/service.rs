@@ -87,7 +87,7 @@ impl Service {
         log::info!("👶 Genesis block hash: {genesis_block_hash}");
 
         let query = ethexe_observer::Query::new(
-            Box::new(db.clone()),
+            Arc::new(db.clone()),
             &config.ethereum_rpc,
             ethereum_router_address,
             genesis_block_hash,
