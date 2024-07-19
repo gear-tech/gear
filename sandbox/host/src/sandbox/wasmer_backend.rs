@@ -56,16 +56,9 @@ mod dispatch_function_env {
     }
 
     impl Env {
-        pub fn empty(store: Rc<StoreRefCell>) -> Self {
+        pub fn new(gas_global: Option<sandbox_wasmer::Global>, store: Rc<StoreRefCell>) -> Self {
             Self {
-                gas_global: None,
-                store_ref: store,
-            }
-        }
-
-        pub fn new(gas_global: sandbox_wasmer::Global, store: Rc<StoreRefCell>) -> Self {
-            Self {
-                gas_global: Some(gas_global),
+                gas_global,
                 store_ref: store,
             }
         }
@@ -154,12 +147,8 @@ pub fn invoke(
         .get_function(export_name)
         .map_err(|error| Error::Sandbox(error.to_string()))?;
 
-    let gas_global = instance
-        .exports
-        .get_global(GLOBAL_NAME_GAS)
-        .map_err(|_| Error::GlobalNotFound(GLOBAL_NAME_GAS.to_string()))?
-        .clone();
-
+    // Allowing gas global to be optional to allow run non-instrumented programs (used for tests, benches).
+    let gas_global = instance.exports.get_global(GLOBAL_NAME_GAS).ok().cloned();
     let args: Vec<sandbox_wasmer::Value> = args.iter().map(into_wasmer_val).collect();
 
     let wasmer_result = SandboxContextStore::using(sandbox_context, || {
@@ -385,8 +374,8 @@ pub fn instantiate(
     import_object.register_namespace("env", exports);
 
     // This is sound because we're only instantiating the module, and the `start` function is not allowed by our `Code` checks.
-    // No code can access globals during instantiation; therefore, it's fine to create an empty `Env` context here.
-    let mut dispatch_func_env = Env::empty(context.store.clone());
+    // No code can access globals during instantiation; therefore, it's fine to create `Env` context with gas global set to `None`.
+    let mut dispatch_func_env = Env::new(None, context.store.clone());
 
     let instance = SandboxContextStore::using(sandbox_context, || {
         dispatch_function_env::using(&mut dispatch_func_env, || {
