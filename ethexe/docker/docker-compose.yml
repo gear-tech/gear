@@ -49,6 +49,7 @@ services:
       --ethereum-rpc ws://54.67.75.1:8546
       --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
       --sequencer-key ${SEQUENCER_PUB_KEY}"
+      --prometheus-port 9636"
     networks:
       testing_net:
         ipv4_address: 172.28.1.2
