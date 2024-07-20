@@ -18,3 +18,4 @@
 
 mod bail;
 mod debug;
+pub(crate) mod log;
