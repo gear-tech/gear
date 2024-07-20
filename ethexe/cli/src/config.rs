@@ -25,7 +25,7 @@ use directories::ProjectDirs;
 use ethexe_network::NetworkConfiguration;
 use ethexe_prometheus_endpoint::Registry;
 use ethexe_signer::PublicKey;
-use std::{iter, net::SocketAddr, path::PathBuf};
+use std::{iter, net::SocketAddr, path::PathBuf, time::Duration};
 use tempfile::TempDir;
 
 const DEFAULT_PROMETHEUS_PORT: u16 = 9635;
@@ -79,8 +79,11 @@ pub struct Config {
     /// Address of Ethereum Router contract
     pub ethereum_router_address: String,
 
-    // Max depth to discover last commitment.
+    /// Max depth to discover last commitment.
     pub max_commitment_depth: u32,
+
+    /// Block production time.
+    pub block_time: Duration,
 
     /// Network path
     pub network_path: PathBuf,
@@ -159,10 +162,11 @@ impl TryFrom<Args> for Config {
                 .ethereum_router_address
                 .unwrap_or(chain_spec.ethereum_router_address),
             max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
+            block_time: Duration::from_secs(args.block_time),
             net_config,
-            prometheus_config: args
-                .prometheus_params
-                .prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string()),
+            prometheus_config: args.prometheus_params.and_then(|params| {
+                params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
+            }),
             database_path: base_path.join("db"),
             network_path: base_path.join("net"),
             key_path: base_path.join("key"),
