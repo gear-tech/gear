@@ -6,7 +6,7 @@ services:
     ports:
       - "20333:20333/udp"
       - "9635:9635"
-    image: gear-tech/gear-egpu:latest
+    image: gear-tech/gear:latest
     environment:
       VALIDATOR_KEY: ${VALIDATOR_KEY}
       VALIDATOR_PUB_KEY: ${VALIDATOR_PUB_KEY}
