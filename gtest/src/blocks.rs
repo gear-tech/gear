@@ -18,21 +18,18 @@
 
 //! Block timestamp and height management.
 
+use crate::BLOCK_DURATION_IN_MSECS;
 use core_processor::configs::BlockInfo;
+use once_cell::sync::Lazy;
+use parking_lot::RwLock;
 use std::{
-    cell::RefCell,
-    rc::Rc,
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::BLOCK_DURATION_IN_MSECS;
+type BlockInfoStorageInner = Arc<RwLock<Option<BlockInfo>>>;
 
-type BlockInfoStorageInner = Rc<RefCell<Option<BlockInfo>>>;
-
-thread_local! {
-    /// Definition of the storage value storing block info (timestamp and height).
-    static BLOCK_INFO_STORAGE: BlockInfoStorageInner = Rc::new(RefCell::new(None));
-}
+static BLOCK_INFO_STORAGE: Lazy<BlockInfoStorageInner> = Lazy::new(|| Arc::new(RwLock::new(None)));
 
 #[derive(Debug)]
 pub(crate) struct BlocksManager {
@@ -43,32 +40,27 @@ impl BlocksManager {
     /// Create block info storage manager with a further initialization of the
     /// storage.
     pub(crate) fn new() -> Self {
-        let unused = BLOCK_INFO_STORAGE.with(|bi_rc| {
-            let mut ref_mut = bi_rc.borrow_mut();
-            if ref_mut.is_none() {
-                let info = BlockInfo {
-                    height: 0,
-                    timestamp: now(),
-                };
+        let mut bi = BLOCK_INFO_STORAGE.write();
+        if bi.is_none() {
+            let info = BlockInfo {
+                height: 0,
+                timestamp: now(),
+            };
 
-                *ref_mut = Some(info);
-            }
+            *bi = Some(info);
+        }
 
-            Rc::clone(bi_rc)
-        });
-
-        Self { _unused: unused }
+        Self {
+            _unused: BLOCK_INFO_STORAGE.clone(),
+        }
     }
 
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        BLOCK_INFO_STORAGE.with(|bi_rc| {
-            bi_rc
-                .borrow()
-                .as_ref()
-                .copied()
-                .expect("instance always initialized")
-        })
+        BLOCK_INFO_STORAGE
+            .read()
+            .clone()
+            .expect("instance always initialized")
     }
 
     /// Move blocks by one.
@@ -78,17 +70,15 @@ impl BlocksManager {
 
     /// Adjusts blocks info by moving blocks by `amount`.
     pub(crate) fn move_blocks_by(&self, amount: u32) -> BlockInfo {
-        BLOCK_INFO_STORAGE.with(|bi_rc| {
-            let mut bi_ref_mut = bi_rc.borrow_mut();
-            let Some(block_info) = bi_ref_mut.as_mut() else {
-                panic!("instance always initialized");
-            };
-            block_info.height += amount;
-            let duration = BLOCK_DURATION_IN_MSECS.saturating_mul(amount as u64);
-            block_info.timestamp += duration;
+        let mut bi_ref_mut = BLOCK_INFO_STORAGE.write();
+        let Some(block_info) = bi_ref_mut.as_mut() else {
+            panic!("instance always initialized");
+        };
+        block_info.height += amount;
+        let duration = BLOCK_DURATION_IN_MSECS.saturating_mul(amount as u64);
+        block_info.timestamp += duration;
 
-            *block_info
-        })
+        *block_info
     }
 }
 
@@ -100,11 +90,9 @@ impl Default for BlocksManager {
 
 impl Drop for BlocksManager {
     fn drop(&mut self) {
-        BLOCK_INFO_STORAGE.with(|bi_rc| {
-            if Rc::strong_count(bi_rc) == 2 {
-                *bi_rc.borrow_mut() = None;
-            }
-        });
+        if Arc::strong_count(&BLOCK_INFO_STORAGE) == 2 {
+            *BLOCK_INFO_STORAGE.write() = None;
+        }
     }
 }
 
@@ -129,7 +117,7 @@ mod tests {
 
         // Assert all instance use same data;
         assert_eq!(second_instance.get().height, 2);
-        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_some());
+        assert!(BLOCK_INFO_STORAGE.read().is_some());
 
         // Drop first instance and check whether data is removed.
         drop(first_instance);
@@ -137,9 +125,9 @@ mod tests {
 
         second_instance.next_block();
         assert_eq!(second_instance.get().height, 3);
-        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_some());
+        assert!(BLOCK_INFO_STORAGE.read().is_some());
 
         drop(second_instance);
-        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_none());
+        assert!(BLOCK_INFO_STORAGE.read().is_none());
     }
 }

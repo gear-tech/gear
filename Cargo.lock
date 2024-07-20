@@ -7090,6 +7090,7 @@ dependencies = [
  "hex",
  "indexmap 2.2.6",
  "log",
+ "once_cell",
  "parity-scale-codec",
  "parking_lot 0.12.3",
  "path-clean",

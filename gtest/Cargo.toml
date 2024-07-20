@@ -31,6 +31,7 @@ indexmap.workspace = true
 cargo_toml.workspace = true
 etc.workspace = true
 parking_lot.workspace = true
+once_cell.workspace = true
 
 [dev-dependencies]
 demo-custom.workspace = true

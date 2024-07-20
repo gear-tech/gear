@@ -209,7 +209,7 @@ impl Actors {
     }
 
     pub fn contains_key(&self, program_id: &ProgramId) -> bool {
-        self.0.write().contains_key(program_id)
+        self.0.read().contains_key(program_id)
     }
 
     fn remove(&mut self, program_id: &ProgramId) -> Option<(TestActor, Balance)> {

@@ -97,6 +97,7 @@ impl LazyPagesStorage for PagesStorage {
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
 /// ```
+#[derive(Clone)]
 pub struct System(pub(crate) ExtManagerPointer);
 
 impl System {
@@ -331,8 +332,8 @@ impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
-        self.0.write().gas_tree.reset();
-        self.0.write().mailbox.reset();
+        self.0.read().gas_tree.reset();
+        self.0.read().mailbox.reset();
     }
 }
 
@@ -360,6 +361,22 @@ mod tests {
 
             second_instance.spend_blocks(10);
             assert_eq!(second_instance.block_height(), 10);
+        });
+
+        h.join().expect("internal error failed joining thread");
+    }
+
+    #[test]
+    fn test_multithread_sync() {
+        let first_instance = System::new();
+        first_instance.spend_blocks(5);
+
+        assert_eq!(first_instance.block_height(), 5);
+
+        let h = std::thread::spawn(move || {
+            let second_instance = first_instance.clone();
+            second_instance.spend_blocks(10);
+            assert_eq!(second_instance.block_height(), 15);
         });
 
         h.join().expect("internal error failed joining thread");
