@@ -127,8 +127,8 @@ impl NetworkEventLoop {
         config: NetworkEventLoopConfig,
         signer: &Signer,
     ) -> anyhow::Result<(NetworkSender, GossipsubMessageStream, Self)> {
-        let (general_tx, general_rx) = mpsc::unbounded_channel();
-        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
+        fs::create_dir_all(&config.config_dir)
+            .context("failed to create network configuration directory")?;
 
         let keypair = Self::generate_keypair(signer, &config.config_dir, config.public_key)?;
         let mut swarm = Self::create_swarm(keypair)?;
@@ -144,6 +144,9 @@ impl NetworkEventLoop {
         for multiaddr in config.bootstrap_addresses {
             swarm.dial(multiaddr)?;
         }
+
+        let (general_tx, general_rx) = mpsc::unbounded_channel();
+        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
 
         Ok((
             NetworkSender { tx: general_tx },

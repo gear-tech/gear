@@ -500,7 +500,6 @@ mod tests {
     use super::Service;
     use crate::config::{Config, PrometheusConfig};
     use std::{
-        fs,
         net::{Ipv4Addr, SocketAddr},
         time::Duration,
     };
@@ -512,7 +511,6 @@ mod tests {
         let tmp_dir = tmp_dir.path().to_path_buf();
 
         let net_path = tmp_dir.join("net");
-        fs::create_dir_all(&net_path).unwrap();
         let net_config = ethexe_network::NetworkEventLoopConfig::new_local(net_path);
 
         Service::new(&Config {
