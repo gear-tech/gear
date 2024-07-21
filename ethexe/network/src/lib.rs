@@ -27,7 +27,9 @@ use ethexe_signer::{PublicKey, Signer};
 use libp2p::{
     connection_limits,
     futures::{Stream, StreamExt},
-    gossipsub, identify, identity, kad, mdns, ping,
+    gossipsub, identify, identity, kad, mdns,
+    multiaddr::Protocol,
+    ping,
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
         NetworkBehaviour, SwarmEvent,
@@ -78,7 +80,18 @@ impl NetworkService {
         }
 
         for multiaddr in config.bootstrap_addresses {
-            swarm.dial(multiaddr)?;
+            let peer_id = multiaddr
+                .iter()
+                .find_map(|p| {
+                    if let Protocol::P2p(peer_id) = p {
+                        Some(peer_id)
+                    } else {
+                        None
+                    }
+                })
+                .context("bootstrap nodes are not allowed without peer ID")?;
+
+            swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
         let (general_tx, general_rx) = mpsc::unbounded_channel();
