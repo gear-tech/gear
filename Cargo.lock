@@ -3437,7 +3437,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-log"
+name = "demo-logs"
 version = "0.1.0"
 dependencies = [
  "gstd",

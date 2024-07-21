@@ -18,7 +18,7 @@
 
 /// Prints a string to the log.
 ///
-/// Shortcut of [`gstd::msg::log_str`] with formatter.
+/// Shortcut of [`crate::msg::log_str`] with formatter.
 ///
 /// # Example
 ///
