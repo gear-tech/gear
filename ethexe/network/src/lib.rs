@@ -26,24 +26,25 @@ use anyhow::Context;
 use ethexe_signer::{PublicKey, Signer};
 use libp2p::{
     connection_limits,
-    futures::{Stream, StreamExt},
+    futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
-    ping,
+    ping, request_response,
+    request_response::{Event, Message},
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
         NetworkBehaviour, SwarmEvent,
     },
-    Multiaddr, PeerId, Swarm, SwarmBuilder,
+    Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder,
 };
+use parity_scale_codec::Decode;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
-    pin::Pin,
     str::FromStr,
-    task::Poll,
 };
 use tokio::{select, sync::mpsc};
 
@@ -56,9 +57,12 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
+const DB_SYNC_STREAM_PROTOCOL: StreamProtocol =
+    StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
+
 pub struct NetworkService {
     pub sender: NetworkSender,
-    pub gossip_stream: GossipsubMessageStream,
+    pub receiver: NetworkReceiver,
     pub event_loop: NetworkEventLoop,
 }
 
@@ -94,12 +98,12 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let (general_tx, general_rx) = mpsc::unbounded_channel();
-        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
+        let (network_sender, sender_rx) = NetworkSender::new();
+        let (receiver_tx, network_receiver) = NetworkReceiver::new();
 
         Ok(Self {
-            sender: NetworkSender { tx: general_tx },
-            gossip_stream: GossipsubMessageStream { rx: gossipsub_rx },
+            sender: network_sender,
+            receiver: network_receiver,
             event_loop: NetworkEventLoop {
                 swarm,
                 general_rx,
@@ -112,43 +116,59 @@ impl NetworkService {
 #[derive(Debug)]
 enum NetworkSenderEvent {
     PublishCommitments { data: Vec<u8> },
+    RequestDb {},
 }
 
-/// Communication with [`NetworkEventLoop`]
 #[derive(Debug, Clone)]
 pub struct NetworkSender {
     tx: mpsc::UnboundedSender<NetworkSenderEvent>,
 }
 
 impl NetworkSender {
+    fn new() -> (Self, mpsc::UnboundedReceiver<NetworkSenderEvent>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (Self { tx }, rx)
+    }
+
     pub fn publish_commitments(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
             .send(NetworkSenderEvent::PublishCommitments { data: data.into() });
     }
-}
 
-#[derive(Debug)]
-pub struct GossipsubMessage {
-    pub source: Option<PeerId>,
-    pub data: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct GossipsubMessageStream {
-    rx: mpsc::UnboundedReceiver<GossipsubMessage>,
-}
-
-impl Stream for GossipsubMessageStream {
-    type Item = GossipsubMessage;
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.rx).poll_recv(cx)
+    pub fn request_db(&self) {
+        let _res = self.tx.send(NetworkSenderEvent::RequestDb {});
     }
 }
+
+#[derive(Debug)]
+pub enum NetworkReceiverEvent {
+    Commitments {
+        source: Option<PeerId>,
+        data: Vec<u8>,
+    },
+}
+
+pub struct NetworkReceiver {
+    rx: mpsc::UnboundedReceiver<NetworkReceiverEvent>,
+}
+
+impl NetworkReceiver {
+    fn new() -> (mpsc::UnboundedSender<NetworkReceiverEvent>, Self) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (tx, Self { rx })
+    }
+
+    pub async fn recv(&mut self) -> Option<NetworkReceiverEvent> {
+        self.rx.recv().await
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DbSyncRequest {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DbSyncResponse {}
 
 #[derive(Debug, Clone)]
 pub struct NetworkEventLoopConfig {
@@ -173,8 +193,8 @@ impl NetworkEventLoopConfig {
 
 pub struct NetworkEventLoop {
     swarm: Swarm<Behaviour>,
-    general_rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
-    gossipsub_tx: mpsc::UnboundedSender<GossipsubMessage>,
+    rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
+    tx: mpsc::UnboundedSender<NetworkReceiverEvent>,
 }
 
 impl NetworkEventLoop {
@@ -222,7 +242,7 @@ impl NetworkEventLoop {
         loop {
             select! {
                 event = self.swarm.select_next_some() => self.handle_swarm_event(event),
-                event = self.general_rx.recv() => match event {
+                event = self.rx.recv() => match event {
                     Some(event) => {
                         self.handle_network_rx_event(event);
                     }
@@ -314,16 +334,69 @@ impl NetworkEventLoop {
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message: gossipsub::Message { source, data, .. },
+                message:
+                    gossipsub::Message {
+                        source,
+                        data,
+                        sequence_number: _,
+                        topic,
+                    },
                 ..
-            }) => {
-                let _res = self.gossipsub_tx.send(GossipsubMessage { source, data });
+            }) if gpu_commitments_topic().hash() == topic => {
+                self.tx
+                    .send(NetworkReceiverEvent::Commitments { source, data })
+                    .expect("channel dropped unexpectedly");
+            }
+            BehaviourEvent::Gossipsub(gossipsub::Event::Message {
+                message:
+                    gossipsub::Message {
+                        source,
+                        data,
+                        sequence_number: _,
+                        topic,
+                    },
+                ..
+            }) if DbSyncTopicMessage::ident_topic().hash() == topic => {
+                let _message = match DbSyncTopicMessage::decode(&mut data.as_slice()) {
+                    Ok(m) => m,
+                    Err(err) => {
+                        log::debug!("invalid db-sync topic message: {err}");
+                        return;
+                    }
+                };
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
                 let _res = self.swarm.disconnect_peer_id(peer_id);
             }
             BehaviourEvent::Gossipsub(_) => {}
+            //
+            BehaviourEvent::DbSync(e) => match e {
+                Event::Message { peer, message } => match message {
+                    Message::Request {
+                        request_id,
+                        request,
+                        channel,
+                    } => {
+                        let DbSyncRequest {} = request;
+                        if let Err(_resp) = self
+                            .swarm
+                            .behaviour_mut()
+                            .db_sync
+                            .send_response(channel, DbSyncResponse {})
+                        {
+                            log::debug!("failed to send response for {peer} peer and {request_id} request: channel is closed");
+                        }
+                    }
+                    Message::Response {
+                        request_id,
+                        response,
+                    } => {}
+                },
+                Event::OutboundFailure { .. } => {}
+                Event::InboundFailure { .. } => {}
+                Event::ResponseSent { .. } => {}
+            },
         }
     }
 
@@ -339,6 +412,7 @@ impl NetworkEventLoop {
                     log::debug!("gossipsub publishing failed: {e}")
                 }
             }
+            NetworkSenderEvent::RequestDb {} => {}
         }
     }
 }
@@ -360,6 +434,8 @@ pub struct Behaviour {
     pub kad: kad::Behaviour<kad::store::MemoryStore>,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
+    //
+    pub db_sync: request_response::json::Behaviour<DbSyncRequest, DbSyncResponse>,
 }
 
 impl Behaviour {
@@ -421,6 +497,14 @@ impl Behaviour {
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 
+        let db_sync = request_response::json::Behaviour::new(
+            [(
+                DB_SYNC_STREAM_PROTOCOL,
+                request_response::ProtocolSupport::Full,
+            )],
+            request_response::Config::default(),
+        );
+
         Ok(Self {
             custom_connection_limits,
             connection_limits,
@@ -429,6 +513,7 @@ impl Behaviour {
             mdns4,
             kad,
             gossipsub,
+            db_sync,
         })
     }
 }
@@ -436,4 +521,13 @@ impl Behaviour {
 fn gpu_commitments_topic() -> gossipsub::IdentTopic {
     // TODO: use router address in topic name to avoid obsolete router
     gossipsub::IdentTopic::new("gpu-commitments")
+}
+
+#[derive(Decode)]
+struct DbSyncTopicMessage {}
+
+impl DbSyncTopicMessage {
+    fn ident_topic() -> gossipsub::IdentTopic {
+        gossipsub::IdentTopic::new("db-sync")
+    }
 }
