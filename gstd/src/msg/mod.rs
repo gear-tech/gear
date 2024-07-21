@@ -56,4 +56,7 @@ pub use basic::*;
 mod encoded;
 pub use encoded::*;
 
+mod log;
+pub use log::*;
+
 mod utils;

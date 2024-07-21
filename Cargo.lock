@@ -3437,6 +3437,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-log"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "gtest",
+]
+
+[[package]]
 name = "demo-messenger"
 version = "0.1.0"
 dependencies = [
@@ -3547,7 +3555,6 @@ dependencies = [
 name = "demo-ping"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
 ]
 

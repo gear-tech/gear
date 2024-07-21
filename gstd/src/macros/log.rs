@@ -18,21 +18,7 @@
 
 /// Prints a string to the log.
 ///
-/// For the internal logic, this macro sends messages to empty program
-/// which results as logging, the sent logs can be extracted from the
-/// chain event `pallet_gear::Event::UserMessageSent`.
-///
-/// ```no_run
-/// let GearEvent::UserMessageSent {
-///   message: UserMessage {
-///     // The payload here is the log you sent with the method.
-///     payload,
-///     destination: ActorId::zero(),
-///     ...
-///   },
-///   ...
-/// } = event;
-/// ```
+/// Shortcut of [`gstd::msg::log`] with formatter.
 ///
 /// # Example
 ///
@@ -46,42 +32,6 @@
 #[macro_export]
 macro_rules! log {
     ($($arg:tt)*) => {{
-        gcore::msg::send(ActorId::zero(), format!($($arg:tt)*).as_ref(), 0)
+        $crate::msg::log_str($crate::format!($($arg)*))
     }};
 }
-
-/// Prints some slices as hex
-///
-/// Similar to [`log`], but hex encode the input slice with [`LOG_DATA_PREFIX`]
-/// in the output string.
-///
-/// # Example
-///
-/// ```no_run
-/// // in program
-/// #[derive(Encode, Decode)]
-/// struct Data {
-///   value: u64,
-/// }
-///
-/// gstd::log_data!(Data { value: 42 }.encode());
-///
-/// // on client side, after extracting payload from events.
-/// assert_eq!(
-///   Ok(Data { value: 42 }),
-///   Data::decode(&mut hex::decode(
-///     String::from_utf8_lossy(payload).trim_start_matches(gstd::LOG_DATA_PREFIX)
-///   )?.as_ref())?
-/// );
-/// ```
-#[macro_export]
-macro_rules! log_data {
-    ($data:tt) => {{
-        let mut log: String = $crate::macros::LOG_DATA_PREFIX;
-        log += $crate::hex::encode($bytes);
-        gcore::msg::send(ActorId::zero(), log, 0)
-    }};
-}
-
-/// Prefix for log data, see [`log_data`]
-pub const LOG_DATA_PREFIX: &str = "data: ";

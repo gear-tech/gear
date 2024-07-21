@@ -176,7 +176,6 @@ pub use gcore::{
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use hex;
-pub use macros::log::LOG_DATA_PREFIX;
 pub use prelude::*;
 pub use reservations::*;
 

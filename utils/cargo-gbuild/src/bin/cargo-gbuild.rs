@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::env;
-
 use anyhow::Result;
 use cargo_gbuild::GBuild;
 use clap::Parser;
+use std::env;
 use tracing_subscriber::filter::EnvFilter;
 
 const CUSTOM_COMMAND_NAME: &str = "gbuild";
@@ -55,7 +54,7 @@ fn main() -> Result<()> {
     let env = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(match app.verbose {
         0 => format!("{name}=info"),
         1 => format!("{name}=debug"),
-        2 => "debug".into(),
+        2 => format!("{name}=trace"),
         _ => "trace".into(),
     }));
 

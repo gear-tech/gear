@@ -49,6 +49,7 @@ members = [
     "examples/init-fail-sender",
     "examples/init-wait",
     "examples/init-wait-reply-exit",
+    "examples/log",
     "examples/messenger",
     "examples/mul-by-const",
     "examples/ncompose",
