@@ -31,7 +31,7 @@ use ethexe_validator::Commitment;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::Decode;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::time;
 
 /// ethexe service.
@@ -50,6 +50,7 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
     rpc: ethexe_rpc::RpcService,
+    block_time: Duration,
 }
 
 async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
@@ -69,6 +70,7 @@ impl Service {
             ethexe_observer::ConsensusLayerBlobReader::new(
                 &config.ethereum_rpc,
                 &config.ethereum_beacon_rpc,
+                config.block_time,
             )
             .await?,
         );
@@ -153,7 +155,42 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            block_time: config.block_time,
         })
+    }
+
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_from_parts(
+        db: Database,
+        network: (
+            ethexe_network::NetworkSender,
+            ethexe_network::GossipsubMessageStream,
+            ethexe_network::NetworkEventLoop,
+        ),
+        observer: ethexe_observer::Observer,
+        query: ethexe_observer::Query,
+        processor: ethexe_processor::Processor,
+        signer: ethexe_signer::Signer,
+        sequencer: Option<ethexe_sequencer::Sequencer>,
+        validator: Option<ethexe_validator::Validator>,
+        metrics_service: Option<MetricsService>,
+        rpc: ethexe_rpc::RpcService,
+        block_time: Duration,
+    ) -> Self {
+        Self {
+            db,
+            network,
+            observer,
+            query,
+            processor,
+            signer,
+            sequencer,
+            validator,
+            metrics_service,
+            rpc,
+            block_time,
+        }
     }
 
     // TODO: remove this function.
@@ -299,6 +336,12 @@ impl Service {
 
         let commitments = match observer_event {
             ethexe_observer::Event::Block(block_data) => {
+                log::info!(
+                    "📦 receive a new block {}, hash {}, parent hash {}",
+                    block_data.block_number,
+                    block_data.block_hash,
+                    block_data.parent_hash
+                );
                 let commitments =
                     Self::process_block_event(db, query, processor, block_data).await?;
                 commitments.into_iter().map(Commitment::Block).collect()
@@ -337,6 +380,7 @@ impl Service {
             mut validator,
             metrics_service,
             rpc,
+            block_time,
         } = self;
 
         let (network_sender, mut gossipsub_stream, network) = network;
@@ -381,8 +425,6 @@ impl Service {
                         break;
                     };
 
-                    let is_block_event = matches!(observer_event, ethexe_observer::Event::Block(_));
-
                     let commitments = Self::process_observer_event(
                         &db,
                         &mut query,
@@ -411,12 +453,7 @@ impl Service {
                         }
                     }
 
-                    if is_block_event {
-                        // After 3 seconds of block event:
-                        // - if validator, clean commitments
-                        // - if sequencer, send commitments transactions
-                        delay = Some(tokio::time::sleep(std::time::Duration::from_secs(3)));
-                    }
+                    delay = Some(tokio::time::sleep(block_time / 4));
                 }
                 message = gossipsub_stream.next() => {
                     if let Some(message) = message {
@@ -465,6 +502,7 @@ mod tests {
     use std::{
         fs,
         net::{Ipv4Addr, SocketAddr},
+        time::Duration,
     };
     use tempfile::tempdir;
 
@@ -484,6 +522,7 @@ mod tests {
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
             max_commitment_depth: 1000,
+            block_time: Duration::from_secs(1),
             key_path: tmp_dir.join("key"),
             net_config,
             prometheus_config: Some(PrometheusConfig::new_with_default_registry(

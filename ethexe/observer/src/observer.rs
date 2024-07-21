@@ -17,6 +17,7 @@ use tokio::sync::watch;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
+#[derive(Clone)]
 pub struct Observer {
     provider: ObserverProvider,
     router_address: AlloyAddress,
@@ -86,7 +87,6 @@ impl Observer {
                         let parent_hash = block_header.parent_hash;
                         let block_number = block_header.number.expect("failed to get block number");
                         let timestamp = block_header.timestamp;
-                        log::info!("📦 receive block {block_number}, hash {block_hash}, parent hash: {parent_hash}");
 
                         let events = match read_block_events(H256(block_hash.0), &self.provider, self.router_address).await {
                             Ok(events) => events,
@@ -123,11 +123,13 @@ impl Observer {
                             });
                         }
 
-                                        self.update_status(|status| {
-                                                status.eth_block_number = block_number;
-                                                if codes_len > 0 { status.last_router_state = block_number };
-                                                status.pending_upload_code = codes_len as u64;
-                                            });
+                        self.update_status(|status| {
+                            status.eth_block_number = block_number;
+                            if codes_len > 0 {
+                                status.last_router_state = block_number;
+                            }
+                            status.pending_upload_code = codes_len as u64;
+                        });
 
                         let block_data = BlockData {
                             block_hash: H256(block_hash.0),
@@ -201,13 +203,13 @@ pub(crate) async fn read_block_events(
         events.push(event);
     }
 
-    log::trace!("Read events for {block_hash}: {events:?}");
-
     Ok(events)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::MockBlobReader;
     use alloy::node_bindings::Anvil;
@@ -230,7 +232,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_deployment() -> Result<()> {
-        let anvil = Anvil::new().try_spawn()?;
+        gear_utils::init_default_logger();
+
+        let mut anvil = Anvil::new().block_time(1).try_spawn()?;
+        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+
         let ethereum_rpc = anvil.ws_endpoint();
 
         let signer = Signer::new("/tmp/keys".into())?;
@@ -242,7 +248,7 @@ mod tests {
         let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
         let ethereum = Ethereum::deploy(&ethereum_rpc, validators, signer, sender_address).await?;
-        let blob_reader = Arc::new(MockBlobReader::default());
+        let blob_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
 
         let router_address = ethereum.router().address();
         let cloned_blob_reader = blob_reader.clone();
@@ -273,8 +279,11 @@ mod tests {
         "#;
         let wasm = wat2wasm(wat);
 
-        let (tx_hash, _) = ethereum.router().upload_code_with_sidecar(&wasm).await?;
-        blob_reader.add_blob_transaction(tx_hash, wasm).await;
+        let code_id = CodeId::generate(&wasm);
+        let blob_tx = H256::random();
+
+        blob_reader.add_blob_transaction(blob_tx, wasm).await;
+        ethereum.router().upload_code(code_id, blob_tx).await?;
 
         assert!(
             handle.await?.is_some(),

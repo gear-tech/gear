@@ -23,6 +23,9 @@ mod metrics;
 mod params;
 mod service;
 
+#[cfg(test)]
+mod tests;
+
 use crate::{
     args::{Args, ArgsOnConfig},
     config::Config,

@@ -84,6 +84,11 @@ pub struct Args {
     #[arg(long = "max-depth")]
     pub max_commitment_depth: Option<u32>,
 
+    /// Block time in seconds (approximate).
+    /// Ethexe uses it to estimate inner timeouts.
+    #[arg(long, default_value = "12")]
+    pub block_time: u64,
+
     /// Run a temporary node.
     ///
     /// A temporary directory will be created to store the configuration and will be deleted
@@ -101,7 +106,7 @@ pub struct Args {
 
     #[allow(missing_docs)]
     #[clap(flatten)]
-    pub prometheus_params: PrometheusParams,
+    pub prometheus_params: Option<PrometheusParams>,
 
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,
