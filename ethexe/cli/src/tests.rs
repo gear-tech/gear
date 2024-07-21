@@ -110,11 +110,9 @@ impl TestEnv {
 
         let db = Database::from_one(&MemDb::default());
 
-        let net_config = ethexe_network::NetworkConfiguration::new_local();
-        let network = ethexe_network::NetworkWorker::new(net_config)?;
+        let tempdir = tempfile::tempdir()?.into_path();
 
-        let tempdir = tempfile::tempdir()?;
-        let signer = Signer::new(tempdir.into_path())?;
+        let signer = Signer::new(tempdir.join("key"))?;
         let sender_public_key = signer.add_key(
             // Anvil account (0) with balance
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
@@ -124,6 +122,9 @@ impl TestEnv {
             // Anvil account (1) with balance
             "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d".parse()?,
         )?;
+
+        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(tempdir.join("net"));
+        let network = ethexe_network::NetworkEventLoop::new(net_config, &signer)?;
 
         let sender_address = sender_public_key.to_address();
         let validators = vec![validator_public_key.to_address()];
