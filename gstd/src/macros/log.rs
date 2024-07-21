@@ -29,7 +29,7 @@
 /// // on client side, after extracting payload from events.
 /// assert_eq!(
 ///     String::from_utf8_lossy(payload),
-///     format!("the answer is 42")
+///     "the answer is 42".into()
 /// );
 /// ```
 #[macro_export]
