@@ -18,16 +18,19 @@
 
 /// Prints a string to the log.
 ///
-/// Shortcut of [`gstd::msg::log`] with formatter.
+/// Shortcut of [`gstd::msg::log_str`] with formatter.
 ///
 /// # Example
 ///
 /// ```no_run
 /// // in program
-/// gstd::log!("the anwser is {value}");
+/// gstd::log!("the answer is {}", 42);
 ///
 /// // on client side, after extracting payload from events.
-/// assert_eq!(String::from_utf8_lossy(payload), format!("the anwser is {value}"));
+/// assert_eq!(
+///     String::from_utf8_lossy(payload),
+///     format!("the answer is 42")
+/// );
 /// ```
 #[macro_export]
 macro_rules! log {

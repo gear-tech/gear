@@ -40,7 +40,7 @@ use gcore::{errors::Result, ActorId, MessageId};
 ///
 /// ```no_run
 /// // program side
-/// let log = "the anwser is 42";
+/// let log = "the answer is 42";
 /// gstd::msg::log_str(log);
 ///
 /// // client side, after extracting payload from events.

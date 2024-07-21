@@ -862,7 +862,7 @@ pub mod gbuild {
 
     /// Ensure the current project has been built by `cargo-gbuild`.
     pub fn ensure_gbuild(rebuild: bool) {
-        let mut build = false || rebuild;
+        let mut build = rebuild;
         if wasm_path().is_err() {
             build = true;
         }
