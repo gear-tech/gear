@@ -199,7 +199,7 @@ fn collect_crates(cwd: &Path, patterns: &[String], opt: OptType) -> Result<Vec<A
                 cdylib = lib.crate_type.contains(&"cdylib".to_string());
             }
 
-            // Sepcifying `--crate-type` in rustc flags doesn't work
+            // Specifying `--crate-type` in rustc flags doesn't work
             // for our case since crates like gstd, gmeta don't have
             // `cdylib` specified and it would slow down compilation
             // time if adding `cdylib` in their [lib].
