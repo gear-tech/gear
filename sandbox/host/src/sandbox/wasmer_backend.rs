@@ -26,7 +26,7 @@ use std::{
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
-use sandbox_wasmer::{AsStoreMut, Module, RuntimeError};
+use sandbox_wasmer::{AsStoreMut, Module, RuntimeError, Store};
 use sandbox_wasmer_types::TrapCode;
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 
@@ -45,37 +45,32 @@ mod store_refcell;
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
 
 // Hack to allow multiple `environmental!` definition per module
-mod dispatch_function_env {
+mod store_refcell_ctx {
     use std::rc::Rc;
 
-    use super::StoreRefCell;
+    use super::{store_refcell::BorrowScopeError, StoreRefCell};
+    use sandbox_wasmer::StoreMut;
 
-    pub struct Env {
-        pub gas_global: Option<sandbox_wasmer::Global>,
-        pub store_ref: Rc<StoreRefCell>,
-    }
+    environmental::environmental!(DispatchFunctionEnv: Rc<StoreRefCell>);
 
-    impl Env {
-        pub fn new(gas_global: Option<sandbox_wasmer::Global>, store: Rc<StoreRefCell>) -> Self {
-            Self {
-                gas_global,
-                store_ref: store,
-            }
-        }
-    }
-
-    environmental::environmental!(DispatchFunctionEnv: Env);
-
-    pub fn using<R, F: FnOnce() -> R>(protected: &mut Env, f: F) -> R {
+    pub fn using<R, F: FnOnce() -> R>(protected: &mut Rc<StoreRefCell>, f: F) -> R {
         DispatchFunctionEnv::using(protected, f)
     }
 
-    pub fn with<R, F: FnOnce(&mut Env) -> R>(f: F) -> Option<R> {
-        DispatchFunctionEnv::with(f)
+    pub fn with_borrrow_scope<R, F: FnOnce() -> R>(
+        storemut: &mut StoreMut,
+        f: F,
+    ) -> Option<Result<R, BorrowScopeError>> {
+        DispatchFunctionEnv::with(|store_refcell: &mut Rc<StoreRefCell>| {
+            store_refcell.borrow_scope(storemut, f)
+        })
     }
 }
 
-use dispatch_function_env::Env;
+pub struct Env {
+    // Gas global is optional to allow run non-instrumented programs (used for tests, benches).
+    gas_global: Option<sandbox_wasmer::Global>,
+}
 
 #[cfg(feature = "wasmer-cache")]
 enum CachedModuleErr {
@@ -129,8 +124,8 @@ impl Backend {
         }
     }
 
-    pub fn store(&self) -> Rc<StoreRefCell> {
-        self.store.clone()
+    pub fn store(&self) -> &Rc<StoreRefCell> {
+        &self.store
     }
 }
 
@@ -147,12 +142,10 @@ pub fn invoke(
         .get_function(export_name)
         .map_err(|error| Error::Sandbox(error.to_string()))?;
 
-    // Gas global is optional to allow run non-instrumented programs (used for tests, benches).
-    let gas_global = instance.exports.get_global(GLOBAL_NAME_GAS).ok().cloned();
     let args: Vec<sandbox_wasmer::Value> = args.iter().map(into_wasmer_val).collect();
 
     let wasmer_result = SandboxContextStore::using(sandbox_context, || {
-        dispatch_function_env::using(&mut Env::new(gas_global, store.clone()), || {
+        store_refcell_ctx::using(&mut store.clone(), || {
             function
                 .call(&mut store.borrow_mut(), &args)
                 .map_err(|error| {
@@ -300,6 +293,11 @@ pub fn instantiate(
 
     let mut exports = sandbox_wasmer::Exports::new();
 
+    let func_env = sandbox_wasmer::FunctionEnv::new(
+        &mut context.store().borrow_mut(),
+        Env { gas_global: None },
+    );
+
     for import in module.imports() {
         match import.ty() {
             // Nothing to do here
@@ -356,11 +354,13 @@ pub fn instantiate(
                     Instantiate::Version1 => dispatch_function(
                         supervisor_func_index,
                         &mut context.store().borrow_mut(),
+                        &func_env,
                         func_ty,
                     ),
                     Instantiate::Version2 => dispatch_function_v2(
                         supervisor_func_index,
                         &mut context.store().borrow_mut(),
+                        &func_env,
                         func_ty,
                     ),
                 };
@@ -373,17 +373,8 @@ pub fn instantiate(
     let mut import_object = sandbox_wasmer::Imports::new();
     import_object.register_namespace("env", exports);
 
-    // This is sound because we're only instantiating the module, and the `start` function is not allowed by our `Code` checks.
-    // No code can access globals during instantiation; therefore, it's fine to create `Env` context with gas global set to `None`.
-    let mut dispatch_func_env = Env::new(None, context.store.clone());
-
     let instance = SandboxContextStore::using(sandbox_context, || {
-        dispatch_function_env::using(&mut dispatch_func_env, || {
-            sandbox_wasmer::Instance::new(
-                &mut context.store().borrow_mut(),
-                &module,
-                &import_object,
-            )
+        sandbox_wasmer::Instance::new(&mut context.store().borrow_mut(), &module, &import_object)
             .map_err(|error| {
                 log::trace!("Failed to call sandbox_wasmer::Instance::new: {error:?}");
 
@@ -403,8 +394,13 @@ pub fn instantiate(
                     }
                 }
             })
-        })
     })?;
+
+    // Init func env with gas global after instance creation
+    let gas_global = instance.exports.get_global(GLOBAL_NAME_GAS).ok().cloned();
+    func_env
+        .as_mut(&mut context.store().borrow_mut())
+        .gas_global = gas_global;
 
     Ok(SandboxInstance {
         backend_instance: BackendInstanceBundle::Wasmer {
@@ -510,53 +506,39 @@ fn into_value(value: &sandbox_wasmer::Value) -> Option<Value> {
 
 fn dispatch_function(
     supervisor_func_index: SupervisorFuncIndex,
-    store: &mut sandbox_wasmer::Store,
+    store: &mut Store,
+    func_env: &sandbox_wasmer::FunctionEnv<Env>,
     func_ty: &sandbox_wasmer::FunctionType,
 ) -> sandbox_wasmer::Function {
-    let func_env = sandbox_wasmer::FunctionEnv::new(store, ());
-    sandbox_wasmer::Function::new_with_env(store, &func_env, func_ty, move |mut env, params| {
+    sandbox_wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
         SandboxContextStore::with(|sandbox_context| {
-            dispatch_function_env::with(|dispatch_funnction_env| {
-                let storemut = env.as_store_mut();
+            let mut storemut = env.as_store_mut();
 
-                let deserialized_result = dispatch_funnction_env
-                    .store_ref
-                    .borrow_scope(storemut, || -> std::result::Result<_, _> {
-                        // Serialize arguments into a byte vector.
-                        let invoke_args_data = params
-                            .iter()
-                            .map(|value| {
-                                into_value(value).ok_or_else(|| {
-                                    RuntimeError::new(format!(
-                                        "Unsupported function argument: {:?}",
-                                        value
-                                    ))
-                                })
-                            })
-                            .collect::<std::result::Result<Vec<_>, _>>()?
-                            .encode();
-
-                        let serialized_result_val = dispatch_common(
-                            supervisor_func_index,
-                            sandbox_context,
-                            invoke_args_data,
-                        )?;
-
-                        std::result::Result::<ReturnValue, HostError>::decode(
-                            &mut serialized_result_val.as_slice(),
-                        )
-                        .map_err(|_| {
-                            RuntimeError::new("Decoding Result<ReturnValue, HostError> failed!")
-                        })?
-                        .map_err(|_| {
-                            RuntimeError::new("Supervisor function returned sandbox::HostError")
+            let deserialized_result = store_refcell_ctx::with_borrrow_scope(&mut storemut, || {
+                // Serialize arguments into a byte vector.
+                let invoke_args_data = params
+                    .iter()
+                    .map(|value| {
+                        into_value(value).ok_or_else(|| {
+                            RuntimeError::new(format!("Unsupported function argument: {:?}", value))
                         })
                     })
-                    .map_err(|_| RuntimeError::new("StoreRefCell borrow scope error"))??;
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .encode();
 
-                Ok(into_wasmer_result(deserialized_result))
+                let serialized_result_val =
+                    dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
+
+                std::result::Result::<ReturnValue, HostError>::decode(
+                    &mut serialized_result_val.as_slice(),
+                )
+                .map_err(|_| RuntimeError::new("Decoding Result<ReturnValue, HostError> failed!"))?
+                .map_err(|_| RuntimeError::new("Supervisor function returned sandbox::HostError"))
             })
-            .expect("dispatch function environment is set when invoking sandboxed functions; qed")
+            .expect("store refcell ctx is set when invoking sandboxed functions; qed")
+            .map_err(|_| RuntimeError::new("StoreRefCell borrow scope error"))??;
+
+            Ok(into_wasmer_result(deserialized_result))
         })
         .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
     })
@@ -564,68 +546,54 @@ fn dispatch_function(
 
 fn dispatch_function_v2(
     supervisor_func_index: SupervisorFuncIndex,
-    store: &mut sandbox_wasmer::Store,
+    store: &mut Store,
+    func_env: &sandbox_wasmer::FunctionEnv<Env>,
     func_ty: &sandbox_wasmer::FunctionType,
 ) -> sandbox_wasmer::Function {
-    let func_env = sandbox_wasmer::FunctionEnv::new(store, ());
-    sandbox_wasmer::Function::new_with_env(store, &func_env, func_ty, move |mut env, params| {
+    sandbox_wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
         SandboxContextStore::with(|sandbox_context| {
-            dispatch_function_env::with(|dispatch_funnction_env| {
-                let mut storemut = env.as_store_mut();
+            let (env, mut storemut) = env.data_and_store_mut();
+            let gas_global = env
+                .gas_global
+                .as_ref()
+                .ok_or_else(|| RuntimeError::new("Cannot get gas global from store environment"))?;
+            let gas = gas_global.get(&mut storemut);
 
-                let gas_global = dispatch_funnction_env.gas_global.as_ref().ok_or_else(|| {
-                    RuntimeError::new("Cannot get gas global from store environment")
-                })?;
-                let gas = gas_global.get(&mut storemut);
-
-                let deserialized_result = dispatch_funnction_env
-                    .store_ref
-                    .borrow_scope(&mut storemut, move || -> std::result::Result<_, _> {
-                        // Serialize arguments into a byte vector.
-                        let invoke_args_data = [gas]
-                            .iter()
-                            .chain(params.iter())
-                            .map(|value| {
-                                into_value(value).ok_or_else(|| {
-                                    RuntimeError::new(format!(
-                                        "Unsupported function argument: {:?}",
-                                        value
-                                    ))
-                                })
-                            })
-                            .collect::<std::result::Result<Vec<_>, _>>()?
-                            .encode();
-
-                        let serialized_result_val = dispatch_common(
-                            supervisor_func_index,
-                            sandbox_context,
-                            invoke_args_data,
-                        )?;
-
-                        std::result::Result::<WasmReturnValue, HostError>::decode(
-                            &mut serialized_result_val.as_slice(),
-                        )
-                        .map_err(|_| {
-                            RuntimeError::new("Decoding Result<WasmReturnValue, HostError> failed!")
-                        })?
-                        .map_err(|_| {
-                            RuntimeError::new("Supervisor function returned sandbox::HostError")
+            let deserialized_result = store_refcell_ctx::with_borrrow_scope(&mut storemut, || {
+                // Serialize arguments into a byte vector.
+                let invoke_args_data = [gas]
+                    .iter()
+                    .chain(params.iter())
+                    .map(|value| {
+                        into_value(value).ok_or_else(|| {
+                            RuntimeError::new(format!("Unsupported function argument: {:?}", value))
                         })
                     })
-                    .map_err(|_| RuntimeError::new("StoreRefCell borrow scope error"))??;
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .encode();
 
-                gas_global
-                    .set(
-                        &mut storemut,
-                        sandbox_wasmer::Value::I64(deserialized_result.gas),
-                    )
-                    .map_err(|_| {
-                        RuntimeError::new("Cannot set gas global from store environment")
-                    })?;
+                let serialized_result_val =
+                    dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
 
-                Ok(into_wasmer_result(deserialized_result.inner))
+                std::result::Result::<WasmReturnValue, HostError>::decode(
+                    &mut serialized_result_val.as_slice(),
+                )
+                .map_err(|_| {
+                    RuntimeError::new("Decoding Result<WasmReturnValue, HostError> failed!")
+                })?
+                .map_err(|_| RuntimeError::new("Supervisor function returned sandbox::HostError"))
             })
-            .expect("dispatch function environment is set when invoking sandboxed functions; qed")
+            .expect("store refcell ctx is set when invoking sandboxed functions; qed")
+            .map_err(|_| RuntimeError::new("StoreRefCell borrow scope error"))??;
+
+            gas_global
+                .set(
+                    &mut storemut,
+                    sandbox_wasmer::Value::I64(deserialized_result.gas),
+                )
+                .map_err(|_| RuntimeError::new("Cannot set gas global from store environment"))?;
+
+            Ok(into_wasmer_result(deserialized_result.inner))
         })
         .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
     })

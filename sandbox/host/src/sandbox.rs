@@ -576,7 +576,7 @@ impl<DT: Clone> Store<DT> {
             BackendContext::Wasmi => wasmi_new_memory(initial, maximum)?,
 
             BackendContext::Wasmer(backend) => {
-                wasmer_new_memory(backend.store(), initial, maximum)?
+                wasmer_new_memory(backend.store().clone(), initial, maximum)?
             }
         };
 
