@@ -270,6 +270,7 @@ def_memory_layout! {
         reservation_temp2_ptr: u32,
         reservation_flags_ptr: u32,
         reservation_array_ptr: [Hash; MemoryLayout::AMOUNT_OF_RESERVATIONS as _],
+        waited_message_id_ptr: Hash,
     }
 }
 

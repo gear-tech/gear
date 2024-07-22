@@ -34,8 +34,8 @@ use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{
-        FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
-        SystemSyscallSignature,
+        FallibleSyscallSignature, HashType, ParamType, Ptr, RegularParamType, SyscallName,
+        SyscallSignature, SystemSyscallSignature,
     },
 };
 use gsys::{ErrorCode, Handle, Hash};
@@ -110,6 +110,9 @@ pub(crate) fn process_syscall_params(
                 Pointer(Ptr::SizedBufferStart { .. } | Ptr::MutSizedBufferStart { .. }) => {
                     ProcessedSyscallParams::MemoryArrayPtr
                 }
+                Pointer(Ptr::Hash(HashType::MessageId)) => ProcessedSyscallParams::MemoryPtrValue {
+                    allowed_values: Some(PtrParamAllowedValues::WaitedMessageId),
+                },
                 // It's guaranteed that fallible syscall has error pointer as a last param.
                 Pointer(ptr) => ProcessedSyscallParams::MemoryPtrValue {
                     allowed_values: params_config.get_ptr_rule(ptr),
@@ -354,6 +357,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
         match invocable {
             Loose(Wait | WaitFor | WaitUpTo) => {
+                self.store_waited_message_id(&mut instructions);
+
                 if let Some(waiting_probability) = self.config.waiting_probability() {
                     self.limit_infinite_waits(&mut instructions, waiting_probability.get());
                 }
@@ -674,6 +679,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
                 ret_instr
             }
+            PtrParamAllowedValues::WaitedMessageId => {
+                // Loads waited message id on previous `Wait`-like syscall.
+                // Check `SyscallsInvocator::store_waited_message_id` method for implementation details.
+                let memory_layout = MemoryLayout::from(self.memory_size_bytes());
+                vec![Instruction::I32Const(memory_layout.waited_message_id_ptr)]
+            }
         };
 
         Ok(ParamInstructions(ret))
@@ -821,6 +832,29 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 "Invalid implementation. This function is called only for returning errors syscall"
             ),
         }
+    }
+
+    fn store_waited_message_id(&self, instructions: &mut Vec<Instruction>) {
+        let Some(gr_message_id_indexes_handle) = self
+            .syscalls_imports
+            .get(&InvocableSyscall::Loose(SyscallName::MessageId))
+            .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
+        else {
+            // We automatically enable the `message_id` syscall import if the `wait` syscall is enabled in the config.
+            // If not, then we don't need to store the message ID.
+            return;
+        };
+
+        let memory_layout = MemoryLayout::from(self.memory_size_bytes());
+        let start_offset = memory_layout.waited_message_id_ptr;
+
+        let message_id_call = vec![
+            // call `gsys::gr_message_id` storing message id at `start_offset` pointer.
+            Instruction::I32Const(start_offset),
+            Instruction::Call(gr_message_id_indexes_handle),
+        ];
+
+        instructions.splice(0..0, message_id_call);
     }
 
     /// Patches instructions of wait-syscalls to prevent deadlocks.
