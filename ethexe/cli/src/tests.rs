@@ -34,7 +34,10 @@ use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        oneshot,
+    },
     task::{self, JoinHandle},
 };
 
@@ -44,17 +47,21 @@ struct Listener {
 }
 
 impl Listener {
-    pub fn new(mut observer: Observer) -> Self {
+    pub async fn new(mut observer: Observer) -> Self {
         let (sender, receiver) = mpsc::channel::<Event>(1024);
 
+        let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let _handle = task::spawn(async move {
             let observer_events = observer.events();
             futures::pin_mut!(observer_events);
+
+            send_subscription_created.send(()).unwrap();
 
             while let Some(event) = observer_events.next().await {
                 sender.send(event).await.unwrap();
             }
         });
+        receive_subscription_created.await.unwrap();
 
         Self { receiver, _handle }
     }
@@ -198,8 +205,8 @@ impl TestEnv {
         Ok(env)
     }
 
-    pub fn new_listener(&self) -> Listener {
-        Listener::new(self.observer.clone())
+    pub async fn new_listener(&self) -> Listener {
+        Listener::new(self.observer.clone()).await
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
@@ -220,11 +227,11 @@ impl TestEnv {
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let mut anvil = Anvil::new().block_time(1).try_spawn().unwrap();
+    let mut anvil = Anvil::new().try_spawn().unwrap();
     drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
 
     let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
-    let mut listener = env.new_listener();
+    let mut listener = env.new_listener().await;
 
     let service = env.service.take().unwrap();
     let service_handle = task::spawn(service.run());
