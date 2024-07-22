@@ -264,7 +264,8 @@ fn test_wait_stores_message_id() {
 
         // It's Ok, message id is 32 bytes in size, but we use u64 for testing purposes.
         let mut message_id = [0u8; 8];
-        let waited_message_id_ptr = MemoryLayout::from(0x10000).waited_message_id_ptr;
+        let waited_message_id_ptr =
+            MemoryLayout::from(WASM_PAGE_SIZE * INITIAL_PAGES).waited_message_id_ptr;
         memory
             .read(&store, waited_message_id_ptr as u32, &mut message_id)
             .unwrap();
