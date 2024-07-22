@@ -22,10 +22,10 @@ use crate::args::Args;
 
 use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
-use ethexe_network::NetworkConfiguration;
+use ethexe_network::NetworkEventLoopConfig;
 use ethexe_prometheus_endpoint::Registry;
 use ethexe_signer::PublicKey;
-use std::{iter, net::SocketAddr, path::PathBuf};
+use std::{iter, net::SocketAddr, path::PathBuf, time::Duration};
 use tempfile::TempDir;
 
 const DEFAULT_PROMETHEUS_PORT: u16 = 9635;
@@ -70,6 +70,9 @@ impl PrometheusConfig {
 
 #[derive(Debug)]
 pub struct Config {
+    /// Name of node for telemetry
+    pub node_name: String,
+
     /// RPC of the Ethereum endpoint
     pub ethereum_rpc: String,
 
@@ -79,11 +82,11 @@ pub struct Config {
     /// Address of Ethereum Router contract
     pub ethereum_router_address: String,
 
-    // Max depth to discover last commitment.
+    /// Max depth to discover last commitment.
     pub max_commitment_depth: u32,
 
-    /// Network path
-    pub network_path: PathBuf,
+    /// Block production time.
+    pub block_time: Duration,
 
     /// Path of the state database
     pub database_path: PathBuf,
@@ -101,7 +104,7 @@ pub struct Config {
     pub sender_address: Option<String>,
 
     // Network configuration
-    pub net_config: NetworkConfiguration,
+    pub net_config: NetworkEventLoopConfig,
 
     // Prometheus configuration
     pub prometheus_config: Option<PrometheusConfig>,
@@ -144,27 +147,24 @@ impl TryFrom<Args> for Config {
             _ => crate::chain_spec::testnet_config(),
         };
 
-        let mut net_config = args.network_params.network_config(
-            Some(base_path.join("net")),
-            "test",
-            Default::default(),
-            ethexe_network::DEFAULT_LISTEN_PORT,
-        );
-        net_config.boot_nodes.extend(chain_spec.bootnodes);
+        let net_path = base_path.join("net");
+        let mut net_config = args.network_params.network_config(net_path)?;
+        net_config.bootstrap_addresses.extend(chain_spec.bootnodes);
 
         Ok(Config {
+            node_name: args.node_name,
             ethereum_rpc: args.ethereum_rpc,
             ethereum_beacon_rpc: args.ethereum_beacon_rpc,
             ethereum_router_address: args
                 .ethereum_router_address
                 .unwrap_or(chain_spec.ethereum_router_address),
             max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
+            block_time: Duration::from_secs(args.block_time),
             net_config,
-            prometheus_config: args
-                .prometheus_params
-                .prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string()),
+            prometheus_config: args.prometheus_params.and_then(|params| {
+                params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
+            }),
             database_path: base_path.join("db"),
-            network_path: base_path.join("net"),
             key_path: base_path.join("key"),
             sequencer: match args.sequencer_key {
                 Some(key) => {

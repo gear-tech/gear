@@ -33,6 +33,10 @@ use std::{fs, path::PathBuf};
 #[derive(Clone, Debug, Parser, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct Args {
+    /// Name of node for telemetry
+    #[arg(long, default_value = "test")]
+    pub node_name: String,
+
     /// URL of Ethereum RPC endpoint
     #[arg(
         long = "ethereum-rpc",
@@ -80,6 +84,11 @@ pub struct Args {
     #[arg(long = "max-depth")]
     pub max_commitment_depth: Option<u32>,
 
+    /// Block time in seconds (approximate).
+    /// Ethexe uses it to estimate inner timeouts.
+    #[arg(long, default_value = "12")]
+    pub block_time: u64,
+
     /// Run a temporary node.
     ///
     /// A temporary directory will be created to store the configuration and will be deleted
@@ -88,6 +97,7 @@ pub struct Args {
     /// Note: the directory is random per process execution. This directory is used as base path
     /// which includes: database, node key and keystore.
     #[arg(long, conflicts_with = "base_path")]
+    #[serde(default)]
     pub tmp: bool,
 
     #[allow(missing_docs)]
@@ -96,8 +106,16 @@ pub struct Args {
 
     #[allow(missing_docs)]
     #[clap(flatten)]
-    pub prometheus_params: PrometheusParams,
+    pub prometheus_params: Option<PrometheusParams>,
 
+    #[command(subcommand)]
+    pub extra_command: Option<ExtraCommands>,
+}
+
+// CLI args when `.ethexe.toml` is used
+#[derive(Clone, Debug, Parser, Deserialize)]
+#[command(version, about, long_about = None)]
+pub struct ArgsOnConfig {
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,
 }

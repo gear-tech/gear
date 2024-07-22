@@ -32,9 +32,12 @@ use ethexe_validator::Validator;
 use futures::StreamExt;
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        oneshot,
+    },
     task::{self, JoinHandle},
 };
 
@@ -44,17 +47,21 @@ struct Listener {
 }
 
 impl Listener {
-    pub fn new(mut observer: Observer) -> Self {
+    pub async fn new(mut observer: Observer) -> Self {
         let (sender, receiver) = mpsc::channel::<Event>(1024);
 
+        let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let _handle = task::spawn(async move {
             let observer_events = observer.events();
             futures::pin_mut!(observer_events);
+
+            send_subscription_created.send(()).unwrap();
 
             while let Some(event) = observer_events.next().await {
                 sender.send(event).await.unwrap();
             }
         });
+        receive_subscription_created.await.unwrap();
 
         Self { receiver, _handle }
     }
@@ -106,13 +113,13 @@ struct TestEnv {
 
 impl TestEnv {
     async fn new(rpc: String) -> Result<TestEnv> {
+        let block_time = Duration::from_secs(1);
+
         let db = Database::from_one(&MemDb::default());
 
-        let net_config = ethexe_network::NetworkConfiguration::new_local();
-        let network = ethexe_network::NetworkWorker::new(net_config)?;
+        let tempdir = tempfile::tempdir()?.into_path();
 
-        let tempdir = tempfile::tempdir()?;
-        let signer = Signer::new(tempdir.into_path())?;
+        let signer = Signer::new(tempdir.join("key"))?;
         let sender_public_key = signer.add_key(
             // Anvil account (0) with balance
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
@@ -123,10 +130,13 @@ impl TestEnv {
             "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d".parse()?,
         )?;
 
+        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(tempdir.join("net"));
+        let network = ethexe_network::NetworkEventLoop::new(net_config, &signer)?;
+
         let sender_address = sender_public_key.to_address();
         let validators = vec![validator_public_key.to_address()];
         let ethereum = Ethereum::deploy(&rpc, validators, signer.clone(), sender_address).await?;
-        let blob_reader = Arc::new(MockBlobReader::default());
+        let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
         let router_address = ethereum.router().address();
 
@@ -180,6 +190,7 @@ impl TestEnv {
             Some(validator),
             None,
             rpc,
+            block_time,
         );
 
         let env = TestEnv {
@@ -194,8 +205,8 @@ impl TestEnv {
         Ok(env)
     }
 
-    pub fn new_listener(&self) -> Listener {
-        Listener::new(self.observer.clone())
+    pub async fn new_listener(&self) -> Listener {
+        Listener::new(self.observer.clone()).await
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
@@ -216,10 +227,11 @@ impl TestEnv {
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let anvil = Anvil::new().try_spawn().unwrap();
+    let mut anvil = Anvil::new().try_spawn().unwrap();
+    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
 
     let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
-    let mut listener = env.new_listener();
+    let mut listener = env.new_listener().await;
 
     let service = env.service.take().unwrap();
     let service_handle = task::spawn(service.run());

@@ -19,7 +19,10 @@
 use crate::{Config, Pallet, ProgramStorage};
 use common::Origin;
 use frame_support::{
-    traits::{tokens::Pay, Currency, Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
+    traits::{
+        tokens::Pay, Currency, Get, GetStorageVersion, LockableCurrency, OnRuntimeUpgrade,
+        StorageVersion, WithdrawReasons,
+    },
     weights::Weight,
 };
 use gear_core::program::Program;
@@ -44,22 +47,32 @@ const MIGRATE_FROM_VERSION: u16 = 7;
 const MIGRATE_TO_VERSION: u16 = 8;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 9;
 
+// Redefine this constant from the `pallet_gear` crate to avoid a cyclic dependency.
+const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
+
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_treasury::Config>::Currency;
 pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
 
-pub struct MigrateToV8<T: Config>(PhantomData<T>);
+pub struct SetLocksOnED<T: Config>(PhantomData<T>);
 
-impl<T: Config> OnRuntimeUpgrade for MigrateToV8<T>
+impl<T: Config> OnRuntimeUpgrade for SetLocksOnED<T>
 where
     T: pallet_treasury::Config + pallet_balances::Config,
     T::AccountId: Origin,
     T::Paymaster: Pay<Beneficiary = T::AccountId, AssetKind = (), Balance = BalanceOf<T>>,
+    CurrencyOf<T>: LockableCurrency<T::AccountId>,
 {
     fn on_runtime_upgrade() -> Weight {
         let onchain = Pallet::<T>::on_chain_storage_version();
         let existential_deposit = CurrencyOf::<T>::minimum_balance();
-        let transfer_weight = <T as pallet_balances::Config>::WeightInfo::transfer_allow_death();
+        // Benchmarked value
+        let set_lock_weight = Weight::from_parts(12_000_000, 4764)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64));
+        let single_migration_weight =
+            <T as pallet_balances::Config>::WeightInfo::transfer_allow_death()
+                .saturating_add(set_lock_weight);
 
         // 1 read for on chain storage version
         let mut weight = T::DbWeight::get().reads(1);
@@ -98,7 +111,16 @@ where
                             );
                         }
                     };
-                    weight = weight.saturating_add(transfer_weight);
+
+                    // Set the lock for the program's account
+                    CurrencyOf::<T>::set_lock(
+                        EXISTENTIAL_DEPOSIT_LOCK_ID,
+                        &program_id.cast(),
+                        existential_deposit,
+                        WithdrawReasons::all(),
+                    );
+
+                    weight = weight.saturating_add(single_migration_weight);
                 };
             });
 
@@ -121,7 +143,7 @@ where
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
-        log::debug!("[MigrateToV8::pre_upgrade] current: {current:?}, onchain: {onchain:?}");
+        log::debug!("[SetLocksOnED::pre_upgrade] current: {current:?}, onchain: {onchain:?}");
         let res = if onchain == MIGRATE_FROM_VERSION {
             ensure!(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
@@ -158,11 +180,26 @@ where
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
             log::debug!(
-                "[MigrateToV8::post_upgrade] old_sum: {old_sum:?}, old_count: {old_count:?}"
+                "[SetLocksOnED::post_upgrade] old_sum: {old_sum:?}, old_count: {old_count:?}"
             );
             let (new_sum, new_count) = ProgramStorage::<T>::iter()
                 .filter_map(|(program_id, program)| match program {
-                    Program::Active(_p) => Some(Balances::<T>::free_balance(&program_id.cast())),
+                    Program::Active(_p) => {
+                        let locks = Balances::<T>::locks::<T::AccountId>(program_id.cast())
+                            .into_iter()
+                            .filter_map(|l| {
+                                if l.id == EXISTENTIAL_DEPOSIT_LOCK_ID {
+                                    Some(l)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        assert_eq!(locks.len(), 1); // only one lock should have been set
+                        assert_eq!(locks[0].amount, ed.unique_saturated_into());
+
+                        Some(Balances::<T>::free_balance(&program_id.cast()))
+                    }
                     _ => None,
                 })
                 .fold((0_u128, 0_u64), |(sum, count), balance| {
@@ -172,7 +209,7 @@ where
                     )
                 });
             log::debug!(
-                "[MigrateToV8::post_upgrade] new_sum: {new_sum:?}, new_count: {new_count:?}"
+                "[SetLocksOnED::post_upgrade] new_sum: {new_sum:?}, new_count: {new_count:?}"
             );
             ensure!(
                 new_count == old_count,
@@ -210,7 +247,7 @@ mod tests {
             // Mint enough funds to the treasury account
             let _ = CurrencyOf::<Test>::deposit_creating(&treasury_account, 1000 * UNITS);
 
-            const NUM_ACTIVE_PROGRAMS: u64 = 690; // Close to actual number of programs in the Runtime
+            const NUM_ACTIVE_PROGRAMS: u64 = 700; // Close to actual number of programs in the Runtime
             const NUM_EXITED_PROGRAMS: u64 = 50;
             const NUM_TERMINATED_PROGRAMS: u64 = 30;
 
@@ -254,11 +291,11 @@ mod tests {
             let treasury_balance = CurrencyOf::<Test>::free_balance(treasury_account);
 
             // Run the migration
-            let state = MigrateToV8::<Test>::pre_upgrade().unwrap();
-            let weight = MigrateToV8::<Test>::on_runtime_upgrade();
+            let state = SetLocksOnED::<Test>::pre_upgrade().unwrap();
+            let weight = SetLocksOnED::<Test>::on_runtime_upgrade();
             println!("Weight: {:?}", weight);
             assert!(!weight.is_zero());
-            MigrateToV8::<Test>::post_upgrade(state).unwrap();
+            SetLocksOnED::<Test>::post_upgrade(state).unwrap();
 
             // Check that balances of the active programs add up
             let ed = CurrencyOf::<Test>::minimum_balance();
