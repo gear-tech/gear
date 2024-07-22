@@ -22,7 +22,7 @@ use crate::GAS_MULTIPLIER;
 use gear_common::{
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
     gas_provider::{ConsumeResultOf, GasNodeId, Provider, Tree},
-    Gas, Origin,
+    Gas, Origin, ReservableTree,
 };
 use gear_core::ids::{MessageId, ProgramId};
 
@@ -146,5 +146,19 @@ impl GasTreeManager {
     /// *Note* Call with caution as it completely resets the storage.
     pub(crate) fn reset(&self) {
         <AuxiliaryGasProvider as Provider>::reset();
+    }
+
+    /// Unreserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    pub(crate) fn system_unreserve(&self, key: impl Origin) -> Result<Gas, GasTreeError> {
+        GasTree::system_unreserve(GasNodeId::from(key.cast::<PlainNodeId>()))
+    }
+
+    /// Reserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    pub(crate) fn system_reserve(&self, key: impl Origin, amount: Gas) -> Result<(), GasTreeError> {
+        GasTree::system_reserve(GasNodeId::from(key.cast::<PlainNodeId>()), amount)
     }
 }

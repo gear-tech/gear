@@ -301,7 +301,9 @@ sandbox-wasmer = { package = "wasmer", version = "2.2", features = [
     "singlepass",
 ] }
 sandbox-wasmer-types = { package = "wasmer-types", version = "2.2" }
-sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
+sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = [
+    "virtual_memory",
+] }
 
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
@@ -486,6 +488,7 @@ demo-wait-wake = { path = "examples/wait_wake" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-stack-allocations = { path = "examples/stack-allocations" }
 demo-wat = { path = "examples/wat" }
+signal-in-handle = { path = "examples/signal-in-handle" }
 
 # Dependencies that only used in one package
 #

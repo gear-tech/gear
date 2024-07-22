@@ -885,6 +885,24 @@ mod tests {
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
     #[test]
+    fn test_handle_signal() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+
+        let prog = Program::from_binary_with_id(&sys, 137, signal_in_handle::WASM_BINARY);
+
+        let run_result = prog.send_bytes(user_id, b"Does not matter");
+
+        assert!(!run_result.main_failed());
+
+        let run_result = prog.send(user_id, String::from("should panic"));
+        log::debug!("{:?}", run_result);
+        run_result.assert_panicked_with("Gotcha!");
+    }
+
+    #[test]
     fn test_handle_messages_to_failing_program() {
         let sys = System::new();
         sys.init_logger();

@@ -22,7 +22,13 @@ gsys.workspace = true
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 colored.workspace = true
-derive_more = { workspace = true, features = ["add", "add_assign", "display", "mul", "mul_assign"] }
+derive_more = { workspace = true, features = [
+    "add",
+    "add_assign",
+    "display",
+    "mul",
+    "mul_assign",
+] }
 env_logger.workspace = true
 path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
@@ -37,3 +43,4 @@ demo-piggy-bank.workspace = true
 demo-ping.workspace = true
 demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
+signal-in-handle.workspace = true
