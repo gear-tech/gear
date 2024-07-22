@@ -33,8 +33,8 @@ use crate::{
     Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
-    Program, ProgramStorage, ReservableTree,
+    event::*, program_storage::MemoryMap, scheduler::*, storage::*, CodeStorage, GasTree, GearPage,
+    LockId, LockableTree, Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
@@ -47,21 +47,26 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
-        InstrumentedCodeAndId,
+        InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::WasmPage,
+    pages::{
+        numerated::{self, tree::IntervalsTree},
+        WasmPage,
+    },
     program::ActiveProgram,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{
+    gas_metering::CustomConstantCostRules, parity_wasm::elements, STACK_END_EXPORT_NAME,
+};
 use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
@@ -15571,6 +15576,92 @@ fn dust_in_message_to_user_handled_ok() {
         // `UnusedValue` in Gear Bank.
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
         assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
+    });
+}
+
+#[test]
+fn use_big_memory() {
+    let last_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT).offset() - 4;
+    let middle_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2).offset();
+
+    let wat = format!(
+        r#"
+        (module
+		    (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                (drop (call $alloc (i32.const {MAX_WASM_PAGES_AMOUNT})))
+
+                ;; access last 4 bytes
+                (i32.store (i32.const {last_4_bytes_offset}) (i32.const 0x42))
+
+                ;; access first 4 bytes
+                (i32.store (i32.const 0) (i32.const 0x42))
+
+                ;; access 4 bytes in the middle
+                (i32.store (i32.const {middle_4_bytes_offset}) (i32.const 0x42))
+            )
+        )"#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        let expected_allocations: IntervalsTree<WasmPage> =
+            [numerated::interval::Interval::try_from(
+                WasmPage::from(0)..WasmPage::from(MAX_WASM_PAGES_AMOUNT),
+            )
+            .unwrap()]
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(expected_allocations),
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id).expect("Program not found");
+        let Program::Active(program) = program else {
+            panic!("Program is not active");
+        };
+
+        assert_eq!(program.allocations_tree_len, 1);
+
+        let pages_with_data =
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .map(|(page, buf)| {
+                assert_eq!(buf.into_iter().copied().sum::<u8>(), 0x42);
+                page
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            pages_with_data,
+            vec![
+                GearPage::from_offset(0),
+                GearPage::from_offset(middle_4_bytes_offset),
+                GearPage::from_offset(last_4_bytes_offset)
+            ]
+        );
     });
 }
 
