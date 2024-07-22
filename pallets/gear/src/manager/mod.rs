@@ -335,9 +335,6 @@ where
     ) {
         Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
 
-        ProgramStorageOf::<T>::clear_allocations(program_id);
-        ProgramStorageOf::<T>::clear_program_memory(program_id, program.memory_infix);
-
         let program_account = program_id.cast();
         let value_destination = value_destination.cast();
 
