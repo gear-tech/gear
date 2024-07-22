@@ -33,8 +33,8 @@ use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 use crate::{
     error::{Error, Result},
     sandbox::{
-        BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxContext,
-        SandboxInstance, SupervisorFuncIndex,
+        BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
+        SupervisorContext, SupervisorFuncIndex,
     },
     util::MemoryTransfer,
 };
@@ -42,7 +42,7 @@ use crate::{
 pub use store_refcell::StoreRefCell;
 mod store_refcell;
 
-environmental::environmental!(SandboxContextStore: trait SandboxContext);
+environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
 // Hack to allow multiple `environmental!` definition per module
 mod store_refcell_ctx {
@@ -135,7 +135,7 @@ pub fn invoke(
     store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
-    sandbox_context: &mut dyn SandboxContext,
+    supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<Option<Value>, Error> {
     let function = instance
         .exports
@@ -144,7 +144,7 @@ pub fn invoke(
 
     let args: Vec<sandbox_wasmer::Value> = args.iter().map(into_wasmer_val).collect();
 
-    let wasmer_result = SandboxContextStore::using(sandbox_context, || {
+    let wasmer_result = SupervisorContextStore::using(supervisor_context, || {
         store_refcell_ctx::using(&mut store.clone(), || {
             function
                 .call(&mut store.borrow_mut(), &args)
@@ -265,7 +265,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    sandbox_context: &mut dyn SandboxContext,
+    supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     #[cfg(feature = "wasmer-cache")]
     let module = match get_cached_module(wasm, &context.store().borrow()) {
@@ -373,7 +373,7 @@ pub fn instantiate(
     let mut import_object = sandbox_wasmer::Imports::new();
     import_object.register_namespace("env", exports);
 
-    let instance = SandboxContextStore::using(sandbox_context, || {
+    let instance = SupervisorContextStore::using(supervisor_context, || {
         sandbox_wasmer::Instance::new(&mut context.store().borrow_mut(), &module, &import_object)
             .map_err(|error| {
                 log::trace!("Failed to call sandbox_wasmer::Instance::new: {error:?}");
@@ -413,27 +413,27 @@ pub fn instantiate(
 
 fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
-    sandbox_context: &mut dyn SandboxContext,
+    supervisor_context: &mut dyn SupervisorContext,
     invoke_args_data: Vec<u8>,
 ) -> std::result::Result<Vec<u8>, RuntimeError> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
     // then free allocated memory.
     let invoke_args_len = invoke_args_data.len() as WordSize;
-    let invoke_args_ptr = sandbox_context
+    let invoke_args_ptr = supervisor_context
         .allocate_memory(invoke_args_len)
         .map_err(|_| RuntimeError::new("Can't allocate memory in supervisor for the arguments"))?;
 
-    let deallocate = |fe: &mut dyn SandboxContext, ptr, fail_msg| {
+    let deallocate = |fe: &mut dyn SupervisorContext, ptr, fail_msg| {
         fe.deallocate_memory(ptr)
             .map_err(|_| RuntimeError::new(fail_msg))
     };
 
-    if sandbox_context
+    if supervisor_context
         .write_memory(invoke_args_ptr, &invoke_args_data)
         .is_err()
     {
         deallocate(
-            sandbox_context,
+            supervisor_context,
             invoke_args_ptr,
             "Failed deallocation after failed write of invoke arguments",
         )?;
@@ -442,12 +442,12 @@ fn dispatch_common(
     }
 
     // Perform the actual call
-    let serialized_result = sandbox_context
+    let serialized_result = supervisor_context
         .invoke(invoke_args_ptr, invoke_args_len, supervisor_func_index)
         .map_err(|e| RuntimeError::new(e.to_string()));
 
     deallocate(
-        sandbox_context,
+        supervisor_context,
         invoke_args_ptr,
         "Failed deallocation after invoke",
     )?;
@@ -465,12 +465,12 @@ fn dispatch_common(
         (Pointer::new(ptr), len)
     };
 
-    let serialized_result_val = sandbox_context
+    let serialized_result_val = supervisor_context
         .read_memory(serialized_result_val_ptr, serialized_result_val_len)
         .map_err(|_| RuntimeError::new("Can't read the serialized result from dispatch thunk"));
 
     deallocate(
-        sandbox_context,
+        supervisor_context,
         serialized_result_val_ptr,
         "Can't deallocate memory for dispatch thunk's result",
     )?;
@@ -511,7 +511,7 @@ fn dispatch_function(
     func_ty: &sandbox_wasmer::FunctionType,
 ) -> sandbox_wasmer::Function {
     sandbox_wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
-        SandboxContextStore::with(|sandbox_context| {
+        SupervisorContextStore::with(|supervisor_context| {
             let mut storemut = env.as_store_mut();
 
             let deserialized_result = store_refcell_ctx::with_borrrow_scope(&mut storemut, || {
@@ -527,7 +527,7 @@ fn dispatch_function(
                     .encode();
 
                 let serialized_result_val =
-                    dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
+                    dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
 
                 std::result::Result::<ReturnValue, HostError>::decode(
                     &mut serialized_result_val.as_slice(),
@@ -551,7 +551,7 @@ fn dispatch_function_v2(
     func_ty: &sandbox_wasmer::FunctionType,
 ) -> sandbox_wasmer::Function {
     sandbox_wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
-        SandboxContextStore::with(|sandbox_context| {
+        SupervisorContextStore::with(|supervisor_context| {
             let (env, mut storemut) = env.data_and_store_mut();
             let gas_global = env
                 .gas_global
@@ -573,7 +573,7 @@ fn dispatch_function_v2(
                     .encode();
 
                 let serialized_result_val =
-                    dispatch_common(supervisor_func_index, sandbox_context, invoke_args_data)?;
+                    dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
 
                 std::result::Result::<WasmReturnValue, HostError>::decode(
                     &mut serialized_result_val.as_slice(),

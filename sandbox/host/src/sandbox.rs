@@ -124,7 +124,7 @@ impl Imports {
 }
 
 /// The sandbox context used to execute sandboxed functions.
-pub trait SandboxContext {
+pub trait SupervisorContext {
     /// Invoke a function in the supervisor environment.
     ///
     /// This first invokes the dispatch thunk function, passing in the function index of the
@@ -216,15 +216,15 @@ impl SandboxInstance {
         &self,
         export_name: &str,
         args: &[Value],
-        sandbox_context: &mut dyn SandboxContext,
+        supervisor_context: &mut dyn SupervisorContext,
     ) -> std::result::Result<Option<Value>, error::Error> {
         match &self.backend_instance {
             BackendInstanceBundle::Wasmi(wasmi_instance) => {
-                wasmi_invoke(self, wasmi_instance, export_name, args, sandbox_context)
+                wasmi_invoke(self, wasmi_instance, export_name, args, supervisor_context)
             }
 
             BackendInstanceBundle::Wasmer { instance, store } => {
-                wasmer_invoke(instance, store, export_name, args, sandbox_context)
+                wasmer_invoke(instance, store, export_name, args, supervisor_context)
             }
         }
     }
@@ -376,7 +376,7 @@ impl GuestEnvironment {
     ///
     /// Returns `Err` if the definition cannot be decoded.
     pub fn decode<DT>(
-        store: &Store<DT>,
+        store: &SandboxComponents<DT>,
         raw_env_def: &[u8],
     ) -> std::result::Result<Self, InstantiationError> {
         let (imports, guest_to_supervisor_mapping) =
@@ -398,7 +398,7 @@ pub struct UnregisteredInstance {
 
 impl UnregisteredInstance {
     /// Finalizes instantiation of this module.
-    pub fn register<DT>(self, store: &mut Store<DT>, dispatch_thunk: DT) -> u32 {
+    pub fn register<DT>(self, store: &mut SandboxComponents<DT>, dispatch_thunk: DT) -> u32 {
         // At last, register the instance.
         store.register_sandbox_instance(self.sandbox_instance, dispatch_thunk)
     }
@@ -516,7 +516,7 @@ impl BackendContext {
 /// This struct keeps track of all sandboxed components.
 ///
 /// This is generic over a supervisor function reference type.
-pub struct Store<DT> {
+pub struct SandboxComponents<DT> {
     /// Stores the instance and the dispatch thunk associated to per instance.
     ///
     /// Instances are `Some` until torn down.
@@ -526,10 +526,10 @@ pub struct Store<DT> {
     backend_context: BackendContext,
 }
 
-impl<DT: Clone> Store<DT> {
+impl<DT: Clone> SandboxComponents<DT> {
     /// Create a new empty sandbox store.
     pub fn new(backend: SandboxBackend) -> Self {
-        Store {
+        SandboxComponents {
             instances: Vec::new(),
             memories: Vec::new(),
             backend_context: BackendContext::new(backend),
@@ -681,13 +681,13 @@ impl<DT: Clone> Store<DT> {
         version: Instantiate,
         wasm: &[u8],
         guest_env: GuestEnvironment,
-        sandbox_context: &mut dyn SandboxContext,
+        supervisor_context: &mut dyn SupervisorContext,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
         let sandbox_instance = match self.backend_context {
-            BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, sandbox_context)?,
+            BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, supervisor_context)?,
 
             BackendContext::Wasmer(ref context) => {
-                wasmer_instantiate(version, context, wasm, guest_env, sandbox_context)?
+                wasmer_instantiate(version, context, wasm, guest_env, supervisor_context)?
             }
         };
 
@@ -696,7 +696,7 @@ impl<DT: Clone> Store<DT> {
 }
 
 // Private routines
-impl<DT> Store<DT> {
+impl<DT> SandboxComponents<DT> {
     fn register_sandbox_instance(
         &mut self,
         sandbox_instance: SandboxInstance,
