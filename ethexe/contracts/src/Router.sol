@@ -35,7 +35,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     ) public initializer {
         __Ownable_init(initialOwner);
 
-        setStorageSlot("router.storage.Router");
+        setStorageSlot("router.storage.RouterV1");
         RouterStorage storage router = getRouterStorage();
 
         router.program = _program;
@@ -46,7 +46,23 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         addValidators(validatorsArray);
     }
 
-    // function reinitialize() public reinitializer(2) {}
+    function reinitialize() public onlyOwner reinitializer(2) {
+        RouterStorage storage oldRouter = getRouterStorage();
+
+        address _program = oldRouter.program;
+        address _minimalProgram = oldRouter.minimalProgram;
+        address _wrappedVara = oldRouter.wrappedVara;
+
+        setStorageSlot("router.storage.RouterV2");
+        RouterStorage storage router = getRouterStorage();
+
+        router.program = _program;
+        router.minimalProgram = _minimalProgram;
+        router.wrappedVara = _wrappedVara;
+        router.genesisBlockHash = blockhash(block.number - 1);
+
+        // TODO: validators
+    }
 
     function getRouterStorage() private view returns (RouterStorage storage router) {
         bytes32 slot = getStorageSlot();

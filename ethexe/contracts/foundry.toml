@@ -12,9 +12,6 @@ extra_output = ["storageLayout"]
 ignored_warnings_from = [
     # Warning (3628): This contract has a payable fallback function, but no receive ether function
     "src/MinimalProgram.sol",
-    # Warning (2072): Unused local variable
-    "script/upgrades/Router.s.sol",
-    "script/upgrades/WrappedVara.s.sol",
 ]
 
 [rpc_endpoints]

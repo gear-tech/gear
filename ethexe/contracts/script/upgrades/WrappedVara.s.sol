@@ -10,21 +10,15 @@ contract WrappedVaraScript is Script {
 
     function run() public {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        bool reinitialize = vm.envBool("REINITIALIZE");
         address wrappedVaraAddress = vm.envAddress("WRAPPED_VARA_ADDRESS");
 
         vm.startBroadcast(privateKey);
 
-        // How to do state change upgrades:
-        // 1. Uncomment WrappedVara.reinitialize in WrappedVara.sol.
-        // 2. Use the following code:
-        // Upgrades.upgradeProxy(
-        //     wrappedVaraAddress,
-        //     "WrappedVara.sol",
-        //     abi.encodeCall(WrappedVara.reinitialize, () /*WrappedVara.reinitialize arguments*/ )
-        // );
-
-        // How to do business logic upgrades:
-        // Upgrades.upgradeProxy(wrappedVaraAddress, "WrappedVara.sol", "");
+        bytes memory data = reinitialize
+            ? abi.encodeCall(WrappedVara.reinitialize, () /*WrappedVara.reinitialize arguments*/ )
+            : new bytes(0);
+        Upgrades.upgradeProxy(wrappedVaraAddress, "WrappedVara.sol", data);
 
         vm.stopBroadcast();
     }

@@ -10,19 +10,14 @@ contract RouterScript is Script {
 
     function run() public {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        bool reinitialize = vm.envBool("REINITIALIZE");
         address routerAddress = vm.envAddress("ROUTER_ADDRESS");
 
         vm.startBroadcast(privateKey);
 
-        // How to do state change upgrades:
-        // 1. Uncomment Router.reinitialize in Router.sol.
-        // 2. Use the following code:
-        // Upgrades.upgradeProxy(
-        //     routerAddress, "Router.sol", abi.encodeCall(Router.reinitialize, () /*Router.reinitialize arguments*/ )
-        // );
-
-        // How to do business logic upgrades:
-        // Upgrades.upgradeProxy(routerAddress, "Router.sol", "");
+        bytes memory data =
+            reinitialize ? abi.encodeCall(Router.reinitialize, () /*Router.reinitialize arguments*/ ) : new bytes(0);
+        Upgrades.upgradeProxy(routerAddress, "Router.sol", data);
 
         vm.stopBroadcast();
     }

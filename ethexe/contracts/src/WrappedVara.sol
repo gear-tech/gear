@@ -27,8 +27,6 @@ contract WrappedVara is
         _disableInitializers();
     }
 
-    // function reinitialize() public reinitializer(2) {}
-
     function initialize(address initialOwner, uint128 _valuePerGas) public initializer {
         __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
         __ERC20Burnable_init();
@@ -38,6 +36,8 @@ contract WrappedVara is
         _mint(initialOwner, TOKEN_INITIAL_SUPPLY * 10 ** decimals());
         setValuePerGas(_valuePerGas);
     }
+
+    function reinitialize() public onlyOwner reinitializer(2) {}
 
     function setValuePerGas(uint128 _valuePerGas) public onlyOwner {
         require(_valuePerGas > 0, "valuePerGas must be greater than zero");
