@@ -24,13 +24,13 @@ use gcore::{errors::Result, ActorId, MessageId};
 /// which results as logging, the sent logs can be extracted from the
 /// chain event `pallet_gear::Event::UserMessageSent`.
 ///
-/// ```no_run
+/// ```text
 /// let GearEvent::UserMessageSent {
 ///   message: UserMessage {
 ///     // The payload here is the log you sent with the method.
 ///     payload,
 ///     destination: ActorId::zero(),
-///     ...
+///     ..
 ///   },
 ///   ...
 /// } = event;
@@ -39,12 +39,13 @@ use gcore::{errors::Result, ActorId, MessageId};
 /// # Example
 ///
 /// ```no_run
+/// # let payload: &[u8] = &[];
 /// // program side
 /// let log = "the answer is 42";
-/// gstd::msg::log_str(log);
+/// let _ = gstd::msg::log_str(log);
 ///
 /// // client side, after extracting payload from events.
-/// assert_eq!(String::from_utf8_lossy(payload), log.into());
+/// assert_eq!(String::from_utf8_lossy(payload), log.to_string());
 /// ```
 pub fn log_str(s: impl AsRef<str>) -> Result<MessageId> {
     log(s.as_ref().as_bytes())
@@ -57,11 +58,12 @@ pub fn log_str(s: impl AsRef<str>) -> Result<MessageId> {
 /// # Example
 ///
 /// ```no_run
+/// # let payload: &[u8] = &[];
 /// // program side
-/// gstd::msg::log(b"42");
+/// let _ = gstd::msg::log(b"42");
 ///
 /// // client side, after extracting payload from events.
-/// assert_eq!(payload, b"42".into());
+/// assert_eq!(payload, b"42".as_ref());
 /// ```
 pub fn log(data: impl AsRef<[u8]>) -> Result<MessageId> {
     crate::msg::send_bytes(ActorId::zero(), data.as_ref(), 0)
