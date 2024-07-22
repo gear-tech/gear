@@ -33,8 +33,8 @@ use crate::{
     Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, program_storage::MemoryMap, scheduler::*, storage::*, CodeStorage, GasTree, GearPage,
-    LockId, LockableTree, Origin as _, Program, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
@@ -64,9 +64,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{
-    gas_metering::CustomConstantCostRules, parity_wasm::elements, STACK_END_EXPORT_NAME,
-};
+use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
@@ -15583,13 +15581,16 @@ fn dust_in_message_to_user_handled_ok() {
 fn use_big_memory() {
     let last_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT).offset() - 4;
     let middle_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2).offset();
+    let last_page_number = MAX_WASM_PAGES_AMOUNT.checked_sub(1).unwrap();
 
     let wat = format!(
         r#"
         (module
 		    (import "env" "memory" (memory 0))
             (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
             (export "init" (func $init))
+            (export "handle" (func $handle))
             (func $init
                 (drop (call $alloc (i32.const {MAX_WASM_PAGES_AMOUNT})))
 
@@ -15601,6 +15602,9 @@ fn use_big_memory() {
 
                 ;; access 4 bytes in the middle
                 (i32.store (i32.const {middle_4_bytes_offset}) (i32.const 0x42))
+            )
+            (func $handle
+                (drop (call $free_range (i32.const 0) (i32.const {last_page_number})))
             )
         )"#
     );
@@ -15649,7 +15653,7 @@ fn use_big_memory() {
                 &program.memory_infix,
             )
             .map(|(page, buf)| {
-                assert_eq!(buf.into_iter().copied().sum::<u8>(), 0x42);
+                assert_eq!(buf.iter().copied().sum::<u8>(), 0x42);
                 page
             })
             .collect::<Vec<_>>();
@@ -15661,6 +15665,33 @@ fn use_big_memory() {
                 GearPage::from_offset(middle_4_bytes_offset),
                 GearPage::from_offset(last_4_bytes_offset)
             ]
+        );
+
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(Default::default()),
+        );
+
+        assert_eq!(
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .count(),
+            0
         );
     });
 }
