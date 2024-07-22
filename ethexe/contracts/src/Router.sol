@@ -46,6 +46,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         addValidators(validatorsArray);
     }
 
+    // function reinitialize() public reinitializer(2) {}
+
     function getRouterStorage() private view returns (RouterStorage storage router) {
         bytes32 slot = getStorageSlot();
         /// @solidity memory-safe-assembly

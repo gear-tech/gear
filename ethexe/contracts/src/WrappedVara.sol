@@ -27,6 +27,8 @@ contract WrappedVara is
         _disableInitializers();
     }
 
+    // function reinitialize() public reinitializer(2) {}
+
     function initialize(address initialOwner, uint128 _valuePerGas) public initializer {
         __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
         __ERC20Burnable_init();
