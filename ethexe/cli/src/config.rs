@@ -24,8 +24,8 @@ use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
 use ethexe_network::NetworkEventLoopConfig;
 use ethexe_prometheus_endpoint::Registry;
-use ethexe_signer::PublicKey;
-use std::{iter, net::SocketAddr, path::PathBuf, time::Duration};
+use ethexe_signer::{Address, PublicKey};
+use std::{iter, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 use tempfile::TempDir;
 
 const DEFAULT_PROMETHEUS_PORT: u16 = 9635;
@@ -33,18 +33,32 @@ const DEFAULT_PROMETHEUS_PORT: u16 = 9635;
 #[static_init::dynamic(drop, lazy)]
 static mut BASE_PATH_TEMP: Option<TempDir> = None;
 
-#[derive(Default, Debug)]
-pub enum SequencerConfig {
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub enum ConfigPublicKey {
     Enabled(PublicKey),
+    Random,
     #[default]
     Disabled,
 }
 
-#[derive(Default, Debug)]
-pub enum ValidatorConfig {
-    Enabled(PublicKey),
-    #[default]
-    Disabled,
+impl ConfigPublicKey {
+    fn new(key: &Option<String>) -> Result<Self> {
+        match key {
+            Some(key) => Self::from_str(key),
+            None => Ok(Self::Disabled),
+        }
+    }
+}
+
+impl FromStr for ConfigPublicKey {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "random" => Ok(Self::Random),
+            key => Ok(Self::Enabled(key.parse()?)),
+        }
+    }
 }
 
 /// Configuration of the Prometheus endpoint.
@@ -80,7 +94,7 @@ pub struct Config {
     pub ethereum_beacon_rpc: String,
 
     /// Address of Ethereum Router contract
-    pub ethereum_router_address: String,
+    pub ethereum_router_address: Address,
 
     /// Max depth to discover last commitment.
     pub max_commitment_depth: u32,
@@ -95,10 +109,10 @@ pub struct Config {
     pub key_path: PathBuf,
 
     /// Is this role a sequencer
-    pub sequencer: SequencerConfig,
+    pub sequencer: ConfigPublicKey,
 
     /// Is this role a validator
-    pub validator: ValidatorConfig,
+    pub validator: ConfigPublicKey,
 
     /// Sender address to send Ethereum transaction.
     pub sender_address: Option<String>,
@@ -151,13 +165,29 @@ impl TryFrom<Args> for Config {
         let mut net_config = args.network_params.network_config(net_path)?;
         net_config.bootstrap_addresses.extend(chain_spec.bootnodes);
 
+        let sequencer =
+            ConfigPublicKey::new(&args.sequencer_key).context("invalid sequencer key")?;
+        anyhow::ensure!(
+            args.tmp || sequencer != ConfigPublicKey::Random,
+            "random key for sequencer is only allowed with `--tmp` flag"
+        );
+
+        let validator =
+            ConfigPublicKey::new(&args.validator_key).context("invalid validator key")?;
+        anyhow::ensure!(
+            args.tmp || validator != ConfigPublicKey::Random,
+            "random key for validator is only allowed with `--tmp` flag"
+        );
+
         Ok(Config {
             node_name: args.node_name,
             ethereum_rpc: args.ethereum_rpc,
             ethereum_beacon_rpc: args.ethereum_beacon_rpc,
             ethereum_router_address: args
                 .ethereum_router_address
-                .unwrap_or(chain_spec.ethereum_router_address),
+                .unwrap_or(chain_spec.ethereum_router_address)
+                .parse()
+                .context("failed to parse router address")?,
             max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
             block_time: Duration::from_secs(args.block_time),
             net_config,
@@ -166,18 +196,8 @@ impl TryFrom<Args> for Config {
             }),
             database_path: base_path.join("db"),
             key_path: base_path.join("key"),
-            sequencer: match args.sequencer_key {
-                Some(key) => {
-                    SequencerConfig::Enabled(key.parse().with_context(|| "Invalid sequencer key")?)
-                }
-                None => SequencerConfig::Disabled,
-            },
-            validator: match args.validator_key {
-                Some(key) => {
-                    ValidatorConfig::Enabled(key.parse().with_context(|| "Invalid validator key")?)
-                }
-                None => ValidatorConfig::Disabled,
-            },
+            sequencer,
+            validator,
             sender_address: args.sender_address,
             rpc_port: args.rpc_port.unwrap_or(9090),
         })

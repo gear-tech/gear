@@ -178,7 +178,7 @@ impl ExtraCommands {
         let maybe_ethereum = if let Some(sender_address) = maybe_sender_address {
             Ethereum::new(
                 &config.ethereum_rpc,
-                config.ethereum_router_address.parse()?,
+                config.ethereum_router_address,
                 signer.clone(),
                 sender_address,
             )
