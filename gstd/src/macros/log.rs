@@ -28,7 +28,10 @@
 /// let _ = gstd::log!("the answer is {}", 42);
 ///
 /// // on client side, after extracting payload from events.
-/// assert_eq!(String::from_utf8_lossy(payload), "the answer is 42".to_string())
+/// assert_eq!(
+///     String::from_utf8_lossy(payload),
+///     "the answer is 42".to_string()
+/// )
 /// ```
 #[macro_export]
 macro_rules! log {
