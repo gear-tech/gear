@@ -97,6 +97,7 @@ impl SyscallsParamsConfig {
                 range,
             })
             .with_ptr_rule(PtrParamAllowedValues::ReservationId)
+            .with_ptr_rule(PtrParamAllowedValues::WaitedMessageId)
     }
 
     /// Set rules for a regular syscall param.

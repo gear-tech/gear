@@ -289,7 +289,9 @@ fn test_wake_uses_stored_message_id() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let params_config = SyscallsParamsConfig::new().with_default_regular_config();
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::WaitedMessageId);
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Wake), 1, 1);

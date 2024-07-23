@@ -34,8 +34,8 @@ use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{
-        FallibleSyscallSignature, HashType, ParamType, Ptr, RegularParamType, SyscallName,
-        SyscallSignature, SystemSyscallSignature,
+        FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
+        SystemSyscallSignature,
     },
 };
 use gsys::{ErrorCode, Handle, Hash};
@@ -110,9 +110,6 @@ pub(crate) fn process_syscall_params(
                 Pointer(Ptr::SizedBufferStart { .. } | Ptr::MutSizedBufferStart { .. }) => {
                     ProcessedSyscallParams::MemoryArrayPtr
                 }
-                Pointer(Ptr::Hash(HashType::MessageId)) => ProcessedSyscallParams::MemoryPtrValue {
-                    allowed_values: Some(PtrParamAllowedValues::WaitedMessageId),
-                },
                 // It's guaranteed that fallible syscall has error pointer as a last param.
                 Pointer(ptr) => ProcessedSyscallParams::MemoryPtrValue {
                     allowed_values: params_config.get_ptr_rule(ptr),
