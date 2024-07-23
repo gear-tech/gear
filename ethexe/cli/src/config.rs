@@ -142,7 +142,7 @@ impl TryFrom<Args> for Config {
         };
 
         let chain_spec = match args.chain_spec.as_deref() {
-            Some("dev") => crate::chain_spec::testnet_config(),
+            Some("testnet") => crate::chain_spec::testnet_config(),
             Some(path) => crate::chain_spec::from_file(path)?,
             _ => crate::chain_spec::testnet_config(),
         };

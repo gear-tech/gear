@@ -58,15 +58,15 @@ async fn main() -> anyhow::Result<()> {
     let config =
         Config::try_from(args.clone()).with_context(|| "Failed to create configuration")?;
 
-    env_logger::Builder::from_env(Env::default().default_filter_or("info"))
-        .try_init()
-        .with_context(|| "Failed to initialize logger")?;
-
-    print_info(&config);
-
     if let Some(extra_command) = args.extra_command {
         extra_command.run(&config).await?;
     } else {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info"))
+            .try_init()
+            .with_context(|| "Failed to initialize logger")?;
+
+        print_info(&config);
+
         let mut service = Some(Service::new(&config).await?);
 
         async fn run_service(service: &mut Option<Service>) -> anyhow::Result<()> {
