@@ -18,6 +18,7 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
+use anyhow::anyhow;
 use gear_core::{
     gas::LockId,
     ids::*,
@@ -589,11 +590,8 @@ impl GearApi {
         let mut res = BTreeMap::new();
         for (page, data) in pages_data.into_iter() {
             res.insert(
-                GearPage::try_from(page).map_err(|err| anyhow::Error::msg(err.to_string()))?,
-                PageBuf::from_inner(
-                    data.try_into()
-                        .map_err(|_| anyhow::Error::msg("incorrect page data size"))?,
-                ),
+                GearPage::try_from(page).map_err(|err| anyhow!("{err}"))?,
+                PageBuf::from_inner(data.try_into().map_err(|err| anyhow!("{err}"))?),
             );
         }
 

@@ -22,6 +22,8 @@ use crate::*;
 pub type Migrations = (
     // migration for added section sizes
     pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
+    // move allocations to a separate storage item and remove pages_with_data field from program
+    pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
     // substrate v1.4.0
     staking::MigrateToV14<Runtime>,
     pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
