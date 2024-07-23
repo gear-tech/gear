@@ -693,8 +693,13 @@ pub mod runtime_types {
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IntoPageBufError;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
-                    pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
+                    pub  runtime_types::gear_core::buffer::LimitedVec<
+                        ::core::primitive::u8,
+                        runtime_types::gear_core::memory::IntoPageBufError,
+                    >,
                 );
             }
             pub mod message {
