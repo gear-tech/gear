@@ -271,7 +271,8 @@ mod test {
                 ]
             );
 
-            let Some(Program::Active(program)) = ProgramStorage::<Test>::get(active_program_id) else {
+            let Some(Program::Active(program)) = ProgramStorage::<Test>::get(active_program_id)
+            else {
                 panic!("Program must be active");
             };
 

@@ -100,7 +100,10 @@ impl Debug for MemoryInterval {
 
 /// Error in attempt to make wrong size page buffer.
 #[derive(Debug, Default, PartialEq, Eq, Clone, TypeInfo, derive_more::Display)]
-#[display(fmt = "Trying to make wrong size page buffer, must be {:#x}", GearPage::SIZE)]
+#[display(
+    fmt = "Trying to make wrong size page buffer, must be {:#x}",
+    GearPage::SIZE
+)]
 pub struct IntoPageBufError;
 
 /// Alias for inner type of page buffer.
