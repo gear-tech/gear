@@ -38,8 +38,8 @@ use gear_core::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
-        MessageContext, Packet, ReplyPacket,
+        ContextOutcomeDrain, ContextStore, Dispatch, DispatchKind, GasLimit, HandlePacket,
+        InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
         numerated::{interval::Interval, tree::IntervalsTree},
@@ -446,23 +446,45 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
         Ok(())
     }
 
-    fn charge_expiring_resources<T: Packet>(
-        &mut self,
-        packet: &T,
-        cover_mailbox_threshold: bool,
-    ) -> Result<(), FallibleExtError> {
-        let mailbox_threshold = self.context.mailbox_threshold;
-        let reducing_gas_limit = packet
-            .gas_limit()
-            .or(cover_mailbox_threshold.then_some(mailbox_threshold))
-            .unwrap_or(0);
-
-        if cover_mailbox_threshold && reducing_gas_limit < mailbox_threshold {
-            return Err(MessageError::InsufficientGasLimit.into());
-        }
+    fn charge_expiring_resources<T: Packet>(&mut self, packet: &T) -> Result<(), FallibleExtError> {
+        let reducing_gas_limit = self.get_reducing_gas_limit(packet)?;
 
         self.reduce_gas(reducing_gas_limit)?;
         self.charge_message_value(packet.value())
+    }
+
+    fn get_reducing_gas_limit<T: Packet>(&self, packet: &T) -> Result<u64, FallibleExtError> {
+        match T::kind() {
+            DispatchKind::Handle => {
+                // Any "handle" gasless and gasful *non zero* message must
+                // cover mailbox threshold. That's because destination
+                // of the message is unknown, so it could be a user,
+                // and if gasless message is sent, there must be a
+                // guaranteed gas to cover mailbox.
+                let mailbox_threshold = self.context.mailbox_threshold;
+                let gas_limit = packet.gas_limit().unwrap_or(mailbox_threshold);
+
+                // Zero gasful message is a special case.
+                if gas_limit != 0 && gas_limit < mailbox_threshold {
+                    return Err(MessageError::InsufficientGasLimit.into());
+                }
+
+                Ok(gas_limit)
+            }
+            DispatchKind::Init | DispatchKind::Reply => {
+                // Init and reply messages never go to mailbox.
+                //
+                // For init case, even if there's no code with a provided
+                // code id, the init message still goes to queue and then is handled as non
+                // executable, as there is no code for the destination actor.
+                //
+                // Also no reply to user messages go to mailbox, they all are emitted
+                // within events.
+
+                Ok(packet.gas_limit().unwrap_or(0))
+            }
+            DispatchKind::Signal => unreachable!("Signals can't be sent as a syscall"),
+        }
     }
 
     fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
@@ -910,11 +932,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     ) -> Result<MessageId, Self::FallibleError> {
         self.with_changes(|mutator| {
             mutator.check_forbidden_destination(msg.destination())?;
-            // Any "handle" message must cover mailbox threshold.
-            // That's because destination of the message is unknown,
-            // so it could be a user, and if gasless message is sent,
-            // there must be a guaranteed gas to cover mailbox.
-            mutator.charge_expiring_resources(&msg, true)?;
+            mutator.charge_expiring_resources(&msg)?;
             mutator.charge_sending_fee(delay)?;
             mutator.charge_for_dispatch_stash_hold(delay)?;
 
@@ -964,9 +982,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         self.with_changes(|mutator| {
             mutator
                 .check_forbidden_destination(mutator.context.message_context.reply_destination())?;
-            // No need to cover mailbox thershold as no reply to user messages go to mailbox.
-            // I.e., they all are emitted within events.
-            mutator.charge_expiring_resources(&msg, false)?;
+            mutator.charge_expiring_resources(&msg)?;
             mutator.charge_sending_fee(0)?;
 
             mutator
@@ -1299,10 +1315,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
             // We don't check for forbidden destination here, since dest is always unique
             // and almost impossible to match SYSTEM_ID
 
-            // Init messages never go to mailbox. Even if there's no code with a provided
-            // code id, the init message still goes to queue and then is handled as non
-            // executable, as there is no code for the destination actor.
-            mutator.charge_expiring_resources(&packet, false)?;
+            mutator.charge_expiring_resources(&packet)?;
             mutator.charge_sending_fee(delay)?;
             mutator.charge_for_dispatch_stash_hold(delay)?;
 
