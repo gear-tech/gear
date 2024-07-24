@@ -41,18 +41,6 @@ use parity_scale_codec::{Decode, Encode};
 
 const LOG_TARGET: &str = "hyper-db";
 
-enum Key {
-    LatestValidBlock,
-}
-
-impl Key {
-    fn as_bytes(&self) -> &'static [u8] {
-        match self {
-            Key::LatestValidBlock => b"latest_valid_block",
-        }
-    }
-}
-
 #[repr(u64)]
 enum KeyPrefix {
     ProgramToCodeId = 0,
@@ -63,6 +51,7 @@ enum KeyPrefix {
     BlockOutcome = 5,
     BlockSmallMeta = 6,
     CodeUpload = 7,
+    LatestValidBlock = 8,
 }
 
 impl KeyPrefix {
@@ -248,13 +237,13 @@ impl BlockMetaStorage for Database {
 
     fn latest_valid_block(&self) -> Option<H256> {
         self.kv
-            .get(Key::LatestValidBlock.as_bytes())
+            .get(&KeyPrefix::LatestValidBlock.one(&[]))
             .map(|block_hash| H256::from_slice(&block_hash))
     }
 
     fn set_latest_valid_block(&self, block_hash: H256) {
         self.kv
-            .put(Key::LatestValidBlock.as_bytes(), block_hash.0.to_vec());
+            .put(&KeyPrefix::LatestValidBlock.one(&[]), block_hash.0.to_vec());
     }
 }
 
