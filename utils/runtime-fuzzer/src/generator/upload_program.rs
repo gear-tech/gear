@@ -25,8 +25,8 @@ use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     wasm_gen_arbitrary::{Result, Unstructured},
-    ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
-    StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
+    ActorKind, PtrParamAllowedValues, RandomizedGearWasmConfigBundle, RegularParamType,
+    SyscallsParamsConfig,
 };
 use runtime_primitives::Balance;
 use vara_runtime::EXISTENTIAL_DEPOSIT;
@@ -61,16 +61,14 @@ pub(crate) fn generate(
 ) -> Result<GearCall> {
     log::trace!("New gear-wasm generation");
     log::trace!("Random data before wasm gen {}", unstructured.len());
-
-    let code = gear_wasm_gen::generate_gear_program_code(
+    let config = config(
         unstructured,
-        config(
-            programs,
-            codes,
-            Some(format!("Generated program from corpus - {corpus_id}")),
-            current_balance,
-        ),
-    )?;
+        programs,
+        codes,
+        Some(format!("Generated program from corpus - {corpus_id}")),
+        current_balance,
+    );
+    let code = gear_wasm_gen::generate_gear_program_code(unstructured, config)?;
     log::trace!("Random data after wasm gen {}", unstructured.len());
     log::trace!("Code length {:?}", code.len());
 
@@ -88,6 +86,7 @@ pub(crate) fn generate(
     let value = super::arbitrary_value(unstructured, current_balance)?;
     log::trace!("Random data after value generation {}", unstructured.len());
     log::trace!("Sending value (upload_program) - {value}");
+    log::trace!("Current balance (upload_program - {current_balance}");
 
     let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
     log::trace!("Generated code for program id - {program_id}");
@@ -100,34 +99,13 @@ fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
 }
 
 fn config(
+    unstructured: &mut Unstructured,
     programs: Option<&NonEmpty<ProgramId>>,
     codes: Option<&NonEmpty<CodeId>>,
     log_info: Option<String>,
     current_balance: Balance,
-) -> StandardGearWasmConfigsBundle {
+) -> RandomizedGearWasmConfigBundle {
     let initial_pages = 2;
-    let mut injection_types = SyscallsInjectionTypes::all_with_range(1..=3);
-    injection_types.set_multiple(
-        [
-            (SyscallName::SendInit, 3..=5),
-            (SyscallName::ReserveGas, 3..=5),
-            (SyscallName::Debug, 0..=1),
-            (SyscallName::Wait, 0..=1),
-            (SyscallName::WaitFor, 0..=1),
-            (SyscallName::WaitUpTo, 0..=1),
-            (SyscallName::Wake, 0..=1),
-            (SyscallName::Leave, 0..=0),
-            (SyscallName::Panic, 0..=0),
-            (SyscallName::OomPanic, 0..=0),
-            (SyscallName::EnvVars, 0..=0),
-            (SyscallName::Send, 10..=15),
-            (SyscallName::Exit, 0..=1),
-            (SyscallName::Alloc, 3..=6),
-            (SyscallName::Free, 3..=6),
-        ]
-        .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
-        .into_iter(),
-    );
 
     let max_value = {
         let d = current_balance
@@ -137,6 +115,7 @@ fn config(
 
         current_balance.saturating_div(d)
     };
+
     let mut params_config = SyscallsParamsConfig::new()
         .with_default_regular_config()
         .with_rule(RegularParamType::Alloc, (10..=20).into())
@@ -179,13 +158,5 @@ fn config(
             range: EXISTENTIAL_DEPOSIT..=max_value,
         });
     }
-
-    StandardGearWasmConfigsBundle {
-        entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_types,
-        log_info,
-        params_config,
-        initial_pages: initial_pages as u32,
-        ..Default::default()
-    }
+    RandomizedGearWasmConfigBundle::new_arbitrary(unstructured, log_info, params_config)
 }

@@ -215,7 +215,7 @@ mod tests {
     use alloy::node_bindings::Anvil;
     use ethexe_ethereum::Ethereum;
     use ethexe_signer::Signer;
-    use tokio::task;
+    use tokio::{sync::oneshot, task};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
         wabt::Wat2Wasm::new()
@@ -234,7 +234,9 @@ mod tests {
     async fn test_deployment() -> Result<()> {
         gear_utils::init_default_logger();
 
-        let anvil = Anvil::new().try_spawn()?;
+        let mut anvil = Anvil::new().try_spawn()?;
+        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+
         let ethereum_rpc = anvil.ws_endpoint();
 
         let signer = Signer::new("/tmp/keys".into())?;
@@ -251,6 +253,7 @@ mod tests {
         let router_address = ethereum.router().address();
         let cloned_blob_reader = blob_reader.clone();
 
+        let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let handle = task::spawn(async move {
             let mut observer = Observer::new(&ethereum_rpc, router_address, cloned_blob_reader)
                 .await
@@ -258,6 +261,8 @@ mod tests {
 
             let observer_events = observer.events();
             futures::pin_mut!(observer_events);
+
+            send_subscription_created.send(()).unwrap();
 
             while let Some(event) = observer_events.next().await {
                 if matches!(event, Event::CodeLoaded { .. }) {
@@ -267,6 +272,7 @@ mod tests {
 
             None
         });
+        receive_subscription_created.await.unwrap();
 
         let wat = r#"
             (module
