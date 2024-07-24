@@ -104,13 +104,13 @@ pub struct Config {
     pub sender_address: Option<String>,
 
     // Network configuration
-    pub net_config: NetworkEventLoopConfig,
+    pub net_config: Option<NetworkEventLoopConfig>,
 
     // Prometheus configuration
     pub prometheus_config: Option<PrometheusConfig>,
 
     /// RPC port
-    pub rpc_port: u16,
+    pub rpc_port: Option<u16>,
 }
 
 impl TryFrom<Args> for Config {
@@ -147,9 +147,15 @@ impl TryFrom<Args> for Config {
             _ => crate::chain_spec::testnet_config(),
         };
 
-        let net_path = base_path.join("net");
-        let mut net_config = args.network_params.network_config(net_path)?;
-        net_config.bootstrap_addresses.extend(chain_spec.bootnodes);
+        let net_config = args
+            .network_params
+            .map(|params| -> anyhow::Result<_> {
+                let net_path = base_path.join("net");
+                let mut net_config = params.network_config(net_path)?;
+                net_config.bootstrap_addresses.extend(chain_spec.bootnodes);
+                Ok(net_config)
+            })
+            .transpose()?;
 
         Ok(Config {
             node_name: args.node_name,
@@ -160,10 +166,6 @@ impl TryFrom<Args> for Config {
                 .unwrap_or(chain_spec.ethereum_router_address),
             max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
             block_time: Duration::from_secs(args.block_time),
-            net_config,
-            prometheus_config: args.prometheus_params.and_then(|params| {
-                params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
-            }),
             database_path: base_path.join("db"),
             key_path: base_path.join("key"),
             sequencer: match args.sequencer_key {
@@ -179,7 +181,11 @@ impl TryFrom<Args> for Config {
                 None => ValidatorConfig::Disabled,
             },
             sender_address: args.sender_address,
-            rpc_port: args.rpc_port.unwrap_or(9090),
+            net_config,
+            prometheus_config: args.prometheus_params.and_then(|params| {
+                params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
+            }),
+            rpc_port: args.rpc_port,
         })
     }
 }
