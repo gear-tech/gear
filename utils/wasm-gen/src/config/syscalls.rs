@@ -40,16 +40,7 @@ pub struct SyscallsConfigBuilder(SyscallsConfig);
 
 impl SyscallsConfigBuilder {
     /// Create a new builder with defined injection amounts for all syscalls.
-    pub fn new(mut injection_types: SyscallsInjectionTypes) -> Self {
-        // Enable `MessageId` syscall import if `Wake` syscall is enabled.
-        // This is done to provide a syscall `Wake` with a correct message id.
-        if matches!(
-            injection_types.get(InvocableSyscall::Loose(SyscallName::Wake)),
-            SyscallInjectionType::Function(..)
-        ) {
-            injection_types.enable_syscall_import(InvocableSyscall::Loose(SyscallName::MessageId));
-        }
-
+    pub fn new(injection_types: SyscallsInjectionTypes) -> Self {
         Self(SyscallsConfig {
             injection_types,
             params_config: SyscallsParamsConfig::default(),
