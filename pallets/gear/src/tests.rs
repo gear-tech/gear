@@ -15507,39 +15507,40 @@ fn create_program_with_reentrance_works() {
 
 #[test]
 fn dust_in_message_to_user_handled_ok() {
-    use demo_constructor::{Arg, Calls, Scheme};
+    use demo_value_sender::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
         let ed = CurrencyOf::<Test>::minimum_balance();
 
-        // USER_1 is a deployer
-        let (_, pid) = init_constructor_with_value(Scheme::empty(), 1_000);
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            1_000,
+            false,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
 
         run_to_block(2, None);
 
-        // Test case 1: Make the program send a message to USER_1 which won't go to mailbox.
-        let handle = Calls::builder().reply_value([], 300);
-        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid),
-            handle.encode(),
-            0,
-            true,
-            true,
-        )
-        .expect("calculate_gas_info failed.");
+        // Remove USER_1 account from the System.
+        CurrencyOf::<Test>::make_free_balance_be(&USER_1, 0);
+
+        // Test case 1: Make the program send a message to USER_1 with the value below the ED
+        // and gas below the mailbox threshold.
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
+            RuntimeOrigin::signed(USER_2),
             pid,
-            handle.encode(),
-            min_limit,
+            (0_u64, 300_u128).encode(),
+            1_000_000_000,
             0,
             false,
         ));
 
-        // Remove USER_1 account from the System.
-        CurrencyOf::<Test>::make_free_balance_be(&USER_1, 0);
         run_to_block(3, None);
 
         // USER_1 account doesn't receive the funds; instead, the dust handler kicks in.
@@ -15548,39 +15549,21 @@ fn dust_in_message_to_user_handled_ok() {
 
         // Test case 2: Make the program send a message to USER_1 with the value below the ED
         // and gas sufficient for a message to be placed into the mailbox (for 30 blocks).
-        let handle =
-            Calls::builder().send_value_wgas(Arg::new(USER_2.into_origin().0), [], 3_000, 300);
-        let gas_info = Gear::calculate_gas_info(
-            USER_2.into_origin(),
-            HandleKind::Handle(pid),
-            handle.encode(),
-            0,
-            true,
-            true,
-        )
-        .expect("calculate_gas_info failed.");
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pid,
-            handle.encode(),
-            gas_info.min_limit,
+            (3_000_u64, 300_u128).encode(),
+            1_000_000_000,
             0,
             false,
         ));
 
-        // Remove USER_1 account from the System.
-        CurrencyOf::<Test>::make_free_balance_be(&USER_2, 0);
         run_to_block(40, None);
 
         // USER_1 account doesn't receive the funds again; instead, the value is stored as the
         // `UnusedValue` in Gear Bank.
-        assert_eq!(CurrencyOf::<Test>::free_balance(USER_2), 0);
-
-        // It's really hard to count the amount of gas that will be used, when message will be
-        // read from the mailbox. The given amount is 3_000. So we definetely know the interval.
-        let unused_value_check = pallet_gear_bank::UnusedValue::<Test>::get() >= 300
-            && pallet_gear_bank::UnusedValue::<Test>::get() <= 300 + 3000;
-        assert!(unused_value_check);
+        assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
+        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
     });
 }
 
