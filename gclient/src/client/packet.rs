@@ -26,7 +26,7 @@ use parity_scale_codec::Encode;
 pub struct Message {
     /// The maximum gas amount allowed to spend for the program
     /// creation and initialization;
-    pub gas_limit: u64,
+    pub gas_limit: Option<u64>,
     /// Payload of this message.
     pub payload: Vec<u8>,
     /// Signer address
@@ -45,7 +45,7 @@ impl Message {
             payload: payload.encode(),
             value: 0,
             signer: ALICE,
-            gas_limit: 0,
+            gas_limit: None,
             salt: Default::default(),
         }
     }
@@ -56,7 +56,7 @@ impl Message {
             payload: payload.as_ref().into(),
             value: 0,
             signer: ALICE,
-            gas_limit: 0,
+            gas_limit: None,
             salt: Default::default(),
         }
     }
@@ -64,6 +64,12 @@ impl Message {
     /// Set the value of this message
     pub fn value(mut self, value: u128) -> Self {
         self.value = value;
+        self
+    }
+
+    /// Set gas limit for the message.
+    pub fn gas_limit(mut self, gas_limit: u64) -> Self {
+        self.gas_limit = Some(gas_limit);
         self
     }
 

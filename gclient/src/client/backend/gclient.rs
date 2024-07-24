@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    client::{Backend, Code, Message, Program, TxResult, ALICE},
+    client::{Backend, Client, Code, Message, Program, TxResult, ALICE},
     GearApi,
 };
 use anyhow::{anyhow, Result};
@@ -29,7 +29,7 @@ use gsdk::{
     metadata::runtime_types::gear_common::storage::primitives::Interval,
 };
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 /// GClient instance
 #[derive(Clone)]
@@ -44,6 +44,13 @@ impl GClient {
         Ok(Self {
             inner: Arc::new(Mutex::new(GearApi::init(address.as_ref().parse()?).await?)),
             pairs: HashMap::from_iter(vec![(ALICE, "//Alice".to_string())].into_iter()),
+        })
+    }
+
+    /// New general client with GClient as backend
+    pub async fn client() -> Result<Client<Self>> {
+        Ok(Client::<GClient> {
+            backend: GClient::from(GearApi::dev().await?),
         })
     }
 
@@ -75,6 +82,11 @@ impl GClient {
         self.inner.lock().await.change_signer(pair)?;
         Ok(())
     }
+
+    /// Get [`GearApi`]
+    async fn api(&self) -> MutexGuard<'_, GearApi> {
+        self.inner.lock().await
+    }
 }
 
 #[async_trait]
@@ -96,15 +108,13 @@ impl Backend for GClient {
         let message = message.into();
         self.switch_pair(message.signer).await?;
 
-        let (_, id, _) = self
-            .inner
-            .lock()
-            .await
+        let api = self.api().await;
+        let (_, id, _) = api
             .upload_program_bytes(
                 wasm,
                 message.salt,
                 message.payload,
-                message.gas_limit,
+                message.gas_limit.unwrap_or(api.block_gas_limit()?),
                 message.value,
             )
             .await?;
@@ -125,11 +135,14 @@ impl Backend for GClient {
         let message = message.into();
         self.switch_pair(message.signer).await?;
 
-        let (mid, _hash) = self
-            .inner
-            .lock()
-            .await
-            .send_message_bytes(id, message.payload, message.gas_limit, message.value)
+        let api = self.api().await;
+        let (mid, _hash) = api
+            .send_message_bytes(
+                id,
+                message.payload,
+                message.gas_limit.unwrap_or(api.block_gas_limit()?),
+                message.value,
+            )
             .await?;
 
         Ok(TxResult {

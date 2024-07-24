@@ -15,3 +15,47 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use anyhow::Result;
+use demo_proxy::{InputArgs, WASM_BINARY};
+use gclient::{
+    client::{Backend, Client, GClient, GTest, Message},
+    GearApi,
+};
+
+async fn test_ping<T: Backend>(client: Client<T>) -> Result<()> {
+    let prog = client
+        .deploy(
+            WASM_BINARY,
+            InputArgs {
+                destination: [0; 32],
+            },
+        )
+        .await?
+        .result;
+
+    let ping = b"ping";
+    let result = prog.send(Message::bytes(ping)).await?;
+
+    assert!(
+        result
+            .logs
+            .clone()
+            .into_iter()
+            .any(|log| { log.payload_bytes() == ping }),
+        "Could not find sent message: {result:#?}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_gtest() -> Result<()> {
+    test_ping(GTest::client()?).await
+}
+
+#[tokio::test]
+async fn test_gclient() -> Result<()> {
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    test_ping(Client::<GClient>::new(api)).await
+}

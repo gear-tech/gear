@@ -69,3 +69,9 @@ impl Code for Vec<u8> {
         Ok(self)
     }
 }
+
+impl Code for &[u8] {
+    fn wasm(self) -> Result<Vec<u8>> {
+        Ok(self.to_vec())
+    }
+}

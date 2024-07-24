@@ -27,7 +27,6 @@ pub use self::{
     packet::Message,
     program::Program,
 };
-use crate::GearApi;
 use anyhow::Result;
 use gear_core::message::UserMessage;
 use gprimitives::ActorId;
@@ -46,22 +45,10 @@ pub struct Client<T: Backend> {
 
 impl<T: Backend> Client<T> {
     /// Create new client
-    pub fn new(backend: T) -> Client<T> {
-        Self { backend }
-    }
-
-    /// Create gtest client
-    pub fn gtest() -> Client<GTest> {
-        Client::<GTest> {
-            backend: GTest::default(),
+    pub fn new(backend: impl Into<T>) -> Client<T> {
+        Self {
+            backend: backend.into(),
         }
-    }
-
-    /// Create gclient client
-    pub async fn gclient() -> Result<Client<GClient>> {
-        Ok(Client::<GClient> {
-            backend: GClient::from(GearApi::dev().await?),
-        })
     }
 }
 

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Backend, Code, Message, Program, TxResult};
+use crate::client::{Backend, Client, Code, Message, Program, TxResult};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
@@ -32,68 +32,73 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::{
+    runtime::Builder,
     sync::{
-        mpsc::{self, Sender},
+        mpsc::{self, UnboundedSender},
         Mutex,
     },
-    task::{JoinHandle, LocalSet},
+    task::LocalSet,
 };
 
 /// gear general client gtest backend
 #[derive(Clone)]
 pub struct GTest {
-    tx: Sender<Request>,
+    tx: UnboundedSender<Request>,
     results: Arc<Mutex<HashMap<usize, Response>>>,
     timeout: Duration,
-    _handle: Arc<JoinHandle<()>>,
     nonce: Arc<AtomicUsize>,
 }
 
 impl GTest {
-    /// New gtest instance
-    ///
-    /// gtest system is running in local thread in `GTest`,
-    /// the first argument is for channel size, and the second
-    /// one is the timeout for waiting response.
-    ///
-    /// We recommend you to use `GTest::default` instead of this
-    /// method if the paramters bother you.
-    pub fn new(size: usize, timeout: Duration) -> Self {
-        let local = LocalSet::new();
+    /// New gtest instance with timeout
+    pub fn new(timeout: Duration) -> Result<Self> {
         let results = Arc::new(Mutex::new(HashMap::new()));
-        let (tx, mut rx) = mpsc::channel::<Request>(size);
+        let (tx, mut rx) = mpsc::unbounded_channel::<Request>();
 
         let cloned = results.clone();
-        let handle = local.spawn_local(async move {
-            let system = System::new();
-            while let Some(tx) = rx.recv().await {
-                let (result, nounce) = match tx {
-                    Request::Deploy {
-                        nonce,
-                        code,
-                        message,
-                        signer,
-                    } => (handle::deploy(&system, code, message, signer), nonce),
-                    Request::Send {
-                        nonce,
-                        prog,
-                        message,
-                        signer,
-                    } => (handle::send(&system, prog, message, signer), nonce),
-                    Request::Program { nonce, id } => (handle::prog(&system, id), nonce),
-                };
+        let rt = Builder::new_current_thread().enable_all().build()?;
 
-                cloned.lock().await.insert(nounce, result);
-            }
+        std::thread::spawn(move || {
+            let local = LocalSet::new();
+            local.spawn_local(async move {
+                let system = System::new();
+                while let Some(tx) = rx.recv().await {
+                    let (result, nounce) = match tx {
+                        Request::Deploy {
+                            nonce,
+                            code,
+                            message,
+                            signer,
+                        } => (handle::deploy(&system, code, message, signer), nonce),
+                        Request::Send {
+                            nonce,
+                            prog,
+                            message,
+                            signer,
+                        } => (handle::send(&system, prog, message, signer), nonce),
+                        Request::Program { nonce, id } => (handle::prog(&system, id), nonce),
+                    };
+
+                    cloned.lock().await.insert(nounce, result);
+                }
+            });
+
+            rt.block_on(local);
         });
 
-        Self {
+        Ok(Self {
             tx,
             results,
             timeout,
             nonce: Arc::new(AtomicUsize::new(0)),
-            _handle: Arc::new(handle),
-        }
+        })
+    }
+
+    /// New general client with `GTest` as backend
+    pub fn client() -> Result<Client<GTest>> {
+        Ok(Client::<GTest> {
+            backend: GTest::new(Duration::from_millis(500))?,
+        })
     }
 
     /// Get gtest result from nonce.
@@ -116,7 +121,7 @@ impl GTest {
 impl Backend for GTest {
     async fn program(&self, id: ProgramId) -> Result<Program<Self>> {
         let nonce = self.nonce.load(Ordering::SeqCst);
-        self.tx.send(Request::Program { nonce, id }).await?;
+        self.tx.send(Request::Program { nonce, id })?;
 
         let result = self.resp(nonce).await?;
         let Response::Program(result) = result else {
@@ -136,14 +141,12 @@ impl Backend for GTest {
         M: Into<Message> + Send,
     {
         let nonce = self.nonce.load(Ordering::SeqCst);
-        self.tx
-            .send(Request::Deploy {
-                nonce,
-                code: code.wasm()?,
-                message: message.into(),
-                signer: Default::default(),
-            })
-            .await?;
+        self.tx.send(Request::Deploy {
+            nonce,
+            code: code.wasm()?,
+            message: message.into(),
+            signer: Default::default(),
+        })?;
 
         let result = self.resp(nonce).await?;
         let Response::Deploy(result) = result else {
@@ -166,14 +169,12 @@ impl Backend for GTest {
         M: Into<Message> + Send,
     {
         let nonce = self.nonce.load(Ordering::SeqCst);
-        self.tx
-            .send(Request::Send {
-                nonce,
-                prog: id.into(),
-                message: message.into(),
-                signer: Default::default(),
-            })
-            .await?;
+        self.tx.send(Request::Send {
+            nonce,
+            prog: id.into(),
+            message: message.into(),
+            signer: Default::default(),
+        })?;
 
         let result = self.resp(nonce).await?;
         let Response::Send(result) = result else {
@@ -189,12 +190,6 @@ impl Backend for GTest {
         Err(anyhow!(
             "gtest backend currently doesn't support this method"
         ))
-    }
-}
-
-impl Default for GTest {
-    fn default() -> Self {
-        Self::new(10, Duration::from_millis(500))
     }
 }
 
@@ -245,7 +240,7 @@ pub(crate) mod handle {
     /// Deploy program via gtest
     pub fn deploy(system: &System, code: Vec<u8>, message: Message, signer: ActorId) -> Response {
         let id = CodeId::generate(&code);
-        let prog = Program::from_binary_with_id(system, code, &id.into_bytes());
+        let prog = Program::from_binary_with_id(system, id.into_bytes().to_vec(), code);
         let r = prog.send_bytes(signer, message.payload);
 
         Response::Deploy(TxResult {
@@ -257,7 +252,7 @@ pub(crate) mod handle {
     /// Send message via gtest
     pub fn send(system: &System, prog: ActorId, message: Message, signer: ActorId) -> Response {
         let prog = system.get_program(prog).unwrap();
-        let r = prog.send(signer, message.payload);
+        let r = prog.send_bytes(signer, message.payload);
 
         Response::Send(TxResult {
             result: r.sent_message_id(),
