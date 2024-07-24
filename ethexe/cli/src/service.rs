@@ -528,22 +528,42 @@ mod tests {
 
         Service::new(&Config {
             node_name: "test".to_string(),
-            database_path: tmp_dir.join("db"),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
+            sequencer: Default::default(),
+            validator: Default::default(),
+            sender_address: Default::default(),
             net_config: Some(net_config),
             prometheus_config: Some(PrometheusConfig::new_with_default_registry(
                 SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
                 "dev".to_string(),
             )),
+            rpc_port: Some(9090),
+        })
+        .await
+        .unwrap();
+
+        // Disable all optional services
+        Service::new(&Config {
+            node_name: "test".to_string(),
+            ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
+            ethereum_beacon_rpc: "http://localhost:5052".into(),
+            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
+            max_commitment_depth: 1000,
+            block_time: Duration::from_secs(1),
+            database_path: tmp_dir.join("db"),
+            key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
             validator: Default::default(),
             sender_address: Default::default(),
-            rpc_port: Some(9090),
+            net_config: None,
+            prometheus_config: None,
+            rpc_port: None,
         })
         .await
         .unwrap();
