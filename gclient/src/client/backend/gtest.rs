@@ -16,21 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    client::{Message, Program},
-    Backend, Code, TxResult,
-};
+use crate::client::{Backend, Code, Message, Program, TxResult};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
 use gprimitives::{ActorId, MessageId};
 use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
 use gtest::System;
-use parity_scale_codec::Decode;
 use std::{
     collections::HashMap,
-    fs,
-    path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -39,7 +33,7 @@ use std::{
 };
 use tokio::{
     sync::{
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Sender},
         Mutex,
     },
     task::{JoinHandle, LocalSet},
@@ -47,16 +41,23 @@ use tokio::{
 
 /// gear general client gtest backend
 #[derive(Clone)]
-pub struct Gtest {
+pub struct GTest {
     tx: Sender<Request>,
     results: Arc<Mutex<HashMap<usize, Response>>>,
     timeout: Duration,
-    handle: Arc<JoinHandle<()>>,
+    _handle: Arc<JoinHandle<()>>,
     nonce: Arc<AtomicUsize>,
 }
 
-impl Gtest {
+impl GTest {
     /// New gtest instance
+    ///
+    /// gtest system is running in local thread in `GTest`,
+    /// the first argument is for channel size, and the second
+    /// one is the timeout for waiting response.
+    ///
+    /// We recommend you to use `GTest::default` instead of this
+    /// method if the paramters bother you.
     pub fn new(size: usize, timeout: Duration) -> Self {
         let local = LocalSet::new();
         let results = Arc::new(Mutex::new(HashMap::new()));
@@ -90,8 +91,8 @@ impl Gtest {
             tx,
             results,
             timeout,
-            handle: Arc::new(handle),
             nonce: Arc::new(AtomicUsize::new(0)),
+            _handle: Arc::new(handle),
         }
     }
 
@@ -112,12 +113,12 @@ impl Gtest {
 }
 
 #[async_trait]
-impl Backend for Gtest {
+impl Backend for GTest {
     async fn program(&self, id: ProgramId) -> Result<Program<Self>> {
         let nonce = self.nonce.load(Ordering::SeqCst);
-        self.tx.send(Request::Program { nonce, id }).await;
+        self.tx.send(Request::Program { nonce, id }).await?;
 
-        let mut result = self.resp(nonce).await?;
+        let result = self.resp(nonce).await?;
         let Response::Program(result) = result else {
             return Err(anyhow!(
                 "Response is not matched with deploy request, {result:?}"
@@ -142,9 +143,9 @@ impl Backend for Gtest {
                 message: message.into(),
                 signer: Default::default(),
             })
-            .await;
+            .await?;
 
-        let mut result = self.resp(nonce).await?;
+        let result = self.resp(nonce).await?;
         let Response::Deploy(result) = result else {
             return Err(anyhow!(
                 "Response is not matched with deploy request, {result:?}"
@@ -172,7 +173,7 @@ impl Backend for Gtest {
                 message: message.into(),
                 signer: Default::default(),
             })
-            .await;
+            .await?;
 
         let result = self.resp(nonce).await?;
         let Response::Send(result) = result else {
@@ -184,14 +185,20 @@ impl Backend for Gtest {
         Ok(result)
     }
 
-    async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
+    async fn message(&self, _mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
         Err(anyhow!(
             "gtest backend currently doesn't support this method"
         ))
     }
 }
 
-/// Gtest requests
+impl Default for GTest {
+    fn default() -> Self {
+        Self::new(10, Duration::from_millis(500))
+    }
+}
+
+/// GTest requests
 pub enum Request {
     Deploy {
         nonce: usize,
@@ -211,7 +218,7 @@ pub enum Request {
     },
 }
 
-/// Gtest responses
+/// GTest responses
 #[derive(Debug, Clone)]
 pub enum Response {
     Deploy(TxResult<ActorId>),
@@ -221,7 +228,7 @@ pub enum Response {
 
 /// gtest handles
 pub(crate) mod handle {
-    use crate::{client::backend::gtest::Response, Message, TxResult};
+    use crate::client::{backend::gtest::Response, Message, TxResult};
     use gear_core::{
         buffer::LimitedVec,
         ids::{prelude::CodeIdExt, ProgramId},

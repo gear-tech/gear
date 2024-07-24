@@ -15,26 +15,67 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+//! Gear general client
 #![cfg(feature = "client")]
-#![allow(unused)]
 
 mod backend;
-mod instance;
 mod packet;
 mod program;
 
 pub use self::{
-    backend::{Backend, Code},
-    instance::Client,
+    backend::{Backend, Code, GClient, GTest},
     packet::Message,
     program::Program,
 };
+use crate::GearApi;
+use anyhow::Result;
 use gear_core::message::UserMessage;
-use gprimitives::MessageId;
+use gprimitives::ActorId;
+pub use gsdk::ext::sp_core::{sr25519, Pair};
+
+/// Alice Actor Id
+pub const ALICE: ActorId = ActorId::new([
+    212, 53, 147, 199, 21, 253, 211, 28, 97, 20, 26, 189, 4, 169, 159, 214, 130, 44, 133, 88, 133,
+    76, 205, 227, 154, 86, 132, 231, 165, 109, 162, 125,
+]);
+
+/// Gear general client
+pub struct Client<T: Backend> {
+    backend: T,
+}
+
+impl<T: Backend> Client<T> {
+    /// Create new client
+    pub fn new(backend: T) -> Client<T> {
+        Self { backend }
+    }
+
+    /// Create gtest client
+    pub fn gtest() -> Client<GTest> {
+        Client::<GTest> {
+            backend: GTest::default(),
+        }
+    }
+
+    /// Create gclient client
+    pub async fn gclient() -> Result<Client<GClient>> {
+        Ok(Client::<GClient> {
+            backend: GClient::from(GearApi::dev().await?),
+        })
+    }
+}
+
+impl<T: Backend> Client<T> {
+    /// Deploy program to backend
+    pub async fn deploy<M>(&self, code: impl Code, message: M) -> Result<TxResult<Program<T>>>
+    where
+        M: Into<Message> + Send,
+    {
+        self.backend.deploy(code, message).await
+    }
+}
 
 /// Transaction result
-///
-/// TODO: need a refactor on gclient side
 #[derive(Debug, Clone)]
 pub struct TxResult<T> {
     /// Result of this transaction

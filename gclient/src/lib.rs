@@ -132,7 +132,7 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 mod api;
-mod client;
+pub mod client;
 mod utils;
 mod ws;
 
@@ -143,6 +143,3 @@ pub use gsdk::{
 };
 pub use utils::*;
 pub use ws::WSAddress;
-
-#[cfg(feature = "client")]
-pub use client::*;

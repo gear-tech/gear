@@ -1,4 +1,4 @@
-// This file is part of Gear.
+// ThAis file is part of Gear.
 
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -172,6 +172,18 @@ impl GearApi {
     /// ```
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
+    }
+
+    /// Change the singer of `GearApi`, see also [`GearApi::init_with`].
+    pub fn change_signer(&mut self, suri: impl AsRef<str>) -> Result<()> {
+        let mut suri = suri.as_ref().splitn(2, ':');
+        let new_signer = self
+            .0
+            .clone()
+            .change(suri.next().expect("Infallible"), suri.next())?;
+        self.0 = new_signer;
+
+        Ok(())
     }
 }
 

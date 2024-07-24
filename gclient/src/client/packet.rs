@@ -16,9 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::client::ALICE;
+use gprimitives::ActorId;
 use parity_scale_codec::Encode;
 
 /// Message builder
+///
+/// NOTE: The default signer is [`crate::client::ALICE`]
 pub struct Message {
     /// The maximum gas amount allowed to spend for the program
     /// creation and initialization;
@@ -26,9 +30,7 @@ pub struct Message {
     /// Payload of this message.
     pub payload: Vec<u8>,
     /// Signer address
-    ///
-    /// TODO: introduce a better wrapper
-    pub signer: [u8; 32],
+    pub signer: ActorId,
     /// Value contains in this message.
     pub value: u128,
     /// The arbitrary data needed to generate an address for a new
@@ -42,7 +44,7 @@ impl Message {
         Self {
             payload: payload.encode(),
             value: 0,
-            signer: [0; 32],
+            signer: ALICE,
             gas_limit: 0,
             salt: Default::default(),
         }
@@ -53,7 +55,7 @@ impl Message {
         Self {
             payload: payload.as_ref().into(),
             value: 0,
-            signer: [0; 32],
+            signer: ALICE,
             gas_limit: 0,
             salt: Default::default(),
         }
@@ -65,8 +67,7 @@ impl Message {
         self
     }
 
-    /// NOTE: you don't need this method if you are simply
-    /// sending messages.
+    /// NOTE: This parameter is only for deploying programs.
     ///
     /// The arbitrary data needed to generate an address for a new program
     /// (control of salt uniqueness is entirely on the function caller’s side);
@@ -76,9 +77,7 @@ impl Message {
     }
 
     /// Set the signer of this message
-    ///
-    /// TODO: query the keypair from address
-    pub fn signer(mut self, signer: impl Into<[u8; 32]>) -> Self {
+    pub fn signer(mut self, signer: impl Into<ActorId>) -> Self {
         self.signer = signer.into();
         self
     }
