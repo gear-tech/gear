@@ -2,20 +2,52 @@
 pragma solidity ^0.8.26;
 
 interface IRouter {
+    /* Storage related structures */
+
+    /// @custom:storage-location erc7201:router.storage.Router
+    struct Storage {
+        bytes32 genesisBlockHash;
+        address mirror;
+        address mirrorProxy;
+        address wrappedVara;
+        bytes32 lastBlockCommitmentHash;
+        uint256 signingThresholdPercentage;
+        uint64 baseWeight;
+        uint128 valuePerWeight;
+        mapping(address => bool) validators;
+        address[] validatorsKeys;
+        mapping(bytes32 => CodeState) codes;
+        uint256 validatedCodesCount;
+        mapping(address => bool) programs;
+        uint256 programsCount;
+    }
+
     enum CodeState {
         Unknown,
-        Unconfirmed,
-        Confirmed
+        ValidationRequested,
+        Validated
     }
+
+    /* Commitment related structures */
 
     struct CodeCommitment {
         bytes32 codeId;
         bool approved;
     }
 
-    struct ReplyDetails {
-        bytes32 replyTo;
-        bytes4 replyCode;
+    struct BlockCommitment {
+        bytes32 blockHash;
+        bytes32 allowedPrevCommitmentHash;
+        bytes32 allowedPredBlockHash;
+        StateTransition[] transitions;
+    }
+
+    struct StateTransition {
+        address actorId;
+        bytes32 oldStateHash;
+        bytes32 newStateHash;
+        // TODO (breathx): impl value and balances handling here
+        OutgoingMessage[] outgoingMessages;
     }
 
     struct OutgoingMessage {
@@ -26,115 +58,124 @@ interface IRouter {
         ReplyDetails replyDetails;
     }
 
-    struct StateTransition {
-        address actorId;
-        bytes32 oldStateHash;
-        bytes32 newStateHash;
-        OutgoingMessage[] outgoingMessages;
+    struct ReplyDetails {
+        bytes32 replyTo;
+        bytes4 replyCode;
     }
 
-    struct BlockCommitment {
-        bytes32 blockHash;
-        bytes32 allowedPrevCommitmentHash;
-        bytes32 allowedPredBlockHash;
-        StateTransition[] transitions;
-    }
+    /* Events section */
 
-    /// @custom:storage-location erc7201:router.storage.Router
-    struct RouterStorage {
-        address program;
-        address minimalProgram;
-        address wrappedVara;
-        bytes32 genesisBlockHash;
-        bytes32 lastBlockCommitmentHash;
-        uint256 countOfValidators;
-        mapping(address => bool) validators;
-        mapping(bytes32 => CodeState) codes;
-        mapping(address => bool) programs;
-    }
+    /**
+     * @dev Emitted when a new state transitions are applied.
+     */
+    event BlockCommitted(bytes32 blockHash);
 
-    event BlockCommitted(bytes32 indexed blockHash);
+    /**
+     * @dev Emitted when a new code validation request submitted.
+     */
+    event CodeValidationRequested(address origin, bytes32 codeId, bytes32 blobTxHash);
 
-    event UploadCode(address indexed origin, bytes32 indexed codeId, bytes32 indexed blobTx);
+    /**
+     * @dev Emitted when a code, previously requested to be validated, gets validated successfully.
+     */
+    event CodeGotValidated(bytes32 codeId);
 
-    event CodeApproved(bytes32 indexed codeId);
+    /**
+     * @dev Emitted when a code, previously requested to be validated, fails validation.
+     */
+    event CodeFailedValidation(bytes32 codeId);
 
-    event CodeRejected(bytes32 indexed codeId);
+    // TODO: consider splitting init message creation.
+    /**
+     * @dev Emitted when a new program created.
+     */
+    event ProgramCreated(address indexed origin, address actorId, bytes32 indexed codeId);
 
-    event CreateProgram(
-        address indexed origin,
-        address indexed actorId,
-        bytes32 indexed codeId,
-        bytes initPayload,
-        uint64 gasLimit,
-        uint128 value
-    );
+    /**
+     * @dev Emitted when the validators set is changed.
+     */
+    event ValidatorsSetChanged();
 
-    event UpdatedProgram(address indexed actorId, bytes32 oldStateHash, bytes32 newStateHash);
+    /**
+     * @dev Emitted when the storage slot is changed.
+     */
+    event StorageSlotChanged();
 
-    event UserMessageSent(bytes32 indexed messageId, address indexed destination, bytes payload, uint128 value);
+    /**
+     * @dev Emitted when the tx's base weight is changed.
+     */
+    event BaseWeightChanged(uint64 baseWeight);
 
-    event UserReplySent(
-        bytes32 indexed messageId,
-        address indexed destination,
-        bytes payload,
-        uint128 value,
-        bytes32 replyTo,
-        bytes4 replyCode
-    );
+    /**
+     * @dev Emitted when the value per executable weight is changed.
+     */
+    event ValuePerWeightChanged(uint128 valuePerWeight);
 
-    event SendMessage(
-        address indexed origin, address indexed destination, bytes payload, uint64 gasLimit, uint128 value
-    );
+    /* Functions section */
 
-    event SendReply(address indexed origin, bytes32 indexed replyToId, bytes payload, uint64 gasLimit, uint128 value);
-
-    event ClaimValue(address indexed origin, bytes32 indexed messageId);
-
-    function COUNT_OF_VALIDATORS() external view returns (uint256);
-
-    function REQUIRED_SIGNATURES() external view returns (uint256);
+    /* Operational functions */
 
     function getStorageSlot() external view returns (bytes32);
 
     function setStorageSlot(string calldata namespace) external;
 
-    function program() external view returns (address);
-
-    function setProgram(address _program) external;
-
-    function minimalProgram() external view returns (address);
-
-    function wrappedVara() external view returns (address);
-
     function genesisBlockHash() external view returns (bytes32);
 
     function lastBlockCommitmentHash() external view returns (bytes32);
 
-    function countOfValidators() external view returns (uint256);
+    function wrappedVara() external view returns (address);
 
-    function validators(address validator) external view returns (bool);
+    function mirrorProxy() external view returns (address);
 
-    function codes(bytes32 codeId) external view returns (CodeState);
+    function mirror() external view returns (address);
 
-    function programs(address _program) external view returns (bool);
+    function setMirror(address mirror) external;
 
-    function addValidators(address[] calldata validatorsArray) external;
+    /* Codes and programs observing functions */
 
-    function removeValidators(address[] calldata validatorsArray) external;
+    function validatedCodesCount() external view returns (uint256);
 
-    function uploadCode(bytes32 codeId, bytes32 blobTx) external;
+    function codeState(bytes32 codeId) external view returns (CodeState);
 
-    function createProgram(bytes32 codeId, bytes32 salt, bytes calldata initPayload, uint64 gasLimit)
+    function programsCount() external view returns (uint256);
+
+    function programExists(address program) external view returns (bool);
+
+    /* Validators' set related functions */
+
+    function signingThresholdPercentage() external view returns (uint256);
+
+    function validatorsThreshold() external view returns (uint256);
+
+    function validatorsCount() external view returns (uint256);
+
+    function validatorExists(address validator) external view returns (bool);
+
+    function validators() external view returns (address[] memory);
+
+    function updateValidators(address[] calldata validatorsAddressArray) external;
+
+    /* Economic and token related functions */
+
+    function baseWeight() external view returns (uint64);
+
+    function setBaseWeight(uint64 baseWeight) external;
+
+    function valuePerWeight() external view returns (uint128);
+
+    function setValuePerWeight(uint128 valuePerWeight) external;
+
+    // TODO (breathx): consider removal, since could be calculated manually: baseWeight() * valuePerWeight().
+    function baseFee() external view returns (uint128);
+
+    /* Primary Gear logic */
+
+    function requestCodeValidation(bytes32 codeId, bytes32 blobTxHash) external;
+
+    function createProgram(bytes32 codeId, bytes32 salt, bytes calldata payload, uint128 value)
         external
         payable
         returns (address);
-
-    function sendMessage(address destination, bytes calldata payload, uint64 gasLimit, uint128 value) external;
-
-    function sendReply(bytes32 replyToId, bytes calldata payload, uint64 gasLimit, uint128 value) external;
-
-    function claimValue(bytes32 messageId) external;
 
     function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external;
 
