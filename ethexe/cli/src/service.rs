@@ -25,7 +25,6 @@ use crate::{
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
-use ethexe_network::service::NetworkGossip;
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
 use ethexe_validator::Commitment;
@@ -38,7 +37,11 @@ use tokio::time;
 /// ethexe service.
 pub struct Service {
     db: Database,
-    network: ethexe_network::NetworkWorker,
+    network: (
+        ethexe_network::NetworkSender,
+        ethexe_network::GossipsubMessageStream,
+        ethexe_network::NetworkEventLoop,
+    ),
     observer: ethexe_observer::Observer,
     query: ethexe_observer::Query,
     processor: ethexe_processor::Processor,
@@ -62,7 +65,7 @@ impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
         let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
         let db = ethexe_db::Database::from_one(&rocks_db);
-        let network = ethexe_network::NetworkWorker::new(config.net_config.clone())?;
+
         let blob_reader = Arc::new(
             ethexe_observer::ConsensusLayerBlobReader::new(
                 &config.ethereum_rpc,
@@ -127,15 +130,17 @@ impl Service {
             };
 
         let validator = match config.validator {
-            ValidatorConfig::Enabled(ref sign_tx_public) => Some(ethexe_validator::Validator::new(
+            ValidatorConfig::Enabled(sign_tx_public) => Some(ethexe_validator::Validator::new(
                 &ethexe_validator::Config {
-                    pub_key: *sign_tx_public,
+                    pub_key: sign_tx_public,
                     router_address: config.ethereum_router_address.parse()?,
                 },
                 signer.clone(),
             )),
             ValidatorConfig::Disabled => None,
         };
+
+        let network = ethexe_network::NetworkEventLoop::new(config.net_config.clone(), &signer)?;
 
         let rpc = ethexe_rpc::RpcService::new(config.rpc_port, db.clone());
 
@@ -158,7 +163,11 @@ impl Service {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         db: Database,
-        network: ethexe_network::NetworkWorker,
+        network: (
+            ethexe_network::NetworkSender,
+            ethexe_network::GossipsubMessageStream,
+            ethexe_network::NetworkEventLoop,
+        ),
         observer: ethexe_observer::Observer,
         query: ethexe_observer::Query,
         processor: ethexe_processor::Processor,
@@ -375,7 +384,7 @@ impl Service {
             block_time,
         } = self;
 
-        let network_service = network.service().clone();
+        let (network_sender, mut gossipsub_stream, network) = network;
 
         if let Some(metrics_service) = metrics_service {
             tokio::spawn(metrics_service.run(
@@ -386,8 +395,6 @@ impl Service {
 
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
-
-        let mut gossip_stream = network_service.gossip_message_stream();
 
         let network_run = network.run();
 
@@ -429,7 +436,7 @@ impl Service {
 
                     if let Some(ref mut validator) = validator {
                         log::debug!("Pushing commitments to local validator...");
-                        validator.push_commitments(network_service.clone(), commitments)?;
+                        validator.push_commitments(network_sender.clone(), commitments)?;
                         if let Some(ref mut sequencer) = sequencer {
                             let origin = validator.pub_key().to_address();
                             if validator.has_codes_commit() {
@@ -449,10 +456,10 @@ impl Service {
 
                     delay = Some(tokio::time::sleep(block_time / 4));
                 }
-                message = gossip_stream.next() => {
+                message = gossipsub_stream.next() => {
                     if let Some(message) = message {
                         if let Some(sequencer) = sequencer.as_mut() {
-                            log::debug!("Received p2p commitments from: {:?}", message.sender);
+                            log::debug!("Received p2p commitments from: {:?}", message.source);
 
                             let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut message.data.as_slice())?;
 
@@ -497,19 +504,26 @@ mod tests {
         net::{Ipv4Addr, SocketAddr},
         time::Duration,
     };
+    use tempfile::tempdir;
 
     #[tokio::test]
     async fn basics() {
-        let service = Service::new(&Config {
-            database_path: "/tmp/db".into(),
+        let tmp_dir = tempdir().unwrap();
+        let tmp_dir = tmp_dir.path().to_path_buf();
+
+        let net_path = tmp_dir.join("net");
+        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(net_path);
+
+        Service::new(&Config {
+            node_name: "test".to_string(),
+            database_path: tmp_dir.join("db"),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
-            key_path: "/tmp/key".into(),
-            network_path: "/tmp/net".into(),
-            net_config: ethexe_network::NetworkConfiguration::new_local(),
+            key_path: tmp_dir.join("key"),
+            net_config,
             prometheus_config: Some(PrometheusConfig::new_with_default_registry(
                 SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
                 "dev".to_string(),
@@ -519,8 +533,7 @@ mod tests {
             sender_address: Default::default(),
             rpc_port: 9090,
         })
-        .await;
-
-        assert!(service.is_ok());
+        .await
+        .unwrap();
     }
 }
