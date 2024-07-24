@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alloc::format;
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
@@ -346,7 +347,7 @@ where
                 TaskPoolOf::<T>::add(expected_bn, task).unwrap_or_else(|e| {
                     let err_msg = format!(
                         "JournalHandler::wake_message: failed adding task for waking message. \
-                        Expected bn - {expected_bn}, program id - {program_id}, message_id - {awakening_id}.
+                        Expected bn - {expected_bn:?}, program id - {program_id}, message_id - {awakening_id}.
                         Got error - {e:?}"
                     );
 
@@ -438,7 +439,7 @@ where
         GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
             let err_msg = format!(
                 "JournalHandler::send_value: failed transferring bank value. \
-                From - {from}, to - {to}, value - {value:?}. Got error: {e:?}"
+                From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
             );
 
             log::error!("{err_msg}");
@@ -600,7 +601,7 @@ where
         .unwrap_or_else(|e| {
             let err_msg = format!(
                 "JournalHandler::reserve_gas: failed adding task for gas reservation removal. \
-                Expected bn - {bn}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
+                Expected bn - {bn:?}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
                 bn = hold.expected()
             );
 

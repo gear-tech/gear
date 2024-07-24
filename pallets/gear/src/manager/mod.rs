@@ -51,6 +51,7 @@ mod task;
 use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
+use alloc::format;
 use crate::{
     fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
     Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
@@ -406,7 +407,7 @@ where
             )
             .unwrap_or_else(|e| {
                 let err_msg = format!("ExtManager::clean_inactive_program: failed transferring the rest balance. \
-                Sender - {program_account}, sender balance - {balance:?}, dest - {value_destination}. \
+                Sender - {program_account:?}, sender balance - {balance:?}, dest - {value_destination:?}. \
                 Got error: {e:?}");
 
                 log::error!("{err_msg}");

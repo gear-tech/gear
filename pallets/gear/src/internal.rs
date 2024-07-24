@@ -23,7 +23,7 @@ use crate::{
     GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
     SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
-use alloc::collections::BTreeSet;
+use alloc::{format, collections::BTreeSet};
 use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*, MessageWokenReason, Reason::*,
@@ -274,7 +274,7 @@ where
         }.unwrap_or_else(|e| {
             let err_msg = format!(
                 "spend_gas: failed spending value for gas in gear bank. \
-                Spender - {external}, spending to - {to:?}, amount - {amount}, multiplier - {multiplier:?}. \
+                Spender - {external:?}, spending to - {to:?}, amount - {amount}, multiplier - {multiplier:?}. \
                 Got error - {e:?}"
             );
 
@@ -314,7 +314,7 @@ where
                     .unwrap_or_else(|e| {
                         let err_msg = format!(
                             "consume_and_retrieve: failed withdrawing value for gas from bank. \
-                            Message id - {id:?}, withdraw to - {external}, amount - {gas_left}, multiplier - {multiplier:?}. \
+                            Message id - {id:?}, withdraw to - {external:?}, amount - {gas_left}, multiplier - {multiplier:?}. \
                             Got error - {e:?}"
                         );
 
@@ -466,7 +466,7 @@ where
                     TaskPoolOf::<T>::add(expected, task).unwrap_or_else(|e| {
                         let err_msg = format!(
                             "wait_dispatch: failed adding task for waking message. \
-                            Expected bn - {expected}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
+                            Expected bn - {expected:?}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
                         );
 
                         log::error!("{err_msg}");
@@ -482,7 +482,7 @@ where
                 .unwrap_or_else(|e| {
                     let err_msg = format!(
                         "wait_dispatch: failed adding task for removing message from waitlist. \
-                        Expected bn - {bn}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
+                        Expected bn - {bn:?}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
                         bn = hold.expected(),
                     );
 
@@ -506,7 +506,7 @@ where
             .unwrap_or_else(|e| {
                 let err_msg = format!(
                     "wait_dispatch: failed inserting message to the wailist. \
-                    Expected bn - {bn}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
+                    Expected bn - {bn:?}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
                     bn = hold.expected(),
                 );
 
@@ -592,7 +592,7 @@ where
             .unwrap_or_else(|e| {
                 let err_msg = format!(
                     "read_message_requirements: failed transferring value on gear bank. \
-                    Sender - {from}, destination - {user_id}, value - {value}. Got error - {e:?}",
+                    Sender - {from:?}, destination - {user_id:?}, value - {value}. Got error - {e:?}",
                     value = mailboxed.value(),
                 );
 
@@ -777,7 +777,7 @@ where
             if delay_hold.expected_duration().is_zero() {
                 let err_msg = format!(
                     "send_delayed_dispatch: user message got zero duration hold bound for dispatch stash. \
-                    Requested duration - {delay}, block cost - {cost}, source - {from}",
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
                     cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::DispatchStash)
                 );
 
@@ -838,7 +838,7 @@ where
             if delay_hold.expected_duration().is_zero() {
                 let err_msg = format!(
                     "send_delayed_dispatch: program message got zero duration hold bound for dispatch stash. \
-                    Requested duration - {delay}, block cost - {cost}, source - {from}",
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
                     cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::DispatchStash)
                 );
 
@@ -854,7 +854,7 @@ where
             GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_delayed_dispatch: failed depositting value on gear bank. \
-                        From - {from}, value - {value:?}. Got error - {e:?}",
+                        From - {from:?}, value - {value:?}. Got error - {e:?}",
                 );
 
                 log::error!("{err_msg}");
@@ -970,7 +970,7 @@ where
             if hold.expected_duration().is_zero() {
                 let err_msg = format!(
                     "send_user_message: mailbox message got zero duration hold bound for storing. \
-                    Gas limit - {gas_limit}, block cost - {cost}, source - {from}",
+                    Gas limit - {gas_limit}, block cost - {cost}, source - {from:?}",
                     cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::Mailbox)
                 );
 
@@ -995,7 +995,7 @@ where
             GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message: failed depositting value on gear bank. \
-                        From - {from}, value - {value:?}. Got error - {e:?}",
+                        From - {from:?}, value - {value:?}. Got error - {e:?}",
                 );
 
                 log::error!("{err_msg}");
@@ -1020,7 +1020,7 @@ where
                 // Replies never sent to mailbox
                 let err_msg = format!(
                     "send_user_message: failed convertion from user into user stored message. \
-                        Message id - {message_id}, program id - {from}, destination - {to}",
+                        Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                 );
 
                 log::error!("{err_msg}");
@@ -1029,8 +1029,8 @@ where
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message: failed inserting message into mailbox. \
-                        Message id - {message_id}, source - {from}, destination - {to}, \
-                        expected bn - {bn}. Got error - {e:?}",
+                        Message id - {message_id}, source - {from:?}, destination - {to:?}, \
+                        expected bn - {bn:?}. Got error - {e:?}",
                     bn = hold.expected(),
                 );
 
@@ -1046,7 +1046,7 @@ where
             .unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message: failed adding task for removing from mailbox. \
-                    Bn - {bn}, sent to - {to}, message id - {message_id}. \
+                    Bn - {bn:?}, sent to - {to:?}, message id - {message_id}. \
                     Got error - {e:?}",
                     bn = hold.expected()
                 );
@@ -1155,7 +1155,7 @@ where
             if hold.expected_duration().is_zero() {
                 let err_msg = format!(
                     "send_user_message_after_delay: mailbox message (after delay) got zero duration hold bound for storing. \
-                    Gas limit - {gas_limit}, block cost - {cost}, source - {from}",
+                    Gas limit - {gas_limit}, block cost - {cost}, source - {from:?}",
                     cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::Mailbox)
                 );
 
@@ -1185,7 +1185,7 @@ where
                     // Replies never sent to mailbox
                     let err_msg = format!(
                         "send_user_message_after_delay: failed convertion from user into user stored message. \
-                        Message id - {message_id}, program id - {from}, destination - {to}",
+                        Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                     );
 
                     log::error!("{err_msg}");
@@ -1194,8 +1194,8 @@ where
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message_after_delay: failed inserting message into mailbox. \
-                        Message id - {message_id}, source - {from}, destination - {to}, \
-                        expected bn - {bn}. Got error - {e:?}",
+                        Message id - {message_id}, source - {from:?}, destination - {to:?}, \
+                        expected bn - {bn:?}. Got error - {e:?}",
                     bn = hold.expected(),
                 );
 
@@ -1211,7 +1211,7 @@ where
             .unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message_after_delay: failed adding task for removing from mailbox. \
-                    Bn - {bn}, sent to - {to}, message id - {message_id}. \
+                    Bn - {bn:?}, sent to - {to:?}, message id - {message_id}. \
                     Got error - {e:?}",
                     bn = hold.expected()
                 );
@@ -1227,7 +1227,7 @@ where
             GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message_after_delay: failed transferring value on gear bank. \
-                        Sender - {from}, destination - {to}, value - {value:?}. Got error - {e:?}",
+                        Sender - {from:?}, destination - {to:?}, value - {value:?}. Got error - {e:?}",
                 );
 
                 log::error!("{err_msg}");
@@ -1375,7 +1375,7 @@ where
             GasHandlerOf::<T>::create(origin.clone(), multiplier, key.clone(), amount)
                 .unwrap_or_else(|e| {
                     let err_msg = format!(
-                        "create: failed to creat gas node. Origin - {origin}, message id - {key}, \
+                        "create: failed to creat gas node. Origin - {origin:?}, message id - {key}, \
                         amount - {amount}, is_reply - {is_reply}. Got error - {e:?}",
                         key = key.into(),
                     );

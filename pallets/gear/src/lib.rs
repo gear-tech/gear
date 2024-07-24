@@ -1020,7 +1020,7 @@ pub mod pallet {
                     TaskPoolOf::<T>::add(bn, task.clone()).unwrap_or_else(|e| {
                         let err_msg = format!(
                             "process_tasks: failed adding not processed last task to task pool. \
-                            Bn - {bn}, task - {task:?}. Got error - {e:?}"
+                            Bn - {bn:?}, task - {task:?}. Got error - {e:?}"
                         );
 
                         log::error!("{err_msg}");

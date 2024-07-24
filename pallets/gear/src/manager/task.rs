@@ -19,7 +19,7 @@
 use crate::{
     manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet, QueueOf,
 };
-use alloc::string::ToString;
+use alloc::{format, string::ToString};
 use common::{
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
@@ -93,7 +93,7 @@ where
             .unwrap_or_else(|e| {
                 let err_msg = format!(
                     "TaskHandler::remove_from_mailbox: failed reading message from mailbox. \
-                User - {user_id}, message - {message_id}, reason - {reason:?}. Got error: {e:?}."
+                User - {user_id:?}, message - {message_id}, reason - {reason:?}. Got error: {e:?}."
                 );
 
                 log::error!("{err_msg}");
