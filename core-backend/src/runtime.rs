@@ -45,7 +45,6 @@ where
         self.caller
             .data_mut()
             .as_mut()
-            // todo [sab] obvious message
             .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
     }
 
@@ -54,7 +53,6 @@ where
         self.caller
             .data_mut()
             .take()
-            // todo [sab] obvious message
             .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
     }
 

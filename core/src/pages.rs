@@ -119,7 +119,6 @@ impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
         match self.cmp(&Self::UPPER) {
             Ordering::Greater => {
                 // This panic is impossible because of `PagesAmount` constructors implementation.
-                // todo [sab] check that as seems to be still possible due to Page inc stuff.
                 unreachable!("PageBound must be always less or equal than UPPER")
             }
             Ordering::Equal => None,

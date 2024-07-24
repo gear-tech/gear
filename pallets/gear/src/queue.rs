@@ -215,14 +215,16 @@ where
         }
 
         while QueueProcessingOf::<T>::allowed() {
-            let dispatch = match QueueOf::<T>::dequeue().unwrap_or_else(|e| {
-                let err_msg = format!("process_queue: failed dequeuing message. Got error - {e:?}");
+            let dispatch = match QueueOf::<T>::dequeue() {
+                Ok(Some(d)) => d,
+                Ok(None) => break,
+                Err(e) => {
+                    let err_msg =
+                        format!("process_queue: failed dequeuing message. Got error - {e:?}");
 
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}")
-            }) {
-                Some(d) => d,
-                None => break,
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                }
             };
 
             // Querying gas limit. Fails in cases of `GasTree` invalidations.

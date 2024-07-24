@@ -259,7 +259,6 @@ fn process_error(
         let err_payload = err_payload
             .into_bytes()
             .try_into()
-            // todo [sab] message is obvious here
             .unwrap_or_else(|_| unreachable!("Error message is too large"));
 
         // # Safety

@@ -324,7 +324,6 @@ mod tests {
         for err in enum_iterator::all::<ExtError>() {
             let code = err.to_u32();
             let decoded = ExtError::from_u32(code)
-                // todo [sab] message is clear here
                 .unwrap_or_else(|| unreachable!("failed to decode error code: {}", code));
             assert_eq!(err, decoded);
         }

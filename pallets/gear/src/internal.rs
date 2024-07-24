@@ -268,7 +268,7 @@ where
 
         // Transferring reserved funds from external user to destination.
         if let Some(account_id) = &to {
-            GearBank::<T>::spend_gas_to(&account_id, &external, amount, multiplier)
+            GearBank::<T>::spend_gas_to(account_id, &external, amount, multiplier)
         } else {
             GearBank::<T>::spend_gas(&external, amount, multiplier)
         }.unwrap_or_else(|e| {

@@ -65,7 +65,6 @@ where
 
     fn size(&self, ctx: &Caller) -> WasmPagesAmount {
         WasmPagesAmount::try_from(self.inner.size(ctx)).unwrap_or_else(|_| {
-            // todo [sab] definetely insert here log::error
             unreachable!(
                 "Unexpected backend behavior: wasm size is bigger than possible in 32-bits address space"
             )
@@ -121,7 +120,6 @@ impl BackendSyscallError for MemoryAccessError {
             MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
                 UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
             }
-            // todo [sab] what message here?
             MemoryAccessError::Decode => unreachable!(),
         }
     }
@@ -335,7 +333,6 @@ where
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
-            // todo [sab] include log here
             unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
 

@@ -320,13 +320,11 @@ where
         // because message already charged for it within the env.
 
         if delay.is_zero() {
-            if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+            if let Ok(dispatch) = Pallet::<T>::wake_dispatch(
                 program_id,
                 awakening_id,
                 MessageWokenRuntimeReason::WakeCalled.into_reason(),
-            )
-            .ok()
-            {
+            ) {
                 QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
                     let err_msg = format!(
                         "JournalHandler::wake_message: failed queuing message. Got error - {e:?}"
