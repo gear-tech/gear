@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::format;
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
     Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank,
     Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
+use alloc::format;
 use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, StorageType, TaskHandler, TaskPool},

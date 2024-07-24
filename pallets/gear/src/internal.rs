@@ -23,7 +23,7 @@ use crate::{
     GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
     SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
-use alloc::{format, collections::BTreeSet};
+use alloc::{collections::BTreeSet, format};
 use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*, MessageWokenReason, Reason::*,

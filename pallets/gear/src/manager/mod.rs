@@ -51,11 +51,11 @@ mod task;
 use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
-use alloc::format;
 use crate::{
     fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
     Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
+use alloc::format;
 use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},

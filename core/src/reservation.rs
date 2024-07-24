@@ -22,7 +22,7 @@ use crate::{
     ids::{prelude::*, MessageId, ReservationId},
     message::IncomingDispatch,
 };
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
 use scale_info::{
     scale::{Decode, Encode},
@@ -184,12 +184,15 @@ impl GasReserver {
         );
 
         if maybe_reservation.is_some() {
-            log::error!(
-                "Duplicate reservation was created with message id {} and nonce {}",
-                self.message_id,
-                self.nonce.0,
+            let err_msg = format!(
+                "GasReserver::reserve: created a duplicate reservation. \
+                Message id  - {message_id}, nonce - {nonce}",
+                message_id = self.message_id,
+                nonce = self.nonce.0
             );
-            unreachable!("Duplicate reservation was created");
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         Ok(id)
