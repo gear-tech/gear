@@ -16,34 +16,400 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Network library for ethexe.
+mod custom_connection_limits;
 
-mod behaviour;
+pub mod utils {
+    pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
+}
 
-pub mod config;
-pub mod error;
-pub mod peer_info;
-pub mod service;
-pub mod transport;
-pub mod utils;
-
-pub use crate::{
-    config::*,
-    error::Error,
-    service::{NetworkService, NetworkWorker},
+use anyhow::Context;
+use ethexe_signer::{PublicKey, Signer};
+use libp2p::{
+    connection_limits,
+    futures::{Stream, StreamExt},
+    gossipsub, identify, identity, kad, mdns, ping,
+    swarm::{
+        dial_opts::{DialOpts, PeerCondition},
+        NetworkBehaviour, SwarmEvent,
+    },
+    Multiaddr, PeerId, Swarm, SwarmBuilder,
 };
+use std::{
+    collections::HashSet,
+    fs,
+    hash::{DefaultHasher, Hash, Hasher},
+    path::{Path, PathBuf},
+    pin::Pin,
+    str::FromStr,
+    task::Poll,
+};
+use tokio::{select, sync::mpsc};
 
-#[doc(inline)]
-pub use libp2p::{multiaddr, Multiaddr, PeerId};
+pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
-/// The maximum allowed number of established connections per peer.
-///
-/// Typically, and by design of the network behaviours in this crate,
-/// there is a single established connection per peer. However, to
-/// avoid unnecessary and nondeterministic connection closure in
-/// case of (possibly repeated) simultaneous dialing attempts between
-/// two peers, the per-peer connection limit is not set to 1 but 2.
-const MAX_CONNECTIONS_PER_PEER: usize = 2;
+pub const PROTOCOL_VERSION: &str = "ethexe/0.1.0";
+pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-/// The maximum number of concurrent established connections that were incoming.
-const MAX_CONNECTIONS_ESTABLISHED_INCOMING: u32 = 10_000;
+const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
+const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
+const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
+
+#[derive(Debug)]
+enum NetworkSenderEvent {
+    PublishCommitments { data: Vec<u8> },
+}
+
+/// Communication with [`NetworkEventLoop`]
+#[derive(Debug, Clone)]
+pub struct NetworkSender {
+    tx: mpsc::UnboundedSender<NetworkSenderEvent>,
+}
+
+impl NetworkSender {
+    pub fn publish_commitments(&self, data: impl Into<Vec<u8>>) {
+        let _res = self
+            .tx
+            .send(NetworkSenderEvent::PublishCommitments { data: data.into() });
+    }
+}
+
+#[derive(Debug)]
+pub struct GossipsubMessage {
+    pub source: Option<PeerId>,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct GossipsubMessageStream {
+    rx: mpsc::UnboundedReceiver<GossipsubMessage>,
+}
+
+impl Stream for GossipsubMessageStream {
+    type Item = GossipsubMessage;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.rx).poll_recv(cx)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NetworkEventLoopConfig {
+    pub config_dir: PathBuf,
+    pub public_key: Option<PublicKey>,
+    pub external_addresses: HashSet<Multiaddr>,
+    pub bootstrap_addresses: HashSet<Multiaddr>,
+    pub listen_addresses: HashSet<Multiaddr>,
+}
+
+impl NetworkEventLoopConfig {
+    pub fn new_local(config_path: PathBuf) -> Self {
+        Self {
+            config_dir: config_path,
+            public_key: None,
+            external_addresses: Default::default(),
+            bootstrap_addresses: Default::default(),
+            listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
+        }
+    }
+}
+
+pub struct NetworkEventLoop {
+    swarm: Swarm<Behaviour>,
+    general_rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
+    gossipsub_tx: mpsc::UnboundedSender<GossipsubMessage>,
+}
+
+impl NetworkEventLoop {
+    pub fn new(
+        config: NetworkEventLoopConfig,
+        signer: &Signer,
+    ) -> anyhow::Result<(NetworkSender, GossipsubMessageStream, Self)> {
+        fs::create_dir_all(&config.config_dir)
+            .context("failed to create network configuration directory")?;
+
+        let keypair = Self::generate_keypair(signer, &config.config_dir, config.public_key)?;
+        let mut swarm = Self::create_swarm(keypair)?;
+
+        for multiaddr in config.external_addresses {
+            swarm.add_external_address(multiaddr);
+        }
+
+        for multiaddr in config.listen_addresses {
+            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+        }
+
+        for multiaddr in config.bootstrap_addresses {
+            swarm.dial(multiaddr)?;
+        }
+
+        let (general_tx, general_rx) = mpsc::unbounded_channel();
+        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
+
+        Ok((
+            NetworkSender { tx: general_tx },
+            GossipsubMessageStream { rx: gossipsub_rx },
+            Self {
+                swarm,
+                general_rx,
+                gossipsub_tx,
+            },
+        ))
+    }
+
+    fn generate_keypair(
+        signer: &Signer,
+        config_path: &Path,
+        public_key: Option<PublicKey>,
+    ) -> anyhow::Result<identity::Keypair> {
+        let key = if let Some(key) = public_key {
+            log::trace!("use networking key from command-line arguments");
+            key
+        } else {
+            let public_key_path = config_path.join("public_key");
+            if public_key_path.exists() {
+                log::trace!("use networking key saved on disk");
+                let key = fs::read_to_string(public_key_path)
+                    .context("failed to read networking public key")?;
+                PublicKey::from_str(&key)?
+            } else {
+                log::trace!("generate a new networking key");
+                let key = signer.generate_key()?;
+                fs::write(public_key_path, key.to_hex())
+                    .context("failed to write networking public key")?;
+                key
+            }
+        };
+
+        let mut key = signer.get_private_key(key)?;
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key.0)
+            .expect("Signer provided invalid key; qed");
+        let pair = identity::secp256k1::Keypair::from(key);
+        Ok(identity::Keypair::from(pair))
+    }
+
+    fn create_swarm(keypair: identity::Keypair) -> anyhow::Result<Swarm<Behaviour>> {
+        let swarm = SwarmBuilder::with_existing_identity(keypair)
+            .with_tokio()
+            .with_quic()
+            .with_behaviour(Behaviour::from_keypair)?
+            .build();
+        Ok(swarm)
+    }
+
+    pub async fn run(mut self) {
+        loop {
+            select! {
+                event = self.swarm.select_next_some() => self.handle_swarm_event(event),
+                event = self.general_rx.recv() => self.handle_general_rx_event(event),
+            }
+        }
+    }
+
+    fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) {
+        log::trace!("new swarm event: {event:?}");
+
+        #[allow(clippy::single_match)]
+        match event {
+            SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
+            _ => {}
+        }
+    }
+
+    fn handle_behaviour_event(&mut self, event: BehaviourEvent) {
+        match event {
+            BehaviourEvent::CustomConnectionLimits(void) => void::unreachable(void),
+            //
+            BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
+            //
+            BehaviourEvent::Ping(ping::Event {
+                peer,
+                connection: _,
+                result,
+            }) => {
+                if let Err(e) = result {
+                    log::debug!("Ping to {peer} failed: {e}. Disconnecting...");
+                    let _res = self.swarm.disconnect_peer_id(peer);
+                }
+            }
+            //
+            BehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+                if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
+                {
+                    log::debug!("{peer_id} is not supported with `{}` protocol and `{}` agent. Disconnecting...", info.protocol_version, info.agent_version);
+                    let _res = self.swarm.disconnect_peer_id(peer_id);
+                }
+
+                let behaviour = self.swarm.behaviour_mut();
+
+                // add listen addresses of new peers to KadDHT
+                // according to `identify` and `kad` protocols docs
+                for listen_addr in info.listen_addrs {
+                    behaviour.kad.add_address(&peer_id, listen_addr);
+                }
+            }
+            BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
+                log::debug!("{peer_id} is not identified: {error}. Disconnecting...");
+                let _res = self.swarm.disconnect_peer_id(peer_id);
+            }
+            BehaviourEvent::Identify(_) => {}
+            //
+            BehaviourEvent::Mdns4(mdns::Event::Discovered(peers)) => {
+                for (peer_id, multiaddr) in peers {
+                    if let Err(e) = self.swarm.dial(
+                        DialOpts::peer_id(peer_id)
+                            .condition(PeerCondition::Disconnected)
+                            .addresses(vec![multiaddr])
+                            .extend_addresses_through_behaviour()
+                            .build(),
+                    ) {
+                        log::error!("dialing failed for mDNS address: {e:?}");
+                    }
+                }
+            }
+            BehaviourEvent::Mdns4(mdns::Event::Expired(peers)) => {
+                for (peer_id, _multiaddr) in peers {
+                    let _res = self.swarm.disconnect_peer_id(peer_id);
+                }
+            }
+            //
+            BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
+                let behaviour = self.swarm.behaviour_mut();
+                if behaviour.mdns4.discovered_nodes().any(|&p| p == peer) {
+                    // we don't want local peers to appear in KadDHT.
+                    // event can be emitted few times in a row for
+                    // the same peer, so we just ignore `None`
+                    let _res = behaviour.kad.remove_peer(&peer);
+                }
+            }
+            BehaviourEvent::Kad(_) => {}
+            //
+            BehaviourEvent::Gossipsub(gossipsub::Event::Message {
+                message: gossipsub::Message { source, data, .. },
+                ..
+            }) => {
+                let _res = self.gossipsub_tx.send(GossipsubMessage { source, data });
+            }
+            BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
+                log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
+                let _res = self.swarm.disconnect_peer_id(peer_id);
+            }
+            BehaviourEvent::Gossipsub(_) => {}
+        }
+    }
+
+    fn handle_general_rx_event(&mut self, event: Option<NetworkSenderEvent>) {
+        match event {
+            None => {
+                log::trace!("network channel has been disconnected");
+            }
+            Some(NetworkSenderEvent::PublishCommitments { data }) => {
+                if let Err(e) = self
+                    .swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .publish(gpu_commitments_topic(), data)
+                {
+                    log::debug!("gossipsub publishing failed: {e}")
+                }
+            }
+        }
+    }
+}
+
+#[derive(NetworkBehaviour)]
+pub struct Behaviour {
+    // custom options to limit connections
+    pub custom_connection_limits: custom_connection_limits::Behaviour,
+    // limit connections
+    pub connection_limits: connection_limits::Behaviour,
+    // fast peer liveliness check
+    pub ping: ping::Behaviour,
+    // friend or foe system
+    pub identify: identify::Behaviour,
+    // local discovery for IPv4 only
+    pub mdns4: mdns::tokio::Behaviour,
+    // global traversal discovery
+    // TODO: consider to cache records in fs
+    pub kad: kad::Behaviour<kad::store::MemoryStore>,
+    // general communication
+    pub gossipsub: gossipsub::Behaviour,
+}
+
+impl Behaviour {
+    fn from_keypair(
+        keypair: &identity::Keypair,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let peer_id = keypair.public().to_peer_id();
+
+        // we use custom behaviour because
+        // `libp2p::connection_limits::Behaviour` limits inbound & outbound
+        // connections per peer in total, so protocols may fail to establish
+        // at least 1 inbound & 1 outbound connection in specific circumstances
+        // (for example, active VPN connection + communication with mDNS discovered peers)
+        let custom_connection_limits = custom_connection_limits::Limits::default()
+            .with_max_established_incoming_per_peer(Some(
+                MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS,
+            ))
+            .with_max_established_outbound_per_peer(Some(
+                MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS,
+            ));
+        let custom_connection_limits =
+            custom_connection_limits::Behaviour::new(custom_connection_limits);
+
+        let connection_limits = connection_limits::ConnectionLimits::default()
+            .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
+        let connection_limits = connection_limits::Behaviour::new(connection_limits);
+
+        let ping = ping::Behaviour::default();
+
+        let identify_config = identify::Config::new(PROTOCOL_VERSION.to_string(), keypair.public())
+            .with_agent_version(AGENT_VERSION.to_string());
+        let identify = identify::Behaviour::new(identify_config);
+
+        let mdns4 = mdns::Behaviour::new(mdns::Config::default(), peer_id)?;
+
+        let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
+        kad.set_mode(Some(kad::Mode::Server));
+
+        let gossip_config = gossipsub::ConfigBuilder::default()
+            // dedup messages
+            .message_id_fn(|msg| {
+                let mut hasher = DefaultHasher::new();
+                msg.data.hash(&mut hasher);
+                gossipsub::MessageId::from(hasher.finish().to_be_bytes())
+            })
+            .build()
+            .map_err(|e| anyhow::anyhow!("`gossipsub::ConfigBuilder::build()` error: {e}"))?;
+        let mut gossipsub = gossipsub::Behaviour::new(
+            gossipsub::MessageAuthenticity::Signed(keypair.clone()),
+            gossip_config,
+        )
+        .map_err(|e| anyhow::anyhow!("`gossipsub::Behaviour` error: {e}"))?;
+        gossipsub
+            .with_peer_score(
+                gossipsub::PeerScoreParams::default(),
+                gossipsub::PeerScoreThresholds::default(),
+            )
+            .map_err(|e| anyhow::anyhow!("`gossipsub` scoring parameters error: {e}"))?;
+
+        gossipsub.subscribe(&gpu_commitments_topic())?;
+
+        Ok(Self {
+            custom_connection_limits,
+            connection_limits,
+            ping,
+            identify,
+            mdns4,
+            kad,
+            gossipsub,
+        })
+    }
+}
+
+fn gpu_commitments_topic() -> gossipsub::IdentTopic {
+    // TODO: use router address in topic name to avoid obsolete router
+    gossipsub::IdentTopic::new("gpu-commitments")
+}

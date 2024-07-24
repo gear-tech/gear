@@ -18,11 +18,10 @@
 
 use anyhow::Result;
 use ethexe_common::{BlockCommitment, CodeCommitment};
-use ethexe_network::service::NetworkGossip;
+use ethexe_network::NetworkSender;
 use ethexe_sequencer::AggregatedCommitments;
 use ethexe_signer::{Address, PublicKey, Signer};
 use parity_scale_codec::Encode;
-use std::sync::Arc;
 
 pub enum Commitment {
     Code(CodeCommitment),
@@ -83,9 +82,9 @@ impl Validator {
         )
     }
 
-    pub fn push_commitments<N: NetworkGossip>(
+    pub fn push_commitments(
         &mut self,
-        network: Arc<N>,
+        sender: NetworkSender,
         commitments: Vec<Commitment>,
     ) -> Result<()> {
         for commitment in commitments {
@@ -99,7 +98,7 @@ impl Validator {
 
         // broadcast (aggregated_code_commitments, aggregated_transitions_commitments) to the network peers
         let commitments = (self.codes_aggregation()?, self.blocks_aggregation()?);
-        network.broadcast_commitments((origin, commitments).encode());
+        sender.publish_commitments((origin, commitments).encode());
 
         Ok(())
     }

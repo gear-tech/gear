@@ -10,40 +10,18 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethexe-utils.workspace = true
+ethexe-signer.workspace = true
 
+libp2p = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/tokio-swarm-test", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "quic", "tokio", "macros"] }
+
+tokio = { workspace = true, features = ["sync"] }
 anyhow.workspace = true
-tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-log = { workspace = true, default-features = true }
-thiserror.workspace = true
-tokio = { workspace = true, features = [
-    "signal",
-    "macros",
-    "rt",
-    "rt-multi-thread",
-    "time",
-] }
-
-libp2p = { version = "0.52.4", features = [
-    "dns",
-    "identify",
-    "macros",
-    "ping",
-    "tokio",
-    "quic",
-    "gossipsub",
-] }
-futures = "0.3.21"
-futures-timer = "3.0.2"
-fnv = "1.0.6"
-parking_lot = "0.12.1"
-linked_hash_set = "0.1.4"
-smallvec = "1.11.0"
-either = "1.5.3"
-array-bytes = "6.2.3"
-zeroize = "1.8.1"
+log.workspace = true
 void = "1.0.2"
 
 [dev-dependencies]
+# newer versions are not supported on crates.io
+libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/tokio-swarm-test", default-features = false, features = ["tokio"] }
 tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
+env_logger.workspace = true

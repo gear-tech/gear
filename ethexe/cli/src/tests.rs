@@ -39,7 +39,10 @@ use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        oneshot,
+    },
     task::{self, JoinHandle},
 };
 
@@ -49,17 +52,21 @@ struct Listener {
 }
 
 impl Listener {
-    pub fn new(mut observer: Observer) -> Self {
+    pub async fn new(mut observer: Observer) -> Self {
         let (sender, receiver) = mpsc::channel::<Event>(1024);
 
+        let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let _handle = task::spawn(async move {
             let observer_events = observer.events();
             futures::pin_mut!(observer_events);
+
+            send_subscription_created.send(()).unwrap();
 
             while let Some(event) = observer_events.next().await {
                 sender.send(event).await.unwrap();
             }
         });
+        receive_subscription_created.await.unwrap();
 
         Self { receiver, _handle }
     }
@@ -167,8 +174,8 @@ impl TestEnv {
 
         let db = Database::from_one(&MemDb::default());
 
-        let tempdir = tempfile::tempdir()?;
-        let signer = Signer::new(tempdir.into_path())?;
+        let tempdir = tempfile::tempdir()?.into_path();
+        let signer = Signer::new(tempdir.join("key"))?;
         let sender_public_key = signer.add_key(
             // Anvil account (0) with balance
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
@@ -178,6 +185,9 @@ impl TestEnv {
             // Anvil account (1) with balance
             "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d".parse()?,
         )?;
+
+        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(tempdir.join("net"));
+        let network = ethexe_network::NetworkEventLoop::new(net_config, &signer)?;
 
         let sender_address = sender_public_key.to_address();
         let validators = vec![validator_public_key.to_address()];
@@ -221,8 +231,8 @@ impl TestEnv {
         Ok(env)
     }
 
-    pub fn new_listener(&self) -> Listener {
-        Listener::new(self.observer.clone())
+    pub async fn new_listener(&self) -> Listener {
+        Listener::new(self.observer.clone()).await
     }
 
     pub async fn new_service(&self) -> Result<Service> {
@@ -284,10 +294,11 @@ impl TestEnv {
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let anvil = Anvil::new().try_spawn().unwrap();
+    let mut anvil = Anvil::new().try_spawn().unwrap();
+    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
 
-    let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
-    let mut listener = env.new_listener();
+    let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let mut listener = env.new_listener().await;
 
     let service = env.new_service().await.unwrap();
     let service_handle = task::spawn(service.run());
