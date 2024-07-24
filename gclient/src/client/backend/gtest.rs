@@ -20,14 +20,23 @@ use crate::{
     client::{Message, Program},
     Backend, Code, TxResult,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
 use gprimitives::{ActorId, MessageId};
 use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
 use gtest::System;
 use parity_scale_codec::Decode;
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::{Duration, SystemTime},
+};
 use tokio::{
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -37,11 +46,13 @@ use tokio::{
 };
 
 /// gear general client gtest backend
+#[derive(Clone)]
 pub struct Gtest {
     tx: Sender<Request>,
     results: Arc<Mutex<HashMap<usize, Response>>>,
     timeout: Duration,
-    handle: JoinHandle<()>,
+    handle: Arc<JoinHandle<()>>,
+    nonce: Arc<AtomicUsize>,
 }
 
 impl Gtest {
@@ -57,14 +68,18 @@ impl Gtest {
             while let Some(tx) = rx.recv().await {
                 let (result, nounce) = match tx {
                     Request::Deploy {
-                        nounce,
+                        nonce,
                         code,
                         message,
                         signer,
-                    } => (handle::deploy(&system, code, message, signer), nounce),
-                    _ => {
-                        todo!()
-                    }
+                    } => (handle::deploy(&system, code, message, signer), nonce),
+                    Request::Send {
+                        nonce,
+                        prog,
+                        message,
+                        signer,
+                    } => (handle::send(&system, prog, message, signer), nonce),
+                    Request::Program { nonce, id } => (handle::prog(&system, id), nonce),
                 };
 
                 cloned.lock().await.insert(nounce, result);
@@ -75,7 +90,23 @@ impl Gtest {
             tx,
             results,
             timeout,
-            handle,
+            handle: Arc::new(handle),
+            nonce: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    /// Get gtest result from nonce.
+    async fn resp(&self, nonce: usize) -> Result<Response> {
+        let now = SystemTime::now();
+
+        loop {
+            if now.elapsed()? > self.timeout {
+                return Err(anyhow!("gtest: Transaction timed out!"));
+            }
+
+            if let Some(resp) = self.results.lock().await.remove(&nonce) {
+                return Ok(resp);
+            }
         }
     }
 }
@@ -83,43 +114,109 @@ impl Gtest {
 #[async_trait]
 impl Backend for Gtest {
     async fn program(&self, id: ProgramId) -> Result<Program<Self>> {
-        todo!()
+        let nonce = self.nonce.load(Ordering::SeqCst);
+        self.tx.send(Request::Program { nonce, id }).await;
+
+        let mut result = self.resp(nonce).await?;
+        let Response::Program(result) = result else {
+            return Err(anyhow!(
+                "Response is not matched with deploy request, {result:?}"
+            ));
+        };
+
+        Ok(Program {
+            id: result.ok_or(anyhow!("Program {id} not found"))?,
+            backend: self.clone(),
+        })
     }
 
-    async fn deploy<M>(&self, _code: impl Code, message: M) -> Result<TxResult<Program<Self>>>
+    async fn deploy<M>(&self, code: impl Code, message: M) -> Result<TxResult<Program<Self>>>
     where
         M: Into<Message> + Send,
     {
-        todo!()
+        let nonce = self.nonce.load(Ordering::SeqCst);
+        self.tx
+            .send(Request::Deploy {
+                nonce,
+                code: code.wasm()?,
+                message: message.into(),
+                signer: Default::default(),
+            })
+            .await;
+
+        let mut result = self.resp(nonce).await?;
+        let Response::Deploy(result) = result else {
+            return Err(anyhow!(
+                "Response is not matched with deploy request, {result:?}"
+            ));
+        };
+
+        Ok(TxResult {
+            result: Program {
+                id: result.result,
+                backend: self.clone(),
+            },
+            logs: result.logs,
+        })
     }
 
-    async fn send<M>(&self, _id: ProgramId, message: M) -> Result<TxResult<MessageId>>
+    async fn send<M>(&self, id: ProgramId, message: M) -> Result<TxResult<MessageId>>
     where
         M: Into<Message> + Send,
     {
-        todo!()
+        let nonce = self.nonce.load(Ordering::SeqCst);
+        self.tx
+            .send(Request::Send {
+                nonce,
+                prog: id.into(),
+                message: message.into(),
+                signer: Default::default(),
+            })
+            .await;
+
+        let result = self.resp(nonce).await?;
+        let Response::Send(result) = result else {
+            return Err(anyhow!(
+                "Response is not matched with send request, {result:?}"
+            ));
+        };
+
+        Ok(result)
     }
 
     async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
-        todo!()
+        Err(anyhow!(
+            "gtest backend currently doesn't support this method"
+        ))
     }
 }
 
-/// Gtest transactions
+/// Gtest requests
 pub enum Request {
     Deploy {
-        nounce: usize,
+        nonce: usize,
         code: Vec<u8>,
         message: Message,
         signer: ActorId,
     },
-    Send(Message),
+    Send {
+        nonce: usize,
+        prog: ActorId,
+        message: Message,
+        signer: ActorId,
+    },
+    Program {
+        nonce: usize,
+        id: ProgramId,
+    },
 }
 
-/// Gtest handle result
+/// Gtest responses
+#[derive(Debug, Clone)]
 pub enum Response {
     Deploy(TxResult<ActorId>),
     Send(TxResult<MessageId>),
+    Program(Option<ActorId>),
 }
 
 /// gtest handles
@@ -127,13 +224,18 @@ pub(crate) mod handle {
     use crate::{client::backend::gtest::Response, Message, TxResult};
     use gear_core::{
         buffer::LimitedVec,
-        ids::prelude::CodeIdExt,
+        ids::{prelude::CodeIdExt, ProgramId},
         message::{ReplyDetails, UserMessage},
     };
     use gprimitives::{ActorId, CodeId};
     use gtest::{CoreLog, Program, System};
 
-    /// Deploy program
+    /// Return back program id if program exists
+    pub fn prog(system: &System, prog: ProgramId) -> Response {
+        Response::Program(system.get_program(prog).map(|p| p.id()))
+    }
+
+    /// Deploy program via gtest
     pub fn deploy(system: &System, code: Vec<u8>, message: Message, signer: ActorId) -> Response {
         let id = CodeId::generate(&code);
         let prog = Program::from_binary_with_id(system, code, &id.into_bytes());
@@ -141,6 +243,17 @@ pub(crate) mod handle {
 
         Response::Deploy(TxResult {
             result: prog.id(),
+            logs: map_logs(r.log()),
+        })
+    }
+
+    /// Send message via gtest
+    pub fn send(system: &System, prog: ActorId, message: Message, signer: ActorId) -> Response {
+        let prog = system.get_program(prog).unwrap();
+        let r = prog.send(signer, message.payload);
+
+        Response::Send(TxResult {
+            result: r.sent_message_id(),
             logs: map_logs(r.log()),
         })
     }

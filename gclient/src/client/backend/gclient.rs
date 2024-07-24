@@ -67,7 +67,7 @@ impl Backend for GClient {
     {
         let wasm = code.wasm()?;
         let message = message.into();
-        let (_mid, id, _) = self
+        let (mid, id, _) = self
             .upload_program_bytes(
                 wasm,
                 message.salt,

@@ -16,8 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::Backend;
+use crate::{
+    client::{Backend, Message},
+    TxResult,
+};
 use gear_core::ids::ProgramId;
+use gprimitives::MessageId;
 use std::sync::Arc;
 
 /// Gear program instance
@@ -26,4 +30,11 @@ pub struct Program<T: Backend> {
     pub(crate) id: ProgramId,
     /// Backend pointer
     pub(crate) backend: T,
+}
+
+impl<T: Backend> Program<T> {
+    /// Send message to the program
+    pub async fn send(&self, message: impl Into<Message>) -> TxResult<MessageId> {
+        todo!()
+    }
 }

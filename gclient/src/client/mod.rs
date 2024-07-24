@@ -35,6 +35,7 @@ use gprimitives::MessageId;
 /// Transaction result
 ///
 /// TODO: need a refactor on gclient side
+#[derive(Debug, Clone)]
 pub struct TxResult<T> {
     /// Result of this transaction
     pub result: T,
