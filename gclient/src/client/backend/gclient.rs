@@ -67,7 +67,7 @@ impl Backend for GClient {
     {
         let wasm = code.wasm()?;
         let message = message.into();
-        let (_, id, _) = self
+        let (_mid, id, _) = self
             .upload_program_bytes(
                 wasm,
                 message.salt,
@@ -91,7 +91,7 @@ impl Backend for GClient {
         M: Into<Message> + Send,
     {
         let message = message.into();
-        let (mid, _) = self
+        let (mid, _hash) = self
             .send_message_bytes(id, message.payload, message.gas_limit, message.value)
             .await?;
 
@@ -99,14 +99,6 @@ impl Backend for GClient {
             result: mid,
             logs: vec![],
         })
-    }
-
-    async fn state<R: Decode>(&self, id: ProgramId, payload: Vec<u8>) -> Result<R> {
-        self.read_state(id, payload).await.map_err(Into::into)
-    }
-
-    async fn state_bytes(&self, id: ProgramId, payload: Vec<u8>) -> Result<Vec<u8>> {
-        self.read_state_bytes(id, payload).await.map_err(Into::into)
     }
 
     async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {

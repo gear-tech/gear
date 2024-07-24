@@ -30,6 +30,7 @@ pub use self::{
     program::Program,
 };
 use gear_core::message::UserMessage;
+use gprimitives::MessageId;
 
 /// Transaction result
 ///

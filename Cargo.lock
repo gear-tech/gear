@@ -5981,6 +5981,7 @@ dependencies = [
  "subxt",
  "thiserror",
  "tokio",
+ "tracing",
  "url",
  "wabt",
  "wat",

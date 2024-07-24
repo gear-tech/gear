@@ -23,10 +23,12 @@ use crate::{
 use anyhow::Result;
 use gear_core::ids::ProgramId;
 use std::sync::Arc;
+use tokio::task::JoinHandle;
 
 /// Gear general client
 pub struct Client<T: Backend> {
     backend: T,
+    handle: Option<JoinHandle<()>>,
 }
 
 impl<T: Backend> Client<T> {

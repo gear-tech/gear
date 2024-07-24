@@ -29,6 +29,8 @@ wabt.workspace = true
 
 # client dependencies
 gtest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
@@ -63,4 +65,4 @@ ark-std = { workspace = true }
 
 [features]
 default = ["client"]
-client = ["gtest"]
+client = ["gtest", "tokio", "tracing"]

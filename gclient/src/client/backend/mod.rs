@@ -52,12 +52,6 @@ pub trait Backend: Sized {
 
     /// Get mailbox message from message id
     async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>>;
-
-    /// Read program state from payload
-    async fn state<R: Decode>(&self, id: ProgramId, payload: Vec<u8>) -> Result<R>;
-
-    /// Read program state as bytes from payload
-    async fn state_bytes(&self, id: ProgramId, payload: Vec<u8>) -> Result<Vec<u8>>;
 }
 
 /// Generate gear program code, could be path or bytes.
