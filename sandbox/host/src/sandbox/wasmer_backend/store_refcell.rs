@@ -26,12 +26,12 @@ use std::{
 };
 
 use defer::defer;
-use sandbox_wasmer::{AsStoreMut, Store};
+use sandbox_wasmer::{AsStoreMut, AsStoreRef, Store, StoreRef};
 
 #[derive(Debug, Clone, Copy)]
 enum BorrowState {
     Shared(NonZeroUsize),
-    Exclusive,
+    Mutable,
     NonShared,
 }
 
@@ -68,7 +68,7 @@ impl StoreRefCell {
                 self.state
                     .set(BorrowState::Shared(NonZeroUsize::new(1).expect("non zero")));
             }
-            BorrowState::Exclusive => {
+            BorrowState::Mutable => {
                 panic!("store already borrowed mutably");
             }
         }
@@ -84,9 +84,9 @@ impl StoreRefCell {
     pub fn borrow_mut(&self) -> RefMut<'_> {
         match self.state.get() {
             BorrowState::NonShared => {
-                self.state.set(BorrowState::Exclusive);
+                self.state.set(BorrowState::Mutable);
             }
-            BorrowState::Shared(_) | BorrowState::Exclusive => {
+            BorrowState::Shared(_) | BorrowState::Mutable => {
                 panic!("store already borrowed");
             }
         }
@@ -103,6 +103,12 @@ impl StoreRefCell {
         store: impl AsStoreMut,
         f: F,
     ) -> Result<R, BorrowScopeError> {
+        // We expect  the same store
+        debug_assert!(
+            self.compare_stores(store.as_store_ref()),
+            "stores are different"
+        );
+
         // Caller just returned borrowed mutably reference to the store, now we can safely borrow it mutably again
         let _store = store;
 
@@ -119,9 +125,19 @@ impl StoreRefCell {
         debug_assert!(matches!(self.state.get(), BorrowState::NonShared));
 
         // Restore previous state after scope ends
-        defer!(self.state.set(BorrowState::Exclusive));
+        defer!(self.state.set(BorrowState::Mutable));
 
         Ok(result)
+    }
+
+    #[allow(unused)]
+    fn compare_stores(&self, returned_store: StoreRef) -> bool {
+        // SAFETY:
+        // Verified with Miri, it seems safe.
+        // Carefully compare the stores while don't using/holding mutable references to them in the same time.
+        let orig_store_ref: StoreRef = unsafe { &*self.store.get() }.as_store_ref();
+
+        StoreRef::same(&orig_store_ref, &returned_store)
     }
 
     /// Returns store ptr, same semantics as `RefCell::as_ptr`
@@ -187,7 +203,7 @@ impl DerefMut for RefMut<'_> {
 impl Drop for RefMut<'_> {
     fn drop(&mut self) {
         match self.state.get() {
-            BorrowState::Exclusive => {
+            BorrowState::Mutable => {
                 self.state.set(BorrowState::NonShared);
             }
             _ => unreachable!(),

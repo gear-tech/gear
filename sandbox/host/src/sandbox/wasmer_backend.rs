@@ -44,24 +44,28 @@ mod store_refcell;
 
 environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
-// Hack to allow multiple `environmental!` definition per module
 mod store_refcell_ctx {
     use std::rc::Rc;
 
-    use super::{store_refcell::BorrowScopeError, StoreRefCell};
     use sandbox_wasmer::StoreMut;
 
-    environmental::environmental!(DispatchFunctionEnv: Rc<StoreRefCell>);
+    use super::{store_refcell::BorrowScopeError, StoreRefCell};
 
+    // We cannot store `StoreRefCell` in `sandbox_wasmer::FunctionEnv` because it doesn't implement Send/Sync,
+    // so we have to use `environment!` to access it from `dispatch_function` functions.
+    environmental::environmental!(StoreRefCellEnv: Rc<StoreRefCell>);
+
+    /// Convenience wrapper of `environment::using` function.
     pub fn using<R, F: FnOnce() -> R>(protected: &mut Rc<StoreRefCell>, f: F) -> R {
-        DispatchFunctionEnv::using(protected, f)
+        StoreRefCellEnv::using(protected, f)
     }
 
-    pub fn with_borrrow_scope<R, F: FnOnce() -> R>(
+    /// Creates re-borrow scope with `StoreRefCell` stored in `environment!` and provided mutable store reference.
+    pub fn with_borrow_scope<R, F: FnOnce() -> R>(
         storemut: &mut StoreMut,
         f: F,
     ) -> Option<Result<R, BorrowScopeError>> {
-        DispatchFunctionEnv::with(|store_refcell: &mut Rc<StoreRefCell>| {
+        StoreRefCellEnv::with(|store_refcell: &mut Rc<StoreRefCell>| {
             store_refcell.borrow_scope(storemut, f)
         })
     }
@@ -514,7 +518,10 @@ fn dispatch_function(
         SupervisorContextStore::with(|supervisor_context| {
             let mut storemut = env.as_store_mut();
 
-            let deserialized_result = store_refcell_ctx::with_borrrow_scope(&mut storemut, || {
+            // Create a scope which resets the previously mutable borrowed `StoreRefCell`
+            // to allow mutable/immutable borrowing higher up in the call stack.
+            // Check doc-comments in `store_refcell` module for more details.
+            let deserialized_result = store_refcell_ctx::with_borrow_scope(&mut storemut, || {
                 // Serialize arguments into a byte vector.
                 let invoke_args_data = params
                     .iter()
@@ -559,7 +566,10 @@ fn dispatch_function_v2(
                 .ok_or_else(|| RuntimeError::new("Cannot get gas global from store environment"))?;
             let gas = gas_global.get(&mut storemut);
 
-            let deserialized_result = store_refcell_ctx::with_borrrow_scope(&mut storemut, || {
+            // Create a scope which resets the previously mutable borrowed `StoreRefCell`
+            // to allow mutable/immutable borrowing higher up in the call stack.
+            // Check doc-comments in `store_refcell` module for more details.
+            let deserialized_result = store_refcell_ctx::with_borrow_scope(&mut storemut, || {
                 // Serialize arguments into a byte vector.
                 let invoke_args_data = [gas]
                     .iter()
