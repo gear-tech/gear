@@ -34,7 +34,7 @@ use std::{
 use tokio::{
     runtime::Builder,
     sync::{
-        mpsc::{self, UnboundedSender},
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
         Mutex,
     },
     task::LocalSet,
@@ -44,20 +44,56 @@ use tokio::{
 #[derive(Clone)]
 pub struct GTest {
     tx: UnboundedSender<Request>,
-    results: Arc<Mutex<HashMap<usize, Response>>>,
+    resps: Arc<Mutex<HashMap<usize, Response>>>,
     timeout: Duration,
     nonce: Arc<AtomicUsize>,
 }
 
+const DEFAULT_TIMEOUT: u64 = 500;
+
 impl GTest {
     /// New gtest instance with timeout
     pub fn new(timeout: Duration) -> Result<Self> {
-        let results = Arc::new(Mutex::new(HashMap::new()));
-        let (tx, mut rx) = mpsc::unbounded_channel::<Request>();
+        let resps = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, rx) = mpsc::unbounded_channel::<Request>();
+        Self::spawn(resps.clone(), rx)?;
 
-        let cloned = results.clone();
+        Ok(Self {
+            tx,
+            resps,
+            timeout,
+            nonce: Arc::new(AtomicUsize::new(0)),
+        })
+    }
+
+    /// New general client with `GTest` as backend
+    pub fn client() -> Result<Client<GTest>> {
+        Ok(Client::<GTest> {
+            backend: GTest::new(Duration::from_millis(DEFAULT_TIMEOUT))?,
+        })
+    }
+
+    /// Get gtest result from nonce.
+    async fn resp(&self, nonce: usize) -> Result<Response> {
+        let now = SystemTime::now();
+
+        loop {
+            if now.elapsed()? > self.timeout {
+                return Err(anyhow!("gtest: Transaction timed out!"));
+            }
+
+            if let Some(resp) = self.resps.lock().await.remove(&nonce) {
+                return Ok(resp);
+            }
+        }
+    }
+
+    /// Spawn gtest service
+    fn spawn(
+        resps: Arc<Mutex<HashMap<usize, Response>>>,
+        mut rx: UnboundedReceiver<Request>,
+    ) -> Result<()> {
         let rt = Builder::new_current_thread().enable_all().build()?;
-
         std::thread::spawn(move || {
             let local = LocalSet::new();
             local.spawn_local(async move {
@@ -79,41 +115,13 @@ impl GTest {
                         Request::Program { nonce, id } => (handle::prog(&system, id), nonce),
                     };
 
-                    cloned.lock().await.insert(nounce, result);
+                    resps.lock().await.insert(nounce, result);
                 }
             });
 
             rt.block_on(local);
         });
-
-        Ok(Self {
-            tx,
-            results,
-            timeout,
-            nonce: Arc::new(AtomicUsize::new(0)),
-        })
-    }
-
-    /// New general client with `GTest` as backend
-    pub fn client() -> Result<Client<GTest>> {
-        Ok(Client::<GTest> {
-            backend: GTest::new(Duration::from_millis(500))?,
-        })
-    }
-
-    /// Get gtest result from nonce.
-    async fn resp(&self, nonce: usize) -> Result<Response> {
-        let now = SystemTime::now();
-
-        loop {
-            if now.elapsed()? > self.timeout {
-                return Err(anyhow!("gtest: Transaction timed out!"));
-            }
-
-            if let Some(resp) = self.results.lock().await.remove(&nonce) {
-                return Ok(resp);
-            }
-        }
+        Ok(())
     }
 }
 
