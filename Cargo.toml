@@ -11,7 +11,7 @@ resolver = "2"
 
 default-members = ["node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker"]
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
     "common",
