@@ -281,6 +281,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
                 if (++validSignatures == threshold) {
                     break;
                 }
+            } else {
+                require(false, "incorrect signature");
             }
         }
 

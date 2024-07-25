@@ -46,6 +46,7 @@ contract RouterScript is Script {
         mirror = new Mirror();
         mirrorProxy = new MirrorProxy(address(router));
 
+        // TODO (breathx): remove this approve.
         wrappedVara.approve(address(router), type(uint256).max);
 
         vm.stopBroadcast();
