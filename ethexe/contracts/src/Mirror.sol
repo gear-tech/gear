@@ -43,10 +43,10 @@ contract Mirror is IMirror {
         emit ClaimValueRequested(_claimedId, tx.origin);
     }
 
-    function balanceTopUp(uint128 _value) external payable {
+    function executableBalanceTopUp(uint128 _value) external payable {
         _retreiveValueToRouter(_value);
 
-        emit BalanceTopUpRequested(_value);
+        emit ExecutableBalanceTopUpRequested(_value);
     }
 
     /* Router-driven state and funds management */
@@ -93,7 +93,7 @@ contract Mirror is IMirror {
         uint256 initNonce = 0;
         bytes32 id = keccak256(abi.encodePacked(address(this), initNonce));
 
-        emit BalanceTopUpRequested(executableBalance);
+        emit ExecutableBalanceTopUpRequested(executableBalance);
         emit MessageQueued(id, source, payload, value);
     }
 

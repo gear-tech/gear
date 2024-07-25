@@ -27,7 +27,7 @@ interface IMirror {
     /**
      * @dev Emitted when a user requests program's executable balance top up with his tokens.
      */
-    event BalanceTopUpRequested(uint128 value);
+    event ExecutableBalanceTopUpRequested(uint128 value);
 
     /**
      * @dev Emitted when the program sends outgoing message.
@@ -63,7 +63,7 @@ interface IMirror {
 
     function claimValue(bytes32 claimedId) external;
 
-    function balanceTopUp(uint128 value) external payable;
+    function executableBalanceTopUp(uint128 value) external payable;
 
     /* Router-driven state and funds management */
     // NOTE: all of these methods will have additional handler (with hooks) for decoder.
