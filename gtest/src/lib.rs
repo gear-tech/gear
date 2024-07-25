@@ -545,7 +545,8 @@ pub mod constants {
     pub const SIGNAL_READ_COST: Gas = 28385632;
     /// First write page access cost.
     pub const SIGNAL_WRITE_COST: Gas = 137635397;
-    /// First read page access cost for page, which has been already read accessed.
+    /// First read page access cost for page, which has been already read
+    /// accessed.
     pub const SIGNAL_WRITE_AFTER_READ_COST: Gas = 112552575;
     /// First read page access cost from host function call.
     pub const HOST_FUNC_READ_COST: Gas = 31201248;
