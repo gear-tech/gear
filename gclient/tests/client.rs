@@ -56,6 +56,6 @@ async fn test_gtest() -> Result<()> {
 
 #[tokio::test]
 async fn test_gclient() -> Result<()> {
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let api = GClient::new(GearApi::dev_from_path("../target/release/gear").await?).await?;
     test_ping(Client::<GClient>::new(api)).await
 }

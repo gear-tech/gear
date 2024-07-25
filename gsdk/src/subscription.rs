@@ -20,6 +20,7 @@
 
 use crate::{config::GearConfig, metadata::Event};
 use futures::{Stream, StreamExt};
+use sp_core::H256;
 use std::{marker::Unpin, pin::Pin, result::Result as StdResult, task::Poll};
 use subxt::{backend::StreamOf, blocks::Block, events::Events as SubxtEvents, Error, OnlineClient};
 
@@ -45,13 +46,18 @@ impl Stream for Blocks {
 }
 
 impl Blocks {
-    /// Wait for the next block from the subscription.
+    /// Wait for the next block and resolve events.
     pub async fn next_events(&mut self) -> Option<StdResult<SubxtEvents<GearConfig>, Error>> {
         if let Some(block) = StreamExt::next(self).await {
             Some(block.ok()?.events().await)
         } else {
             None
         }
+    }
+
+    /// Wait for the next block from the subscription.
+    pub async fn next(&mut self) -> Option<StdResult<SubxtBlock, Error>> {
+        StreamExt::next(self).await
     }
 }
 
@@ -62,18 +68,37 @@ impl From<BlockSubscription> for Blocks {
 }
 
 /// Subscription of events.
+///
+/// TODO: refactor the subscription methods after #4087
 pub struct Events(Blocks);
 
 impl Events {
+    /// Map raw events to gear events
+    fn map_events(events: SubxtEvents<GearConfig>) -> StdResult<Vec<Event>, Error> {
+        events
+            .iter()
+            .map(|ev| ev.and_then(|e| e.as_root_event::<Event>()))
+            .collect::<StdResult<Vec<_>, Error>>()
+    }
+
     /// Wait for the next events from the subscription.
     pub async fn next(&mut self) -> Option<StdResult<Vec<Event>, Error>> {
-        self.0.next_events().await.map(|r| {
-            r.and_then(|es| {
-                es.iter()
-                    .map(|ev| ev.and_then(|e| e.as_root_event::<Event>()))
-                    .collect::<StdResult<Vec<_>, Error>>()
-            })
-        })
+        self.0
+            .next_events()
+            .await
+            .map(|r| r.and_then(Self::map_events))
+    }
+
+    /// Wait for the next events with block hash.
+    pub async fn next_with_hash(&mut self) -> StdResult<Option<(H256, Vec<Event>)>, Error> {
+        let Some(mb_block) = self.0.next().await else {
+            return Ok(None);
+        };
+
+        let block = mb_block?;
+        let events = Self::map_events(block.events().await?)?;
+        let hash = block.hash();
+        Ok(Some((hash, events)))
     }
 }
 

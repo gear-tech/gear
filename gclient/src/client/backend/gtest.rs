@@ -171,7 +171,7 @@ impl Backend for GTest {
         let nonce = self.nonce.load(Ordering::SeqCst);
         self.tx.send(Request::Send {
             nonce,
-            prog: id.into(),
+            prog: id,
             message: message.into(),
             signer: Default::default(),
         })?;
@@ -261,7 +261,7 @@ pub(crate) mod handle {
     }
 
     fn map_logs(logs: &[CoreLog]) -> Vec<UserMessage> {
-        logs.into_iter()
+        logs.iter()
             .map(|l| {
                 UserMessage::new(
                     l.id(),

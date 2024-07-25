@@ -28,7 +28,7 @@ use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
-    Api,
+    Api, Events,
 };
 use std::{ffi::OsStr, sync::Arc};
 
@@ -128,6 +128,11 @@ impl GearApi {
     pub async fn subscribe(&self) -> Result<EventListener> {
         let events = self.0.api().subscribe_finalized_blocks().await?;
         Ok(EventListener(events))
+    }
+
+    /// Subscribe events by blocks
+    pub async fn subscribe_blocks(&self) -> Result<Events> {
+        self.0.api().finalized_events().await.map_err(Into::into)
     }
 
     /// Set the number used once (`nonce`) that will be used while sending

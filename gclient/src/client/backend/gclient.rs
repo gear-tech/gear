@@ -17,40 +17,84 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    client::{Backend, Client, Code, Message, Program, TxResult, ALICE},
-    GearApi,
+    client::{Backend, Code, Message, Program, TxResult, ALICE},
+    Event, GearApi, GearEvent,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use gear_core::{ids::ProgramId, message::UserStoredMessage};
-use gprimitives::{ActorId, MessageId};
+use gear_core::{
+    ids::ProgramId,
+    message::{UserMessage, UserStoredMessage},
+};
+use gprimitives::{ActorId, MessageId, H256};
 use gsdk::{
     ext::sp_core::{sr25519, Pair},
     metadata::runtime_types::gear_common::storage::primitives::Interval,
 };
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{Mutex, MutexGuard};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
+use tokio::{
+    runtime::Builder,
+    sync::{Mutex, MutexGuard},
+    task::LocalSet,
+};
+
+const MESSAGES_DEPTH: usize = 16;
 
 /// GClient instance
 #[derive(Clone)]
 pub struct GClient {
     inner: Arc<Mutex<GearApi>>,
     pairs: HashMap<ActorId, String>,
+    messages: Arc<Mutex<BTreeMap<H256, Vec<UserMessage>>>>,
 }
 
 impl GClient {
     /// New gclient instance
-    pub async fn new(address: impl AsRef<str>) -> Result<Self> {
-        Ok(Self {
-            inner: Arc::new(Mutex::new(GearApi::init(address.as_ref().parse()?).await?)),
-            pairs: HashMap::from_iter(vec![(ALICE, "//Alice".to_string())].into_iter()),
-        })
-    }
+    pub async fn new(api: GearApi) -> Result<Self> {
+        let messages = Arc::new(Mutex::new(BTreeMap::new()));
 
-    /// New general client with GClient as backend
-    pub async fn client() -> Result<Client<Self>> {
-        Ok(Client::<GClient> {
-            backend: GClient::from(GearApi::dev().await?),
+        // spawn messages
+        let rt = Builder::new_current_thread().enable_all().build()?;
+        let gmessages = messages.clone();
+        let mut sub = api.subscribe_blocks().await?;
+        std::thread::spawn(move || {
+            let local = LocalSet::new();
+            local.spawn_local(async move {
+                while let Ok(Some((hash, events))) = sub.next_with_hash().await {
+                    let messages = events
+                        .into_iter()
+                        .filter_map(|e| {
+                            if let Event::Gear(GearEvent::UserMessageSent { message, .. }) = e {
+                                Some(message.into())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
+                    if messages.is_empty() {
+                        continue;
+                    }
+
+                    let mut map = gmessages.lock().await;
+                    while map.len() > MESSAGES_DEPTH {
+                        map.pop_first();
+                    }
+
+                    map.insert(hash, messages);
+                }
+            });
+
+            rt.block_on(local);
+        });
+
+        Ok(Self {
+            inner: Arc::new(Mutex::new(api)),
+            pairs: HashMap::from_iter(vec![(ALICE, "//Alice".to_string())].into_iter()),
+            messages,
         })
     }
 
@@ -86,6 +130,17 @@ impl GClient {
     /// Get [`GearApi`]
     async fn api(&self) -> MutexGuard<'_, GearApi> {
         self.inner.lock().await
+    }
+
+    /// Get user sent messages by block hash
+    ///
+    /// TODO: timeout handler
+    async fn logs(&self, hash: H256) -> Vec<UserMessage> {
+        loop {
+            if let Some(messages) = self.messages.lock().await.remove(&hash) {
+                return messages;
+            }
+        }
     }
 }
 
@@ -136,7 +191,7 @@ impl Backend for GClient {
         self.switch_pair(message.signer).await?;
 
         let api = self.api().await;
-        let (mid, _hash) = api
+        let (mid, hash) = api
             .send_message_bytes(
                 id,
                 message.payload,
@@ -147,7 +202,7 @@ impl Backend for GClient {
 
         Ok(TxResult {
             result: mid,
-            logs: vec![],
+            logs: self.logs(hash).await,
         })
     }
 
@@ -158,14 +213,5 @@ impl Backend for GClient {
             .get_mailbox_message(mid)
             .await
             .map_err(Into::into)
-    }
-}
-
-impl From<GearApi> for GClient {
-    fn from(api: GearApi) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(api)),
-            pairs: HashMap::from_iter(vec![(ALICE, "//Alice".to_string())].into_iter()),
-        }
     }
 }

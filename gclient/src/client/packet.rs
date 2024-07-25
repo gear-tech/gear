@@ -34,7 +34,8 @@ pub struct Message {
     /// Value contains in this message.
     pub value: u128,
     /// The arbitrary data needed to generate an address for a new
-    /// program (control of salt uniqueness is entirely on the function caller’s side);
+    /// program (control of salt uniqueness is entirely on the function caller’s
+    /// side);
     pub salt: Vec<u8>,
 }
 
