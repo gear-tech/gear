@@ -106,8 +106,8 @@ impl NetworkService {
             receiver: network_receiver,
             event_loop: NetworkEventLoop {
                 swarm,
-                general_rx,
-                gossipsub_tx,
+                rx: sender_rx,
+                tx: receiver_tx,
             },
         })
     }

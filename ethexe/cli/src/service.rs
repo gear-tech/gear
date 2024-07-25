@@ -484,7 +484,7 @@ impl Service {
                         validator.clear();
                     };
                 }
-                message = maybe_await(network_receiver.as_mut().map(|stream| stream.next())) => {
+                event = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
                     if let Some(NetworkReceiverEvent::Commitments { source, data }) = event {
                         if let Some(sequencer) = sequencer.as_mut() {
                             log::debug!("Received p2p commitments from: {:?}", source);
