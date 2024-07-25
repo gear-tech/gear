@@ -25,7 +25,7 @@ use secp256k1::Message;
 use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PublicKey(pub [u8; 33]);
 
 pub struct PrivateKey(pub [u8; 32]);

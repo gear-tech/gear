@@ -19,7 +19,7 @@
 //! Main service in ethexe node.
 
 use crate::{
-    config::{Config, PrometheusConfig, SequencerConfig, ValidatorConfig},
+    config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
 use anyhow::{anyhow, Ok, Result};
@@ -27,6 +27,7 @@ use ethexe_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTr
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
+use ethexe_signer::{PublicKey, Signer};
 use ethexe_validator::Commitment;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
@@ -64,7 +65,7 @@ impl Service {
             .await?,
         );
 
-        let ethereum_router_address = config.ethereum_router_address.parse()?;
+        let ethereum_router_address = config.ethereum_router_address;
         let observer = ethexe_observer::Observer::new(
             &config.ethereum_rpc,
             ethereum_router_address,
@@ -92,20 +93,31 @@ impl Service {
 
         let signer = ethexe_signer::Signer::new(config.key_path.clone())?;
 
-        let sequencer = match config.sequencer {
-            SequencerConfig::Enabled(ref sign_tx_public) => Some(
+        let sequencer = if let Some(key) = Self::get_config_public_key(config.sequencer, &signer)? {
+            Some(
                 ethexe_sequencer::Sequencer::new(
                     &ethexe_sequencer::Config {
                         ethereum_rpc: config.ethereum_rpc.clone(),
-                        sign_tx_public: *sign_tx_public,
-                        router_address: config.ethereum_router_address.parse()?,
+                        sign_tx_public: key,
+                        router_address: config.ethereum_router_address,
                     },
                     signer.clone(),
                 )
                 .await?,
-            ),
-            SequencerConfig::Disabled => None,
+            )
+        } else {
+            None
         };
+
+        let validator = Self::get_config_public_key(config.validator, &signer)?.map(|key| {
+            ethexe_validator::Validator::new(
+                &ethexe_validator::Config {
+                    pub_key: key,
+                    router_address: config.ethereum_router_address,
+                },
+                signer.clone(),
+            )
+        });
 
         // Prometheus metrics.
         let metrics_service =
@@ -118,17 +130,6 @@ impl Service {
             } else {
                 None
             };
-
-        let validator = match config.validator {
-            ValidatorConfig::Enabled(sign_tx_public) => Some(ethexe_validator::Validator::new(
-                &ethexe_validator::Config {
-                    pub_key: sign_tx_public,
-                    router_address: config.ethereum_router_address.parse()?,
-                },
-                signer.clone(),
-            )),
-            ValidatorConfig::Disabled => None,
-        };
 
         let network = config
             .net_config
@@ -155,6 +156,14 @@ impl Service {
             rpc,
             block_time: config.block_time,
         })
+    }
+
+    fn get_config_public_key(key: ConfigPublicKey, signer: &Signer) -> Result<Option<PublicKey>> {
+        match key {
+            ConfigPublicKey::Enabled(key) => Ok(Some(key)),
+            ConfigPublicKey::Random => Ok(Some(signer.generate_key()?)),
+            ConfigPublicKey::Disabled => Ok(None),
+        }
     }
 
     #[cfg(test)]
@@ -530,7 +539,9 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
+            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
+                .parse()
+                .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
             database_path: tmp_dir.join("db"),
@@ -553,7 +564,9 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
+            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
+                .parse()
+                .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
             database_path: tmp_dir.join("db"),
