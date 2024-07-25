@@ -7,12 +7,12 @@ interface IMirror {
     /**
      * @dev Emitted when the state hash of program is changed.
      */
-    event StateChanged(bytes32 indexed stateHash);
+    event StateChanged(bytes32 stateHash);
 
     /**
      * @dev Emitted when a new message is sent to be queued.
      */
-    event MessageQueued(bytes32 id, address indexed source, bytes payload, uint128 value);
+    event MessageQueueingRequested(bytes32 id, address indexed source, bytes payload, uint128 value);
 
     /**
      * @dev Emitted when a new reply is sent and requested to be verified and queued.

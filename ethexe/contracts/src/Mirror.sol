@@ -26,7 +26,7 @@ contract Mirror is IMirror {
 
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
-        emit MessageQueued(id, tx.origin, _payload, _value);
+        emit MessageQueueingRequested(id, tx.origin, _payload, _value);
 
         return id;
     }
@@ -94,7 +94,7 @@ contract Mirror is IMirror {
         bytes32 id = keccak256(abi.encodePacked(address(this), initNonce));
 
         emit ExecutableBalanceTopUpRequested(executableBalance);
-        emit MessageQueued(id, source, payload, value);
+        emit MessageQueueingRequested(id, source, payload, value);
     }
 
     modifier onlyRouter() {
