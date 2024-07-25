@@ -21,8 +21,7 @@
 use crate::service::Service;
 use alloy::{
     node_bindings::Anvil,
-    providers::{ext::AnvilApi, Provider, RootProvider},
-    rpc::types::anvil::MineOptions,
+    providers::{ext::AnvilApi, RootProvider},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
@@ -186,9 +185,6 @@ impl TestEnv {
             "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d".parse()?,
         )?;
 
-        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(tempdir.join("net"));
-        let network = ethexe_network::NetworkEventLoop::new(net_config, &signer)?;
-
         let sender_address = sender_public_key.to_address();
         let validators = vec![validator_public_key.to_address()];
         let ethereum = Ethereum::deploy(&rpc, validators, signer.clone(), sender_address).await?;
@@ -236,9 +232,6 @@ impl TestEnv {
     }
 
     pub async fn new_service(&self) -> Result<Service> {
-        let net_config = ethexe_network::NetworkConfiguration::new_local();
-        let network = ethexe_network::NetworkWorker::new(net_config)?;
-
         let processor = Processor::new(self.db.clone())?;
 
         let sequencer = Sequencer::new(
@@ -259,20 +252,18 @@ impl TestEnv {
             self.signer.clone(),
         );
 
-        let rpc = ethexe_rpc::RpcService::new(9090, self.db.clone());
-
         Ok(Service::new_from_parts(
             self.db.clone(),
-            network,
             self.observer.clone(),
             self.query.clone(),
             processor,
             self.signer.clone(),
+            self.block_time,
+            None,
             Some(sequencer),
             Some(validator),
             None,
-            rpc,
-            self.block_time,
+            None,
         ))
     }
 
@@ -297,7 +288,7 @@ async fn ping() {
     let mut anvil = Anvil::new().try_spawn().unwrap();
     drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
 
-    let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
     let mut listener = env.new_listener().await;
 
     let service = env.new_service().await.unwrap();
@@ -419,8 +410,7 @@ async fn ping_reorg() {
     let anvil = Anvil::new().block_time(1).try_spawn().unwrap();
 
     let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
-    let mut listener = env.new_listener();
-
+    let mut listener = env.new_listener().await;
 
     let service = env.new_service().await.unwrap();
     let service_handle = task::spawn(service.run());
@@ -468,7 +458,10 @@ async fn ping_reorg() {
     }
 
     // Now returns to the block before approval and waits for approval again
-    let res = provider.anvil_revert(code_loaded_snapshot_id).await.unwrap();
+    let res = provider
+        .anvil_revert(code_loaded_snapshot_id)
+        .await
+        .unwrap();
     assert!(res);
     log::info!("📗 Waiting for code approval #2");
     listener

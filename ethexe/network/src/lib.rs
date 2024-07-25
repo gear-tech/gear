@@ -54,6 +54,48 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
+pub struct NetworkService {
+    pub sender: NetworkSender,
+    pub gossip_stream: GossipsubMessageStream,
+    pub event_loop: NetworkEventLoop,
+}
+
+impl NetworkService {
+    pub fn new(config: NetworkEventLoopConfig, signer: &Signer) -> anyhow::Result<NetworkService> {
+        fs::create_dir_all(&config.config_dir)
+            .context("failed to create network configuration directory")?;
+
+        let keypair =
+            NetworkEventLoop::generate_keypair(signer, &config.config_dir, config.public_key)?;
+        let mut swarm = NetworkEventLoop::create_swarm(keypair)?;
+
+        for multiaddr in config.external_addresses {
+            swarm.add_external_address(multiaddr);
+        }
+
+        for multiaddr in config.listen_addresses {
+            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+        }
+
+        for multiaddr in config.bootstrap_addresses {
+            swarm.dial(multiaddr)?;
+        }
+
+        let (general_tx, general_rx) = mpsc::unbounded_channel();
+        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
+
+        Ok(Self {
+            sender: NetworkSender { tx: general_tx },
+            gossip_stream: GossipsubMessageStream { rx: gossipsub_rx },
+            event_loop: NetworkEventLoop {
+                swarm,
+                general_rx,
+                gossipsub_tx,
+            },
+        })
+    }
+}
+
 #[derive(Debug)]
 enum NetworkSenderEvent {
     PublishCommitments { data: Vec<u8> },
@@ -123,42 +165,6 @@ pub struct NetworkEventLoop {
 }
 
 impl NetworkEventLoop {
-    pub fn new(
-        config: NetworkEventLoopConfig,
-        signer: &Signer,
-    ) -> anyhow::Result<(NetworkSender, GossipsubMessageStream, Self)> {
-        fs::create_dir_all(&config.config_dir)
-            .context("failed to create network configuration directory")?;
-
-        let keypair = Self::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = Self::create_swarm(keypair)?;
-
-        for multiaddr in config.external_addresses {
-            swarm.add_external_address(multiaddr);
-        }
-
-        for multiaddr in config.listen_addresses {
-            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
-        }
-
-        for multiaddr in config.bootstrap_addresses {
-            swarm.dial(multiaddr)?;
-        }
-
-        let (general_tx, general_rx) = mpsc::unbounded_channel();
-        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
-
-        Ok((
-            NetworkSender { tx: general_tx },
-            GossipsubMessageStream { rx: gossipsub_rx },
-            Self {
-                swarm,
-                general_rx,
-                gossipsub_tx,
-            },
-        ))
-    }
-
     fn generate_keypair(
         signer: &Signer,
         config_path: &Path,
