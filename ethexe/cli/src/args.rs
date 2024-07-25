@@ -102,7 +102,7 @@ pub struct Args {
 
     #[allow(missing_docs)]
     #[clap(flatten)]
-    pub network_params: NetworkParams,
+    pub network_params: Option<NetworkParams>,
 
     #[allow(missing_docs)]
     #[clap(flatten)]
