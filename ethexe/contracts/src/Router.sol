@@ -28,7 +28,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
-        address[] memory validatorAddressArray
+        address[] memory _validatorAddressArray
     ) public initializer {
         __Ownable_init(initialOwner);
 
@@ -36,17 +36,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _getStorage();
 
         router.genesisBlockHash = blockhash(block.number - 1);
-
-        router.signingThresholdPercentage = 6666; // 2/3 percentage (66.66%).
-
-        router.baseWeight = 2_500_000_000;
-        router.valuePerWeight = 10;
-
         router.mirror = _mirror;
         router.mirrorProxy = _mirrorProxy;
         router.wrappedVara = _wrappedVara;
-
-        _setValidators(validatorAddressArray);
+        router.signingThresholdPercentage = 6666; // 2/3 percentage (66.66%).
+        router.baseWeight = 2_500_000_000;
+        router.valuePerWeight = 10;
+        _setValidators(_validatorAddressArray);
     }
 
     /* Operational functions */
