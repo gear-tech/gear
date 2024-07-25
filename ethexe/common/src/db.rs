@@ -43,7 +43,7 @@ pub struct CodeUploadInfo {
     pub tx_hash: H256,
 }
 
-pub trait BlockMetaStorage {
+pub trait BlockMetaStorage: Send + Sync {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
 
@@ -72,7 +72,7 @@ pub trait BlockMetaStorage {
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
 }
 
-pub trait CodesStorage {
+pub trait CodesStorage: Send + Sync {
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
     fn set_original_code(&self, code: &[u8]) -> CodeId;
 

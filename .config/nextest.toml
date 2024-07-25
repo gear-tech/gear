@@ -7,3 +7,13 @@ path = "junit.xml"
 filter = 'package(gear-authorship)'
 retries = 5
 threads-required = "num-test-threads"
+
+[[profile.ci.overrides]]
+filter = 'package(ethexe-cli)'
+retries = 5
+threads-required = "num-test-threads"
+
+[[profile.ci.overrides]]
+filter = 'package(ethexe-observer)'
+retries = 5
+threads-required = "num-test-threads"
