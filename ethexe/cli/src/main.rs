@@ -16,24 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod args;
-mod chain_spec;
-mod config;
-mod metrics;
-mod params;
-mod service;
-
-#[cfg(test)]
-mod tests;
-
-use crate::{
+use anyhow::Context;
+use clap::Parser;
+use env_logger::Env;
+use ethexe_cli::{
     args::{Args, ArgsOnConfig},
     config::Config,
     service::Service,
 };
-use anyhow::Context;
-use clap::Parser;
-use env_logger::Env;
 use std::{env, fs};
 
 #[tokio::main]
@@ -58,48 +48,35 @@ async fn main() -> anyhow::Result<()> {
     let config =
         Config::try_from(args.clone()).with_context(|| "Failed to create configuration")?;
 
-    env_logger::Builder::from_env(Env::default().default_filter_or("info"))
-        .try_init()
-        .with_context(|| "Failed to initialize logger")?;
-
-    print_info(&config);
-
     if let Some(extra_command) = args.extra_command {
-        extra_command.run(&config).await?;
+        extra_command.run(&config).await
     } else {
-        let mut service = Some(Service::new(&config).await?);
+        env_logger::Builder::from_env(Env::default().default_filter_or("info"))
+            .try_init()
+            .with_context(|| "Failed to initialize logger")?;
 
-        async fn run_service(service: &mut Option<Service>) -> anyhow::Result<()> {
-            if let Some(service) = service.take() {
-                service.run().await
-            } else {
-                futures::future::pending().await
-            }
-        }
+        print_info(&config);
 
-        loop {
-            tokio::select! {
-                res = run_service(&mut service) => {
-                    res?;
-                }
-                _ = tokio::signal::ctrl_c() => {
-                    log::info!("Received SIGINT, shutting down");
-                    break;
-                }
+        let service = Service::new(&config).await?;
+
+        tokio::select! {
+            res = service.run() => {
+                return res;
             }
-        }
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Received SIGINT, shutting down");
+                return Ok(());
+            }
+        };
     }
-
-    Ok(())
 }
 
 fn print_info(config: &Config) {
     log::info!("💾 Database: {}", config.database_path.display());
     log::info!("🔑 Key directory: {}", config.key_path.display());
-    log::info!(
-        "🛜 Network directory: {}",
-        config.net_config.config_dir.display()
-    );
+    if let Some(net_config) = &config.net_config {
+        log::info!("🛜 Network directory: {}", net_config.config_dir.display());
+    }
     log::info!("⧫  Ethereum observer RPC: {}", config.ethereum_rpc);
     log::info!(
         "📡 Ethereum router address: {}",

@@ -102,7 +102,7 @@ pub struct Args {
 
     #[allow(missing_docs)]
     #[clap(flatten)]
-    pub network_params: NetworkParams,
+    pub network_params: Option<NetworkParams>,
 
     #[allow(missing_docs)]
     #[clap(flatten)]
@@ -122,7 +122,14 @@ pub struct ArgsOnConfig {
 
 #[derive(Clone, Debug, Subcommand, Deserialize)]
 pub enum ExtraCommands {
-    GenerateKey,
+    GenerateKey {
+        /// Print only secp256k1 public key
+        #[arg(long, conflicts_with = "ethereum")]
+        secp256k1: bool,
+        /// Print only Ethereum address
+        #[arg(long, conflicts_with = "secp256k1")]
+        ethereum: bool,
+    },
     ListKeys,
     ClearKeys,
     InsertKey(InsertKeyArgs),
@@ -178,7 +185,7 @@ impl ExtraCommands {
         let maybe_ethereum = if let Some(sender_address) = maybe_sender_address {
             Ethereum::new(
                 &config.ethereum_rpc,
-                config.ethereum_router_address.parse()?,
+                config.ethereum_router_address,
                 signer.clone(),
                 sender_address,
             )
@@ -189,11 +196,20 @@ impl ExtraCommands {
         };
 
         match self {
-            ExtraCommands::GenerateKey => {
+            ExtraCommands::GenerateKey {
+                secp256k1,
+                ethereum,
+            } => {
                 let new_pub = signer.generate_key()?;
 
-                println!("New public key stored: {}", new_pub);
-                println!("Ethereum address: {}", new_pub.to_address());
+                if *secp256k1 {
+                    println!("{new_pub}");
+                } else if *ethereum {
+                    println!("{}", new_pub.to_address())
+                } else {
+                    println!("New public key stored: {}", new_pub);
+                    println!("Ethereum address: {}", new_pub.to_address());
+                }
             }
 
             ExtraCommands::ClearKeys => {
