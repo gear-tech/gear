@@ -518,8 +518,8 @@ fn dispatch_function(
         SupervisorContextStore::with(|supervisor_context| {
             let mut storemut = env.as_store_mut();
 
-            // Create a scope which resets the previously mutable borrowed `StoreRefCell`
-            // to allow mutable/immutable borrowing higher up in the call stack.
+            // Creates a scope that allows the previously mutably borrowed StoreRefCell
+            // to be borrowed mutably or immutably again higher up in the call stack.
             // Check doc-comments in `store_refcell` module for more details.
             let deserialized_result = store_refcell_ctx::with_borrow_scope(&mut storemut, || {
                 // Serialize arguments into a byte vector.
@@ -566,8 +566,8 @@ fn dispatch_function_v2(
                 .ok_or_else(|| RuntimeError::new("Cannot get gas global from store environment"))?;
             let gas = gas_global.get(&mut storemut);
 
-            // Create a scope which resets the previously mutable borrowed `StoreRefCell`
-            // to allow mutable/immutable borrowing higher up in the call stack.
+            // Creates a scope that allows the previously mutably borrowed StoreRefCell
+            // to be borrowed mutably or immutably again higher up in the call stack.
             // Check doc-comments in `store_refcell` module for more details.
             let deserialized_result = store_refcell_ctx::with_borrow_scope(&mut storemut, || {
                 // Serialize arguments into a byte vector.
