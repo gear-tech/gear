@@ -892,16 +892,18 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
+        let message = "Signal handle";
+        let panic_message = "Gotcha!";
 
         let scheme = Scheme::predefined(
             Calls::builder().noop(),
             Calls::builder()
                 .system_reserve_gas(1_000_000_000)
-                .panic("Gotcha!"),
+                .panic(panic_message),
             Calls::builder().noop(),
             Calls::builder().send(
                 Arg::new(ProgramIdWrapper::from(user_id).0.into_bytes()),
-                Arg::bytes("Signal handled"),
+                Arg::bytes(message),
             ),
         );
 
@@ -911,8 +913,8 @@ mod tests {
         assert!(!run_result.main_failed());
         let run_result = prog.send(user_id, *b"Hello");
 
-        run_result.assert_panicked_with("Gotcha!");
-        let log = Log::builder().payload_bytes("Signal handled");
+        run_result.assert_panicked_with(panic_message);
+        let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
         assert!(value.is_ok());
     }
