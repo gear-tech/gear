@@ -94,13 +94,13 @@ impl GasTreeManager {
     pub(crate) fn split(
         &self,
         is_reply: bool,
-        original_mid: MessageId,
+        original_node: impl Origin,
         new_mid: MessageId,
     ) -> Result<(), GasTreeError> {
         if !is_reply && !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
         {
             return GasTree::split(
-                GasNodeId::from(original_mid.cast::<PlainNodeId>()),
+                GasNodeId::from(original_node.cast::<PlainNodeId>()),
                 GasNodeId::from(new_mid.cast::<PlainNodeId>()),
             );
         }

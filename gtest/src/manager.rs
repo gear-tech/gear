@@ -1003,8 +1003,7 @@ impl JournalHandler for ExtManager {
         message_id: MessageId,
         dispatch: Dispatch,
         bn: u32,
-        // todo add sending from reservation
-        _reservation: Option<ReservationId>,
+        reservation: Option<ReservationId>,
     ) {
         if bn > 0 {
             log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
@@ -1016,17 +1015,46 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         if self.is_program(&dispatch.destination()) {
-            match dispatch.gas_limit() {
-                Some(gas_limit) => {
+            match (dispatch.gas_limit(), reservation) {
+                (Some(gas_limit), None) => self
+                    .gas_tree
+                    .split_with_value(false, message_id, dispatch.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
+                (None, None) => self
+                    .gas_tree
+                    .split(false, message_id, dispatch.id())
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
+                (None, Some(reservation)) => {
                     self.gas_tree
-                        .split_with_value(false, message_id, dispatch.id(), gas_limit)
+                        .split(false, reservation, dispatch.id())
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                    // Remove program from the internal storage
+                    self.actors
+                        .borrow_mut()
+                        .get_mut(&dispatch.source())
+                        .and_then(|(actor, _)| actor.genuine_program_mut())
+                        .map(|prog| {
+                            if prog.gas_reservation_map.remove(&reservation).is_none() {
+                                unreachable!("Tried to use non-existent reservation.");
+                            }
+                        })
+                        .expect("no genuine program found for program");
+
+                    // Unspecified node is created from the reservation, so consuming it doesn't
+                    if let Ok(Some(_)) = self.gas_tree.consume(reservation) {
+                        unreachable!("GasTree corrupted: consumed with a retrieve value from reservation patron");
+                    }
                 }
-                None => self.gas_tree.split(false, message_id, dispatch.id()),
+                (Some(_), Some(_)) => unreachable!(
+                    "Sending dispatch with gas limit from reservation \
+                    is currently unimplemented and there is no way to send such dispatch"
+                ),
             }
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
+            // todo [sab] add sending user message from reservation
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
 
