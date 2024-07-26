@@ -20,9 +20,9 @@
 
 use crate::service::Service;
 use alloy::{
-    node_bindings::Anvil,
-    providers::{ext::AnvilApi, RootProvider},
-    transports::BoxTransport,
+    node_bindings::{Anvil, AnvilInstance},
+    providers::{ext::AnvilApi, Provider},
+    rpc::types::anvil::MineOptions,
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{db::CodesStorage, events::BlockEvent};
@@ -104,52 +104,6 @@ impl Listener {
             }
         }
     }
-
-    pub async fn wait_event<R: Sized>(
-        &mut self,
-        provider: &RootProvider<BoxTransport>,
-        mut f: impl FnMut(Event) -> Result<Option<R>>,
-    ) -> Result<R> {
-        loop {
-            tokio::select! {
-                _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                    provider.evm_mine(None).await?;
-                }
-                event = self.next_event() => {
-                    let event = event?;
-                    if let Some(res) = f(event)? {
-                        return Ok(res);
-                    }
-                }
-            }
-        }
-    }
-
-    pub async fn wait_block_event<R: Sized>(
-        &mut self,
-        provider: &RootProvider<BoxTransport>,
-        mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
-    ) -> Result<R> {
-        loop {
-            tokio::select! {
-                _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                    provider.evm_mine(None).await?;
-                }
-                event = self.next_event() => {
-                    let event = event?;
-                    let Event::Block(block) = event else {
-                        continue;
-                    };
-
-                    for event in block.events {
-                        if let Some(res) = f(event)? {
-                            return Ok(res);
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 struct TestEnv {
@@ -164,6 +118,7 @@ struct TestEnv {
     sequencer_public_key: ethexe_signer::PublicKey,
     validator_public_key: ethexe_signer::PublicKey,
     router_address: ethexe_signer::Address,
+    sender_address: ethexe_signer::Address,
     block_time: Duration,
 }
 
@@ -221,10 +176,17 @@ impl TestEnv {
             sequencer_public_key,
             validator_public_key,
             router_address,
+            sender_address,
             block_time,
         };
 
         Ok(env)
+    }
+
+    pub fn start_anvil() -> AnvilInstance {
+        let mut anvil = Anvil::new().try_spawn().unwrap();
+        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+        anvil
     }
 
     pub async fn new_listener(&self) -> Listener {
@@ -267,6 +229,18 @@ impl TestEnv {
         ))
     }
 
+    #[allow(unused)]
+    pub async fn reset_ethereum(&mut self) {
+        self.ethereum = Ethereum::new(
+            &self.rpc_url,
+            self.router_address,
+            self.signer.clone(),
+            self.sender_address,
+        )
+        .await
+        .expect("failed to create ethereum object");
+    }
+
     pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
         let code_id = CodeId::generate(code);
         let blob_tx = H256::random();
@@ -285,8 +259,7 @@ impl TestEnv {
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let mut anvil = Anvil::new().try_spawn().unwrap();
-    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+    let anvil = TestEnv::start_anvil();
 
     let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
     let mut listener = env.new_listener().await;
@@ -407,7 +380,7 @@ async fn ping() {
 async fn ping_reorg() {
     gear_utils::init_default_logger();
 
-    let anvil = Anvil::new().block_time(1).try_spawn().unwrap();
+    let anvil = TestEnv::start_anvil();
 
     let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
     let mut listener = env.new_listener().await;
@@ -416,16 +389,13 @@ async fn ping_reorg() {
     let service_handle = task::spawn(service.run());
 
     let provider = env.observer.provider().clone();
-    // provider.anvil_set_auto_mine(false).await.unwrap();
-    // let res = provider.anvil_get_auto_mine().await.unwrap();
-    // assert!(!res);
 
     log::info!("📗 upload code");
     let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
 
     log::info!("📗 Waiting for code loaded");
     listener
-        .wait_event(&provider, |event| {
+        .apply_until(|event| {
             if let Event::CodeLoaded(loaded) = event {
                 assert_eq!(loaded.code_id, code_id);
                 assert_eq!(loaded.code.as_slice(), demo_ping::WASM_BINARY);
@@ -437,11 +407,9 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    let code_loaded_snapshot_id = provider.anvil_snapshot().await.unwrap();
-
-    log::info!("📗 Waiting for code approval #1");
+    log::info!("📗 Waiting for code approval");
     listener
-        .wait_block_event(&provider, |event| {
+        .apply_until_block_event(|event| {
             if let BlockEvent::CodeApproved(approved) = event {
                 assert_eq!(approved.code_id, code_id);
                 Ok(Some(()))
@@ -452,22 +420,123 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    for _ in 0..1 {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        provider.evm_mine(None).await.unwrap();
-    }
+    // Abort service to skip program creation
+    service_handle.abort();
 
-    // Now returns to the block before approval and waits for approval again
-    let res = provider
-        .anvil_revert(code_loaded_snapshot_id)
+    let _ = env
+        .ethereum
+        .router()
+        .create_program(code_id, H256::random(), b"PING", 10_000_000_000, 0)
         .await
         .unwrap();
-    assert!(res);
-    log::info!("📗 Waiting for code approval #2");
+
+    // Mine some blocks to check missed blocks support
+    provider
+        .evm_mine(Some(MineOptions::Options {
+            timestamp: None,
+            blocks: Some(10),
+        }))
+        .await
+        .unwrap();
+
+    // Create new service
+    let service = env.new_service().await.unwrap();
+    let service_handle = task::spawn(service.run());
+
+    // Sleep to wait for the new service to start
+    // TODO: find a better way to wait for the service to start
+    tokio::time::sleep(env.block_time).await;
+
+    // IMPORTANT: Mine one block to sent block event to the new service.
+    provider.evm_mine(None).await.unwrap();
+
+    log::info!("📗 Waiting for program creation");
+    let mut reply_sent = false;
+    let mut program_id = ActorId::default();
     listener
-        .wait_block_event(&provider, |event| {
-            if let BlockEvent::CodeApproved(approved) = event {
-                assert_eq!(approved.code_id, code_id);
+        .apply_until_block_event(|event| {
+            match event {
+                BlockEvent::CreateProgram(create) => {
+                    assert_eq!(create.code_id, code_id);
+                    assert_eq!(create.init_payload, b"PING");
+                    assert_eq!(create.gas_limit, 10_000_000_000);
+                    assert_eq!(create.value, 0);
+                    program_id = create.actor_id;
+                }
+                BlockEvent::UserReplySent(reply) => {
+                    assert_eq!(reply.value, 0);
+                    assert_eq!(reply.payload, b"PONG");
+                    reply_sent = true;
+                }
+                BlockEvent::UpdatedProgram(updated) => {
+                    assert_eq!(updated.actor_id, program_id);
+                    assert_eq!(updated.old_state_hash, H256::zero());
+                    assert!(reply_sent);
+                }
+                BlockEvent::BlockCommitted(_) => {
+                    return Ok(Some(()));
+                }
+                _ => {}
+            }
+            Ok(None)
+        })
+        .await
+        .unwrap();
+
+    log::info!(
+        "📗 Create snapshot for block: {}",
+        provider.get_block_number().await.unwrap()
+    );
+    let program_created_snapshot_id = provider.anvil_snapshot().await.unwrap();
+
+    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+    let ping_program = env.ethereum.program(program_address);
+
+    log::info!("📗 Sending PING message");
+    let _tx = ping_program
+        .send_message(b"PING", 10_000_000_000, 0)
+        .await
+        .unwrap();
+
+    log::info!("📗 Waiting for PONG reply");
+    listener
+        .apply_until_block_event(|event| {
+            if let BlockEvent::UserReplySent(reply) = event {
+                assert_eq!(reply.value, 0);
+                assert_eq!(reply.payload, b"PONG");
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    // Await for service block with user reply handling
+    // TODO: this is for better logs reading only, should find a better solution.
+    tokio::time::sleep(env.block_time).await;
+
+    log::info!("📗 Reverting to the program creation snapshot");
+    provider
+        .anvil_revert(program_created_snapshot_id)
+        .await
+        .map(|res| assert!(res))
+        .unwrap();
+
+    log::info!("📗 Sending PING message after reorg");
+    let _tx = env
+        .ethereum
+        .program(program_address)
+        .send_message(b"PING", 10_000_000_000, 0)
+        .await
+        .unwrap();
+
+    log::info!("📗 Waiting for PONG reply after reorg");
+    listener
+        .apply_until_block_event(|event| {
+            if let BlockEvent::UserReplySent(reply) = event {
+                assert_eq!(reply.value, 0);
+                assert_eq!(reply.payload, b"PONG");
                 Ok(Some(()))
             } else {
                 Ok(None)
@@ -478,35 +547,3 @@ async fn ping_reorg() {
 
     service_handle.abort();
 }
-
-// #[tokio::test(flavor = "multi_thread")]
-// #[ntest::timeout(60_000)]
-// async fn kek() {
-//     gear_utils::init_default_logger();
-
-//     let anvil = Anvil::new().try_spawn().unwrap();
-
-//     let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
-
-//     let provider = env.observer.provider().clone();
-
-//     provider.anvil_set_auto_mine(false).await.unwrap();
-//     let res = provider.anvil_get_auto_mine().await.unwrap();
-//     assert_eq!(res, false);
-
-//     dbg!(provider.get_block_number().await.unwrap());
-//     let snapshot_id = provider.anvil_snapshot().await.unwrap();
-
-//     provider
-//         .evm_mine(Some(MineOptions::Options {
-//             timestamp: None,
-//             blocks: Some(10),
-//         }))
-//         .await
-//         .unwrap();
-//     dbg!(provider.get_block_number().await.unwrap());
-
-//     let res = provider.anvil_revert(snapshot_id).await.unwrap();
-//     assert_eq!(res, true);
-//     dbg!(provider.get_block_number().await.unwrap());
-// }
