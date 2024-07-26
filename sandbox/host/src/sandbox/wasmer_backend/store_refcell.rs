@@ -26,7 +26,7 @@
 //!
 //! At first we borrow store mutably:
 //!
-//! ```rust
+//! ```ignore
 //!    let refcell = RefCell::new(Store::default());
 //!    let mut_borrow = refcell.borrow_mut();
 //!
@@ -36,7 +36,7 @@
 //! Now we need to borrow store mutably again inside `func`,
 //! but we can't do it because `mut_borrow` still exists.
 //!  
-//! ```rust
+//! ```ignore
 //!    fn func(ref_cell: &RefCell<Store>, mut_borrow: &mut Store) {
 //!        ref_cell.borrow_mut(); // This will panic
 //!   }
@@ -44,7 +44,7 @@
 //!  
 //! With `StoreRefCell` we can do it safely:
 //!
-//! ```rust
+//! ```ignore
 //!    fn func(store_refcell: &StoreRefCell, mut_borrow: &mut Store) {
 //!        store_refcell.borrow_scope(mut_borrow, || {
 //!            // Now we can borrow store again
