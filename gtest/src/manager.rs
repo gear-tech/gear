@@ -110,7 +110,7 @@ impl TestActor {
         matches!(self, TestActor::Uninitialized(..))
     }
 
-    fn genuine_program(&self) -> Option<&GenuineProgram> {
+    pub(crate) fn genuine_program(&self) -> Option<&GenuineProgram> {
         match self {
             TestActor::Initialized(Program::Genuine(program))
             | TestActor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program),
@@ -1003,6 +1003,7 @@ impl JournalHandler for ExtManager {
         message_id: MessageId,
         dispatch: Dispatch,
         bn: u32,
+        // todo add sending from reservation
         _reservation: Option<ReservationId>,
     ) {
         if bn > 0 {
@@ -1207,20 +1208,48 @@ impl JournalHandler for ExtManager {
 
     fn reserve_gas(
         &mut self,
-        _message_id: MessageId,
-        _reservation_id: ReservationId,
+        message_id: MessageId,
+        reservation_id: ReservationId,
         _program_id: ProgramId,
-        _amount: u64,
-        _bn: u32,
+        amount: u64,
+        duration: u32,
     ) {
+        log::debug!(
+            "Reserved: {:?} from {:?} with {:?} for {} blocks",
+            amount,
+            message_id,
+            reservation_id,
+            duration
+        );
+
+        self.gas_tree
+            .reserve_gas(message_id, reservation_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
     }
 
     fn unreserve_gas(
         &mut self,
-        _reservation_id: ReservationId,
-        _program_id: ProgramId,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
         _expiration: u32,
     ) {
+        // Remove reservation from the actor storage.
+        let mut actors = self.actors.borrow_mut();
+        let (actor, _) = actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        actor
+            .genuine_program_mut()
+            .map(|prog| {
+                if prog.gas_reservation_map.remove(&reservation_id).is_none() {
+                    unreachable!("Tried to remove non-existent reservation.");
+                }
+            })
+            .expect("no genuine program found for program");
+
+        // Unreserve reservation in the gas tree by consuming it.
+        let _ = self.gas_tree.consume(reservation_id);
     }
 
     #[track_caller]

@@ -42,6 +42,8 @@ pub enum Call {
     Wake(Arg<[u8; 32]>),
     MessageId,
     Loop,
+    ReserveGas(Arg<u64>, Arg<u32>),
+    UnreserveGas(Arg<[u8; 32]>),
     SystemReserveGas(Arg<u64>),
     WriteN(Arg<u64>),
 }
@@ -332,6 +334,31 @@ mod wasm {
             None
         }
 
+        fn reserve_gas(self) -> Option<Vec<u8>> {
+            let Self::ReserveGas(amount, duration) = self else {
+                unreachable!()
+            };
+
+            let amount = amount.value();
+            let duration = duration.value();
+            let reservation_id =
+                exec::reserve_gas(amount, duration).expect("Failed to reserve gas");
+
+            Some(reservation_id.encode())
+        }
+
+        fn unreserve_gas(self) -> Option<Vec<u8>> {
+            let Self::UnreserveGas(reservation) = self else {
+                unreachable!()
+            };
+
+            let reservation = reservation.value().into();
+            let unreserved_value =
+                exec::unreserve_gas(reservation).expect("Failed to unreserve gas");
+
+            Some(unreserved_value.encode())
+        }
+
         fn write_n(self) -> Option<Vec<u8>> {
             let Self::WriteN(count) = self else {
                 unreachable!()
@@ -376,6 +403,8 @@ mod wasm {
                 #[allow(clippy::empty_loop)]
                 Call::Loop => loop {},
                 Call::SystemReserveGas(..) => self.system_reserve_gas(),
+                Call::ReserveGas(..) => self.reserve_gas(),
+                Call::UnreserveGas(..) => self.unreserve_gas(),
                 Call::WriteN(..) => self.write_n(),
             };
 

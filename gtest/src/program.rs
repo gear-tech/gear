@@ -881,6 +881,7 @@ pub mod gbuild {
 mod tests {
     use super::Program;
     use crate::{Log, System};
+    use demo_constructor::Scheme;
     use gear_core::ids::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
@@ -1206,5 +1207,51 @@ mod tests {
 
         assert!(res.contains(&expected_log));
         assert!(res.main_failed());
+    }
+
+    #[test]
+    fn test_create_delete_reservation() {
+        use demo_constructor::{Calls, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
+
+        // Initialize program
+        let res = prog.send(user_id, Scheme::empty());
+        assert!(!res.main_failed());
+
+        // Reserve gas handle
+        let handle = Calls::builder().reserve_gas(1_000_000, 10);
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+
+        // Get reservation id from program
+        let reservation_id = sys
+            .0
+            .borrow()
+            .actors
+            .borrow()
+            .get(&prog.id())
+            .and_then(|(actor, _)| actor.genuine_program())
+            .and_then(|prog| {
+                assert_eq!(prog.gas_reservation_map.len(), 1);
+                prog.gas_reservation_map.iter().next().map(|(id, _)| id)
+            })
+            .copied()
+            .expect("actor was inited");
+
+        // Check reservation exists in the tree
+        assert!(sys.0.borrow().gas_tree.exists(reservation_id));
+
+        // Unreserve gas handle
+        let handle = Calls::builder().unreserve_gas(reservation_id.into_bytes());
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+
+        // Check reservation is removed from the tree
+        assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
     }
 }

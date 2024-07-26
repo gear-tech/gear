@@ -321,6 +321,14 @@ impl Calls {
         self.add_call(Call::SystemReserveGas(gas.into()))
     }
 
+    pub fn reserve_gas(self, gas: impl Into<Arg<u64>>, duration: impl Into<Arg<u32>>) -> Self {
+        self.add_call(Call::ReserveGas(gas.into(), duration.into()))
+    }
+
+    pub fn unreserve_gas(self, reservation_id: impl Into<Arg<[u8; 32]>>) -> Self {
+        self.add_call(Call::UnreserveGas(reservation_id.into()))
+    }
+
     pub fn write_in_loop(self, count: impl Into<Arg<u64>>) -> Self {
         self.add_call(Call::WriteN(count.into()))
     }
