@@ -123,7 +123,7 @@ impl Imports {
     }
 }
 
-/// The sandbox context used to execute sandboxed functions.
+/// The supervisor context used to execute sandboxed functions.
 pub trait SupervisorContext {
     /// Invoke a function in the supervisor environment.
     ///
