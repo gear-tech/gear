@@ -488,7 +488,6 @@ demo-wait-wake = { path = "examples/wait_wake" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-stack-allocations = { path = "examples/stack-allocations" }
 demo-wat = { path = "examples/wat" }
-signal-in-handle = { path = "examples/signal-in-handle" }
 
 # Dependencies that only used in one package
 #

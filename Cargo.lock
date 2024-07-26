@@ -7093,7 +7093,6 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
- "signal-in-handle",
 ]
 
 [[package]]
@@ -15098,16 +15097,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8229b473baa5980ac72ef434c4415e70c4b5e71b423043adb4ba059f89c99a1"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "signal-in-handle"
-version = "1.4.2"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
