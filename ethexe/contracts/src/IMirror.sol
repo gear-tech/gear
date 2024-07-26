@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+// TODO (breathx): sort here everything.
 interface IMirror {
     /* Events section */
 
@@ -19,6 +20,7 @@ interface IMirror {
      */
     event ReplyQueueingRequested(bytes32 repliedTo, address indexed source, bytes payload, uint128 value);
 
+    // TODO (breathx): rename to ValueClaimingRequested
     /**
      * @dev Emitted when a reply's value is requested to be verified and claimed.
      */

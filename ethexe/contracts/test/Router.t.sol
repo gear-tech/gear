@@ -129,7 +129,6 @@ contract RouterTest is Test {
         router.commitBlocks(commitments, createSignatures(message));
     }
 
-    // TODO (breathx): support changes in hashing of commitment: outgoing messages, transtions and block data.
     function commitBlock(IRouter.BlockCommitment memory commitment) private pure returns (bytes32) {
         bytes memory transitionsHashesBytes;
 

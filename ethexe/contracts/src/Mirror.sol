@@ -114,7 +114,7 @@ contract Mirror is IMirror {
         require(success, "failed to retreive WVara");
     }
 
-    // TODO (breathx): for such public fns should there be modifier? (cc) StackOverflowException
+    // TODO (breathx): for such public fns should there be modifier? are they available out of this contract? (cc) StackOverflowException
     function _sendValueTo(address destination, uint128 value) public {
         IWrappedVara wrappedVara = IWrappedVara(IRouter(router()).wrappedVara());
 

@@ -23,43 +23,11 @@
 extern crate alloc;
 
 pub mod db;
-pub mod events;
+pub mod mirror;
+pub mod router;
 
-use alloc::vec::Vec;
-use gear_core::{
-    ids::{ActorId, CodeId},
-    message::{Payload, ReplyDetails},
-};
-use gprimitives::{MessageId, H256};
-use parity_scale_codec::{Decode, Encode};
-
-#[derive(Debug, Clone, Default, Encode, Decode)]
-pub struct CodeCommitment {
-    pub code_id: CodeId,
-    pub approved: bool,
-}
-
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct StateTransition {
-    pub actor_id: ActorId,
-    pub old_state_hash: H256,
-    pub new_state_hash: H256,
-    pub outgoing_messages: Vec<OutgoingMessage>,
-}
-
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct OutgoingMessage {
-    pub message_id: MessageId,
-    pub destination: ActorId,
-    pub payload: Payload,
-    pub value: u128,
-    pub reply_details: Option<ReplyDetails>,
-}
-
-#[derive(Debug, Clone, Default, Encode, Decode)]
-pub struct BlockCommitment {
-    pub block_hash: H256,
-    pub allowed_pred_block_hash: H256,
-    pub allowed_prev_commitment_hash: H256,
-    pub transitions: Vec<StateTransition>,
+pub enum BlockEvent {
+    Router(router::Event),
+    // TODO (breathx): should we add addr here?
+    Mirror(mirror::Event),
 }

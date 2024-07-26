@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+// TODO (breathx): sort here everything.
 interface IRouter {
     /* Storage related structures */
 
@@ -165,7 +166,6 @@ interface IRouter {
 
     function setValuePerWeight(uint128 valuePerWeight) external;
 
-    // TODO (breathx): consider removal, since could be calculated manually: baseWeight() * valuePerWeight().
     function baseFee() external view returns (uint128);
 
     /* Primary Gear logic */
