@@ -106,6 +106,33 @@ impl Listener {
     }
 }
 
+struct TestEnvConfig {
+    rpc_url: String,
+    router_address: Option<ethexe_signer::Address>,
+    blob_reader: Option<Arc<MockBlobReader>>,
+    validator_private_key: Option<ethexe_signer::PrivateKey>,
+    block_time: Duration,
+}
+
+impl Default for TestEnvConfig {
+    fn default() -> Self {
+        Self {
+            rpc_url: "ws://localhost:8545".to_string(),
+            router_address: None,
+            blob_reader: None,
+            validator_private_key: None,
+            block_time: Duration::from_secs(1),
+        }
+    }
+}
+
+impl TestEnvConfig {
+    pub fn rpc_url(mut self, rpc_url: String) -> Self {
+        self.rpc_url = rpc_url.to_string();
+        self
+    }
+}
+
 struct TestEnv {
     db: Database,
     blob_reader: Arc<MockBlobReader>,
@@ -116,6 +143,7 @@ struct TestEnv {
     signer: Signer,
     rpc_url: String,
     sequencer_public_key: ethexe_signer::PublicKey,
+    validator_private_key: ethexe_signer::PrivateKey,
     validator_public_key: ethexe_signer::PublicKey,
     router_address: ethexe_signer::Address,
     block_time: Duration,
@@ -123,8 +151,14 @@ struct TestEnv {
 }
 
 impl TestEnv {
-    async fn new(rpc: String) -> Result<TestEnv> {
-        let block_time = Duration::from_secs(1);
+    async fn new(config: TestEnvConfig) -> Result<TestEnv> {
+        let TestEnvConfig {
+            rpc_url,
+            router_address,
+            blob_reader,
+            validator_private_key,
+            block_time,
+        } = config;
 
         let db = Database::from_one(&MemDb::default());
 
@@ -134,25 +168,36 @@ impl TestEnv {
             // Anvil account (0) with balance
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
         )?;
-        let validator_public_key = signer.generate_key()?;
+        let (validator_private_key, validator_public_key) = match validator_private_key {
+            Some(key) => (key, signer.add_key(key).unwrap()),
+            None => {
+                let pub_key = signer.generate_key()?;
+                (signer.get_private_key(pub_key).unwrap(), pub_key)
+            }
+        };
         let sequencer_public_key = signer.add_key(
             // Anvil account (1) with balance
             "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d".parse()?,
         )?;
 
         let sender_address = sender_public_key.to_address();
-        let validators = vec![validator_public_key.to_address()];
-        let ethereum = Ethereum::deploy(&rpc, validators, signer.clone(), sender_address).await?;
-        let blob_reader = Arc::new(MockBlobReader::new(block_time));
+        let ethereum = if let Some(router_address) = router_address {
+            Ethereum::new(&rpc_url, router_address, signer.clone(), sender_address).await?
+        } else {
+            let validators = vec![validator_public_key.to_address()];
+            Ethereum::deploy(&rpc_url, validators, signer.clone(), sender_address).await?
+        };
 
         let router_address = ethereum.router().address();
 
-        let router_query = RouterQuery::new(&rpc, router_address).await?;
+        let router_query = RouterQuery::new(&rpc_url, router_address).await?;
         let genesis_block_hash = router_query.genesis_block_hash().await?;
+
+        let blob_reader = blob_reader.unwrap_or_else(|| Arc::new(MockBlobReader::new(block_time)));
 
         let query = Query::new(
             Arc::new(db.clone()),
-            &rpc,
+            &rpc_url,
             router_address,
             genesis_block_hash,
             blob_reader.clone(),
@@ -160,7 +205,7 @@ impl TestEnv {
         )
         .await?;
 
-        let observer = Observer::new(&rpc, router_address, blob_reader.clone())
+        let observer = Observer::new(&rpc_url, router_address, blob_reader.clone())
             .await
             .expect("failed to create observer");
 
@@ -172,8 +217,9 @@ impl TestEnv {
             ethereum,
             router_query,
             signer,
-            rpc_url: rpc,
+            rpc_url,
             sequencer_public_key,
+            validator_private_key,
             validator_public_key,
             router_address,
             block_time,
@@ -185,6 +231,7 @@ impl TestEnv {
 
     pub fn start_anvil() -> AnvilInstance {
         let mut anvil = Anvil::new().try_spawn().unwrap();
+        log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
         drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
         anvil
     }
@@ -280,7 +327,9 @@ async fn ping() {
 
     let anvil = TestEnv::start_anvil();
 
-    let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let mut env = TestEnv::new(TestEnvConfig::default().rpc_url(anvil.ws_endpoint()))
+        .await
+        .unwrap();
     let mut listener = env.new_listener().await;
 
     env.start_service().await.unwrap();
@@ -396,9 +445,19 @@ async fn ping() {
 async fn ping_reorg() {
     gear_utils::init_default_logger();
 
-    let anvil = TestEnv::start_anvil();
+    let mut _anvil = None;
+    let rpc_url = if let Ok(lol) = std::env::var("LOL") {
+        lol
+    } else {
+        let a = TestEnv::start_anvil();
+        let url = a.ws_endpoint();
+        _anvil = Some(a);
+        url
+    };
 
-    let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let mut env = TestEnv::new(TestEnvConfig::default().rpc_url(rpc_url.clone()))
+        .await
+        .unwrap();
     let mut listener = env.new_listener().await;
 
     env.start_service().await.unwrap();
@@ -534,9 +593,7 @@ async fn ping_reorg() {
         .unwrap();
 
     log::info!("📗 Sending PING message after reorg");
-    let _tx = env
-        .ethereum
-        .program(program_address)
+    let _tx = ping_program
         .send_message(b"PING", 10_000_000_000, 0)
         .await
         .unwrap();
@@ -556,6 +613,58 @@ async fn ping_reorg() {
         .unwrap();
 
     // The last step is to test correctness after db cleanup
-    // let ethereum = env.ethereum.clone();
-    // drop(env);
+    let router_address = env.router_address;
+    let blob_reader = env.blob_reader.clone();
+    let validator_private_key = env.validator_private_key;
+    drop(env);
+
+    log::info!("📗 Sending PING message, db cleanup and service shuting down");
+    let _tx = ping_program
+        .send_message(b"PING", 10_000_000_000, 0)
+        .await
+        .unwrap();
+
+    // Skip some blocks to simulate long time without service
+    provider
+        .evm_mine(Some(MineOptions::Options {
+            timestamp: None,
+            blocks: Some(10),
+        }))
+        .await
+        .unwrap();
+
+    let mut env = TestEnv::new(TestEnvConfig {
+        rpc_url,
+        router_address: Some(router_address),
+        blob_reader: Some(blob_reader),
+        validator_private_key: Some(validator_private_key),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    env.start_service().await.unwrap();
+
+    // Important: mine one block to sent block event to the new service.
+    provider.evm_mine(None).await.unwrap();
+
+    log::info!("📗 Waiting for PONG reply service restart on empty db");
+    listener
+        .apply_until_block_event(|event| {
+            if let BlockEvent::UserReplySent(reply) = event {
+                assert_eq!(reply.reply_details.to_message_id(), Default::default());
+                assert_eq!(reply.value, 0);
+                assert_eq!(reply.payload, b"PONG");
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    // Await for service block with user reply handling
+    // TODO: this is for better logs reading only, should find a better solution.
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    log::info!("📗 Done");
 }

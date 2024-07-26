@@ -28,6 +28,7 @@ use std::{fmt, fs, path::PathBuf, str::FromStr};
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PublicKey(pub [u8; 33]);
 
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PrivateKey(pub [u8; 32]);
 
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
