@@ -19,7 +19,7 @@
 use crate::{
     manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet, QueueOf,
 };
-use alloc::string::ToString;
+use alloc::{format, string::ToString};
 use common::{
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
@@ -32,7 +32,7 @@ use common::{
 use core::cmp;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    message::{DispatchKind, ReplyMessage},
+    message::{DispatchKind, Payload, ReplyMessage},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 
@@ -89,8 +89,16 @@ where
         Pallet::<T>::create(user_id.clone(), message.id(), 0, true);
 
         // Reading message from mailbox.
-        let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
-            .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
+        let mailboxed = Pallet::<T>::read_message(user_id.clone(), message_id, reason.clone())
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "TaskHandler::remove_from_mailbox: failed reading message from mailbox. \
+                User - {user_id:?}, message - {message_id}, reason - {reason:?}. Got error: {e:?}."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
         // Converting reply message into appropriate type for queueing.
         let dispatch = message.into_stored_dispatch(
@@ -100,8 +108,15 @@ where
         );
 
         // Queueing dispatch.
-        QueueOf::<T>::queue(dispatch)
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "TaskHandler::remove_from_mailbox: failed queuing message. \
+                Got error: {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         let gas = <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time();
         log::trace!("Task gas: tasks_remove_from_mailbox = {gas}");
@@ -114,8 +129,17 @@ where
         let reason = MessageWokenSystemReason::OutOfRent.into_reason();
 
         // Waking dispatch.
-        let waitlisted = Pallet::<T>::wake_dispatch(program_id, message_id, reason)
-            .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
+        let waitlisted = Pallet::<T>::wake_dispatch(program_id, message_id, reason.clone())
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "TaskHandler::remove_from_waitlist: failed waking dispatch. \
+                Program id - {program_id}, waking message - {message_id}, reason - {reason:?} \
+                Got error - {e:?}."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
         self.send_signal(
             message_id,
@@ -132,7 +156,18 @@ where
                 .to_string()
                 .into_bytes()
                 .try_into()
-                .unwrap_or_else(|_| unreachable!("Error message is too large"));
+                .unwrap_or_else(|_| {
+                    let error_reply = err.to_string().into_bytes();
+                    let err_msg = format!(
+                        "TaskHandler::remove_from_waitlist: failed convertion of error reply into `Payload`. \
+                        Error reply bytes len - {len}, max payload len - {max_len}",
+                        len = error_reply.len(),
+                        max_len = Payload::max_len(),
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
 
             let trap_reply = ReplyMessage::system(message_id, err_payload, err);
 
@@ -149,8 +184,15 @@ where
                 );
 
                 // Queueing dispatch.
-                QueueOf::<T>::queue(trap_dispatch)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                QueueOf::<T>::queue(trap_dispatch).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "TaskHandler::remove_from_waitlist: failed queuing message. \
+                        Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             } else {
                 // Sending trap reply to user, by depositing event.
                 //
@@ -161,7 +203,17 @@ where
                     trap_reply.into_stored(program_id, waitlisted.source(), message_id);
                 let trap_reply = trap_reply
                     .try_into()
-                    .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
+                    .unwrap_or_else(|_| {
+                        // Signal message sent to user
+                        let err_msg = format!(
+                            "TaskHandler::remove_from_waitlist: failed convertion from stored into user message. \
+                            Message id - {message_id}, program id - {program_id}, destination - {dest}",
+                            dest = waitlisted.source()
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    });
 
                 // Depositing appropriate event.
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
@@ -194,10 +246,19 @@ where
             program_id,
             message_id,
             MessageWokenRuntimeReason::WakeCalled.into_reason(),
-        ) {
+        )
+        .ok()
+        {
             Some(dispatch) => {
-                QueueOf::<T>::queue(dispatch)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "TaskHandler::wake_message: failed queuing message. \
+                        Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
 
                 let gas = <T as Config>::WeightInfo::tasks_wake_message().ref_time();
                 log::trace!("Task gas: tasks_wake_message = {gas}");
@@ -217,13 +278,27 @@ where
         // No validation required. If program doesn't exist, then NotExecuted appears.
 
         let (dispatch, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
-            .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
+            .unwrap_or_else(|| {
+                let err_msg = format!(
+                    "TaskHandler::send_dispatch: failed taking message from stash. Message id - {stashed_message_id}."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
         // Charging locked gas for holding in dispatch stash.
         Pallet::<T>::charge_for_hold(dispatch.id(), hold_interval, StorageType::DispatchStash);
 
-        QueueOf::<T>::queue(dispatch.into())
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        QueueOf::<T>::queue(dispatch.into()).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "TaskHandler::send_dispatch: failed queuing message. \
+                Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         let gas = <T as Config>::WeightInfo::tasks_send_dispatch().ref_time();
         log::trace!("Task gas: tasks_send_dispatch = {gas}");
@@ -236,15 +311,33 @@ where
         // Atm despite the fact that program may exist, message goes into mailbox / event.
         let (message, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
             .map(|(dispatch, interval)| (dispatch.into_parts().1, interval))
-            .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
+            .unwrap_or_else(|| {
+                let err_msg = format!(
+                    "TaskHandler::send_user_message: failed taking message from stash. Message id - {stashed_message_id}."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
         // Charge gas for message save.
         Pallet::<T>::charge_for_hold(message.id(), hold_interval, StorageType::DispatchStash);
 
+        // Taking data for error log
+        let message_id = message.id();
+        let program_id = message.source();
+
         // Cast message type.
-        let message = message
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
+        let message = message.try_into().unwrap_or_else(|_| {
+            // Signal message sent to user
+            let err_msg = format!(
+                "TaskHandler::send_user_message: failed convertion from stored into user message. \
+                    Message id - {message_id}, program id - {program_id}.",
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
 
         if to_mailbox {

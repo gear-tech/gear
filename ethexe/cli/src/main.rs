@@ -16,24 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod args;
-mod chain_spec;
-mod config;
-mod metrics;
-mod params;
-mod service;
-
-#[cfg(test)]
-mod tests;
-
-use crate::{
+use anyhow::Context;
+use clap::Parser;
+use env_logger::Env;
+use ethexe_cli::{
     args::{Args, ArgsOnConfig},
     config::Config,
     service::Service,
 };
-use anyhow::Context;
-use clap::Parser;
-use env_logger::Env;
 use std::{env, fs};
 
 #[tokio::main]
