@@ -33,7 +33,7 @@
 //!    func(&refcell, &mut mut_borrow);
 //! ```
 //!
-//! Now we need to borrow store mutably again inside `higher_call_stack_func`,
+//! Now we need to borrow store mutably again inside `func`,
 //! but we can't do it because `mut_borrow` still exists.
 //!  
 //! ```rust
