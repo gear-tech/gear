@@ -6753,6 +6753,7 @@ dependencies = [
  "indexmap 2.2.6",
  "indicatif",
  "log",
+ "nonempty",
  "proptest",
  "rand 0.8.5",
  "thiserror",
