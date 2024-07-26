@@ -880,26 +880,41 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{Log, System};
+    use crate::{Log, ProgramIdWrapper, System};
+    use demo_constructor::Arg;
     use gear_core::ids::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
     #[test]
     fn test_handle_signal() {
+        use demo_constructor::{Calls, Scheme, WASM_BINARY};
         let sys = System::new();
         sys.init_logger();
 
         let user_id = 42;
 
-        let prog = Program::from_binary_with_id(&sys, 137, signal_in_handle::WASM_BINARY);
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            Calls::builder()
+                .system_reserve_gas(1_000_000_000)
+                .panic("Gotcha!"),
+            Calls::builder().noop(),
+            Calls::builder().send(
+                Arg::new(ProgramIdWrapper::from(user_id).0.into_bytes()),
+                Arg::bytes("Signal handled"),
+            ),
+        );
 
-        let run_result = prog.send_bytes(user_id, b"Does not matter");
+        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
 
+        let run_result = prog.send(user_id, scheme);
         assert!(!run_result.main_failed());
+        let run_result = prog.send(user_id, *b"Hello");
 
-        let run_result = prog.send(user_id, String::from("should panic"));
-        log::debug!("{:?}", run_result);
         run_result.assert_panicked_with("Gotcha!");
+        let log = Log::builder().payload_bytes("Signal handled");
+        let value = sys.get_mailbox(user_id).claim_value(log);
+        assert!(value.is_ok());
     }
 
     #[test]
