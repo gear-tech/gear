@@ -429,6 +429,7 @@ async fn create_provider(
     ))
 }
 
+#[derive(Clone)]
 pub struct Ethereum {
     router_address: Address,
     provider: Arc<AlloyProvider>,

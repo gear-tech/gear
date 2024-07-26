@@ -118,8 +118,8 @@ struct TestEnv {
     sequencer_public_key: ethexe_signer::PublicKey,
     validator_public_key: ethexe_signer::PublicKey,
     router_address: ethexe_signer::Address,
-    sender_address: ethexe_signer::Address,
     block_time: Duration,
+    running_service_handle: Option<JoinHandle<Result<()>>>,
 }
 
 impl TestEnv {
@@ -176,8 +176,8 @@ impl TestEnv {
             sequencer_public_key,
             validator_public_key,
             router_address,
-            sender_address,
             block_time,
+            running_service_handle: None,
         };
 
         Ok(env)
@@ -193,7 +193,11 @@ impl TestEnv {
         Listener::new(self.observer.clone()).await
     }
 
-    pub async fn new_service(&self) -> Result<Service> {
+    pub async fn start_service(&mut self) -> Result<()> {
+        if self.running_service_handle.is_some() {
+            return Err(anyhow!("Service is already running"));
+        }
+
         let processor = Processor::new(self.db.clone())?;
 
         let sequencer = Sequencer::new(
@@ -214,7 +218,7 @@ impl TestEnv {
             self.signer.clone(),
         );
 
-        Ok(Service::new_from_parts(
+        let service = Service::new_from_parts(
             self.db.clone(),
             self.observer.clone(),
             self.query.clone(),
@@ -226,19 +230,26 @@ impl TestEnv {
             Some(validator),
             None,
             None,
-        ))
+        );
+
+        let handle = task::spawn(service.run());
+        self.running_service_handle = Some(handle);
+
+        // Sleep to wait for the new service to start
+        // TODO: find a better way to wait for the service to start
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        Ok(())
     }
 
-    #[allow(unused)]
-    pub async fn reset_ethereum(&mut self) {
-        self.ethereum = Ethereum::new(
-            &self.rpc_url,
-            self.router_address,
-            self.signer.clone(),
-            self.sender_address,
-        )
-        .await
-        .expect("failed to create ethereum object");
+    pub async fn stop_service(&mut self) -> Result<()> {
+        if let Some(handle) = self.running_service_handle.take() {
+            handle.abort();
+            let _ = handle.await;
+            Ok(())
+        } else {
+            Err(anyhow!("Service is not running"))
+        }
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
@@ -254,6 +265,14 @@ impl TestEnv {
     }
 }
 
+impl Drop for TestEnv {
+    fn drop(&mut self) {
+        if let Some(handle) = self.running_service_handle.take() {
+            handle.abort();
+        }
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
@@ -261,11 +280,10 @@ async fn ping() {
 
     let anvil = TestEnv::start_anvil();
 
-    let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
     let mut listener = env.new_listener().await;
 
-    let service = env.new_service().await.unwrap();
-    let service_handle = task::spawn(service.run());
+    env.start_service().await.unwrap();
 
     let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
 
@@ -371,8 +389,6 @@ async fn ping() {
         })
         .await
         .unwrap();
-
-    service_handle.abort();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -382,11 +398,10 @@ async fn ping_reorg() {
 
     let anvil = TestEnv::start_anvil();
 
-    let env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
+    let mut env = TestEnv::new(anvil.ws_endpoint()).await.unwrap();
     let mut listener = env.new_listener().await;
 
-    let service = env.new_service().await.unwrap();
-    let service_handle = task::spawn(service.run());
+    env.start_service().await.unwrap();
 
     let provider = env.observer.provider().clone();
 
@@ -420,8 +435,8 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    // Abort service to skip program creation
-    service_handle.abort();
+    log::info!("📗 Abort service to simulate node blocks skipping");
+    env.stop_service().await.unwrap();
 
     let _ = env
         .ethereum
@@ -439,13 +454,8 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    // Create new service
-    let service = env.new_service().await.unwrap();
-    let service_handle = task::spawn(service.run());
-
-    // Sleep to wait for the new service to start
-    // TODO: find a better way to wait for the service to start
-    tokio::time::sleep(env.block_time).await;
+    // Start new service
+    env.start_service().await.unwrap();
 
     // IMPORTANT: Mine one block to sent block event to the new service.
     provider.evm_mine(None).await.unwrap();
@@ -484,7 +494,7 @@ async fn ping_reorg() {
         .unwrap();
 
     log::info!(
-        "📗 Create snapshot for block: {}",
+        "📗 Create snapshot for block: {}, where ping program is already created",
         provider.get_block_number().await.unwrap()
     );
     let program_created_snapshot_id = provider.anvil_snapshot().await.unwrap();
@@ -545,5 +555,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    service_handle.abort();
+    // The last step is to test correctness after db cleanup
+    // let ethereum = env.ethereum.clone();
+    // drop(env);
 }
