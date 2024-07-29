@@ -59,7 +59,7 @@ mod panic_handler {
         pub const PANIC_PREFIX: &str = "panicked with ";
         /// This panic message is used in the minimal panic handler and when
         /// internal errors occur.
-        #[cfg(not(feature = "panic-message"))]
+        #[cfg(any(feature = "panic-info-message", not(feature = "panic-message")))]
         pub const UNKNOWN_REASON: &str = "<unknown>";
 
         /// This prefix is used by `impl Display for PanicInfo<'_>`.
@@ -99,14 +99,19 @@ mod panic_handler {
 
         let msg = panic_info.message();
 
-        #[allow(unused_variables)]
-        if let Some(loc) = panic_info.location() {
+        match (Some(panic_info.message()), panic_info.location()) {
             #[cfg(feature = "panic-location")]
-            let _ = write!(&mut debug_msg, "'{msg}' at '{loc}'");
-        } else {
+            (Some(msg), Some(loc)) => {
+                let _ = write!(&mut debug_msg, "'{msg}' at '{loc}'");
+            }
             #[cfg(not(feature = "panic-location"))]
-            let _ = write!(&mut debug_msg, "'{msg}'");
-        }
+            (Some(msg), _) => {
+                let _ = write!(&mut debug_msg, "'{msg}'");
+            }
+            _ => {
+                let _ = debug_msg.try_push_str(const_format::formatcp!("'{UNKNOWN_REASON}'"));
+            }
+        };
 
         #[cfg(feature = "debug")]
         let _ = ext::debug(&debug_msg);
