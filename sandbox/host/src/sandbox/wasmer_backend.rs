@@ -72,7 +72,8 @@ mod store_refcell_ctx {
 }
 
 pub struct Env {
-    // Gas global is optional to allow run non-instrumented programs (used for tests, benches).
+    // Gas global is optional because it will be initialized after instance creation.
+    // See `instantiate` function.
     gas_global: Option<sandbox_wasmer::Global>,
 }
 
@@ -400,7 +401,9 @@ pub fn instantiate(
             })
     })?;
 
-    // Init func env with gas global after instance creation
+    // Initialize function environment with gas global after instance creation.
+    // NOTE: The gas global could still be `None`,
+    // because it is not set for non-instrumented programs (used in tests and benchmarks).
     let gas_global = instance.exports.get_global(GLOBAL_NAME_GAS).ok().cloned();
     func_env
         .as_mut(&mut context.store().borrow_mut())
