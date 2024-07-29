@@ -113,7 +113,7 @@ pub struct StoreRefCell {
 pub struct BorrowScopeError;
 
 impl StoreRefCell {
-    /// Create new `StoreRefCell` with provided `Store
+    /// Create new `StoreRefCell` with provided `Store`
     pub fn new(store: Store) -> Self {
         Self {
             store: UnsafeCell::new(store),
