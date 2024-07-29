@@ -23,6 +23,7 @@
 
 mod artifact;
 mod cli;
+mod command;
 mod metadata;
 
-pub use self::{artifact::Artifact, cli::GBuild};
+pub use self::{artifact::Artifact, cli::GBuild, command::Command};

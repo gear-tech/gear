@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{artifact::Artifacts, metadata::Metadata, Artifact};
+use crate::{artifact::Artifacts, metadata::Metadata, Artifact, Command};
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
@@ -34,6 +34,10 @@ const RELEASE_PROFILE: &str = "release";
 /// Command `gbuild` as cargo extension.
 #[derive(Parser, Default)]
 pub struct GBuild {
+    /// `cargo-gbuild` command
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
     /// Space or comma separated list of features to activate
     #[clap(short = 'F', long)]
     pub features: Vec<String>,
@@ -75,8 +79,17 @@ impl GBuild {
         self
     }
 
+    /// Run `cargo-gbuild`
+    pub fn run(self) -> Result<()> {
+        if let Some(command) = self.command {
+            command.run()
+        } else {
+            self.build().map(|_| ())
+        }
+    }
+
     /// Run the gbuild command
-    pub fn run(&self) -> Result<Artifacts> {
+    pub fn build(&self) -> Result<Artifacts> {
         let manifest_path = self
             .manifest_path
             .clone()
