@@ -402,7 +402,15 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "Pallet::withdraw_gas: withdraw failed. \
+                    Account id - {account_id:?}, amount - {amount}. Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -412,8 +420,15 @@ pub mod pallet {
             amount: u64,
             multiplier: GasMultiplier<T>,
         ) -> Result<(), Error<T>> {
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+            let block_author = Authorship::<T>::author().unwrap_or_else(|| {
+                let err_msg = format!(
+                    "Pallet::spend_gas: Failed to find block author. \
+                        Account id - {account_id:?}, amount - {amount}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Self::spend_gas_to(&block_author, account_id, amount, multiplier)
         }
@@ -430,8 +445,15 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
-            Self::withdraw_on_finalize(to, value)
-                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "Pallet::spend_gas_to: withdraw on finalize failed. \
+                        Account id - {account_id:?}, amount - {amount}. Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -500,7 +522,15 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "Pallet::withdraw_value: withdraw failed. \
+                    Account id - {account_id:?}, value - {value:?}. Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -521,7 +551,15 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(destination, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(destination, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "Pallet::transfer_value: withdraw failed. \
+                    Account id - {account_id:?}, destination: {destination:?}, value - {value:?}. Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
