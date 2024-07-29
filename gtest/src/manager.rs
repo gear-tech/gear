@@ -38,7 +38,7 @@ use core_processor::{
     },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
-use gear_common::auxiliary::mailbox::MailboxErrorImpl;
+use gear_common::{auxiliary::mailbox::MailboxErrorImpl, Origin};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
@@ -1014,6 +1014,8 @@ impl JournalHandler for ExtManager {
 
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
+        let source = dispatch.source();
+
         if self.is_program(&dispatch.destination()) {
             match (dispatch.gas_limit(), reservation) {
                 (Some(gas_limit), None) => self
@@ -1028,18 +1030,6 @@ impl JournalHandler for ExtManager {
                     self.gas_tree
                         .split(false, reservation, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // Remove program from the internal storage
-                    self.actors
-                        .borrow_mut()
-                        .get_mut(&dispatch.source())
-                        .and_then(|(actor, _)| actor.genuine_program_mut())
-                        .map(|prog| {
-                            if prog.gas_reservation_map.remove(&reservation).is_none() {
-                                unreachable!("Tried to use non-existent reservation.");
-                            }
-                        })
-                        .expect("no genuine program found for program");
 
                     // Unspecified node is created from the reservation, so consuming it doesn't
                     if let Ok(Some(_)) = self.gas_tree.consume(reservation) {
@@ -1059,8 +1049,11 @@ impl JournalHandler for ExtManager {
             let stored_message = dispatch.into_stored().into_parts().1;
 
             if let Ok(mailbox_msg) = stored_message.clone().try_into() {
+                let origin_node = reservation
+                    .map(|r| r.into_origin().cast())
+                    .unwrap_or(message_id);
                 self.gas_tree
-                    .cut(message_id, stored_message.id(), gas_limit)
+                    .cut(origin_node, stored_message.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 self.mailbox
@@ -1071,6 +1064,25 @@ impl JournalHandler for ExtManager {
             };
 
             self.log.push(stored_message);
+        }
+
+        if let Some(reservation) = reservation {
+            // Remove reservation from program reservations map
+            self.actors
+                .borrow_mut()
+                .get_mut(&source)
+                .and_then(|(actor, _)| actor.genuine_program_mut())
+                .map(|prog| {
+                    if prog.gas_reservation_map.remove(&reservation).is_none() {
+                        unreachable!("Tried to use non-existent reservation.");
+                    }
+                })
+                .expect("no genuine program found for program");
+
+            let _ = self
+                .gas_tree
+                .consume(reservation)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
     }
 

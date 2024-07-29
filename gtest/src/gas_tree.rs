@@ -111,12 +111,12 @@ impl GasTreeManager {
     /// Adapted by argument types version of the gas tree `cut` method.
     pub(crate) fn cut(
         &self,
-        original_mid: MessageId,
+        original_node: MessageId,
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
         GasTree::cut(
-            GasNodeId::from(original_mid.cast::<PlainNodeId>()),
+            GasNodeId::from(original_node.cast::<PlainNodeId>()),
             GasNodeId::from(new_mid.cast::<PlainNodeId>()),
             amount,
         )

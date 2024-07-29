@@ -1143,12 +1143,12 @@ mod tests {
         assert!(results.iter().any(|result| result.contains(&log)));
     }
 
+    // Possible solution for the issue#3699 worked.
+    // the test must not panic.
     #[test]
-    #[should_panic]
     fn reservations_limit() {
         use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
