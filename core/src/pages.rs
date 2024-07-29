@@ -119,7 +119,11 @@ impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
         match self.cmp(&Self::UPPER) {
             Ordering::Greater => {
                 // This panic is impossible because of `PagesAmount` constructors implementation.
-                unreachable!("PageBound must be always less or equal than UPPER")
+                let err_msg =
+                    "PagesAmount::unbound: PageBound must be always less or equal than UPPER";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
             }
             Ordering::Equal => None,
             Ordering::Less => Some(Page(self.0)),

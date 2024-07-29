@@ -410,14 +410,21 @@ impl AllocationsContext {
         // TODO: store `heap` as field in `Self` instead of `static_pages` and `max_pages` #3932
         let heap = match Interval::try_from(self.static_pages..self.max_pages) {
             Ok(interval) => interval,
-            Err(TryFromRangeError::IncorrectRange) => unreachable!(
-                "Must be self.static_pages <= self.max_pages. This is guaranteed by `Self::try_new`."
-            ),
+            Err(TryFromRangeError::IncorrectRange) => {
+                let err_msg = format!(
+                    "AllocationContext:alloc: Must be self.static_pages <= self.max_pages. This is guaranteed by `Code::try_new`. \
+                    Static pages - {:?}, max pages - {:?}",
+                    self.static_pages, self.max_pages
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
             Err(TryFromRangeError::EmptyRange) => {
                 // If all memory is static, then no pages can be allocated.
                 // NOTE: returns an error even if `pages` == 0.
-                return Err(AllocError::ProgramAllocOutOfBounds)
-            },
+                return Err(AllocError::ProgramAllocOutOfBounds);
+            }
         };
 
         // If trying to allocate zero pages, then returns heap start page (legacy).
@@ -438,8 +445,15 @@ impl AllocationsContext {
         if let Ok(grow) = Interval::<WasmPage>::try_from(mem.size(ctx)..interval.end().inc()) {
             charge_gas_for_grow(grow.len())?;
             let grow_handler = G::before_grow_action(ctx, mem);
-            mem.grow(ctx, grow.len())
-                .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
+            mem.grow(ctx, grow.len()).unwrap_or_else(|err| {
+                let err_msg = format!(
+                    "AllocationContext:alloc: Failed to grow memory. \
+                        Got error - {err:?}",
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
             grow_handler.after_grow_action(ctx, mem);
         }
 

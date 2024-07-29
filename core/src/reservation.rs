@@ -231,7 +231,13 @@ impl GasReserver {
                 amount
             }
             GasReservationState::Created { amount, .. } => amount,
-            GasReservationState::Removed { .. } => unreachable!("Checked above"),
+            GasReservationState::Removed { .. } => {
+                let err_msg =
+                    "GasReserver::unreserve: `Removed` variant is unreachable, checked above";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         };
 
         Ok(amount)
