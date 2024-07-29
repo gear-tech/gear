@@ -376,9 +376,8 @@ where
         // TODO: pass `memory_infix` as argument #4025
         let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             // Guaranteed to be called on existing active program
-            let err_msg = format!(
-                "JournalHandler::update_pages_data: program is not active {program_id}"
-            );
+            let err_msg =
+                format!("JournalHandler::update_pages_data: program is not active {program_id}");
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}");
@@ -393,9 +392,8 @@ where
         // TODO: pass `memory_infix` as argument #4025
         let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             // Guaranteed to be called on existing active program
-            let err_msg = format!(
-                "JournalHandler::update_allocations: program is not active {program_id}."
-            );
+            let err_msg =
+                format!("JournalHandler::update_allocations: program is not active {program_id}.");
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}");
