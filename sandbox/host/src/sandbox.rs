@@ -273,7 +273,7 @@ impl SandboxInstance {
             BackendInstanceBundle::Wasmi(wasmi_instance) => wasmi_get_global(wasmi_instance, name),
 
             BackendInstanceBundle::Wasmer { instance, store } => unsafe {
-                // We cannot use `store.borrow_mut()` in single handler context because it's already borrowed during `invoke` call.
+                // We cannot use `store.borrow_mut()` in signal handler context because it's already borrowed during `invoke` call.
                 wasmer_get_global(instance, &mut *store.as_ptr(), name)
             },
         }
