@@ -263,7 +263,7 @@ impl SandboxInstance {
 
     /// Get the value from a global with the given `name`. Only for usage in signal handler.
     ///
-    /// Returns `Some(_)` if the global could be found.
+    /// Returns `Some(_)` if the global has been found.
     ///
     /// # Safety
     ///
