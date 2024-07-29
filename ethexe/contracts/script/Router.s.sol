@@ -3,16 +3,16 @@ pragma solidity ^0.8.26;
 
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Script, console} from "forge-std/Script.sol";
-import {Program} from "../src/Program.sol";
-import {MinimalProgram} from "../src/MinimalProgram.sol";
+import {Mirror} from "../src/Mirror.sol";
+import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {Router} from "../src/Router.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
 contract RouterScript is Script {
     WrappedVara public wrappedVara;
     Router public router;
-    Program public program;
-    MinimalProgram public minimalProgram;
+    Mirror public mirror;
+    MirrorProxy public mirrorProxy;
 
     function setUp() public {}
 
@@ -25,12 +25,12 @@ contract RouterScript is Script {
 
         wrappedVara = WrappedVara(
             Upgrades.deployTransparentProxy(
-                "WrappedVara.sol", deployerAddress, abi.encodeCall(WrappedVara.initialize, (deployerAddress, 6))
+                "WrappedVara.sol", deployerAddress, abi.encodeCall(WrappedVara.initialize, (deployerAddress))
             )
         );
 
-        address programAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        address minimalProgramAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+        address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
+        address mirrorProxyAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
         address wrappedVaraAddress = address(wrappedVara);
 
         router = Router(
@@ -39,19 +39,20 @@ contract RouterScript is Script {
                 deployerAddress,
                 abi.encodeCall(
                     Router.initialize,
-                    (deployerAddress, programAddress, minimalProgramAddress, wrappedVaraAddress, validatorsArray)
+                    (deployerAddress, mirrorAddress, mirrorProxyAddress, wrappedVaraAddress, validatorsArray)
                 )
             )
         );
-        program = new Program();
-        minimalProgram = new MinimalProgram(address(router));
+        mirror = new Mirror();
+        mirrorProxy = new MirrorProxy(address(router));
 
+        // TODO (breathx): remove this approve.
         wrappedVara.approve(address(router), type(uint256).max);
 
         vm.stopBroadcast();
 
-        vm.assertEq(router.program(), address(program));
-        vm.assertEq(router.minimalProgram(), address(minimalProgram));
-        vm.assertEq(minimalProgram.router(), address(router));
+        vm.assertEq(router.mirror(), address(mirror));
+        vm.assertEq(router.mirrorProxy(), address(mirrorProxy));
+        vm.assertEq(mirrorProxy.router(), address(router));
     }
 }

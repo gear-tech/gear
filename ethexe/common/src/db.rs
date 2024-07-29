@@ -18,7 +18,7 @@
 
 //! ethexe common db types and traits.
 
-use crate::{events::BlockEvent, StateTransition};
+use crate::{router::StateTransition, BlockEvent};
 use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,

@@ -2,10 +2,10 @@
 pragma solidity ^0.8.26;
 
 import {Proxy} from "@openzeppelin/contracts/proxy/Proxy.sol";
-import {IMinimalProgram} from "./IMinimalProgram.sol";
+import {IMirrorProxy} from "./IMirrorProxy.sol";
 import {IRouter} from "./IRouter.sol";
 
-contract MinimalProgram is IMinimalProgram, Proxy {
+contract MirrorProxy is IMirrorProxy, Proxy {
     address public immutable router;
 
     constructor(address _router) {
@@ -13,6 +13,11 @@ contract MinimalProgram is IMinimalProgram, Proxy {
     }
 
     function _implementation() internal view virtual override returns (address) {
-        return IRouter(router).program();
+        return IRouter(router).mirror();
+    }
+
+    // TODO: remove me in favor of proper ether handling everywhere.
+    receive() external payable {
+        payable(router).transfer(msg.value);
     }
 }
