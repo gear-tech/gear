@@ -19,8 +19,10 @@
 // NOTE: Gathering everything in this single file atm since we only have
 // one command for now.
 
+use crate::utils;
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use colored::Colorize;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -55,18 +57,29 @@ fn git_clone(repo: &str, target: PathBuf) -> Result<()> {
         .to_str()
         .ok_or(anyhow!("Failed to convert target path to string"))?;
 
-    // Clone template to the target path.
-    process::Command::new("git")
+    // clone template to the target path.
+    utils::info("Downloading", repo);
+    let result = process::Command::new("git")
         .args(["clone", &repo, &path, "--depth=1"])
-        .status()
+        .output()
         .map_err(|e| anyhow!("Failed to download template: {}", e))?;
 
-    fs::remove_dir(target.join(".git"))?;
+    if !result.status.success() {
+        utils::error(&result.stderr);
+    }
 
-    // Init new git repo.
+    // clean the .git in template
+    fs::remove_dir_all(target.join(".git"))?;
+
+    // init new git.
     process::Command::new("git")
         .args(["init", &path])
-        .status()
+        .output()
         .map_err(|e| anyhow!("Failed to init git: {}", e))?;
+    if !result.status.success() {
+        utils::error(&result.stderr);
+    }
+
+    utils::info("Finished", path);
     Ok(())
 }

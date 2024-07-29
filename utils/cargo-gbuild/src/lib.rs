@@ -25,5 +25,6 @@ mod artifact;
 mod cli;
 mod command;
 mod metadata;
+mod utils;
 
 pub use self::{artifact::Artifact, cli::GBuild, command::Command};

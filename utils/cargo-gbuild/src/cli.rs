@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{artifact::Artifacts, metadata::Metadata, Artifact, Command};
+use crate::{artifact::Artifacts, metadata::Metadata, utils, Artifact, Command};
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
@@ -130,14 +130,11 @@ impl GBuild {
 
         if let Some(p) = &self.profile {
             if self.release {
-                eprintln!(
-                    "{}: conflicting usage of --profile={} and --release
+                utils::error(
+                    b"conflicting usage of --profile={} and --release
 The `--release` flag is the same as `--profile=release`.
 Remove one flag or the other to continue.",
-                    "error".red().bold(),
-                    p
                 );
-                std::process::exit(1);
             }
 
             profile = Some(p.to_string());
