@@ -283,7 +283,7 @@ impl TestEnv {
         self.running_service_handle = Some(handle);
 
         // Sleep to wait for the new service to start
-        // TODO: find a better way to wait for the service to start
+        // TODO: find a better way to wait for the service to start #4099
         tokio::time::sleep(Duration::from_secs(1)).await;
 
         Ok(())
@@ -582,7 +582,7 @@ async fn ping_reorg() {
         .unwrap();
 
     // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution.
+    // TODO: this is for better logs reading only, should find a better solution #4099
     tokio::time::sleep(env.block_time).await;
 
     log::info!("📗 Reverting to the program creation snapshot");
@@ -663,7 +663,7 @@ async fn ping_reorg() {
         .unwrap();
 
     // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution.
+    // TODO: this is for better logs reading only, should find a better solution #4099
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     log::info!("📗 Done");
