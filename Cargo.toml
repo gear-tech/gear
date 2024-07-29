@@ -174,7 +174,8 @@ syn = "2.0.71"
 thiserror = "1.0.62"
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
-url = "2.5.0"
+url = "2.5.2"
+# wasmer 4.3.4 for some reason have wat's version "=1.0.71" nailed down, so we have to do the same
 wat = "1.0.71"
 wabt = "0.10.0"
 wasmer = "4.3.4"
