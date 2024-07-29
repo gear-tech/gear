@@ -882,6 +882,7 @@ mod tests {
     use super::Program;
     use crate::{Log, System};
     use demo_constructor::Scheme;
+    use gear_common::Origin;
     use gear_core::ids::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
@@ -1240,9 +1241,8 @@ mod tests {
                     .gas_reservation_map
                     .iter()
                     .next()
-                    .map(|(id, _)| id)
+                    .map(|(&id, _)| id)
             })
-            .copied()
             .expect("internal error: reservation wasn't found");
 
         // Check reservation exists in the tree
@@ -1257,6 +1257,55 @@ mod tests {
         assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
     }
 
-    // test send user message
-    // test sending program message
+    #[test]
+    fn test_reservation_send() {
+        use demo_constructor::{Calls, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        let prog_id = 4242;
+        let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
+
+        // Initialize program
+        let res = prog.send(user_id, Scheme::empty());
+        assert!(!res.main_failed());
+
+        // Send user message from reservation
+        let payload = b"to_user".to_vec();
+        let handle = Calls::builder()
+            .reserve_gas(10_000_000_000, 5)
+            .store("reservation")
+            .reservation_send_value("reservation", user_id.into_origin().0, payload.clone(), 0);
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+
+        // Check user message in mailbox
+        let mailbox = sys.get_mailbox(user_id);
+        assert!(mailbox.contains(&Log::builder().payload(payload).source(prog_id)));
+
+        // Initialize another program for another test
+        let new_prog_id = 4343;
+        let new_program = Program::from_binary_with_id(&sys, new_prog_id, WASM_BINARY);
+        let payload = b"sup!".to_vec();
+        let handle = Calls::builder().send(user_id.into_origin().0, payload.clone());
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            handle,
+            Calls::builder().noop(),
+            Calls::builder().noop(),
+        );
+        let res = new_program.send(user_id, scheme);
+        assert!(!res.main_failed());
+
+        // Send program message from reservation
+        let handle = Calls::builder()
+            .reserve_gas(10_000_000_000, 5)
+            .store("reservation")
+            .reservation_send_value("reservation", new_prog_id.into_origin().0, [], 0);
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+        assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
+    }
 }
