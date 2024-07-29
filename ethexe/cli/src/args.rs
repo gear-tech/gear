@@ -102,7 +102,7 @@ pub struct Args {
 
     #[allow(missing_docs)]
     #[clap(flatten)]
-    pub network_params: NetworkParams,
+    pub network_params: Option<NetworkParams>,
 
     #[allow(missing_docs)]
     #[clap(flatten)]
@@ -185,7 +185,7 @@ impl ExtraCommands {
         let maybe_ethereum = if let Some(sender_address) = maybe_sender_address {
             Ethereum::new(
                 &config.ethereum_rpc,
-                config.ethereum_router_address.parse()?,
+                config.ethereum_router_address,
                 signer.clone(),
                 sender_address,
             )
