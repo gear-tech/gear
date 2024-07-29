@@ -23,11 +23,13 @@
 extern crate alloc;
 
 use gprimitives::ActorId;
+use parity_scale_codec::{Decode, Encode};
 
 pub mod db;
 pub mod mirror;
 pub mod router;
 
+#[derive(Clone, Debug, Encode, Decode)]
 pub enum BlockEvent {
     Router(router::Event),
     Mirror {
