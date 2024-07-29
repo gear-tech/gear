@@ -227,7 +227,7 @@ macro_rules! def_memory_layout {
                     }
 
                     const _: () = assert!(
-                        mem::size_of::<WasmMemoryLayout>() as u32 <= $name::RESERVED_MEMORY_SIZE,
+                        size_of::<WasmMemoryLayout>() as u32 <= $name::RESERVED_MEMORY_SIZE,
                         "reserved memory exceeded"
                     );
 

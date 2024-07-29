@@ -42,7 +42,7 @@ use gsys::{ErrorCode, Handle, Hash};
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
     fmt::{self, Debug, Display},
-    iter, mem,
+    iter,
     num::NonZeroU32,
 };
 
@@ -580,7 +580,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 let mut value_instr = utils::translate_ptr_data(
                     WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes()),
                     (
-                        value_set_ptr + mem::size_of::<Hash>() as i32,
+                        value_set_ptr + size_of::<Hash>() as i32,
                         Some(value_set_ptr),
                     ),
                 );
@@ -625,13 +625,13 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         WasmWords::new(
                             self.unstructured.int_in_range(range.clone())?.to_le_bytes(),
                         ),
-                        mem::size_of::<Hash>() as i32,
+                        size_of::<Hash>() as i32,
                     ),
                     PtrParamAllowedValues::ReservationIdWithActorIdAndValue { range, .. } => (
                         WasmWords::new(
                             self.unstructured.int_in_range(range.clone())?.to_le_bytes(),
                         ),
-                        mem::size_of::<[Hash; 2]>() as i32,
+                        size_of::<[Hash; 2]>() as i32,
                     ),
                     _ => (WasmWords::default(), 0),
                 };
@@ -650,7 +650,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 {
                     let mut actor_id_instr = self.build_actor_id_instructions(
                         actor_kind.clone(),
-                        (value_set_ptr + mem::size_of::<Hash>() as i32, None),
+                        (value_set_ptr + size_of::<Hash>() as i32, None),
                     )?;
                     ret_instr.append(&mut actor_id_instr);
                 }
@@ -668,7 +668,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 let mut value_instr = utils::translate_ptr_data(
                     WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes()),
                     (
-                        value_set_ptr + mem::size_of::<Hash>() as i32,
+                        value_set_ptr + size_of::<Hash>() as i32,
                         Some(value_set_ptr),
                     ),
                 );
@@ -764,7 +764,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         fallible_signature: FallibleSyscallSignature,
         param_instructions: Vec<ParamInstructions>,
     ) -> Vec<Instruction> {
-        const _: () = assert!(mem::size_of::<ErrorCode>() == mem::size_of::<u32>());
+        const _: () = assert!(size_of::<ErrorCode>() == size_of::<u32>());
         let no_error_val = ErrorCode::default() as i32;
 
         assert_eq!(
@@ -971,7 +971,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         array_ptr: i32,
         amount_of_resources: u32,
     ) {
-        const _: () = assert!(mem::size_of::<ErrorCode>() == mem::size_of::<u32>());
+        const _: () = assert!(size_of::<ErrorCode>() == size_of::<u32>());
         let no_error_val = ErrorCode::default() as i32;
 
         let res_ptr = param_instructions
@@ -1011,11 +1011,11 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Load(2, 0),
             Instruction::I32Or,
             Instruction::I32Store(2, 0),
-            // *temp1_ptr = array_ptr + *temp1_ptr * mem::size_of::<T>()
+            // *temp1_ptr = array_ptr + *temp1_ptr * size_of::<T>()
             Instruction::I32Const(temp1_ptr),
             Instruction::I32Const(temp1_ptr),
             Instruction::I32Load(2, 0),
-            Instruction::I32Const(mem::size_of::<T>() as i32),
+            Instruction::I32Const(size_of::<T>() as i32),
             Instruction::I32Mul,
             Instruction::I32Const(array_ptr),
             Instruction::I32Add,
@@ -1026,8 +1026,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             &[Instruction::I32Const(temp1_ptr), Instruction::I32Load(2, 0)],
             0,
             &[Instruction::I32Const(res_ptr)],
-            mem::size_of::<ErrorCode>(),
-            mem::size_of::<T>() / mem::size_of::<U>(),
+            size_of::<ErrorCode>(),
+            size_of::<T>() / size_of::<U>(),
         );
         instructions.append(&mut copy_instr);
 
@@ -1062,11 +1062,11 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const(1),
             Instruction::I32Sub,
             Instruction::I32Store(2, 0),
-            // *temp2_ptr = array_ptr + *temp1_ptr * mem::size_of::<T>()
+            // *temp2_ptr = array_ptr + *temp1_ptr * size_of::<T>()
             Instruction::I32Const(temp2_ptr),
             Instruction::I32Const(temp1_ptr),
             Instruction::I32Load(2, 0),
-            Instruction::I32Const(mem::size_of::<T>() as i32),
+            Instruction::I32Const(size_of::<T>() as i32),
             Instruction::I32Mul,
             Instruction::I32Const(array_ptr),
             Instruction::I32Add,
@@ -1093,7 +1093,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         let mut copy_instr = utils::memcpy::<U>(
             &[Instruction::I32Const(destination_ptr)],
             &[Instruction::I32Const(temp2_ptr), Instruction::I32Load(2, 0)],
-            mem::size_of::<T>() / mem::size_of::<U>(),
+            size_of::<T>() / size_of::<U>(),
         );
         ret_instr.append(&mut copy_instr);
 

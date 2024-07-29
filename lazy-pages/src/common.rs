@@ -26,7 +26,7 @@ use crate::{
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
 use numerated::tree::IntervalsTree;
-use std::{fmt, mem, num::NonZeroU32};
+use std::{fmt, num::NonZeroU32};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -271,7 +271,7 @@ impl PagePrefix {
     /// Returns key in storage for `page`.
     fn key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
-        self.buffer[len - mem::size_of::<u32>()..len]
+        self.buffer[len - size_of::<u32>()..len]
             .copy_from_slice(page.raw().to_le_bytes().as_slice());
         &self.buffer
     }

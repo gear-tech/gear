@@ -44,4 +44,4 @@ pub mod buffer;
 pub mod str;
 
 // This allows all casts from u32 into usize be safe.
-const _: () = assert!(core::mem::size_of::<u32>() <= core::mem::size_of::<usize>());
+const _: () = assert!(size_of::<u32>() <= size_of::<usize>());

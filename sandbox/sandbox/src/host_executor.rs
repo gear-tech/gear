@@ -48,9 +48,8 @@ mod ffi {
         // We need to ensure that sizes of a callable function pointer and host function index is
         // indeed equal.
         // We can't use `static_assertions` create because it makes compiler panic, fallback to
-        // runtime assert. const_assert!(mem::size_of::<HostFuncIndex>() ==
-        // mem::size_of::<HostFuncType<T>>());
-        assert!(mem::size_of::<HostFuncIndex>() == mem::size_of::<HostFuncType<T>>());
+        // runtime assert. const_assert!(size_of::<HostFuncIndex>() == size_of::<HostFuncType<T>>());
+        assert!(size_of::<HostFuncIndex>() == size_of::<HostFuncType<T>>());
         mem::transmute::<HostFuncIndex, HostFuncType<T>>(idx)
     }
 }

@@ -423,7 +423,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
 pub(crate) struct WasmWords(Vec<i32>);
 
 impl WasmWords {
-    const WASM_WORD_SIZE: usize = mem::size_of::<i32>();
+    const WASM_WORD_SIZE: usize = size_of::<i32>();
 
     pub(crate) fn new(data: impl AsRef<[u8]>) -> Self {
         let data = data.as_ref();
@@ -467,7 +467,7 @@ pub(crate) fn translate_ptr_data(
             vec![
                 Instruction::I32Const(start_offset),
                 Instruction::I32Const(word),
-                Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+                Instruction::I32Store(2, (word_idx * size_of::<i32>()) as u32),
             ]
         })
         .chain(
@@ -525,7 +525,7 @@ pub(crate) fn memcpy_with_offsets<U: MemcpyUnit>(
 ) -> Vec<Instruction> {
     (0..count)
         .flat_map(|word_idx| {
-            let word_offset = word_idx * mem::size_of::<U>();
+            let word_offset = word_idx * size_of::<U>();
             let mut ret_instr = Vec::with_capacity(dest.len() + src.len() + 2);
             ret_instr.extend_from_slice(dest);
             ret_instr.extend_from_slice(src);

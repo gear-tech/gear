@@ -178,7 +178,7 @@ impl PageBuf {
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;
 
-const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
+const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
 /// Core memory error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
