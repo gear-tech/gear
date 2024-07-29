@@ -237,13 +237,13 @@ impl BlockMetaStorage for Database {
 
     fn latest_valid_block(&self) -> Option<H256> {
         self.kv
-            .get(&KeyPrefix::LatestValidBlock.one(&[]))
+            .get(&KeyPrefix::LatestValidBlock.one([]))
             .map(|block_hash| H256::from_slice(&block_hash))
     }
 
     fn set_latest_valid_block(&self, block_hash: H256) {
         self.kv
-            .put(&KeyPrefix::LatestValidBlock.one(&[]), block_hash.0.to_vec());
+            .put(&KeyPrefix::LatestValidBlock.one([]), block_hash.0.to_vec());
     }
 }
 
