@@ -65,9 +65,13 @@ where
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
             // Panic is impossible, because gear protocol does not provide functionality
             // to send second init message to any already existing program.
-            unreachable!(
-                "Init message {dispatch_id} is sent to already initialized program {destination_id}"
+            let err_msg = format!(
+                "run_queue_step: got init message for already initialized program. \
+                Current init message id - {dispatch_id:?}, already initialized program id - {destination_id:?}."
             );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         // If the destination program is uninitialized, then we allow
@@ -79,9 +83,13 @@ where
             if dispatch_kind == DispatchKind::Init {
                 // Panic is impossible, because gear protocol does not provide functionality
                 // to send second init message to any existing program.
-                unreachable!(
-                    "Init message {dispatch_id} is not the first init message to the program {destination_id}"
+                let err_msg = format!(
+                    "run_queue_step: got init message which is not the first init message to the program. \
+                    Current init message id - {dispatch_id:?}, original init message id - {dispatch_id}, program - {destination_id:?}.",
                 );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             }
 
             return core_processor::process_non_executable(context);
@@ -125,7 +133,14 @@ where
         // Load correct code length value.
         let code_id = context.actor_data().code_id;
         let code_len_bytes = T::CodeStorage::get_code_len(code_id).unwrap_or_else(|| {
-            unreachable!("Program '{destination_id:?}' exists so do code len '{code_id:?}'")
+            // `Program` exists, so do code and code len.
+            let err_msg = format!(
+                "run_queue_step: failed to get code len for the existing program. \
+                Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
 
         // Adjust gas counters for fetching instrumented binary code.
@@ -137,7 +152,14 @@ where
 
         // Load instrumented binary code from storage.
         let code = T::CodeStorage::get_code(code_id).unwrap_or_else(|| {
-            unreachable!("Program '{destination_id:?}' exists so do code '{code_id:?}'")
+            // `Program` exists, so do code and code len.
+            let err_msg = format!(
+                "run_queue_step: failed to get code for the existing program. \
+                Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
 
         // Reinstrument the code if necessary.
@@ -185,7 +207,15 @@ where
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
         )
-        .unwrap_or_else(|e| unreachable!("{e}"))
+        .unwrap_or_else(|e| {
+            let err_msg = format!(
+                "run_queue_step: failed processing message. Message id - {dispatch_id}, program id - {destination_id}. \
+                Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        })
     }
 
     /// Message Queue processing.
@@ -199,16 +229,29 @@ where
         }
 
         while QueueProcessingOf::<T>::allowed() {
-            let dispatch = match QueueOf::<T>::dequeue()
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"))
-            {
-                Some(d) => d,
-                None => break,
+            let dispatch = match QueueOf::<T>::dequeue() {
+                Ok(Some(d)) => d,
+                Ok(None) => break,
+                Err(e) => {
+                    let err_msg =
+                        format!("process_queue: failed dequeuing message. Got error - {e:?}");
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                }
             };
 
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "process_queue: failed getting message gas limit. Message id - {}. Got error - {e:?}.",
+                        dispatch.id()
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                });
 
             log::debug!(
                 "QueueProcessing message ({:?}): {:?} to {:?} / gas_limit: {}, gas_allowance: {}",

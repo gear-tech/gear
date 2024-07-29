@@ -130,9 +130,6 @@ impl TestEnv {
             "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d".parse()?,
         )?;
 
-        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(tempdir.join("net"));
-        let network = ethexe_network::NetworkEventLoop::new(net_config, &signer)?;
-
         let sender_address = sender_public_key.to_address();
         let validators = vec![validator_public_key.to_address()];
         let ethereum = Ethereum::deploy(&rpc, validators, signer.clone(), sender_address).await?;
@@ -144,7 +141,7 @@ impl TestEnv {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         let query = Query::new(
-            Box::new(db.clone()),
+            Arc::new(db.clone()),
             &rpc,
             router_address,
             genesis_block_hash,
@@ -177,20 +174,18 @@ impl TestEnv {
             .await
             .expect("failed to create observer");
 
-        let rpc = ethexe_rpc::RpcService::new(9090, db.clone());
-
         let service = Service::new_from_parts(
             db.clone(),
-            network,
             observer.clone(),
             query,
             processor,
             signer,
+            block_time,
+            None,
             Some(sequencer),
             Some(validator),
             None,
-            rpc,
-            block_time,
+            None,
         );
 
         let env = TestEnv {
