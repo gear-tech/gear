@@ -948,6 +948,40 @@ impl ExtManager {
 
         core_processor::handle_journal(journal, self);
     }
+
+    fn remove_reservation(&mut self, id: ProgramId, reservation: ReservationId) -> Option<()> {
+        let res = self.adjust_genuine_program(id, |genuine_program| {
+            let genuine_program = genuine_program.expect("no genuine program was found");
+            genuine_program
+                .gas_reservation_map
+                .remove(&reservation)
+                .map(|_| ())
+                .or_else(|| {
+                    log::error!("Tried to remove non-existent reservation");
+
+                    None
+                })
+        });
+
+        res.map(|_| {
+            self.gas_tree
+                .consume(reservation)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        })
+    }
+
+    fn adjust_genuine_program<R, F: FnOnce(Option<&mut GenuineProgram>) -> R>(
+        &mut self,
+        id: ProgramId,
+        op: F,
+    ) -> R {
+        let mut actors = self.actors.borrow_mut();
+        let genuine_program = actors
+            .get_mut(&id)
+            .and_then(|(actor, _)| actor.genuine_program_mut());
+
+        op(genuine_program)
+    }
 }
 
 impl JournalHandler for ExtManager {
@@ -1032,6 +1066,8 @@ impl JournalHandler for ExtManager {
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     // Unspecified node is created from the reservation, so consuming it doesn't
+                    // catch the value (gas) in it, so dependant gasless message will have the
+                    // gas for execution.
                     if let Ok(Some(_)) = self.gas_tree.consume(reservation) {
                         unreachable!("GasTree corrupted: consumed with a retrieve value from reservation patron");
                     }
@@ -1067,22 +1103,8 @@ impl JournalHandler for ExtManager {
         }
 
         if let Some(reservation) = reservation {
-            // Remove reservation from program reservations map
-            self.actors
-                .borrow_mut()
-                .get_mut(&source)
-                .and_then(|(actor, _)| actor.genuine_program_mut())
-                .map(|prog| {
-                    if prog.gas_reservation_map.remove(&reservation).is_none() {
-                        unreachable!("Tried to use non-existent reservation.");
-                    }
-                })
-                .expect("no genuine program found for program");
-
-            let _ = self
-                .gas_tree
-                .consume(reservation)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            self.remove_reservation(source, reservation)
+                .expect("failed to remove gas reservation");
         }
     }
 
@@ -1130,25 +1152,18 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        let mut actors = self.actors.borrow_mut();
-        let (actor, _) = actors
-            .get_mut(&program_id)
-            .expect("Can't find existing program");
-
-        actor
-            .genuine_program_mut()
-            .map(|program| {
-                program
-                    .allocations
-                    .difference(&allocations)
-                    .flat_map(IntervalIterator::from)
-                    .flat_map(|page| page.to_iter())
-                    .for_each(|ref page| {
-                        program.pages_data.remove(page);
-                    });
-                program.allocations = allocations;
-            })
-            .expect("No genuine program found for program");
+        self.adjust_genuine_program(program_id, |program| {
+            let program = program.expect("no genuine program was found");
+            program
+                .allocations
+                .difference(&allocations)
+                .flat_map(IntervalIterator::from)
+                .flat_map(|page| page.to_iter())
+                .for_each(|ref page| {
+                    program.pages_data.remove(page);
+                });
+            program.allocations = allocations;
+        });
     }
 
     #[track_caller]
@@ -1273,40 +1288,18 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         _expiration: u32,
     ) {
-        // Remove reservation from the actor storage.
-        let mut actors = self.actors.borrow_mut();
-        let (actor, _) = actors
-            .get_mut(&program_id)
-            .expect("gas reservation update guaranteed to be called only on existing program");
-
-        actor
-            .genuine_program_mut()
-            .map(|prog| {
-                if prog.gas_reservation_map.remove(&reservation_id).is_none() {
-                    unreachable!("Tried to remove non-existent reservation.");
-                }
-            })
-            .expect("no genuine program found for program");
-
-        // Unreserve reservation in the gas tree by consuming it.
-        let _ = self.gas_tree.consume(reservation_id);
+        self.remove_reservation(program_id, reservation_id)
+            .expect("failed to remove gas reseravtion");
     }
 
     #[track_caller]
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
         let block_height = self.blocks_manager.get().height;
-        let mut actors = self.actors.borrow_mut();
-        let (actor, _) = actors
-            .get_mut(&program_id)
-            .expect("gas reservation update guaranteed to be called only on existing program");
-
-        actor
-            .genuine_program_mut()
-            .map(|prog| {
-                prog.gas_reservation_map =
-                    reserver.into_map(block_height, |duration| block_height + duration);
-            })
-            .expect("no genuine program found for program");
+        self.adjust_genuine_program(program_id, |program| {
+            let program = program.expect("no genuine program was found");
+            program.gas_reservation_map =
+                reserver.into_map(block_height, |duration| block_height + duration);
+        })
     }
 
     fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
