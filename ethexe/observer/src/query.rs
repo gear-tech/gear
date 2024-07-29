@@ -41,12 +41,8 @@ impl Query {
         blob_reader: Arc<dyn BlobReader>,
         max_commitment_depth: u32,
     ) -> Result<Self> {
-        // Init db for genesis block
-        database.set_block_commitment_queue(genesis_block_hash, Default::default());
-        database.set_block_prev_commitment(genesis_block_hash, H256::zero());
-        database.set_block_end_state_is_valid(genesis_block_hash, true);
-        database.set_block_is_empty(genesis_block_hash, true);
-        database.set_block_end_program_states(genesis_block_hash, Default::default());
+        // Initialize the database for the genesis block
+        Self::init_genesis_block(&database, genesis_block_hash)?;
 
         Ok(Self {
             database,
@@ -58,17 +54,26 @@ impl Query {
         })
     }
 
+    fn init_genesis_block(
+        database: &Arc<dyn BlockMetaStorage>,
+        genesis_block_hash: H256,
+    ) -> Result<()> {
+        database.set_block_commitment_queue(genesis_block_hash, Default::default());
+        database.set_block_prev_commitment(genesis_block_hash, H256::zero());
+        database.set_block_end_state_is_valid(genesis_block_hash, true);
+        database.set_block_is_empty(genesis_block_hash, true);
+        database.set_block_end_program_states(genesis_block_hash, Default::default());
+        Ok(())
+    }
+
     async fn get_committed_blocks(&mut self, block_hash: H256) -> Result<BTreeSet<H256>> {
         Ok(self
             .get_block_events(block_hash)
             .await?
             .into_iter()
-            .filter_map(|event| {
-                if let BlockEvent::BlockCommitted(event) = event {
-                    Some(event.block_hash)
-                } else {
-                    None
-                }
+            .filter_map(|event| match event {
+                BlockEvent::BlockCommitted(event) => Some(event.block_hash),
+                _ => None,
             })
             .collect())
     }
@@ -86,18 +91,17 @@ impl Query {
 
         let logs = self.provider.get_logs(&router_events_filter).await?;
 
-        let mut commited_blocks = vec![];
+        let mut committed_blocks = vec![];
         for log in logs.iter() {
-            let Some(BlockEvent::BlockCommitted(BlockCommitted { block_hash })) = match_log(log)?
-            else {
-                continue;
-            };
-            commited_blocks.push(block_hash);
+            if let Some(BlockEvent::BlockCommitted(BlockCommitted { block_hash })) = match_log(log)?
+            {
+                committed_blocks.push(block_hash);
+            }
         }
 
         log::trace!("Read committed blocks from {from_block} to {to_block}");
 
-        Ok(commited_blocks)
+        Ok(committed_blocks)
     }
 
     async fn get_latest_valid_block(&mut self) -> Result<(H256, BlockHeader)> {
@@ -126,6 +130,7 @@ impl Query {
                         .get_block_by_number(BlockNumberOrTag::Finalized, false)
                         .await?
                         .ok_or(anyhow!("Failed to get finalized block"))?;
+
                     if finalized_block.header.number.unwrap() >= latest_valid_header.height as u64 {
                         log::warn!("Latest valid block doesn't match on-chain block.");
                         let hash = H256(block.header.hash.unwrap().0);
