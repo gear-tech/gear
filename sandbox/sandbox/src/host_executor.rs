@@ -135,7 +135,12 @@ impl<T> super::SandboxMemory<T> for Memory {
         match result {
             env::ERR_OK => Ok(()),
             env::ERR_OUT_OF_BOUNDS => Err(Error::OutOfBounds),
-            _ => unreachable!(),
+            err => {
+                let err_msg = format!("Memory::read: unexpected error. Got error - {err}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
@@ -152,7 +157,12 @@ impl<T> super::SandboxMemory<T> for Memory {
         match result {
             env::ERR_OK => Ok(()),
             env::ERR_OUT_OF_BOUNDS => Err(Error::OutOfBounds),
-            _ => unreachable!(),
+            err => {
+                let err_msg = format!("Memory::write: unexpected error. Got error - {err}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
@@ -364,7 +374,12 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
                 Ok(return_val)
             }
             env::ERR_EXECUTION => Err(Error::Execution),
-            _ => unreachable!(),
+            err => {
+                let err_msg = format!("Memory::invoke: unexpected error. Got error - {err}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
