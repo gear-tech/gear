@@ -109,8 +109,6 @@ impl Query {
                         "{latest_valid_block_hash} not found in db. Corrupted"
                     ))?;
 
-            log::debug!("latest_valid_header: {:?}", latest_valid_header);
-
             let chain_block = self
                 .provider
                 .get_block_by_number((latest_valid_header.height as u64).into(), false)
@@ -139,7 +137,7 @@ impl Query {
                 None => Ok((latest_valid_block_hash, latest_valid_header)),
             }
         } else {
-            log::warn!("Latest valid block not found, sync to genesis.");
+            log::debug!("Latest valid block not found, sync to genesis.");
             Ok((
                 self.genesis_block_hash,
                 self.get_block_header_meta(self.genesis_block_hash).await?,
@@ -161,7 +159,17 @@ impl Query {
             return Err(anyhow!("too deep chain"));
         }
 
-        log::trace!("Nearest valid in db block: {latest_valid_block:?}");
+        if current_block.height <= latest_valid_block.height {
+            log::debug!(
+                "Reorg. current: {} <= latest valid: {}",
+                current_block.height,
+                latest_valid_block.height
+            );
+        } else {
+            log::trace!(
+                "Nearest valid block in db: {latest_valid_block_hash:?} {latest_valid_block:?}"
+            );
+        }
 
         let committed_blocks = self
             .get_all_committed_blocks(latest_valid_block.height, current_block.height)
