@@ -371,7 +371,7 @@ impl Service {
         Ok(commitments)
     }
 
-    pub async fn run(self) -> Result<()> {
+    async fn run_inner(self) -> Result<()> {
         let Service {
             db,
             network,
@@ -468,6 +468,7 @@ impl Service {
                         }
                     }
 
+                    log::trace!("Sending timeout after observer event...");
                     delay = Some(tokio::time::sleep(block_time / 4));
                 }
                 _ = maybe_await(delay.take()) => {
@@ -506,6 +507,13 @@ impl Service {
         }
 
         Ok(())
+    }
+
+    pub async fn run(self) -> Result<()> {
+        self.run_inner().await.map_err(|err| {
+            log::error!("Service finished work with error: {:?}", err);
+            err
+        })
     }
 }
 
