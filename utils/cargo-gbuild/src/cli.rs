@@ -50,7 +50,7 @@ pub struct GBuild {
     #[clap(long)]
     pub profile: Option<String>,
 
-    /// If enables the release profile.
+    /// If enables the release profile
     #[clap(short, long)]
     pub release: bool,
 
@@ -88,7 +88,7 @@ impl GBuild {
         }
     }
 
-    /// Run the gbuild command
+    /// Build gear program
     pub fn build(&self) -> Result<Artifacts> {
         let manifest_path = self
             .manifest_path

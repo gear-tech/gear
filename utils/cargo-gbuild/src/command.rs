@@ -68,7 +68,7 @@ fn git_clone(repo: &str, target: PathBuf) -> Result<()> {
         utils::error(&result.stderr);
     }
 
-    // clean the .git in template
+    // clean the .git in template.
     fs::remove_dir_all(target.join(".git"))?;
 
     // init new git.
