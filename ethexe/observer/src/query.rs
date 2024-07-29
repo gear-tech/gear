@@ -109,27 +109,34 @@ impl Query {
                         "{latest_valid_block_hash} not found in db. Corrupted"
                     ))?;
 
-            let block = self
+            log::debug!("latest_valid_header: {:?}", latest_valid_header);
+
+            let chain_block = self
                 .provider
                 .get_block_by_number((latest_valid_header.height as u64).into(), false)
-                .await?
-                .ok_or(anyhow!("Unable to fetch latest valid block by number"))?;
+                .await?;
 
-            if block.header.hash.map(|h| h.0) == Some(latest_valid_block_hash.0) {
-                Ok((latest_valid_block_hash, latest_valid_header))
-            } else {
-                let finalized_block = self
-                    .provider
-                    .get_block_by_number(BlockNumberOrTag::Finalized, false)
-                    .await?
-                    .ok_or(anyhow!("Failed to get finalized block"))?;
-                if finalized_block.header.number.unwrap() >= latest_valid_header.height as u64 {
-                    log::warn!("Latest valid block doesn't match on-chain block.");
-                    let hash = H256(block.header.hash.unwrap().0);
-                    Ok((hash, self.get_block_header_meta(hash).await?))
-                } else {
+            match chain_block {
+                Some(block)
+                    if block.header.hash.map(|h| h.0) == Some(latest_valid_block_hash.0) =>
+                {
                     Ok((latest_valid_block_hash, latest_valid_header))
                 }
+                Some(block) => {
+                    let finalized_block = self
+                        .provider
+                        .get_block_by_number(BlockNumberOrTag::Finalized, false)
+                        .await?
+                        .ok_or(anyhow!("Failed to get finalized block"))?;
+                    if finalized_block.header.number.unwrap() >= latest_valid_header.height as u64 {
+                        log::warn!("Latest valid block doesn't match on-chain block.");
+                        let hash = H256(block.header.hash.unwrap().0);
+                        Ok((hash, self.get_block_header_meta(hash).await?))
+                    } else {
+                        Ok((latest_valid_block_hash, latest_valid_header))
+                    }
+                }
+                None => Ok((latest_valid_block_hash, latest_valid_header)),
             }
         } else {
             log::warn!("Latest valid block not found, sync to genesis.");
@@ -148,11 +155,13 @@ impl Query {
         // Find latest_valid_block or use genesis.
         let (latest_valid_block_hash, latest_valid_block) = self.get_latest_valid_block().await?;
 
-        log::trace!("Nearest valid in db block: {latest_valid_block:?}");
-
-        if current_block.height - latest_valid_block.height >= self.max_commitment_depth {
+        if current_block.height >= latest_valid_block.height
+            && (current_block.height - latest_valid_block.height) >= self.max_commitment_depth
+        {
             return Err(anyhow!("too deep chain"));
         }
+
+        log::trace!("Nearest valid in db block: {latest_valid_block:?}");
 
         let committed_blocks = self
             .get_all_committed_blocks(latest_valid_block.height, current_block.height)
@@ -167,7 +176,6 @@ impl Query {
             }
 
             // Reset latest_valid_block if found.
-            // TODO: Remove once all db pruned or updated.
             if self
                 .database
                 .block_end_state_is_valid(hash)
