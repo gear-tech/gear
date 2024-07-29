@@ -132,8 +132,14 @@ impl LazyPagesInterface for LazyPagesRuntimeInterface {
         gear_ri::write_accessed_pages()
             .into_iter()
             .map(|p| {
-                GearPage::try_from(p).unwrap_or_else(|_| {
-                    unreachable!("Lazy pages backend returns wrong write accessed pages")
+                GearPage::try_from(p).unwrap_or_else(|err| {
+                    let err_msg = format!(
+                        "LazyPagesRuntimeInterface::get_write_accessed_pages: Lazy pages backend return wrong write accessed pages. \
+                        Got error - {err}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
                 })
             })
             .collect()
