@@ -100,33 +100,34 @@ impl Query {
     }
 
     async fn get_latest_valid_block(&mut self) -> Result<(H256, BlockHeader)> {
-        if let Some(block_hash) = self.database.latest_valid_block() {
-            let header = self
-                .database
-                .block_header(block_hash)
-                .ok_or(anyhow!("{block_hash} not found in db. Corrupted"))?;
+        if let Some(latest_valid_block_hash) = self.database.latest_valid_block() {
+            let latest_valid_header =
+                self.database
+                    .block_header(latest_valid_block_hash)
+                    .ok_or(anyhow!(
+                        "{latest_valid_block_hash} not found in db. Corrupted"
+                    ))?;
 
-            let Some(block) = self
+            let block = self
                 .provider
-                .get_block_by_number((header.height as u64).into(), false)
+                .get_block_by_number((latest_valid_header.height as u64).into(), false)
                 .await?
-            else {
-                return Ok((block_hash, header));
-            };
-            if block.header.hash.map(|h| h.0) == Some(block_hash.0) {
-                Ok((block_hash, header))
+                .ok_or(anyhow!("Unable to fetch latest valid block by number"))?;
+
+            if block.header.hash.map(|h| h.0) == Some(latest_valid_block_hash.0) {
+                Ok((latest_valid_block_hash, latest_valid_header))
             } else {
                 let finalized_block = self
                     .provider
                     .get_block_by_number(BlockNumberOrTag::Finalized, false)
                     .await?
                     .ok_or(anyhow!("Failed to get finalized block"))?;
-                if finalized_block.header.number.unwrap() >= header.height as u64 {
+                if finalized_block.header.number.unwrap() >= latest_valid_header.height as u64 {
                     log::warn!("Latest valid block doesn't match on-chain block.");
                     let hash = H256(block.header.hash.unwrap().0);
                     Ok((hash, self.get_block_header_meta(hash).await?))
                 } else {
-                    Ok((block_hash, header))
+                    Ok((latest_valid_block_hash, latest_valid_header))
                 }
             }
         } else {
