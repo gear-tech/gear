@@ -36,7 +36,7 @@ pub(crate) struct Toolchain(String);
 
 impl Toolchain {
     /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2024-01-25";
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2024-07-29";
 
     /// Returns `Toolchain` representing the recommended nightly version.
     pub fn recommended_nightly() -> Self {

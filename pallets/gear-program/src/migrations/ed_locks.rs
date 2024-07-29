@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(dead_code)]
+#![allow(clippy::needless_borrows_for_generic_args)]
+
 use crate::{Config, Pallet, ProgramStorage};
 use common::Origin;
 use frame_support::{

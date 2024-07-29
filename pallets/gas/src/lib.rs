@@ -27,13 +27,13 @@
 //! ## Overview
 //!
 //! The Gear Gas Pallet's main aim is to separate message's associated gas tree nodes storages out
-//! of Gear's execution logic and provide soft functionality to manage them.
+//!    of Gear's execution logic and provide soft functionality to manage them.
 //!
 //! The Gear Gas Pallet provides functions for:
 //! - Obtaining maximum gas amount available within one block of execution.
 //! - Managing number of remaining gas, i.e. gas allowance.
 //! - Managing gas tree: create, split, cut, etc new nodes determining
-//! execution resources of messages.
+//!    execution resources of messages.
 //!
 //! ## Interface
 //!
@@ -58,7 +58,7 @@
 //! ```
 //!
 //! 2. Provide associated type for your pallet's `Config`, which implements
-//! `gear_common::GasProvider` trait, specifying associated types if needed.
+//!    `gear_common::GasProvider` trait, specifying associated types if needed.
 //!
 //! ```ignore
 //! // `some_pallet/src/lib.rs`
@@ -116,7 +116,7 @@
 //! ```
 //!
 //! 5. Work with Gear Gas Pallet in your pallet with provided
-//! associated type interface.
+//!    associated type interface.
 //!
 //! ## Genesis config
 //!
@@ -125,6 +125,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![allow(clippy::manual_inspect)]
 
 use common::{
     storage::{MapStorage, ValueStorage},

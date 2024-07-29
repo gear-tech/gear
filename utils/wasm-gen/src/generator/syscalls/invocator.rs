@@ -189,7 +189,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         .injection_types()
                         .order()
                         .into_iter()
-                        .filter(|syscall| self.syscalls_imports.get(syscall).is_some())
+                        .filter(|syscall| self.syscalls_imports.contains_key(syscall))
                         .flat_map(|syscall1| {
                             iter::repeat(syscall1)
                                 .take(
