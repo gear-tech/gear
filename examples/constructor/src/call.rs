@@ -22,6 +22,13 @@ pub enum Call {
     ReplyCode,
     Value,
     ValueAvailable,
+    ReservationSend(
+        Arg<[u8; 32]>,
+        Arg<[u8; 32]>,
+        Arg<Vec<u8>>,
+        Arg<u128>,
+        Arg<u32>,
+    ),
     Send(
         Arg<[u8; 32]>,
         Arg<Vec<u8>>,
@@ -180,6 +187,25 @@ mod wasm {
             } else {
                 panic!();
             }
+        }
+
+        fn reservation_send(self) -> Option<Vec<u8>> {
+            let Self::ReservationSend(reservation, destination, payload, value, delay) = self
+            else {
+                unreachable!()
+            };
+
+            let reservation = reservation.value().into();
+            let destination = destination.value().into();
+            let payload = payload.value();
+            let value = value.value();
+            let delay = delay.value();
+
+            let message_id =
+                msg::send_delayed_from_reservation(reservation, destination, payload, value, delay)
+                    .expect("Failed to send message from reservation");
+
+            Some(message_id.encode())
         }
 
         fn send(self) -> Option<Vec<u8>> {
@@ -386,6 +412,7 @@ mod wasm {
                 Call::Source => self.source(),
                 Call::ReplyCode => self.reply_code(),
                 Call::Panic(..) => self.panic(),
+                Call::ReservationSend(..) => self.reservation_send(),
                 Call::Send(..) => self.send(),
                 Call::Reply(..) => self.reply(),
                 Call::Exit(..) => self.exit(),

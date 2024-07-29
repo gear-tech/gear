@@ -970,7 +970,7 @@ impl ExtManager {
         })
     }
 
-    fn adjust_genuine_program<R, F: FnOnce(Option<&mut GenuineProgram>) -> R>(
+    pub(crate) fn adjust_genuine_program<R, F: FnOnce(Option<&mut GenuineProgram>) -> R>(
         &mut self,
         id: ProgramId,
         op: F,
@@ -1080,7 +1080,6 @@ impl JournalHandler for ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            // todo [sab] add sending user message from reservation
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
 

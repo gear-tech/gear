@@ -1231,17 +1231,19 @@ mod tests {
         // Get reservation id from program
         let reservation_id = sys
             .0
-            .borrow()
-            .actors
-            .borrow()
-            .get(&prog.id())
-            .and_then(|(actor, _)| actor.genuine_program())
-            .and_then(|prog| {
-                assert_eq!(prog.gas_reservation_map.len(), 1);
-                prog.gas_reservation_map.iter().next().map(|(id, _)| id)
+            .borrow_mut()
+            .adjust_genuine_program(prog.id(), |genuine_prog| {
+                let genuine_prog = genuine_prog.expect("internal error: existing prog not found");
+
+                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
+                genuine_prog
+                    .gas_reservation_map
+                    .iter()
+                    .next()
+                    .map(|(id, _)| id)
             })
             .copied()
-            .expect("actor was inited");
+            .expect("internal error: reservation wasn't found");
 
         // Check reservation exists in the tree
         assert!(sys.0.borrow().gas_tree.exists(reservation_id));
@@ -1254,4 +1256,7 @@ mod tests {
         // Check reservation is removed from the tree
         assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
     }
+
+    // test send user message
+    // test sending program message
 }

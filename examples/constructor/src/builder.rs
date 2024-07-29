@@ -104,6 +104,22 @@ impl Calls {
         self.add_call(Call::MessageId).store_vec(key)
     }
 
+    pub fn reservation_send_value(
+        self,
+        reservation: impl Into<Arg<[u8; 32]>>,
+        destination: impl Into<Arg<[u8; 32]>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        value: impl Into<Arg<u128>>,
+    ) -> Self {
+        self.add_call(Call::ReservationSend(
+            reservation.into(),
+            destination.into(),
+            payload.into(),
+            value.into(),
+            0.into(),
+        ))
+    }
+
     pub fn send(
         self,
         destination: impl Into<Arg<[u8; 32]>>,
