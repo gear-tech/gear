@@ -84,7 +84,7 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         Some(page.into())
     }
     fn offset<M: SizeManager>(&self, ctx: &M) -> usize {
-        const _: () = assert!(size_of::<usize>() > size_of::<u32>());
+        const { assert!(size_of::<usize>() > size_of::<u32>()) };
         let raw = self.unbound().map(|p| p.raw).unwrap_or(Self::upper(ctx));
         (raw as usize)
             .checked_mul(Page::<S>::size(ctx) as usize)

@@ -764,7 +764,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         fallible_signature: FallibleSyscallSignature,
         param_instructions: Vec<ParamInstructions>,
     ) -> Vec<Instruction> {
-        const _: () = assert!(size_of::<ErrorCode>() == size_of::<u32>());
+        const { assert!(size_of::<ErrorCode>() == size_of::<u32>()) };
         let no_error_val = ErrorCode::default() as i32;
 
         assert_eq!(
@@ -971,7 +971,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         array_ptr: i32,
         amount_of_resources: u32,
     ) {
-        const _: () = assert!(size_of::<ErrorCode>() == size_of::<u32>());
+        const { assert!(size_of::<ErrorCode>() == size_of::<u32>()) };
         let no_error_val = ErrorCode::default() as i32;
 
         let res_ptr = param_instructions
