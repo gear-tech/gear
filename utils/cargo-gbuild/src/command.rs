@@ -29,7 +29,7 @@ use std::{
     process,
 };
 
-const TEMPLATE_REPO: &str = "https://github.com/MedovTimur/template.git";
+const TEMPLATE_REPO: &str = "https://github.com/gear-foundation/dapp-template-generate.git";
 
 /// `cargo-gbuild` commands
 #[derive(Parser, Clone)]
