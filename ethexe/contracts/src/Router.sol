@@ -9,6 +9,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {IRouter} from "./IRouter.sol";
 import {IMirror} from "./IMirror.sol";
+import {IWrappedVara} from "./IWrappedVara.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
@@ -187,7 +188,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         router.codes[codeId] = CodeState.ValidationRequested;
 
-        emit CodeValidationRequested(tx.origin, codeId, blobTxHash);
+        emit CodeValidationRequested(codeId, blobTxHash);
     }
 
     function createProgram(bytes32 codeId, bytes32 salt, bytes calldata payload, uint128 _value)
@@ -211,7 +212,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.programs[actorId] = true;
         router.programsCount++;
 
-        emit ProgramCreated(tx.origin, actorId, codeId);
+        emit ProgramCreated(actorId, codeId);
 
         IMirror(actorId).initMessage(tx.origin, payload, _value, executableBalance);
 
@@ -230,10 +231,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
             codeCommetmentsHashes = bytes.concat(codeCommetmentsHashes, codeCommitmentHash);
 
-            bytes32 codeId = codeCommitment.codeId;
+            bytes32 codeId = codeCommitment.id;
             require(router.codes[codeId] == CodeState.ValidationRequested, "code should be requested for validation");
 
-            if (codeCommitment.approved) {
+            if (codeCommitment.valid) {
                 router.codes[codeId] = CodeState.Validated;
                 router.validatedCodesCount++;
 
@@ -293,10 +294,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _getStorage();
 
         require(
-            router.lastBlockCommitmentHash == blockCommitment.allowedPrevCommitmentHash,
-            "invalid previous commitment hash"
+            router.lastBlockCommitmentHash == blockCommitment.prevCommitmentHash, "invalid previous commitment hash"
         );
-        require(_isPredecessorHash(blockCommitment.allowedPredBlockHash), "allowed predecessor block not found");
+        require(_isPredecessorHash(blockCommitment.predBlockHash), "allowed predecessor block not found");
 
         bytes memory transitionsHashes;
 
@@ -313,8 +313,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         return _blockCommitmentHash(
             blockCommitment.blockHash,
-            blockCommitment.allowedPrevCommitmentHash,
-            blockCommitment.allowedPredBlockHash,
+            blockCommitment.prevCommitmentHash,
+            blockCommitment.predBlockHash,
             keccak256(transitionsHashes)
         );
     }
@@ -331,48 +331,58 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return false;
     }
 
-    // TODO: add claims to stateTransition.
     function _doStateTransition(StateTransition calldata stateTransition) private returns (bytes32) {
         Storage storage router = _getStorage();
 
         require(router.programs[stateTransition.actorId], "couldn't perform transition for unknown program");
 
+        IWrappedVara wrappedVaraActor = IWrappedVara(router.wrappedVara);
+        wrappedVaraActor.transfer(stateTransition.actorId, stateTransition.valueToReceive);
+
         IMirror mirrorActor = IMirror(stateTransition.actorId);
+        mirrorActor.updateState(stateTransition.prevStateHash, stateTransition.newStateHash);
 
-        // TODO (breathx): send total value from router to mirror.
+        bytes memory valueClaimsBytes;
 
-        mirrorActor.updateState(stateTransition.oldStateHash, stateTransition.newStateHash);
+        for (uint256 i = 0; i < stateTransition.valueClaims.length; i++) {
+            ValueClaim calldata valueClaim = stateTransition.valueClaims[i];
 
-        bytes memory outgoingMessagesHashes;
+            valueClaimsBytes = bytes.concat(
+                valueClaimsBytes, abi.encodePacked(valueClaim.messageId, valueClaim.destination, valueClaim.value)
+            );
 
-        for (uint256 i = 0; i < stateTransition.outgoingMessages.length; i++) {
-            OutgoingMessage calldata outgoingMessage = stateTransition.outgoingMessages[i];
+            mirrorActor.valueClaimed(valueClaim.messageId, valueClaim.destination, valueClaim.value);
+        }
 
-            outgoingMessagesHashes = bytes.concat(outgoingMessagesHashes, _outgoingMessageHash(outgoingMessage));
+        bytes memory messagesHashes;
 
-            if (outgoingMessage.replyDetails.replyTo == 0) {
+        for (uint256 i = 0; i < stateTransition.messages.length; i++) {
+            OutgoingMessage calldata outgoingMessage = stateTransition.messages[i];
+
+            messagesHashes = bytes.concat(messagesHashes, _outgoingMessageHash(outgoingMessage));
+
+            if (outgoingMessage.replyDetails.to == 0) {
                 mirrorActor.messageSent(
-                    outgoingMessage.messageId,
-                    outgoingMessage.destination,
-                    outgoingMessage.payload,
-                    outgoingMessage.value
+                    outgoingMessage.id, outgoingMessage.destination, outgoingMessage.payload, outgoingMessage.value
                 );
             } else {
                 mirrorActor.replySent(
                     outgoingMessage.destination,
                     outgoingMessage.payload,
                     outgoingMessage.value,
-                    outgoingMessage.replyDetails.replyTo,
-                    outgoingMessage.replyDetails.replyCode
+                    outgoingMessage.replyDetails.to,
+                    outgoingMessage.replyDetails.code
                 );
             }
         }
 
         return _stateTransitionHash(
             stateTransition.actorId,
-            stateTransition.oldStateHash,
+            stateTransition.prevStateHash,
             stateTransition.newStateHash,
-            keccak256(outgoingMessagesHashes)
+            stateTransition.valueToReceive,
+            keccak256(valueClaimsBytes),
+            keccak256(messagesHashes)
         );
     }
 
@@ -389,28 +399,32 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function _stateTransitionHash(
         address actorId,
-        bytes32 oldStateHash,
+        bytes32 prevStateHash,
         bytes32 newStateHash,
-        bytes32 outgoingMessagesHashesHash
+        uint128 valueToReceive,
+        bytes32 valueClaimsHash,
+        bytes32 messagesHashesHash
     ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(actorId, oldStateHash, newStateHash, outgoingMessagesHashesHash));
+        return keccak256(
+            abi.encodePacked(actorId, prevStateHash, newStateHash, valueToReceive, valueClaimsHash, messagesHashesHash)
+        );
     }
 
     function _outgoingMessageHash(OutgoingMessage calldata outgoingMessage) private pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                outgoingMessage.messageId,
+                outgoingMessage.id,
                 outgoingMessage.destination,
                 outgoingMessage.payload,
                 outgoingMessage.value,
-                outgoingMessage.replyDetails.replyTo,
-                outgoingMessage.replyDetails.replyCode
+                outgoingMessage.replyDetails.to,
+                outgoingMessage.replyDetails.code
             )
         );
     }
 
     function _codeCommitmentHash(CodeCommitment calldata codeCommitment) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved));
+        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
     }
 
     function _retreiveValue(uint128 _value) private {

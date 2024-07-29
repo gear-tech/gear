@@ -18,6 +18,7 @@
 
 use alloy::sol;
 use ethexe_common::{mirror, router};
+use gear_core_errors::ReplyCode;
 
 sol!(
     #[sol(rpc)]
@@ -53,10 +54,10 @@ sol!(
 /* From common types to alloy */
 
 impl From<router::CodeCommitment> for IRouter::CodeCommitment {
-    fn from(router::CodeCommitment { code_id, approved }: router::CodeCommitment) -> Self {
+    fn from(router::CodeCommitment { id, valid }: router::CodeCommitment) -> Self {
         Self {
-            codeId: code_id.into_bytes().into(),
-            approved,
+            id: id.into_bytes().into(),
+            valid,
         }
     }
 }
@@ -65,15 +66,15 @@ impl From<router::BlockCommitment> for IRouter::BlockCommitment {
     fn from(
         router::BlockCommitment {
             block_hash,
-            allowed_prev_commitment_hash,
-            allowed_pred_block_hash,
+            prev_commitment_hash,
+            pred_block_hash,
             transitions,
         }: router::BlockCommitment,
     ) -> Self {
         Self {
             blockHash: block_hash.to_fixed_bytes().into(),
-            allowedPrevCommitmentHash: allowed_prev_commitment_hash.to_fixed_bytes().into(),
-            allowedPredBlockHash: allowed_pred_block_hash.to_fixed_bytes().into(),
+            prevCommitmentHash: prev_commitment_hash.to_fixed_bytes().into(),
+            predBlockHash: pred_block_hash.to_fixed_bytes().into(),
             transitions: transitions.into_iter().map(Into::into).collect(),
         }
     }
@@ -83,16 +84,36 @@ impl From<router::StateTransition> for IRouter::StateTransition {
     fn from(
         router::StateTransition {
             actor_id,
-            old_state_hash,
+            prev_state_hash,
             new_state_hash,
-            outgoing_messages,
+            value_to_receive,
+            value_claims,
+            messages,
         }: router::StateTransition,
     ) -> Self {
         Self {
             actorId: actor_id.to_address_lossy().to_fixed_bytes().into(),
-            oldStateHash: old_state_hash.to_fixed_bytes().into(),
+            prevStateHash: prev_state_hash.to_fixed_bytes().into(),
             newStateHash: new_state_hash.to_fixed_bytes().into(),
-            outgoingMessages: outgoing_messages.into_iter().map(Into::into).collect(),
+            valueToReceive: value_to_receive,
+            valueClaims: value_claims.into_iter().map(Into::into).collect(),
+            messages: messages.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<router::ValueClaim> for IRouter::ValueClaim {
+    fn from(
+        router::ValueClaim {
+            message_id,
+            destination,
+            value,
+        }: router::ValueClaim,
+    ) -> Self {
+        Self {
+            messageId: message_id.into_bytes().into(),
+            destination: destination.to_address_lossy().to_fixed_bytes().into(),
+            value,
         }
     }
 }
@@ -100,7 +121,7 @@ impl From<router::StateTransition> for IRouter::StateTransition {
 impl From<router::OutgoingMessage> for IRouter::OutgoingMessage {
     fn from(
         router::OutgoingMessage {
-            message_id,
+            id,
             destination,
             payload,
             value,
@@ -108,7 +129,7 @@ impl From<router::OutgoingMessage> for IRouter::OutgoingMessage {
         }: router::OutgoingMessage,
     ) -> Self {
         Self {
-            messageId: message_id.into_bytes().into(),
+            id: id.into_bytes().into(),
             destination: destination.to_address_lossy().to_fixed_bytes().into(),
             payload: payload.into(),
             value,
@@ -118,15 +139,10 @@ impl From<router::OutgoingMessage> for IRouter::OutgoingMessage {
 }
 
 impl From<router::ReplyDetails> for IRouter::ReplyDetails {
-    fn from(
-        router::ReplyDetails {
-            reply_to,
-            reply_code,
-        }: router::ReplyDetails,
-    ) -> Self {
+    fn from(router::ReplyDetails { to, code }: router::ReplyDetails) -> Self {
         Self {
-            replyTo: reply_to.into_bytes().into(),
-            replyCode: reply_code.into(),
+            to: to.into_bytes().into(),
+            code: code.into(),
         }
     }
 }
@@ -168,7 +184,6 @@ impl From<IRouter::CodeGotValidated> for router::Event {
 impl From<IRouter::CodeValidationRequested> for router::Event {
     fn from(event: IRouter::CodeValidationRequested) -> Self {
         router::Event::CodeValidationRequested {
-            origin: (*event.origin.into_word()).into(),
             code_id: (*event.codeId).into(),
             blob_tx_hash: (*event.blobTxHash).into(),
         }
@@ -178,7 +193,6 @@ impl From<IRouter::CodeValidationRequested> for router::Event {
 impl From<IRouter::ProgramCreated> for router::Event {
     fn from(event: IRouter::ProgramCreated) -> Self {
         router::Event::ProgramCreated {
-            origin: (*event.origin.into_word()).into(),
             actor_id: (*event.actorId.into_word()).into(),
             code_id: (*event.codeId).into(),
         }
@@ -201,15 +215,6 @@ impl From<IRouter::ValuePerWeightChanged> for router::Event {
     fn from(event: IRouter::ValuePerWeightChanged) -> Self {
         router::Event::ValuePerWeightChanged {
             value_per_weight: event.valuePerWeight,
-        }
-    }
-}
-
-impl From<IMirror::ClaimValueRequested> for mirror::Event {
-    fn from(event: IMirror::ClaimValueRequested) -> Self {
-        mirror::Event::ClaimValueRequested {
-            claimed_id: (*event.claimedId).into(),
-            source: (*event.source.into_word()).into(),
         }
     }
 }
@@ -248,7 +253,7 @@ impl From<IMirror::Reply> for mirror::Event {
             payload: event.payload.to_vec(),
             value: event.value,
             reply_to: (*event.replyTo).into(),
-            reply_code: *event.replyCode,
+            reply_code: ReplyCode::from_bytes(*event.replyCode),
         }
     }
 }
@@ -277,6 +282,15 @@ impl From<IMirror::ValueClaimed> for mirror::Event {
         mirror::Event::ValueClaimed {
             claimed_id: (*event.claimedId).into(),
             value: event.value,
+        }
+    }
+}
+
+impl From<IMirror::ValueClaimingRequested> for mirror::Event {
+    fn from(event: IMirror::ValueClaimingRequested) -> Self {
+        mirror::Event::ValueClaimingRequested {
+            claimed_id: (*event.claimedId).into(),
+            source: (*event.source.into_word()).into(),
         }
     }
 }

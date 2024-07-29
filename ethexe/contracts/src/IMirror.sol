@@ -20,11 +20,10 @@ interface IMirror {
      */
     event ReplyQueueingRequested(bytes32 repliedTo, address indexed source, bytes payload, uint128 value);
 
-    // TODO (breathx): rename to ValueClaimingRequested
     /**
      * @dev Emitted when a reply's value is requested to be verified and claimed.
      */
-    event ClaimValueRequested(bytes32 claimedId, address indexed source);
+    event ValueClaimingRequested(bytes32 claimedId, address indexed source);
 
     /**
      * @dev Emitted when a user requests program's executable balance top up with his tokens.
@@ -42,6 +41,7 @@ interface IMirror {
     event Reply(bytes payload, uint128 value, bytes32 replyTo, bytes4 indexed replyCode);
 
     // TODO (breathx): should we deposit it? should we notify about successfull reply sending?
+    // TODO (breathx): `value` could be removed from event.
     /**
      * @dev Emitted when a user succeed in claiming value request and receives balance.
      */

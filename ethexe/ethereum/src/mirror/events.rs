@@ -25,7 +25,6 @@ use gprimitives::H256;
 pub mod signatures {
     use super::{IMirror, SolEvent, H256};
 
-    pub const CLAIM_VALUE_REQUESTED: H256 = H256(IMirror::ClaimValueRequested::SIGNATURE_HASH.0);
     pub const EXECUTABLE_BALANCE_TOP_UP_REQUESTED: H256 =
         H256(IMirror::ExecutableBalanceTopUpRequested::SIGNATURE_HASH.0);
     pub const MESSAGE_QUEUEING_REQUESTED: H256 =
@@ -36,9 +35,10 @@ pub mod signatures {
     pub const REPLY: H256 = H256(IMirror::Reply::SIGNATURE_HASH.0);
     pub const STATE_CHANGED: H256 = H256(IMirror::StateChanged::SIGNATURE_HASH.0);
     pub const VALUE_CLAIMED: H256 = H256(IMirror::ValueClaimed::SIGNATURE_HASH.0);
+    pub const VALUE_CLAIMING_REQUESTED: H256 =
+        H256(IMirror::ValueClaimingRequested::SIGNATURE_HASH.0);
 
     pub const ALL: [H256; 8] = [
-        CLAIM_VALUE_REQUESTED,
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED,
         MESSAGE_QUEUEING_REQUESTED,
         MESSAGE,
@@ -46,6 +46,7 @@ pub mod signatures {
         REPLY,
         STATE_CHANGED,
         VALUE_CLAIMED,
+        VALUE_CLAIMING_REQUESTED,
     ];
 }
 
@@ -59,7 +60,6 @@ pub fn try_extract_event(log: Log) -> Result<Option<mirror::Event>> {
 
     // TODO (breathx): pattern matching issue for primitive_types::H256... ????
     let event = match topic0 {
-        b if b == CLAIM_VALUE_REQUESTED => decode_log::<IMirror::ClaimValueRequested>(log)?.into(),
         b if b == EXECUTABLE_BALANCE_TOP_UP_REQUESTED => {
             decode_log::<IMirror::ExecutableBalanceTopUpRequested>(log)?.into()
         }
@@ -73,6 +73,9 @@ pub fn try_extract_event(log: Log) -> Result<Option<mirror::Event>> {
         b if b == REPLY => decode_log::<IMirror::Reply>(log)?.into(),
         b if b == STATE_CHANGED => decode_log::<IMirror::StateChanged>(log)?.into(),
         b if b == VALUE_CLAIMED => decode_log::<IMirror::ValueClaimed>(log)?.into(),
+        b if b == VALUE_CLAIMING_REQUESTED => {
+            decode_log::<IMirror::ValueClaimingRequested>(log)?.into()
+        }
         _ => return Ok(None),
     };
 

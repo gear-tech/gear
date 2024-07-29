@@ -30,31 +30,34 @@ pub enum CodeState {
 /* Commitment related structures */
 
 pub struct CodeCommitment {
-    pub code_id: CodeId,
-    // TODO (breathx): rename into `validated`?
-    pub approved: bool,
+    pub id: CodeId,
+    pub valid: bool,
 }
 
 pub struct BlockCommitment {
     pub block_hash: H256,
-    // TODO (breathx): rename removed "allowed"?
-    pub allowed_prev_commitment_hash: H256,
-    pub allowed_pred_block_hash: H256,
+    pub prev_commitment_hash: H256,
+    pub pred_block_hash: H256,
     pub transitions: Vec<StateTransition>,
 }
 
 pub struct StateTransition {
     pub actor_id: ActorId,
-    // TODO (breathx): rename into `pre_state_hash`?
-    pub old_state_hash: H256,
+    pub prev_state_hash: H256,
     pub new_state_hash: H256,
-    // TODO (breathx): rename into `messages`?
-    pub outgoing_messages: Vec<OutgoingMessage>,
+    pub value_to_receive: u128,
+    pub value_claims: Vec<ValueClaim>,
+    pub messages: Vec<OutgoingMessage>,
+}
+
+pub struct ValueClaim {
+    pub message_id: MessageId,
+    pub destination: ActorId,
+    pub value: u128,
 }
 
 pub struct OutgoingMessage {
-    // TODO (breathx): rename into `id`?
-    pub message_id: MessageId,
+    pub id: MessageId,
     pub destination: ActorId,
     pub payload: Vec<u8>,
     pub value: u128,
@@ -62,8 +65,8 @@ pub struct OutgoingMessage {
 }
 
 pub struct ReplyDetails {
-    pub reply_to: MessageId,
-    pub reply_code: [u8; 4],
+    pub to: MessageId,
+    pub code: [u8; 4],
 }
 
 /* Events section */
@@ -81,16 +84,12 @@ pub enum Event {
     CodeGotValidated {
         code_id: CodeId,
     },
-    // TODO (breathx): remove origin from here.
     CodeValidationRequested {
-        origin: ActorId,
         code_id: CodeId,
         /// This field is replaced with tx hash in case of zero.
         blob_tx_hash: H256,
     },
-    // TODO (breathx): remove origin from here.
     ProgramCreated {
-        origin: ActorId,
         actor_id: ActorId,
         code_id: CodeId,
     },

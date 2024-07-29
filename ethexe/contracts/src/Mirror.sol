@@ -39,8 +39,8 @@ contract Mirror is IMirror {
     }
 
     function claimValue(bytes32 _claimedId) external {
-        // TODO: should we charge here something for try?
-        emit ClaimValueRequested(_claimedId, tx.origin);
+        // TODO (breathx): should we charge here something for try?
+        emit ValueClaimingRequested(_claimedId, tx.origin);
     }
 
     function executableBalanceTopUp(uint128 _value) external payable {

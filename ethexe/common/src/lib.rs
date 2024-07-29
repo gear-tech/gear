@@ -22,12 +22,16 @@
 
 extern crate alloc;
 
+use gprimitives::ActorId;
+
 pub mod db;
 pub mod mirror;
 pub mod router;
 
 pub enum BlockEvent {
     Router(router::Event),
-    // TODO (breathx): should we add addr here?
-    Mirror(mirror::Event),
+    Mirror {
+        address: ActorId,
+        event: mirror::Event,
+    },
 }

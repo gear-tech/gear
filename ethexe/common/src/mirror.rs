@@ -17,15 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
+use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, MessageId, H256};
 
 /* Events section */
 
 pub enum Event {
-    ClaimValueRequested {
-        claimed_id: MessageId,
-        source: ActorId,
-    },
     ExecutableBalanceTopUpRequested {
         value: u128,
     },
@@ -45,8 +42,7 @@ pub enum Event {
         payload: Vec<u8>,
         value: u128,
         reply_to: MessageId,
-        // TODO (breathx): use `gear_core::ReplyCode`.
-        reply_code: [u8; 4],
+        reply_code: ReplyCode,
     },
     ReplyQueueingRequested {
         replied_to: MessageId,
@@ -60,5 +56,9 @@ pub enum Event {
     ValueClaimed {
         claimed_id: MessageId,
         value: u128,
+    },
+    ValueClaimingRequested {
+        claimed_id: MessageId,
+        source: ActorId,
     },
 }

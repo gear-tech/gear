@@ -85,12 +85,15 @@ contract RouterTest is Test {
 
         vm.roll(100);
 
+        // TODO (breathx): add test on this.
+        IRouter.ValueClaim[] memory valueClaims = new IRouter.ValueClaim[](0);
+
         IRouter.OutgoingMessage[] memory outgoingMessages = new IRouter.OutgoingMessage[](1);
         outgoingMessages[0] = IRouter.OutgoingMessage(0, deployerAddress, "PONG", 0, IRouter.ReplyDetails(0, 0));
 
         IRouter.StateTransition[] memory transitionsArray = new IRouter.StateTransition[](1);
         IRouter.BlockCommitment[] memory blockCommitmentsArray = new IRouter.BlockCommitment[](1);
-        transitionsArray[0] = IRouter.StateTransition(actorId, 0, bytes32(uint256(1)), outgoingMessages);
+        transitionsArray[0] = IRouter.StateTransition(actorId, 0, bytes32(uint256(1)), 0, valueClaims, outgoingMessages);
         blockCommitmentsArray[0] = IRouter.BlockCommitment(
             bytes32(uint256(1)), bytes32(uint256(0)), blockhash(block.number - 1), transitionsArray
         );
@@ -111,8 +114,7 @@ contract RouterTest is Test {
 
         for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
             IRouter.CodeCommitment memory codeCommitment = codeCommitmentsArray[i];
-            codesBytes =
-                bytes.concat(codesBytes, keccak256(abi.encodePacked(codeCommitment.codeId, codeCommitment.approved)));
+            codesBytes = bytes.concat(codesBytes, keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid)));
         }
 
         router.commitCodes(codeCommitmentsArray, createSignatures(codesBytes));
@@ -135,21 +137,31 @@ contract RouterTest is Test {
         for (uint256 i = 0; i < commitment.transitions.length; i++) {
             IRouter.StateTransition memory transition = commitment.transitions[i];
 
-            bytes memory outgoingMessagesHashesBytes;
+            bytes memory valueClaimsBytes;
 
-            for (uint256 j = 0; j < transition.outgoingMessages.length; j++) {
-                IRouter.OutgoingMessage memory outgoingMessage = transition.outgoingMessages[j];
+            for (uint256 j = 0; j < transition.valueClaims.length; j++) {
+                IRouter.ValueClaim memory valueClaim = transition.valueClaims[j];
 
-                outgoingMessagesHashesBytes = bytes.concat(
-                    outgoingMessagesHashesBytes,
+                valueClaimsBytes = bytes.concat(
+                    valueClaimsBytes, abi.encodePacked(valueClaim.messageId, valueClaim.destination, valueClaim.value)
+                );
+            }
+
+            bytes memory messagesHashesBytes;
+
+            for (uint256 j = 0; j < transition.messages.length; j++) {
+                IRouter.OutgoingMessage memory outgoingMessage = transition.messages[j];
+
+                messagesHashesBytes = bytes.concat(
+                    messagesHashesBytes,
                     keccak256(
                         abi.encodePacked(
-                            outgoingMessage.messageId,
+                            outgoingMessage.id,
                             outgoingMessage.destination,
                             outgoingMessage.payload,
                             outgoingMessage.value,
-                            outgoingMessage.replyDetails.replyTo,
-                            outgoingMessage.replyDetails.replyCode
+                            outgoingMessage.replyDetails.to,
+                            outgoingMessage.replyDetails.code
                         )
                     )
                 );
@@ -160,9 +172,11 @@ contract RouterTest is Test {
                 keccak256(
                     abi.encodePacked(
                         transition.actorId,
-                        transition.oldStateHash,
+                        transition.prevStateHash,
                         transition.newStateHash,
-                        keccak256(outgoingMessagesHashesBytes)
+                        transition.valueToReceive,
+                        keccak256(valueClaimsBytes),
+                        keccak256(messagesHashesBytes)
                     )
                 )
             );
@@ -171,8 +185,8 @@ contract RouterTest is Test {
         return keccak256(
             abi.encodePacked(
                 commitment.blockHash,
-                commitment.allowedPrevCommitmentHash,
-                commitment.allowedPredBlockHash,
+                commitment.prevCommitmentHash,
+                commitment.predBlockHash,
                 keccak256(transitionsHashesBytes)
             )
         );

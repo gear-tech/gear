@@ -32,27 +32,34 @@ interface IRouter {
     /* Commitment related structures */
 
     struct CodeCommitment {
-        bytes32 codeId;
-        bool approved;
+        bytes32 id;
+        bool valid;
     }
 
     struct BlockCommitment {
         bytes32 blockHash;
-        bytes32 allowedPrevCommitmentHash;
-        bytes32 allowedPredBlockHash;
+        bytes32 prevCommitmentHash;
+        bytes32 predBlockHash;
         StateTransition[] transitions;
     }
 
     struct StateTransition {
         address actorId;
-        bytes32 oldStateHash;
+        bytes32 prevStateHash;
         bytes32 newStateHash;
-        // TODO (breathx): impl value and balances handling here
-        OutgoingMessage[] outgoingMessages;
+        uint128 valueToReceive;
+        ValueClaim[] valueClaims;
+        OutgoingMessage[] messages;
+    }
+
+    struct ValueClaim {
+        bytes32 messageId;
+        address destination;
+        uint128 value;
     }
 
     struct OutgoingMessage {
-        bytes32 messageId;
+        bytes32 id;
         address destination;
         bytes payload;
         uint128 value;
@@ -60,8 +67,8 @@ interface IRouter {
     }
 
     struct ReplyDetails {
-        bytes32 replyTo;
-        bytes4 replyCode;
+        bytes32 to;
+        bytes4 code;
     }
 
     /* Events section */
@@ -74,7 +81,7 @@ interface IRouter {
     /**
      * @dev Emitted when a new code validation request submitted.
      */
-    event CodeValidationRequested(address origin, bytes32 codeId, bytes32 blobTxHash);
+    event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
 
     /**
      * @dev Emitted when a code, previously requested to be validated, gets validated successfully.
@@ -90,7 +97,7 @@ interface IRouter {
     /**
      * @dev Emitted when a new program created.
      */
-    event ProgramCreated(address indexed origin, address actorId, bytes32 indexed codeId);
+    event ProgramCreated(address actorId, bytes32 indexed codeId);
 
     /**
      * @dev Emitted when the validators set is changed.
