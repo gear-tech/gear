@@ -1017,8 +1017,15 @@ pub mod pallet {
                         GasAllowanceOf::<T>::get()
                             .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time()),
                     );
-                    TaskPoolOf::<T>::add(bn, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                    TaskPoolOf::<T>::add(bn, task.clone()).unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "process_tasks: failed adding not processed last task to task pool. \
+                            Bn - {bn:?}, task - {task:?}. Got error - {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}");
+                    });
                 }
 
                 // Stopping iteration over blocks if no resources left.
@@ -1043,7 +1050,11 @@ pub mod pallet {
         pub(crate) fn enable_lazy_pages() {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
             if !LazyPagesRuntimeInterface::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
+                let err_msg =
+                    "enable_lazy_pages: By some reasons we cannot run lazy-pages on this machine";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             }
         }
 
@@ -1112,12 +1123,15 @@ pub mod pallet {
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
-            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(||
-                unreachable!(
-                    "Code storage is corrupted: instrumented code with id {:?} exists while original not",
-                    code_id
-                )
-            );
+            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| {
+                let err_msg = format!(
+                    "reinstrument_code: failed to get original code, while instrumented exists. \
+                    Code id - {code_id}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             let code = Code::try_new(
                 original_code,
@@ -1273,8 +1287,13 @@ pub mod pallet {
                 entry: MessageEntry::Init,
             };
 
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
+            QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+                let err_msg =
+                    format!("do_create_program: failed queuing message. Got error - {e:?}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             Self::deposit_event(program_event);
             Self::deposit_event(event);
@@ -1562,7 +1581,7 @@ pub mod pallet {
 
             // Reading message, if found, or failing extrinsic.
             let mailboxed = Self::read_message(origin.clone(), message_id, reason)
-                .ok_or(Error::<T>::MessageNotFound)?;
+                .map_err(|_| Error::<T>::MessageNotFound)?;
 
             let (builtins, _) = T::BuiltinDispatcherFactory::create();
             if Self::is_active(&builtins, mailboxed.source()) {
@@ -1576,8 +1595,12 @@ pub mod pallet {
                     message.into_stored_dispatch(origin.cast(), mailboxed.source(), mailboxed.id());
 
                 // Queueing dispatch.
-                QueueOf::<T>::queue(dispatch)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+                    let err_msg = format!("claim_value: failed queuing message. Got error - {e:?}");
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             }
 
             Ok(().into())
@@ -1800,13 +1823,32 @@ pub mod pallet {
                     entry: MessageEntry::Handle,
                 });
 
-                QueueOf::<T>::queue(message)
-                    .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
+                QueueOf::<T>::queue(message).unwrap_or_else(|e| {
+                    let err_msg =
+                        format!("send_message_impl: failed queuing message. Got error - {e:?}");
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             } else {
-                let message = message.into_stored(origin.cast());
+                // Take data for the error log
+                let message_id = message.id();
+                let source = origin.cast::<ProgramId>();
+                let destination = message.destination();
+
+                let message = message.into_stored(source);
                 let message: UserMessage = message
                     .try_into()
-                    .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
+                    .unwrap_or_else(|_| {
+                        // Signal message sent to user
+                        let err_msg = format!(
+                            "send_message_impl: failed convertion from stored into user message. \
+                            Message id - {message_id}, program id - {source}, destination - {destination}",
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    });
 
                 let existence_requirement = if keep_alive {
                     ExistenceRequirement::KeepAlive
@@ -1849,7 +1891,7 @@ pub mod pallet {
 
             // Reading message, if found, or failing extrinsic.
             let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
-                .ok_or(Error::<T>::MessageNotFound)?;
+                .map_err(|_| Error::<T>::MessageNotFound)?;
 
             Self::check_gas_limit(gas_limit)?;
 
@@ -1898,8 +1940,12 @@ pub mod pallet {
             };
 
             // Queueing dispatch.
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+                let err_msg = format!("send_reply_impl: failed queuing message. Got error - {e:?}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Depositing pre-generated event.
             Self::deposit_event(event);
