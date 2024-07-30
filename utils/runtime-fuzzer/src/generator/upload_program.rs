@@ -150,7 +150,8 @@ fn config(
             actor_kind: actor_kind.clone(),
             range: EXISTENTIAL_DEPOSIT..=max_value,
         })
-        .with_ptr_rule(PtrParamAllowedValues::ReservationId);
+        .with_ptr_rule(PtrParamAllowedValues::ReservationId)
+        .with_ptr_rule(PtrParamAllowedValues::WaitedMessageId);
 
     if let Some(code_ids) = code_ids {
         params_config = params_config.with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
