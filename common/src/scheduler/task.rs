@@ -103,8 +103,8 @@ impl<AccountId> ScheduledTask<AccountId> {
             SendDispatch(message_id) => handler.send_dispatch(message_id),
             SendUserMessage {
                 message_id,
-                to_mailbox: to_user,
-            } => handler.send_user_message(message_id, to_user),
+                to_mailbox,
+            } => handler.send_user_message(message_id, to_mailbox),
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
@@ -139,7 +139,7 @@ pub trait TaskHandler<AccountId> {
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas;
 
     // Send delayed message to user action.
-    fn send_user_message(&mut self, stashed_message_id: MessageId, to_user: bool) -> Gas;
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas;
 
     /// Remove gas reservation action.
     fn remove_gas_reservation(

@@ -1164,6 +1164,9 @@ where
                 unreachable!("{err_msg}");
             });
 
+            // Figuring out hold bound for given gas limit.
+            let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
+
             // Validating holding duration.
             if hold.expected_duration().is_zero() {
                 let err_msg = format!(
