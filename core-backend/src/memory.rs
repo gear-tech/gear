@@ -27,7 +27,7 @@ use crate::{
     state::HostState,
     BackendExternalities,
 };
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 use codec::{Decode, DecodeAll, MaxEncodedLen};
 use core::{marker::PhantomData, mem, mem::MaybeUninit, slice};
 use gear_core::{
