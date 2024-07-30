@@ -19,18 +19,45 @@
 //! Signer library for ethexe.
 
 use anyhow::{anyhow, Context as _, Result};
+use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::Message;
 use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PublicKey(pub [u8; 33]);
 
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PrivateKey(pub [u8; 32]);
+
+impl From<PrivateKey> for PublicKey {
+    fn from(key: PrivateKey) -> Self {
+        let secret_key =
+            secp256k1::SecretKey::from_slice(&key.0[..]).expect("32 bytes, within curve order");
+        let public_key = secp256k1::PublicKey::from_secret_key_global(&secret_key);
+
+        PublicKey::from_bytes(public_key.serialize())
+    }
+}
 
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Address(pub [u8; 20]);
+
+impl TryFrom<ActorId> for Address {
+    type Error = anyhow::Error;
+
+    fn try_from(id: ActorId) -> std::result::Result<Self, Self::Error> {
+        id.as_ref()
+            .iter()
+            .take(12)
+            .all(|&byte| byte == 0)
+            .then_some(Address(id.to_address_lossy().0))
+            .ok_or(anyhow!(
+                "First 12 bytes are not 0, it is not ethereum address"
+            ))
+    }
+}
 
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Signature(pub [u8; 65]);
@@ -175,7 +202,7 @@ impl Signer {
     }
 
     pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
-        let secret_key = self.get_key(public_key)?;
+        let secret_key = self.get_private_key(public_key)?;
 
         let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
             .with_context(|| "Invalid secret key format for {:?}")?;
@@ -280,7 +307,7 @@ impl Signer {
         Ok(keys)
     }
 
-    fn get_key(&self, key: PublicKey) -> Result<PrivateKey> {
+    pub fn get_private_key(&self, key: PublicKey) -> Result<PrivateKey> {
         let mut buf = [0u8; 32];
 
         let key_path = self.key_store.join(key.to_hex());
@@ -379,5 +406,18 @@ mod tests {
 
         // Clean up the key store directory
         signer.clear_keys().unwrap();
+    }
+
+    #[test]
+    fn try_from_actor_id() {
+        let id =
+            ActorId::from_str("0x0000000000000000000000006e4c403878dbcb0dadcbe562346e8387f9542829")
+                .unwrap();
+        Address::try_from(id).expect("Must be correct ethereum address");
+
+        let id =
+            ActorId::from_str("0x1111111111111111111111116e4c403878dbcb0dadcbe562346e8387f9542829")
+                .unwrap();
+        Address::try_from(id).expect_err("Must be incorrect ethereum address");
     }
 }

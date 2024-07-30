@@ -16,7 +16,73 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Custom store refcell
+//! # Description
+//!
+//! Custom implementation of `RefCell` for the `sandbox_wasmer::Store` type,
+//! enabling safe repeated mutable borrowing of `StoreRefCell` higher up the call stack
+//! when the mutable borrow of `StoreRefCell` still exists.
+//!
+//! Example illustrating functionality in terms of `RefCell` from the standard library:
+//!
+//! At first we borrow store mutably:
+//!
+//! ```ignore
+//!    let refcell = RefCell::new(Store::default());
+//!    let mut_borrow = refcell.borrow_mut();
+//!
+//!    func(&refcell, &mut mut_borrow);
+//! ```
+//!
+//! Now we need to borrow store mutably again inside `func`,
+//! but we can't do it because `mut_borrow` still exists.
+//!  
+//! ```ignore
+//!    fn func(ref_cell: &RefCell<Store>, mut_borrow: &mut Store) {
+//!        ref_cell.borrow_mut(); // This will panic
+//!   }
+//! ```
+//!  
+//! With `StoreRefCell` we can do it safely:
+//!
+//! ```ignore
+//!    fn func(store_refcell: &StoreRefCell, mut_borrow: &mut Store) {
+//!        store_refcell.borrow_scope(mut_borrow, || {
+//!            // Now we can borrow store again
+//!            let second_mut_borrow = store_refcell.borrow_mut();
+//!        });
+//!   }
+//! ```
+//!  
+//! # Why is this necessary? Can't we do without repeated mutable borrowing?
+//!
+//! The issue arises because when handling syscalls within an instance of a program running in Wasmer,
+//! a runtime interface call occurs, leading to a situation where we have two nested runtime interface calls.
+//! The first call `sandbox::invoke` initiates the program execution, the second occurs during the syscall processing.
+//!
+//! Thus, the call stack at the highest point looks like this:
+//!
+//! ```text
+//!   -----------------------------------
+//!   | Memory::write                   | Write sandbox memory (Borrows Store mutably)
+//!   ---------native boundary-----------
+//!   | sandbox::memory_set             | Runtime on behalf of processing syscall make a call to runtime interface
+//!   -----------------------------------
+//!   | runtime executes syscall        |
+//!   --------runtime boundary-----------
+//!   | syscall_callback                | Wasmer calls syscall callback from inside his VM
+//!   -----------------------------------
+//!   | Wasmer's Func::call             | Sandbox starts to executes program function (Borrows Store mutably)
+//!   -------native boundary----------- |
+//!   | sandbox::invoke                 | Runtime interface call
+//!   -----------------------------------
+//! ```
+//!
+//! As we can see, the `sandbox::invoke` function borrows the store mutably,
+//! and then the `sandbox::memory_set` runtime interface call borrows the store mutably again.
+//!
+//! Therefore, since it is not possible to pass a reference to Store through nested runtime interface call
+//! or cancel previous mutable borrow, it is necessary to use `StoreRefCell` for safe repeated mutable borrowing of `Store`.
+//!
 
 use std::{
     cell::{Cell, UnsafeCell},
@@ -26,12 +92,12 @@ use std::{
 };
 
 use defer::defer;
-use sandbox_wasmer::{AsStoreMut, Store};
+use sandbox_wasmer::{AsStoreMut, AsStoreRef, Store, StoreRef};
 
 #[derive(Debug, Clone, Copy)]
 enum BorrowState {
     Shared(NonZeroUsize),
-    Exclusive,
+    Mutable,
     NonShared,
 }
 
@@ -47,7 +113,7 @@ pub struct StoreRefCell {
 pub struct BorrowScopeError;
 
 impl StoreRefCell {
-    /// Create new `StoreRefCell` with provided `Store
+    /// Create new `StoreRefCell` with provided `Store`
     pub fn new(store: Store) -> Self {
         Self {
             store: UnsafeCell::new(store),
@@ -68,7 +134,7 @@ impl StoreRefCell {
                 self.state
                     .set(BorrowState::Shared(NonZeroUsize::new(1).expect("non zero")));
             }
-            BorrowState::Exclusive => {
+            BorrowState::Mutable => {
                 panic!("store already borrowed mutably");
             }
         }
@@ -84,9 +150,9 @@ impl StoreRefCell {
     pub fn borrow_mut(&self) -> RefMut<'_> {
         match self.state.get() {
             BorrowState::NonShared => {
-                self.state.set(BorrowState::Exclusive);
+                self.state.set(BorrowState::Mutable);
             }
-            BorrowState::Shared(_) | BorrowState::Exclusive => {
+            BorrowState::Shared(_) | BorrowState::Mutable => {
                 panic!("store already borrowed");
             }
         }
@@ -103,6 +169,12 @@ impl StoreRefCell {
         store: impl AsStoreMut,
         f: F,
     ) -> Result<R, BorrowScopeError> {
+        // We expect  the same store
+        debug_assert!(
+            self.compare_stores(store.as_store_ref()),
+            "stores are different"
+        );
+
         // Caller just returned borrowed mutably reference to the store, now we can safely borrow it mutably again
         let _store = store;
 
@@ -119,9 +191,19 @@ impl StoreRefCell {
         debug_assert!(matches!(self.state.get(), BorrowState::NonShared));
 
         // Restore previous state after scope ends
-        defer!(self.state.set(BorrowState::Exclusive));
+        defer!(self.state.set(BorrowState::Mutable));
 
         Ok(result)
+    }
+
+    #[allow(unused)]
+    fn compare_stores(&self, returned_store: StoreRef) -> bool {
+        // SAFETY:
+        // Verified with Miri, it seems safe.
+        // Carefully compare the stores while don't using/holding mutable references to them in the same time.
+        let orig_store_ref: StoreRef = unsafe { &*self.store.get() }.as_store_ref();
+
+        StoreRef::same(&orig_store_ref, &returned_store)
     }
 
     /// Returns store ptr, same semantics as `RefCell::as_ptr`
@@ -187,7 +269,7 @@ impl DerefMut for RefMut<'_> {
 impl Drop for RefMut<'_> {
     fn drop(&mut self) {
         match self.state.get() {
-            BorrowState::Exclusive => {
+            BorrowState::Mutable => {
                 self.state.set(BorrowState::NonShared);
             }
             _ => unreachable!(),

@@ -19,8 +19,6 @@ use tokio::{
     time::{self, Duration},
 };
 
-const BEACON_BLOCK_TIME: u64 = 12;
-
 #[async_trait]
 pub trait BlobReader: Send + Sync {
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>>;
@@ -31,14 +29,20 @@ pub struct ConsensusLayerBlobReader {
     provider: ObserverProvider,
     http_client: Client,
     ethereum_beacon_rpc: String,
+    beacon_block_time: Duration,
 }
 
 impl ConsensusLayerBlobReader {
-    pub async fn new(ethereum_rpc: &str, ethereum_beacon_rpc: &str) -> Result<Self> {
+    pub async fn new(
+        ethereum_rpc: &str,
+        ethereum_beacon_rpc: &str,
+        beacon_block_time: Duration,
+    ) -> Result<Self> {
         Ok(Self {
             provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
             http_client: Client::new(),
             ethereum_beacon_rpc: ethereum_beacon_rpc.into(),
+            beacon_block_time,
         })
     }
 
@@ -78,7 +82,8 @@ impl BlobReader for ConsensusLayerBlobReader {
             .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
             .await?
             .ok_or_else(|| anyhow!("failed to get block"))?;
-        let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME) / BEACON_BLOCK_TIME;
+        let slot =
+            (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME) / self.beacon_block_time.as_secs();
         let blob_bundle_result = match attempts {
             Some(attempts) => {
                 let mut count = 0;
@@ -88,7 +93,7 @@ impl BlobReader for ConsensusLayerBlobReader {
                     if blob_bundle_result.is_ok() || count >= attempts {
                         break blob_bundle_result;
                     } else {
-                        time::sleep(Duration::from_secs(BEACON_BLOCK_TIME)).await;
+                        time::sleep(self.beacon_block_time).await;
                         count += 1;
                     }
                 }
@@ -115,12 +120,20 @@ impl BlobReader for ConsensusLayerBlobReader {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct MockBlobReader {
     transactions: Arc<RwLock<HashMap<H256, Vec<u8>>>>,
+    block_time: Duration,
 }
 
 impl MockBlobReader {
+    pub fn new(block_time: Duration) -> Self {
+        Self {
+            transactions: Arc::new(RwLock::new(HashMap::new())),
+            block_time,
+        }
+    }
+
     pub async fn add_blob_transaction(&self, tx_hash: H256, data: Vec<u8>) {
         self.transactions.write().await.insert(tx_hash, data);
     }
@@ -138,7 +151,7 @@ impl BlobReader for MockBlobReader {
                     if maybe_blob_data.is_some() || count >= attempts {
                         break maybe_blob_data;
                     } else {
-                        time::sleep(Duration::from_secs(BEACON_BLOCK_TIME)).await;
+                        time::sleep(self.block_time).await;
                         count += 1;
                     }
                 }
