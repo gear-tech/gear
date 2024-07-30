@@ -48,6 +48,7 @@ pub use weights::WeightInfo;
 
 use alloc::{
     collections::{btree_map::Entry, BTreeMap},
+    format,
     string::ToString,
 };
 use core_processor::{
