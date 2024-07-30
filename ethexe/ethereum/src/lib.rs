@@ -8,18 +8,21 @@ use abi::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SignableTransaction, SimpleCoder},
-    network::{Ethereum as AlloyEthereum, EthereumWallet, TxSigner},
+    network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TransactionBuilder, TxSigner},
     primitives::{keccak256, Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
-        fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
-        Provider, ProviderBuilder, RootProvider,
+        fillers::{
+            ChainIdFiller, FillProvider, FillerControlFlow, GasFiller, JoinFill, TxFiller,
+            WalletFiller,
+        },
+        Identity, Provider, ProviderBuilder, RootProvider, SendableTx,
     },
     signers::{
         self as alloy_signer, sign_transaction_with_chain_id, Error as SignerError,
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::SolCall,
-    transports::BoxTransport,
+    transports::{BoxTransport, Transport, TransportResult},
 };
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
@@ -38,18 +41,61 @@ mod eip1167;
 pub mod event;
 
 type AlloyTransport = BoxTransport;
-type AlloyProvider = FillProvider<
-    JoinFill<RecommendedFiller, WalletFiller<EthereumWallet>>,
-    RootProvider<AlloyTransport>,
-    AlloyTransport,
-    AlloyEthereum,
+type ExeFiller = JoinFill<
+    JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>,
+    WalletFiller<EthereumWallet>,
 >;
+type AlloyProvider =
+    FillProvider<ExeFiller, RootProvider<AlloyTransport>, AlloyTransport, AlloyEthereum>;
 
 type AlloyProgramInstance = IProgram::IProgramInstance<AlloyTransport, Arc<AlloyProvider>>;
 type AlloyRouterInstance = IRouter::IRouterInstance<AlloyTransport, Arc<AlloyProvider>>;
 
 type QueryRouterInstance =
     IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
+
+#[derive(Debug, Clone)]
+pub struct NonceFiller;
+
+impl<N: Network> TxFiller<N> for NonceFiller {
+    type Fillable = u64;
+
+    fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
+        if tx.nonce().is_some() {
+            return FillerControlFlow::Finished;
+        }
+        if tx.from().is_none() {
+            return FillerControlFlow::missing("NonceManager", vec!["from"]);
+        }
+        FillerControlFlow::Ready
+    }
+
+    fn fill_sync(&self, _tx: &mut SendableTx<N>) {}
+
+    async fn prepare<P, T>(
+        &self,
+        provider: &P,
+        tx: &N::TransactionRequest,
+    ) -> TransportResult<Self::Fillable>
+    where
+        P: Provider<T, N>,
+        T: Transport + Clone,
+    {
+        let from = tx.from().expect("checked by 'ready()'");
+        provider.get_transaction_count(from).await
+    }
+
+    async fn fill(
+        &self,
+        nonce: Self::Fillable,
+        mut tx: SendableTx<N>,
+    ) -> TransportResult<SendableTx<N>> {
+        if let Some(builder) = tx.as_mut_builder() {
+            builder.set_nonce(nonce);
+        }
+        Ok(tx)
+    }
+}
 
 #[derive(Debug, Clone)]
 struct Sender {
@@ -209,6 +255,7 @@ impl Router {
         event::decode_log::<IRouter::CodeApproved>(log).map(Into::into)
     }
 
+    // TODO: returned program id is incorrect
     pub async fn create_program(
         &self,
         code_id: CodeId,
@@ -373,13 +420,16 @@ async fn create_provider(
 ) -> Result<Arc<AlloyProvider>> {
     Ok(Arc::new(
         ProviderBuilder::new()
-            .with_recommended_fillers()
+            .filler(GasFiller)
+            .filler(NonceFiller)
+            .filler(ChainIdFiller::default())
             .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
             .on_builtin(rpc_url)
             .await?,
     ))
 }
 
+#[derive(Clone)]
 pub struct Ethereum {
     router_address: Address,
     provider: Arc<AlloyProvider>,

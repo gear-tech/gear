@@ -81,7 +81,9 @@ jobs:
           version: nightly
 
       - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
+        run: |
+          ./scripts/gear.sh show
+          forge --version
 
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
