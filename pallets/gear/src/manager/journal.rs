@@ -504,6 +504,14 @@ where
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
+            // SAFETY:
+            // Do not remove insertion into programs map as it gives guarantee
+            // that init message for destination with no code won't enter
+            // the mailbox (so no possible uncovered gas charges which leads to panic).
+            // Such message will be inserted into the queue and later processed as
+            // non executable.
+            //
+            // Test for it - `test_create_program_no_code_hash`.
             for (_, candidate) in candidates {
                 self.programs.insert(candidate);
             }
