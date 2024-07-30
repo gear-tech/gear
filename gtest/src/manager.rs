@@ -1064,13 +1064,6 @@ impl JournalHandler for ExtManager {
                     self.gas_tree
                         .split(false, reservation, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // Unspecified node is created from the reservation, so consuming it doesn't
-                    // catch the value (gas) in it, so dependant gasless message will have the
-                    // gas for execution.
-                    if let Ok(Some(_)) = self.gas_tree.consume(reservation) {
-                        unreachable!("GasTree corrupted: consumed with a retrieve value from reservation patron");
-                    }
                 }
                 (Some(_), Some(_)) => unreachable!(
                     "Sending dispatch with gas limit from reservation \
