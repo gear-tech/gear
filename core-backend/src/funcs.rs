@@ -32,7 +32,10 @@ use crate::{
     state::HostState,
     BackendExternalities,
 };
-use alloc::string::{String, ToString};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
