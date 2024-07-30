@@ -26,6 +26,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+use alloc::format;
+
 pub use pallet::*;
 
 use frame_support::traits::{

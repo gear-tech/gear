@@ -24,9 +24,9 @@ extern crate alloc;
 
 pub use gear_lazy_pages_common::LazyPagesInterface;
 
+use alloc::format;
 use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
-use alloc::format;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
