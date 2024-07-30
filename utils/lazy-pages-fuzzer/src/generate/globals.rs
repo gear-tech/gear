@@ -183,7 +183,6 @@ mod tests {
         let (module, _) = globals.inject(module).unwrap();
 
         let module = sandbox_wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
-
         let instance =
             sandbox_wasmi::ModuleInstance::new(&module, &sandbox_wasmi::ImportsBuilder::default())
                 .unwrap()

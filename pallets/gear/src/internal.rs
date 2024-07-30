@@ -947,7 +947,7 @@ where
         let message: UserMessage = message.try_into().unwrap_or_else(|_| {
             // Signal message sent to user
             let err_msg = format!(
-                "send_user_message: failed convertion from stored into user message. \
+                "send_user_message: failed conversion from stored into user message. \
                     Message id - {message_id}, program id - {from}, destination - {to}",
             );
 
@@ -1019,7 +1019,7 @@ where
             let message: UserStoredMessage = message.clone().try_into().unwrap_or_else(|_| {
                 // Replies never sent to mailbox
                 let err_msg = format!(
-                    "send_user_message: failed convertion from user into user stored message. \
+                    "send_user_message: failed conversion from user into user stored message. \
                         Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                 );
 
@@ -1184,7 +1184,7 @@ where
                 .unwrap_or_else(|_| {
                     // Replies never sent to mailbox
                     let err_msg = format!(
-                        "send_user_message_after_delay: failed convertion from user into user stored message. \
+                        "send_user_message_after_delay: failed conversion from user into user stored message. \
                         Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                     );
 
