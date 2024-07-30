@@ -20,8 +20,8 @@
 
 use crate::{
     AccountIdOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, SchedulingCostOf,
-    TaskPoolOf, WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::{collections::BTreeSet, format};
 use common::{
@@ -41,8 +41,11 @@ use core::{
 use frame_support::traits::{fungible, Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{MessageId, ProgramId, ReservationId},
-    message::{Dispatch, DispatchKind, Message, StoredDispatch, UserMessage, UserStoredMessage},
+    ids::{prelude::*, MessageId, ProgramId, ReservationId},
+    message::{
+        Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
+        UserStoredMessage,
+    },
 };
 use sp_runtime::{
     traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero},
@@ -674,6 +677,9 @@ where
             unreachable!("{err_msg}");
         }
 
+        // Indicates that message goes to mailbox and gas should be charged for holding
+        let mut to_mailbox = false;
+
         // Sender node of the dispatch.
         let sender_node = reservation
             .map(GasNodeId::Reservation)
@@ -691,17 +697,17 @@ where
         let gas_for_delay = delay_hold.lock_amount();
 
         let interval_finish = if to_user {
+            // Querying `MailboxThreshold`, that represents minimal amount of gas
+            // for message to be added to mailbox.
+            let threshold = T::MailboxThreshold::get();
+
             // Figuring out gas limit for insertion.
             //
             // In case of sending with gas, we use applied gas limit, otherwise
             // finding available funds and trying to take threshold from them.
             let gas_limit = dispatch
                 .gas_limit()
-                .unwrap_or_else(|| {
-                    // Querying `MailboxThreshold`, that represents minimal amount of gas
-                    // for message to be added to mailbox.
-                    let threshold = T::MailboxThreshold::get();
-
+                .or_else(|| {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
                     let gas_limit = GasHandlerOf::<T>::get_limit(sender_node).unwrap_or_else(|e| {
                         let err_msg = format!(
@@ -713,18 +719,15 @@ where
                         unreachable!("{err_msg}");
                     });
 
-                    // Explain
-                    if gas_limit.saturating_sub(gas_for_delay) < threshold {
-                        log::error!(
-                            "Insufficient gas in {} message to cover the mailbox threhsold with a {} delay. \
-                            Gas limit - {}, gas for delay - {}, threshold - {}, reservation - {:?}.",
-                            origin_msg, delay, gas_limit, gas_for_delay, threshold, reservation,
-                        );
-                        unreachable!("Mailbox message with delay gas coverage invalidated!");
-                    }
-
-                    threshold
-                });
+                    // If available gas is greater then threshold,
+                    // than threshold can be used.
+                    //
+                    // Here we subtract gas for delay from gas limit to prevent
+                    // case when gasless message steal threshold from gas for
+                    // delay payment and delay payment becomes insufficient.
+                    (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
+                })
+                .unwrap_or_default();
 
             // Message is going to be inserted into mailbox.
             //
@@ -748,6 +751,17 @@ where
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}");
             });
+
+            // Generating gas node for future auto reply.
+            // TODO: use `sender_node` (e.g. reservation case) as first argument after #1828.
+            if !to_mailbox {
+                Self::split_with_value(
+                    origin_msg,
+                    MessageId::generate_reply(dispatch.id()),
+                    0,
+                    true,
+                );
+            }
 
             // TODO: adapt this line if gasful sending appears for reservations (#1828)
             if let Some(reservation_id) = reservation {
@@ -878,7 +892,10 @@ where
         DispatchStashOf::<T>::insert(message_id, (dispatch.into_stored_delayed(), delay_interval));
 
         let task = if to_user {
-            ScheduledTask::SendUserMessage(message_id)
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox,
+            }
         } else {
             ScheduledTask::SendDispatch(message_id)
         };
@@ -904,10 +921,9 @@ where
         message: Message,
         reservation: Option<ReservationId>,
     ) {
-        // Taking data for funds manipulations.
-        let from = message.source().cast();
-        let to = message.destination().cast();
-        let value = message.value().unique_saturated_into();
+        // Querying `MailboxThreshold`, that represents minimal amount of gas
+        // for message to be added to mailbox.
+        let threshold = T::MailboxThreshold::get();
 
         let msg_id = reservation
             .map(GasNodeId::Reservation)
@@ -959,6 +975,10 @@ where
         let from = message.source().cast();
         let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
+
+        // If gas limit can cover threshold, message will be added to mailbox,
+        // task created and funds reserved.
+        let expiration = if message.details().is_none() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
@@ -1128,9 +1148,8 @@ where
         let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
 
-        // Querying gas limit. Fails in cases of `GasTree` invalidations.
-        let gas_limit = GasHandlerOf::<T>::get_limit(message.id())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        // If gas limit can cover threshold, message will be added to mailbox,
+        // task created and funds reserved.
 
         let expiration = if to_mailbox {
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
@@ -1261,7 +1280,7 @@ where
         // Depositing appropriate event.
         Self::deposit_event(Event::UserMessageSent {
             message,
-            expiration: Some(hold.expected()),
+            expiration,
         });
     }
 

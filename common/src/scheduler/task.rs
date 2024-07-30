@@ -70,7 +70,10 @@ pub enum ScheduledTask<AccountId> {
     ///
     /// The message itself stored in DispatchStash.
     #[codec(index = 7)]
-    SendUserMessage(MessageId),
+    SendUserMessage {
+        message_id: MessageId,
+        to_mailbox: bool,
+    },
 
     /// Remove gas reservation.
     #[codec(index = 8)]
@@ -98,7 +101,10 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemovePausedProgram(program_id) => handler.remove_paused_program(program_id),
             WakeMessage(program_id, message_id) => handler.wake_message(program_id, message_id),
             SendDispatch(message_id) => handler.send_dispatch(message_id),
-            SendUserMessage(message_id) => handler.send_user_message(message_id),
+            SendUserMessage {
+                message_id,
+                to_mailbox: to_user,
+            } => handler.send_user_message(message_id, to_user),
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
@@ -133,7 +139,7 @@ pub trait TaskHandler<AccountId> {
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas;
 
     // Send delayed message to user action.
-    fn send_user_message(&mut self, stashed_message_id: MessageId) -> Gas;
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_user: bool) -> Gas;
 
     /// Remove gas reservation action.
     fn remove_gas_reservation(

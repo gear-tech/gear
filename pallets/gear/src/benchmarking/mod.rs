@@ -2670,6 +2670,14 @@ benchmarks! {
         ext_manager.send_user_message(message_id, true);
     }
 
+    tasks_send_user_message {
+        let message_id = tasks::send_user_message::<T>();
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
+    }: {
+        ext_manager.send_user_message(message_id, false);
+    }
+
     tasks_send_dispatch {
         let message_id = tasks::send_dispatch::<T>();
 
