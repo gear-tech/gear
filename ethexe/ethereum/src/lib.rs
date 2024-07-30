@@ -49,8 +49,8 @@ use std::sync::Arc;
 
 mod abi;
 mod eip1167;
-mod mirror;
-mod router;
+pub mod mirror;
+pub mod router;
 
 pub(crate) type AlloyTransport = BoxTransport;
 pub(crate) type AlloyProvider = FillProvider<

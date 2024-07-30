@@ -340,7 +340,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         wrappedVaraActor.transfer(stateTransition.actorId, stateTransition.valueToReceive);
 
         IMirror mirrorActor = IMirror(stateTransition.actorId);
-        mirrorActor.updateState(stateTransition.prevStateHash, stateTransition.newStateHash);
 
         bytes memory valueClaimsBytes;
 
@@ -376,6 +375,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             }
         }
 
+        mirrorActor.updateState(stateTransition.prevStateHash, stateTransition.newStateHash);
+
         return _stateTransitionHash(
             stateTransition.actorId,
             stateTransition.prevStateHash,
@@ -388,12 +389,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function _blockCommitmentHash(
         bytes32 blockHash,
-        bytes32 allowedPrevCommitmentHash,
-        bytes32 allowedPredBlockHash,
+        bytes32 prevCommitmentHash,
+        bytes32 predBlockHash,
         bytes32 transitionsHashesHash
     ) private pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(blockHash, allowedPrevCommitmentHash, allowedPredBlockHash, transitionsHashesHash)
+            abi.encodePacked(blockHash, prevCommitmentHash, predBlockHash, transitionsHashesHash)
         );
     }
 

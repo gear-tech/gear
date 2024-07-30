@@ -21,7 +21,7 @@ use crate::{
     LocalOutcome,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{OutgoingMessage, StateTransition};
+use ethexe_common::router::{OutgoingMessage, StateTransition};
 use ethexe_db::CodesStorage;
 use ethexe_runtime_common::Handler;
 use gear_core::{
@@ -139,32 +139,36 @@ async fn run_in_async(
         .map(|(id, (old_hash, new_hash, outgoing_messages))| {
             LocalOutcome::Transition(StateTransition {
                 actor_id: id,
-                old_state_hash: old_hash,
+                prev_state_hash: old_hash,
                 new_state_hash: new_hash,
-                outgoing_messages: outgoing_messages
-                    .into_iter()
-                    .map(|message| {
-                        let (
-                            message_id,
-                            _source,
-                            destination,
-                            payload,
-                            _gas_limit,
-                            value,
-                            message_details,
-                        ) = message.into_parts();
-                        let reply_details =
-                            message_details.and_then(|details| details.to_reply_details());
+                value_to_receive: 0,  // TODO (breathx): propose this
+                value_claims: vec![], // TODO (breathx): propose this
+                messages:
+                    outgoing_messages
+                        .into_iter()
+                        .map(|message| {
+                            let (
+                                id,
+                                _source,
+                                destination,
+                                payload,
+                                _gas_limit,
+                                value,
+                                message_details,
+                            ) = message.into_parts();
 
-                        OutgoingMessage {
-                            message_id,
-                            destination,
-                            payload,
-                            value,
-                            reply_details,
-                        }
-                    })
-                    .collect(),
+                            let reply_details =
+                                message_details.and_then(|details| details.to_reply_details());
+
+                            OutgoingMessage {
+                                id,
+                                destination,
+                                payload: payload.into_vec(),
+                                value,
+                                reply_details,
+                            }
+                        })
+                        .collect(),
             })
         })
         .collect();

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use ethexe_common::{BlockCommitment, CodeCommitment};
+use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_network::service::NetworkGossip;
 use ethexe_sequencer::AggregatedCommitments;
 use ethexe_signer::{Address, PublicKey, Signer};

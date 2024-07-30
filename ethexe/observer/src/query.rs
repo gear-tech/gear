@@ -15,10 +15,11 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
-    events::BlockEvent,
+    router::Event as RouterEvent,
+    BlockEvent,
 };
 use ethexe_signer::Address;
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{CodeId, H256};
 
 pub struct Query {
     database: Box<dyn BlockMetaStorage>,
@@ -61,8 +62,8 @@ impl Query {
             .await?
             .into_iter()
             .filter_map(|event| {
-                if let BlockEvent::BlockCommitted(event) = event {
-                    Some(event.block_hash)
+                if let BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) = event {
+                    Some(block_hash)
                 } else {
                     None
                 }
@@ -239,15 +240,14 @@ impl Query {
 
     pub async fn download_code(
         &self,
-        code_id: CodeId,
-        origin: ActorId,
-        tx_hash: H256,
+        expected_code_id: CodeId,
+        blob_tx_hash: H256,
     ) -> Result<Vec<u8>> {
         let blob_reader = self.blob_reader.clone();
         let attempts = Some(3);
 
-        read_code_from_tx_hash(blob_reader, origin, tx_hash, attempts, code_id)
+        read_code_from_tx_hash(blob_reader, expected_code_id, blob_tx_hash, attempts)
             .await
-            .map(|res| res.2)
+            .map(|res| res.1)
     }
 }

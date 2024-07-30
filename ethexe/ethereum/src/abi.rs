@@ -18,6 +18,7 @@
 
 use alloy::sol;
 use ethexe_common::{mirror, router};
+use gear_core::message::ReplyDetails;
 use gear_core_errors::ReplyCode;
 
 sol!(
@@ -138,12 +139,20 @@ impl From<router::OutgoingMessage> for IRouter::OutgoingMessage {
     }
 }
 
-impl From<router::ReplyDetails> for IRouter::ReplyDetails {
-    fn from(router::ReplyDetails { to, code }: router::ReplyDetails) -> Self {
+impl From<ReplyDetails> for IRouter::ReplyDetails {
+    fn from(value: ReplyDetails) -> Self {
+        let (to, code) = value.into_parts();
+
         Self {
             to: to.into_bytes().into(),
-            code: code.into(),
+            code: code.to_bytes().into(),
         }
+    }
+}
+
+impl From<Option<ReplyDetails>> for IRouter::ReplyDetails {
+    fn from(value: Option<ReplyDetails>) -> Self {
+        value.unwrap_or_default().into()
     }
 }
 

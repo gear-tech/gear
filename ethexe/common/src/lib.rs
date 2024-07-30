@@ -37,3 +37,15 @@ pub enum BlockEvent {
         event: mirror::Event,
     },
 }
+
+impl BlockEvent {
+    pub fn mirror(address: ActorId, event: mirror::Event) -> Self {
+        Self::Mirror { address, event }
+    }
+}
+
+impl From<router::Event> for BlockEvent {
+    fn from(value: router::Event) -> Self {
+        Self::Router(value)
+    }
+}

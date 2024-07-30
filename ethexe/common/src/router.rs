@@ -17,12 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
+use gear_core::message::ReplyDetails;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
 /* Storage related structures */
 
-#[derive(Clone, Debug, Default, Encode, Decode)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
     #[default]
     Unknown,
@@ -32,13 +33,13 @@ pub enum CodeState {
 
 /* Commitment related structures */
 
-#[derive(Clone, Debug, Default, Encode, Decode)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
     pub id: CodeId,
     pub valid: bool,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct BlockCommitment {
     pub block_hash: H256,
     pub prev_commitment_hash: H256,
@@ -46,7 +47,7 @@ pub struct BlockCommitment {
     pub transitions: Vec<StateTransition>,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub prev_state_hash: H256,
@@ -56,31 +57,25 @@ pub struct StateTransition {
     pub messages: Vec<OutgoingMessage>,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct ValueClaim {
     pub message_id: MessageId,
     pub destination: ActorId,
     pub value: u128,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct OutgoingMessage {
     pub id: MessageId,
     pub destination: ActorId,
     pub payload: Vec<u8>,
     pub value: u128,
-    pub reply_details: ReplyDetails,
-}
-
-#[derive(Clone, Debug, Default, Encode, Decode)]
-pub struct ReplyDetails {
-    pub to: MessageId,
-    pub code: [u8; 4],
+    pub reply_details: Option<ReplyDetails>,
 }
 
 /* Events section */
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum Event {
     BaseWeightChanged {
         base_weight: u64,

@@ -19,7 +19,9 @@
 //! Abstract commitment aggregator.
 
 use anyhow::Result;
-use ethexe_common::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition};
+use ethexe_common::router::{
+    BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition, ValueClaim,
+};
 use ethexe_signer::{hash, Address, PublicKey, Signature, Signer};
 use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
@@ -61,44 +63,95 @@ impl SeqHash for CodeCommitment {
 // TODO: REMOVE THIS IMPL. SeqHash makes sense only for `ethexe_ethereum` types.
 impl SeqHash for StateTransition {
     fn hash(&self) -> H256 {
-        let mut outgoing_bytes =
-            Vec::with_capacity(self.outgoing_messages.len() * mem::size_of::<H256>());
+        // State transition basic fields.
 
-        for OutgoingMessage {
+        let state_transition_size = // concat of fields:
+            // actorId
+            mem::size_of::<Address>()
+            // prevStateHash
+            + mem::size_of::<H256>()
+            // newStateHash
+            + mem::size_of::<H256>()
+            // valueToReceive
+            + mem::size_of::<u128>()
+            // hash(valueClaimsBytes)
+            + mem::size_of::<H256>()
+            // hash(messagesHashesBytes)
+            + mem::size_of::<H256>();
+
+        let mut state_transition_bytes = Vec::with_capacity(state_transition_size);
+
+        state_transition_bytes.extend_from_slice(self.actor_id.to_address_lossy().as_bytes());
+        state_transition_bytes.extend_from_slice(self.prev_state_hash.as_bytes());
+        state_transition_bytes.extend_from_slice(self.new_state_hash.as_bytes());
+        state_transition_bytes.extend_from_slice(self.value_to_receive.to_be_bytes().as_slice());
+
+        // TODO (breathx): consider SeqHash for ValueClaim, so hashing of inner fields.
+        // Value claims field.
+
+        let value_claim_size = // concat of fields:
+            // messageId
+            mem::size_of::<MessageId>()
+            // destination
+            + mem::size_of::<Address>()
+            // value
+            + mem::size_of::<u128>();
+
+        let mut value_claims_bytes = Vec::with_capacity(self.value_claims.len() * value_claim_size);
+
+        for ValueClaim {
             message_id,
             destination,
-            payload,
             value,
-            reply_details,
-        } in self.outgoing_messages.iter()
+        } in &self.value_claims
         {
-            let reply_details = reply_details.unwrap_or_default();
-            let mut outgoing_message = Vec::with_capacity(
-                mem::size_of::<MessageId>()
-                    + mem::size_of::<Address>()
-                    + payload.inner().len()
-                    + mem::size_of::<u128>()
-                    + mem::size_of::<MessageId>()
-                    + mem::size_of::<[u8; 4]>(),
-            );
-
-            outgoing_message.extend_from_slice(&message_id.into_bytes());
-            outgoing_message.extend_from_slice(&destination.into_bytes()[12..]);
-            outgoing_message.extend_from_slice(payload.inner());
-            outgoing_message.extend_from_slice(&value.to_be_bytes());
-            outgoing_message.extend_from_slice(&reply_details.to_message_id().into_bytes());
-            outgoing_message.extend(&reply_details.to_reply_code().to_bytes());
-
-            outgoing_bytes.extend_from_slice(hash(&outgoing_message).as_bytes());
+            value_claims_bytes.extend_from_slice(message_id.as_ref());
+            value_claims_bytes.extend_from_slice(destination.to_address_lossy().as_bytes());
+            // TODO (breathx): double check if we should use BIG endian.
+            value_claims_bytes.extend_from_slice(value.to_be_bytes().as_slice())
         }
 
-        let mut message =
-            Vec::with_capacity(mem::size_of::<Address>() + (3 * mem::size_of::<H256>()));
+        let value_claims_hash = hash(&value_claims_bytes);
+        state_transition_bytes.extend_from_slice(value_claims_hash.as_bytes());
 
-        message.extend_from_slice(&self.actor_id.into_bytes()[12..]);
-        message.extend_from_slice(self.old_state_hash.as_bytes());
-        message.extend_from_slice(self.new_state_hash.as_bytes());
-        message.extend_from_slice(hash(&outgoing_bytes).as_bytes());
+        // Messages field.
+
+        let messages_hashes_hash = self.messages.hash();
+        state_transition_bytes.extend_from_slice(messages_hashes_hash.as_bytes());
+
+        hash(&state_transition_bytes)
+    }
+}
+
+impl SeqHash for OutgoingMessage {
+    fn hash(&self) -> H256 {
+        let message_size = // concat of fields:
+            // id
+            mem::size_of::<MessageId>()
+            // destination
+            + mem::size_of::<Address>()
+            // payload
+            + self.payload.len()
+            // value
+            + mem::size_of::<u128>()
+            // replyDetails.to
+            + mem::size_of::<MessageId>()
+            // replyDetails.code
+            + mem::size_of::<[u8; 4]>();
+
+        let mut message = Vec::with_capacity(message_size);
+
+        message.extend_from_slice(self.id.as_ref());
+        message.extend_from_slice(self.destination.to_address_lossy().as_bytes());
+        message.extend_from_slice(&self.payload);
+        // TODO (breathx): double check big endian.
+        message.extend_from_slice(self.value.to_be_bytes().as_slice());
+
+        let (reply_details_to, reply_details_code) =
+            self.reply_details.unwrap_or_default().into_parts();
+
+        message.extend_from_slice(reply_details_to.as_ref());
+        message.extend_from_slice(reply_details_code.to_bytes().as_slice());
 
         hash(&message)
     }
@@ -106,19 +159,24 @@ impl SeqHash for StateTransition {
 
 impl SeqHash for BlockCommitment {
     fn hash(&self) -> H256 {
-        let mut message = Vec::with_capacity(
+        let block_commitment_size = // concat of fields:
+            // blockHash
             mem::size_of::<H256>()
-                + mem::size_of::<H256>()
-                + mem::size_of::<H256>()
-                + self.transitions.len() * mem::size_of::<H256>(),
-        );
+            // prevCommitmentHash
+            + mem::size_of::<H256>()
+            // predBlockHash
+            + mem::size_of::<H256>()
+            // hash(transitionsHashesBytes)
+            + mem::size_of::<H256>();
 
-        message.extend_from_slice(self.block_hash.as_bytes());
-        message.extend_from_slice(self.allowed_pred_block_hash.as_bytes());
-        message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
-        message.extend_from_slice(self.transitions.hash().as_bytes());
+        let mut block_commitment_bytes = Vec::with_capacity(block_commitment_size);
 
-        hash(&message)
+        block_commitment_bytes.extend_from_slice(self.block_hash.as_bytes());
+        block_commitment_bytes.extend_from_slice(self.prev_commitment_hash.as_bytes());
+        block_commitment_bytes.extend_from_slice(self.pred_block_hash.as_bytes());
+        block_commitment_bytes.extend_from_slice(self.transitions.hash().as_bytes());
+
+        hash(&block_commitment_bytes)
     }
 }
 

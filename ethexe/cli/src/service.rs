@@ -23,10 +23,14 @@ use crate::{
     metrics::MetricsService,
 };
 use anyhow::{anyhow, Ok, Result};
-use ethexe_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
+use ethexe_common::{
+    router::{BlockCommitment, CodeCommitment, Event as RouterEvent, StateTransition},
+    BlockEvent,
+};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
+use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::service::NetworkGossip;
-use ethexe_observer::{BlockData, CodeLoadedData};
+use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_validator::Commitment;
 use futures::{future, stream::StreamExt, FutureExt};
@@ -78,9 +82,7 @@ impl Service {
         )
         .await?;
 
-        let router_query =
-            ethexe_ethereum::RouterQuery::new(&config.ethereum_rpc, ethereum_router_address)
-                .await?;
+        let router_query = RouterQuery::new(&config.ethereum_rpc, ethereum_router_address).await?;
         let genesis_block_hash = router_query.genesis_block_hash().await?;
         log::info!("👶 Genesis block hash: {genesis_block_hash}");
 
@@ -191,26 +193,25 @@ impl Service {
 
         for event in events {
             match event {
-                BlockEvent::UploadCode(event) => {
-                    db.set_code_upload_info(
-                        event.code_id,
-                        CodeUploadInfo {
-                            origin: event.origin,
-                            tx_hash: event.blob_tx(),
-                        },
-                    );
+                BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    blob_tx_hash,
+                }) => {
+                    db.set_code_blob_tx(code_id, blob_tx_hash);
                 }
-                BlockEvent::CreateProgram(event) => {
-                    let code_id = event.code_id;
+                BlockEvent::Router(RouterEvent::ProgramCreated { code_id, .. }) => {
                     if db.original_code(code_id).is_some() {
                         continue;
                     }
 
                     log::debug!("📥 downloading absent code: {code_id}");
-                    let CodeUploadInfo { origin, tx_hash } = db
-                        .code_upload_info(code_id)
-                        .ok_or(anyhow!("Origin and tx hash not found"))?;
-                    let code = query.download_code(code_id, origin, tx_hash).await?;
+
+                    let blob_tx_hash = db
+                        .code_blob_tx(code_id)
+                        .ok_or(anyhow!("Blob tx hash not found"))?;
+
+                    let code = query.download_code(code_id, blob_tx_hash).await?;
+
                     processor.process_upload_code(code_id, code.as_slice())?;
                 }
                 _ => continue,
@@ -298,8 +299,8 @@ impl Service {
 
             commitments.push(BlockCommitment {
                 block_hash,
-                allowed_pred_block_hash: block_data.block_hash,
-                allowed_prev_commitment_hash: db
+                pred_block_hash: block_data.block_hash,
+                prev_commitment_hash: db
                     .block_prev_commitment(block_hash)
                     .ok_or(anyhow!("Prev commitment not found"))?,
                 transitions,
@@ -321,29 +322,32 @@ impl Service {
         }
 
         let commitments = match observer_event {
-            ethexe_observer::Event::Block(block_data) => {
+            ObserverEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
                     block_data.block_number,
                     block_data.block_hash,
                     block_data.parent_hash
                 );
+
                 let commitments =
                     Self::process_block_event(db, query, processor, block_data).await?;
+
                 commitments.into_iter().map(Commitment::Block).collect()
             }
-            ethexe_observer::Event::CodeLoaded(CodeLoadedData { code_id, code, .. }) => {
+            ethexe_observer::Event::CodeLoaded { code_id, code } => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
+
                 outcomes
                     .into_iter()
                     .map(|outcome| match outcome {
                         LocalOutcome::CodeApproved(code_id) => Commitment::Code(CodeCommitment {
-                            code_id,
-                            approved: true,
+                            id: code_id,
+                            valid: true,
                         }),
                         LocalOutcome::CodeRejected(code_id) => Commitment::Code(CodeCommitment {
-                            code_id,
-                            approved: false,
+                            id: code_id,
+                            valid: false,
                         }),
                         _ => unreachable!("Only code outcomes are expected here"),
                     })
