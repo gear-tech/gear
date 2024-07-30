@@ -18,6 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use alloc::format;
+
 pub use pallet::*;
 pub use weights::WeightInfo;
 
