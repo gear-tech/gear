@@ -413,6 +413,8 @@ where
             // the mailbox (so no possible uncovered gas charges which leads to panic).
             // Such message will be inserted into the queue and later processed as
             // non executable.
+            //
+            // Test for it - `test_create_program_no_code_hash`.
             for (_, candidate) in candidates {
                 self.programs.insert(candidate);
             }
