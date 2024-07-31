@@ -19,12 +19,13 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet,
-    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank,
+    Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
+use alloc::format;
 use common::{
     event::*,
-    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, SchedulingCostsPerBlock, StorageType, TaskHandler, TaskPool},
     storage::*,
     CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
 };
@@ -96,16 +97,26 @@ where
                     ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
                         match p {
                             Program::Active(active) => active.state = ProgramState::Initialized,
-                            _ => unreachable!("Only active programs are able to initialize"),
+                            actual_program => {
+                                // Guaranteed to be called on existing program, because only existing programs
+                                // are able to be initialized.
+                                let err_msg = format!("JournalHandler::message_dispatched: failed to update active program state. \
+                                Program - {program_id}, actual program - {actual_program:?}");
+
+                                log::error!("{err_msg}");
+                                unreachable!("{err_msg}")
+                            }
                         }
 
                         bn
                     })
                     .unwrap_or_else(|e| {
-                        unreachable!(
-                            "Program initialized status may only be set to active program {:?}",
-                            e
-                        );
+                        // Guaranteed to be called on existing program
+                        let err_msg = format!("JournalHandler::message_dispatched: failed to update program. \
+                        Program - {program_id}. Got error: {e:?}");
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
                     });
 
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
@@ -160,24 +171,31 @@ where
 
             match p {
                 Program::Active(program) => {
-                    Self::remove_gas_reservation_map(
-                        id_exited,
-                        core::mem::take(&mut program.gas_reservation_map),
+                    Self::clean_inactive_program(id_exited, program, value_destination)
+                }
+                actual_program => {
+                    // Guaranteed to be called only on active program
+                    let err_msg = format!(
+                        "JournalHandler::exit_dispatch: failed to exit active program. \
+                    Program - {id_exited}, actual program - {actual_program:?}"
                     );
 
-                    Self::clean_inactive_program(
-                        id_exited,
-                        program.memory_infix,
-                        value_destination,
-                    );
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
                 }
-                _ => unreachable!("Action executed only for active program"),
             }
 
             *p = Program::Exited(value_destination);
         })
         .unwrap_or_else(|e| {
-            unreachable!("`exit` can be called only from active program: {:?}", e);
+            // Guaranteed to be called only on active program
+            let err_msg = format!(
+                "ExtManager::exit_dispatch: failed to update program. \
+            Program - {id_exited}. Got error: {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
     }
 
@@ -217,7 +235,17 @@ where
                     dispatch.value().unique_saturated_into(),
                     false,
                 )
-                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "JournalHandler::send_dispatch: failed depositing value on gear bank. \
+                        Sender - {sender}, value - {value}. Got error - {e:?}",
+                        sender = dispatch.source(),
+                        value = dispatch.value(),
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             }
 
             match (gas_limit, reservation) {
@@ -228,12 +256,16 @@ where
                     dispatch.is_reply(),
                 ),
                 (None, None) => Pallet::<T>::split(message_id, dispatch.id(), dispatch.is_reply()),
-                (Some(_gas_limit), Some(_reservation_id)) => {
+                (Some(gas_limit), Some(reservation_id)) => {
                     // TODO: #1828
-                    unreachable!(
-                        "Sending dispatch with gas limit from reservation \
-                    is currently unimplemented and there is no way to send such dispatch"
+                    let err_msg = format!(
+                        "JournalHandler::send_dispatch: sending dispatch with gas from reservation isn't implemented. \
+                        Message - {message_id}, sender - {sender}, gas limit - {gas_limit}, reservation - {reservation_id}",
+                        sender = dispatch.source(),
                     );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
                 }
                 (None, Some(reservation_id)) => {
                     Pallet::<T>::split(reservation_id, dispatch.id(), dispatch.is_reply());
@@ -244,8 +276,14 @@ where
                 }
             }
 
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "JournalHandler::send_dispatch: failed queuing message. Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
         } else {
             log::debug!(
                 "Sending user message {:?} from {:?} with gas limit {:?}",
@@ -283,13 +321,19 @@ where
         // because message already charged for it within the env.
 
         if delay.is_zero() {
-            if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+            if let Ok(dispatch) = Pallet::<T>::wake_dispatch(
                 program_id,
                 awakening_id,
                 MessageWokenRuntimeReason::WakeCalled.into_reason(),
             ) {
-                QueueOf::<T>::queue(dispatch)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "JournalHandler::wake_message: failed queuing message. Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
 
                 return;
             }
@@ -300,8 +344,16 @@ where
 
             // This validation helps us to avoid returning error on insertion into `TaskPool` in case of duplicate wake.
             if !TaskPoolOf::<T>::contains(&expected_bn, &task) {
-                TaskPoolOf::<T>::add(expected_bn, task)
-                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                TaskPoolOf::<T>::add(expected_bn, task).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "JournalHandler::wake_message: failed adding task for waking message. \
+                        Expected bn - {expected_bn:?}, program id - {program_id}, message_id - {awakening_id}.
+                        Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             }
 
             return;
@@ -321,50 +373,55 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            for (page, data) in pages_data {
-                log::trace!("{:?} has been write accessed, update it in storage", page);
+        // TODO: pass `memory_infix` as argument #4025
+        let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
+            // Guaranteed to be called on existing active program
+            let err_msg =
+                format!("JournalHandler::update_pages_data: program is not active {program_id}");
 
-                ProgramStorageOf::<T>::set_program_page_data(
-                    program_id,
-                    p.memory_infix,
-                    page,
-                    data,
-                );
-                p.pages_with_data.insert(page);
-            }
-        })
-        .unwrap_or_else(|e| {
-            unreachable!(
-                "Page update guaranteed to be called only for existing and active program: {:?}",
-                e
-            )
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
+
+        for (page, data) in pages_data {
+            ProgramStorageOf::<T>::set_program_page_data(program_id, memory_infix, page, data);
+        }
     }
 
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            for page in p.allocations.difference(&allocations).flat_map(|i| i.iter()).flat_map(|p| p.to_iter()) {
-                // TODO: do not use `contains` #3879
-                if p.pages_with_data.contains(page) {
-                    p.pages_with_data.remove(page);
-                    ProgramStorageOf::<T>::remove_program_page_data(program_id, p.memory_infix, page);
-                }
-            }
+        // TODO: pass `memory_infix` as argument #4025
+        let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
+            // Guaranteed to be called on existing active program
+            let err_msg =
+                format!("JournalHandler::update_allocations: program is not active {program_id}.");
 
-            p.allocations = allocations;
-        }).unwrap_or_else(|e| {
-            unreachable!("Allocations update guaranteed to be called only for existing and active program: {:?}", e)
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
+
+        let old_allocations = ProgramStorageOf::<T>::allocations(program_id).unwrap_or_default();
+        let remove_pages = old_allocations
+            .difference(&allocations)
+            .flat_map(|i| i.iter())
+            .flat_map(|i| i.to_iter());
+        ProgramStorageOf::<T>::remove_data_for_pages(program_id, memory_infix, remove_pages);
+        ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        let to = Pallet::<T>::inheritor_for(to.unwrap_or(from)).cast();
+        let to = to.unwrap_or(from).cast();
         let from = from.cast();
         let value = value.unique_saturated_into();
 
-        GearBank::<T>::transfer_value(&from, &to, value)
-            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::send_value: failed transferring bank value. \
+                From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
     }
 
     fn store_new_programs(
@@ -390,7 +447,15 @@ where
                         ed,
                         ExistenceRequirement::KeepAlive,
                     )
-                    .unwrap_or_else(|e| unreachable!("Existential deposit transfer error: {e:?}"));
+                    .unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "JournalHandler::store_new_programs: failed transferring ED to a new program. \
+                            Sender - {program_id}, dest - {candidate_id}, value - {ed:?}. Got error - {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}");
+                    });
                     // Set lock to avoid accidental account removal by the runtime.
                     CurrencyOf::<T>::set_lock(
                         EXISTENTIAL_DEPOSIT_LOCK_ID,
@@ -416,6 +481,14 @@ where
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
+            // SAFETY:
+            // Do not remove insertion into programs map as it gives guarantee
+            // that init message for destination with no code won't enter
+            // the mailbox (so no possible uncovered gas charges which leads to panic).
+            // Such message will be inserted into the queue and later processed as
+            // non executable.
+            //
+            // Test for it - `test_create_program_no_code_hash`.
             for (_, candidate) in candidates {
                 self.programs.insert(candidate);
             }
@@ -432,8 +505,14 @@ where
 
         GasAllowanceOf::<T>::decrease(gas_burned);
         // TODO: #3112. Rework requeueing logic to avoid blocked queue.
-        QueueOf::<T>::requeue(dispatch)
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        QueueOf::<T>::requeue(dispatch).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::stop_processing: failed requeuing message. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
     }
 
     fn reserve_gas(
@@ -457,25 +536,63 @@ where
 
         // Validating holding duration.
         if hold.expected_duration().is_zero() {
-            unreachable!("Threshold for reservation invalidated")
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: reservation got zero duration hold bound for storing. \
+                Duration - {duration}, block cost - {cost}, program - {program_id}.",
+                cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::Reservation)
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         let total_amount = amount.saturating_add(hold.lock_amount());
 
-        GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+        GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: failed reserving gas. Origin message id - {message_id}, \
+                reservation id - {reservation_id}, reservation amount - {amount}, hold lock - {lock}. \
+                Got error - {e:?}",
+                lock = hold.lock_amount(),
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         let lock_id = hold.lock_id().unwrap_or_else(|| {
-            unreachable!("Reservation storage is guaranteed to have an associated lock id")
+            // Reservation storage is guaranteed to have an associated lock id
+            let err_msg =
+                "JournalHandler::reserve_gas: No associated lock id for the reservation storage";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
-        GasHandlerOf::<T>::lock(reservation_id, lock_id, hold.lock_amount())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::lock(reservation_id, lock_id, hold.lock_amount()).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: failed locking gas for the reservation hold. \
+                Reseravation - {reservation_id}, lock amount - {lock}. Got error - {e:?}",
+                lock = hold.lock_amount()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         TaskPoolOf::<T>::add(
             hold.expected(),
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         )
-        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+        .unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: failed adding task for gas reservation removal. \
+                Expected bn - {bn:?}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
+                bn = hold.expected()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
     }
 
     fn unreserve_gas(
@@ -509,23 +626,41 @@ where
             );
         })
         .unwrap_or_else(|e| {
-            unreachable!(
-                "Gas reservation update guaranteed to be called only on an existing program: {:?}",
-                e
-            )
+            // Guaranteed to be called on existing active program
+            let err_msg = format!(
+                "JournalHandler::update_gas_reservation: failed to update program. \
+            Program - {program_id}. Got error: {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
     }
 
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
         log::debug!("Reserve {} of gas for system from {}", amount, message_id);
 
-        GasHandlerOf::<T>::system_reserve(message_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::system_reserve(message_id, amount).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::system_reserve_gas: failed system reserve gas. \
+            Message id - {message_id}, amount - {amount}. Got error: {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
     }
 
     fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        let amount = GasHandlerOf::<T>::system_unreserve(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let amount = GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::system_unreserve_gas: failed system unreserve. \
+                Message id - {message_id}. Got error: {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         if amount != 0 {
             log::debug!("Unreserved {} gas for system from {}", amount, message_id);
@@ -544,7 +679,14 @@ where
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         log::debug!("Creating reply deposit {amount} gas for message id {future_reply_id}");
 
-        GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::reply_deposit: failed creating reply deposit. Message id - {message_id}, \
+                future reply id - {future_reply_id}, amount - {amount}. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
     }
 }

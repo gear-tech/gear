@@ -5,7 +5,10 @@ extend-ignore-re = [
 ]
 
 [files]
-extend-exclude = ["gsdk/src/metadata/generated.rs"]
+extend-exclude = [
+  "gsdk/src/metadata/generated.rs",
+  "ethexe/ethereum/*.json"
+]
 
 [default.extend-words]
 overlayed = "overlayed" # typo in sp-state-machine, won't fix.

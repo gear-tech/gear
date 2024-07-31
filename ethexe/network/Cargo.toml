@@ -1,0 +1,27 @@
+[package]
+name = "ethexe-network"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ethexe-signer.workspace = true
+
+libp2p = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/tokio-swarm-test", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "quic", "tokio", "macros"] }
+
+tokio = { workspace = true, features = ["sync"] }
+anyhow.workspace = true
+log.workspace = true
+void = "1.0.2"
+
+[dev-dependencies]
+# newer versions are not supported on crates.io
+libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/tokio-swarm-test", default-features = false, features = ["tokio"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
+env_logger.workspace = true

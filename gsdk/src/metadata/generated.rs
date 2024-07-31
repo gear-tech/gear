@@ -693,8 +693,13 @@ pub mod runtime_types {
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IntoPageBufError;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
-                    pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
+                    pub  runtime_types::gear_core::buffer::LimitedVec<
+                        ::core::primitive::u8,
+                        runtime_types::gear_core::memory::IntoPageBufError,
+                    >,
                 );
             }
             pub mod message {
@@ -879,12 +884,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ActiveProgram<_0> {
-                    pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page2,
-                    >,
-                    pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page,
-                    >,
+                    pub allocations_tree_len: ::core::primitive::u32,
                     pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                     pub gas_reservation_map: ::subxt::utils::KeyedVec<
                         runtime_types::gprimitives::ReservationId,
@@ -2188,6 +2188,12 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::set_execute_inherent`]."]
                     set_execute_inherent { value: ::core::primitive::bool },
+                    #[codec(index = 8)]
+                    #[doc = "See [`Pallet::claim_value_to_inheritor`]."]
+                    claim_value_to_inheritor {
+                        program_id: runtime_types::gprimitives::ActorId,
+                        depth: ::core::num::NonZeroU32,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -2252,6 +2258,9 @@ pub mod runtime_types {
                     #[codec(index = 14)]
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
+                    #[codec(index = 15)]
+                    #[doc = "Program is active."]
+                    ActiveProgram,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -2488,6 +2497,7 @@ pub mod runtime_types {
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
+                    pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
@@ -8099,6 +8109,7 @@ pub mod calls {
         ClaimValue,
         Run,
         SetExecuteInherent,
+        ClaimValueToInheritor,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -8112,6 +8123,7 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
+                Self::ClaimValueToInheritor => "claim_value_to_inheritor",
             }
         }
     }
@@ -8981,6 +8993,7 @@ pub mod storage {
         CodeLenStorage,
         OriginalCodeStorage,
         MetadataStorage,
+        AllocationsStorage,
         ProgramStorage,
         MemoryPages,
     }
@@ -8992,6 +9005,7 @@ pub mod storage {
                 Self::CodeLenStorage => "CodeLenStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::MetadataStorage => "MetadataStorage",
+                Self::AllocationsStorage => "AllocationsStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
             }

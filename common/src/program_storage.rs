@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_core::pages::{numerated::tree::IntervalsTree, WasmPage};
+
 use super::*;
 use crate::storage::{MapStorage, TripleMapStorage};
 use core::fmt::Debug;
@@ -56,11 +58,13 @@ pub trait ProgramStorage {
         Key3 = GearPage,
         Value = PageBuf,
     >;
+    type AllocationsMap: MapStorage<Key = ProgramId, Value = IntervalsTree<WasmPage>>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
         Self::ProgramMap::clear();
         Self::MemoryPageMap::clear();
+        Self::AllocationsMap::clear();
     }
 
     /// Store a program to be associated with the given key `program_id` from the map.
@@ -102,6 +106,46 @@ pub trait ProgramStorage {
         })
     }
 
+    fn remove_data_for_pages(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        pages: impl Iterator<Item = GearPage>,
+    ) {
+        for page in pages {
+            Self::remove_program_page_data(program_id, memory_infix, page);
+        }
+    }
+
+    fn allocations(program_id: ProgramId) -> Option<IntervalsTree<WasmPage>> {
+        Self::AllocationsMap::get(&program_id)
+    }
+
+    fn set_allocations(program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+        Self::update_active_program(program_id, |program| {
+            program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
+                .unwrap_or_else(|err| {
+                    // This panic is impossible because page numbers are u32.
+                    unreachable!("allocations tree length is too big to fit into u32: {err}")
+                });
+        })
+        .unwrap_or_else(|err| {
+            // set_allocations must be called only for active programs.
+            unreachable!("Failed to update program allocations: {err:?}")
+        });
+        Self::AllocationsMap::insert(program_id, allocations);
+    }
+
+    fn clear_allocations(program_id: ProgramId) {
+        Self::AllocationsMap::remove(program_id);
+    }
+
+    fn memory_infix(program_id: ProgramId) -> Option<MemoryInfix> {
+        match Self::ProgramMap::get(&program_id) {
+            Some(Program::Active(program)) => Some(program.memory_infix),
+            _ => None,
+        }
+    }
+
     /// Update the program under the given key `program_id` only if the
     /// stored program is an active one.
     fn update_program_if_active<F, ReturnType>(
@@ -124,20 +168,12 @@ pub trait ProgramStorage {
         Ok(result)
     }
 
-    /// Return program data for each page from `pages`.
-    fn get_program_data_for_pages(
+    /// Return data buffer for each memory page, which has data.
+    fn get_program_pages_data(
         program_id: ProgramId,
         memory_infix: MemoryInfix,
-        pages: impl Iterator<Item = GearPage>,
     ) -> Result<MemoryMap, Self::Error> {
-        let mut pages_data = BTreeMap::new();
-        for page in pages {
-            let data = Self::MemoryPageMap::get(&program_id, &memory_infix, &page)
-                .ok_or(Self::InternalError::cannot_find_page_data())?;
-            pages_data.insert(page, data);
-        }
-
-        Ok(pages_data)
+        Ok(Self::MemoryPageMap::iter_prefix(&program_id, &memory_infix).collect())
     }
 
     /// Store a memory page buffer to be associated with the given keys `program_id`, `memory_infix` and `page` from the map.
@@ -160,7 +196,7 @@ pub trait ProgramStorage {
     }
 
     /// Remove all memory page buffers under the given keys `program_id` and `memory_infix`.
-    fn remove_program_pages(program_id: ProgramId, memory_infix: MemoryInfix) {
+    fn clear_program_memory(program_id: ProgramId, memory_infix: MemoryInfix) {
         Self::MemoryPageMap::clear_prefix(program_id, memory_infix);
     }
 
