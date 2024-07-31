@@ -18,7 +18,7 @@
 
 use crate::{
     builtin::BuiltinDispatcherFactory,
-    internal::{HoldBoundBuilder, InheritorForError},
+    internal::{HoldBound, HoldBoundBuilder, InheritorForError},
     manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
@@ -300,8 +300,10 @@ fn calculate_gas_zero_balance() {
 }
 
 #[test]
-fn delayed_send_from_reservation_not_for_mailbox() {
-    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
+fn test_failing_delayed_reservation_send() {
+    use demo_delayed_reservation_sender::{
+        ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
+    };
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -320,13 +322,22 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         run_to_next_block(None);
         assert!(Gear::is_initialized(pid));
 
+        let reservation_amount = <Test as Config>::MailboxThreshold::get();
+        let sending_delay = 1u32;
+        let sending_delay_hold_bound: HoldBound<Test> =
+            HoldBoundBuilder::new(StorageType::DispatchStash).duration(sending_delay as u64);
+        let sending_delay_gas = sending_delay_hold_bound.lock_amount();
+        // Sending delayed msg from a reservation checks: reservation_amount - delay_hold - mailbox_therhsold.
+        // Current example sets reseravtion_amount to mailbox_threshold. So, obviously, sending message
+        // from a reservation is impossible - reservation has insufficient gas reserved.
+        assert_ne!(sending_delay_gas, 0);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1_000,
-                sending_delay: 1,
+                sending_delay,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -337,11 +348,22 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         let mid = utils::get_last_message_id();
 
         run_to_next_block(None);
-        assert_succeed(mid);
+        let error_text = format!(
+            "panicked with '{SENDING_EXPECT}: {:?}'",
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
+        );
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
 
+        // Possibly sent message from reservation with a 1 block delay duration.
         let outgoing = MessageId::generate_outgoing(mid, 0);
+        let err_reply = MessageId::generate_reply(mid);
 
-        assert!(DispatchStashOf::<Test>::contains_key(&outgoing));
+        assert!(!DispatchStashOf::<Test>::contains_key(&outgoing));
 
         run_to_next_block(None);
 
@@ -349,7 +371,7 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         assert!(!MailboxOf::<Test>::contains(&USER_1, &outgoing));
 
         let message = maybe_any_last_message().expect("Should be");
-        assert_eq!(message.id(), outgoing);
+        assert_eq!(message.id(), err_reply);
         assert_eq!(message.destination(), USER_1.into());
     });
 }
@@ -607,6 +629,27 @@ fn delayed_reservations_sending_validation() {
 fn delayed_reservations_to_mailbox() {
     use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
+    struct LockOrExpiration;
+
+    impl LockOrExpiration {
+        fn lock_for_stash(delay: u32) -> u64 {
+            let stash_hold =
+                Self::hold_bound_builder(StorageType::DispatchStash).duration(delay.into());
+
+            stash_hold.lock_amount()
+        }
+
+        fn expiration_for_mailbox(gas: u64) -> u64 {
+            let mailbox_hold = Self::hold_bound_builder(StorageType::Mailbox).maximum_for(gas);
+
+            mailbox_hold.expected()
+        }
+
+        fn hold_bound_builder(storage_type: StorageType) -> HoldBoundBuilder<Test> {
+            HoldBoundBuilder::<Test>::new(storage_type)
+        }
+    }
+
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
@@ -625,12 +668,16 @@ fn delayed_reservations_to_mailbox() {
         assert!(Gear::is_initialized(pid));
 
         let sending_delay = 10;
+        let delay_lock_amount = LockOrExpiration::lock_for_stash(sending_delay);
+
+        let reservation_amount = delay_lock_amount + 10 * <Test as Config>::MailboxThreshold::get();
+        let reservation_expiration = LockOrExpiration::expiration_for_mailbox(reservation_amount);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1,
                 sending_delay,
             }
@@ -652,10 +699,7 @@ fn delayed_reservations_to_mailbox() {
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let mailed_msg = utils::get_last_mail(USER_1);
-        let expiration = utils::get_mailbox_expiration(mailed_msg.id());
-
-        run_to_block(expiration, None);
+        run_to_block(reservation_expiration, None);
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
     });
