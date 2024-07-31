@@ -59,11 +59,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            ProgramStorage::<T>::translate(|id, program: v5::Program<BlockNumberFor<T>>| {
+            ProgramStorage::<T>::translate(|id, program: v9::Program<BlockNumberFor<T>>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                 Some(match program {
-                    v5::Program::Active(p) => {
+                    v9::Program::Active(p) => {
                         let allocations_tree_len =
                             p.allocations.intervals_amount().saturated_into();
                         AllocationsStorage::<T>::insert(id, p.allocations);
@@ -81,8 +81,8 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                             expiration_block: p.expiration_block,
                         })
                     }
-                    v5::Program::Exited(id) => Program::Exited(id),
-                    v5::Program::Terminated(id) => Program::Terminated(id),
+                    v9::Program::Exited(id) => Program::Exited(id),
+                    v9::Program::Terminated(id) => Program::Terminated(id),
                 })
             });
 
@@ -107,7 +107,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
             );
 
-            Some(v5::ProgramStorage::<T>::iter().count() as u64)
+            Some(v9::ProgramStorage::<T>::iter().count() as u64)
         } else {
             None
         };
@@ -135,7 +135,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
     }
 }
 
-mod v5 {
+mod v9 {
     use gear_core::{
         ids::ProgramId,
         message::DispatchKind,
@@ -228,7 +228,7 @@ mod test {
 
             // add active program
             let active_program_id = ProgramId::from(1u64);
-            let program = v5::Program::<BlockNumberFor<Test>>::Active(v5::ActiveProgram {
+            let program = v9::Program::<BlockNumberFor<Test>>::Active(v9::ActiveProgram {
                 allocations: [1u16, 2, 3, 4, 5, 101, 102]
                     .into_iter()
                     .map(WasmPage::from)
@@ -245,17 +245,17 @@ mod test {
                 expiration_block: 100,
                 memory_infix: Default::default(),
             });
-            v5::ProgramStorage::<Test>::insert(active_program_id, program);
+            v9::ProgramStorage::<Test>::insert(active_program_id, program);
 
             // add exited program
-            let program = v5::Program::<BlockNumberFor<Test>>::Exited(active_program_id);
+            let program = v9::Program::<BlockNumberFor<Test>>::Exited(active_program_id);
             let program_id = ProgramId::from(2u64);
-            v5::ProgramStorage::<Test>::insert(program_id, program);
+            v9::ProgramStorage::<Test>::insert(program_id, program);
 
             // add terminated program
-            let program = v5::Program::<BlockNumberFor<Test>>::Terminated(program_id);
+            let program = v9::Program::<BlockNumberFor<Test>>::Terminated(program_id);
             let program_id = ProgramId::from(3u64);
-            v5::ProgramStorage::<Test>::insert(program_id, program);
+            v9::ProgramStorage::<Test>::insert(program_id, program);
 
             let state = MigrateAllocations::<Test>::pre_upgrade().unwrap();
             let w = MigrateAllocations::<Test>::on_runtime_upgrade();
