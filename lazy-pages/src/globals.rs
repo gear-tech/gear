@@ -46,21 +46,28 @@ struct GlobalsAccessWasmRuntime<'a> {
 
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
-        self.instance
-            .get_global_val(name.as_str())
-            .and_then(|value| match value {
-                Value::I64(value) => Some(value),
-                _ => None,
-            })
-            .ok_or(GlobalsAccessError)
+        // SAFETY: this is safe because this method is called only from signal handler context
+        unsafe {
+            self.instance
+                .signal_handler_get_global_val(name.as_str())
+                .and_then(|value| match value {
+                    Value::I64(value) => Some(value),
+                    _ => None,
+                })
+                .ok_or(GlobalsAccessError)
+        }
     }
 
     fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
-        self.instance
-            .set_global_val(name.as_str(), Value::I64(value))
-            .ok()
-            .flatten()
-            .ok_or(GlobalsAccessError)?;
+        // SAFETY: this is safe because this method is called only from signal handler context
+        unsafe {
+            self.instance
+                .signal_handler_set_global_val(name.as_str(), Value::I64(value))
+                .ok()
+                .flatten()
+                .ok_or(GlobalsAccessError)?
+        }
+
         Ok(())
     }
 

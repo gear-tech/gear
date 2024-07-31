@@ -861,12 +861,16 @@ pub mod gbuild {
     }
 
     /// Ensure the current project has been built by `cargo-gbuild`.
-    pub fn ensure_gbuild() {
-        if wasm_path().is_err() {
+    pub fn ensure_gbuild(rebuild: bool) {
+        if wasm_path().is_err() || rebuild {
             let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
-            if !Command::new("cargo")
-                .args(["gbuild", "-m"])
-                .arg(&manifest)
+            let mut kargo = Command::new("cargo");
+            kargo.args(["gbuild", "-m"]).arg(&manifest);
+
+            #[cfg(not(debug_assertions))]
+            kargo.arg("--release");
+
+            if !kargo
                 .status()
                 .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
                 .success()

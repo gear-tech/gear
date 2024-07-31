@@ -253,4 +253,8 @@ impl Packet for ReplyPacket {
     fn value(&self) -> Value {
         self.value
     }
+
+    fn kind() -> DispatchKind {
+        DispatchKind::Reply
+    }
 }

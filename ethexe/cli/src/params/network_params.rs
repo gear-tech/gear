@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use anyhow::Context;
 use clap::Args;
 use ethexe_network::{
-    config::{Multiaddr, NetworkConfiguration, NodeKeyConfig, SetConfig, TransportConfig},
-    multiaddr::Protocol,
+    utils::{Multiaddr, Protocol},
+    NetworkEventLoopConfig,
 };
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -27,6 +28,10 @@ use std::path::PathBuf;
 /// Parameters used to create the network configuration.
 #[derive(Debug, Clone, Args, Deserialize)]
 pub struct NetworkParams {
+    /// Forced signer generated network key to be used inside `libp2p`
+    #[arg(long, value_name = "NETWORK_KEY")]
+    pub network_key: Option<String>,
+
     /// Specify a list of bootnodes.
     #[arg(long, value_name = "ADDR", num_args = 1..)]
     pub bootnodes: Vec<Multiaddr>,
@@ -53,6 +58,7 @@ pub struct NetworkParams {
     /// By default, the network will use mDNS to discover other nodes on the
     /// local network. This disables it. Automatically implied when using --dev.
     #[arg(long)]
+    #[serde(default)]
     pub no_mdns: bool,
     // TODO: Add node key cli
     // #[allow(missing_docs)]
@@ -62,17 +68,11 @@ pub struct NetworkParams {
 
 impl NetworkParams {
     /// Fill the given `NetworkConfiguration` by looking at the cli parameters.
-    pub fn network_config(
-        &self,
-        net_config_path: Option<PathBuf>,
-        node_name: &str,
-        node_key: NodeKeyConfig,
-        default_listen_port: u16,
-    ) -> NetworkConfiguration {
-        let port = self.port.unwrap_or(default_listen_port);
+    pub fn network_config(self, net_path: PathBuf) -> anyhow::Result<NetworkEventLoopConfig> {
+        let port = self.port.unwrap_or(ethexe_network::DEFAULT_LISTEN_PORT);
 
         let listen_addresses = if self.listen_addr.is_empty() {
-            vec![
+            [
                 Multiaddr::empty()
                     .with(Protocol::Ip6([0, 0, 0, 0, 0, 0, 0, 0].into()))
                     .with(Protocol::Udp(port))
@@ -82,31 +82,25 @@ impl NetworkParams {
                     .with(Protocol::Udp(port))
                     .with(Protocol::QuicV1),
             ]
+            .into()
         } else {
-            self.listen_addr.clone()
+            self.listen_addr.into_iter().collect()
         };
 
-        let public_addresses = self.public_addr.clone();
+        let public_key = self
+            .network_key
+            .map(|k| k.parse())
+            .transpose()
+            .with_context(|| "Invalid network key")?;
+        let external_addresses = self.public_addr.into_iter().collect();
+        let bootstrap_addresses = self.bootnodes.into_iter().collect();
 
-        let boot_nodes = self.bootnodes.clone();
-
-        // TODO: Add param option
-        let allow_private_ip = false;
-
-        NetworkConfiguration {
-            boot_nodes,
-            net_config_path,
-            default_peers_set: SetConfig {
-                reserved_nodes: vec![],
-            },
+        Ok(NetworkEventLoopConfig {
+            config_dir: net_path,
+            public_key,
+            external_addresses,
+            bootstrap_addresses,
             listen_addresses,
-            public_addresses,
-            node_key,
-            node_name: node_name.to_string(),
-            transport: TransportConfig::Normal {
-                enable_mdns: !self.no_mdns,
-                allow_private_ip,
-            },
-        }
+        })
     }
 }

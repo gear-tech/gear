@@ -1,8 +1,8 @@
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
 use sandbox_wasmer::{
-    Exports, Extern, Function, HostEnvInitError, ImportObject, Instance, Memory, MemoryType,
-    Module, RuntimeError, Singlepass, Store, Universal, WasmerEnv,
+    Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,
+    RuntimeError, Singlepass, Store,
 };
 use sandbox_wasmer_types::{FunctionType, TrapCode, Type};
 use std::{env, fs};
@@ -27,50 +27,48 @@ fn main() -> anyhow::Result<()> {
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let compiler = Singlepass::default();
-    let store = Store::new(&Universal::new(compiler).engine());
+    let mut store = Store::new(compiler);
     let module = Module::new(&store, code.code())?;
 
-    let mut imports = ImportObject::new();
-    let mut env = Exports::new();
+    let mut imports = Imports::new();
+    let mut exports = Exports::new();
 
-    let memory = Memory::new(&store, MemoryType::new(0, None, false))?;
-    env.insert("memory", Extern::Memory(memory));
+    let memory = Memory::new(&mut store, MemoryType::new(0, None, false))?;
+    exports.insert("memory", Extern::Memory(memory));
 
     // Here we need to repeat the code from
     // `gear_sandbox_host::sandbox::wasmer_backend::dispatch_function_v2`, as we
     // want to be as close as possible to how the executor uses the stack in the
     // node.
 
-    #[derive(Default, Clone)]
-    struct Env;
-
-    impl WasmerEnv for Env {
-        fn init_with_instance(&mut self, _: &Instance) -> Result<(), HostEnvInitError> {
-            Ok(())
-        }
-    }
-
+    let env = FunctionEnv::new(&mut store, ());
     let ty = FunctionType::new(vec![Type::I32], vec![]);
-    let func = Function::new_with_env(&store, &ty, Env, |_, args| match SystemBreakCode::try_from(
-        args[0].unwrap_i32(),
-    ) {
-        Ok(SystemBreakCode::StackLimitExceeded) => Err(RuntimeError::new("stack limit exceeded")),
-        _ => Ok(vec![]),
-    });
+    let func =
+        Function::new_with_env(
+            &mut store,
+            &env,
+            &ty,
+            |_, args| match SystemBreakCode::try_from(args[0].unwrap_i32()) {
+                Ok(SystemBreakCode::StackLimitExceeded) => {
+                    Err(RuntimeError::new("stack limit exceeded"))
+                }
+                _ => Ok(vec![]),
+            },
+        );
 
-    env.insert("gr_system_break", func);
+    exports.insert("gr_system_break", func);
 
-    imports.register("env", env);
+    imports.register_namespace("env", exports);
 
-    let instance = Instance::new(&module, &imports)?;
+    let instance = Instance::new(&mut store, &module, &imports)?;
     let init = instance.exports.get_function("init")?;
-    let err = init.call(&[]).unwrap_err();
+    let err = init.call(&mut store, &[]).unwrap_err();
     assert_eq!(err.to_trap(), Some(TrapCode::StackOverflow));
 
     let stack_height = instance
         .exports
         .get_global(STACK_HEIGHT_EXPORT_NAME)?
-        .get()
+        .get(&mut store)
         .i32()
         .expect("Unexpected global type") as u32;
     log::info!("Stack has overflowed at {stack_height} height");
@@ -96,9 +94,9 @@ fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         let module = Module::new(&store, code.code())?;
-        let instance = Instance::new(&module, &imports)?;
+        let instance = Instance::new(&mut store, &module, &imports)?;
         let init = instance.exports.get_function("init")?;
-        let err = init.call(&[]).unwrap_err();
+        let err = init.call(&mut store, &[]).unwrap_err();
 
         match err.to_trap() {
             None => {

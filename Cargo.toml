@@ -128,6 +128,7 @@ codec = { package = "parity-scale-codec", version = "3.6.4", default-features = 
 color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
+defer = "0.2.1"
 derive_more = "0.99.18"
 dirs = "4.0.0"
 dyn-clonable = "0.9.0"
@@ -174,11 +175,12 @@ thiserror = "1.0.62"
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
-wat = "1.0.83"
+# wasmer 4.3.4 for some reason have wat's version "=1.0.71" nailed down, so we have to do the same
+wat = "1.0.71"
 wabt = "0.10.0"
-wasmer = "2.2"
-wasmer-cache = "2.2.1"
-wasmer-types = "2.2"
+wasmer = "4.3.4"
+wasmer-cache = "4.3.4"
+wasmer-types = "4.3.4"
 wasmi = { version = "0.14.0", default-features = false }
 wasmtime = "8.0.1"
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
@@ -297,10 +299,8 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
-sandbox-wasmer = { package = "wasmer", version = "2.2", features = [
-    "singlepass",
-] }
-sandbox-wasmer-types = { package = "wasmer-types", version = "2.2" }
+sandbox-wasmer = { package = "wasmer", version = "4.3.4", features = ["singlepass"] }
+sandbox-wasmer-types = { package = "wasmer-types", version = "4.3.4" }
 sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 
 # Substrate deps

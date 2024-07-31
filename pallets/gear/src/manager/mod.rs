@@ -55,6 +55,7 @@ use crate::{
     fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
     Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
+use alloc::format;
 use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
@@ -62,7 +63,6 @@ use common::{
     CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::{fmt, mem};
-use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -77,7 +77,7 @@ use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
-    traits::{UniqueSaturatedInto, Zero},
+    traits::Zero,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -206,33 +206,6 @@ where
         !self.check_program_id(id)
     }
 
-    /// NOTE: By calling this function we can't differ whether `None` returned, because
-    /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
-        let code_id = active.code_hash.cast();
-
-        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-            &id.cast(),
-            Preservation::Expendable,
-            Fortitude::Polite,
-        )
-        .unique_saturated_into();
-
-        Some(Actor {
-            balance,
-            destination_program: id,
-            executable_data: ExecutableActorData {
-                allocations: active.allocations.clone(),
-                code_id,
-                code_exports: active.code_exports,
-                static_pages: active.static_pages,
-                gas_reservation_map: active.gas_reservation_map,
-                memory_infix: active.memory_infix,
-            },
-        })
-    }
-
     pub fn set_program(
         &self,
         program_id: ProgramId,
@@ -251,8 +224,7 @@ where
 
         // An empty program has been just constructed: it contains no mem allocations.
         let program = ActiveProgram {
-            allocations: Default::default(),
-            pages_with_data: Default::default(),
+            allocations_tree_len: 0,
             code_hash: code_info.id,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
@@ -290,17 +262,20 @@ where
             p.gas_reservation_map
                 .remove(&reservation_id)
                 .unwrap_or_else(|| {
-                    unreachable!(
-                        "Gas reservation removing called on non-existing reservation ID: {}",
-                        reservation_id
-                    )
+                    let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
+                    Reservation {reservation_id} doesn't exist.");
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
                 })
         })
         .unwrap_or_else(|e| {
-            unreachable!(
-                "Gas reservation removing guaranteed to be called only on existing program: {:?}",
-                e
-            )
+            // Guaranteed to be called on existing program
+            let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed to update program. \
+            Program - {program_id}. Got error: {e:?}");
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         });
 
         Self::remove_gas_reservation_slot(reservation_id, slot)
@@ -325,8 +300,15 @@ where
     }
 
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
-        let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let reserved = GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "ExtManager::send_signal: failed system unreserve. \
+                Message id - {message_id}. Got error: {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
         if reserved != 0 {
             log::debug!(
                 "Send signal issued by {} to {} with {} supply",
@@ -349,8 +331,13 @@ where
             );
 
             // Enqueueing dispatch into message queue.
-            QueueOf::<T>::queue(trap_signal)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<T>::queue(trap_signal).unwrap_or_else(|e| {
+                let err_msg =
+                    format!("ExtManager::send_signal: failed queuing message. Got error - {e:?}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
         } else {
             log::trace!("Signal wasn't sent due to inappropriate supply");
         }
@@ -363,8 +350,6 @@ where
         value_destination: ProgramId,
     ) {
         Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
-
-        ProgramStorageOf::<T>::remove_program_pages(program_id, program.memory_infix);
 
         let program_account = program_id.cast();
         let value_destination = value_destination.cast();
@@ -389,7 +374,14 @@ where
                 balance,
                 ExistenceRequirement::AllowDeath,
             )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {e:?}"));
+            .unwrap_or_else(|e| {
+                let err_msg = format!("ExtManager::clean_inactive_program: failed transferring the rest balance. \
+                Sender - {program_account:?}, sender balance - {balance:?}, dest - {value_destination:?}. \
+                Got error: {e:?}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
         }
     }
 

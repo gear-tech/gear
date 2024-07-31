@@ -16,5 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod add_section_sizes;
-pub mod allocations;
+pub mod args;
+pub mod chain_spec;
+pub mod config;
+pub mod metrics;
+pub mod params;
+pub mod service;
+
+#[cfg(test)]
+mod tests;
