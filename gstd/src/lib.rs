@@ -167,7 +167,7 @@ mod reservations;
 pub mod sync;
 pub mod util;
 
-pub use async_runtime::{handle_signal, message_loop, handle_reply_with_hook};
+pub use async_runtime::{handle_reply_with_hook, handle_signal, message_loop};
 pub use common::{errors, primitives_ext::*};
 pub use config::Config;
 pub use gcore::{
