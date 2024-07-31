@@ -407,9 +407,20 @@ pub mod pallet {
             //
             // This call does only currency trait final transfer.
             Self::withdraw(account_id, value).unwrap_or_else(|e| {
+                let bank_address = T::BankAddress::get();
+                let reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                        &bank_address,
+                        Preservation::Expendable,
+                        Fortitude::Polite,
+                );
+                let unused_value = UnusedValue::<T>::get();
+                let finalize_value = OnFinalizeValue::<T>::get();
+
                 let err_msg = format!(
-                    "Pallet::withdraw_gas: withdraw failed. \
-                    Account id - {account_id:?}, amount - {amount}. Got error - {e:?}"
+                    "pallet_gear_bank::withdraw_gas: withdraw failed. \
+                    Account id - {account_id:?}, amount - {amount}, bank address - {bank_address:?}, /
+                    reducible balance - {reducible_balance:?}, unused value - {unused_value:?}, finalize value - {finalize_value:?}. /
+                    Got error - {e:?}"
                 );
 
                 log::error!("{err_msg}");
@@ -426,7 +437,7 @@ pub mod pallet {
         ) -> Result<(), Error<T>> {
             let block_author = Authorship::<T>::author().unwrap_or_else(|| {
                 let err_msg = format!(
-                    "Pallet::spend_gas: Failed to find block author. \
+                    "pallet_gear_bank::spend_gas: Failed to find block author. \
                         Account id - {account_id:?}, amount - {amount}"
                 );
 
@@ -451,7 +462,7 @@ pub mod pallet {
 
             Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
                 let err_msg = format!(
-                    "Pallet::spend_gas_to: withdraw on finalize failed. \
+                    "pallet_gear_bank::spend_gas_to: withdraw on finalize failed. \
                         Account id - {account_id:?}, amount - {amount}. Got error - {e:?}"
                 );
 
@@ -528,7 +539,7 @@ pub mod pallet {
             // This call does only currency trait final transfer.
             Self::withdraw(account_id, value).unwrap_or_else(|e| {
                 let err_msg = format!(
-                    "Pallet::withdraw_value: withdraw failed. \
+                    "pallet_gear_bank::withdraw_value: withdraw failed. \
                     Account id - {account_id:?}, value - {value:?}. Got error - {e:?}"
                 );
 
@@ -557,7 +568,7 @@ pub mod pallet {
             // This call does only currency trait final transfer.
             Self::withdraw(destination, value).unwrap_or_else(|e| {
                 let err_msg = format!(
-                    "Pallet::transfer_value: withdraw failed. \
+                    "pallet_gear_bank::transfer_value: withdraw failed. \
                     Account id - {account_id:?}, destination: {destination:?}, value - {value:?}. Got error - {e:?}"
                 );
 
