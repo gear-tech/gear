@@ -759,14 +759,19 @@ pub mod runtime_types {
                     )]
                     pub struct StoredDelayedDispatch {
                         pub kind: runtime_types::gear_core::message::DispatchKind,
-                        pub message: runtime_types::gear_core::message::stored::StoredMessage,
+                        pub message: runtime_types::gear_core::message::stored::StoredMessage<
+                            runtime_types::gear_core::buffer::LimitedVec<
+                                ::core::primitive::u8,
+                                runtime_types::gear_core::message::PayloadSizeError,
+                            >,
+                        >,
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
-                    pub struct StoredDispatch {
+                    pub struct StoredDispatch<_0> {
                         pub kind: runtime_types::gear_core::message::DispatchKind,
-                        pub message: runtime_types::gear_core::message::stored::StoredMessage,
+                        pub message: runtime_types::gear_core::message::stored::StoredMessage<_0>,
                         pub context: ::core::option::Option<
                             runtime_types::gear_core::message::context::ContextStore,
                         >,
@@ -774,14 +779,11 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
-                    pub struct StoredMessage {
+                    pub struct StoredMessage<_0> {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
-                            ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
-                        >,
+                        pub payload: _0,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
                         pub details: ::core::option::Option<
@@ -2633,8 +2635,14 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct DebugData {
-                    pub dispatch_queue:
-                        ::std::vec::Vec<runtime_types::gear_core::message::stored::StoredDispatch>,
+                    pub dispatch_queue: ::std::vec::Vec<
+                        runtime_types::gear_core::message::stored::StoredDispatch<
+                            runtime_types::gear_core::buffer::LimitedVec<
+                                ::core::primitive::u8,
+                                runtime_types::gear_core::message::PayloadSizeError,
+                            >,
+                        >,
+                    >,
                     pub programs:
                         ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
                 }

@@ -28,7 +28,7 @@ use gear_core::{
     code::InstrumentedCode,
     ids::ProgramId,
     memory::PageBuf,
-    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, Value},
+    message::{Payload, StoredDispatch, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
     reservation::GasReservationMap,
@@ -83,8 +83,6 @@ pub struct ActiveProgram {
     pub allocations_hash: MaybeHash,
     /// Hash of memory pages table, see [`MemoryPages`].
     pub pages_hash: MaybeHash,
-    /// Hash of gas reservations map, see [`GasReservationMap`].
-    pub gas_reservation_map_hash: MaybeHash,
     /// Program memory infix.
     pub memory_infix: MemoryInfix,
     /// Program initialization status.
@@ -107,33 +105,15 @@ pub struct ProgramState {
     pub queue_hash: MaybeHash,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHash,
-    /// Balance
+    /// Reducible balance.
     pub balance: Value,
+    /// Executable balance.
+    pub executable_balance: Value,
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
-pub struct Dispatch {
-    /// Message id.
-    pub id: MessageId,
-    /// Dispatch kind.
-    pub kind: DispatchKind,
-    /// Message source.
-    pub source: ProgramId,
-    /// Message payload.
-    pub payload_hash: MaybeHash,
-    /// Message gas limit. Required here.
-    pub gas_limit: GasLimit,
-    /// Message value.
-    pub value: Value,
-    /// Message details like reply message ID, status code, etc.
-    pub details: Option<MessageDetails>,
-    /// Message previous executions context.
-    pub context: Option<ContextStore>,
-}
+pub type MessageQueue = VecDeque<StoredDispatch<MaybeHash>>;
 
-pub type MessageQueue = VecDeque<Dispatch>;
-
-pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
+pub type Waitlist = BTreeMap<BlockNumber, Vec<StoredDispatch<MaybeHash>>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 
@@ -169,12 +149,6 @@ pub trait Storage {
 
     /// Writes allocations and returns its hash.
     fn write_allocations(&self, allocations: Allocations) -> H256;
-
-    /// Reads gas reservation map by gas reservation map hash.
-    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap>;
-
-    /// Writes gas reservation map and returns its hash.
-    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256;
 
     /// Reads payload by payload hash.
     fn read_payload(&self, hash: H256) -> Option<Payload>;

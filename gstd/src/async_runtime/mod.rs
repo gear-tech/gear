@@ -26,6 +26,7 @@ pub(crate) use locks::Lock;
 pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
+#[cfg(not(feature = "ethexe"))]
 use crate::critical;
 use hashbrown::HashMap;
 use locks::LocksMap;
@@ -55,6 +56,7 @@ pub fn record_reply() {
 }
 
 /// Default signal handler.
+#[cfg(not(feature = "ethexe"))]
 pub fn handle_signal() {
     let msg_id = crate::msg::signal_from().expect(
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",

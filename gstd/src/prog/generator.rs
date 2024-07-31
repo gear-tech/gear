@@ -108,6 +108,7 @@ impl ProgramGenerator {
 
     /// Same as [`create_program_bytes`](Self::create_program_bytes), but with
     /// an explicit gas limit.
+    #[cfg(not(feature = "ethexe"))]
     #[wait_create_program_for_reply(Self)]
     pub fn create_program_bytes_with_gas(
         code_id: CodeId,
@@ -120,6 +121,7 @@ impl ProgramGenerator {
 
     /// Same as [`create_program_bytes_with_gas`](Self::create_program_bytes_with_gas), but
     /// creates a new program after the `delay` expressed in block count.
+    #[cfg(not(feature = "ethexe"))]
     pub fn create_program_bytes_with_gas_delayed(
         code_id: CodeId,
         payload: impl AsRef<[u8]>,
@@ -165,6 +167,7 @@ impl ProgramGenerator {
 
     /// Same as [`create_program`](Self::create_program), but with an explicit
     /// gas limit.
+    #[cfg(not(feature = "ethexe"))]
     #[wait_create_program_for_reply(Self)]
     pub fn create_program_with_gas<E: Encode>(
         code_id: CodeId,
@@ -179,6 +182,7 @@ impl ProgramGenerator {
 
     /// Same as [`create_program_with_gas`](Self::create_program_with_gas), but
     /// creates a new program after the `delay` expressed in block count.
+    #[cfg(not(feature = "ethexe"))]
     pub fn create_program_with_gas_delayed<E: Encode>(
         code_id: CodeId,
         payload: E,

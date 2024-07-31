@@ -67,7 +67,7 @@ pub struct CreateProgram {
     pub actor_id: ActorId,
     pub code_id: CodeId,
     pub init_payload: Vec<u8>,
-    pub gas_limit: u64,
+    pub gas_limit: u64, // TODO (breathx): remove me
     pub value: u128,
 }
 
@@ -98,7 +98,7 @@ pub struct SendMessage {
     pub origin: ActorId,
     pub destination: ActorId,
     pub payload: Vec<u8>,
-    pub gas_limit: u64,
+    pub gas_limit: u64, // TODO (breathx): remove me
     pub value: u128,
 }
 
@@ -107,7 +107,7 @@ pub struct SendReply {
     pub origin: ActorId,
     pub reply_to_id: MessageId,
     pub payload: Vec<u8>,
-    pub gas_limit: u64,
+    pub gas_limit: u64, // TODO (breathx): remove me
     pub value: u128,
 }
 

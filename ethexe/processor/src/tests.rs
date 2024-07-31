@@ -267,7 +267,6 @@ fn create_message_full(
         kind,
         source,
         payload: payload.as_ref().to_vec(),
-        gas_limit: 1_000_000_000,
         value: 0,
     }
 }
@@ -312,7 +311,6 @@ fn async_and_ping() {
                 kind: DispatchKind::Init,
                 source: user_id,
                 payload: b"PING".to_vec(),
-                gas_limit: 10_000_000_000,
                 value: 0,
             }],
         )
@@ -329,7 +327,6 @@ fn async_and_ping() {
                 kind: DispatchKind::Init,
                 source: user_id,
                 payload: ping_id.encode(),
-                gas_limit: 10_000_000_000,
                 value: 0,
             }],
         )
@@ -344,7 +341,6 @@ fn async_and_ping() {
                 kind: DispatchKind::Handle,
                 source: user_id,
                 payload: demo_async::Command::Common.encode(),
-                gas_limit: 10_000_000_000,
                 value: 0,
             }],
         )

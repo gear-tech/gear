@@ -44,12 +44,15 @@ use crate::{
     errors::{Error, Result, SyscallError},
     stack_buffer,
     utils::AsRawPtr,
-    ActorId, MessageHandle, MessageId, ReservationId,
+    ActorId, MessageHandle, MessageId,
 };
-use gear_core_errors::{ReplyCode, SignalCode};
-use gsys::{
-    ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, HashWithValue,
-    TwoHashesWithValue,
+use gear_core_errors::ReplyCode;
+use gsys::{ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, HashWithValue};
+#[cfg(not(feature = "ethexe"))]
+use {
+    crate::ReservationId,
+    gear_core_errors::SignalCode,
+    gsys::{ErrorWithSignalCode, TwoHashesWithValue},
 };
 
 const PTR_SPECIAL: *const u128 = u32::MAX as *const u128;
@@ -101,6 +104,7 @@ pub fn reply_code() -> Result<ReplyCode> {
 ///     let signal_code = msg::signal_code().expect("Unable to get signal code");
 /// }
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub fn signal_code() -> Result<Option<SignalCode>> {
     let mut res: ErrorWithSignalCode = Default::default();
 
@@ -323,6 +327,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 ///
 /// - [`send_from_reservation`] function sends a new message to the program or
 ///   user by using gas from a reservation.
+#[cfg(not(feature = "ethexe"))]
 pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) -> Result<MessageId> {
     let rid_value = HashWithValue {
         hash: id.into(),
@@ -362,6 +367,7 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
 /// # See also
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
+#[cfg(not(feature = "ethexe"))]
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     let mut res: ErrorWithHash = Default::default();
 
@@ -447,6 +453,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// # See also
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
+#[cfg(not(feature = "ethexe"))]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     let mut res: ErrorWithHash = Default::default();
 
@@ -478,6 +485,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 /// # See also
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
+#[cfg(not(feature = "ethexe"))]
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
     let rid_value = HashWithValue {
         hash: id.into(),
@@ -562,6 +570,7 @@ pub fn reply_to() -> Result<MessageId> {
 ///     let erroneous_message = msg::signal_from().unwrap();
 /// }
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub fn signal_from() -> Result<MessageId> {
     let mut res: ErrorWithHash = Default::default();
 
@@ -616,6 +625,7 @@ pub fn reply_push_input(offset: u32, len: u32) -> Result<()> {
 }
 
 /// Same as [`reply_input`], but with explicit gas limit.
+#[cfg(not(feature = "ethexe"))]
 pub fn reply_input_with_gas(
     gas_limit: u64,
     value: u128,
@@ -757,6 +767,7 @@ pub fn send(destination: ActorId, payload: &[u8], value: u128) -> Result<Message
 ///   by using gas from a reservation.
 /// - [`send_init`],[`send_push`], [`send_commit_from_reservation`] functions
 ///   allows forming a message to send in parts.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_from_reservation(
     reservation_id: ReservationId,
     destination: ActorId,
@@ -768,6 +779,7 @@ pub fn send_from_reservation(
 
 /// Same as [`send_from_reservation`], but sends the message after the`delay`
 /// expressed in block count.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_delayed_from_reservation(
     reservation_id: ReservationId,
     destination: ActorId,
@@ -834,6 +846,7 @@ pub fn send_push_input(handle: MessageHandle, offset: u32, len: u32) -> Result<(
 }
 
 /// Same as [`send_input`], but with explicit gas limit.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_input_with_gas(
     destination: ActorId,
     gas_limit: u64,
@@ -845,6 +858,7 @@ pub fn send_input_with_gas(
 }
 
 /// Same as [`send_input_with_gas`], but sends delayed.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_input_with_gas_delayed(
     destination: ActorId,
     gas_limit: u64,
@@ -900,6 +914,7 @@ pub fn send_input_with_gas_delayed(
 ///   reservation.
 /// - [`send_push`], [`send_init`] functions allows forming message to send in
 ///   parts.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_commit_from_reservation(
     reservation_id: ReservationId,
     handle: MessageHandle,
@@ -911,6 +926,7 @@ pub fn send_commit_from_reservation(
 
 /// Same as [`send_commit_from_reservation`], but sends the message after the
 /// `delay` expressed in block count.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_commit_delayed_from_reservation(
     reservation_id: ReservationId,
     handle: MessageHandle,
@@ -989,6 +1005,7 @@ pub fn send_delayed(
 /// - [`reply_with_gas`] function sends a reply with an explicit gas limit.
 /// - [`send_init`],[`send_push`], [`send_commit_with_gas`] functions allow
 ///   forming a message to send in parts with an explicit gas limit.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_with_gas(
     destination: ActorId,
     payload: &[u8],
@@ -1000,6 +1017,7 @@ pub fn send_with_gas(
 
 /// Same as [`send_with_gas`], but sends the message after the `delay` expressed
 /// in block count.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_with_gas_delayed(
     destination: ActorId,
     payload: &[u8],
@@ -1108,6 +1126,7 @@ pub fn send_commit_delayed(
 /// - [`send`] function allows sending a message in one step.
 /// - [`send_push`], [`send_init`] functions allows forming a message to send in
 ///   parts.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_commit_with_gas(
     handle: MessageHandle,
     destination: ActorId,
@@ -1119,6 +1138,7 @@ pub fn send_commit_with_gas(
 
 /// Same as [`send_commit_with_gas`], but sends the message after the `delay`
 /// expressed in block count.
+#[cfg(not(feature = "ethexe"))]
 pub fn send_commit_with_gas_delayed(
     handle: MessageHandle,
     destination: ActorId,

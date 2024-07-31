@@ -22,12 +22,10 @@ use anyhow::Result;
 use core_processor::common::JournalNote;
 use ethexe_common::{events::BlockEvent, StateTransition};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::{
-    self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
-};
+use ethexe_runtime_common::state::{self, ActiveProgram, MaybeHash, ProgramState, Storage};
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
-    message::{DispatchKind, Payload},
+    message::{DispatchKind, Payload, StoredDispatch, StoredMessage},
     program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
@@ -41,13 +39,11 @@ mod run;
 #[cfg(test)]
 mod tests;
 
-#[allow(unused)]
 pub struct UserMessage {
     id: MessageId,
     kind: DispatchKind,
     source: ActorId,
     payload: Vec<u8>,
-    gas_limit: u64,
     value: u128,
 }
 
@@ -135,7 +131,6 @@ impl Processor {
         let active_program = ActiveProgram {
             allocations_hash: MaybeHash::Empty,
             pages_hash: MaybeHash::Empty,
-            gas_reservation_map_hash: MaybeHash::Empty,
             memory_infix: MemoryInfix::new(0),
             initialized: false,
         };
@@ -145,8 +140,8 @@ impl Processor {
             state: state::Program::Active(active_program),
             queue_hash: MaybeHash::Empty,
             waitlist_hash: MaybeHash::Empty,
-            // TODO: remove program balance from here.
             balance: 0,
+            executable_balance: 10_000_000_000_000, // TODO: remove this minting
         };
 
         // TODO: not write zero state, but just register it (or support default on get)
@@ -174,17 +169,19 @@ impl Processor {
                 .then_some(MaybeHash::Empty)
                 .unwrap_or_else(|| self.db.write_payload(payload).into());
 
-            let dispatch = Dispatch {
-                id: message.id,
-                kind: message.kind,
-                source: message.source,
-                payload_hash,
-                gas_limit: message.gas_limit,
-                value: message.value,
-                // TODO: handle replies.
-                details: None,
-                context: None,
-            };
+            // TODO: handle replies.
+            let dispatch = StoredDispatch::new(
+                message.kind,
+                StoredMessage::new(
+                    message.id,
+                    message.source,
+                    ActorId::zero(), // TODO: store IncomingMessages without gas
+                    payload_hash,
+                    message.value,
+                    None,
+                ),
+                None,
+            );
 
             dispatches.push(dispatch);
         }
@@ -294,7 +291,6 @@ impl Processor {
                             kind: DispatchKind::Init,
                             source: create_program_info.origin,
                             payload: create_program_info.init_payload.clone(),
-                            gas_limit: create_program_info.gas_limit,
                             value: create_program_info.value,
                         }],
                     )?;
@@ -309,11 +305,11 @@ impl Processor {
                     let state_hash = self.handle_user_message(
                         *state_hash,
                         vec![UserMessage {
+                            // TODO: handle mid.
                             id: MessageId::zero(),
                             kind: DispatchKind::Handle,
                             source: send_message_info.origin,
                             payload: send_message_info.payload.clone(),
-                            gas_limit: send_message_info.gas_limit,
                             value: send_message_info.value,
                         }],
                     )?;

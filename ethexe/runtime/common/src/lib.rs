@@ -28,7 +28,7 @@ use alloc::{
 use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
-    configs::BlockConfig,
+    configs::{BlockConfig, SyscallName},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use gear_core::{
@@ -44,8 +44,7 @@ use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use state::{
-    ActiveProgram, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState,
-    Storage, Waitlist,
+    ActiveProgram, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState, Storage, Waitlist,
 };
 
 extern crate alloc;
@@ -57,6 +56,8 @@ pub use core_processor::configs::BlockInfo;
 pub use journal::Handler;
 
 const RUNTIME_ID: u32 = 0;
+
+pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
@@ -151,7 +152,34 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     let block_config = BlockConfig {
         block_info,
         performance_multiplier: Percent::new(100),
-        forbidden_funcs: Default::default(),
+        forbidden_funcs: [
+            // Deprecated
+            SyscallName::CreateProgramWGas,
+            SyscallName::ReplyCommitWGas,
+            SyscallName::ReplyDeposit,
+            SyscallName::ReplyInputWGas,
+            SyscallName::ReplyWGas,
+            SyscallName::ReservationReplyCommit,
+            SyscallName::ReservationReply,
+            SyscallName::ReservationSendCommit,
+            SyscallName::ReservationSend,
+            SyscallName::ReserveGas,
+            SyscallName::SendCommitWGas,
+            SyscallName::SendInputWGas,
+            SyscallName::SendWGas,
+            SyscallName::SystemReserveGas,
+            SyscallName::UnreserveGas,
+            // TBD about deprecation
+            SyscallName::SignalCode,
+            SyscallName::SignalFrom,
+            // TODO: refactor asap
+            SyscallName::GasAvailable,
+            // Temporary forbidden (unimplemented)
+            SyscallName::CreateProgram,
+            SyscallName::Exit,
+            SyscallName::Random,
+        ]
+        .into(),
         reserve_for: 125_000_000,
         gas_multiplier: GasMultiplier::from_gas_per_value(1), // TODO
         costs: Default::default(),                            // TODO
@@ -171,16 +199,10 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         }
     };
 
-    let Dispatch {
-        id: dispatch_id,
-        kind,
-        source,
-        payload_hash,
-        gas_limit,
-        value,
-        details,
-        context,
-    } = queue.pop_front().unwrap();
+    let stored_dispatch_with_hash = queue.pop_front().unwrap();
+
+    let dispatch_id = stored_dispatch_with_hash.id();
+    let kind = stored_dispatch_with_hash.kind();
 
     if active_state.initialized && kind == DispatchKind::Init {
         // Panic is impossible, because gear protocol does not provide functionality
@@ -197,13 +219,18 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         todo!("Process messages to uninitialized program");
     }
 
-    let payload = payload_hash
-        .with_hash_or_default(|hash| ri.storage().read_payload(hash).expect("Cannot get payload"));
+    let stored_dispatch = stored_dispatch_with_hash.cast(|maybe_hash| {
+        maybe_hash.with_hash_or_default(|hash| {
+            ri.storage().read_payload(hash).expect("Cannot get payload")
+        })
+    });
 
-    let incoming_message =
-        IncomingMessage::new(dispatch_id, source, payload, gas_limit, value, details);
+    let gas_limit = block_config
+        .gas_multiplier
+        .value_to_gas(program_state.executable_balance)
+        .min(BLOCK_GAS_LIMIT);
 
-    let dispatch = IncomingDispatch::new(kind, incoming_message, context);
+    let dispatch = stored_dispatch.into_incoming(gas_limit);
 
     let precharged_dispatch = match core_processor::precharge_for_program(
         &block_config,
@@ -223,14 +250,6 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             .expect("Cannot get allocations")
     });
 
-    let gas_reservation_map = active_state
-        .gas_reservation_map_hash
-        .with_hash_or_default(|hash| {
-            ri.storage()
-                .read_gas_reservation_map(hash)
-                .expect("Cannot get gas reservation map")
-        });
-
     let pages_map = active_state.pages_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_pages(hash)
@@ -241,7 +260,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         code_id,
         code_exports: code.exports().clone(),
         static_pages: code.static_pages(),
-        gas_reservation_map,
+        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
         memory_infix: active_state.memory_infix,
     };
 

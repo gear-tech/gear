@@ -20,4 +20,5 @@
 
 pub mod errors;
 mod handlers;
+#[cfg(not(feature = "ethexe"))]
 pub mod primitives_ext;
