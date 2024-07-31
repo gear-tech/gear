@@ -20,6 +20,7 @@ use ethexe_common::{
 use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
+#[derive(Clone)]
 pub struct Query {
     database: Arc<dyn BlockMetaStorage>,
     provider: ObserverProvider,

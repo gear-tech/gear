@@ -3,6 +3,9 @@ name = "gbuild-test-program"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
 gstd = { path = "../../../gstd" }
 
@@ -13,9 +16,6 @@ gtest = { path = "../../../gtest" }
 debug = ["gstd/debug"]
 default = []
 std = []
-
-[lib]
-crate-type = ["cdylib"]
 
 [workspace]
 members = [ "foo", "bar" , "meta"]
