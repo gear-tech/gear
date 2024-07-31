@@ -36,10 +36,6 @@ use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 use std::mem;
 use vara_runtime::{Runtime, EXISTENTIAL_DEPOSIT};
 
-pub fn alice() -> AccountId {
-    sp_keyring::Sr25519Keyring::Alice.to_account_id()
-}
-
 /// Get account from [`gear_common::Origin`] implementor.
 pub fn account<T: Origin>(v: T) -> AccountId {
     AccountId::unchecked_from(v.into_origin())
@@ -48,7 +44,7 @@ pub fn account<T: Origin>(v: T) -> AccountId {
 // TODO #2307 BabeId and GrandpaId are not needed at first?
 /// Generate authority keys.
 pub fn authority_keys_from_seed(
-    s: &str,
+    s: [u8; 32],
 ) -> (
     AccountId,
     BabeId,
@@ -66,7 +62,7 @@ pub fn authority_keys_from_seed(
 }
 
 /// Generate an account ID from seed.
-pub fn get_acc_id_from_seed<T: TPublic>(seed: &str) -> AccountId
+pub fn get_acc_id_from_seed<T: TPublic>(seed: <T::Pair as Pair>::Seed) -> AccountId
 where
     AccountPublic: From<<T::Pair as Pair>::Public>,
 {
@@ -74,10 +70,10 @@ where
 }
 
 // Generate a crypto pair from seed.
-pub fn get_pub_key_from_seed<T: TPublic>(seed: &str) -> <T::Pair as Pair>::Public {
-    T::Pair::from_string(&format!("//{}", seed), None)
-        .expect("static values are valid; qed")
-        .public()
+pub fn get_pub_key_from_seed<T: TPublic>(
+    seed: <T::Pair as Pair>::Seed,
+) -> <T::Pair as Pair>::Public {
+    T::Pair::from_seed(&seed).public()
 }
 
 pub fn acc_max_balance_gas() -> Gas {
@@ -106,10 +102,22 @@ impl<'a> BalanceManager<'a> {
 
     pub(crate) fn update_balance(&mut self) -> Result<BalanceState> {
         let max_balance = runtime::gas_to_value(runtime::acc_max_balance_gas());
-        let new_balance = self
-            .unstructured
-            .int_in_range(EXISTENTIAL_DEPOSIT..=max_balance)?;
 
+        // In 3/4 cases we're going to get max_balance account which helps us to run code to completion.
+        //
+        // Note that before there was another branch here that also did more calculation on `max_balance` to get into the sweet spot
+        // but it turns out to slightly move the balance of success/failure rate to 50/50 which is not good. With only these two branches
+        // we get around 80/20 success/failure rate. Note that this also depends on number of instructions in the program.
+        let mut new_balance = if self.unstructured.ratio(2, 4)? {
+            max_balance
+        } else {
+            self.unstructured
+                .int_in_range(EXISTENTIAL_DEPOSIT..=max_balance)?
+        };
+
+        if new_balance < EXISTENTIAL_DEPOSIT {
+            new_balance = EXISTENTIAL_DEPOSIT;
+        }
         runtime::set_balance(self.sender.clone(), new_balance)
             .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
         assert_eq!(

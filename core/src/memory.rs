@@ -98,8 +98,16 @@ impl Debug for MemoryInterval {
     }
 }
 
+/// Error in attempt to make wrong size page buffer.
+#[derive(Debug, Default, PartialEq, Eq, Clone, TypeInfo, derive_more::Display)]
+#[display(
+    fmt = "Trying to make wrong size page buffer, must be {:#x}",
+    GearPage::SIZE
+)]
+pub struct IntoPageBufError;
+
 /// Alias for inner type of page buffer.
-pub type PageBufInner = LimitedVec<u8, (), { GearPage::SIZE as usize }>;
+pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
 #[derive(Clone, PartialEq, Eq, TypeInfo)]

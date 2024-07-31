@@ -41,11 +41,14 @@ use gear_wasm_instrument::{
     gas_metering::CustomConstantCostRules,
     parity_wasm::{self, elements::Module},
 };
+use nonempty::nonempty;
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::num::{NonZeroU32, NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
+const WASM_PAGE_SIZE: u32 = 64 * 1024;
+const INITIAL_PAGES: u32 = 1;
 
 type Ext = gear_core_processor::Ext<LazyPagesNative>;
 
@@ -64,7 +67,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None);
         assert!(code_res.is_ok());
     }
 
@@ -77,6 +80,47 @@ proptest! {
 
         let first = generate_gear_program_code(&mut u, gear_config.clone()).expect("failed wasm generation");
         let second = generate_gear_program_code(&mut u2, gear_config).expect("failed wasm generation");
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn test_randomized_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
+        let mut u = Unstructured::new(&buf);
+
+        let configs_bundle: RandomizedGearWasmConfigBundle = RandomizedGearWasmConfigBundle::new_arbitrary(
+            &mut u,
+            Default::default(),
+            Default::default()
+        );
+
+        let original_code = generate_gear_program_code(&mut u, configs_bundle)
+            .expect("failed generating wasm");
+
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None);
+        assert!(code_res.is_ok());
+    }
+
+    #[test]
+    fn test_randomized_config_reproducible(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
+        let mut u = Unstructured::new(&buf);
+        let mut u2 = Unstructured::new(&buf);
+        let configs_bundle1: RandomizedGearWasmConfigBundle = RandomizedGearWasmConfigBundle::new_arbitrary(
+            &mut u,
+            Default::default(),
+            Default::default()
+        );
+
+        let configs_bundle2: RandomizedGearWasmConfigBundle = RandomizedGearWasmConfigBundle::new_arbitrary(
+            &mut u2,
+            Default::default(),
+            Default::default()
+        );
+
+        let first = generate_gear_program_code(&mut u, configs_bundle1)
+            .expect("failed generating wasm");
+        let second = generate_gear_program_code(&mut u2, configs_bundle2)
+            .expect("failed generating wasm");
 
         assert_eq!(first, second);
     }
@@ -193,15 +237,133 @@ fn test_avoid_waits_works() {
     let backend_report = execute_wasm_with_custom_configs(
         &mut unstructured,
         syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-        0,
+        ExecuteParams {
+            // This test supposed to check if waiting probability works correctly,
+            // so we have to set `init_called flag` to make wait probability code reachable.
+            // And the second, we have to set waiting probability counter to non-zero value,
+            // because the wasm check looks like this `if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }`
+            initial_memory_write: nonempty![set_init_called_flag(), set_wait_called_counter(1)]
+                .into(),
+            ..Default::default()
+        },
     );
 
     assert_eq!(
         backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+}
+
+#[test]
+fn test_wait_stores_message_id() {
+    gear_utils::init_default_logger();
+
+    const EXPECTED_MSG_ID: u64 = 12345678;
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let params_config = SyscallsParamsConfig::new().with_default_regular_config();
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Wait), 1, 1);
+    // Only for test, syscall `message_id` import added automatically when `wake` syscall is enabled in config.
+    injection_types.enable_syscall_import(InvocableSyscall::Loose(SyscallName::MessageId));
+
+    let syscalls_config_with_waiting_probability =
+        SyscallsConfigBuilder::new(injection_types.clone())
+            .with_params_config(params_config.clone())
+            .with_waiting_probability(NonZeroU32::new(4).unwrap())
+            .build();
+
+    let syscalls_config_wo_waiting_probability = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .build();
+
+    // Test both configs:
+    for syscalls_config in [
+        syscalls_config_with_waiting_probability,
+        syscalls_config_wo_waiting_probability,
+    ] {
+        let BackendReport {
+            termination_reason,
+            store,
+            memory,
+            ..
+        } = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            syscalls_config,
+            ExecuteParams {
+                initial_memory_write: nonempty![set_init_called_flag(), set_wait_called_counter(0)]
+                    .into(),
+                message_id: EXPECTED_MSG_ID,
+                ..Default::default()
+            },
+        );
+
+        // It's Ok, message id is 32 bytes in size, but we use u64 for testing purposes.
+        let mut message_id = [0u8; 8];
+        let waited_message_id_ptr =
+            MemoryLayout::from(WASM_PAGE_SIZE * INITIAL_PAGES).waited_message_id_ptr;
+        memory
+            .read(&store, waited_message_id_ptr as u32, &mut message_id)
+            .unwrap();
+        assert_eq!(u64::from_le_bytes(message_id), EXPECTED_MSG_ID);
+
+        assert!(matches!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Wait(..))
+        ));
+    }
+}
+
+#[test]
+fn test_wake_uses_stored_message_id() {
+    gear_utils::init_default_logger();
+
+    const EXPECTED_MSG_ID: u64 = 12345678;
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::WaitedMessageId);
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Wake), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .build();
+
+    let BackendReport {
+        termination_reason,
+        mut store,
+        memory,
+        ext,
+    } = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        ExecuteParams {
+            initial_memory_write: nonempty![set_waited_message_id(EXPECTED_MSG_ID)].into(),
+            ..Default::default()
+        },
+    );
+
+    let info = ext.into_ext_info(&mut store, &memory).unwrap();
+    let msg_id = info.awakening.first().unwrap().0;
+    let msg_id_bytes = msg_id.into_bytes();
+    assert_eq!(
+        u64::from_le_bytes(msg_id_bytes[..8].try_into().unwrap()),
+        EXPECTED_MSG_ID
+    );
+
+    assert_eq!(
+        termination_reason,
         TerminationReason::Actor(ActorTerminationReason::Success)
     );
 }
@@ -226,15 +388,8 @@ fn test_source_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-        0,
-    );
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -266,15 +421,8 @@ fn test_existing_address_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-        0,
-    );
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -325,11 +473,10 @@ fn test_msg_value_ptr() {
     let backend_report = execute_wasm_with_custom_configs(
         &mut unstructured,
         syscalls_config,
-        None,
-        1024,
-        false,
-        INITIAL_BALANCE,
-        0,
+        ExecuteParams {
+            value: INITIAL_BALANCE,
+            ..Default::default()
+        },
     );
 
     assert_eq!(
@@ -393,11 +540,10 @@ fn test_msg_value_ptr_dest() {
             let backend_report = execute_wasm_with_custom_configs(
                 &mut unstructured,
                 syscalls_config,
-                None,
-                1024,
-                false,
-                INITIAL_BALANCE,
-                0,
+                ExecuteParams {
+                    value: INITIAL_BALANCE,
+                    ..Default::default()
+                },
             );
 
             assert_eq!(
@@ -464,15 +610,8 @@ fn test_send_init_with_send() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-        0,
-    );
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -505,11 +644,10 @@ fn test_reservation_id_with_value_ptr() {
     let backend_report = execute_wasm_with_custom_configs(
         &mut unstructured,
         syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-        250_000_000_000,
+        ExecuteParams {
+            gas: 250_000_000_000,
+            ..Default::default()
+        },
     );
 
     assert_eq!(
@@ -553,11 +691,10 @@ fn test_reservation_id_with_actor_id_and_value_ptr() {
     let backend_report = execute_wasm_with_custom_configs(
         &mut unstructured,
         syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-        250_000_000_000,
+        ExecuteParams {
+            gas: 250_000_000_000,
+            ..Default::default()
+        },
     );
 
     assert_eq!(
@@ -591,11 +728,10 @@ fn test_reservation_id_ptr() {
     let backend_report = execute_wasm_with_custom_configs(
         &mut unstructured,
         syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-        250_000_000_000,
+        ExecuteParams {
+            gas: 250_000_000_000,
+            ..Default::default()
+        },
     );
 
     assert_eq!(
@@ -642,11 +778,10 @@ fn test_code_id_with_value_ptr() {
         let backend_report = execute_wasm_with_custom_configs(
             &mut unstructured,
             syscalls_config,
-            None,
-            1024,
-            false,
-            INITIAL_BALANCE,
-            0,
+            ExecuteParams {
+                value: INITIAL_BALANCE,
+                ..Default::default()
+            },
         );
 
         assert_eq!(
@@ -698,11 +833,12 @@ fn error_processing_works_for_fallible_syscalls() {
                 .clone()
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
-            initial_memory_write.clone(),
-            0,
-            true,
-            0,
-            0,
+            ExecuteParams {
+                initial_memory_write: initial_memory_write.clone(),
+                outgoing_limit: 0,
+                imitate_reply: true,
+                ..Default::default()
+            },
         )
         .termination_reason;
 
@@ -717,11 +853,12 @@ fn error_processing_works_for_fallible_syscalls() {
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured2,
             syscalls_config_builder.build(),
-            initial_memory_write.clone(),
-            0,
-            true,
-            0,
-            0,
+            ExecuteParams {
+                initial_memory_write: initial_memory_write.clone(),
+                outgoing_limit: 0,
+                imitate_reply: true,
+                ..Default::default()
+            },
         )
         .termination_reason;
 
@@ -769,11 +906,7 @@ fn precise_syscalls_works() {
                 .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
-            None,
-            1024,
-            false,
-            0,
-            0,
+            Default::default(),
         )
         .termination_reason;
 
@@ -794,24 +927,72 @@ struct MemoryWrite {
 
 fn get_params_for_syscall_to_fail(
     _syscall: InvocableSyscall,
-) -> (SyscallsParamsConfig, Option<MemoryWrite>) {
+) -> (SyscallsParamsConfig, Option<NonEmpty<MemoryWrite>>) {
     (
         SyscallsParamsConfig::const_regular_params(i32::MAX as i64),
         None,
     )
 }
 
-fn execute_wasm_with_custom_configs(
-    unstructured: &mut Unstructured,
-    syscalls_config: SyscallsConfig,
-    initial_memory_write: Option<MemoryWrite>,
+fn set_init_called_flag() -> MemoryWrite {
+    let mem_layout = MemoryLayout::from(WASM_PAGE_SIZE * INITIAL_PAGES);
+    let offset = mem_layout.init_called_ptr as u32;
+    let content = 0x01u32.to_le_bytes().to_vec();
+
+    MemoryWrite { offset, content }
+}
+
+fn set_wait_called_counter(counter: u8) -> MemoryWrite {
+    let mem_layout = MemoryLayout::from(WASM_PAGE_SIZE * INITIAL_PAGES);
+    let offset = mem_layout.wait_called_ptr as u32;
+    let content = vec![counter];
+
+    MemoryWrite { offset, content }
+}
+
+fn set_waited_message_id(message_id: u64) -> MemoryWrite {
+    let mem_layout = MemoryLayout::from(WASM_PAGE_SIZE * INITIAL_PAGES);
+    let offset = mem_layout.waited_message_id_ptr as u32;
+    let content = message_id.to_le_bytes().to_vec();
+
+    MemoryWrite { offset, content }
+}
+
+struct ExecuteParams {
+    initial_memory_write: Option<NonEmpty<MemoryWrite>>,
     outgoing_limit: u32,
     imitate_reply: bool,
     value: u128,
     gas: u64,
+    message_id: u64,
+}
+
+impl Default for ExecuteParams {
+    fn default() -> Self {
+        Self {
+            initial_memory_write: None,
+            outgoing_limit: 1024,
+            imitate_reply: false,
+            value: 0,
+            gas: 0,
+            message_id: 0,
+        }
+    }
+}
+
+fn execute_wasm_with_custom_configs(
+    unstructured: &mut Unstructured,
+    syscalls_config: SyscallsConfig,
+    ExecuteParams {
+        initial_memory_write,
+        outgoing_limit,
+        imitate_reply,
+        value,
+        gas,
+        message_id,
+    }: ExecuteParams,
 ) -> BackendReport<Ext> {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
-    const INITIAL_PAGES: u16 = 1;
 
     gear_lazy_pages::init(
         LazyPagesVersion::Version1,
@@ -823,7 +1004,7 @@ fn execute_wasm_with_custom_configs(
     let gear_config = (
         GearWasmGeneratorConfigBuilder::new()
             .with_memory_config(MemoryPagesConfig {
-                initial_size: INITIAL_PAGES as u32,
+                initial_size: INITIAL_PAGES,
                 ..MemoryPagesConfig::default()
             })
             .with_syscalls_config(syscalls_config)
@@ -845,6 +1026,7 @@ fn execute_wasm_with_custom_configs(
         |_| CustomConstantCostRules::new(0, 0, 0),
         None,
         None,
+        None,
     )
     .expect("Failed to create Code");
 
@@ -852,7 +1034,7 @@ fn execute_wasm_with_custom_configs(
     let program_id = ProgramId::generate_from_user(code_id, b"");
 
     let incoming_message = IncomingMessage::new(
-        Default::default(),
+        message_id.into(),
         message_sender(),
         Default::default(),
         Default::default(),
@@ -885,7 +1067,7 @@ fn execute_wasm_with_custom_configs(
         code.code(),
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
-        INITIAL_PAGES.into(),
+        (INITIAL_PAGES as u16).into(),
     )
     .expect("Failed to create environment");
 
@@ -904,9 +1086,11 @@ fn execute_wasm_with_custom_configs(
             Default::default(),
         );
 
-        if let Some(mem_write) = initial_memory_write {
-            mem.write(ctx, mem_write.offset, &mem_write.content)
-                .expect("Failed to write to memory");
+        if let Some(mem_writes) = initial_memory_write {
+            for mem_write in mem_writes {
+                mem.write(ctx, mem_write.offset, &mem_write.content)
+                    .expect("Failed to write to memory");
+            }
         };
     })
     .expect("Failed to execute WASM module")

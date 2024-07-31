@@ -432,6 +432,7 @@ mod system;
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;
 pub use error::{Result, TestError};
+pub use mailbox::ActorMailbox;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,
@@ -506,10 +507,28 @@ pub mod constants {
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).
 
+    /// Cost of loading allocations per interval.
+    pub const LOAD_ALLOCATIONS_PER_INTERVAL: Gas = 20_000;
     /// Maximal amount of reservations program may have.
     pub const MAX_RESERVATIONS: u64 = 256;
-    /// Cost of wasm module instantiation before execution per byte of code.
-    pub const MODULE_INSTANTIATION_BYTE_COST: Gas = 20;
+    /// Cost of wasm module code section instantiation before execution per byte
+    /// of code.
+    pub const MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST: Gas = 192;
+    /// Cost of wasm module data section instantiation before execution per byte
+    /// of code.
+    pub const MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST: Gas = 452;
+    /// Cost of wasm module global section instantiation before execution per
+    /// byte of code.
+    pub const MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST: Gas = 2360;
+    /// Cost of wasm module table section instantiation before execution per
+    /// byte of code.
+    pub const MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST: Gas = 350;
+    /// Cost of wasm module element section instantiation before execution per
+    /// byte of code.
+    pub const MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST: Gas = 18492;
+    /// Cost of wasm module type section instantiation before execution per byte
+    /// of code.
+    pub const MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST: Gas = 254;
     /// Cost of instrumenting wasm code on upload.
     pub const MODULE_INSTRUMENTATION_COST: Gas = 297;
     /// Cost of instrumenting wasm code on upload per byte of code.

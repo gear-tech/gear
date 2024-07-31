@@ -26,6 +26,7 @@ use ark_ec::{pairing::Pairing, short_weierstrass::SWCurveConfig, Group, ScalarMu
 use ark_ff::biginteger::BigInt;
 use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
+use common::Origin;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use gear_core::message::MAX_PAYLOAD_SIZE;
 use parity_scale_codec::{Compact, Encode, Input};
@@ -49,6 +50,7 @@ benchmarks! {
     where_clause {
         where
             T: pallet_gear::Config,
+            T::AccountId: Origin,
     }
 
     calculate_id {

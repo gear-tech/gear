@@ -665,6 +665,17 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
+                    pub struct InstantiatedSectionSizes {
+                        pub code_section: ::core::primitive::u32,
+                        pub data_section: ::core::primitive::u32,
+                        pub global_section: ::core::primitive::u32,
+                        pub table_section: ::core::primitive::u32,
+                        pub element_section: ::core::primitive::u32,
+                        pub type_section: ::core::primitive::u32,
+                    }
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
                     pub struct InstrumentedCode {
                         pub code: ::std::vec::Vec<::core::primitive::u8>,
                         pub original_code_len: ::core::primitive::u32,
@@ -673,6 +684,8 @@ pub mod runtime_types {
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
                             ::core::option::Option<runtime_types::gear_core::pages::Page2>,
+                        pub instantiated_section_sizes:
+                            runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
                         pub version: ::core::primitive::u32,
                     }
                 }
@@ -680,8 +693,13 @@ pub mod runtime_types {
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IntoPageBufError;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
-                    pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
+                    pub  runtime_types::gear_core::buffer::LimitedVec<
+                        ::core::primitive::u8,
+                        runtime_types::gear_core::memory::IntoPageBufError,
+                    >,
                 );
             }
             pub mod message {
@@ -866,12 +884,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ActiveProgram<_0> {
-                    pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page2,
-                    >,
-                    pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page,
-                    >,
+                    pub allocations_tree_len: ::core::primitive::u32,
                     pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                     pub gas_reservation_map: ::subxt::utils::KeyedVec<
                         runtime_types::gprimitives::ReservationId,
@@ -2175,6 +2188,12 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::set_execute_inherent`]."]
                     set_execute_inherent { value: ::core::primitive::bool },
+                    #[codec(index = 8)]
+                    #[doc = "See [`Pallet::claim_value_to_inheritor`]."]
+                    claim_value_to_inheritor {
+                        program_id: runtime_types::gprimitives::ActorId,
+                        depth: ::core::num::NonZeroU32,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -2239,6 +2258,9 @@ pub mod runtime_types {
                     #[codec(index = 14)]
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
+                    #[codec(index = 15)]
+                    #[doc = "Program is active."]
+                    ActiveProgram,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -2329,6 +2351,15 @@ pub mod runtime_types {
             }
             pub mod schedule {
                 use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct InstantiationWeights {
+                    pub code_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub data_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub global_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub table_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub element_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub type_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct InstructionWeights {
                     pub version: ::core::primitive::u32,
@@ -2428,6 +2459,7 @@ pub mod runtime_types {
                     pub parameters: ::core::primitive::u32,
                     pub memory_pages: ::core::primitive::u16,
                     pub table_size: ::core::primitive::u32,
+                    pub table_number: ::core::primitive::u32,
                     pub br_table_size: ::core::primitive::u32,
                     pub subject_len: ::core::primitive::u32,
                     pub call_depth: ::core::primitive::u32,
@@ -2447,7 +2479,6 @@ pub mod runtime_types {
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub load_page_data: runtime_types::sp_weights::weight_v2::Weight,
                     pub upload_page_data: runtime_types::sp_weights::weight_v2::Weight,
-                    pub static_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
@@ -2459,12 +2490,14 @@ pub mod runtime_types {
                         runtime_types::pallet_gear::schedule::InstructionWeights,
                     pub syscall_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
-                    pub module_instantiation_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub instantiation_weights:
+                        runtime_types::pallet_gear::schedule::InstantiationWeights,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
+                    pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
@@ -3131,6 +3164,24 @@ pub mod runtime_types {
         }
         pub mod pallet_identity {
             use super::runtime_types;
+            pub mod legacy {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IdentityInfo {
+                    pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
+                        runtime_types::pallet_identity::types::Data,
+                        runtime_types::pallet_identity::types::Data,
+                    )>,
+                    pub display: runtime_types::pallet_identity::types::Data,
+                    pub legal: runtime_types::pallet_identity::types::Data,
+                    pub web: runtime_types::pallet_identity::types::Data,
+                    pub riot: runtime_types::pallet_identity::types::Data,
+                    pub email: runtime_types::pallet_identity::types::Data,
+                    pub pgp_fingerprint: ::core::option::Option<[::core::primitive::u8; 20usize]>,
+                    pub image: runtime_types::pallet_identity::types::Data,
+                    pub twitter: runtime_types::pallet_identity::types::Data,
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3145,7 +3196,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::set_identity`]."]
                     set_identity {
                         info:
-                            ::std::boxed::Box<runtime_types::pallet_identity::simple::IdentityInfo>,
+                            ::std::boxed::Box<runtime_types::pallet_identity::legacy::IdentityInfo>,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::set_subs`]."]
@@ -3189,9 +3240,7 @@ pub mod runtime_types {
                     set_fields {
                         #[codec(compact)]
                         index: ::core::primitive::u32,
-                        fields: runtime_types::pallet_identity::types::BitFlags<
-                            runtime_types::pallet_identity::simple::IdentityField,
-                        >,
+                        fields: ::core::primitive::u64,
                     },
                     #[codec(index = 9)]
                     #[doc = "See [`Pallet::provide_judgement`]."]
@@ -3267,24 +3316,21 @@ pub mod runtime_types {
                     #[doc = "The target is invalid."]
                     InvalidTarget,
                     #[codec(index = 11)]
-                    #[doc = "Too many additional fields."]
-                    TooManyFields,
-                    #[codec(index = 12)]
                     #[doc = "Maximum amount of registrars reached. Cannot add any more."]
                     TooManyRegistrars,
-                    #[codec(index = 13)]
+                    #[codec(index = 12)]
                     #[doc = "Account ID is already named."]
                     AlreadyClaimed,
-                    #[codec(index = 14)]
+                    #[codec(index = 13)]
                     #[doc = "Sender is not a sub-account."]
                     NotSub,
-                    #[codec(index = 15)]
+                    #[codec(index = 14)]
                     #[doc = "Sub-account isn't owned by sender."]
                     NotOwned,
-                    #[codec(index = 16)]
+                    #[codec(index = 15)]
                     #[doc = "The provided judgement was for a different identity."]
                     JudgementForDifferentIdentity,
-                    #[codec(index = 17)]
+                    #[codec(index = 16)]
                     #[doc = "Error that occurs when there is an issue paying for judgement."]
                     JudgementPaymentFailed,
                 }
@@ -3353,56 +3399,8 @@ pub mod runtime_types {
                     },
                 }
             }
-            pub mod simple {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum IdentityField {
-                    #[codec(index = 0)]
-                    Display,
-                    #[codec(index = 1)]
-                    Legal,
-                    #[codec(index = 2)]
-                    Web,
-                    #[codec(index = 3)]
-                    Riot,
-                    #[codec(index = 4)]
-                    Email,
-                    #[codec(index = 5)]
-                    PgpFingerprint,
-                    #[codec(index = 6)]
-                    Image,
-                    #[codec(index = 7)]
-                    Twitter,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct IdentityInfo {
-                    pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
-                        runtime_types::pallet_identity::types::Data,
-                        runtime_types::pallet_identity::types::Data,
-                    )>,
-                    pub display: runtime_types::pallet_identity::types::Data,
-                    pub legal: runtime_types::pallet_identity::types::Data,
-                    pub web: runtime_types::pallet_identity::types::Data,
-                    pub riot: runtime_types::pallet_identity::types::Data,
-                    pub email: runtime_types::pallet_identity::types::Data,
-                    pub pgp_fingerprint: ::core::option::Option<[::core::primitive::u8; 20usize]>,
-                    pub image: runtime_types::pallet_identity::types::Data,
-                    pub twitter: runtime_types::pallet_identity::types::Data,
-                }
-            }
             pub mod types {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::CompactAs,
-                    Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
-                )]
-                pub struct BitFlags<_0>(
-                    pub ::core::primitive::u64,
-                    #[codec(skip)] pub ::core::marker::PhantomData<_0>,
-                );
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum Data {
                     #[codec(index = 0)]
@@ -3503,7 +3501,7 @@ pub mod runtime_types {
                 pub struct RegistrarInfo<_0, _1, _2> {
                     pub account: _1,
                     pub fee: _0,
-                    pub fields: runtime_types::pallet_identity::types::BitFlags<_2>,
+                    pub fields: _2,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Registration<_0, _2> {
@@ -3557,7 +3555,7 @@ pub mod runtime_types {
                     SomeOffline {
                         offline: ::std::vec::Vec<(
                             ::subxt::utils::AccountId32,
-                            runtime_types::pallet_staking::Exposure<
+                            runtime_types::sp_staking::Exposure<
                                 ::subxt::utils::AccountId32,
                                 ::core::primitive::u128,
                             >,
@@ -4885,7 +4883,7 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
-                    #[doc = "A deposit has been slashaed."]
+                    #[doc = "A deposit has been slashed."]
                     DepositSlashed {
                         who: ::subxt::utils::AccountId32,
                         amount: ::core::primitive::u128,
@@ -4998,7 +4996,7 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
-                    #[doc = "A deposit has been slashaed."]
+                    #[doc = "A deposit has been slashed."]
                     DepositSlashed {
                         who: ::subxt::utils::AccountId32,
                         amount: ::core::primitive::u128,
@@ -5554,6 +5552,13 @@ pub mod runtime_types {
                         set_min_commission {
                             new: runtime_types::sp_arithmetic::per_things::Perbill,
                         },
+                        #[codec(index = 26)]
+                        #[doc = "See [`Pallet::payout_stakers_by_page`]."]
+                        payout_stakers_by_page {
+                            validator_stash: ::subxt::utils::AccountId32,
+                            era: ::core::primitive::u32,
+                            page: ::core::primitive::u32,
+                        },
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
@@ -5619,35 +5624,38 @@ pub mod runtime_types {
                         #[doc = "Rewards for this era have already been claimed for this validator."]
                         AlreadyClaimed,
                         #[codec(index = 15)]
+                        #[doc = "No nominators exist on this page."]
+                        InvalidPage,
+                        #[codec(index = 16)]
                         #[doc = "Incorrect previous history depth input provided."]
                         IncorrectHistoryDepth,
-                        #[codec(index = 16)]
+                        #[codec(index = 17)]
                         #[doc = "Incorrect number of slashing spans provided."]
                         IncorrectSlashingSpans,
-                        #[codec(index = 17)]
+                        #[codec(index = 18)]
                         #[doc = "Internal state has become somehow corrupted and the operation cannot continue."]
                         BadState,
-                        #[codec(index = 18)]
+                        #[codec(index = 19)]
                         #[doc = "Too many nomination targets supplied."]
                         TooManyTargets,
-                        #[codec(index = 19)]
+                        #[codec(index = 20)]
                         #[doc = "A nomination target was supplied that was blocked or otherwise not a validator."]
                         BadTarget,
-                        #[codec(index = 20)]
+                        #[codec(index = 21)]
                         #[doc = "The user has enough bond and thus cannot be chilled forcefully by an external person."]
                         CannotChillOther,
-                        #[codec(index = 21)]
+                        #[codec(index = 22)]
                         #[doc = "There are too many nominators in the system. Governance needs to adjust the staking"]
                         #[doc = "settings to keep things safe for the runtime."]
                         TooManyNominators,
-                        #[codec(index = 22)]
+                        #[codec(index = 23)]
                         #[doc = "There are too many validator candidates in the system. Governance needs to adjust the"]
                         #[doc = "staking settings to keep things safe for the runtime."]
                         TooManyValidators,
-                        #[codec(index = 23)]
+                        #[codec(index = 24)]
                         #[doc = "Commission is too low. Must be at least `MinCommission`."]
                         CommissionTooLow,
-                        #[codec(index = 24)]
+                        #[codec(index = 25)]
                         #[doc = "Some bound is not met."]
                         BoundNotMet,
                     }
@@ -5782,15 +5790,6 @@ pub mod runtime_types {
                 pub individual: ::subxt::utils::KeyedVec<_0, ::core::primitive::u32>,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct Exposure<_0, _1> {
-                #[codec(compact)]
-                pub total: _1,
-                #[codec(compact)]
-                pub own: _1,
-                pub others:
-                    ::std::vec::Vec<runtime_types::pallet_staking::IndividualExposure<_0, _1>>,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum Forcing {
                 #[codec(index = 0)]
                 NotForcing,
@@ -5800,12 +5799,6 @@ pub mod runtime_types {
                 ForceNone,
                 #[codec(index = 3)]
                 ForceAlways,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct IndividualExposure<_0, _1> {
-                pub who: _0,
-                #[codec(compact)]
-                pub value: _1,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct Nominations {
@@ -5838,9 +5831,10 @@ pub mod runtime_types {
                 pub unlocking: runtime_types::bounded_collections::bounded_vec::BoundedVec<
                     runtime_types::pallet_staking::UnlockChunk<::core::primitive::u128>,
                 >,
-                pub claimed_rewards: runtime_types::bounded_collections::bounded_vec::BoundedVec<
-                    ::core::primitive::u32,
-                >,
+                pub legacy_claimed_rewards:
+                    runtime_types::bounded_collections::bounded_vec::BoundedVec<
+                        ::core::primitive::u32,
+                    >,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct UnappliedSlash<_0, _1> {
@@ -5893,12 +5887,15 @@ pub mod runtime_types {
                         who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
+                    #[codec(index = 4)]
+                    #[doc = "See [`Pallet::remove_key`]."]
+                    remove_key,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Error for the Sudo pallet"]
+                #[doc = "Error for the Sudo pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
-                    #[doc = "Sender must be the Sudo account"]
+                    #[doc = "Sender must be the Sudo account."]
                     RequireSudo,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -5913,9 +5910,13 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "The sudo key has been updated."]
                     KeyChanged {
-                        old_sudoer: ::core::option::Option<::subxt::utils::AccountId32>,
+                        old: ::core::option::Option<::subxt::utils::AccountId32>,
+                        new: ::subxt::utils::AccountId32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "The key was permanently removed."]
+                    KeyRemoved,
+                    #[codec(index = 3)]
                     #[doc = "A [sudo_as](Pallet::sudo_as) call just took place."]
                     SudoAsDone {
                         sudo_result:
@@ -6297,6 +6298,12 @@ pub mod runtime_types {
                     merge_schedules {
                         schedule1_index: ::core::primitive::u32,
                         schedule2_index: ::core::primitive::u32,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "See [`Pallet::force_remove_vesting_schedule`]."]
+                    force_remove_vesting_schedule {
+                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        schedule_index: ::core::primitive::u32,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -7338,6 +7345,35 @@ pub mod runtime_types {
                     pub reporters: ::std::vec::Vec<_0>,
                 }
             }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct Exposure<_0, _1> {
+                #[codec(compact)]
+                pub total: _1,
+                #[codec(compact)]
+                pub own: _1,
+                pub others: ::std::vec::Vec<runtime_types::sp_staking::IndividualExposure<_0, _1>>,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct ExposurePage<_0, _1> {
+                #[codec(compact)]
+                pub page_total: _1,
+                pub others: ::std::vec::Vec<runtime_types::sp_staking::IndividualExposure<_0, _1>>,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct IndividualExposure<_0, _1> {
+                pub who: _0,
+                #[codec(compact)]
+                pub value: _1,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct PagedExposureMetadata<_0> {
+                #[codec(compact)]
+                pub total: _0,
+                #[codec(compact)]
+                pub own: _0,
+                pub nominator_count: ::core::primitive::u32,
+                pub page_count: ::core::primitive::u32,
+            }
         }
         pub mod sp_version {
             use super::runtime_types;
@@ -8073,6 +8109,7 @@ pub mod calls {
         ClaimValue,
         Run,
         SetExecuteInherent,
+        ClaimValueToInheritor,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -8086,6 +8123,7 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
+                Self::ClaimValueToInheritor => "claim_value_to_inheritor",
             }
         }
     }
@@ -8407,6 +8445,7 @@ pub mod calls {
         ChillOther,
         ForceApplyMinCommission,
         SetMinCommission,
+        PayoutStakersByPage,
     }
     impl CallInfo for StakingCall {
         const PALLET: &'static str = "Staking";
@@ -8438,6 +8477,7 @@ pub mod calls {
                 Self::ChillOther => "chill_other",
                 Self::ForceApplyMinCommission => "force_apply_min_commission",
                 Self::SetMinCommission => "set_min_commission",
+                Self::PayoutStakersByPage => "payout_stakers_by_page",
             }
         }
     }
@@ -8465,6 +8505,7 @@ pub mod calls {
         SudoUncheckedWeight,
         SetKey,
         SudoAs,
+        RemoveKey,
     }
     impl CallInfo for SudoCall {
         const PALLET: &'static str = "Sudo";
@@ -8474,6 +8515,7 @@ pub mod calls {
                 Self::SudoUncheckedWeight => "sudo_unchecked_weight",
                 Self::SetKey => "set_key",
                 Self::SudoAs => "sudo_as",
+                Self::RemoveKey => "remove_key",
             }
         }
     }
@@ -8572,6 +8614,7 @@ pub mod calls {
         VestedTransfer,
         ForceVestedTransfer,
         MergeSchedules,
+        ForceRemoveVestingSchedule,
     }
     impl CallInfo for VestingCall {
         const PALLET: &'static str = "Vesting";
@@ -8582,6 +8625,7 @@ pub mod calls {
                 Self::VestedTransfer => "vested_transfer",
                 Self::ForceVestedTransfer => "force_vested_transfer",
                 Self::MergeSchedules => "merge_schedules",
+                Self::ForceRemoveVestingSchedule => "force_remove_vesting_schedule",
             }
         }
     }
@@ -8949,6 +8993,7 @@ pub mod storage {
         CodeLenStorage,
         OriginalCodeStorage,
         MetadataStorage,
+        AllocationsStorage,
         ProgramStorage,
         MemoryPages,
     }
@@ -8960,6 +9005,7 @@ pub mod storage {
                 Self::CodeLenStorage => "CodeLenStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::MetadataStorage => "MetadataStorage",
+                Self::AllocationsStorage => "AllocationsStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
             }
@@ -9001,6 +9047,7 @@ pub mod storage {
         Stalled,
         CurrentSetId,
         SetIdSession,
+        Authorities,
     }
     impl StorageInfo for GrandpaStorage {
         const PALLET: &'static str = "Grandpa";
@@ -9012,6 +9059,7 @@ pub mod storage {
                 Self::Stalled => "Stalled",
                 Self::CurrentSetId => "CurrentSetId",
                 Self::SetIdSession => "SetIdSession",
+                Self::Authorities => "Authorities",
             }
         }
     }
@@ -9255,7 +9303,10 @@ pub mod storage {
         ActiveEra,
         ErasStartSessionIndex,
         ErasStakers,
+        ErasStakersOverview,
         ErasStakersClipped,
+        ErasStakersPaged,
+        ClaimedRewards,
         ErasValidatorPrefs,
         ErasValidatorReward,
         ErasRewardPoints,
@@ -9297,7 +9348,10 @@ pub mod storage {
                 Self::ActiveEra => "ActiveEra",
                 Self::ErasStartSessionIndex => "ErasStartSessionIndex",
                 Self::ErasStakers => "ErasStakers",
+                Self::ErasStakersOverview => "ErasStakersOverview",
                 Self::ErasStakersClipped => "ErasStakersClipped",
+                Self::ErasStakersPaged => "ErasStakersPaged",
+                Self::ClaimedRewards => "ClaimedRewards",
                 Self::ErasValidatorPrefs => "ErasValidatorPrefs",
                 Self::ErasValidatorReward => "ErasValidatorReward",
                 Self::ErasRewardPoints => "ErasRewardPoints",

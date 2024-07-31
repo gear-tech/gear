@@ -22,6 +22,7 @@ use std::time::Duration;
 
 use demo_wat::WatExample;
 use gclient::{errors, Error, EventProcessor, GearApi};
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, pages::WasmPage};
 
 async fn upload_programs_and_check(
     api: &GearApi,
@@ -77,6 +78,8 @@ async fn harmless_upload() -> anyhow::Result<()> {
         WatExample::InfRecursion,
         WatExample::ReadAccess,
         WatExample::ReadWriteAccess,
+        WatExample::from_wat(use_big_memory_wat())
+            .expect("Cannot create wat example for big memory test"),
     ];
 
     let codes = examples.into_iter().map(|e| e.code()).collect();
@@ -237,4 +240,30 @@ async fn test_upload_failed() -> anyhow::Result<()> {
     );
 
     Ok(())
+}
+
+fn use_big_memory_wat() -> String {
+    let last_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT).offset() - 4;
+    let middle_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2).offset();
+
+    format!(
+        r#"
+        (module
+		    (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                (drop (call $alloc (i32.const {MAX_WASM_PAGES_AMOUNT})))
+
+                ;; access last 4 bytes
+                (i32.store (i32.const {last_4_bytes_offset}) (i32.const 0x42))
+
+                ;; access first 4 bytes
+                (i32.store (i32.const 0) (i32.const 0x42))
+
+                ;; access 4 bytes in the middle
+                (i32.store (i32.const {middle_4_bytes_offset}) (i32.const 0x42))
+            )
+        )"#
+    )
 }

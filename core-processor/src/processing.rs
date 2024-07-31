@@ -19,8 +19,7 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, PrechargedDispatch, SystemExecutionError,
-        WasmExecutionContext,
+        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -374,11 +373,14 @@ pub fn process_reinstrumentation_error(
 }
 
 /// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(
-    context: PrechargedDispatch,
-    destination_id: ProgramId,
-) -> Vec<JournalNote> {
-    let (dispatch, gas_counter, _) = context.into_parts();
+pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
