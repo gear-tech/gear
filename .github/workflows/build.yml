@@ -75,8 +75,15 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
       - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
+        run: |
+          ./scripts/gear.sh show
+          forge --version
 
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo

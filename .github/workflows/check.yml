@@ -17,12 +17,36 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: "Show: Versioning"
+        run: |
+          ./scripts/gear.sh show
+          forge --version
+
+      - name: "Check: ethexe contracts"
+        run: |
+          cd ethexe/contracts
+          forge fmt --check
+          forge build --sizes
+          forge test -vvv
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check

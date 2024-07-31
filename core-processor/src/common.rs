@@ -40,6 +40,7 @@ use gear_core::{
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
+use parity_scale_codec::{Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -140,7 +141,7 @@ impl DispatchResult {
 }
 
 /// Dispatch outcome of the specific message.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub enum DispatchOutcome {
     /// Message was a exit.
     Exit {
@@ -175,7 +176,7 @@ pub enum DispatchOutcome {
 }
 
 /// Journal record for the state update.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
     MessageDispatched {

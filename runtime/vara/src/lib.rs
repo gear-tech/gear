@@ -1182,10 +1182,6 @@ pub type BuiltinActors = (
     pallet_gear_eth_bridge::Actor<Runtime>,
 );
 
-parameter_types! {
-    pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
-}
-
 impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
