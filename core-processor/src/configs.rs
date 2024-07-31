@@ -98,6 +98,8 @@ pub struct ProcessCosts {
     pub instrumentation_per_byte: CostOf<BytesAmount>,
     /// Module instantiation costs.
     pub instantiation_costs: InstantiationCosts,
+    /// Load program allocations cost per interval.
+    pub load_allocations_per_interval: CostOf<u32>,
 }
 
 /// Execution settings for handling messages.

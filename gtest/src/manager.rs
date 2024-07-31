@@ -23,13 +23,13 @@ use crate::{
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    GAS_ALLOWANCE, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
-    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST,
-    READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST,
-    WRITE_COST,
+    GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, MAILBOX_THRESHOLD,
+    MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST,
+    RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -884,6 +884,7 @@ impl ExtManager {
                     element_section_per_byte: MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
                     type_section_per_byte: MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
                 },
+                load_allocations_per_interval: LOAD_ALLOCATIONS_PER_INTERVAL.into(),
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -893,7 +894,7 @@ impl ExtManager {
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         };
 
-        let precharged_dispatch = match core_processor::precharge_for_program(
+        let context = match core_processor::precharge_for_program(
             &block_config,
             self.gas_allowance.0,
             dispatch.into_incoming(gas_limit),
@@ -907,16 +908,15 @@ impl ExtManager {
         };
 
         let Some((actor_data, code)) = data else {
-            let journal = core_processor::process_non_executable(precharged_dispatch, dest);
+            let journal = core_processor::process_non_executable(context);
             core_processor::handle_journal(journal, self);
             return;
         };
 
-        let context = match core_processor::precharge_for_code_length(
+        let context = match core_processor::precharge_for_allocations(
             &block_config,
-            precharged_dispatch,
-            dest,
-            actor_data,
+            context,
+            actor_data.allocations.intervals_amount() as u32,
         ) {
             Ok(c) => c,
             Err(journal) => {
@@ -924,6 +924,15 @@ impl ExtManager {
                 return;
             }
         };
+
+        let context =
+            match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
+                Ok(c) => c,
+                Err(journal) => {
+                    core_processor::handle_journal(journal, self);
+                    return;
+                }
+            };
 
         let context = ContextChargedForCode::from(context);
         let context = ContextChargedForInstrumentation::from(context);

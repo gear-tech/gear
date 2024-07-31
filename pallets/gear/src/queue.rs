@@ -46,7 +46,7 @@ where
         // To start executing a message resources of a destination program should be
         // fetched from the storage.
         // The first step is to get program data so charge gas for the operation.
-        let precharged_dispatch = match core_processor::precharge_for_program(
+        let context = match core_processor::precharge_for_program(
             block_config,
             GasAllowanceOf::<T>::get(),
             dispatch.into_incoming(gas_limit),
@@ -58,8 +58,8 @@ where
 
         let Some(Program::Active(program)) = ProgramStorageOf::<T>::get_program(destination_id)
         else {
-            log::trace!("Message is sent to non-active program {destination_id:?}");
-            return core_processor::process_non_executable(precharged_dispatch, destination_id);
+            log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
+            return core_processor::process_non_executable(context);
         };
 
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
@@ -92,11 +92,29 @@ where
                 unreachable!("{err_msg}");
             }
 
-            return core_processor::process_non_executable(precharged_dispatch, destination_id);
+            return core_processor::process_non_executable(context);
         }
 
+        let context = match core_processor::precharge_for_allocations(
+            block_config,
+            context,
+            program.allocations_tree_len,
+        ) {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
+
+        let allocations = (program.allocations_tree_len != 0).then(|| {
+            ProgramStorageOf::<T>::allocations(destination_id).unwrap_or_else(|| {
+                unreachable!(
+                    "`allocations_tree_len` {} is not zero, so program {destination_id:?} must have allocations",
+                    program.allocations_tree_len,
+                )
+            })
+        }).unwrap_or_default();
+
         let actor_data = ExecutableActorData {
-            allocations: program.allocations,
+            allocations,
             code_id: program.code_hash.cast(),
             code_exports: program.code_exports,
             static_pages: program.static_pages,
@@ -106,15 +124,11 @@ where
 
         // The second step is to load instrumented binary code of the program but
         // first its correct length should be obtained.
-        let context = match core_processor::precharge_for_code_length(
-            block_config,
-            precharged_dispatch,
-            destination_id,
-            actor_data,
-        ) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
+        let context =
+            match core_processor::precharge_for_code_length(block_config, context, actor_data) {
+                Ok(context) => context,
+                Err(journal) => return journal,
+            };
 
         // Load correct code length value.
         let code_id = context.actor_data().code_id;

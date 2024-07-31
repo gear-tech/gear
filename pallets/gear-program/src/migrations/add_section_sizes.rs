@@ -36,7 +36,7 @@ use gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
 
 const MIGRATE_FROM_VERSION: u16 = 8;
 const MIGRATE_TO_VERSION: u16 = 9;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 9;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 10;
 
 pub struct AddSectionSizesMigration<T: Config>(PhantomData<T>);
 
