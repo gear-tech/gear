@@ -60,7 +60,7 @@ impl<T: Config> BuiltinActor for Actor<T> {
                 response.encode().try_into().unwrap_or_else(|err| {
                     let err_msg = format!(
                         "Actor::handle: Response message is too large. \
-                            Got error - {err:?}"
+                        Response - {response:X?}. Got error - {err:?}"
                     );
 
                     log::error!("{err_msg}");

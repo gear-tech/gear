@@ -18,6 +18,7 @@
 
 //! Module for memory pages.
 
+use alloc::format;
 use core::cmp::Ordering;
 use num_traits::bounds::{LowerBounded, UpperBounded};
 use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated};
@@ -119,8 +120,12 @@ impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
         match self.cmp(&Self::UPPER) {
             Ordering::Greater => {
                 // This panic is impossible because of `PagesAmount` constructors implementation.
-                let err_msg =
-                    "PagesAmount::unbound: PageBound must be always less or equal than UPPER";
+                let err_msg = format!(
+                    "PagesAmount::unbound: PageBound must be always less or equal than UPPER. \
+                    Page bound - {:?}, UPPER - {:?}",
+                    self,
+                    Self::UPPER
+                );
 
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}")

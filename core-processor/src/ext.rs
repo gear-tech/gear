@@ -852,8 +852,9 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
         .unwrap_or_else(|| {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Checked sub operation overflowed. \
-                Message id - {}, current counter type - {:?}, gas - {gas}, allowance - {allowance}, amount - {amount}",
-                self.context.message_context.current().id(), self.current_counter_type()
+                Message id - {message_id}, program id - {program_id}, current counter type - {current_counter_type:?}, \
+                gas - {gas}, allowance - {allowance}, amount - {amount}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, current_counter_type = self.current_counter_type()
             );
 
             log::error!("{err_msg}");
@@ -863,8 +864,8 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
         if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas limit left bigger than before. \
-                Message id - {}, gas counter - {:?}, diff - {diff}",
-                self.context.message_context.current().id(), self.context.gas_counter
+                Message id - {message_id}, program id - {program_id}, gas counter - {gas_counter:?}, diff - {diff}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_counter = self.context.gas_counter
             );
 
             log::error!("{err_msg}");
@@ -874,8 +875,8 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
         if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas allowance left bigger than before. \
-                Message id - {}, gas allowance counter - {:?}, diff - {diff}",
-                self.context.message_context.current().id(), self.context.gas_allowance_counter,
+                Message id - {message_id}, program id - {program_id}, gas allowance counter - {gas_allowance_counter:?}, diff - {diff}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_allowance_counter = self.context.gas_allowance_counter,
             );
 
             log::error!("{err_msg}");

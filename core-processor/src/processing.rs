@@ -258,9 +258,9 @@ fn process_error(
 
         // Panic is impossible, unless error message is too large or [Payload] max size is too small.
         let err_payload = err_payload.into_bytes().try_into().unwrap_or_else(|_| {
+            let (_, err_payload) = case.to_reason_and_payload();
             let err_msg =
-                format!("process_error: Error message is too big. Message id - {message_id}, error payload - {}",
-                case.to_reason_and_payload().1
+                format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
             );
 
             log::error!("{err_msg}");

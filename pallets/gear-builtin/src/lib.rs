@@ -242,7 +242,11 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         let actor_id = dispatch.destination();
 
         if dispatch.kind() != DispatchKind::Handle {
-            let err_msg = "BuiltinRegistry::run: Only handle dispatches can end up here";
+            let err_msg = format!(
+                "BuiltinRegistry::run: Only handle dispatches can end up here. \
+                Dispatch kind - {dispatch_kind:?}",
+                dispatch_kind = dispatch.kind()
+            );
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}")

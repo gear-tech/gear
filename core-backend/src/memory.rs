@@ -64,9 +64,11 @@ where
     }
 
     fn size(&self, ctx: &Caller) -> WasmPagesAmount {
-        WasmPagesAmount::try_from(self.inner.size(ctx)).unwrap_or_else(|_| {
-            let err_msg =
-                "BackendMemory::size: wasm size is bigger than possible in 32-bits address space";
+        WasmPagesAmount::try_from(self.inner.size(ctx)).unwrap_or_else(|err| {
+            let err_msg = format!(
+                "BackendMemory::size: wasm size is bigger than possible in 32-bits address space. \
+                Got error - {err:?}"
+            );
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}")
