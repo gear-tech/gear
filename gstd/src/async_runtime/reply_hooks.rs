@@ -20,26 +20,30 @@ use crate::MessageId;
 use alloc::boxed::Box;
 use hashbrown::HashMap;
 
-use super::reply_hooks;
+pub(crate) struct HooksMap(HashMap<MessageId, Box<dyn FnOnce()>>);
 
-pub(crate) type HooksMap = HashMap<MessageId, Box<dyn FnOnce()>>;
-
-/// Register hook to be executed when a reply for message_id is received.
-pub(crate) fn register_reply_hook<F: FnOnce() + 'static>(mid: MessageId, f: F) {
-    if reply_hooks().contains_key(&mid) {
-        panic!("handle_reply: reply hook for this message_id is already registered");
+impl HooksMap {
+    pub fn new() -> Self {
+        Self(HashMap::new())
     }
-    reply_hooks().insert(mid, Box::new(f));
-}
 
-/// Execute hook for message_id (if registered)
-pub(crate) fn execute_and_clear_reply_hook(mid: MessageId) {
-    if let Some(f) = reply_hooks().remove(&mid) {
-        f();
+    /// Register hook to be executed when a reply for message_id is received.
+    pub(crate) fn register<F: FnOnce() + 'static>(&mut self, mid: MessageId, f: F) {
+        if self.0.contains_key(&mid) {
+            panic!("handle_reply: reply hook for this message_id is already registered");
+        }
+        self.0.insert(mid, Box::new(f));
     }
-}
 
-/// Clear hook for message_id without executing it.
-pub(crate) fn clear_reply_hook(mid: MessageId) {
-    reply_hooks().remove(&mid);
+    /// Execute hook for message_id (if registered)
+    pub(crate) fn execute_and_remove_reply_hook(&mut self, message_id: MessageId) {
+        if let Some(f) = self.0.remove(&message_id) {
+            f();
+        }
+    }
+
+    /// Clear hook for message_id without executing it.
+    pub(crate) fn remove(&mut self, message_id: MessageId) {
+        self.0.remove(&message_id);
+    }
 }

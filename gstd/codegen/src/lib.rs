@@ -196,7 +196,7 @@ fn generate_handle_reply_if_required(mut code: TokenStream, attr: Option<Path>) 
         let handle_reply: TokenStream = quote!(
             #[no_mangle]
             extern "C" fn handle_reply() {
-                gstd::record_reply();
+                gstd::handle_reply_with_hook();
                 #attr ();
             }
         )

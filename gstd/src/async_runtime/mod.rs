@@ -24,14 +24,13 @@ mod waker;
 
 pub use self::futures::message_loop;
 pub(crate) use locks::Lock;
-pub(crate) use reply_hooks::{clear_reply_hook, execute_and_clear_reply_hook, register_reply_hook};
+pub(crate) use reply_hooks::HooksMap;
 pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
 use crate::critical;
 use hashbrown::HashMap;
 use locks::LocksMap;
-use reply_hooks::HooksMap;
 use signals::WakeSignals;
 
 static mut FUTURES: Option<FuturesMap> = None;
@@ -54,18 +53,17 @@ pub(crate) fn locks() -> &'static mut LocksMap {
 
 static mut REPLY_HOOKS: Option<HooksMap> = None;
 
-fn reply_hooks() -> &'static mut HooksMap {
-    unsafe { REPLY_HOOKS.get_or_insert_with(HashMap::new) }
+pub(crate) fn reply_hooks() -> &'static mut HooksMap {
+    unsafe { REPLY_HOOKS.get_or_insert_with(HooksMap::new) }
 }
 
 /// Default reply handler.
-pub fn record_reply() {
+pub fn handle_reply_with_hook() {
     signals().record_reply();
 
-    let replied_to = crate::msg::reply_to().expect("record_reply called in wrong context");
-
     // Execute reply hook (if it was registered)
-    execute_and_clear_reply_hook(replied_to);
+    let replied_to = crate::msg::reply_to().expect("`gstd::handle_reply_with_hook()` called in wrong context");
+    reply_hooks().execute_and_remove_reply_hook(replied_to);
 }
 
 /// Default signal handler.
@@ -78,6 +76,5 @@ pub fn handle_signal() {
 
     futures().remove(&msg_id);
     locks().remove_message_entry(msg_id);
-
-    clear_reply_hook(msg_id)
+    reply_hooks().remove(msg_id)
 }

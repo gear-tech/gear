@@ -102,12 +102,11 @@ macro_rules! impl_futures {
             /// # Panics
             ///
             /// Panics if this is called second time.
-            pub fn handle_reply<F: FnMut() + 'static>(self, f: F) -> Result<Self> {
+            pub fn handle_reply<F: FnOnce() + 'static>(self, f: F) -> Result<Self> {
                 if self.reply_deposit == 0 {
                     return Err(Error::Gstd(crate::errors::UsageError::ZeroReplyDeposit));
                 }
-
-                async_runtime::register_reply_hook(self.waiting_reply_to.clone(), crate::Box::new(f));
+                async_runtime::reply_hooks().register(self.waiting_reply_to.clone(), f);
 
                 Ok(self)
             }
