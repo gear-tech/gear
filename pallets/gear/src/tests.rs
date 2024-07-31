@@ -300,7 +300,7 @@ fn calculate_gas_zero_balance() {
 }
 
 #[test]
-fn delayed_send_from_reservation_not_for_mailbox() {
+fn test_failing_delayed_reservation_send() {
     use demo_delayed_reservation_sender::{
         ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
     };
@@ -629,6 +629,27 @@ fn delayed_reservations_sending_validation() {
 fn delayed_reservations_to_mailbox() {
     use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
+    struct LockOrExpiration;
+
+    impl LockOrExpiration {
+        fn lock_for_stash(delay: u32) -> u64 {
+            let stash_hold =
+                Self::hold_bound_builder(StorageType::DispatchStash).duration(delay.into());
+
+            stash_hold.lock_amount()
+        }
+
+        fn expiration_for_mailbox(gas: u64) -> u64 {
+            let mailbox_hold = Self::hold_bound_builder(StorageType::Mailbox).maximum_for(gas);
+
+            mailbox_hold.expected()
+        }
+
+        fn hold_bound_builder(storage_type: StorageType) -> HoldBoundBuilder<Test> {
+            HoldBoundBuilder::<Test>::new(storage_type)
+        }
+    }
+
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
@@ -647,12 +668,16 @@ fn delayed_reservations_to_mailbox() {
         assert!(Gear::is_initialized(pid));
 
         let sending_delay = 10;
+        let delay_lock_amount = LockOrExpiration::lock_for_stash(sending_delay);
+
+        let reservation_amount = delay_lock_amount + 10 * <Test as Config>::MailboxThreshold::get();
+        let reservation_expiration = LockOrExpiration::expiration_for_mailbox(reservation_amount);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1,
                 sending_delay,
             }
@@ -674,10 +699,7 @@ fn delayed_reservations_to_mailbox() {
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let mailed_msg = utils::get_last_mail(USER_1);
-        let expiration = utils::get_mailbox_expiration(mailed_msg.id());
-
-        run_to_block(expiration, None);
+        run_to_block(reservation_expiration, None);
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
     });
