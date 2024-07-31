@@ -22,14 +22,15 @@ use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, LazyPagesInterface, LazyPagesRuntimeInterface, MailboxOf, Pallet as Gear,
+    Config, CurrencyOf, LazyPagesInterface, LazyPagesRuntimeInterface, MailboxOf, Pallet as Gear,
     ProgramStorageOf, QueueOf,
 };
-use common::{storage::*, CodeStorage, Origin, ProgramStorage};
+use common::{storage::*, CodeStorage, Origin, Program, ProgramStorage};
 use core_processor::{
-    configs::BlockConfig, ContextChargedForCode, ContextChargedForInstrumentation,
+    common::ExecutableActorData, configs::BlockConfig, ContextChargedForCode,
+    ContextChargedForInstrumentation,
 };
-use frame_support::traits::Get;
+use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
@@ -207,9 +208,6 @@ where
     };
 
     let actor_id = queued_dispatch.destination();
-    let actor = ext_manager
-        .get_actor(actor_id)
-        .ok_or("Program not found in the storage")?;
 
     let pallet_config = Gear::<T>::block_config();
     let block_config = BlockConfig {
@@ -219,7 +217,7 @@ where
         ..pallet_config
     };
 
-    let precharged_dispatch = core_processor::precharge_for_program(
+    let context = core_processor::precharge_for_program(
         &block_config,
         config.gas_allowance,
         queued_dispatch.into_incoming(config.gas_limit),
@@ -227,14 +225,32 @@ where
     )
     .map_err(|_| "core_processor::precharge_for_program failed")?;
 
-    let balance = actor.balance;
-    let context = core_processor::precharge_for_code_length(
+    let active = match ProgramStorageOf::<T>::get_program(actor_id) {
+        Some(Program::Active(active)) => active,
+        _ => return Err("Program not found"),
+    };
+    let balance = CurrencyOf::<T>::free_balance(&actor_id.cast()).unique_saturated_into();
+
+    let context = core_processor::precharge_for_allocations(
         &block_config,
-        precharged_dispatch,
-        actor_id,
-        actor.executable_data,
+        context,
+        active.allocations_tree_len,
     )
-    .map_err(|_| "core_processor::precharge_for_code failed")?;
+    .map_err(|_| "core_processor::precharge_for_allocations failed")?;
+
+    let allocations = ProgramStorageOf::<T>::allocations(actor_id).unwrap_or_default();
+
+    let actor_data = ExecutableActorData {
+        allocations,
+        code_id: active.code_hash.cast(),
+        code_exports: active.code_exports,
+        static_pages: active.static_pages,
+        gas_reservation_map: active.gas_reservation_map,
+        memory_infix: active.memory_infix,
+    };
+
+    let context = core_processor::precharge_for_code_length(&block_config, context, actor_data)
+        .map_err(|_| "core_processor::precharge_for_code failed")?;
 
     let code =
         T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
