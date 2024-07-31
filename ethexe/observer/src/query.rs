@@ -22,8 +22,11 @@ use ethexe_ethereum::event::{match_log, signature_hash};
 use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
-// Height difference to start fast sync.
-const DEEP_SYNC: u32 = 50;
+/// Height difference to start fast sync.
+const DEEP_SYNC: u32 = 100;
+
+/// Max number of blocks to query in alloy.
+const MAX_QUERY_BLOCK_RANGE: u32 = 100_000;
 
 #[derive(Clone)]
 pub struct Query {
@@ -86,23 +89,32 @@ impl Query {
         from_block: u32,
         to_block: u32,
     ) -> Result<Vec<H256>> {
-        let router_events_filter = Filter::new()
-            .from_block(from_block as u64)
-            .to_block(to_block as u64)
-            .address(self.router_address)
-            .event_signature(B256::new(signature_hash::BLOCK_COMMITTED));
-
-        let logs = self.provider.get_logs(&router_events_filter).await?;
-
         let mut committed_blocks = vec![];
-        for log in logs.iter() {
-            if let Some(BlockEvent::BlockCommitted(BlockCommitted { block_hash })) = match_log(log)?
-            {
-                committed_blocks.push(block_hash);
-            }
-        }
+        let mut start_block = from_block;
 
-        log::trace!("Read committed blocks from {from_block} to {to_block}");
+        while start_block <= to_block {
+            let end_block = std::cmp::min(start_block + MAX_QUERY_BLOCK_RANGE - 1, to_block);
+
+            let router_events_filter = Filter::new()
+                .from_block(start_block as u64)
+                .to_block(end_block as u64)
+                .address(self.router_address)
+                .event_signature(B256::new(signature_hash::BLOCK_COMMITTED));
+
+            let logs = self.provider.get_logs(&router_events_filter).await?;
+
+            for log in logs.iter() {
+                if let Some(BlockEvent::BlockCommitted(BlockCommitted { block_hash })) =
+                    match_log(log)?
+                {
+                    committed_blocks.push(block_hash);
+                }
+            }
+
+            log::trace!("Read committed blocks from {from_block} to {to_block}");
+
+            start_block = end_block + 1;
+        }
 
         Ok(committed_blocks)
     }
