@@ -22,6 +22,7 @@ use ethexe_ethereum::event::{match_log, signature_hash};
 use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
+// Height difference to start fast sync.
 const DEEP_SYNC: u32 = 50;
 
 #[derive(Clone)]
