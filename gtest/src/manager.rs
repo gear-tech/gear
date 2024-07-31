@@ -1279,7 +1279,7 @@ impl JournalHandler for ExtManager {
                 )
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            self.dispatches.push_front(trap_signal);
+            self.dispatches.push_back(trap_signal);
         } else {
             log::trace!("Signal wasn't send due to inappropriate supply");
         }
