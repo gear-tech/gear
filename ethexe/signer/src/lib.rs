@@ -25,10 +25,21 @@ use secp256k1::Message;
 use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PublicKey(pub [u8; 33]);
 
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PrivateKey(pub [u8; 32]);
+
+impl From<PrivateKey> for PublicKey {
+    fn from(key: PrivateKey) -> Self {
+        let secret_key =
+            secp256k1::SecretKey::from_slice(&key.0[..]).expect("32 bytes, within curve order");
+        let public_key = secp256k1::PublicKey::from_secret_key_global(&secret_key);
+
+        PublicKey::from_bytes(public_key.serialize())
+    }
+}
 
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Address(pub [u8; 20]);
@@ -191,7 +202,7 @@ impl Signer {
     }
 
     pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
-        let secret_key = self.get_key(public_key)?;
+        let secret_key = self.get_private_key(public_key)?;
 
         let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
             .with_context(|| "Invalid secret key format for {:?}")?;
@@ -296,7 +307,7 @@ impl Signer {
         Ok(keys)
     }
 
-    fn get_key(&self, key: PublicKey) -> Result<PrivateKey> {
+    pub fn get_private_key(&self, key: PublicKey) -> Result<PrivateKey> {
         let mut buf = [0u8; 32];
 
         let key_path = self.key_store.join(key.to_hex());

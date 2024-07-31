@@ -196,4 +196,8 @@ impl Packet for HandlePacket {
     fn value(&self) -> Value {
         self.value
     }
+
+    fn kind() -> DispatchKind {
+        DispatchKind::Handle
+    }
 }

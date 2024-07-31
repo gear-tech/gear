@@ -385,7 +385,9 @@ fn cascading_delayed_gasless_send_work() {
         )
         .expect("calculate_gas_info failed");
 
-        // Case when one of two goes into mailbox.
+        // Case when trying to send one of them to mailbox.
+        // Fails as any gasless message sending costs reducing
+        // mailbox threshold from the gas counter
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -397,16 +399,12 @@ fn cascading_delayed_gasless_send_work() {
 
         let mid = get_last_message_id();
 
-        let first_outgoing = MessageId::generate_outgoing(mid, 0);
-        let second_outgoing = MessageId::generate_outgoing(mid, 1);
-
         run_to_next_block(None);
 
-        assert_succeed(mid);
-
-        run_for_blocks(DELAY as u64, None);
-        assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
-        assert!(!MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
 
         // Similar case when two of two goes into mailbox.
         assert_ok!(Gear::send_message(
@@ -1202,7 +1200,6 @@ fn reply_deposit_to_user_auto_reply() {
     init_logger();
 
     let checker = USER_1;
-
     // To user case.
     new_test_ext().execute_with(|| {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
@@ -1221,6 +1218,7 @@ fn reply_deposit_to_user_auto_reply() {
         ));
 
         run_to_next_block(None);
+
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(!MailboxOf::<Test>::is_empty(&checker));
@@ -1253,6 +1251,7 @@ fn reply_deposit_panic_in_handle_reply() {
         ));
 
         run_to_next_block(None);
+
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(MailboxOf::<Test>::is_empty(&checker));
@@ -3024,69 +3023,57 @@ fn mailbox_sending_instant_transfer() {
     new_test_ext().execute_with(|| {
         let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
-        // Message doesn't add to mailbox.
-        //
-        // For both cases value moves to destination user instantly.
-        let cases = [
-            // Zero gas for gasful sending.
-            (Some(0), 1_000),
-            // Gasless message.
-            (None, 3_000),
-        ];
+        // Message with 0 gas limit is not added to mailbox.
+        let gas_limit = 0;
+        let value = 1_000;
 
-        for (gas_limit, value) in cases {
-            let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
+        let user_1_balance = Balances::free_balance(USER_1);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
-            let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
+        let user_2_balance = Balances::free_balance(USER_2);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
-            let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
-            assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
+        let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
+        assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
 
-            let payload = if let Some(gas_limit) = gas_limit {
-                TestData::gasful(gas_limit, value)
-            } else {
-                TestData::gasless(value, <Test as Config>::MailboxThreshold::get())
-            };
+        let payload = TestData::gasful(gas_limit, value);
 
-            // Used like that, because calculate gas info always provides
-            // message into mailbox while sending without gas.
-            let gas_info = Gear::calculate_gas_info(
-                USER_1.into_origin(),
-                HandleKind::Handle(sender),
-                payload.request(USER_2.into_origin()).encode(),
-                0,
-                true,
-                true,
-            )
-            .expect("calculate_gas_info failed");
+        // Used like that, because calculate gas info always provides
+        // message into mailbox while sending without gas.
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(sender),
+            payload.request(USER_2.into_origin()).encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
 
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                sender,
-                payload.request(USER_2.into_origin()).encode(),
-                gas_info.burned + gas_limit.unwrap_or_default(),
-                0,
-                false,
-            ));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            sender,
+            payload.request(USER_2.into_origin()).encode(),
+            gas_info.burned + gas_limit,
+            0,
+            false,
+        ));
 
-            utils::assert_balance(
-                USER_1,
-                user_1_balance - gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
-                gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
-            );
-            utils::assert_balance(USER_2, user_2_balance, 0u128);
-            utils::assert_balance(sender, prog_balance, 0u128);
-            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+        utils::assert_balance(
+            USER_1,
+            user_1_balance - gas_price(gas_info.burned + gas_limit),
+            gas_price(gas_info.burned + gas_limit),
+        );
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
 
-            run_to_next_block(None);
+        run_to_next_block(None);
 
-            utils::assert_balance(USER_1, user_1_balance - gas_price(gas_info.burned), 0u128);
-            utils::assert_balance(USER_2, user_2_balance + value, 0u128);
-            utils::assert_balance(sender, prog_balance - value, 0u128);
-            assert!(MailboxOf::<Test>::is_empty(&USER_2));
-        }
+        utils::assert_balance(USER_1, user_1_balance - gas_price(gas_info.burned), 0u128);
+        utils::assert_balance(USER_2, user_2_balance + value, 0u128);
+        utils::assert_balance(sender, prog_balance - value, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
     });
 }
 
@@ -15578,6 +15565,63 @@ fn dust_in_message_to_user_handled_ok() {
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
         assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
     });
+}
+
+#[test]
+fn test_gasless_steal_gas_for_wait() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme};
+
+        let wait_duration = 10;
+        let handle = Calls::builder()
+            .source("source_store")
+            .send("source_store", Arg::new("msg1".encode()))
+            .send("source_store", Arg::new("msg2".encode()))
+            .send("source_store", Arg::new("msg3".encode()))
+            .send("source_store", Arg::new("msg4".encode()))
+            .send("source_store", Arg::new("msg5".encode()))
+            .wait_for(wait_duration);
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            handle,
+            Calls::builder().noop(),
+            Calls::builder().noop(),
+        );
+
+        let (_, pid) = init_constructor(scheme);
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            Default::default(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+        let waiting_bound = HoldBoundBuilder::<Test>::new(StorageType::Waitlist)
+            .duration(wait_duration.unique_saturated_into());
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Default::default(),
+            min_limit - waiting_bound.lock_amount(),
+            0,
+            true
+        ));
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
+        );
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+    })
 }
 
 pub(crate) mod utils {
