@@ -22,6 +22,8 @@ use ethexe_ethereum::event::{match_log, signature_hash};
 use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
+const DEEP_SYNC: u32 = 50;
+
 #[derive(Clone)]
 pub struct Query {
     database: Arc<dyn BlockMetaStorage>,
@@ -153,42 +155,47 @@ impl Query {
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
         let mut chain = Vec::new();
 
+        // Get the metadata for the current block.
         let current_block = self.get_block_header_meta(block_hash).await?;
 
-        // Find latest_valid_block or use genesis.
+        // Find the latest valid block or use genesis.
         let (latest_valid_block_hash, latest_valid_block) = self.get_latest_valid_block().await?;
 
+        // Check for deep chain.
         if current_block.height >= latest_valid_block.height
             && (current_block.height - latest_valid_block.height) >= self.max_commitment_depth
         {
-            return Err(anyhow!("too deep chain"));
-        }
-
-        if current_block.height <= latest_valid_block.height {
-            log::debug!(
-                "Reorg. current: {} <= latest valid: {}",
+            return Err(anyhow!(
+                "Too deep chain: Current block height: {}, Latest valid block height: {}, Max depth: {}",
                 current_block.height,
-                latest_valid_block.height
-            );
-        } else {
-            log::trace!(
-                "Nearest valid block in db: {latest_valid_block_hash:?} {latest_valid_block:?}"
-            );
+                latest_valid_block.height,
+                self.max_commitment_depth
+            ));
         }
 
-        let committed_blocks = self
-            .get_all_committed_blocks(latest_valid_block.height, current_block.height)
-            .await?;
+        let mut committed_blocks = BTreeSet::new();
+
+        let skip_events = {
+            // Current block can be lower than latest valid due to reorgs.
+            let block_diff = (current_block.height as i64 - latest_valid_block.height as i64)
+                .unsigned_abs() as u32;
+            if block_diff > DEEP_SYNC {
+                // Collect committed blocks if block height difference is significant.
+                committed_blocks.extend(
+                    self.get_all_committed_blocks(latest_valid_block.height, current_block.height)
+                        .await?,
+                );
+                true
+            } else {
+                false
+            }
+        };
 
         // Populate db to the latest valid block.
         let mut hash = block_hash;
-        loop {
-            if hash == latest_valid_block_hash {
-                log::trace!("Chain loaded to the nearest valid block: {hash}");
-                break;
-            }
 
-            // Reset latest_valid_block if found.
+        while hash != latest_valid_block_hash {
+            // If the block's end state is valid, set it as the latest valid block
             if self
                 .database
                 .block_end_state_is_valid(hash)
@@ -202,13 +209,20 @@ impl Query {
             log::trace!("Include block {hash} in chain for processing");
             chain.push(hash);
 
+            // For small block height differences, collect committed blocks dynamically.
+            if !skip_events {
+                committed_blocks.extend(self.get_committed_blocks(hash).await?);
+            }
+
             hash = self.get_block_parent_hash(hash).await?;
         }
 
         let mut actual_commitment_queue: VecDeque<H256> = self
             .database
             .block_commitment_queue(hash)
-            .ok_or(anyhow!("commitment queue not found for block {hash}"))?
+            .ok_or(anyhow!(
+                "Commitment queue not found for block {hash}, possible database inconsistency."
+            ))?
             .into_iter()
             .filter(|hash| !committed_blocks.contains(hash))
             .collect();
@@ -219,18 +233,15 @@ impl Query {
             return Ok(chain);
         };
 
-        // Now we need append in chain all blocks from the oldest not committed to the current.
-        loop {
+        while hash != oldest_not_committed_block {
             log::trace!("Include block {hash} in chain for processing");
             chain.push(hash);
 
-            if hash == oldest_not_committed_block {
-                log::trace!("Oldest not committed block reached: {hash}");
-                break;
-            }
-
             hash = self.get_block_parent_hash(hash).await?;
         }
+
+        log::trace!("Oldest not committed block reached: {}", hash);
+        chain.push(hash);
 
         Ok(chain)
     }
