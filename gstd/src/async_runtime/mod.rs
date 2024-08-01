@@ -64,7 +64,7 @@ pub fn handle_reply_with_hook() {
     // Execute reply hook (if it was registered)
     let replied_to =
         crate::msg::reply_to().expect("`gstd::handle_reply_with_hook()` called in wrong context");
-    reply_hooks().execute_and_remove_reply_hook(replied_to);
+    reply_hooks().execute_and_remove(replied_to);
 }
 
 /// Default signal handler.

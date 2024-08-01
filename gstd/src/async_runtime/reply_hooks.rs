@@ -36,7 +36,7 @@ impl HooksMap {
     }
 
     /// Execute hook for message_id (if registered)
-    pub(crate) fn execute_and_remove_reply_hook(&mut self, message_id: MessageId) {
+    pub(crate) fn execute_and_remove(&mut self, message_id: MessageId) {
         if let Some(f) = self.0.remove(&message_id) {
             f();
         }
