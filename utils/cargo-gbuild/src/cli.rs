@@ -30,6 +30,7 @@ use std::{
 const DEV_PROFILE: &str = "dev";
 const DEBUG_ARTIFACT: &str = "debug";
 const RELEASE_PROFILE: &str = "release";
+const ARTIFACT_DIR: &str = "gbuild";
 
 /// Command `gbuild` as cargo extension.
 #[derive(Parser, Default)]
@@ -113,7 +114,7 @@ impl GBuild {
 
         // 2. setup gbuild artifacts.
         let artifacts = Artifacts::new(
-            target_dir.join("gbuild"),
+            target_dir.join(ARTIFACT_DIR),
             target_dir.join("wasm32-unknown-unknown").join(artifact),
             metadata,
             kargo,

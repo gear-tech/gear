@@ -272,20 +272,20 @@ fn test_wait_stores_message_id() {
     // Only for test, syscall `message_id` import added automatically when `wake` syscall is enabled in config.
     injection_types.enable_syscall_import(InvocableSyscall::Loose(SyscallName::MessageId));
 
-    let syscalls_config_with_waiting_probabilty =
+    let syscalls_config_with_waiting_probability =
         SyscallsConfigBuilder::new(injection_types.clone())
             .with_params_config(params_config.clone())
             .with_waiting_probability(NonZeroU32::new(4).unwrap())
             .build();
 
-    let syscalls_config_wo_waiting_probabilty = SyscallsConfigBuilder::new(injection_types)
+    let syscalls_config_wo_waiting_probability = SyscallsConfigBuilder::new(injection_types)
         .with_params_config(params_config)
         .build();
 
     // Test both configs:
     for syscalls_config in [
-        syscalls_config_with_waiting_probabilty,
-        syscalls_config_wo_waiting_probabilty,
+        syscalls_config_with_waiting_probability,
+        syscalls_config_wo_waiting_probability,
     ] {
         let BackendReport {
             termination_reason,

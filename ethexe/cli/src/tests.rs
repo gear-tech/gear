@@ -618,7 +618,7 @@ async fn ping_reorg() {
     let validator_private_key = env.validator_private_key;
     drop(env);
 
-    log::info!("📗 Sending PING message, db cleanup and service shuting down");
+    log::info!("📗 Sending PING message, db cleanup and service shutting down");
     let _tx = ping_program
         .send_message(b"PING", 10_000_000_000, 0)
         .await

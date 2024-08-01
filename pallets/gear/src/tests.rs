@@ -18,7 +18,7 @@
 
 use crate::{
     builtin::BuiltinDispatcherFactory,
-    internal::{HoldBoundBuilder, InheritorForError},
+    internal::{HoldBound, HoldBoundBuilder, InheritorForError},
     manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
@@ -33,8 +33,8 @@ use crate::{
     Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
-    ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
@@ -47,15 +47,18 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
-        InstrumentedCodeAndId,
+        InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::WasmPage,
-    program::{ActiveProgram, Program},
+    pages::{
+        numerated::{self, tree::IntervalsTree},
+        WasmPage,
+    },
+    program::ActiveProgram,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -300,8 +303,10 @@ fn calculate_gas_zero_balance() {
 }
 
 #[test]
-fn delayed_send_from_reservation_not_for_mailbox() {
-    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
+fn test_failing_delayed_reservation_send() {
+    use demo_delayed_reservation_sender::{
+        ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
+    };
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -320,13 +325,22 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         run_to_next_block(None);
         assert!(Gear::is_initialized(pid));
 
+        let reservation_amount = <Test as Config>::MailboxThreshold::get();
+        let sending_delay = 1u32;
+        let sending_delay_hold_bound: HoldBound<Test> =
+            HoldBoundBuilder::new(StorageType::DispatchStash).duration(sending_delay as u64);
+        let sending_delay_gas = sending_delay_hold_bound.lock_amount();
+        // Sending delayed msg from a reservation checks: reservation_amount - delay_hold - mailbox_therhsold.
+        // Current example sets reseravtion_amount to mailbox_threshold. So, obviously, sending message
+        // from a reservation is impossible - reservation has insufficient gas reserved.
+        assert_ne!(sending_delay_gas, 0);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1_000,
-                sending_delay: 1,
+                sending_delay,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -337,11 +351,22 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         let mid = utils::get_last_message_id();
 
         run_to_next_block(None);
-        assert_succeed(mid);
+        let error_text = format!(
+            "panicked with '{SENDING_EXPECT}: {:?}'",
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
+        );
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
 
+        // Possibly sent message from reservation with a 1 block delay duration.
         let outgoing = MessageId::generate_outgoing(mid, 0);
+        let err_reply = MessageId::generate_reply(mid);
 
-        assert!(DispatchStashOf::<Test>::contains_key(&outgoing));
+        assert!(!DispatchStashOf::<Test>::contains_key(&outgoing));
 
         run_to_next_block(None);
 
@@ -349,7 +374,7 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         assert!(!MailboxOf::<Test>::contains(&USER_1, &outgoing));
 
         let message = maybe_any_last_message().expect("Should be");
-        assert_eq!(message.id(), outgoing);
+        assert_eq!(message.id(), err_reply);
         assert_eq!(message.destination(), USER_1.into());
     });
 }
@@ -385,7 +410,9 @@ fn cascading_delayed_gasless_send_work() {
         )
         .expect("calculate_gas_info failed");
 
-        // Case when one of two goes into mailbox.
+        // Case when trying to send one of them to mailbox.
+        // Fails as any gasless message sending costs reducing
+        // mailbox threshold from the gas counter
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -397,16 +424,12 @@ fn cascading_delayed_gasless_send_work() {
 
         let mid = get_last_message_id();
 
-        let first_outgoing = MessageId::generate_outgoing(mid, 0);
-        let second_outgoing = MessageId::generate_outgoing(mid, 1);
-
         run_to_next_block(None);
 
-        assert_succeed(mid);
-
-        run_for_blocks(DELAY as u64, None);
-        assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
-        assert!(!MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
 
         // Similar case when two of two goes into mailbox.
         assert_ok!(Gear::send_message(
@@ -609,6 +632,27 @@ fn delayed_reservations_sending_validation() {
 fn delayed_reservations_to_mailbox() {
     use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
+    struct LockOrExpiration;
+
+    impl LockOrExpiration {
+        fn lock_for_stash(delay: u32) -> u64 {
+            let stash_hold =
+                Self::hold_bound_builder(StorageType::DispatchStash).duration(delay.into());
+
+            stash_hold.lock_amount()
+        }
+
+        fn expiration_for_mailbox(gas: u64) -> u64 {
+            let mailbox_hold = Self::hold_bound_builder(StorageType::Mailbox).maximum_for(gas);
+
+            mailbox_hold.expected()
+        }
+
+        fn hold_bound_builder(storage_type: StorageType) -> HoldBoundBuilder<Test> {
+            HoldBoundBuilder::<Test>::new(storage_type)
+        }
+    }
+
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
@@ -627,12 +671,16 @@ fn delayed_reservations_to_mailbox() {
         assert!(Gear::is_initialized(pid));
 
         let sending_delay = 10;
+        let delay_lock_amount = LockOrExpiration::lock_for_stash(sending_delay);
+
+        let reservation_amount = delay_lock_amount + 10 * <Test as Config>::MailboxThreshold::get();
+        let reservation_expiration = LockOrExpiration::expiration_for_mailbox(reservation_amount);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1,
                 sending_delay,
             }
@@ -654,10 +702,7 @@ fn delayed_reservations_to_mailbox() {
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let mailed_msg = utils::get_last_mail(USER_1);
-        let expiration = utils::get_mailbox_expiration(mailed_msg.id());
-
-        run_to_block(expiration, None);
+        run_to_block(reservation_expiration, None);
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
     });
@@ -1202,7 +1247,6 @@ fn reply_deposit_to_user_auto_reply() {
     init_logger();
 
     let checker = USER_1;
-
     // To user case.
     new_test_ext().execute_with(|| {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
@@ -1221,6 +1265,7 @@ fn reply_deposit_to_user_auto_reply() {
         ));
 
         run_to_next_block(None);
+
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(!MailboxOf::<Test>::is_empty(&checker));
@@ -1253,6 +1298,7 @@ fn reply_deposit_panic_in_handle_reply() {
         ));
 
         run_to_next_block(None);
+
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(MailboxOf::<Test>::is_empty(&checker));
@@ -3024,69 +3070,57 @@ fn mailbox_sending_instant_transfer() {
     new_test_ext().execute_with(|| {
         let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
-        // Message doesn't add to mailbox.
-        //
-        // For both cases value moves to destination user instantly.
-        let cases = [
-            // Zero gas for gasful sending.
-            (Some(0), 1_000),
-            // Gasless message.
-            (None, 3_000),
-        ];
+        // Message with 0 gas limit is not added to mailbox.
+        let gas_limit = 0;
+        let value = 1_000;
 
-        for (gas_limit, value) in cases {
-            let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
+        let user_1_balance = Balances::free_balance(USER_1);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
-            let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
+        let user_2_balance = Balances::free_balance(USER_2);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
-            let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
-            assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
+        let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
+        assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
 
-            let payload = if let Some(gas_limit) = gas_limit {
-                TestData::gasful(gas_limit, value)
-            } else {
-                TestData::gasless(value, <Test as Config>::MailboxThreshold::get())
-            };
+        let payload = TestData::gasful(gas_limit, value);
 
-            // Used like that, because calculate gas info always provides
-            // message into mailbox while sending without gas.
-            let gas_info = Gear::calculate_gas_info(
-                USER_1.into_origin(),
-                HandleKind::Handle(sender),
-                payload.request(USER_2.into_origin()).encode(),
-                0,
-                true,
-                true,
-            )
-            .expect("calculate_gas_info failed");
+        // Used like that, because calculate gas info always provides
+        // message into mailbox while sending without gas.
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(sender),
+            payload.request(USER_2.into_origin()).encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
 
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                sender,
-                payload.request(USER_2.into_origin()).encode(),
-                gas_info.burned + gas_limit.unwrap_or_default(),
-                0,
-                false,
-            ));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            sender,
+            payload.request(USER_2.into_origin()).encode(),
+            gas_info.burned + gas_limit,
+            0,
+            false,
+        ));
 
-            utils::assert_balance(
-                USER_1,
-                user_1_balance - gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
-                gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
-            );
-            utils::assert_balance(USER_2, user_2_balance, 0u128);
-            utils::assert_balance(sender, prog_balance, 0u128);
-            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+        utils::assert_balance(
+            USER_1,
+            user_1_balance - gas_price(gas_info.burned + gas_limit),
+            gas_price(gas_info.burned + gas_limit),
+        );
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
 
-            run_to_next_block(None);
+        run_to_next_block(None);
 
-            utils::assert_balance(USER_1, user_1_balance - gas_price(gas_info.burned), 0u128);
-            utils::assert_balance(USER_2, user_2_balance + value, 0u128);
-            utils::assert_balance(sender, prog_balance - value, 0u128);
-            assert!(MailboxOf::<Test>::is_empty(&USER_2));
-        }
+        utils::assert_balance(USER_1, user_1_balance - gas_price(gas_info.burned), 0u128);
+        utils::assert_balance(USER_2, user_2_balance + value, 0u128);
+        utils::assert_balance(sender, prog_balance - value, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
     });
 }
 
@@ -15378,12 +15412,9 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
-            program.allocations,
+            allocations,
             [WasmPage::from(static_pages)].into_iter().collect()
         );
 
@@ -15399,11 +15430,8 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
-        assert_eq!(program.allocations, Default::default());
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
+        assert_eq!(allocations, Default::default());
     });
 }
 
@@ -15577,6 +15605,182 @@ fn dust_in_message_to_user_handled_ok() {
         // `UnusedValue` in Gear Bank.
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
         assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
+    });
+}
+
+#[test]
+fn test_gasless_steal_gas_for_wait() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme};
+
+        let wait_duration = 10;
+        let handle = Calls::builder()
+            .source("source_store")
+            .send("source_store", Arg::new("msg1".encode()))
+            .send("source_store", Arg::new("msg2".encode()))
+            .send("source_store", Arg::new("msg3".encode()))
+            .send("source_store", Arg::new("msg4".encode()))
+            .send("source_store", Arg::new("msg5".encode()))
+            .wait_for(wait_duration);
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            handle,
+            Calls::builder().noop(),
+            Calls::builder().noop(),
+        );
+
+        let (_, pid) = init_constructor(scheme);
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            Default::default(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+        let waiting_bound = HoldBoundBuilder::<Test>::new(StorageType::Waitlist)
+            .duration(wait_duration.unique_saturated_into());
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Default::default(),
+            min_limit - waiting_bound.lock_amount(),
+            0,
+            true
+        ));
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
+        );
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+    })
+}
+
+#[test]
+fn use_big_memory() {
+    let last_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT).offset() - 4;
+    let middle_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2).offset();
+    let last_page_number = MAX_WASM_PAGES_AMOUNT.checked_sub(1).unwrap();
+
+    let wat = format!(
+        r#"
+        (module
+		    (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (drop (call $alloc (i32.const {MAX_WASM_PAGES_AMOUNT})))
+
+                ;; access last 4 bytes
+                (i32.store (i32.const {last_4_bytes_offset}) (i32.const 0x42))
+
+                ;; access first 4 bytes
+                (i32.store (i32.const 0) (i32.const 0x42))
+
+                ;; access 4 bytes in the middle
+                (i32.store (i32.const {middle_4_bytes_offset}) (i32.const 0x42))
+            )
+            (func $handle
+                (drop (call $free_range (i32.const 0) (i32.const {last_page_number})))
+            )
+        )"#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        let expected_allocations: IntervalsTree<WasmPage> =
+            [numerated::interval::Interval::try_from(
+                WasmPage::from(0)..WasmPage::from(MAX_WASM_PAGES_AMOUNT),
+            )
+            .unwrap()]
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(expected_allocations),
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id).expect("Program not found");
+        let Program::Active(program) = program else {
+            panic!("Program is not active");
+        };
+
+        assert_eq!(program.allocations_tree_len, 1);
+
+        let pages_with_data =
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .map(|(page, buf)| {
+                assert_eq!(buf.iter().copied().sum::<u8>(), 0x42);
+                page
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            pages_with_data,
+            vec![
+                GearPage::from_offset(0),
+                GearPage::from_offset(middle_4_bytes_offset),
+                GearPage::from_offset(last_4_bytes_offset)
+            ]
+        );
+
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(Default::default()),
+        );
+
+        assert_eq!(
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .count(),
+            0
+        );
     });
 }
 
