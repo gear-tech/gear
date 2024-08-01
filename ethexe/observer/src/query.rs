@@ -26,7 +26,7 @@ use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
 /// Height difference to start fast sync.
-const DEEP_SYNC: u32 = 100;
+const DEEP_SYNC: u32 = 10;
 
 #[derive(Clone)]
 pub struct Query {
@@ -129,61 +129,67 @@ impl Query {
     }
 
     /// Populate database with blocks using rpc provider.
-    async fn load_chain_batch(
-        &self,
-        from_block: u32,
-        to_block: u32,
-    ) -> Result<Vec<(H256, BlockHeader)>> {
+    async fn load_chain_batch(&self, from_block: u32, to_block: u32) -> Result<Vec<H256>> {
+        let total_blocks = to_block - from_block + 1;
+        log::info!(
+            "Starting to load {} blocks from {} to {}",
+            total_blocks,
+            from_block,
+            to_block
+        );
+
         let fetches = (from_block..=to_block).map(|block_number| {
-            self.provider
-                .get_block_by_number(BlockNumberOrTag::Number(block_number as u64), false)
+            let provider = self.provider.clone();
+            let database = Arc::clone(&self.database);
+            tokio::spawn(async move {
+                let block = provider
+                    .get_block_by_number(BlockNumberOrTag::Number(block_number as u64), false)
+                    .await?;
+                let block = block.ok_or(anyhow!("Block not found"))?;
+
+                let height = u32::try_from(
+                    block
+                        .header
+                        .number
+                        .ok_or(anyhow!("Block number not found"))?,
+                )
+                .unwrap_or_else(|err| unreachable!("Ethereum block number not fit in u32: {err}"));
+                let timestamp = block.header.timestamp;
+                let block_hash = H256(block.header.hash.unwrap().0);
+                let parent_hash = H256(block.header.parent_hash.0);
+
+                let header = BlockHeader {
+                    height,
+                    timestamp,
+                    parent_hash,
+                };
+
+                database.set_block_header(block_hash, header);
+
+                Ok::<H256, anyhow::Error>(block_hash)
+            })
         });
-
-        let blocks = futures::future::join_all(fetches).await;
-
-        log::trace!("{} blocks loaded", blocks.len());
 
         // Fetch events in block range.
         let mut blocks_events =
             read_block_events_batch(from_block, to_block, &self.provider, self.router_address)
                 .await?;
 
-        // Populate blocks in db.
-        let mut headers = Vec::new();
-        for block in blocks {
-            let block = block?.ok_or(anyhow!("Block not found"))?;
-            let height = u32::try_from(
-                block
-                    .header
-                    .number
-                    .ok_or(anyhow!("Block number not found"))?,
-            )
-            .unwrap_or_else(|err| unreachable!("Ethereum block number not fit in u32: {err}"));
-            let timestamp = block.header.timestamp;
-            let block_hash = H256(block.header.hash.unwrap().0);
-            let parent_hash = H256(block.header.parent_hash.0);
-
-            let header = BlockHeader {
-                height,
-                timestamp,
-                parent_hash,
-            };
-
-            self.database.set_block_header(block_hash, header.clone());
-
+        // Collect results
+        let mut block_hashes = Vec::new();
+        for result in futures::future::join_all(fetches).await {
+            let block_hash = result??;
             // Set block events, empty vec if no events.
             self.database.set_block_events(
                 block_hash,
                 blocks_events.remove(&block_hash).unwrap_or_default(),
             );
-
-            headers.push((block_hash, header));
+            block_hashes.push(block_hash);
         }
+        block_hashes.reverse();
+        log::trace!("{} blocks loaded", block_hashes.len());
 
-        // Sort headers by height from big to small
-        headers.sort_by(|a, b| b.1.height.cmp(&a.1.height));
-
-        Ok(headers)
+        Ok(block_hashes)
     }
 
     pub async fn load_chain(&mut self, from_hash: H256) -> Result<(Vec<H256>, Vec<H256>)> {
@@ -264,7 +270,7 @@ impl Query {
             let headers = self
                 .load_chain_batch(latest_valid_block_height + 1, current_block.height)
                 .await?;
-            for (block_hash, _header) in headers {
+            for block_hash in headers {
                 chain.push(block_hash);
                 hash = block_hash;
             }
