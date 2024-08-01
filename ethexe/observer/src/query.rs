@@ -6,22 +6,20 @@ use std::{
 use crate::{
     observer::{
         read_block_events, read_block_events_batch, read_code_from_tx_hash, ObserverProvider,
-        MAX_QUERY_BLOCK_RANGE,
     },
     BlobReader,
 };
 use alloy::{
     eips::BlockNumberOrTag,
-    primitives::{Address as AlloyAddress, B256},
+    primitives::Address as AlloyAddress,
     providers::{Provider, ProviderBuilder},
-    rpc::types::{eth::BlockTransactionsKind, Filter},
+    rpc::types::eth::BlockTransactionsKind,
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
-    events::{BlockCommitted, BlockEvent},
+    events::BlockEvent,
 };
-use ethexe_ethereum::event::{match_log, signature_hash};
 use ethexe_signer::Address;
 use gprimitives::{ActorId, CodeId, H256};
 
@@ -93,43 +91,12 @@ impl Query {
             .collect())
     }
 
-    async fn get_all_committed_blocks(
+    /// Populate database with blocks using rpc provider.
+    async fn load_chain_batch(
         &mut self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<Vec<H256>> {
-        let mut committed_blocks = vec![];
-        let mut start_block = from_block;
-
-        while start_block <= to_block {
-            let end_block = std::cmp::min(start_block + MAX_QUERY_BLOCK_RANGE - 1, to_block);
-
-            let router_events_filter = Filter::new()
-                .from_block(start_block as u64)
-                .to_block(end_block as u64)
-                .address(self.router_address)
-                .event_signature(B256::new(signature_hash::BLOCK_COMMITTED));
-
-            let logs = self.provider.get_logs(&router_events_filter).await?;
-
-            for log in logs.iter() {
-                if let Some(BlockEvent::BlockCommitted(BlockCommitted { block_hash })) =
-                    match_log(log)?
-                {
-                    committed_blocks.push(block_hash);
-                }
-            }
-
-            log::trace!("Read committed blocks from {from_block} to {to_block}");
-
-            start_block = end_block + 1;
-        }
-
-        Ok(committed_blocks)
-    }
-
-    /// Populate database with blocks using rpc provider.
-    async fn load_chain_batch(&self, from_block: u32, to_block: u32) -> Result<Vec<H256>> {
+    ) -> Result<(Vec<H256>, Vec<H256>)> {
         let total_blocks = to_block - from_block + 1;
         log::info!(
             "Starting to load {} blocks from {} to {}",
@@ -145,15 +112,16 @@ impl Query {
                 let block = provider
                     .get_block_by_number(BlockNumberOrTag::Number(block_number as u64), false)
                     .await?;
-                let block = block.ok_or(anyhow!("Block not found"))?;
+                let block = block
+                    .ok_or_else(|| anyhow!("Block not found for block number {}", block_number))?;
 
-                let height = u32::try_from(
-                    block
-                        .header
-                        .number
-                        .ok_or(anyhow!("Block number not found"))?,
-                )
-                .unwrap_or_else(|err| unreachable!("Ethereum block number not fit in u32: {err}"));
+                let height = u32::try_from(block.header.number.ok_or_else(|| {
+                    anyhow!(
+                        "Block number not found for block hash {}",
+                        block.header.hash.unwrap()
+                    )
+                })?)
+                .map_err(|err| anyhow!("Ethereum block number not fit in u32: {}", err))?;
                 let timestamp = block.header.timestamp;
                 let block_hash = H256(block.header.hash.unwrap().0);
                 let parent_hash = H256(block.header.parent_hash.0);
@@ -177,6 +145,7 @@ impl Query {
 
         // Collect results
         let mut block_hashes = Vec::new();
+        let mut committed_blocks = Vec::new();
         for result in futures::future::join_all(fetches).await {
             let block_hash = result??;
             // Set block events, empty vec if no events.
@@ -184,12 +153,13 @@ impl Query {
                 block_hash,
                 blocks_events.remove(&block_hash).unwrap_or_default(),
             );
+            committed_blocks.extend(self.get_committed_blocks(block_hash).await?);
             block_hashes.push(block_hash);
         }
         block_hashes.reverse();
         log::trace!("{} blocks loaded", block_hashes.len());
 
-        Ok(block_hashes)
+        Ok((block_hashes, committed_blocks))
     }
 
     pub async fn load_chain(&mut self, from_hash: H256) -> Result<(Vec<H256>, Vec<H256>)> {
@@ -229,18 +199,12 @@ impl Query {
     }
 
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
-        let mut chain = Vec::new();
-
-        // Get the metadata for the current block.
         let current_block = self.get_block_header_meta(block_hash).await?;
-
-        // Find the latest valid block or use genesis.
         let latest_valid_block_height = self
             .database
             .latest_valid_block_height()
             .expect("genesis by default; qed");
 
-        // Check for deep chain.
         if current_block.height >= latest_valid_block_height
             && (current_block.height - latest_valid_block_height) >= self.max_commitment_depth
         {
@@ -252,8 +216,6 @@ impl Query {
             ));
         }
 
-        let mut committed_blocks = BTreeSet::new();
-
         // Determine if deep sync is needed
         let is_deep_sync = {
             // Current block can be lower than latest valid due to reorgs.
@@ -263,36 +225,20 @@ impl Query {
         };
 
         // Populate db to the latest valid block.
-        let mut hash = block_hash;
-
-        if is_deep_sync {
+        let (mut chain, committed_blocks) = if is_deep_sync {
             // Load all blocks from provider by numbers, skip latest valid.
-            let headers = self
-                .load_chain_batch(latest_valid_block_height + 1, current_block.height)
-                .await?;
-            for block_hash in headers {
-                chain.push(block_hash);
-                hash = block_hash;
-            }
-
-            hash = self.get_block_parent_hash(hash).await?;
-
-            // Collect committed blocks if block height difference is significant.
-            committed_blocks.extend(
-                self.get_all_committed_blocks(latest_valid_block_height, current_block.height)
-                    .await?,
-            );
+            self.load_chain_batch(latest_valid_block_height + 1, current_block.height)
+                .await?
         } else {
             // Load chain by parent hashes.
-            let (load, comm_blocks) = self.load_chain(block_hash).await?;
-            committed_blocks.extend(comm_blocks);
+            self.load_chain(block_hash).await?
+        };
 
-            chain = load;
+        chain.dedup();
 
-            hash = *chain.last().expect("can't be empty; qed");
-
-            hash = self.get_block_parent_hash(hash).await?;
-        }
+        let mut hash = self
+            .get_block_parent_hash(*chain.last().expect("can't be empty; qed"))
+            .await?;
 
         let mut actual_commitment_queue: VecDeque<H256> = self
             .database
