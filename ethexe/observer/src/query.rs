@@ -47,28 +47,37 @@ impl Query {
         blob_reader: Arc<dyn BlobReader>,
         max_commitment_depth: u32,
     ) -> Result<Self> {
-        // Initialize the database for the genesis block
-        Self::init_genesis_block(&database, genesis_block_hash)?;
-
-        Ok(Self {
+        let mut query = Self {
             database,
             provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
             router_address: AlloyAddress::new(router_address.0),
             genesis_block_hash,
             blob_reader,
             max_commitment_depth,
-        })
+        };
+        // Initialize the database for the genesis block
+        query.init_genesis_block().await?;
+
+        Ok(query)
     }
 
-    fn init_genesis_block(
-        database: &Arc<dyn BlockMetaStorage>,
-        genesis_block_hash: H256,
-    ) -> Result<()> {
-        database.set_block_commitment_queue(genesis_block_hash, Default::default());
-        database.set_block_prev_commitment(genesis_block_hash, H256::zero());
-        database.set_block_end_state_is_valid(genesis_block_hash, true);
-        database.set_block_is_empty(genesis_block_hash, true);
-        database.set_block_end_program_states(genesis_block_hash, Default::default());
+    async fn init_genesis_block(&mut self) -> Result<()> {
+        let hash = self.genesis_block_hash;
+        self.database
+            .set_block_commitment_queue(hash, Default::default());
+        self.database.set_block_prev_commitment(hash, H256::zero());
+        self.database.set_block_end_state_is_valid(hash, true);
+        self.database.set_block_is_empty(hash, true);
+        self.database
+            .set_block_end_program_states(hash, Default::default());
+
+        // set latest valid if empty.
+        if self.database.latest_valid_block_height().is_none() {
+            let genesis_header = self.get_block_header_meta(hash).await?;
+            self.database
+                .set_latest_valid_block_height(genesis_header.height);
+        }
+
         Ok(())
     }
 
@@ -117,52 +126,6 @@ impl Query {
         }
 
         Ok(committed_blocks)
-    }
-
-    async fn get_latest_valid_block(&mut self) -> Result<(H256, BlockHeader)> {
-        if let Some(latest_valid_block_hash) = self.database.latest_valid_block() {
-            let latest_valid_header =
-                self.database
-                    .block_header(latest_valid_block_hash)
-                    .ok_or(anyhow!(
-                        "{latest_valid_block_hash} not found in db. Corrupted"
-                    ))?;
-
-            let chain_block = self
-                .provider
-                .get_block_by_number((latest_valid_header.height as u64).into(), false)
-                .await?;
-
-            match chain_block {
-                Some(block)
-                    if block.header.hash.map(|h| h.0) == Some(latest_valid_block_hash.0) =>
-                {
-                    Ok((latest_valid_block_hash, latest_valid_header))
-                }
-                Some(block) => {
-                    let finalized_block = self
-                        .provider
-                        .get_block_by_number(BlockNumberOrTag::Finalized, false)
-                        .await?
-                        .ok_or(anyhow!("Failed to get finalized block"))?;
-
-                    if finalized_block.header.number.unwrap() >= latest_valid_header.height as u64 {
-                        log::warn!("Latest valid block doesn't match on-chain block.");
-                        let hash = H256(block.header.hash.unwrap().0);
-                        Ok((hash, self.get_block_header_meta(hash).await?))
-                    } else {
-                        Ok((latest_valid_block_hash, latest_valid_header))
-                    }
-                }
-                None => Ok((latest_valid_block_hash, latest_valid_header)),
-            }
-        } else {
-            log::debug!("Latest valid block not found, sync to genesis.");
-            Ok((
-                self.genesis_block_hash,
-                self.get_block_header_meta(self.genesis_block_hash).await?,
-            ))
-        }
     }
 
     /// Populate database with blocks using rpc provider.
@@ -223,23 +186,20 @@ impl Query {
         Ok(headers)
     }
 
-    pub async fn load_chain(
-        &mut self,
-        from_hash: H256,
-        to_hash: H256,
-    ) -> Result<(Vec<H256>, Vec<H256>)> {
+    pub async fn load_chain(&mut self, from_hash: H256) -> Result<(Vec<H256>, Vec<H256>)> {
         let mut chain = vec![];
         let mut committed_blocks = Vec::new();
         let mut hash = from_hash;
+        let mut header = self.get_block_header_meta(hash).await?;
 
-        while hash != to_hash {
+        loop {
             // If the block's end state is valid, set it as the latest valid block
             if self
                 .database
                 .block_end_state_is_valid(hash)
                 .unwrap_or(false)
             {
-                self.database.set_latest_valid_block(hash);
+                self.database.set_latest_valid_block_height(header.height);
                 log::trace!("Nearest valid in db block found: {hash}");
                 break;
             }
@@ -249,7 +209,10 @@ impl Query {
             chain.push(hash);
 
             match self.database.block_header(hash) {
-                Some(block_header) => hash = block_header.parent_hash,
+                Some(block_header) => {
+                    header = block_header;
+                    hash = header.parent_hash;
+                }
                 None => {
                     hash = self.get_block_parent_hash(hash).await?;
                 }
@@ -266,16 +229,19 @@ impl Query {
         let current_block = self.get_block_header_meta(block_hash).await?;
 
         // Find the latest valid block or use genesis.
-        let (latest_valid_block_hash, latest_valid_block) = self.get_latest_valid_block().await?;
+        let latest_valid_block_height = self
+            .database
+            .latest_valid_block_height()
+            .expect("genesis by default; qed");
 
         // Check for deep chain.
-        if current_block.height >= latest_valid_block.height
-            && (current_block.height - latest_valid_block.height) >= self.max_commitment_depth
+        if current_block.height >= latest_valid_block_height
+            && (current_block.height - latest_valid_block_height) >= self.max_commitment_depth
         {
             return Err(anyhow!(
                 "Too deep chain: Current block height: {}, Latest valid block height: {}, Max depth: {}",
                 current_block.height,
-                latest_valid_block.height,
+                latest_valid_block_height,
                 self.max_commitment_depth
             ));
         }
@@ -285,23 +251,9 @@ impl Query {
         // Determine if deep sync is needed
         let is_deep_sync = {
             // Current block can be lower than latest valid due to reorgs.
-            let block_diff = (current_block.height as i64 - latest_valid_block.height as i64)
+            let block_diff = (current_block.height as i64 - latest_valid_block_height as i64)
                 .unsigned_abs() as u32;
-            if block_diff > DEEP_SYNC {
-                let chain_block = self
-                    .provider
-                    .get_block_by_number(
-                        (current_block.height.saturating_sub(DEEP_SYNC) as u64).into(),
-                        false,
-                    )
-                    .await?;
-                let hash = H256(chain_block.unwrap().header.hash.unwrap().0);
-
-                // Check if the block hash for the deep sync height exists in the database.
-                self.database.block_header(hash).is_none()
-            } else {
-                false
-            }
+            block_diff > DEEP_SYNC
         };
 
         // Populate db to the latest valid block.
@@ -310,7 +262,7 @@ impl Query {
         if is_deep_sync {
             // Load all blocks from provider by numbers, skip latest valid.
             let headers = self
-                .load_chain_batch(latest_valid_block.height + 1, current_block.height)
+                .load_chain_batch(latest_valid_block_height + 1, current_block.height)
                 .await?;
             for (block_hash, _header) in headers {
                 chain.push(block_hash);
@@ -321,17 +273,17 @@ impl Query {
 
             // Collect committed blocks if block height difference is significant.
             committed_blocks.extend(
-                self.get_all_committed_blocks(latest_valid_block.height, current_block.height)
+                self.get_all_committed_blocks(latest_valid_block_height, current_block.height)
                     .await?,
             );
         } else {
             // Load chain by parent hashes.
-            let (load, comm_blocks) = self.load_chain(block_hash, latest_valid_block_hash).await?;
+            let (load, comm_blocks) = self.load_chain(block_hash).await?;
             committed_blocks.extend(comm_blocks);
 
             chain = load;
 
-            hash = *chain.last().expect("qed; can't be empty");
+            hash = *chain.last().expect("can't be empty; qed");
 
             hash = self.get_block_parent_hash(hash).await?;
         }

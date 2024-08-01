@@ -235,15 +235,19 @@ impl BlockMetaStorage for Database {
             .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
     }
 
-    fn latest_valid_block(&self) -> Option<H256> {
+    fn latest_valid_block_height(&self) -> Option<u32> {
         self.kv
             .get(&KeyPrefix::LatestValidBlock.one([]))
-            .map(|block_hash| H256::from_slice(&block_hash))
+            .map(|block_height| {
+                u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
+            })
     }
 
-    fn set_latest_valid_block(&self, block_hash: H256) {
-        self.kv
-            .put(&KeyPrefix::LatestValidBlock.one([]), block_hash.0.to_vec());
+    fn set_latest_valid_block_height(&self, block_height: u32) {
+        self.kv.put(
+            &KeyPrefix::LatestValidBlock.one([]),
+            block_height.to_le_bytes().to_vec(),
+        );
     }
 }
 
