@@ -1,0 +1,25 @@
+[package]
+name = "ethexe-signer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ethexe-common.workspace = true
+gprimitives = { workspace = true, features = ["codec"] }
+
+anyhow.workspace = true
+hex = { workspace = true, features = ["alloc"] }
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+derive_more.workspace = true
+
+secp256k1 = { version = "0.29", features = ["rand", "global-context", "hashes-std", "rand-std", "recovery"] }
+sha3 = { version = "0.10.0", default-features = false }
+
+[dev-dependencies]
+ethers = "2"

@@ -16,9 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::{collections::BTreeSet, ops::Deref};
+
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
-use gear_core::ids::ProgramId;
+use gear_core::{ids::ProgramId, pages::GearPage};
 use parity_scale_codec::Encode;
 
 async fn charge_10(
@@ -114,6 +116,93 @@ async fn memory_dump() -> Result<()> {
     assert_eq!(
         charge_10(&api, program_id, &mut listener).await.unwrap(),
         "Discharged: 20"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn memory_download() -> Result<()> {
+    // Create API instance
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    // Subscribe to events
+    let mut listener = api.subscribe().await?;
+    // Check that blocks are still running
+    assert!(listener.blocks_running().await?);
+
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 512))
+            (export "init" (func $init))
+            (func $init
+                (local $counter i32)
+
+                (loop
+                    (i32.store
+                        (i32.mul (local.get $counter) (i32.const 0x8000))
+                        (i32.const 0x42)
+                    )
+
+                    (i32.add (local.get $counter) (i32.const 1))
+                    local.tee $counter
+
+                    i32.const 1000
+                    i32.lt_u
+                    br_if 0
+                )
+            )
+        )
+    "#;
+
+    let wasm = wat::parse_str(wat).unwrap();
+
+    // Upload and init the program
+    let (message_id, program_id, _hash) = api
+        .upload_program_bytes(
+            wasm,
+            gclient::now_micros().to_le_bytes(),
+            Vec::new(),
+            200_000_000_000,
+            0,
+        )
+        .await?;
+
+    assert!(listener.message_processed(message_id).await?.succeed());
+
+    let timer_start = gclient::now_micros();
+    let pages = api.get_program_pages_data_at(program_id, None).await?;
+    let timer_end = gclient::now_micros();
+
+    println!(
+        "Storage prefix iteration memory download took: {} ms",
+        (timer_end - timer_start) / 1000
+    );
+
+    let mut accessed_pages = BTreeSet::new();
+    let mut expected_data = [0u8; 0x4000];
+    expected_data[0] = 0x42;
+    for (page, data) in pages {
+        accessed_pages.insert(page);
+        assert_eq!(data.deref(), expected_data.as_slice());
+    }
+
+    assert_eq!(
+        accessed_pages,
+        (0..1000)
+            .map(|p| p * 2)
+            .map(Into::into)
+            .collect::<BTreeSet<GearPage>>()
+    );
+
+    let timer_start = gclient::now_micros();
+    let _pages = api
+        .get_program_specified_pages_data_at(program_id, accessed_pages.into_iter(), None)
+        .await?;
+    let timer_end = gclient::now_micros();
+
+    println!(
+        "Memory page by page download took: {} ms",
+        (timer_end - timer_start) / 1000
     );
 
     Ok(())

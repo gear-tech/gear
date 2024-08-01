@@ -52,12 +52,12 @@ fn test_compile() -> Result<()> {
 
     // 1. Test single package build.
     let mut gbuild = GBuild::default().manifest_path(root);
-    let artifacts = gbuild.run()?;
+    let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_program.wasm"));
 
     // 2. Test workspace build.
     gbuild = gbuild.workspace();
-    let artifacts = gbuild.run()?;
+    let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
     let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
 

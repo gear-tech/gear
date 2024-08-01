@@ -104,6 +104,22 @@ impl Calls {
         self.add_call(Call::MessageId).store_vec(key)
     }
 
+    pub fn reservation_send_value(
+        self,
+        reservation: impl Into<Arg<[u8; 32]>>,
+        destination: impl Into<Arg<[u8; 32]>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        value: impl Into<Arg<u128>>,
+    ) -> Self {
+        self.add_call(Call::ReservationSend(
+            reservation.into(),
+            destination.into(),
+            payload.into(),
+            value.into(),
+            0.into(),
+        ))
+    }
+
     pub fn send(
         self,
         destination: impl Into<Arg<[u8; 32]>>,
@@ -239,10 +255,30 @@ impl Calls {
     }
 
     pub fn reply(self, payload: impl Into<Arg<Vec<u8>>>) -> Self {
-        self.add_call(Call::Reply(payload.into(), None, 0.into()))
+        self.reply_value(payload, 0)
+    }
+
+    pub fn reply_value(
+        self,
+        payload: impl Into<Arg<Vec<u8>>>,
+        value: impl Into<Arg<u128>>,
+    ) -> Self {
+        self.add_call(Call::Reply(payload.into(), None, value.into()))
     }
 
     pub fn reply_wgas<T: TryInto<u64>>(self, payload: impl Into<Arg<Vec<u8>>>, gas_limit: T) -> Self
+    where
+        T::Error: Debug,
+    {
+        self.reply_value_wgas(payload, gas_limit, 0)
+    }
+
+    pub fn reply_value_wgas<T: TryInto<u64>>(
+        self,
+        payload: impl Into<Arg<Vec<u8>>>,
+        gas_limit: T,
+        value: impl Into<Arg<u128>>,
+    ) -> Self
     where
         T::Error: Debug,
     {
@@ -252,7 +288,7 @@ impl Calls {
         self.add_call(Call::Reply(
             payload.into(),
             Some(gas_limit.into()),
-            0.into(),
+            value.into(),
         ))
     }
 
@@ -319,6 +355,14 @@ impl Calls {
 
     pub fn system_reserve_gas(self, gas: impl Into<Arg<u64>>) -> Self {
         self.add_call(Call::SystemReserveGas(gas.into()))
+    }
+
+    pub fn reserve_gas(self, gas: impl Into<Arg<u64>>, duration: impl Into<Arg<u32>>) -> Self {
+        self.add_call(Call::ReserveGas(gas.into(), duration.into()))
+    }
+
+    pub fn unreserve_gas(self, reservation_id: impl Into<Arg<[u8; 32]>>) -> Self {
+        self.add_call(Call::UnreserveGas(reservation_id.into()))
     }
 
     pub fn write_in_loop(self, count: impl Into<Arg<u64>>) -> Self {

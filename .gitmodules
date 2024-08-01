@@ -1,0 +1,12 @@
+[submodule "ethexe/contracts/lib/forge-std"]
+	path = ethexe/contracts/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "ethexe/contracts/lib/openzeppelin-contracts"]
+	path = ethexe/contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "ethexe/contracts/lib/openzeppelin-foundry-upgrades"]
+	path = ethexe/contracts/lib/openzeppelin-foundry-upgrades
+	url = https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
+[submodule "ethexe/contracts/lib/openzeppelin-contracts-upgradeable"]
+	path = ethexe/contracts/lib/openzeppelin-contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable

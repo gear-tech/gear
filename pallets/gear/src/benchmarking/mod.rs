@@ -110,7 +110,7 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill, Saturating,
 };
-use sp_std::prelude::*;
+use sp_std::{num::NonZeroU32, prelude::*};
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
@@ -594,6 +594,49 @@ benchmarks! {
         assert!(MailboxOf::<T>::is_empty(&caller))
     }
 
+    claim_value_to_inheritor {
+        let d in 1 .. 1024;
+
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
+
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
+
+        let mut inheritor = caller.clone().cast();
+        let mut programs = vec![];
+        for i in 0..d {
+            let program_id = benchmarking::account::<T::AccountId>("program", i, 100);
+            programs.push(program_id.clone());
+            let _ = CurrencyOf::<T>::deposit_creating(&program_id, minimum_balance);
+            let program_id = program_id.cast();
+            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
+
+            ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
+                if i % 2 == 0 {
+                    *program = common::Program::Terminated(inheritor);
+                } else {
+                    *program = common::Program::Exited(inheritor);
+                }
+            })
+            .unwrap();
+
+            inheritor = program_id;
+        }
+
+        let program_id = inheritor;
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller.clone()), program_id, NonZeroU32::MAX)
+    verify {
+        assert_eq!(
+            CurrencyOf::<T>::free_balance(&caller),
+            minimum_balance * d.unique_saturated_into()
+        );
+
+        for program_id in programs {
+            assert_eq!(CurrencyOf::<T>::free_balance(&program_id), BalanceOf::<T>::zero());
+        }
+    }
+
     // This benchmarks the additional weight that is charged when a program is executed the
     // first time after a new schedule was deployed: For every new schedule a program needs
     // to re-run the instrumentation once.
@@ -618,6 +661,17 @@ benchmarks! {
         let schedule = T::Schedule::get();
     }: {
         Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
+    }
+
+    load_allocations_per_interval {
+        let a in 0 .. u16::MAX as u32 / 2;
+        let allocations = (0..a).map(|p| WasmPage::from(p as u16 * 2 + 1));
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
+    }: {
+        let _ = ProgramStorageOf::<T>::allocations(program_id).unwrap();
     }
 
     alloc {

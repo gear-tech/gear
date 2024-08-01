@@ -40,6 +40,7 @@ use gear_core::{
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
+use parity_scale_codec::{Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -140,7 +141,7 @@ impl DispatchResult {
 }
 
 /// Dispatch outcome of the specific message.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub enum DispatchOutcome {
     /// Message was a exit.
     Exit {
@@ -175,7 +176,7 @@ pub enum DispatchOutcome {
 }
 
 /// Journal record for the state update.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
     MessageDispatched {
@@ -559,32 +560,4 @@ pub(crate) struct WasmExecutionContext {
     pub program: Program,
     /// Size of the memory block.
     pub memory_size: WasmPagesAmount,
-}
-
-/// Struct with dispatch and counters charged for program data.
-#[derive(Debug)]
-pub struct PrechargedDispatch {
-    dispatch: IncomingDispatch,
-    gas: GasCounter,
-    allowance: GasAllowanceCounter,
-}
-
-impl PrechargedDispatch {
-    /// Create new instance from parts.
-    pub(crate) fn from_parts(
-        dispatch: IncomingDispatch,
-        gas: GasCounter,
-        allowance: GasAllowanceCounter,
-    ) -> Self {
-        Self {
-            dispatch,
-            gas,
-            allowance,
-        }
-    }
-
-    /// Decompose the instance into parts.
-    pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
-        (self.dispatch, self.gas, self.allowance)
-    }
 }
