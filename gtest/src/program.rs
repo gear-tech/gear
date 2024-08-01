@@ -551,6 +551,8 @@ impl<'a> Program<'a> {
         self.send_bytes_with_gas_and_value(from, payload, gas_limit, value)
     }
 
+    // todo [sab] this will return message id and adds message to the end of the queue
+    // need to be sure that you can obtain info about message being executed
     fn send_bytes_with_gas_and_value<ID, T>(
         &self,
         from: ID,
@@ -595,6 +597,7 @@ impl<'a> Program<'a> {
     }
 
     /// Send signal to the program.
+    // todo [sab] remove that?
     #[track_caller]
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
         let mut system = self.manager.borrow_mut();

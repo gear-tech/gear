@@ -175,10 +175,12 @@ impl System {
     }
 
     /// Send raw message dispatch.
+    // todo [sab] remove that - it's a hack over the gtest and gear protocol.
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
         self.0.borrow_mut().validate_and_run_dispatch(dispatch)
     }
 
+    // todo [sab] this must be spending blocks only on task pool
     /// Spend blocks and return all results.
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
         let mut manager = self.0.borrow_mut();
