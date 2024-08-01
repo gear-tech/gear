@@ -309,9 +309,9 @@ impl Query {
         let mut hash = block_hash;
 
         if is_deep_sync {
-            // Load all blocks from provider by numbers.
+            // Load all blocks from provider by numbers, skip latest valid.
             let headers = self
-                .load_chain_batch(latest_valid_block.height, current_block.height)
+                .load_chain_batch(latest_valid_block.height + 1, current_block.height)
                 .await?;
             for (block_hash, _header) in headers {
                 chain.push(block_hash);
@@ -329,9 +329,10 @@ impl Query {
             // Load chain by parent hashes.
             let (load, comm_blocks) = self.load_chain(block_hash, latest_valid_block_hash).await?;
             committed_blocks.extend(comm_blocks);
-            chain.extend(load);
 
-            hash = *chain.last().unwrap();
+            chain = load;
+
+            hash = *chain.last().expect("qed; can't be empty");
 
             hash = self.get_block_parent_hash(hash).await?;
         }
