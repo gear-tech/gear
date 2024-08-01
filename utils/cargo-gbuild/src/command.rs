@@ -58,7 +58,7 @@ fn git_clone(repo: &str, target: PathBuf) -> Result<()> {
         .ok_or(anyhow!("Failed to convert target path to string"))?;
 
     // clone template to the target path.
-    utils::info("Downloading", repo);
+    utils::info("Cloning", repo);
     let result = process::Command::new("git")
         .args(["clone", &repo, &path, "--depth=1"])
         .output()
@@ -80,6 +80,6 @@ fn git_clone(repo: &str, target: PathBuf) -> Result<()> {
         utils::error(&result.stderr);
     }
 
-    utils::info("Finished", path);
+    utils::info("Created", path);
     Ok(())
 }

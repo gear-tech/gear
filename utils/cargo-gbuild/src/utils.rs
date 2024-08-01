@@ -15,5 +15,5 @@ pub fn error(error: &[u8]) {
 
 /// Prints info with green title
 pub fn info(title: &str, info: &str) {
-    println!("{:>13} {}", title.green().bold(), info);
+    println!("{:>12} {}", title.green().bold(), info);
 }
