@@ -1144,8 +1144,7 @@ mod tests {
         assert!(results.iter().any(|result| result.contains(&log)));
     }
 
-    // Possible solution for the issue#3699 worked.
-    // the test must not panic.
+    // Test for issue#3699
     #[test]
     fn reservations_limit() {
         use demo_custom::{InitMessage, WASM_BINARY};
@@ -1233,17 +1232,16 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .adjust_genuine_program(prog.id(), |genuine_prog| {
-                let genuine_prog = genuine_prog.expect("internal error: existing prog not found");
-
+            .update_genuine_program(prog.id(), |genuine_prog| {
                 assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
                 genuine_prog
                     .gas_reservation_map
                     .iter()
                     .next()
                     .map(|(&id, _)| id)
+                    .expect("reservation exists, checked upper; qed.")
             })
-            .expect("internal error: reservation wasn't found");
+            .expect("internal error: existing prog not found");
 
         // Check reservation exists in the tree
         assert!(sys.0.borrow().gas_tree.exists(reservation_id));
