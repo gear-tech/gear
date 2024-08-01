@@ -252,7 +252,6 @@ impl Query {
                 Some(block_header) => hash = block_header.parent_hash,
                 None => {
                     hash = self.get_block_parent_hash(hash).await?;
-                    log::trace!("Block was fetched from alloy: {hash}");
                 }
             }
         }
@@ -463,7 +462,6 @@ impl Query {
             return Ok(events);
         }
 
-        log::info!("read_block_events {block_hash}");
         let events = read_block_events(block_hash, &self.provider, self.router_address).await?;
         self.database.set_block_events(block_hash, events.clone());
 
