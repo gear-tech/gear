@@ -15219,11 +15219,6 @@ fn handle_reply_hook() {
 
         run_to_block(2, None);
 
-        dbg!("=== 2 ===");
-        MailboxOf::<Test>::iter_key(USER_1).for_each(|(m, b)| {
-            dbg!(String::from_utf8_lossy(m.payload_bytes()), b);
-        });
-
         assert!(Gear::is_initialized(pid));
         assert!(utils::is_active(pid));
 
@@ -15238,11 +15233,6 @@ fn handle_reply_hook() {
         ));
 
         run_to_block(3, None);
-
-        dbg!("=== 3 ===");
-        MailboxOf::<Test>::iter_key(USER_1).for_each(|(m, b)| {
-            dbg!(String::from_utf8_lossy(m.payload_bytes()), b);
-        });
 
         let messages = MailboxOf::<Test>::iter_key(USER_1).map(|(msg, _bn)| msg);
 
@@ -15288,30 +15278,16 @@ fn handle_reply_hook() {
         }
 
         run_to_block(4, None);
-        dbg!("=== 4 ===");
-        MailboxOf::<Test>::iter_key(USER_1).for_each(|(m, b)| {
-            dbg!(String::from_utf8_lossy(m.payload_bytes()), b);
-        });
 
         // Expect a reply back
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"saw_reply_3")
-        );
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"saw_reply_3");
 
         run_to_block(10, None);
-        dbg!("=== 10 ===");
-        MailboxOf::<Test>::iter_key(USER_1).for_each(|(m, b)| {
-            dbg!(String::from_utf8_lossy(m.payload_bytes()), b);
-        });
 
         // Program finished
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"completed")
-        );
-        // Timeout hook has not yet been executed
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1).all(|(m, _)| m.payload_bytes() != b"saw_reply_4")
-        );
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"completed");
 
         // Reply to a message that timed out
         assert_ok!(Gear::send_reply(
@@ -15322,15 +15298,34 @@ fn handle_reply_hook() {
             0,
             false,
         ));
-        run_to_block(11, None);
-        dbg!("=== 11 ===");
-        MailboxOf::<Test>::iter_key(USER_1).for_each(|(m, b)| {
-            dbg!(String::from_utf8_lossy(m.payload_bytes()), b);
-        });
 
-        // Hook should still be executed
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1).any(|(m, _)| m.payload_bytes() == b"saw_reply_4")
+        run_to_block(11, None);
+
+        dbg!("=== 11 ===");
+        let messages = all_user_messages(USER_1);
+        let vec: Vec<gstd::borrow::Cow<'_, str>> = messages
+            .iter()
+            .filter_map(|m| {
+                dbg!(m);
+                if m.details().is_some() {
+                    None
+                } else {
+                    Some(String::from_utf8_lossy(m.payload_bytes()))
+                }
+            })
+            .collect();
+        // Hook executed after completed
+        assert_eq!(
+            vec,
+            [
+                "for_reply_1",
+                "for_reply_2",
+                "for_reply_3",
+                "for_reply_4",
+                "saw_reply_3",
+                "completed",
+                "saw_reply_4"
+            ]
         );
     });
 }
@@ -16923,5 +16918,24 @@ pub(crate) mod utils {
 
     pub(super) fn gas_price(gas: u64) -> u128 {
         <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
+    }
+
+    // Collect all messages by account in chronological order (oldest first)
+    #[track_caller]
+    pub(super) fn all_user_messages(user_id: AccountId) -> Vec<UserMessage> {
+        System::events()
+            .into_iter()
+            .filter_map(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    if message.destination() == user_id.into() {
+                        Some(message)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
