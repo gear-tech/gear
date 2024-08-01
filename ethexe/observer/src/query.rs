@@ -180,14 +180,10 @@ impl Query {
 
         log::trace!("{} blocks loaded", blocks.len());
 
-        // Populate block events in db.
-        let blocks_events =
+        // Fetch events in block range.
+        let mut blocks_events =
             read_block_events_batch(from_block, to_block, &self.provider, self.router_address)
                 .await?;
-
-        for (block_hash, events) in blocks_events {
-            self.database.set_block_events(block_hash, events);
-        }
 
         // Populate blocks in db.
         let mut headers = Vec::new();
@@ -211,6 +207,13 @@ impl Query {
             };
 
             self.database.set_block_header(block_hash, header.clone());
+
+            // Set block events, empty vec if no events.
+            self.database.set_block_events(
+                block_hash,
+                blocks_events.remove(&block_hash).unwrap_or_default(),
+            );
+
             headers.push((block_hash, header));
         }
 
@@ -455,7 +458,15 @@ impl Query {
     }
 
     pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
-        Ok(self.database.block_events(block_hash).unwrap_or_default())
+        if let Some(events) = self.database.block_events(block_hash) {
+            return Ok(events);
+        }
+
+        log::info!("read_block_events {block_hash}");
+        let events = read_block_events(block_hash, &self.provider, self.router_address).await?;
+        self.database.set_block_events(block_hash, events.clone());
+
+        Ok(events)
     }
 
     pub async fn download_code(
