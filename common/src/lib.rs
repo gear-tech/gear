@@ -54,7 +54,7 @@ use frame_support::{
     traits::Get,
 };
 pub use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     pages::GearPage,
     program::{ActiveProgram, MemoryInfix, Program},
@@ -141,6 +141,16 @@ impl Origin for ProgramId {
 }
 
 impl Origin for CodeId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for ReservationId {
     fn into_origin(self) -> H256 {
         H256(self.into())
     }

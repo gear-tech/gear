@@ -21,10 +21,10 @@
 use crate::GAS_MULTIPLIER;
 use gear_common::{
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
-    gas_provider::{ConsumeResultOf, GasNodeId, Provider, Tree},
-    Gas, Origin, ReservableTree,
+    gas_provider::{ConsumeResultOf, GasNodeId, Provider, ReservableTree, Tree},
+    Gas, Origin
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{MessageId, ProgramId, ReservationId};
 
 pub(crate) type PositiveImbalance = <GasTree as Tree>::PositiveImbalance;
 pub(crate) type NegativeImbalance = <GasTree as Tree>::NegativeImbalance;
@@ -94,13 +94,13 @@ impl GasTreeManager {
     pub(crate) fn split(
         &self,
         is_reply: bool,
-        original_mid: MessageId,
+        original_node: impl Origin,
         new_mid: MessageId,
     ) -> Result<(), GasTreeError> {
         if !is_reply && !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
         {
             return GasTree::split(
-                GasNodeId::from(original_mid.cast::<PlainNodeId>()),
+                GasNodeId::from(original_node.cast::<PlainNodeId>()),
                 GasNodeId::from(new_mid.cast::<PlainNodeId>()),
             );
         }
@@ -111,12 +111,12 @@ impl GasTreeManager {
     /// Adapted by argument types version of the gas tree `cut` method.
     pub(crate) fn cut(
         &self,
-        original_mid: MessageId,
+        original_node: MessageId,
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
         GasTree::cut(
-            GasNodeId::from(original_mid.cast::<PlainNodeId>()),
+            GasNodeId::from(original_node.cast::<PlainNodeId>()),
             GasNodeId::from(new_mid.cast::<PlainNodeId>()),
             amount,
         )
@@ -137,8 +137,26 @@ impl GasTreeManager {
     }
 
     /// Adapted by argument types version of the gas tree `consume` method.
-    pub(crate) fn consume(&self, mid: MessageId) -> ConsumeResultOf<GasTree> {
+    pub(crate) fn consume(&self, mid: impl Origin) -> ConsumeResultOf<GasTree> {
         GasTree::consume(GasNodeId::from(mid.cast::<PlainNodeId>()))
+    }
+
+    pub(crate) fn reserve_gas(
+        &self,
+        original_mid: MessageId,
+        reservation_id: ReservationId,
+        amount: Gas,
+    ) -> Result<(), GasTreeError> {
+        GasTree::reserve(
+            GasNodeId::from(original_mid.cast::<PlainNodeId>()),
+            GasNodeId::from(reservation_id.cast::<PlainNodeId>()),
+            amount,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn exists(&self, node_id: impl Origin) -> bool {
+        GasTree::exists(GasNodeId::from(node_id.cast::<PlainNodeId>()))
     }
 
     /// Adapted by argument types version of the gas tree `reset` method.
