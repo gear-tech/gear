@@ -23,7 +23,7 @@ jobs:
           github.event.label.name == 'A0-pleasereview'
             || github.event.label.name == 'A4-insubstantial'
             || github.event.label.name == 'A2-mergeoncegreen'
-        uses: gear-tech/fork-action@main
+        uses: gear-tech/fork-action@cl/override
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           workflow_id: ".github/workflows/build.yml"
@@ -37,7 +37,7 @@ jobs:
 
       - name: Fork OSX checks
         if: github.event.label.name == 'E2-forcemacos'
-        uses: gear-tech/fork-action@main
+        uses: gear-tech/fork-action@cl/override
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           workflow_id: ".github/workflows/build-macos.yml"
@@ -47,7 +47,7 @@ jobs:
 
       - name: Fork Win checks
         if: github.event.label.name == 'E1-forcenatwin'
-        uses: gear-tech/fork-action@main
+        uses: gear-tech/fork-action@cl/override
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           workflow_id: ".github/workflows/build-win-native.yml"
