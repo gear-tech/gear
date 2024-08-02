@@ -51,12 +51,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: "${{ matrix.profiles.name }}"
-          save-if: ${{ github.ref == 'refs/heads/master' }}
-
       - name: "Install: cargo-nextest"
         run: |
           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
@@ -96,6 +90,9 @@ jobs:
           Remove-Item -Recurse ./wabt-1.0.29
           $tmp | Remove-Item
         shell: powershell
+
+      - name: "Clean up build dir"
+        run: rm -rf ./target
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
