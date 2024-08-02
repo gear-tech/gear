@@ -166,15 +166,12 @@ impl Sequencer {
 
     // This function should never block.
     pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
-        match event {
-            Event::Block(data) => {
-                log::debug!("Receive block {:?}", data.block_hash);
+        if let Event::Block(data) = event {
+            log::debug!("Receive block {:?}", data.block_hash);
 
-                self.update_status(|status| {
-                    *status = SequencerStatus::default();
-                });
-            }
-            _ => {}
+            self.update_status(|status| {
+                *status = SequencerStatus::default();
+            });
         }
 
         Ok(())
@@ -256,7 +253,7 @@ impl Sequencer {
             .remove(&candidate)
             .unwrap_or_else(|| unreachable!("Must be in the map"));
 
-        if multisigned.commitments.len() == 0 {
+        if multisigned.commitments.is_empty() {
             unreachable!("Guarantied to be not empty");
         }
 
@@ -429,7 +426,7 @@ impl Sequencer {
         aggregated_hash: H256,
         signature: Signature,
         validators: &HashSet<Address>,
-        aggregator: &mut BTreeMap<H256, Option<MultisignedCommitments<C>>>,
+        aggregator: &mut BTreeMap<H256, MultisignedCommitments<C>>,
     ) -> Result<()> {
         if !validators.contains(&origin) {
             return Err(anyhow!("Unknown validator {origin}"));
@@ -445,12 +442,7 @@ impl Sequencer {
 
         let multisigned = aggregator
             .get_mut(&aggregated_hash)
-            .ok_or(anyhow!("Aggregated commitment {aggregated_hash} not found"))?
-            .get_or_insert_with(|| MultisignedCommitments {
-                commitments: Default::default(),
-                sources: Vec::new(),
-                signatures: Vec::new(),
-            });
+            .ok_or(anyhow!("Aggregated commitment {aggregated_hash} not found"))?;
 
         multisigned.sources.push(origin);
         multisigned.signatures.push(signature);
@@ -464,26 +456,13 @@ impl Sequencer {
         aggregated_hash: H256,
         signature: Signature,
     ) -> Result<()> {
-        if !self.validators.contains(&origin) {
-            return Err(anyhow!("Unknown validator {origin}"));
-        }
-        if signature
-            .recover_digest(*aggregated_hash.as_fixed_bytes())?
-            .to_address()
-            != origin
-        {
-            return Err(anyhow!("Invalid signature"));
-        }
-
-        let multisigned = self
-            .codes_aggregator
-            .get_mut(&aggregated_hash)
-            .ok_or(anyhow!("Aggregated commitment {aggregated_hash} not found"))?;
-
-        multisigned.sources.push(origin);
-        multisigned.signatures.push(signature);
-
-        Ok(())
+        Self::receive_signature(
+            origin,
+            aggregated_hash,
+            signature,
+            &self.validators,
+            &mut self.codes_aggregator,
+        )
     }
 
     pub fn receive_blocks_signature(
@@ -492,27 +471,13 @@ impl Sequencer {
         aggregated_hash: H256,
         signature: Signature,
     ) -> Result<()> {
-        if !self.validators.contains(&origin) {
-            return Err(anyhow!("Unknown validator {origin}"));
-        }
-
-        if signature
-            .recover_digest(*aggregated_hash.as_fixed_bytes())?
-            .to_address()
-            != origin
-        {
-            return Err(anyhow!("Invalid signature"));
-        }
-
-        let multisigned = self
-            .blocks_aggregator
-            .get_mut(&aggregated_hash)
-            .ok_or(anyhow!("Aggregated commitment {aggregated_hash} not found"))?;
-
-        multisigned.sources.push(origin);
-        multisigned.signatures.push(signature);
-
-        Ok(())
+        Self::receive_signature(
+            origin,
+            aggregated_hash,
+            signature,
+            &self.validators,
+            &mut self.blocks_aggregator,
+        )
     }
 
     pub fn address(&self) -> Address {

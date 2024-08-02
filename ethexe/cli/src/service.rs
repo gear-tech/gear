@@ -24,16 +24,13 @@ use crate::{
 };
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
-    db, events::BlockEvent, BlockCommitment, CodeCommitment, Commitments, StateTransition,
+    events::BlockEvent, BlockCommitment, CodeCommitment, Commitments, StateTransition,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
 use ethexe_network::GossipsubMessage;
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
-use ethexe_sequencer::{
-    AggregatedCommitments, BlockCommitmentValidationRequest, CodeCommitmentValidationRequest,
-    NetworkMessage, SeqHash,
-};
+use ethexe_sequencer::{NetworkMessage, SeqHash};
 use ethexe_signer::{PublicKey, Signer};
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
@@ -590,22 +587,12 @@ impl Service {
 
         let code_requests: BTreeMap<_, _> = codes_hash
             .and_then(|hash| sequencer.get_multisigned_code_commitments(hash))
-            .map(|commitments| {
-                commitments
-                    .into_iter()
-                    .map(|c| (c.hash(), c.into()))
-                    .collect()
-            })
+            .map(|commitments| commitments.iter().map(|c| (c.hash(), c.into())).collect())
             .unwrap_or_default();
 
         let block_requests: BTreeMap<_, _> = blocks_hash
             .and_then(|hash| sequencer.get_multisigned_block_commitments(hash))
-            .map(|commitments| {
-                commitments
-                    .into_iter()
-                    .map(|c| (c.hash(), c.into()))
-                    .collect()
-            })
+            .map(|commitments| commitments.iter().map(|c| (c.hash(), c.into())).collect())
             .unwrap_or_default();
 
         if let Some(network_sender) = maybe_network_sender {

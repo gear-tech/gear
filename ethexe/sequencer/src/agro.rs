@@ -21,14 +21,9 @@
 use anyhow::Result;
 use ethexe_common::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition};
 use ethexe_signer::{Address, PublicKey, Signature, Signer};
-use futures::AsyncRead;
 use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt, mem,
-    path::Iter,
-};
+use std::{fmt, mem};
 
 pub trait SeqHash {
     fn hash(&self) -> H256;
@@ -38,18 +33,6 @@ pub trait SeqHash {
 pub struct AggregatedCommitments<D: SeqHash> {
     pub commitments: Vec<D>,
     pub signature: Signature,
-}
-
-#[derive(Debug)]
-pub struct LinkedAggregation<D: SeqHash> {
-    pub aggregated: AggregatedCommitments<D>,
-    pub previous: Option<H256>,
-}
-
-#[derive(Debug)]
-pub struct AggregatedQueue<D: SeqHash> {
-    all_commitments: HashMap<H256, LinkedAggregation<D>>,
-    last: H256,
 }
 
 impl SeqHash for H256 {
@@ -135,8 +118,7 @@ impl<T: SeqHash> SeqHash for &[T] {
         let buffer: Vec<u8> = self
             .iter()
             .map(SeqHash::hash)
-            .map(H256::to_fixed_bytes)
-            .flatten()
+            .flat_map(H256::to_fixed_bytes)
             .collect();
         ethexe_signer::hash(&buffer)
     }
@@ -184,6 +166,10 @@ impl<T: SeqHash> AggregatedCommitments<T> {
         self.commitments.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.commitments.is_empty()
+    }
+
     pub fn verify_origin(&self, router_address: Address, origin: Address) -> Result<bool> {
         let buffer = Self::buffer(self.commitments.hash(), router_address);
         Ok(self
@@ -200,48 +186,6 @@ impl<T: SeqHash> AggregatedCommitments<T> {
             commitments_hash.as_ref(),
         ]
         .concat()
-    }
-}
-
-impl<D: SeqHash> AggregatedQueue<D> {
-    pub fn new(initial: AggregatedCommitments<D>) -> Self {
-        let hash = initial.hash();
-        let mut all_commitments = HashMap::new();
-        all_commitments.insert(
-            hash,
-            LinkedAggregation {
-                aggregated: initial,
-                previous: None,
-            },
-        );
-        Self {
-            all_commitments,
-            last: hash,
-        }
-    }
-
-    pub fn push(&mut self, commitment: AggregatedCommitments<D>) {
-        let hash = commitment.hash();
-
-        let new_queue = LinkedAggregation {
-            aggregated: commitment,
-            previous: Some(self.last),
-        };
-        self.last = hash;
-
-        self.all_commitments.insert(hash, new_queue);
-    }
-
-    pub fn get_signature(&self, commitment: H256) -> Option<Signature> {
-        self.all_commitments
-            .get(&commitment)
-            .map(|c| c.aggregated.signature.clone())
-    }
-
-    pub fn previous(&self, commitment: H256) -> Option<H256> {
-        self.all_commitments
-            .get(&commitment)
-            .and_then(|c| c.previous)
     }
 }
 
@@ -262,219 +206,129 @@ impl<D: fmt::Debug> fmt::Debug for MultisignedCommitments<D> {
     }
 }
 
-pub struct Aggregator<D: SeqHash + Clone> {
-    threshold: usize,
+// #[cfg(test)]
+// mod tests {
 
-    aggregated: HashMap<Address, AggregatedQueue<D>>,
-    plain_commitments: HashMap<H256, Vec<D>>,
+//     use super::*;
+//     use ethexe_signer::{Address, Signature};
+//     use gear_core::ids::ActorId;
 
-    rolling: Option<H256>,
-}
+//     #[derive(Clone, Debug)]
+//     pub struct MyComm([u8; 2]);
 
-impl<D: SeqHash + Clone> Aggregator<D> {
-    pub fn new(threshold: usize) -> Self {
-        Self {
-            threshold,
-            aggregated: HashMap::new(),
-            plain_commitments: HashMap::new(),
-            rolling: None,
-        }
-    }
+//     impl SeqHash for MyComm {
+//         fn hash(&self) -> H256 {
+//             ethexe_signer::hash(&self.0[..])
+//         }
+//     }
 
-    pub fn push(&mut self, origin: Address, aggregated: AggregatedCommitments<D>) {
-        let hash = aggregated.hash();
+//     fn signer(id: u8) -> Address {
+//         let mut array = [0; 20];
+//         array[0] = id;
+//         Address(array)
+//     }
 
-        self.plain_commitments
-            .insert(hash, aggregated.commitments.clone());
+//     fn signature(id: u8) -> Signature {
+//         let mut array = [0; 65];
+//         array[0] = id;
+//         Signature::from(array)
+//     }
 
-        self.aggregated
-            .entry(origin)
-            .and_modify(|q| {
-                q.push(aggregated.clone());
-            })
-            .or_insert_with(move || AggregatedQueue::new(aggregated));
+//     #[allow(unused)]
+//     fn block_hash(id: u8) -> H256 {
+//         let mut array = [0; 32];
+//         array[0] = id;
+//         H256::from(array)
+//     }
 
-        self.rolling = Some(hash);
-    }
+//     #[allow(unused)]
+//     fn pid(id: u8) -> ActorId {
+//         let mut array = [0; 32];
+//         array[0] = id;
+//         ActorId::from(array)
+//     }
 
-    pub fn len(&self) -> usize {
-        self.aggregated.len()
-    }
+//     #[allow(unused)]
+//     fn state_id(id: u8) -> H256 {
+//         let mut array = [0; 32];
+//         array[0] = id;
+//         H256::from(array)
+//     }
 
-    pub fn find_root(self) -> Option<MultisignedCommitments<D>> {
-        use std::collections::VecDeque;
+//     fn gen_commitment(
+//         signature_id: u8,
+//         commitments: Vec<(u8, u8)>,
+//     ) -> AggregatedCommitments<MyComm> {
+//         let commitments = commitments
+//             .into_iter()
+//             .map(|v| MyComm([v.0, v.1]))
+//             .collect();
 
-        // Start only with the root
-        let mut candidates = VecDeque::new();
-        let mut checked = HashSet::new();
-        candidates.push_back(self.rolling?);
-        checked.insert(self.rolling?);
+//         AggregatedCommitments {
+//             commitments,
+//             signature: signature(signature_id),
+//         }
+//     }
 
-        while let Some(candidate_hash) = candidates.pop_front() {
-            // check if we can find `threshold` amount of this `candidate_hash`
-            let mut sources = vec![];
-            let mut signatures = vec![];
+//     #[test]
+//     fn simple() {
+//         // aggregator with threshold 1
+//         let mut aggregator = Aggregator::new(1);
 
-            for (source, queue) in self.aggregated.iter() {
-                if let Some(signature) = queue.get_signature(candidate_hash) {
-                    sources.push(*source);
-                    signatures.push(signature.clone());
-                }
-            }
+//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
 
-            if signatures.len() >= self.threshold {
-                // found our candidate
-                let plain_commitments = self.plain_commitments.get(&candidate_hash)
-                    .expect("Plain commitments should be present, as they are always updated when Aggregator::push is invoked; qed");
+//         let root = aggregator
+//             .find_root()
+//             .expect("Failed to generate root commitment");
 
-                let multi_signed = MultisignedCommitments {
-                    commitments: plain_commitments.clone(),
-                    sources,
-                    signatures,
-                };
+//         assert_eq!(root.signatures.len(), 1);
+//         assert_eq!(root.commitments.len(), 1);
 
-                return Some(multi_signed);
-            }
+//         // aggregator with threshold 1
+//         let mut aggregator = Aggregator::new(1);
 
-            // else we try to find as many candidates as possible
-            for queue in self.aggregated.values() {
-                if let Some(previous) = queue.previous(candidate_hash) {
-                    if checked.contains(&previous) {
-                        continue;
-                    }
-                    candidates.push_back(previous);
-                    checked.insert(previous);
-                }
-            }
-        }
+//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
+//         aggregator.push(signer(1), gen_commitment(1, vec![(1, 1), (2, 2)]));
 
-        None
-    }
-}
+//         let root = aggregator
+//             .find_root()
+//             .expect("Failed to generate root commitment");
 
-#[cfg(test)]
-mod tests {
+//         assert_eq!(root.signatures.len(), 1);
 
-    use super::*;
-    use ethexe_signer::{Address, Signature};
-    use gear_core::ids::ActorId;
+//         // should be latest commitment
+//         assert_eq!(root.commitments.len(), 2);
+//     }
 
-    #[derive(Clone, Debug)]
-    pub struct MyComm([u8; 2]);
+//     #[test]
+//     fn more_threshold() {
+//         // aggregator with threshold 2
+//         let mut aggregator = Aggregator::new(2);
 
-    impl SeqHash for MyComm {
-        fn hash(&self) -> H256 {
-            ethexe_signer::hash(&self.0[..])
-        }
-    }
+//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
+//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
+//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
 
-    fn signer(id: u8) -> Address {
-        let mut array = [0; 20];
-        array[0] = id;
-        Address(array)
-    }
+//         let root = aggregator
+//             .find_root()
+//             .expect("Failed to generate root commitment");
 
-    fn signature(id: u8) -> Signature {
-        let mut array = [0; 65];
-        array[0] = id;
-        Signature::from(array)
-    }
+//         assert_eq!(root.signatures.len(), 2);
+//         assert_eq!(root.commitments.len(), 1); // only (1, 1) is committed by both aggregators
 
-    #[allow(unused)]
-    fn block_hash(id: u8) -> H256 {
-        let mut array = [0; 32];
-        array[0] = id;
-        H256::from(array)
-    }
+//         // aggregator with threshold 2
+//         let mut aggregator = Aggregator::new(2);
 
-    #[allow(unused)]
-    fn pid(id: u8) -> ActorId {
-        let mut array = [0; 32];
-        array[0] = id;
-        ActorId::from(array)
-    }
+//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
+//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
+//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
+//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1), (2, 2)]));
 
-    #[allow(unused)]
-    fn state_id(id: u8) -> H256 {
-        let mut array = [0; 32];
-        array[0] = id;
-        H256::from(array)
-    }
+//         let root = aggregator
+//             .find_root()
+//             .expect("Failed to generate root commitment");
 
-    fn gen_commitment(
-        signature_id: u8,
-        commitments: Vec<(u8, u8)>,
-    ) -> AggregatedCommitments<MyComm> {
-        let commitments = commitments
-            .into_iter()
-            .map(|v| MyComm([v.0, v.1]))
-            .collect();
-
-        AggregatedCommitments {
-            commitments,
-            signature: signature(signature_id),
-        }
-    }
-
-    #[test]
-    fn simple() {
-        // aggregator with threshold 1
-        let mut aggregator = Aggregator::new(1);
-
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
-
-        assert_eq!(root.signatures.len(), 1);
-        assert_eq!(root.commitments.len(), 1);
-
-        // aggregator with threshold 1
-        let mut aggregator = Aggregator::new(1);
-
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(1), gen_commitment(1, vec![(1, 1), (2, 2)]));
-
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
-
-        assert_eq!(root.signatures.len(), 1);
-
-        // should be latest commitment
-        assert_eq!(root.commitments.len(), 2);
-    }
-
-    #[test]
-    fn more_threshold() {
-        // aggregator with threshold 2
-        let mut aggregator = Aggregator::new(2);
-
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
-
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
-
-        assert_eq!(root.signatures.len(), 2);
-        assert_eq!(root.commitments.len(), 1); // only (1, 1) is committed by both aggregators
-
-        // aggregator with threshold 2
-        let mut aggregator = Aggregator::new(2);
-
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1), (2, 2)]));
-
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
-
-        assert_eq!(root.signatures.len(), 2);
-        assert_eq!(root.commitments.len(), 2); // both (1, 1) and (2, 2) is committed by both aggregators
-    }
-}
+//         assert_eq!(root.signatures.len(), 2);
+//         assert_eq!(root.commitments.len(), 2); // both (1, 1) and (2, 2) is committed by both aggregators
+//     }
+// }

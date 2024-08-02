@@ -16,22 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::hash;
-
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
-    BlockCommitment, CodeCommitment, Commitments,
+    BlockCommitment, CodeCommitment,
 };
-use ethexe_network::NetworkSender;
 use ethexe_sequencer::{
     AggregatedCommitments, BlockCommitmentValidationRequest, CodeCommitmentValidationRequest,
-    NetworkMessage, SeqHash,
+    SeqHash,
 };
 use ethexe_signer::{Address, PublicKey, Signature, Signer};
-use gprimitives::H256;
-use parity_scale_codec::Encode;
-use uluru::LRUCache;
 
 pub struct Config {
     pub pub_key: PublicKey,
@@ -42,8 +36,6 @@ pub struct Validator {
     pub_key: PublicKey,
     signer: Signer,
     router_address: Address,
-    signed_code_commitments: LRUCache<H256, 1000>,
-    signed_block_commitments: LRUCache<H256, 100>,
 }
 
 impl Validator {
@@ -52,8 +44,6 @@ impl Validator {
             signer,
             pub_key: config.pub_key,
             router_address: config.router_address,
-            signed_code_commitments: LRUCache::new(),
-            signed_block_commitments: LRUCache::new(),
         }
     }
 
@@ -75,22 +65,16 @@ impl Validator {
     }
 
     pub fn aggregate_codes(
-        &mut self,
+        &self,
         commitments: Vec<CodeCommitment>,
     ) -> Result<AggregatedCommitments<CodeCommitment>> {
-        for commitment in commitments.iter() {
-            self.signed_code_commitments.insert(commitment.hash());
-        }
         self.aggregate(commitments)
     }
 
     pub fn aggregate_blocks(
-        &mut self,
+        &self,
         commitments: Vec<BlockCommitment>,
     ) -> Result<AggregatedCommitments<BlockCommitment>> {
-        for commitment in commitments.iter() {
-            self.signed_block_commitments.insert(commitment.hash());
-        }
         self.aggregate(commitments)
     }
 
@@ -143,12 +127,12 @@ impl Validator {
             let outcomes = db
                 .block_outcome(block_hash)
                 .ok_or(anyhow!("block not found"))?;
-            let transitions_hash = outcomes
+            let db_transitions_hash = outcomes
                 .iter()
                 .map(SeqHash::hash)
                 .collect::<Vec<_>>()
                 .hash();
-            if transitions_hash != transitions_hash {
+            if db_transitions_hash != transitions_hash {
                 return Err(anyhow!("block transitions hash mismatch"));
             }
 
@@ -171,9 +155,8 @@ impl Validator {
 
             let mut block_hash = block_hash;
             (0..allowed_predecessor_block_height.saturating_sub(block_height))
-                .into_iter()
                 .find_map(|_| match block_hash {
-                    allowed_pred_block_hash => Some(Ok(())),
+                    _ if block_hash == allowed_pred_block_hash => Some(Ok(())),
                     _ => {
                         match db
                             .block_prev_commitment(block_hash)
