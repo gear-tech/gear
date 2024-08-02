@@ -45,7 +45,7 @@ use gear_core::{
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
+        SignalMessage, StoredDispatch, StoredMessage,
     },
     pages::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
@@ -1307,11 +1307,50 @@ impl JournalHandler for ExtManager {
         .expect("no genuine program was found");
     }
 
-    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
+        self.gas_tree
+            .system_reserve(message_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+    }
 
-    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
+    fn system_unreserve_gas(&mut self, message_id: MessageId) {
+        self.gas_tree
+            .system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+    }
 
-    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId, _code: SignalCode) {}
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+        let reserved = self
+            .gas_tree
+            .system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        if reserved != 0 {
+            log::debug!(
+                "Send signal issued by {} to {} with {} supply",
+                message_id,
+                destination,
+                reserved
+            );
+
+            let trap_signal = SignalMessage::new(message_id, code)
+                .into_dispatch(message_id, destination)
+                .into_stored();
+
+            self.gas_tree
+                .split_with_value(
+                    trap_signal.is_reply(),
+                    message_id,
+                    trap_signal.id(),
+                    reserved,
+                )
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            self.dispatches.push_back(trap_signal);
+        } else {
+            log::trace!("Signal wasn't send due to inappropriate supply");
+        }
+    }
 
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         self.gas_tree
