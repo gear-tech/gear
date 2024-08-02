@@ -15215,7 +15215,6 @@ fn handle_reply_hook() {
             false,
         ));
         let pid = get_last_program_id();
-        dbg!("program id", pid);
 
         run_to_block(2, None);
 
@@ -15242,7 +15241,6 @@ fn handle_reply_hook() {
             match msg.payload_bytes() {
                 b"for_reply_1" => {
                     // Reply to the first message
-                    dbg!("for_reply_1 => Reply");
                     assert_ok!(Gear::send_reply(
                         RuntimeOrigin::signed(USER_1),
                         msg.id(),
@@ -15254,11 +15252,9 @@ fn handle_reply_hook() {
                 }
                 b"for_reply_2" => {
                     // Don't reply, message should time out
-                    dbg!("for_reply_2 => Don't reply");
                 }
                 b"for_reply_3" => {
                     // Reply to the third message
-                    dbg!("for_reply_3 => Reply");
                     assert_ok!(Gear::send_reply(
                         RuntimeOrigin::signed(USER_1),
                         msg.id(),
@@ -15270,7 +15266,6 @@ fn handle_reply_hook() {
                 }
                 b"for_reply_4" => {
                     // reply later
-                    dbg!("for_reply_4 => Timeout");
                     timeout_msg_id = Some(msg.id());
                 }
                 _ => unreachable!(),
@@ -15301,12 +15296,10 @@ fn handle_reply_hook() {
 
         run_to_block(11, None);
 
-        dbg!("=== 11 ===");
         let messages = all_user_messages(USER_1);
         let vec: Vec<gstd::borrow::Cow<'_, str>> = messages
             .iter()
             .filter_map(|m| {
-                dbg!(m);
                 if m.details().is_some() {
                     None
                 } else {
