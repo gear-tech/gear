@@ -159,7 +159,7 @@ where
                 .unwrap_or_else(|_| {
                     let error_reply = err.to_string().into_bytes();
                     let err_msg = format!(
-                        "TaskHandler::remove_from_waitlist: failed convertion of error reply into `Payload`. \
+                        "TaskHandler::remove_from_waitlist: failed conversion of error reply into `Payload`. \
                         Error reply bytes len - {len}, max payload len - {max_len}",
                         len = error_reply.len(),
                         max_len = Payload::max_len(),
@@ -206,7 +206,7 @@ where
                     .unwrap_or_else(|_| {
                         // Signal message sent to user
                         let err_msg = format!(
-                            "TaskHandler::remove_from_waitlist: failed convertion from stored into user message. \
+                            "TaskHandler::remove_from_waitlist: failed conversion from stored into user message. \
                             Message id - {message_id}, program id - {program_id}, destination - {dest}",
                             dest = waitlisted.source()
                         );
@@ -331,7 +331,7 @@ where
         let message = message.try_into().unwrap_or_else(|_| {
             // Signal message sent to user
             let err_msg = format!(
-                "TaskHandler::send_user_message: failed convertion from stored into user message. \
+                "TaskHandler::send_user_message: failed conversion from stored into user message. \
                     Message id - {message_id}, program id - {program_id}.",
             );
 

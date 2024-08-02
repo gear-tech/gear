@@ -66,6 +66,7 @@ pub trait WeightInfo {
     fn send_reply(p: u32, ) -> Weight;
     fn claim_value_to_inheritor(d: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
+    fn load_allocations_per_interval(a: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
     fn mem_grow(r: u32, ) -> Weight;
     fn mem_grow_per_page(p: u32, ) -> Weight;
@@ -544,6 +545,18 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
             .saturating_add(Weight::from_parts(0, 1024).saturating_mul(e.into()))
+    }
+    /// The range of component `a` is `[0, 32767]`.
+    fn load_allocations_per_interval(a: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `101 + a * (8 ±0)`
+        //  Estimated: `3566 + a * (8 ±0)`
+        // Minimum execution time: 3_000_000 picoseconds.
+        Weight::from_parts(15_735_686, 3566)
+            // Standard Error: 47
+            .saturating_add(Weight::from_parts(19_766, 0).saturating_mul(a.into()))
+            .saturating_add(T::DbWeight::get().reads(1_u64))
+            .saturating_add(Weight::from_parts(0, 8).saturating_mul(a.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
@@ -2471,6 +2484,18 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(RocksDbWeight::get().writes(2_u64))
             .saturating_add(Weight::from_parts(0, 1024).saturating_mul(e.into()))
+    }
+    /// The range of component `a` is `[0, 32767]`.
+    fn load_allocations_per_interval(a: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `101 + a * (8 ±0)`
+        //  Estimated: `3566 + a * (8 ±0)`
+        // Minimum execution time: 3_000_000 picoseconds.
+        Weight::from_parts(15_735_686, 3566)
+            // Standard Error: 47
+            .saturating_add(Weight::from_parts(19_766, 0).saturating_mul(a.into()))
+            .saturating_add(RocksDbWeight::get().reads(1_u64))
+            .saturating_add(Weight::from_parts(0, 8).saturating_mul(a.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {

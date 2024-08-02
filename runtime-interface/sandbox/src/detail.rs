@@ -26,20 +26,20 @@ use sp_wasm_interface::{
     Caller, FunctionContext, HostPointer, Pointer, StoreData, Value, WordSize,
 };
 
-struct Store {
+struct Sandboxes {
     store_data_key: usize,
-    store: sandbox_env::Store<Func>,
+    store: sandbox_env::SandboxComponents<Func>,
 }
 
-impl Store {
+impl Sandboxes {
     pub fn new() -> Self {
         Self {
             store_data_key: 0,
-            store: sandbox_env::Store::new(sandbox_env::SandboxBackend::Wasmer),
+            store: sandbox_env::SandboxComponents::new(sandbox_env::SandboxBackend::Wasmer),
         }
     }
 
-    pub fn get(&mut self, store_data_key: usize) -> &mut sandbox_env::Store<Func> {
+    pub fn get(&mut self, store_data_key: usize) -> &mut sandbox_env::SandboxComponents<Func> {
         if self.store_data_key != store_data_key {
             self.store_data_key = store_data_key;
             self.store.clear();
@@ -50,7 +50,7 @@ impl Store {
 }
 
 thread_local! {
-    static SANDBOXES: RefCell<Store> = RefCell::new(Store::new());
+    static SANDBOXES: RefCell<Sandboxes> = RefCell::new(Sandboxes::new());
 }
 
 pub fn init() {
@@ -59,14 +59,14 @@ pub fn init() {
     })
 }
 
-struct SandboxContext<'a, 'b> {
+struct SupervisorContext<'a, 'b> {
     caller: &'a mut Caller<'b, StoreData>,
     dispatch_thunk: Func,
     /// Custom data to propagate it in supervisor export functions
     state: u32,
 }
 
-impl<'a, 'b> sandbox_env::SandboxContext for SandboxContext<'a, 'b> {
+impl<'a, 'b> sandbox_env::SupervisorContext for SupervisorContext<'a, 'b> {
     #[allow(clippy::needless_borrows_for_generic_args)]
     fn invoke(
         &mut self,
@@ -276,7 +276,7 @@ pub fn instantiate(
                     version,
                     wasm_code,
                     guest_env,
-                    &mut SandboxContext {
+                    &mut SupervisorContext {
                         caller,
                         dispatch_thunk,
                         state: state_ptr.into(),
@@ -316,7 +316,7 @@ pub fn invoke(
     return_val_len: u32,
     state_ptr: Pointer<u8>,
 ) -> u32 {
-    use sandbox_env::SandboxContext as _;
+    use sandbox_env::SupervisorContext as _;
 
     let mut method_result = u32::MAX;
 
@@ -346,7 +346,7 @@ pub fn invoke(
             (instance, dispatch_thunk)
         });
 
-        let mut sandbox_context = SandboxContext {
+        let mut sandbox_context = SupervisorContext {
             caller,
             dispatch_thunk,
             state: state_ptr.into(),

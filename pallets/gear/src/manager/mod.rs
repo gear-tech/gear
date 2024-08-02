@@ -64,7 +64,6 @@ use common::{
     CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::{fmt, mem};
-use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -79,7 +78,7 @@ use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
-    traits::{UniqueSaturatedInto, Zero},
+    traits::Zero,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -208,33 +207,6 @@ where
         !self.check_program_id(id)
     }
 
-    /// NOTE: By calling this function we can't differ whether `None` returned, because
-    /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
-        let code_id = active.code_hash.cast();
-
-        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-            &id.cast(),
-            Preservation::Expendable,
-            Fortitude::Polite,
-        )
-        .unique_saturated_into();
-
-        Some(Actor {
-            balance,
-            destination_program: id,
-            executable_data: ExecutableActorData {
-                allocations: active.allocations.clone(),
-                code_id,
-                code_exports: active.code_exports,
-                static_pages: active.static_pages,
-                gas_reservation_map: active.gas_reservation_map,
-                memory_infix: active.memory_infix,
-            },
-        })
-    }
-
     pub fn set_program(
         &self,
         program_id: ProgramId,
@@ -253,8 +225,7 @@ where
 
         // An empty program has been just constructed: it contains no mem allocations.
         let program = ActiveProgram {
-            allocations: Default::default(),
-            pages_with_data: Default::default(),
+            allocations_tree_len: 0,
             code_hash: code_info.id,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
@@ -380,8 +351,6 @@ where
         value_destination: ProgramId,
     ) {
         Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
-
-        ProgramStorageOf::<T>::remove_program_pages(program_id, program.memory_infix);
 
         let program_account = program_id.cast();
         let value_destination = value_destination.cast();

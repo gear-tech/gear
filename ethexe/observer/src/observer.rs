@@ -82,6 +82,8 @@ impl Observer {
                             break;
                         };
 
+                        log::trace!("Received block: {:?}", block.header.hash);
+
                         let block_header = block.header;
                         let block_hash = block_header.hash.expect("failed to get block hash");
                         let parent_hash = block_header.parent_hash;

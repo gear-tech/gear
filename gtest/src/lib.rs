@@ -507,6 +507,8 @@ pub mod constants {
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).
 
+    /// Cost of loading allocations per interval.
+    pub const LOAD_ALLOCATIONS_PER_INTERVAL: Gas = 20_000;
     /// Maximal amount of reservations program may have.
     pub const MAX_RESERVATIONS: u64 = 256;
     /// Cost of wasm module code section instantiation before execution per byte

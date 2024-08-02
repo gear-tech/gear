@@ -1843,7 +1843,7 @@ pub mod pallet {
                     .unwrap_or_else(|_| {
                         // Signal message sent to user
                         let err_msg = format!(
-                            "send_message_impl: failed convertion from stored into user message. \
+                            "send_message_impl: failed conversion from stored into user message. \
                             Message id - {message_id}, program id - {source}, destination - {destination}",
                         );
 

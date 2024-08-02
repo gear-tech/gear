@@ -34,7 +34,7 @@ use gear_wasm_instrument::{
 use wasmparser::Payload;
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGES_AMOUNT: u16 = 512;
+pub const MAX_WASM_PAGES_AMOUNT: u16 = u16::MAX / 2 + 1; // 2GB
 /// Reference type size in bytes.
 pub(crate) const REF_TYPE_SIZE: u32 = 4;
 

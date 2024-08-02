@@ -200,4 +200,8 @@ impl Packet for InitPacket {
     fn value(&self) -> Value {
         self.value
     }
+
+    fn kind() -> DispatchKind {
+        DispatchKind::Init
+    }
 }
