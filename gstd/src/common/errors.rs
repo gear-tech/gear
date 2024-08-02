@@ -172,6 +172,10 @@ pub enum UsageError {
     ZeroSystemReservationAmount,
     /// This error occurs when providing zero duration to mutex lock function
     ZeroMxLockDuration,
+    /// This error occurs when handle_reply is called without (or with zero)
+    /// reply deposit
+    /// (see [`MessageFuture::handle_reply`](crate::msg::MessageFuture::handle_reply)).
+    ZeroReplyDeposit,
 }
 
 impl fmt::Display for UsageError {
@@ -182,6 +186,9 @@ impl fmt::Display for UsageError {
                 write!(f, "System reservation amount can not be zero in config")
             }
             UsageError::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero"),
+            UsageError::ZeroReplyDeposit => {
+                write!(f, "Reply deposit can not be zero when setting reply hook")
+            }
         }
     }
 }
