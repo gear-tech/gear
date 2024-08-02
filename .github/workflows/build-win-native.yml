@@ -97,6 +97,9 @@ jobs:
           $tmp | Remove-Item
         shell: powershell
 
+      - name: "Clean up build dir"
+        run: rm -rf ./target
+
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
