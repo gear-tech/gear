@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeSet, HashMap, VecDeque},
     sync::Arc,
 };
 
@@ -96,8 +96,8 @@ impl Query {
         &mut self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<(Vec<H256>, Vec<H256>)> {
-        let total_blocks = to_block - from_block + 1;
+    ) -> Result<HashMap<H256, BlockHeader>> {
+        let total_blocks = to_block.saturating_sub(from_block) + 1;
         log::info!(
             "Starting to load {} blocks from {} to {}",
             total_blocks,
@@ -132,9 +132,9 @@ impl Query {
                     parent_hash,
                 };
 
-                database.set_block_header(block_hash, header);
+                database.set_block_header(block_hash, header.clone());
 
-                Ok::<H256, anyhow::Error>(block_hash)
+                Ok::<(H256, BlockHeader), anyhow::Error>((block_hash, header))
             })
         });
 
@@ -144,58 +144,19 @@ impl Query {
                 .await?;
 
         // Collect results
-        let mut block_hashes = Vec::new();
-        let mut committed_blocks = Vec::new();
+        let mut block_headers = HashMap::new();
         for result in futures::future::join_all(fetches).await {
-            let block_hash = result??;
+            let (block_hash, header) = result??;
             // Set block events, empty vec if no events.
             self.database.set_block_events(
                 block_hash,
                 blocks_events.remove(&block_hash).unwrap_or_default(),
             );
-            committed_blocks.extend(self.get_committed_blocks(block_hash).await?);
-            block_hashes.push(block_hash);
+            block_headers.insert(block_hash, header);
         }
-        block_hashes.reverse();
-        log::trace!("{} blocks loaded", block_hashes.len());
+        log::trace!("{} blocks loaded", block_headers.len());
 
-        Ok((block_hashes, committed_blocks))
-    }
-
-    pub async fn load_chain(&mut self, from_hash: H256) -> Result<(Vec<H256>, Vec<H256>)> {
-        let mut chain = vec![];
-        let mut committed_blocks = Vec::new();
-        let mut hash = from_hash;
-        let mut header = self.get_block_header_meta(hash).await?;
-
-        loop {
-            // If the block's end state is valid, set it as the latest valid block
-            if self
-                .database
-                .block_end_state_is_valid(hash)
-                .unwrap_or(false)
-            {
-                self.database.set_latest_valid_block_height(header.height);
-                log::trace!("Nearest valid in db block found: {hash}");
-                break;
-            }
-
-            log::trace!("Include block {hash} in chain for processing");
-            committed_blocks.extend(self.get_committed_blocks(hash).await?);
-            chain.push(hash);
-
-            match self.database.block_header(hash) {
-                Some(block_header) => {
-                    header = block_header;
-                    hash = header.parent_hash;
-                }
-                None => {
-                    hash = self.get_block_parent_hash(hash).await?;
-                }
-            }
-        }
-
-        Ok((chain, committed_blocks))
+        Ok(block_headers)
     }
 
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
@@ -219,26 +180,49 @@ impl Query {
         // Determine if deep sync is needed
         let is_deep_sync = {
             // Current block can be lower than latest valid due to reorgs.
-            let block_diff = (current_block.height as i64 - latest_valid_block_height as i64)
-                .unsigned_abs() as u32;
+            let block_diff = current_block
+                .height
+                .saturating_sub(latest_valid_block_height);
             block_diff > DEEP_SYNC
         };
 
-        // Populate db to the latest valid block.
-        let (mut chain, committed_blocks) = if is_deep_sync {
-            // Load all blocks from provider by numbers, skip latest valid.
-            self.load_chain_batch(latest_valid_block_height + 1, current_block.height)
-                .await?
-        } else {
-            // Load chain by parent hashes.
-            self.load_chain(block_hash).await?
-        };
+        let mut chain = Vec::new();
+        let mut committed_blocks = Vec::new();
+        let mut headers_map = HashMap::new();
 
-        chain.dedup();
+        if is_deep_sync {
+            // Load blocks in batch from provider by numbers.
+            headers_map = self
+                .load_chain_batch(latest_valid_block_height + 1, current_block.height)
+                .await?;
+        }
 
-        let mut hash = self
-            .get_block_parent_hash(*chain.last().expect("can't be empty; qed"))
-            .await?;
+        // Continue loading chain by parent hashes from the current block to the latest valid block.
+        let mut hash = block_hash;
+        let mut height = current_block.height;
+        while hash != self.genesis_block_hash {
+            // If the block's end state is valid, set it as the latest valid block
+            if self
+                .database
+                .block_end_state_is_valid(hash)
+                .unwrap_or(false)
+            {
+                self.database.set_latest_valid_block_height(height);
+                log::trace!("Nearest valid in db block found: {hash}");
+                break;
+            }
+
+            log::trace!("Include block {hash} in chain for processing");
+            committed_blocks.extend(self.get_committed_blocks(hash).await?);
+            chain.push(hash);
+
+            // Fetch parent hash from headers_map or database
+            hash = match headers_map.get(&hash) {
+                Some(header) => header.parent_hash,
+                None => self.get_block_parent_hash(hash).await?,
+            };
+            height -= 1;
+        }
 
         let mut actual_commitment_queue: VecDeque<H256> = self
             .database
