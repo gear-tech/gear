@@ -22,7 +22,7 @@ use crate::GAS_MULTIPLIER;
 use gear_common::{
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
     gas_provider::{ConsumeResultOf, GasNodeId, Provider, ReservableTree, Tree},
-    Gas, Origin
+    Gas, Origin,
 };
 use gear_core::ids::{MessageId, ProgramId, ReservationId};
 

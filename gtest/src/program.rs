@@ -886,7 +886,7 @@ mod tests {
     use super::Program;
 
     use crate::{Log, ProgramIdWrapper, System};
-    use demo_constructor::{Scheme, Arg};
+    use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
 
     use gear_core::ids::ActorId;
