@@ -103,6 +103,7 @@ impl Service {
                         ethereum_rpc: config.ethereum_rpc.clone(),
                         sign_tx_public: key,
                         router_address: config.ethereum_router_address,
+                        validators: config.validators.clone(),
                     },
                     signer.clone(),
                 )
@@ -771,6 +772,7 @@ mod tests {
                 "dev".to_string(),
             )),
             rpc_port: Some(9090),
+            validators: Default::default(),
         })
         .await
         .unwrap();
@@ -793,6 +795,7 @@ mod tests {
             net_config: None,
             prometheus_config: None,
             rpc_port: None,
+            validators: Default::default(),
         })
         .await
         .unwrap();

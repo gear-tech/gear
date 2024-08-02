@@ -252,6 +252,7 @@ impl TestEnv {
                 ethereum_rpc: self.rpc_url.clone(),
                 sign_tx_public: self.sequencer_public_key,
                 router_address: self.router_address,
+                validators: vec![self.validator_public_key.to_address()],
             },
             self.signer.clone(),
         )

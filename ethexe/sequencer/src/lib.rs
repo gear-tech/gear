@@ -37,6 +37,7 @@ pub struct Config {
     pub ethereum_rpc: String,
     pub sign_tx_public: PublicKey,
     pub router_address: Address,
+    pub validators: Vec<Address>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -153,7 +154,7 @@ impl Sequencer {
                 config.sign_tx_public.to_address(),
             )
             .await?,
-            validators: Default::default(),
+            validators: config.validators.iter().cloned().collect(),
             threshold: 1,
             code_commitments: BTreeMap::new(),
             block_commitments: BTreeMap::new(),

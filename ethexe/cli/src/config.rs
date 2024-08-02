@@ -125,6 +125,9 @@ pub struct Config {
 
     /// RPC port
     pub rpc_port: Option<u16>,
+
+    /// Validators to use
+    pub validators: Vec<Address>,
 }
 
 impl TryFrom<Args> for Config {
@@ -185,6 +188,17 @@ impl TryFrom<Args> for Config {
             "random key for validator is only allowed with `--tmp` flag"
         );
 
+        let mut validators = Vec::new();
+        for res in args
+            .validators
+            .unwrap_or_default()
+            .into_iter()
+            .map(|s| Address::from_str(s.as_str()))
+        {
+            let address = res.map_err(|e| anyhow::anyhow!("invalid validator address: {}", e))?;
+            validators.push(address);
+        }
+
         Ok(Config {
             node_name: args.node_name,
             ethereum_rpc: args.ethereum_rpc,
@@ -206,6 +220,7 @@ impl TryFrom<Args> for Config {
                 params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
             }),
             rpc_port: args.rpc_port,
+            validators,
         })
     }
 }
