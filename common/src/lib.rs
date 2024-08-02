@@ -23,6 +23,8 @@
 #[macro_use]
 extern crate gear_common_codegen;
 
+#[cfg(feature = "std")]
+pub mod auxiliary;
 pub mod event;
 pub mod scheduler;
 pub mod storage;
@@ -32,9 +34,6 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
 pub mod program_storage;
 pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
-
-pub mod paused_program_storage;
-pub use paused_program_storage::PausedProgramStorage;
 
 pub mod gas_provider;
 
@@ -54,12 +53,11 @@ use frame_support::{
     },
     traits::Get,
 };
-use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+pub use gear_core::{
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    pages::{GearPage, WasmPage},
+    pages::GearPage,
     program::{ActiveProgram, MemoryInfix, Program},
-    reservation::GasReservationMap,
 };
 use primitive_types::H256;
 use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
@@ -67,10 +65,7 @@ use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
 };
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use storage::ValueStorage;
 extern crate alloc;
@@ -146,6 +141,16 @@ impl Origin for ProgramId {
 }
 
 impl Origin for CodeId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for ReservationId {
     fn into_origin(self) -> H256 {
         H256(self.into())
     }

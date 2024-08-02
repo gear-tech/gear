@@ -26,6 +26,7 @@ use ark_ec::{pairing::Pairing, short_weierstrass::SWCurveConfig, Group, ScalarMu
 use ark_ff::biginteger::BigInt;
 use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
+use common::Origin;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use gear_core::message::MAX_PAYLOAD_SIZE;
 use parity_scale_codec::{Compact, Encode, Input};
@@ -49,6 +50,7 @@ benchmarks! {
     where_clause {
         where
             T: pallet_gear::Config,
+            T::AccountId: Origin,
     }
 
     calculate_id {
@@ -253,6 +255,38 @@ benchmarks! {
         let result = ArkScaleProjective::<G2>::decode(&mut &encoded[..]).unwrap();
         let standard = <ark_bls12_381::g2::Config as SWCurveConfig>::mul_projective(&base, &bigint);
         assert_eq!(standard, result.0);
+    }
+
+    bls12_381_aggregate_g1 {
+        let c in 1 .. 1_000;
+
+        let count = c as usize;
+
+        let mut rng = ark_std::test_rng();
+
+        let points = (0..count).map(|_| G1::rand(&mut rng)).collect::<Vec<_>>();
+        let ark_points: ArkScale<Vec<G1>> = points.clone().into();
+        let encoded_points = ark_points.encode();
+
+        let mut _result = Err(0);
+    }: {
+        _result = gear_runtime_interface::gear_bls_12_381::aggregate_g1(&encoded_points);
+    } verify {
+        assert!(
+            matches!(_result, Ok(result) if ArkScale::<G1>::decode(&mut &result[..]).is_ok())
+        );
+    }
+
+    bls12_381_map_to_g2affine {
+        let c in 0 .. MAX_PAYLOAD_SIZE as u32;
+
+        let message = vec![1u8; c as usize];
+
+        let mut _result = Err(0);
+    }: {
+        _result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(&message);
+    } verify {
+        assert!(ArkScale::<G2Affine>::decode(&mut &_result.unwrap()[..]).is_ok())
     }
 }
 

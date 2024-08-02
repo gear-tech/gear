@@ -23,7 +23,7 @@ use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU32, ConstU64, FindAuthor, Get},
+    traits::{ConstU64, FindAuthor, Get, OnUnbalanced},
     PalletId,
 };
 use frame_support_test::TestRandomness;
@@ -44,6 +44,7 @@ pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
+type CreditOf<T> = fungible::Credit<<T as frame_system::Config>::AccountId, Balances>;
 
 pub(crate) const USER_1: AccountId = 1;
 pub(crate) const USER_2: AccountId = 2;
@@ -51,6 +52,7 @@ pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 pub(crate) const RENT_POOL: AccountId = 256;
+pub(crate) const DUST_TRAP_TARGET: AccountId = 999;
 
 macro_rules! dry_run {
     (
@@ -93,9 +95,19 @@ pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
 pallet_gear::impl_config!(Test, Schedule = DynamicSchedule, RentPoolId = ConstU64<RENT_POOL>);
 pallet_gear_gas::impl_config!(Test);
-common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
+
+pub struct DustTrap;
+
+impl OnUnbalanced<CreditOf<Test>> for DustTrap {
+    fn on_nonzero_unbalanced(amount: CreditOf<Test>) {
+        let result = <Balances as fungible::Balanced<_>>::resolve(&DUST_TRAP_TARGET, amount);
+        debug_assert!(result.is_ok());
+    }
+}
+
+common::impl_pallet_balances!(Test, DustRemoval = DustTrap);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
@@ -160,7 +172,7 @@ impl Drop for DynamicScheduleReset {
 
 parameter_types! {
     pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(1);
     pub const MinVoucherDuration: BlockNumber = 5;
     pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
@@ -196,6 +208,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BLOCK_AUTHOR, 500_000_u128),
             (RENT_POOL, ExistentialDeposit::get()),
             (BankAddress::get(), ExistentialDeposit::get()),
+            (DUST_TRAP_TARGET, ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

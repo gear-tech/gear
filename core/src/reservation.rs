@@ -22,9 +22,8 @@ use crate::{
     ids::{prelude::*, MessageId, ReservationId},
     message::IncomingDispatch,
 };
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
-use hashbrown::HashMap;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -51,7 +50,7 @@ impl From<&InnerNonce> for ReservationNonce {
 
 /// A changeable wrapper over u64 value, which is required
 /// to be used as an "active" reservations nonce in a gas reserver.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 struct InnerNonce(u64);
 
 impl InnerNonce {
@@ -74,7 +73,7 @@ impl From<ReservationNonce> for InnerNonce {
 /// Gas reserver.
 ///
 /// Controls gas reservations states.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct GasReserver {
     /// Message id within which reservations are created
     /// by the current instance of [`GasReserver`].
@@ -102,7 +101,7 @@ impl GasReserver {
     /// Creates a new gas reserver.
     ///
     /// `map`, which is a [`BTreeMap`] of [`GasReservationSlot`]s,
-    /// will be converted to the [`HashMap`] of [`GasReservationState`]s.
+    /// will be converted to the [`BTreeMap`] of [`GasReservationState`]s.
     pub fn new(
         incoming_dispatch: &IncomingDispatch,
         map: GasReservationMap,
@@ -119,7 +118,7 @@ impl GasReserver {
             message_id,
             nonce,
             states: {
-                let mut states = HashMap::with_capacity(max_reservations as usize);
+                let mut states = BTreeMap::new();
                 states.extend(map.into_iter().map(|(id, slot)| (id, slot.into())));
                 states
             },
@@ -185,10 +184,15 @@ impl GasReserver {
         );
 
         if maybe_reservation.is_some() {
-            unreachable!(
-                "Duplicate reservation was created with message id {} and nonce {}",
-                self.message_id, self.nonce.0,
+            let err_msg = format!(
+                "GasReserver::reserve: created a duplicate reservation. \
+                Message id  - {message_id}, nonce - {nonce}",
+                message_id = self.message_id,
+                nonce = self.nonce.0
             );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         Ok(id)
@@ -239,6 +243,15 @@ impl GasReserver {
     /// for sending a new message from execution of `message_id`
     /// of current gas reserver.
     pub fn mark_used(&mut self, id: ReservationId) -> Result<(), ReservationError> {
+        let used = self.check_not_used(id)?;
+        *used = true;
+        Ok(())
+    }
+
+    /// Check if reservation is not used.
+    ///
+    /// If reservation does not exist returns `InvalidReservationId` error.
+    pub fn check_not_used(&mut self, id: ReservationId) -> Result<&mut bool, ReservationError> {
         if let Some(
             GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
         ) = self.states.get_mut(&id)
@@ -246,8 +259,7 @@ impl GasReserver {
             if *used {
                 Err(ReservationError::InvalidReservationId)
             } else {
-                *used = true;
-                Ok(())
+                Ok(used)
             }
         } else {
             Err(ReservationError::InvalidReservationId)
@@ -309,12 +321,12 @@ impl GasReserver {
 }
 
 /// Gas reservations states.
-pub type GasReservationStates = HashMap<ReservationId, GasReservationState>;
+pub type GasReservationStates = BTreeMap<ReservationId, GasReservationState>;
 
 /// Gas reservation state.
 ///
 /// Used to control whether reservation was created, removed or nothing happened.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
 pub enum GasReservationState {
     /// Reservation exists.
     Exists {

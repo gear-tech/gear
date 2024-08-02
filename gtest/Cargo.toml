@@ -1,6 +1,7 @@
 [package]
 name = "gtest"
 description = "Testing utils for developing Gear programs."
+documentation = "https://docs.rs/gtest"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -8,6 +9,7 @@ license.workspace = true
 
 [dependencies]
 gear-core.workspace = true
+gear-common = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
 core-processor = { workspace = true, features = ["std"] }
 gear-lazy-pages.workspace = true
@@ -20,7 +22,7 @@ gsys.workspace = true
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 colored.workspace = true
-derive_more = { workspace = true, features = ["add", "add_assign", "display", "mul", "mul_assign"] }
+derive_more = { workspace = true, features = ["add","add_assign","display","mul","mul_assign"] }
 env_logger.workspace = true
 path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }

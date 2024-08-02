@@ -65,7 +65,6 @@ macro_rules! debug {
 ///
 /// Similar to the standard library's
 /// [`dbg!`](https://doc.rust-lang.org/std/macro.dbg.html) macro.
-#[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! dbg {
     () => {
@@ -88,11 +87,4 @@ macro_rules! dbg {
     ($($val:expr),+ $(,)?) => {
         ($($crate::dbg!($val)),+,)
     };
-}
-
-#[cfg(not(any(feature = "debug", debug_assertions)))]
-#[allow(missing_docs)]
-#[macro_export]
-macro_rules! dbg {
-    ($($arg:tt)*) => {};
 }

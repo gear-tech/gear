@@ -220,7 +220,6 @@ fn page_costs_heuristic_test() {
     let expected_page_costs = PagesCosts {
         load_page_data: 10_000_000.into(),
         upload_page_data: 105_000_000.into(),
-        static_page: 100.into(),
         mem_grow: 800_000.into(),
         mem_grow_per_page: 0.into(),
         parachain_read_heuristic: 0.into(),

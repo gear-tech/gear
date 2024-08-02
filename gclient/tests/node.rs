@@ -22,6 +22,7 @@ async fn program_migrated_to_another_node() {
     const INIT_VALUE_PAYLOAD: u64 = 42;
     const MULTIPLICATOR_VALUE_PAYLOAD: u64 = 4;
     const PROGRAM_FUNDS: u128 = 25_000_000_000_000;
+    const ED: u128 = 1_000_000_000_000;
 
     // Arrange
 
@@ -80,7 +81,7 @@ async fn program_migrated_to_another_node() {
         .free_balance(dest_program_id)
         .await
         .expect("Unable to get destination program funds");
-    assert_eq!(dest_program_funds, PROGRAM_FUNDS);
+    assert_eq!(dest_program_funds, PROGRAM_FUNDS + ED);
 
     let dest_program_reply = dest_node_listener
         .reply_bytes_on(message_id)

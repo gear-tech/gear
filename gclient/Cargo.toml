@@ -1,6 +1,7 @@
 [package]
 name = "gclient"
 description = "API client for Gear node in Rust"
+documentation = "https://docs.rs/gclient"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -11,6 +12,7 @@ repository.workspace = true
 [dependencies]
 gear-utils.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
+gear-node-wrapper.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 

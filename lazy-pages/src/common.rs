@@ -30,7 +30,7 @@ use std::{fmt, mem, num::NonZeroU32};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub(crate) enum Error {
+pub enum Error {
     #[display(fmt = "Accessed memory interval is out of wasm memory")]
     OutOfWasmMemoryAccess,
     #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]

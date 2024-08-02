@@ -52,12 +52,12 @@ fn test_compile() -> Result<()> {
 
     // 1. Test single package build.
     let mut gbuild = GBuild::default().manifest_path(root);
-    let artifacts = gbuild.run()?;
+    let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_program.wasm"));
 
     // 2. Test workspace build.
     gbuild = gbuild.workspace();
-    let artifacts = gbuild.run()?;
+    let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
     let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
 
@@ -76,17 +76,26 @@ fn test_program_tests() {
     // This is momently only for adapting the environment (nightly)
     // of our CI.
     {
-        let toolchains = Command::new("rustup")
-            .args(["toolchain", "list"])
+        let targets = Command::new("rustup")
+            .args(["target", "list", "--toolchain", "stable"])
             .output()
             .expect("Failed to list rust toolchains")
             .stdout;
 
-        if !String::from_utf8_lossy(&toolchains).contains("stable") {
-            Command::new("rustup")
-                .args(["install", "stable"])
+        if !String::from_utf8_lossy(&targets).contains("wasm32-unknown-unknown (installed)") {
+            assert!(Command::new("rustup")
+                .args([
+                    "toolchain",
+                    "install",
+                    "stable",
+                    "--component",
+                    "llvm-tools",
+                    "--target",
+                    "wasm32-unknown-unknown",
+                ])
                 .status()
-                .expect("Failed to install stable toolchain");
+                .expect("Failed to install stable toolchain")
+                .success());
         }
     }
 

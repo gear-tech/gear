@@ -19,7 +19,7 @@
 //! Module for instrumented code.
 
 use crate::{
-    code::CodeAndId,
+    code::{Code, CodeAndId},
     ids::CodeId,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
@@ -30,6 +30,38 @@ use scale_info::{
     TypeInfo,
 };
 
+/// Instantiated section sizes for charging during module instantiation.
+/// By "instantiated sections sizes" we mean the size of the section representation in the executor
+/// during module instantiation.
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+pub struct InstantiatedSectionSizes {
+    /// Code section size in bytes.
+    pub code_section: u32,
+    /// Data section size in bytes based on the number of heuristic memory pages
+    /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
+    pub data_section: u32,
+    /// Global section size in bytes.
+    pub global_section: u32,
+    /// Table section size in bytes.
+    pub table_section: u32,
+    /// Element section size in bytes.
+    pub element_section: u32,
+    /// Type section size in bytes.
+    pub type_section: u32,
+}
+
+impl InstantiatedSectionSizes {
+    /// Returns an empty instance of the section sizes.
+    pub const EMPTY: Self = Self {
+        code_section: 0,
+        data_section: 0,
+        global_section: 0,
+        table_section: 0,
+        element_section: 0,
+        type_section: 0,
+    };
+}
+
 /// The newtype contains the instrumented code and the corresponding id (hash).
 #[derive(Clone, Debug, Decode, Encode, TypeInfo)]
 pub struct InstrumentedCode {
@@ -38,6 +70,7 @@ pub struct InstrumentedCode {
     pub(crate) exports: BTreeSet<DispatchKind>,
     pub(crate) static_pages: WasmPagesAmount,
     pub(crate) stack_end: Option<WasmPage>,
+    pub(crate) instantiated_section_sizes: InstantiatedSectionSizes,
     pub(crate) version: u32,
 }
 
@@ -53,6 +86,7 @@ impl InstrumentedCode {
         exports: BTreeSet<DispatchKind>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
+        instantiated_section_sizes: InstantiatedSectionSizes,
         version: u32,
     ) -> Self {
         Self {
@@ -61,6 +95,7 @@ impl InstrumentedCode {
             exports,
             static_pages,
             stack_end,
+            instantiated_section_sizes,
             version,
         }
     }
@@ -95,9 +130,20 @@ impl InstrumentedCode {
         self.stack_end
     }
 
+    /// Returns instantiated section sizes used for charging during module instantiation.
+    pub fn instantiated_section_sizes(&self) -> &InstantiatedSectionSizes {
+        &self.instantiated_section_sizes
+    }
+
     /// Consumes the instance and returns the instrumented code.
     pub fn into_code(self) -> Vec<u8> {
         self.code
+    }
+}
+
+impl From<Code> for InstrumentedCode {
+    fn from(code: Code) -> Self {
+        code.into_parts().0
     }
 }
 

@@ -32,6 +32,7 @@ impl sc_executor::NativeExecutionDispatch for LocalExecutorDispatch {
         gear_runtime_interface::gear_ri::HostFunctions,
         gear_runtime_interface::sandbox::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
+        gear_runtime_interface::gear_bls_12_381::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -62,9 +63,14 @@ pub struct GenesisParameters;
 
 impl substrate_test_client::GenesisInit for GenesisParameters {
     fn genesis_storage(&self) -> Storage {
-        crate::genesis::genesis_config(None)
-            .build_storage()
-            .unwrap()
+        let mut storage = crate::genesis::genesis_config().build_storage().unwrap();
+        storage.top.insert(
+			sp_core::storage::well_known_keys::CODE.to_vec(),
+			vara_runtime::WASM_BINARY.expect(
+                "Development wasm is not available. Rebuild with the `SKIP_WASM_BUILD` flag disabled.",
+            ).into(),
+		);
+        storage
     }
 }
 

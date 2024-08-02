@@ -20,10 +20,10 @@ use crate::program::{Gas, ProgramIdWrapper};
 use codec::{Codec, Encode};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Payload, StoredMessage},
+    message::{Payload, StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
-use std::{convert::TryInto, fmt::Debug};
+use std::{collections::BTreeMap, convert::TryInto, fmt::Debug};
 
 /// A log that emitted by a program, for user defined logs,
 /// see [`Log`].
@@ -151,11 +151,11 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Log {
-    source: Option<ProgramId>,
-    destination: Option<ProgramId>,
-    payload: Option<Payload>,
-    reply_code: Option<ReplyCode>,
-    reply_to: Option<MessageId>,
+    pub(crate) source: Option<ProgramId>,
+    pub(crate) destination: Option<ProgramId>,
+    pub(crate) payload: Option<Payload>,
+    pub(crate) reply_code: Option<ReplyCode>,
+    pub(crate) reply_to: Option<MessageId>,
 }
 
 impl<ID, T> From<(ID, T)> for Log
@@ -283,22 +283,32 @@ impl Log {
     }
 }
 
-impl PartialEq<StoredMessage> for Log {
-    fn eq(&self, other: &StoredMessage) -> bool {
-        if matches!(other.reply_details(), Some(reply) if Some(reply.to_reply_code()) != self.reply_code)
-        {
-            return false;
-        }
+impl PartialEq<UserStoredMessage> for Log {
+    fn eq(&self, other: &UserStoredMessage) -> bool {
+        // Any log field is set.
+        let has_any = self.source.is_some()
+            || self.destination.is_some()
+            || self.payload.is_some()
+            || self.reply_to.is_some();
+
+        // If any of log field doesn't match, then there's no equality.
         if matches!(self.source, Some(source) if source != other.source()) {
             return false;
         }
+
         if matches!(self.destination, Some(dest) if dest != other.destination()) {
             return false;
         }
+
         if matches!(&self.payload, Some(payload) if payload.inner() != other.payload_bytes()) {
             return false;
         }
-        true
+
+        if matches!(self.reply_to, Some(reply_to) if reply_to != other.id()) {
+            return false;
+        }
+
+        has_any
     }
 }
 
@@ -371,7 +381,7 @@ pub struct RunResult {
     pub(crate) message_id: MessageId,
     pub(crate) total_processed: u32,
     pub(crate) main_gas_burned: Gas,
-    pub(crate) others_gas_burned: Gas,
+    pub(crate) others_gas_burned: BTreeMap<u32, Gas>,
 }
 
 impl RunResult {
@@ -413,8 +423,8 @@ impl RunResult {
     }
 
     /// Get the total gas burned by the other messages.
-    pub fn others_gas_burned(&self) -> Gas {
-        self.others_gas_burned
+    pub fn others_gas_burned(&self) -> &BTreeMap<u32, Gas> {
+        &self.others_gas_burned
     }
 
     /// Returns decoded logs.

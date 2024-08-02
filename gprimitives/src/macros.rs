@@ -58,10 +58,16 @@ macro_rules! impl_primitive {
         }
     };
     (@from_h256 $ty:ty) => {
-        #[cfg(feature = "codec")]
         impl From<H256> for $ty {
             fn from(h256: H256) -> Self {
                 Self::new(h256.to_fixed_bytes())
+            }
+        }
+    };
+    (@into_h256 $ty:ty) => {
+        impl From<$ty> for H256 {
+            fn from(value: $ty) -> Self {
+                Self(value.0)
             }
         }
     };

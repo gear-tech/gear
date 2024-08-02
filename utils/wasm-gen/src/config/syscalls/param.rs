@@ -97,6 +97,7 @@ impl SyscallsParamsConfig {
                 range,
             })
             .with_ptr_rule(PtrParamAllowedValues::ReservationId)
+            .with_ptr_rule(PtrParamAllowedValues::WaitedMessageId)
     }
 
     /// Set rules for a regular syscall param.
@@ -127,6 +128,7 @@ impl SyscallsParamsConfig {
             }
             PtrParamAllowedValues::ReservationId => Ptr::Hash(HashType::ReservationId),
             PtrParamAllowedValues::CodeIdsWithValue { .. } => Ptr::HashWithValue(HashType::CodeId),
+            PtrParamAllowedValues::WaitedMessageId => Ptr::Hash(HashType::MessageId),
         };
 
         self.ptr.insert(ptr, allowed_values);
@@ -272,6 +274,8 @@ pub enum PtrParamAllowedValues {
         code_ids: NonEmpty<CodeId>,
         range: RangeInclusive<u128>,
     },
+    /// Variant of `Ptr::Hash` pointer type, where hash is waited message id.
+    WaitedMessageId,
 }
 
 /// Actor kind, which is actually a syscall destination choice.

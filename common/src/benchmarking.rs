@@ -22,6 +22,7 @@ use gear_core::{
     ids::prelude::*,
     pages::{WasmPage, WasmPagesAmount},
     program::{MemoryInfix, ProgramState},
+    reservation::GasReservationMap,
 };
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
@@ -127,8 +128,7 @@ pub fn set_program<ProgramStorage, BlockNumber>(
     ProgramStorage::add_program(
         program_id,
         ActiveProgram {
-            allocations: Default::default(),
-            pages_with_data: Default::default(),
+            allocations_tree_len: 0,
             code_hash: CodeId::generate(&code).into_origin(),
             code_exports: Default::default(),
             static_pages,

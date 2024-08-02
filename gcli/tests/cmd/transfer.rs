@@ -30,7 +30,7 @@ async fn test_command_transfer_works() -> Result<()> {
     let node = common::dev()?;
 
     // Get balance of the testing address
-    let signer = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
+    let signer = Api::new(node.ws().as_str()).await?.signer(SURI, None)?;
     let before = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
 
     // Run command transfer

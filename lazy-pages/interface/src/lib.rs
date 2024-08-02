@@ -22,6 +22,8 @@
 
 extern crate alloc;
 
+pub use gear_lazy_pages_common::LazyPagesInterface;
+
 use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
 use gear_core::{
@@ -31,8 +33,7 @@ use gear_core::{
     program::MemoryInfix,
 };
 use gear_lazy_pages_common::{
-    GlobalsAccessConfig, LazyPagesCosts, LazyPagesInitContext, LazyPagesInterface,
-    ProcessAccessError, Status,
+    GlobalsAccessConfig, LazyPagesCosts, LazyPagesInitContext, ProcessAccessError, Status,
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::{mem, vec::Vec};

@@ -131,6 +131,8 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+extern crate alloc;
+
 use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
@@ -144,12 +146,7 @@ pub mod pallet_tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{
-        paused_program_storage::{ResumeSession, SessionId},
-        scheduler::*,
-        storage::*,
-        CodeMetadata,
-    };
+    use common::{scheduler::*, storage::*, CodeMetadata};
     use frame_support::{
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
@@ -161,14 +158,13 @@ pub mod pallet {
         code::InstrumentedCode,
         ids::{CodeId, ProgramId},
         memory::PageBuf,
-        pages::GearPage,
+        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, Program},
     };
-    use primitive_types::H256;
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(10);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -192,11 +188,7 @@ pub mod pallet {
         ProgramNotFound,
         NotActiveProgram,
         CannotFindDataForPage,
-        ResumeSessionNotFound,
-        NotSessionOwner,
-        ResumeSessionFailed,
         ProgramCodeNotFound,
-        DuplicateResumeSession,
     }
 
     impl<T: Config> common::ProgramStorageError for Error<T> {
@@ -216,24 +208,8 @@ pub mod pallet {
             Self::CannotFindDataForPage
         }
 
-        fn resume_session_not_found() -> Self {
-            Self::ResumeSessionNotFound
-        }
-
-        fn not_session_owner() -> Self {
-            Self::NotSessionOwner
-        }
-
-        fn resume_session_failed() -> Self {
-            Self::ResumeSessionFailed
-        }
-
         fn program_code_not_found() -> Self {
             Self::ProgramCodeNotFound
-        }
-
-        fn duplicate_resume_session() -> Self {
-            Self::DuplicateResumeSession
         }
     }
 
@@ -282,6 +258,18 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
+    pub(crate) type AllocationsStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, IntervalsTree<WasmPage>>;
+
+    common::wrap_storage_map!(
+        storage: AllocationsStorage,
+        name: AllocationsStorageWrap,
+        key: ProgramId,
+        value: IntervalsTree<WasmPage>
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
         StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 
@@ -313,42 +301,6 @@ pub mod pallet {
         value: PageBuf
     );
 
-    #[pallet::storage]
-    pub(crate) type PausedProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
-
-    common::wrap_storage_map!(
-        storage: PausedProgramStorage,
-        name: PausedProgramStorageWrap,
-        key: ProgramId,
-        value: (BlockNumberFor<T>, H256)
-    );
-
-    #[pallet::storage]
-    pub(crate) type ResumeSessionsNonce<T> = StorageValue<_, SessionId>;
-
-    common::wrap_storage_value!(
-        storage: ResumeSessionsNonce,
-        name: ResumeSessionsNonceWrap,
-        value: SessionId
-    );
-
-    #[pallet::storage]
-    #[pallet::unbounded]
-    pub(crate) type ResumeSessions<T: Config> = StorageMap<
-        _,
-        Identity,
-        SessionId,
-        ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>,
-    >;
-
-    common::wrap_storage_map!(
-        storage: ResumeSessions,
-        name: ResumeSessionsWrap,
-        key: SessionId,
-        value: ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>
-    );
-
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
         type InstrumentedLenStorage = CodeLenStorageWrap<T>;
@@ -362,19 +314,13 @@ pub mod pallet {
         type BlockNumber = BlockNumberFor<T>;
         type AccountId = T::AccountId;
 
+        type AllocationsMap = AllocationsStorageWrap<T>;
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
 
         fn pages_final_prefix() -> [u8; 32] {
             MemoryPages::<T>::final_prefix()
         }
-    }
-
-    impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
-        type PausedProgramMap = PausedProgramStorageWrap<T>;
-        type CodeStorage = Self;
-        type NonceStorage = ResumeSessionsNonceWrap<T>;
-        type ResumeSessions = ResumeSessionsWrap<T>;
     }
 
     impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {

@@ -18,7 +18,10 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{api::Result, GearApi};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId},
+    message::ReplyInfo,
+};
 use gsdk::{ext::sp_core::H256, GasInfo};
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
@@ -438,6 +441,50 @@ impl GearApi {
             .api()
             .rpc()
             .request(method, params)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Execute an RPC call is used to figure out the reply on calling
+    /// `Gear::send_message(..)`.
+    ///
+    /// Actually sends the `gear_calculateReplyForHandle` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `destination` is the program address;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `gas_limit`: maximum amount of gas the program can spend before it is
+    ///   halted.
+    /// - `value` to be transferred to the program's account;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
+    pub async fn calculate_reply_for_handle(
+        &self,
+        origin: Option<H256>,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    ) -> Result<ReplyInfo> {
+        self.calculate_reply_for_handle_at(origin, destination, payload, gas_limit, value, None)
+            .await
+    }
+
+    /// Same as [`calculate_reply_for_handle`](Self::calculate_reply_for_handle), but
+    /// calculates the gas at the block identified by its hash.
+    pub async fn calculate_reply_for_handle_at(
+        &self,
+        origin: Option<H256>,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        at: Option<H256>,
+    ) -> Result<ReplyInfo> {
+        self.0
+            .rpc
+            .calculate_reply_for_handle(origin, destination, payload, gas_limit, value, at)
             .await
             .map_err(Into::into)
     }

@@ -30,22 +30,32 @@ use gear_core::{
     memory::{HostPointer, MemoryInterval},
     str::LimitedStr,
 };
-#[cfg(feature = "std")]
-use gear_lazy_pages::LazyPagesStorage;
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
 use sp_std::{convert::TryFrom, mem, result::Result, vec::Vec};
-
-mod gear_sandbox;
-
 #[cfg(feature = "std")]
-pub use gear_sandbox::init as sandbox_init;
-pub use gear_sandbox::sandbox;
+use {
+    ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
+    ark_ec::{
+        bls12::Bls12Config,
+        hashing::{curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
+    },
+    ark_ff::fields::field_hashers::DefaultFieldHasher,
+    ark_scale::ArkScale,
+    gear_lazy_pages::LazyPagesStorage,
+};
+
+pub use gear_sandbox_interface::sandbox;
+#[cfg(feature = "std")]
+pub use gear_sandbox_interface::{detail as sandbox_detail, init as sandbox_init, Instantiate};
 
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
+
+// Domain Separation Tag for signatures on G2.
+pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
@@ -127,14 +137,6 @@ impl LazyPagesStorage for SpIoProgramStorage {
     }
 }
 
-fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
-    let mem_interval_size = mem::size_of::<MemoryInterval>();
-    for chunk in bytes.chunks_exact(mem_interval_size) {
-        // can't panic because of chunks_exact
-        intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());
-    }
-}
-
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
 pub enum ProcessAccessErrorVer1 {
@@ -147,6 +149,43 @@ pub enum ProcessAccessErrorVer1 {
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    #[version(2)]
+    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
+        lazy_pages_detail::pre_process_memory_accesses(reads, writes, gas_bytes)
+    }
+
+    fn lazy_pages_status() -> (Status,) {
+        lazy_pages_detail::lazy_pages_status()
+    }
+
+    /// Init lazy-pages.
+    /// Returns whether initialization was successful.
+    fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
+        lazy_pages_detail::init_lazy_pages(ctx)
+    }
+
+    /// Init lazy pages context for current program.
+    /// Panic if some goes wrong during initialization.
+    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+        lazy_pages_detail::init_lazy_pages_for_program(ctx)
+    }
+
+    /// Mprotect all wasm mem buffer except released pages.
+    /// If `protect` argument is true then restrict all accesses to pages,
+    /// else allows read and write accesses.
+    fn mprotect_lazy_pages(protect: bool) {
+        lazy_pages_detail::mprotect_lazy_pages(protect)
+    }
+
+    fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
+        lazy_pages_detail::change_wasm_memory_addr_and_size(addr, size)
+    }
+
+    fn write_accessed_pages() -> Vec<u32> {
+        lazy_pages_detail::write_accessed_pages()
+    }
+
+    /* Bellow goes deprecated runtime interface functions. */
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
@@ -177,9 +216,13 @@ pub trait GearRI {
             }
         }
     }
+}
 
-    #[version(2)]
-    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
+#[cfg(feature = "std")]
+pub mod lazy_pages_detail {
+    use super::*;
+
+    pub fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
         let mem_interval_size = mem::size_of::<MemoryInterval>();
         let reads_len = reads.len();
         let writes_len = writes.len();
@@ -205,14 +248,14 @@ pub trait GearRI {
         res
     }
 
-    fn lazy_pages_status() -> (Status,) {
+    pub fn lazy_pages_status() -> (Status,) {
         (gear_lazy_pages::status()
             .unwrap_or_else(|err| unreachable!("Cannot get lazy-pages status: {err}")),)
     }
 
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
-    fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
+    pub fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
         use gear_lazy_pages::LazyPagesVersion;
 
         gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), SpIoProgramStorage)
@@ -222,7 +265,7 @@ pub trait GearRI {
 
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
-    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+    pub fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
         let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
             usize::try_from(addr)
                 .unwrap_or_else(|err| unreachable!("Cannot cast wasm mem addr to `usize`: {}", err))
@@ -243,7 +286,7 @@ pub trait GearRI {
     /// Mprotect all wasm mem buffer except released pages.
     /// If `protect` argument is true then restrict all accesses to pages,
     /// else allows read and write accesses.
-    fn mprotect_lazy_pages(protect: bool) {
+    pub fn mprotect_lazy_pages(protect: bool) {
         if protect {
             gear_lazy_pages::set_lazy_pages_protection()
         } else {
@@ -253,18 +296,24 @@ pub trait GearRI {
         .expect("Cannot set/unset mprotection for lazy pages");
     }
 
-    fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
+    pub fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
         // `as usize` is safe, because of const assert above.
         gear_lazy_pages::change_wasm_mem_addr_and_size(addr.map(|addr| addr as usize), size)
             .unwrap_or_else(|err| unreachable!("Cannot set new wasm addr and size: {err}"));
     }
 
-    fn write_accessed_pages() -> Vec<u32> {
+    pub fn write_accessed_pages() -> Vec<u32> {
         gear_lazy_pages::write_accessed_pages()
             .unwrap_or_else(|err| unreachable!("Cannot get write accessed pages: {err}"))
     }
 
-    // Bellow goes deprecated runtime interface functions.
+    fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
+        let mem_interval_size = mem::size_of::<MemoryInterval>();
+        for chunk in bytes.chunks_exact(mem_interval_size) {
+            // can't panic because of chunks_exact
+            intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());
+        }
+    }
 }
 
 /// For debug using in benchmarks testing.
@@ -299,5 +348,65 @@ pub trait GearDebug {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_nanos()
+    }
+}
+
+/// Describes possible errors for `GearBls12_381`.
+#[repr(u32)]
+enum GearBls12_381Error {
+    /// Failed to decode an array of G1-points.
+    Decode,
+    /// The array of G1-points is empty.
+    EmptyPointList,
+    /// Failed to create `MapToCurveBasedHasher`.
+    MapperCreation,
+    /// Failed to map a message to a G2-point.
+    MessageMapping,
+}
+
+impl From<GearBls12_381Error> for u32 {
+    fn from(value: GearBls12_381Error) -> Self {
+        value as u32
+    }
+}
+
+#[runtime_interface]
+pub trait GearBls12_381 {
+    /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
+    /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
+    /// Result is scale-encoded `ArkScale<G1Projective>`.
+    fn aggregate_g1(points: &[u8]) -> Result<Vec<u8>, u32> {
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+
+        let ArkScale(points) = ArkScale::<Vec<G1>>::decode(&mut &points[..])
+            .map_err(|_| u32::from(GearBls12_381Error::Decode))?;
+
+        let point_first = points
+            .first()
+            .ok_or(u32::from(GearBls12_381Error::EmptyPointList))?;
+
+        let point_aggregated = points
+            .iter()
+            .skip(1)
+            .fold(*point_first, |aggregated, point| aggregated + *point);
+
+        Ok(ArkScale::<G1>::from(point_aggregated).encode())
+    }
+
+    /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
+    /// Result is encoded `ArkScale<G2Affine>`.
+    fn map_to_g2affine(message: &[u8]) -> Result<Vec<u8>, u32> {
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+
+        let mapper =
+            MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
+                .map_err(|_| u32::from(GearBls12_381Error::MapperCreation))?;
+
+        let point = mapper
+            .hash(message)
+            .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
+
+        Ok(ArkScale::<G2Affine>::from(point).encode())
     }
 }

@@ -11,18 +11,42 @@ env:
 
 jobs:
   linux:
-    runs-on: [ kuberunner, github-runner-01 ]
+    runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: "Show: Versioning"
+        run: |
+          ./scripts/gear.sh show
+          forge --version
+
+      - name: "Check: ethexe contracts"
+        run: |
+          cd ethexe/contracts
+          forge fmt --check
+          forge build --sizes
+          forge test -vvv
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -68,12 +92,13 @@ jobs:
         run: |
           cargo +stable check -p gstd --target wasm32-unknown-unknown
           cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+          cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32-unknown-unknown
 
       - name: "Check: crates-io packages"
         run: cargo +stable run --release -p crates-io check
 
   fuzzer:
-    runs-on: [ kuberunner, github-runner-01 ]
+    runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -110,3 +135,6 @@ jobs:
 
       - name: "Check fuzzer competence with mutation test"
         run: ./scripts/check-fuzzer.sh
+
+      - name: "Check lazy pages fuzzer with smoke test"
+        run: ./scripts/check-lazy-pages-fuzzer.sh

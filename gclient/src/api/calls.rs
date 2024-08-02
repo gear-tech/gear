@@ -18,6 +18,7 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
+use anyhow::anyhow;
 use gear_core::{
     gas::LockId,
     ids::*,
@@ -110,6 +111,61 @@ impl GearApi {
         // Sending zero value is a no-op, so now event occurs.
         if value == 0 {
             return Ok(tx.block_hash());
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Transfer `value` to `destination`'s account.
+    ///
+    /// Sends the
+    /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
+    /// extrinsic.
+    ///
+    /// This function returns a hash of the block with the transfer transaction.
+    pub async fn transfer_allow_death(&self, destination: ProgramId, value: u128) -> Result<H256> {
+        let destination: [u8; 32] = destination.into();
+
+        let tx = self
+            .0
+            .calls
+            .transfer_allow_death(destination, value)
+            .await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Balances(BalancesEvent::Transfer { .. }) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok(tx.block_hash());
+            }
+        }
+
+        // Sending zero value is a no-op, so now event occurs.
+        if value == 0 {
+            return Ok(tx.block_hash());
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Transfer `value` to `destination`'s account.
+    ///
+    /// Sends the
+    /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
+    /// extrinsic.
+    ///
+    /// This function returns a hash of the block with the transfer transaction.
+    pub async fn transfer_all(&self, destination: ProgramId, keep_alive: bool) -> Result<H256> {
+        let destination: [u8; 32] = destination.into();
+
+        let tx = self.0.calls.transfer_all(destination, keep_alive).await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Balances(BalancesEvent::Transfer { .. }) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok(tx.block_hash());
+            }
         }
 
         Err(Error::EventNotFound)
@@ -335,7 +391,11 @@ impl GearApi {
         let src_program_pages = self
             .0
             .api()
-            .gpages_at(src_program_id, &src_program, src_block_hash)
+            .gpages_at(
+                src_program_id,
+                Some(src_program.memory_infix.0),
+                src_block_hash,
+            )
             .await?;
 
         let src_program_reserved_gas_node_ids: Vec<GearGasNodeId> = src_program
@@ -519,6 +579,52 @@ impl GearApi {
         Ok(dest_program_id)
     }
 
+    /// Get all pages with their data for program at specified block.
+    pub async fn get_program_pages_data_at(
+        &self,
+        program_id: ProgramId,
+        block_hash: Option<H256>,
+    ) -> Result<BTreeMap<GearPage, PageBuf>> {
+        let pages_data = self.0.api().gpages_at(program_id, None, block_hash).await?;
+
+        let mut res = BTreeMap::new();
+        for (page, data) in pages_data.into_iter() {
+            res.insert(
+                GearPage::try_from(page).map_err(|err| anyhow!("{err}"))?,
+                PageBuf::from_inner(data.try_into().map_err(|err| anyhow!("{err}"))?),
+            );
+        }
+
+        Ok(res)
+    }
+
+    /// Get specified pages with their data for program at specified block.
+    pub async fn get_program_specified_pages_data_at(
+        &self,
+        program_id: ProgramId,
+        pages: impl Iterator<Item = GearPage>,
+        block_hash: Option<H256>,
+    ) -> Result<BTreeMap<GearPage, PageBuf>> {
+        let pages_data = self
+            .0
+            .api()
+            .specified_gpages_at(program_id, None, pages.map(Into::into), block_hash)
+            .await?;
+
+        let mut res = BTreeMap::new();
+        for (page, data) in pages_data.into_iter() {
+            res.insert(
+                GearPage::try_from(page).map_err(|err| anyhow::Error::msg(err.to_string()))?,
+                PageBuf::from_inner(
+                    data.try_into()
+                        .map_err(|_| anyhow::Error::msg("incorrect page data size"))?,
+                ),
+            );
+        }
+
+        Ok(res)
+    }
+
     /// Save program (identified by `program_id`) memory dump to the file for
     /// further restoring in gclient/gtest. Program memory dumped at the
     /// time of `block_hash` if presented or the most recent block.
@@ -537,7 +643,7 @@ impl GearApi {
         let program_pages = self
             .0
             .api()
-            .gpages_at(program_id, &program, block_hash)
+            .gpages_at(program_id, Some(program.memory_infix.0), block_hash)
             .await?
             .into_iter()
             .filter_map(|(page_number, page_data)| {

@@ -1,6 +1,7 @@
 [package]
 name = "gear-lazy-pages-interface"
 description = "Gear lazy-pages actual interface"
+documentation = "https://docs.rs/gear-lazy-pages-interface"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -13,7 +14,6 @@ log.workspace = true
 byteorder.workspace = true
 
 gear-core.workspace = true
-gear-common.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-runtime-interface.workspace = true
 
@@ -22,7 +22,6 @@ sp-std.workspace = true
 [features]
 default = ["std"]
 std = [
-    "gear-common/std",
     "gear-runtime-interface/std",
     "sp-std/std",
     "log/std",

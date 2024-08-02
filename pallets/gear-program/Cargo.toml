@@ -31,6 +31,10 @@ sp-std.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
 
+# Temporary dependencies required for migration to v8. To be removed upon migration.
+pallet-balances.workspace = true
+pallet-treasury.workspace = true
+
 [dev-dependencies]
 common = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
@@ -38,6 +42,9 @@ pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
+pallet-treasury = { workspace = true, features = ["std"] }
+wabt.workspace = true
+env_logger.workspace = true
 
 [features]
 default = ['std']

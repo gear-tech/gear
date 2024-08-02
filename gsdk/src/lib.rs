@@ -56,7 +56,6 @@ mod rpc;
 pub mod signer;
 mod storage;
 pub mod subscription;
-pub mod testing;
 mod utils;
 
 pub mod ext {
