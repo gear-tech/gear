@@ -60,7 +60,7 @@ fn git_clone(repo: &str, target: PathBuf) -> Result<()> {
     // clone template to the target path.
     utils::info("Cloning", repo);
     let result = process::Command::new("git")
-        .args(["clone", &repo, &path, "--depth=1"])
+        .args(["clone", repo, path, "--depth=1"])
         .output()
         .map_err(|e| anyhow!("Failed to download template: {}", e))?;
 
@@ -73,7 +73,7 @@ fn git_clone(repo: &str, target: PathBuf) -> Result<()> {
 
     // init new git.
     process::Command::new("git")
-        .args(["init", &path])
+        .args(["init", path])
         .output()
         .map_err(|e| anyhow!("Failed to init git: {}", e))?;
     if !result.status.success() {

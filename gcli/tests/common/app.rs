@@ -25,10 +25,10 @@ use std::{
 
 fn demo_messenger() -> Result<PathBuf> {
     let path = PathBuf::from(env::bin("demo_messenger"));
-    let profile = if *env::PROFILE == "debug" {
+    let profile = if env::PROFILE == "debug" {
         "dev"
     } else {
-        *env::PROFILE
+        env::PROFILE
     };
 
     if !path.exists()
