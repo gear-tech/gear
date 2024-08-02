@@ -63,3 +63,15 @@ pub struct BlockCommitment {
     pub allowed_prev_commitment_hash: H256,
     pub transitions: Vec<StateTransition>,
 }
+
+#[derive(Debug, Clone, Default)]
+pub struct Commitments {
+    pub codes: Vec<CodeCommitment>,
+    pub blocks: Vec<BlockCommitment>,
+}
+
+impl From<(Vec<CodeCommitment>, Vec<BlockCommitment>)> for Commitments {
+    fn from((codes, blocks): (Vec<CodeCommitment>, Vec<BlockCommitment>)) -> Self {
+        Self { codes, blocks }
+    }
+}

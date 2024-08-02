@@ -5159,6 +5159,7 @@ dependencies = [
  "parity-scale-codec",
  "static_init",
  "tempfile",
+ "uluru",
 ]
 
 [[package]]

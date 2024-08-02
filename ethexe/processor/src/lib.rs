@@ -256,8 +256,10 @@ impl Processor {
         log::debug!("Processing upload code {code_id:?}");
 
         if code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
+            self.db.set_code_approved(code_id, false);
             Ok(vec![LocalOutcome::CodeRejected(code_id)])
         } else {
+            self.db.set_code_approved(code_id, true);
             Ok(vec![LocalOutcome::CodeApproved(code_id)])
         }
     }

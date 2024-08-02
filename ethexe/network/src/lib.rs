@@ -98,7 +98,7 @@ impl NetworkService {
 
 #[derive(Debug)]
 enum NetworkSenderEvent {
-    PublishCommitments { data: Vec<u8> },
+    Message { data: Vec<u8> },
 }
 
 /// Communication with [`NetworkEventLoop`]
@@ -108,10 +108,10 @@ pub struct NetworkSender {
 }
 
 impl NetworkSender {
-    pub fn publish_commitments(&self, data: impl Into<Vec<u8>>) {
+    pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
-            .send(NetworkSenderEvent::PublishCommitments { data: data.into() });
+            .send(NetworkSenderEvent::Message { data: data.into() });
     }
 }
 
@@ -311,7 +311,7 @@ impl NetworkEventLoop {
             None => {
                 log::trace!("network channel has been disconnected");
             }
-            Some(NetworkSenderEvent::PublishCommitments { data }) => {
+            Some(NetworkSenderEvent::Message { data }) => {
                 if let Err(e) = self
                     .swarm
                     .behaviour_mut()

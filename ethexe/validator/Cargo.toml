@@ -21,5 +21,6 @@ anyhow.workspace = true
 futures.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tempfile.workspace = true
+uluru.workspace = true
 
 static_init = "1.0.3"

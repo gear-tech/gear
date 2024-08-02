@@ -20,12 +20,14 @@
 
 use anyhow::Result;
 use ethexe_common::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition};
-use ethexe_signer::{hash, Address, PublicKey, Signature, Signer};
+use ethexe_signer::{Address, PublicKey, Signature, Signer};
+use futures::AsyncRead;
 use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{HashMap, HashSet},
     fmt, mem,
+    path::Iter,
 };
 
 pub trait SeqHash {
@@ -50,11 +52,17 @@ pub struct AggregatedQueue<D: SeqHash> {
     last: H256,
 }
 
+impl SeqHash for H256 {
+    fn hash(&self) -> H256 {
+        *self
+    }
+}
+
 // TODO: REMOVE THIS IMPL. SeqHash makes sense only for `ethexe_ethereum` types.
 // identity hashing
 impl SeqHash for CodeCommitment {
     fn hash(&self) -> H256 {
-        hash(&self.encode())
+        ethexe_signer::hash(&self.encode())
     }
 }
 
@@ -89,7 +97,7 @@ impl SeqHash for StateTransition {
             outgoing_message.extend_from_slice(&reply_details.to_message_id().into_bytes());
             outgoing_message.extend(&reply_details.to_reply_code().to_bytes());
 
-            outgoing_bytes.extend_from_slice(hash(&outgoing_message).as_bytes());
+            outgoing_bytes.extend_from_slice(ethexe_signer::hash(&outgoing_message).as_bytes());
         }
 
         let mut message =
@@ -98,9 +106,9 @@ impl SeqHash for StateTransition {
         message.extend_from_slice(&self.actor_id.into_bytes()[12..]);
         message.extend_from_slice(self.old_state_hash.as_bytes());
         message.extend_from_slice(self.new_state_hash.as_bytes());
-        message.extend_from_slice(hash(&outgoing_bytes).as_bytes());
+        message.extend_from_slice(ethexe_signer::hash(&outgoing_bytes).as_bytes());
 
-        hash(&message)
+        ethexe_signer::hash(&message)
     }
 }
 
@@ -118,27 +126,31 @@ impl SeqHash for BlockCommitment {
         message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
         message.extend_from_slice(self.transitions.hash().as_bytes());
 
-        hash(&message)
+        ethexe_signer::hash(&message)
     }
 }
 
-impl<D: SeqHash> AggregatedCommitments<D> {
-    pub fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        for commitment in &self.commitments {
-            array.extend_from_slice(commitment.hash().as_ref());
-        }
-        hash(&array)
+impl<T: SeqHash> SeqHash for &[T] {
+    fn hash(&self) -> H256 {
+        let buffer: Vec<u8> = self
+            .iter()
+            .map(SeqHash::hash)
+            .map(H256::to_fixed_bytes)
+            .flatten()
+            .collect();
+        ethexe_signer::hash(&buffer)
     }
 }
 
 impl<T: SeqHash> SeqHash for Vec<T> {
     fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        for commitment in self {
-            array.extend_from_slice(commitment.hash().as_ref());
-        }
-        hash(&array)
+        self.as_slice().hash()
+    }
+}
+
+impl<T: SeqHash> SeqHash for AggregatedCommitments<T> {
+    fn hash(&self) -> H256 {
+        self.commitments.hash()
     }
 }
 
@@ -149,29 +161,45 @@ impl<T: SeqHash> AggregatedCommitments<T> {
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
-        let mut aggregated = AggregatedCommitments {
+        let signature =
+            Self::sign_commitments(commitments.hash(), signer, pub_key, router_address)?;
+
+        Ok(AggregatedCommitments {
             commitments,
-            signature: Signature::default(),
-        };
+            signature,
+        })
+    }
 
-        let buffer = [
-            [0x19, 0x00].as_ref(),
-            router_address.0.as_ref(),
-            aggregated.commitments.hash().as_ref(),
-        ]
-        .concat();
-
-        aggregated.signature = signer.sign_digest(pub_key, hash(&buffer).to_fixed_bytes())?;
-
-        Ok(aggregated)
+    pub fn sign_commitments(
+        commitments_hash: H256,
+        signer: &Signer,
+        pub_key: PublicKey,
+        router_address: Address,
+    ) -> Result<Signature> {
+        let buffer = Self::buffer(commitments_hash, router_address);
+        signer.sign_digest(pub_key, ethexe_signer::hash(&buffer).to_fixed_bytes())
     }
 
     pub fn len(&self) -> usize {
         self.commitments.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.commitments.is_empty()
+    pub fn verify_origin(&self, router_address: Address, origin: Address) -> Result<bool> {
+        let buffer = Self::buffer(self.commitments.hash(), router_address);
+        Ok(self
+            .signature
+            .recover_digest(ethexe_signer::hash(&buffer).to_fixed_bytes())?
+            .to_address()
+            == origin)
+    }
+
+    fn buffer(commitments_hash: H256, router_address: Address) -> Vec<u8> {
+        [
+            [0x19, 0x00].as_ref(),
+            router_address.0.as_ref(),
+            commitments_hash.as_ref(),
+        ]
+        .concat()
     }
 }
 
@@ -336,7 +364,7 @@ mod tests {
 
     impl SeqHash for MyComm {
         fn hash(&self) -> H256 {
-            hash(&self.0[..])
+            ethexe_signer::hash(&self.0[..])
         }
     }
 

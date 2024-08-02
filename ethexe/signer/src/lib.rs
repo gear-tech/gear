@@ -21,7 +21,10 @@
 use anyhow::{anyhow, Context as _, Result};
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
-use secp256k1::Message;
+use secp256k1::{
+    ecdsa::{RecoverableSignature, RecoveryId},
+    Message,
+};
 use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
 
@@ -186,6 +189,27 @@ impl fmt::Display for Signature {
 impl Default for Signature {
     fn default() -> Self {
         Signature([0u8; 65])
+    }
+}
+
+impl TryFrom<Signature> for RecoverableSignature {
+    type Error = anyhow::Error;
+
+    fn try_from(sig: Signature) -> Result<Self> {
+        RecoverableSignature::from_compact(
+            sig.0[..64].as_ref(),
+            RecoveryId::from_i32(sig.0[64] as i32)?,
+        )
+        .map_err(Into::into)
+    }
+}
+
+impl Signature {
+    pub fn recover_digest(&self, digest: [u8; 32]) -> Result<PublicKey> {
+        let sig = self.clone().try_into()?;
+        let public_key =
+            secp256k1::global::SECP256K1.recover_ecdsa(&Message::from_digest(digest), &sig)?;
+        Ok(PublicKey::from_bytes(public_key.serialize()))
     }
 }
 

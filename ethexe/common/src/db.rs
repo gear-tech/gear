@@ -84,4 +84,7 @@ pub trait CodesStorage: Send + Sync {
 
     fn code_upload_info(&self, code_id: CodeId) -> Option<CodeUploadInfo>;
     fn set_code_upload_info(&self, code_id: CodeId, info: CodeUploadInfo);
+
+    fn code_approved(&self, code_id: CodeId) -> Option<bool>;
+    fn set_code_approved(&self, code_id: CodeId, rejected: bool);
 }
