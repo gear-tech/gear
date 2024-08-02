@@ -51,12 +51,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: "${{ matrix.profiles.name }}"
-          save-if: ${{ github.ref == 'refs/heads/master' }}
-
       - name: "Install: cargo-nextest"
         run: |
           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
