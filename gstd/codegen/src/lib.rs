@@ -196,7 +196,7 @@ fn generate_handle_reply_if_required(mut code: TokenStream, attr: Option<Path>) 
         let handle_reply: TokenStream = quote!(
             #[no_mangle]
             extern "C" fn handle_reply() {
-                gstd::record_reply();
+                gstd::handle_reply_with_hook();
                 #attr ();
             }
         )
@@ -498,7 +498,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             // Registering signal.
             crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(crate::msg::MessageFuture { waiting_reply_to })
+            Ok(crate::msg::MessageFuture { waiting_reply_to, reply_deposit })
         }
 
         #[doc = #for_reply_as_docs]
@@ -514,7 +514,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             // Registering signal.
             crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
+            Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, reply_deposit, _marker: Default::default() })
         }
     }
     .into()
@@ -591,7 +591,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             // Registering signal.
             crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(crate::msg::CreateProgramFuture { waiting_reply_to, program_id })
+            Ok(crate::msg::CreateProgramFuture { waiting_reply_to, program_id, reply_deposit })
         }
 
         #[doc = #for_reply_as_docs]
@@ -607,7 +607,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             // Registering signal.
             crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })
+            Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, reply_deposit, _marker: Default::default() })
         }
     }
     .into()

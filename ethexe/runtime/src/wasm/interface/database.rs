@@ -61,7 +61,7 @@ pub fn write_raw(data: impl AsRef<[u8]>) -> H256 {
 
     unsafe {
         let hash_ptr = sys::ext_database_write_version_1(ptr as _, len as i32);
-        let slice = slice::from_raw_parts(hash_ptr as *const u8, mem::size_of::<H256>());
+        let slice = slice::from_raw_parts(hash_ptr as *const u8, size_of::<H256>());
         H256::from_slice(slice)
     }
 }

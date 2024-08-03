@@ -33,7 +33,6 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
-use std::mem;
 use vara_runtime::{Runtime, EXISTENTIAL_DEPOSIT};
 
 /// Get account from [`gear_common::Origin`] implementor.
@@ -133,7 +132,7 @@ impl<'a> BalanceManager<'a> {
 
 impl BalanceManager<'_> {
     pub(crate) const fn random_data_requirement() -> usize {
-        const VALUE_SIZE: usize = mem::size_of::<u128>();
+        const VALUE_SIZE: usize = size_of::<u128>();
 
         VALUE_SIZE
             * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS

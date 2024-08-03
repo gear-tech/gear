@@ -119,7 +119,7 @@ pub fn allocate_and_write_raw(
 
     memory.write(&mut caller, ptr as usize, data).unwrap();
 
-    let res = unsafe { mem::transmute([ptr, len as i32]) };
+    let res = unsafe { mem::transmute::<[i32; 2], i64>([ptr, len as i32]) };
 
     (caller, res)
 }

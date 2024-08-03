@@ -47,7 +47,7 @@ impl Calls {
     }
 
     pub fn add_from_iter(mut self, calls: impl Iterator<Item = Call>) -> Self {
-        self.0.extend(calls.into_iter());
+        self.0.extend(calls);
         self
     }
 

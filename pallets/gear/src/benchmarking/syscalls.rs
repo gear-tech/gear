@@ -32,7 +32,7 @@ use crate::{
 };
 use alloc::{vec, vec::Vec};
 use common::{benchmarking, storage::*, Origin, ProgramStorage};
-use core::{marker::PhantomData, mem::size_of};
+use core::marker::PhantomData;
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
