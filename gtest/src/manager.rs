@@ -18,13 +18,14 @@
 
 use crate::{
     blocks::BlocksManager,
+    default_users_list,
     gas_tree::GasTreeManager,
     log::{BlockRunResult, CoreLog},
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
-    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
+    Result, TestError, DEFAULT_USERS_INITIAL_BALANCE, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS,
+    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL,
+    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
     MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
@@ -257,7 +258,7 @@ pub(crate) struct ExtManager {
 impl ExtManager {
     #[track_caller]
     pub(crate) fn new() -> Self {
-        Self {
+        let mut manager = Self {
             msg_nonce: 1,
             id_nonce: 1,
             blocks_manager: BlocksManager::new(),
@@ -273,6 +274,19 @@ impl ExtManager {
                 0,
             ),
             ..Default::default()
+        };
+
+        manager.init_default_users();
+        manager
+    }
+
+    // Should be called once inside `new` method.
+    fn init_default_users(&mut self) {
+        for &default_user_id in default_users_list() {
+            self.actors.insert(
+                default_user_id.into(),
+                (TestActor::User, DEFAULT_USERS_INITIAL_BALANCE),
+            );
         }
     }
 
@@ -636,6 +650,24 @@ impl ExtManager {
         let mut actors = self.actors.borrow_mut();
         let (_, balance) = actors.entry(*id).or_insert((TestActor::User, 0));
         *balance = balance.saturating_add(value);
+    }
+
+    pub(crate) fn burn_from(&mut self, id: &ProgramId, value: Balance) {
+        let mut actors = self.actors.borrow_mut();
+        let (_, balance) = actors.get_mut(id).expect("Can't find existing program");
+
+        if *balance < value {
+            panic!(
+                "Insufficient balance: user ({}) tries to burn \
+                ({}) value, while his balance ({})",
+                id, value, balance
+            );
+        } else {
+            *balance -= value;
+            if *balance < crate::EXISTENTIAL_DEPOSIT {
+                *balance = 0;
+            }
+        }
     }
 
     pub(crate) fn balance_of(&self, id: &ProgramId) -> Balance {
@@ -1023,6 +1055,14 @@ impl JournalHandler for ExtManager {
                 *gas += Gas(amount);
             })
             .or_insert(Gas(amount));
+
+        let (external, multiplier, _) = self
+            .gas_tree
+            .get_origin_node(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        let id: ProgramId = external.into_origin().into();
+        self.burn_from(&id, multiplier.gas_to_value(amount));
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
