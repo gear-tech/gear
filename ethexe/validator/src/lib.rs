@@ -16,16 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::ops::Not;
+
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     BlockCommitment, CodeCommitment,
 };
-use ethexe_sequencer::{
-    AggregatedCommitments, BlockCommitmentValidationRequest, CodeCommitmentValidationRequest,
-    SeqHash,
-};
-use ethexe_signer::{Address, PublicKey, Signature, Signer};
+use ethexe_sequencer::{AggregatedCommitments, BlockCommitmentValidationRequest};
+use ethexe_signer::{Address, AsDigest, PublicKey, Signature, Signer};
 use gprimitives::H256;
 
 pub struct Config {
@@ -56,7 +55,7 @@ impl Validator {
         self.pub_key.to_address()
     }
 
-    fn aggregate<C: SeqHash>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
+    fn aggregate<C: AsDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
         AggregatedCommitments::aggregate_commitments(
             commitments,
             &self.signer,
@@ -82,9 +81,9 @@ impl Validator {
     pub fn validate_code_commitments(
         &mut self,
         db: impl CodesStorage,
-        requests: impl IntoIterator<Item = CodeCommitmentValidationRequest>,
+        requests: impl IntoIterator<Item = CodeCommitment>,
     ) -> Result<Signature> {
-        let mut hashes = Vec::new();
+        let mut digests = Vec::new();
         for request in requests.into_iter() {
             if db
                 .code_approved(request.code_id)
@@ -93,11 +92,11 @@ impl Validator {
             {
                 return Err(anyhow!("approved mismatch"));
             }
-            hashes.push(request.hash());
+            digests.push(request.as_digest());
         }
 
         AggregatedCommitments::<CodeCommitment>::sign_commitments(
-            hashes.hash(),
+            digests.as_digest(),
             &self.signer,
             self.pub_key,
             self.router_address,
@@ -109,53 +108,54 @@ impl Validator {
         db: impl BlockMetaStorage,
         requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
     ) -> Result<Signature> {
-        let mut hashes = Vec::new();
+        let mut digests = Vec::new();
         for request in requests.into_iter() {
             let BlockCommitmentValidationRequest {
                 block_hash,
                 allowed_pred_block_hash,
                 allowed_prev_commitment_hash,
-                transitions_hash,
+                transitions_digest: transitions_hash,
             } = request;
 
-            if !db
+            if db
                 .block_end_state_is_valid(block_hash)
                 .ok_or(anyhow!("block not found"))?
+                .not()
             {
                 return Err(anyhow!("block is not validated"));
             }
 
-            let outcomes = db
+            if db
                 .block_outcome(block_hash)
-                .ok_or(anyhow!("block not found"))?;
-            let db_transitions_hash = outcomes
+                .ok_or(anyhow!("block not found"))?
                 .iter()
-                .map(SeqHash::hash)
+                .map(AsDigest::as_digest)
                 .collect::<Vec<_>>()
-                .hash();
-            if db_transitions_hash != transitions_hash {
+                .as_digest()
+                .ne(&transitions_hash)
+            {
                 return Err(anyhow!("block transitions hash mismatch"));
             }
 
             if db
                 .block_prev_commitment(block_hash)
                 .ok_or(anyhow!("block not found"))?
-                != allowed_prev_commitment_hash
+                .ne(&allowed_prev_commitment_hash)
             {
                 return Err(anyhow!("block prev commitment hash mismatch"));
             }
 
-            if !Self::verify_is_predecessor(&db, allowed_pred_block_hash, block_hash, None)? {
+            if Self::verify_is_predecessor(&db, allowed_pred_block_hash, block_hash, None)?.not() {
                 return Err(anyhow!(
                     "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
                 ));
             }
 
-            hashes.push(request.hash());
+            digests.push(request.as_digest());
         }
 
         AggregatedCommitments::<BlockCommitment>::sign_commitments(
-            hashes.hash(),
+            digests.as_digest(),
             &self.signer,
             self.pub_key,
             self.router_address,

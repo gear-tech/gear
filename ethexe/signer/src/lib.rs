@@ -18,14 +18,17 @@
 
 //! Signer library for ethexe.
 
-use anyhow::{anyhow, Context as _, Result};
+mod digest;
+mod signature;
+
+pub use digest::{AsDigest, Digest};
+pub use signature::Signature;
+
+use anyhow::{anyhow, Result};
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
-use secp256k1::{
-    ecdsa::{RecoverableSignature, RecoveryId},
-    Message,
-};
 use sha3::Digest as _;
+use signature::RawSignature;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -61,9 +64,6 @@ impl TryFrom<ActorId> for Address {
             ))
     }
 }
-
-#[derive(Clone, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct Signature(pub [u8; 65]);
 
 pub struct Hash([u8; 32]);
 
@@ -150,24 +150,6 @@ impl fmt::Debug for Address {
     }
 }
 
-impl fmt::Debug for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", self.to_hex())
-    }
-}
-
-impl Signature {
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.0)
-    }
-}
-
-impl From<[u8; 65]> for Signature {
-    fn from(bytes: [u8; 65]) -> Self {
-        Self(bytes)
-    }
-}
-
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_hex())
@@ -177,39 +159,6 @@ impl fmt::Display for PublicKey {
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "0x{}", self.to_hex())
-    }
-}
-
-impl fmt::Display for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_hex())
-    }
-}
-
-impl Default for Signature {
-    fn default() -> Self {
-        Signature([0u8; 65])
-    }
-}
-
-impl TryFrom<Signature> for RecoverableSignature {
-    type Error = anyhow::Error;
-
-    fn try_from(sig: Signature) -> Result<Self> {
-        RecoverableSignature::from_compact(
-            sig.0[..64].as_ref(),
-            RecoveryId::from_i32((sig.0[64] - 27) as i32)?,
-        )
-        .map_err(Into::into)
-    }
-}
-
-impl Signature {
-    pub fn recover_digest(&self, digest: [u8; 32]) -> Result<PublicKey> {
-        let sig = self.clone().try_into()?;
-        let public_key =
-            secp256k1::global::SECP256K1.recover_ecdsa(&Message::from_digest(digest), &sig)?;
-        Ok(PublicKey::from_bytes(public_key.serialize()))
     }
 }
 
@@ -225,30 +174,16 @@ impl Signer {
         Ok(Self { key_store })
     }
 
-    pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
-        let secret_key = self.get_private_key(public_key)?;
+    pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<RawSignature> {
+        let private_key = self.get_private_key(public_key)?;
 
-        let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
-            .with_context(|| "Invalid secret key format for {:?}")?;
-
-        let message = Message::from_digest(digest);
-
-        let recsig =
-            secp256k1::global::SECP256K1.sign_ecdsa_recoverable(&message, &secp_secret_key);
-
-        let mut r = Signature::default();
-        let (recid, sig) = recsig.serialize_compact();
-        r.0[..64].copy_from_slice(&sig);
-        r.0[64] = recid.to_i32() as u8;
-
-        Ok(r)
+        RawSignature::create_for_digest(private_key, digest)
     }
 
     pub fn sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
-        let mut r = self.raw_sign_digest(public_key, digest)?;
-        r.0[64] += 27;
+        let private_key = self.get_private_key(public_key)?;
 
-        Ok(r)
+        Signature::create_for_digest(private_key, digest)
     }
 
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
@@ -382,7 +317,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let ethers_sig = ethers::core::types::Signature::try_from(&signature.0[..])
+        let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
             .expect("failed to parse sig");
 
         let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
@@ -419,7 +354,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let ethers_sig = ethers::core::types::Signature::try_from(&signature.0[..])
+        let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
             .expect("failed to parse sig");
 
         let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
@@ -465,7 +400,7 @@ mod tests {
         let hash = keccak256(message);
 
         let recovered_public_key = signature
-            .recover_digest(hash)
+            .recover_from_digest(hash)
             .expect("Failed to recover public key");
 
         assert_eq!(recovered_public_key, public_key);

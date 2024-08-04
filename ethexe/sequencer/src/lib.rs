@@ -25,13 +25,13 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::Event;
-use ethexe_signer::{Address, PublicKey, Signature, Signer};
-use gprimitives::{CodeId, H256};
+use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, HashSet};
 use tokio::sync::watch;
 
-pub use agro::{AggregatedCommitments, SeqHash};
+pub use agro::AggregatedCommitments;
 
 pub struct Config {
     pub ethereum_rpc: String,
@@ -56,11 +56,11 @@ pub struct Sequencer {
     validators: HashSet<Address>,
     threshold: u64,
 
-    code_commitments: BTreeMap<H256, (CodeCommitment, u64)>,
-    block_commitments: BTreeMap<H256, (BlockCommitment, u64)>,
+    code_commitments: BTreeMap<Digest, (CodeCommitment, u64)>,
+    block_commitments: BTreeMap<Digest, (BlockCommitment, u64)>,
 
-    codes_aggregator: BTreeMap<H256, MultisignedCommitments<CodeCommitment>>,
-    blocks_aggregator: BTreeMap<H256, MultisignedCommitments<BlockCommitment>>,
+    codes_aggregator: BTreeMap<Digest, MultisignedCommitments<CodeCommitment>>,
+    blocks_aggregator: BTreeMap<Digest, MultisignedCommitments<BlockCommitment>>,
 
     status: SequencerStatus,
     status_sender: watch::Sender<SequencerStatus>,
@@ -71,7 +71,7 @@ pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
     pub allowed_pred_block_hash: H256,
     pub allowed_prev_commitment_hash: H256,
-    pub transitions_hash: H256,
+    pub transitions_digest: Digest,
 }
 
 impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
@@ -80,46 +80,21 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
             block_hash: commitment.block_hash,
             allowed_pred_block_hash: commitment.allowed_pred_block_hash,
             allowed_prev_commitment_hash: commitment.allowed_prev_commitment_hash,
-            transitions_hash: commitment.transitions.hash(),
+            transitions_digest: commitment.transitions.as_digest(),
         }
     }
 }
 
-impl SeqHash for BlockCommitmentValidationRequest {
-    fn hash(&self) -> H256 {
-        [
-            self.block_hash,
-            self.allowed_pred_block_hash,
-            self.allowed_prev_commitment_hash,
-            self.transitions_hash,
-        ]
-        .as_ref()
-        .hash()
-    }
-}
+impl AsDigest for BlockCommitmentValidationRequest {
+    fn as_digest(&self) -> Digest {
+        let mut message = Vec::with_capacity(3 * size_of::<H256>() + size_of::<Digest>());
 
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct CodeCommitmentValidationRequest {
-    pub code_id: CodeId,
-    pub approved: bool,
-}
+        message.extend_from_slice(self.block_hash.as_bytes());
+        message.extend_from_slice(self.allowed_pred_block_hash.as_bytes());
+        message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
+        message.extend_from_slice(&self.transitions_digest);
 
-impl From<&CodeCommitment> for CodeCommitmentValidationRequest {
-    fn from(commitment: &CodeCommitment) -> Self {
-        Self {
-            code_id: commitment.code_id,
-            approved: commitment.approved,
-        }
-    }
-}
-
-impl SeqHash for CodeCommitmentValidationRequest {
-    fn hash(&self) -> H256 {
-        CodeCommitment {
-            code_id: self.code_id,
-            approved: self.approved,
-        }
-        .hash()
+        message.as_digest()
     }
 }
 
@@ -131,13 +106,13 @@ pub enum NetworkMessage {
         blocks: Option<AggregatedCommitments<BlockCommitment>>,
     },
     RequestCommitmentsValidation {
-        codes: BTreeMap<H256, CodeCommitmentValidationRequest>,
-        blocks: BTreeMap<H256, BlockCommitmentValidationRequest>,
+        codes: BTreeMap<Digest, CodeCommitment>,
+        blocks: BTreeMap<Digest, BlockCommitmentValidationRequest>,
     },
     ApproveCommitments {
         origin: Address,
-        codes: Option<(H256, Signature)>,
-        blocks: Option<(H256, Signature)>,
+        codes: Option<(Digest, Signature)>,
+        blocks: Option<(Digest, Signature)>,
     },
 }
 
@@ -178,11 +153,11 @@ impl Sequencer {
         Ok(())
     }
 
-    fn pop_suitable_commitments<C: SeqHash>(
-        commitments: &mut BTreeMap<H256, (C, u64)>,
-        aggregator: &mut BTreeMap<H256, MultisignedCommitments<C>>,
+    fn pop_suitable_commitments<C: AsDigest>(
+        commitments: &mut BTreeMap<Digest, (C, u64)>,
+        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
         threshold: u64,
-    ) -> Option<H256> {
+    ) -> Option<Digest> {
         let suitable_commitment_hashes: Vec<_> = commitments
             .iter()
             .filter_map(|(&hash, (_, amount))| (*amount >= threshold).then_some(hash))
@@ -200,10 +175,10 @@ impl Sequencer {
             suitable_commitments.push(commitment);
         }
 
-        let hash = suitable_commitments.hash();
+        let digest = suitable_commitments.as_digest();
 
         aggregator.insert(
-            hash,
+            digest,
             MultisignedCommitments {
                 commitments: suitable_commitments,
                 sources: Vec::new(),
@@ -211,43 +186,43 @@ impl Sequencer {
             },
         );
 
-        Some(hash)
+        Some(digest)
     }
 
-    pub fn process_collected_commitments(&mut self) -> Result<(Option<H256>, Option<H256>)> {
-        let codes_hash = Self::pop_suitable_commitments(
+    pub fn process_collected_commitments(&mut self) -> Result<(Option<Digest>, Option<Digest>)> {
+        let codes_digest = Self::pop_suitable_commitments(
             &mut self.code_commitments,
             &mut self.codes_aggregator,
             self.threshold,
         );
 
-        let blocks_hash = Self::pop_suitable_commitments(
+        let blocks_digest = Self::pop_suitable_commitments(
             &mut self.block_commitments,
             &mut self.blocks_aggregator,
             self.threshold,
         );
 
-        Ok((codes_hash, blocks_hash))
+        Ok((codes_digest, blocks_digest))
     }
 
-    pub fn get_multisigned_code_commitments(&self, hash: H256) -> Option<&[CodeCommitment]> {
+    pub fn get_multisigned_code_commitments(&self, digest: Digest) -> Option<&[CodeCommitment]> {
         self.codes_aggregator
-            .get(&hash)
+            .get(&digest)
             .map(|multisigned| multisigned.commitments.as_slice())
     }
 
-    pub fn get_multisigned_block_commitments(&self, hash: H256) -> Option<&[BlockCommitment]> {
+    pub fn get_multisigned_block_commitments(&self, digest: Digest) -> Option<&[BlockCommitment]> {
         self.blocks_aggregator
-            .get(&hash)
+            .get(&digest)
             .map(|multisigned| multisigned.commitments.as_slice())
     }
 
-    fn process_multisigned_candidate<C: SeqHash>(
-        aggregator: &mut BTreeMap<H256, MultisignedCommitments<C>>,
+    fn process_multisigned_candidate<C: AsDigest>(
+        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
         threshold: u64,
     ) -> Option<MultisignedCommitments<C>> {
-        let candidate = aggregator.iter().find_map(|(&hash, multisigned)| {
-            (multisigned.sources.len() >= threshold as usize).then_some(hash)
+        let candidate = aggregator.iter().find_map(|(&digest, multisigned)| {
+            (multisigned.sources.len() >= threshold as usize).then_some(digest)
         })?;
 
         let multisigned = aggregator
@@ -377,14 +352,14 @@ impl Sequencer {
 
         let mut processed = HashSet::new();
         for commitment in aggregated.commitments {
-            let hash = commitment.hash();
-            if processed.contains(&hash) {
+            let digest = commitment.as_digest();
+            if processed.contains(&digest) {
                 continue;
             }
-            processed.insert(hash);
+            processed.insert(digest);
             let (_, signatures_amount) = self
                 .code_commitments
-                .entry(hash)
+                .entry(digest)
                 .or_insert_with(|| (commitment, 0));
             *signatures_amount += 1;
         }
@@ -407,14 +382,14 @@ impl Sequencer {
 
         let mut processed = HashSet::new();
         for commitment in aggregated.commitments {
-            let hash = commitment.hash();
-            if processed.contains(&hash) {
+            let digest = commitment.as_digest();
+            if processed.contains(&digest) {
                 continue;
             }
-            processed.insert(hash);
+            processed.insert(digest);
             let (_, signatures_amount) = self
                 .block_commitments
-                .entry(hash)
+                .entry(digest)
                 .or_insert_with(|| (commitment, 0));
             *signatures_amount += 1;
         }
@@ -422,30 +397,27 @@ impl Sequencer {
         Ok(())
     }
 
-    fn receive_signature<C: SeqHash>(
+    fn receive_signature<C: AsDigest>(
         origin: Address,
-        aggregated_hash: H256,
+        digest: Digest,
         signature: Signature,
         validators: &HashSet<Address>,
         router_address: Address,
-        aggregator: &mut BTreeMap<H256, MultisignedCommitments<C>>,
+        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
     ) -> Result<()> {
         if !validators.contains(&origin) {
             return Err(anyhow!("Unknown validator {origin}"));
         }
 
-        if AggregatedCommitments::<C>::recover_digest(
-            aggregated_hash,
-            signature.clone(),
-            router_address,
-        )? != origin
+        if AggregatedCommitments::<C>::recover_digest(digest, signature.clone(), router_address)?
+            != origin
         {
             return Err(anyhow!("Invalid signature"));
         }
 
         let multisigned = aggregator
-            .get_mut(&aggregated_hash)
-            .ok_or(anyhow!("Aggregated commitment {aggregated_hash} not found"))?;
+            .get_mut(&digest)
+            .ok_or(anyhow!("Aggregated commitment {digest:?} not found"))?;
 
         multisigned.sources.push(origin);
         multisigned.signatures.push(signature);
@@ -456,12 +428,12 @@ impl Sequencer {
     pub fn receive_codes_signature(
         &mut self,
         origin: Address,
-        aggregated_hash: H256,
+        digest: Digest,
         signature: Signature,
     ) -> Result<()> {
         Self::receive_signature(
             origin,
-            aggregated_hash,
+            digest,
             signature,
             &self.validators,
             self.ethereum.router().address(),
@@ -472,12 +444,12 @@ impl Sequencer {
     pub fn receive_blocks_signature(
         &mut self,
         origin: Address,
-        aggregated_hash: H256,
+        digest: Digest,
         signature: Signature,
     ) -> Result<()> {
         Self::receive_signature(
             origin,
-            aggregated_hash,
+            digest,
             signature,
             &self.validators,
             self.ethereum.router().address(),

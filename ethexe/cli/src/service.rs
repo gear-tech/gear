@@ -30,8 +30,8 @@ use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Dat
 use ethexe_network::GossipsubMessage;
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
-use ethexe_sequencer::{NetworkMessage, SeqHash};
-use ethexe_signer::{PublicKey, Signer};
+use ethexe_sequencer::NetworkMessage;
+use ethexe_signer::{AsDigest, PublicKey, Signer};
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -588,12 +588,22 @@ impl Service {
 
         let code_requests: BTreeMap<_, _> = codes_hash
             .and_then(|hash| sequencer.get_multisigned_code_commitments(hash))
-            .map(|commitments| commitments.iter().map(|c| (c.hash(), c.into())).collect())
+            .map(|commitments| {
+                commitments
+                    .iter()
+                    .map(|c| (c.as_digest(), c.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
 
         let block_requests: BTreeMap<_, _> = blocks_hash
             .and_then(|hash| sequencer.get_multisigned_block_commitments(hash))
-            .map(|commitments| commitments.iter().map(|c| (c.hash(), c.into())).collect())
+            .map(|commitments| {
+                commitments
+                    .iter()
+                    .map(|c| (c.as_digest(), c.into()))
+                    .collect()
+            })
             .unwrap_or_default();
 
         if let Some(network_sender) = maybe_network_sender {
@@ -673,7 +683,7 @@ impl Service {
                 let codes_signature = if let Some(codes_hash) = codes
                     .is_empty()
                     .not()
-                    .then(|| codes.keys().cloned().collect::<Vec<_>>().hash())
+                    .then(|| codes.keys().cloned().collect::<Vec<_>>().as_digest())
                 {
                     let signature =
                         validator.validate_code_commitments(db.clone(), codes.into_values())?;
@@ -685,7 +695,7 @@ impl Service {
                 let blocks_signature = if let Some(blocks_hash) = blocks
                     .is_empty()
                     .not()
-                    .then(|| blocks.keys().cloned().collect::<Vec<_>>().hash())
+                    .then(|| blocks.keys().cloned().collect::<Vec<_>>().as_digest())
                 {
                     let signature =
                         validator.validate_block_commitments(db.clone(), blocks.into_values())?;

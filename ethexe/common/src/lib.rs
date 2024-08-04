@@ -33,6 +33,9 @@ use gear_core::{
 use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
+pub use gear_core;
+pub use gprimitives;
+
 #[derive(Debug, Clone, Default, Encode, Decode)]
 pub struct CodeCommitment {
     pub code_id: CodeId,

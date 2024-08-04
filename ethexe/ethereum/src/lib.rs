@@ -156,7 +156,7 @@ impl SignerSync for Sender {
             .signer
             .raw_sign_digest(self.sender, hash.0)
             .map_err(|err| SignerError::Other(err.into()))?;
-        Ok(Signature::try_from(&signature.0[..])?)
+        Ok(Signature::try_from(signature.as_ref())?)
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
@@ -300,7 +300,7 @@ impl Router {
             commitments.into_iter().map(Into::into).collect(),
             signatures
                 .into_iter()
-                .map(|signature| Bytes::copy_from_slice(&signature.0))
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
         let tx = builder.send().await?;
@@ -319,7 +319,7 @@ impl Router {
                 commitments.into_iter().map(Into::into).collect(),
                 signatures
                     .into_iter()
-                    .map(|signature| Bytes::copy_from_slice(&signature.0))
+                    .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                     .collect(),
             )
             .gas(10_000_000);
