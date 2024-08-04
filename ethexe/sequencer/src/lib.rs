@@ -28,7 +28,10 @@ use ethexe_observer::Event;
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    ops::Not,
+};
 use tokio::sync::watch;
 
 pub use agro::AggregatedCommitments;
@@ -153,42 +156,6 @@ impl Sequencer {
         Ok(())
     }
 
-    fn pop_suitable_commitments<C: AsDigest>(
-        commitments: &mut BTreeMap<Digest, (C, u64)>,
-        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
-        threshold: u64,
-    ) -> Option<Digest> {
-        let suitable_commitment_hashes: Vec<_> = commitments
-            .iter()
-            .filter_map(|(&hash, (_, amount))| (*amount >= threshold).then_some(hash))
-            .collect();
-
-        if suitable_commitment_hashes.is_empty() {
-            return None;
-        }
-
-        let mut suitable_commitments = Vec::new();
-        for hash in suitable_commitment_hashes.iter() {
-            let (commitment, _) = commitments
-                .remove(hash)
-                .unwrap_or_else(|| unreachable!("Must be in the map"));
-            suitable_commitments.push(commitment);
-        }
-
-        let digest = suitable_commitments.as_digest();
-
-        aggregator.insert(
-            digest,
-            MultisignedCommitments {
-                commitments: suitable_commitments,
-                sources: Vec::new(),
-                signatures: Vec::new(),
-            },
-        );
-
-        Some(digest)
-    }
-
     pub fn process_collected_commitments(&mut self) -> Result<(Option<Digest>, Option<Digest>)> {
         let codes_digest = Self::pop_suitable_commitments(
             &mut self.code_commitments,
@@ -203,37 +170,6 @@ impl Sequencer {
         );
 
         Ok((codes_digest, blocks_digest))
-    }
-
-    pub fn get_multisigned_code_commitments(&self, digest: Digest) -> Option<&[CodeCommitment]> {
-        self.codes_aggregator
-            .get(&digest)
-            .map(|multisigned| multisigned.commitments.as_slice())
-    }
-
-    pub fn get_multisigned_block_commitments(&self, digest: Digest) -> Option<&[BlockCommitment]> {
-        self.blocks_aggregator
-            .get(&digest)
-            .map(|multisigned| multisigned.commitments.as_slice())
-    }
-
-    fn process_multisigned_candidate<C: AsDigest>(
-        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
-        threshold: u64,
-    ) -> Option<MultisignedCommitments<C>> {
-        let candidate = aggregator.iter().find_map(|(&digest, multisigned)| {
-            (multisigned.sources.len() >= threshold as usize).then_some(digest)
-        })?;
-
-        let multisigned = aggregator
-            .remove(&candidate)
-            .unwrap_or_else(|| unreachable!("Must be in the map"));
-
-        if multisigned.commitments.is_empty() {
-            unreachable!("Guarantied to be not empty");
-        }
-
-        Some(multisigned)
     }
 
     pub async fn submit_multisigned_commitments(&mut self) -> Result<()> {
@@ -284,6 +220,141 @@ impl Sequencer {
         });
 
         Ok(())
+    }
+
+    pub fn receive_code_commitments(
+        &mut self,
+        origin: Address,
+        aggregated: AggregatedCommitments<CodeCommitment>,
+    ) -> Result<()> {
+        Self::receive_commitments(
+            origin,
+            aggregated,
+            &self.validators,
+            self.ethereum.router().address(),
+            &mut self.code_commitments,
+        )
+    }
+
+    pub fn receive_block_commitments(
+        &mut self,
+        origin: Address,
+        aggregated: AggregatedCommitments<BlockCommitment>,
+    ) -> Result<()> {
+        Self::receive_commitments(
+            origin,
+            aggregated,
+            &self.validators,
+            self.ethereum.router().address(),
+            &mut self.block_commitments,
+        )
+    }
+
+    pub fn receive_codes_signature(
+        &mut self,
+        origin: Address,
+        digest: Digest,
+        signature: Signature,
+    ) -> Result<()> {
+        Self::receive_signature(
+            origin,
+            digest,
+            signature,
+            &self.validators,
+            self.ethereum.router().address(),
+            &mut self.codes_aggregator,
+        )
+    }
+
+    pub fn receive_blocks_signature(
+        &mut self,
+        origin: Address,
+        digest: Digest,
+        signature: Signature,
+    ) -> Result<()> {
+        Self::receive_signature(
+            origin,
+            digest,
+            signature,
+            &self.validators,
+            self.ethereum.router().address(),
+            &mut self.blocks_aggregator,
+        )
+    }
+
+    pub fn address(&self) -> Address {
+        self.key.to_address()
+    }
+
+    pub fn get_status_receiver(&self) -> watch::Receiver<SequencerStatus> {
+        self.status_sender.subscribe()
+    }
+
+    pub fn get_multisigned_code_commitments(&self, digest: Digest) -> Option<&[CodeCommitment]> {
+        self.codes_aggregator
+            .get(&digest)
+            .map(|multisigned| multisigned.commitments.as_slice())
+    }
+
+    pub fn get_multisigned_block_commitments(&self, digest: Digest) -> Option<&[BlockCommitment]> {
+        self.blocks_aggregator
+            .get(&digest)
+            .map(|multisigned| multisigned.commitments.as_slice())
+    }
+
+    fn pop_suitable_commitments<C: AsDigest>(
+        commitments: &mut BTreeMap<Digest, (C, u64)>,
+        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
+        threshold: u64,
+    ) -> Option<Digest> {
+        let suitable_commitment_hashes: Vec<_> = commitments
+            .iter()
+            .filter_map(|(&hash, (_, amount))| (*amount >= threshold).then_some(hash))
+            .collect();
+
+        if suitable_commitment_hashes.is_empty() {
+            return None;
+        }
+
+        let mut suitable_commitments = Vec::new();
+        for hash in suitable_commitment_hashes.iter() {
+            let (commitment, _) = commitments
+                .remove(hash)
+                .unwrap_or_else(|| unreachable!("Must be in the map"));
+            suitable_commitments.push(commitment);
+        }
+
+        let digest = suitable_commitments.as_digest();
+
+        aggregator.insert(
+            digest,
+            MultisignedCommitments {
+                commitments: suitable_commitments,
+                sources: Vec::new(),
+                signatures: Vec::new(),
+            },
+        );
+
+        Some(digest)
+    }
+
+    fn process_multisigned_candidate<C: AsDigest>(
+        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
+        threshold: u64,
+    ) -> Option<MultisignedCommitments<C>> {
+        let candidate = aggregator.iter().find_map(|(&digest, multisigned)| {
+            (multisigned.sources.len() >= threshold as usize).then_some(digest)
+        })?;
+
+        let multisigned = aggregator
+            .remove(&candidate)
+            .unwrap_or_else(|| unreachable!("Must be in the map"));
+
+        if multisigned.commitments.is_empty() {
+            unreachable!("Guarantied to be not empty");
+        }
+
+        Some(multisigned)
     }
 
     async fn submit_codes_commitment(
@@ -337,16 +408,18 @@ impl Sequencer {
         Ok(())
     }
 
-    pub fn receive_code_commitments(
-        &mut self,
+    fn receive_commitments<C: AsDigest>(
         origin: Address,
-        aggregated: AggregatedCommitments<CodeCommitment>,
+        aggregated: AggregatedCommitments<C>,
+        validators: &HashSet<Address>,
+        router_address: Address,
+        commitments_storage: &mut BTreeMap<Digest, (C, u64)>,
     ) -> Result<()> {
-        if !self.validators.contains(&origin) {
+        if validators.contains(&origin).not() {
             return Err(anyhow!("Unknown validator {origin}"));
         }
 
-        if !aggregated.verify_origin(self.ethereum.router().address(), origin)? {
+        if aggregated.verify_origin(router_address, origin)?.not() {
             return Err(anyhow!("Signature verification failed for {origin}"));
         }
 
@@ -357,38 +430,7 @@ impl Sequencer {
                 continue;
             }
             processed.insert(digest);
-            let (_, signatures_amount) = self
-                .code_commitments
-                .entry(digest)
-                .or_insert_with(|| (commitment, 0));
-            *signatures_amount += 1;
-        }
-
-        Ok(())
-    }
-
-    pub fn receive_block_commitments(
-        &mut self,
-        origin: Address,
-        aggregated: AggregatedCommitments<BlockCommitment>,
-    ) -> Result<()> {
-        log::debug!("Received transition commitment from {}", origin);
-        if !self.validators.contains(&origin) {
-            return Err(anyhow!("Unknown validator {origin}"));
-        }
-        if !aggregated.verify_origin(self.ethereum.router().address(), origin)? {
-            return Err(anyhow!("Signature verification failed for {origin}"));
-        }
-
-        let mut processed = HashSet::new();
-        for commitment in aggregated.commitments {
-            let digest = commitment.as_digest();
-            if processed.contains(&digest) {
-                continue;
-            }
-            processed.insert(digest);
-            let (_, signatures_amount) = self
-                .block_commitments
+            let (_, signatures_amount) = commitments_storage
                 .entry(digest)
                 .or_insert_with(|| (commitment, 0));
             *signatures_amount += 1;
@@ -423,46 +465,6 @@ impl Sequencer {
         multisigned.signatures.push(signature);
 
         Ok(())
-    }
-
-    pub fn receive_codes_signature(
-        &mut self,
-        origin: Address,
-        digest: Digest,
-        signature: Signature,
-    ) -> Result<()> {
-        Self::receive_signature(
-            origin,
-            digest,
-            signature,
-            &self.validators,
-            self.ethereum.router().address(),
-            &mut self.codes_aggregator,
-        )
-    }
-
-    pub fn receive_blocks_signature(
-        &mut self,
-        origin: Address,
-        digest: Digest,
-        signature: Signature,
-    ) -> Result<()> {
-        Self::receive_signature(
-            origin,
-            digest,
-            signature,
-            &self.validators,
-            self.ethereum.router().address(),
-            &mut self.blocks_aggregator,
-        )
-    }
-
-    pub fn address(&self) -> Address {
-        self.key.to_address()
-    }
-
-    pub fn get_status_receiver(&self) -> watch::Receiver<SequencerStatus> {
-        self.status_sender.subscribe()
     }
 
     fn update_status<F>(&mut self, update_fn: F)
