@@ -18,8 +18,6 @@
 
 //! Module that contains functions to check code.
 
-use core::mem;
-
 use crate::{
     code::{errors::*, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
@@ -477,8 +475,8 @@ pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, Code
         .iter()
         .fold(0, |total_bytes, global| {
             let value_size = match global.global_type().content_type() {
-                ValueType::I32 | ValueType::F32 => mem::size_of::<i32>(),
-                ValueType::I64 | ValueType::F64 => mem::size_of::<i64>(),
+                ValueType::I32 | ValueType::F32 => size_of::<i32>(),
+                ValueType::I64 | ValueType::F64 => size_of::<i64>(),
             } as u32;
             total_bytes.saturating_add(value_size)
         }))

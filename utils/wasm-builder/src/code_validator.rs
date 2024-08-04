@@ -220,7 +220,7 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
 
         let Some(import_entry) = module
             .import_section()
-            .and_then(|section| section.entries().iter().nth(*idx as usize))
+            .and_then(|section| section.entries().get(*idx as usize))
         else {
             bail!("failed to get import entry by index");
         };

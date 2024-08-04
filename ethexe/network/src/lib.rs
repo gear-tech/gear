@@ -27,7 +27,9 @@ use ethexe_signer::{PublicKey, Signer};
 use libp2p::{
     connection_limits,
     futures::{Stream, StreamExt},
-    gossipsub, identify, identity, kad, mdns, ping,
+    gossipsub, identify, identity, kad, mdns,
+    multiaddr::Protocol,
+    ping,
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
         NetworkBehaviour, SwarmEvent,
@@ -78,7 +80,18 @@ impl NetworkService {
         }
 
         for multiaddr in config.bootstrap_addresses {
-            swarm.dial(multiaddr)?;
+            let peer_id = multiaddr
+                .iter()
+                .find_map(|p| {
+                    if let Protocol::P2p(peer_id) = p {
+                        Some(peer_id)
+                    } else {
+                        None
+                    }
+                })
+                .context("bootstrap nodes are not allowed without peer ID")?;
+
+            swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
         let (general_tx, general_rx) = mpsc::unbounded_channel();
@@ -209,7 +222,15 @@ impl NetworkEventLoop {
         loop {
             select! {
                 event = self.swarm.select_next_some() => self.handle_swarm_event(event),
-                event = self.general_rx.recv() => self.handle_general_rx_event(event),
+                event = self.general_rx.recv() => match event {
+                    Some(event) => {
+                        self.handle_network_rx_event(event);
+                    }
+                    None => {
+                        log::info!("Network channel has been disconnected, shutting down network service...");
+                        break;
+                    },
+                },
             }
         }
     }
@@ -306,12 +327,9 @@ impl NetworkEventLoop {
         }
     }
 
-    fn handle_general_rx_event(&mut self, event: Option<NetworkSenderEvent>) {
+    fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
         match event {
-            None => {
-                log::trace!("network channel has been disconnected");
-            }
-            Some(NetworkSenderEvent::Message { data }) => {
+            NetworkSenderEvent::Message { data } => {
                 if let Err(e) = self
                     .swarm
                     .behaviour_mut()

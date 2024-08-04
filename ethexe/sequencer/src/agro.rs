@@ -23,7 +23,7 @@ use ethexe_common::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTrans
 use ethexe_signer::{Address, PublicKey, Signature, Signer};
 use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::{fmt, mem};
+use std::fmt;
 
 pub trait SeqHash {
     fn hash(&self) -> H256;
@@ -53,7 +53,7 @@ impl SeqHash for CodeCommitment {
 impl SeqHash for StateTransition {
     fn hash(&self) -> H256 {
         let mut outgoing_bytes =
-            Vec::with_capacity(self.outgoing_messages.len() * mem::size_of::<H256>());
+            Vec::with_capacity(self.outgoing_messages.len() * size_of::<H256>());
 
         for OutgoingMessage {
             message_id,
@@ -65,12 +65,12 @@ impl SeqHash for StateTransition {
         {
             let reply_details = reply_details.unwrap_or_default();
             let mut outgoing_message = Vec::with_capacity(
-                mem::size_of::<MessageId>()
-                    + mem::size_of::<Address>()
+                size_of::<MessageId>()
+                    + size_of::<Address>()
                     + payload.inner().len()
-                    + mem::size_of::<u128>()
-                    + mem::size_of::<MessageId>()
-                    + mem::size_of::<[u8; 4]>(),
+                    + size_of::<u128>()
+                    + size_of::<MessageId>()
+                    + size_of::<[u8; 4]>(),
             );
 
             outgoing_message.extend_from_slice(&message_id.into_bytes());
@@ -83,8 +83,7 @@ impl SeqHash for StateTransition {
             outgoing_bytes.extend_from_slice(ethexe_signer::hash(&outgoing_message).as_bytes());
         }
 
-        let mut message =
-            Vec::with_capacity(mem::size_of::<Address>() + (3 * mem::size_of::<H256>()));
+        let mut message = Vec::with_capacity(size_of::<Address>() + (3 * size_of::<H256>()));
 
         message.extend_from_slice(&self.actor_id.into_bytes()[12..]);
         message.extend_from_slice(self.old_state_hash.as_bytes());
@@ -98,10 +97,10 @@ impl SeqHash for StateTransition {
 impl SeqHash for BlockCommitment {
     fn hash(&self) -> H256 {
         let mut message = Vec::with_capacity(
-            mem::size_of::<H256>()
-                + mem::size_of::<H256>()
-                + mem::size_of::<H256>()
-                + self.transitions.len() * mem::size_of::<H256>(),
+            size_of::<H256>()
+                + size_of::<H256>()
+                + size_of::<H256>()
+                + self.transitions.len() * size_of::<H256>(),
         );
 
         message.extend_from_slice(self.block_hash.as_bytes());
