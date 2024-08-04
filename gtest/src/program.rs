@@ -885,7 +885,7 @@ pub mod gbuild {
 mod tests {
     use super::Program;
 
-    use crate::{Log, ProgramIdWrapper, System};
+    use crate::{manager::Balance, Log, ProgramIdWrapper, System, GAS_MULTIPLIER};
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
 
@@ -1345,5 +1345,33 @@ mod tests {
         let res = prog.send(user_id, handle);
         assert!(!res.main_failed());
         assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
+    }
+
+    #[test]
+    fn test_send_message_decreases_user_balance() {
+        use super::Gas;
+        use demo_constructor::WASM_BINARY;
+
+        const INITIAL_VALUE: Balance = 20 * crate::EXISTENTIAL_DEPOSIT;
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+
+        sys.mint_to(user_id, 20 * crate::EXISTENTIAL_DEPOSIT);
+        let prog = Program::from_binary_with_id(&sys, 1337, WASM_BINARY);
+
+        let run_result = prog.send(user_id, Scheme::empty());
+
+        let spent_gas = run_result.main_gas_burned()
+            + run_result
+                .others_gas_burned()
+                .values()
+                .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
+        let spent_value = GAS_MULTIPLIER.gas_to_value(spent_gas.0);
+        let expected_value = INITIAL_VALUE - spent_value;
+
+        assert_eq!(sys.balance_of(user_id), expected_value);
     }
 }

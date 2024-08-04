@@ -610,6 +610,24 @@ impl ExtManager {
         *balance = balance.saturating_add(value);
     }
 
+    pub(crate) fn burn_from(&mut self, id: &ProgramId, value: Balance) {
+        let mut actors = self.actors.borrow_mut();
+        let (_, balance) = actors.get_mut(id).expect("Can't find existing program");
+
+        if *balance < value {
+            panic!(
+                "Insufficient balance: user ({}) tries to burn \
+                ({}) value, while his balance ({})",
+                id, value, balance
+            );
+        } else {
+            *balance -= value;
+            if *balance < crate::EXISTENTIAL_DEPOSIT {
+                *balance = 0;
+            }
+        }
+    }
+
     pub(crate) fn balance_of(&self, id: &ProgramId) -> Balance {
         self.actors
             .borrow()
@@ -1023,6 +1041,14 @@ impl JournalHandler for ExtManager {
                     *others_gas_burned = others_gas_burned.saturating_add(Gas(amount))
                 });
         }
+
+        let (external, multiplier, _) = self
+            .gas_tree
+            .get_origin_node(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        let id: ProgramId = external.into_origin().into();
+        self.burn_from(&id, multiplier.gas_to_value(amount));
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
