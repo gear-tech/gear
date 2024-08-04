@@ -59,8 +59,8 @@ pub struct Sequencer {
     validators: HashSet<Address>,
     threshold: u64,
 
-    code_commitments: BTreeMap<Digest, (CodeCommitment, u64)>,
-    block_commitments: BTreeMap<Digest, (BlockCommitment, u64)>,
+    code_commitments: BTreeMap<Digest, (CodeCommitment, HashSet<Address>)>,
+    block_commitments: BTreeMap<Digest, (BlockCommitment, HashSet<Address>)>,
 
     codes_aggregator: BTreeMap<Digest, MultisignedCommitments<CodeCommitment>>,
     blocks_aggregator: BTreeMap<Digest, MultisignedCommitments<BlockCommitment>>,
@@ -303,28 +303,29 @@ impl Sequencer {
     }
 
     fn pop_suitable_commitments<C: AsDigest>(
-        commitments: &mut BTreeMap<Digest, (C, u64)>,
+        commitments: &mut BTreeMap<Digest, (C, HashSet<Address>)>,
         aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
         threshold: u64,
     ) -> Option<Digest> {
-        let suitable_commitment_hashes: Vec<_> = commitments
+        let suitable_digests: Vec<_> = commitments
             .iter()
-            .filter_map(|(&hash, (_, amount))| (*amount >= threshold).then_some(hash))
+            .filter_map(|(&hash, (_, set))| (set.len() as u64 >= threshold).then_some(hash))
             .collect();
 
-        if suitable_commitment_hashes.is_empty() {
+        if suitable_digests.is_empty() {
             return None;
         }
 
         let mut suitable_commitments = Vec::new();
-        for hash in suitable_commitment_hashes.iter() {
+        for hash in suitable_digests.iter() {
             let (commitment, _) = commitments
                 .remove(hash)
                 .unwrap_or_else(|| unreachable!("Must be in the map"));
             suitable_commitments.push(commitment);
         }
 
-        let digest = suitable_commitments.as_digest();
+        let digest = suitable_digests.as_digest();
+        debug_assert_eq!(digest, suitable_commitments.as_digest());
 
         aggregator.insert(
             digest,
@@ -413,27 +414,26 @@ impl Sequencer {
         aggregated: AggregatedCommitments<C>,
         validators: &HashSet<Address>,
         router_address: Address,
-        commitments_storage: &mut BTreeMap<Digest, (C, u64)>,
+        commitments_storage: &mut BTreeMap<Digest, (C, HashSet<Address>)>,
     ) -> Result<()> {
         if validators.contains(&origin).not() {
             return Err(anyhow!("Unknown validator {origin}"));
         }
 
-        if aggregated.verify_origin(router_address, origin)?.not() {
+        if aggregated.recover(router_address)? != origin {
             return Err(anyhow!("Signature verification failed for {origin}"));
         }
 
         let mut processed = HashSet::new();
         for commitment in aggregated.commitments {
             let digest = commitment.as_digest();
-            if processed.contains(&digest) {
+            if !processed.insert(digest) {
                 continue;
             }
-            processed.insert(digest);
-            let (_, signatures_amount) = commitments_storage
+            let (_, set) = commitments_storage
                 .entry(digest)
-                .or_insert_with(|| (commitment, 0));
-            *signatures_amount += 1;
+                .or_insert_with(|| (commitment, HashSet::new()));
+            set.insert(origin);
         }
 
         Ok(())
@@ -451,8 +451,7 @@ impl Sequencer {
             return Err(anyhow!("Unknown validator {origin}"));
         }
 
-        if AggregatedCommitments::<C>::recover_digest(digest, signature.clone(), router_address)?
-            != origin
+        if AggregatedCommitments::<C>::recover_digest(digest, &signature, router_address)? != origin
         {
             return Err(anyhow!("Invalid signature"));
         }

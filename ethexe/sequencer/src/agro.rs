@@ -46,24 +46,29 @@ impl<T: AsDigest> AggregatedCommitments<T> {
     }
 
     pub fn sign_commitments(
-        commitments_hash: Digest,
+        commitments_digest: Digest,
         signer: &Signer,
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<Signature> {
-        let buffer = Self::buffer(commitments_hash, router_address);
-        signer.sign_digest(pub_key, ethexe_signer::hash(&buffer).to_fixed_bytes())
+        signer.sign_digest(pub_key, Self::digest(commitments_digest, router_address))
+    }
+
+    pub fn recover(&self, router_address: Address) -> Result<Address> {
+        Self::recover_digest(
+            self.commitments.as_digest(),
+            &self.signature,
+            router_address,
+        )
     }
 
     pub fn recover_digest(
-        digest: Digest,
-        signature: Signature,
+        commitments_digest: Digest,
+        signature: &Signature,
         router_address: Address,
     ) -> Result<Address> {
-        let buffer = Self::buffer(digest, router_address);
-        let digest = ethexe_signer::hash(&buffer).to_fixed_bytes();
         signature
-            .recover_from_digest(digest)
+            .recover_from_digest(Self::digest(commitments_digest, router_address))
             .map(|k| k.to_address())
     }
 
@@ -75,22 +80,14 @@ impl<T: AsDigest> AggregatedCommitments<T> {
         self.commitments.is_empty()
     }
 
-    pub fn verify_origin(&self, router_address: Address, origin: Address) -> Result<bool> {
-        let buffer = Self::buffer(self.commitments.as_digest(), router_address);
-        Ok(self
-            .signature
-            .recover_from_digest(ethexe_signer::hash(&buffer).to_fixed_bytes())?
-            .to_address()
-            == origin)
-    }
-
-    fn buffer(digest: Digest, router_address: Address) -> Vec<u8> {
+    fn digest(commitments_digest: Digest, router_address: Address) -> Digest {
         [
             [0x19, 0x00].as_ref(),
             router_address.0.as_ref(),
-            digest.as_ref(),
+            commitments_digest.as_ref(),
         ]
         .concat()
+        .as_digest()
     }
 }
 
