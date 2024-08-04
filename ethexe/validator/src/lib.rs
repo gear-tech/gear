@@ -26,6 +26,7 @@ use ethexe_sequencer::{
     SeqHash,
 };
 use ethexe_signer::{Address, PublicKey, Signature, Signer};
+use gprimitives::H256;
 
 pub struct Config {
     pub pub_key: PublicKey,
@@ -90,7 +91,7 @@ impl Validator {
                 .ok_or(anyhow!("code not found"))?
                 != request.approved
             {
-                return Err(anyhow!("code not approved"));
+                return Err(anyhow!("approved mismatch"));
             }
             hashes.push(request.hash());
         }
@@ -144,33 +145,11 @@ impl Validator {
                 return Err(anyhow!("block prev commitment hash mismatch"));
             }
 
-            let allowed_predecessor_block_height = db
-                .block_header(allowed_pred_block_hash)
-                .ok_or(anyhow!("allowed pred block not found"))?
-                .height;
-            let block_height = db
-                .block_header(block_hash)
-                .ok_or(anyhow!("block not found"))?
-                .height;
-
-            let mut block_hash = block_hash;
-            (0..allowed_predecessor_block_height.saturating_sub(block_height))
-                .find_map(|_| match block_hash {
-                    _ if block_hash == allowed_pred_block_hash => Some(Ok(())),
-                    _ => {
-                        match db
-                            .block_prev_commitment(block_hash)
-                            .ok_or(anyhow!("block not found"))
-                        {
-                            Err(err) => Some(Err(err)),
-                            Ok(parent) => {
-                                block_hash = parent;
-                                None
-                            }
-                        }
-                    }
-                })
-                .ok_or(anyhow!("allowed pred block is not in correct branch"))??;
+            if !Self::verify_is_predecessor(&db, allowed_pred_block_hash, block_hash, None)? {
+                return Err(anyhow!(
+                    "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
+                ));
+            }
 
             hashes.push(request.hash());
         }
@@ -181,5 +160,41 @@ impl Validator {
             self.pub_key,
             self.router_address,
         )
+    }
+
+    /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
+    fn verify_is_predecessor(
+        db: &impl BlockMetaStorage,
+        block_hash: H256,
+        pred_hash: H256,
+        max_distance: Option<u32>,
+    ) -> Result<bool> {
+        let pred_height = db
+            .block_header(pred_hash)
+            .ok_or(anyhow!("header not found for pred block: {pred_hash}"))?
+            .height;
+
+        let block_height = db
+            .block_header(block_hash)
+            .ok_or(anyhow!("header not found for block: {block_hash}"))?
+            .height;
+
+        let distance = block_height.saturating_sub(pred_height);
+        if max_distance.map(|d| d < distance).unwrap_or(false) {
+            return Err(anyhow!("distance is too large: {distance}"));
+        }
+
+        let mut block_hash = block_hash;
+        for _ in 0..=distance {
+            if block_hash == pred_hash {
+                return Ok(true);
+            }
+            block_hash = db
+                .block_header(block_hash)
+                .ok_or(anyhow!("header not found for block: {block_hash}"))?
+                .parent_hash;
+        }
+
+        Ok(false)
     }
 }

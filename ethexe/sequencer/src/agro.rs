@@ -162,6 +162,16 @@ impl<T: SeqHash> AggregatedCommitments<T> {
         signer.sign_digest(pub_key, ethexe_signer::hash(&buffer).to_fixed_bytes())
     }
 
+    pub fn recover_digest(
+        digest: H256,
+        signature: Signature,
+        router_address: Address,
+    ) -> Result<Address> {
+        let buffer = Self::buffer(digest, router_address);
+        let digest = ethexe_signer::hash(&buffer).to_fixed_bytes();
+        signature.recover_digest(digest).map(|k| k.to_address())
+    }
+
     pub fn len(&self) -> usize {
         self.commitments.len()
     }

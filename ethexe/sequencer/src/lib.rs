@@ -427,16 +427,18 @@ impl Sequencer {
         aggregated_hash: H256,
         signature: Signature,
         validators: &HashSet<Address>,
+        router_address: Address,
         aggregator: &mut BTreeMap<H256, MultisignedCommitments<C>>,
     ) -> Result<()> {
         if !validators.contains(&origin) {
             return Err(anyhow!("Unknown validator {origin}"));
         }
 
-        if signature
-            .recover_digest(*aggregated_hash.as_fixed_bytes())?
-            .to_address()
-            != origin
+        if AggregatedCommitments::<C>::recover_digest(
+            aggregated_hash,
+            signature.clone(),
+            router_address,
+        )? != origin
         {
             return Err(anyhow!("Invalid signature"));
         }
@@ -462,6 +464,7 @@ impl Sequencer {
             aggregated_hash,
             signature,
             &self.validators,
+            self.ethereum.router().address(),
             &mut self.codes_aggregator,
         )
     }
@@ -477,6 +480,7 @@ impl Sequencer {
             aggregated_hash,
             signature,
             &self.validators,
+            self.ethereum.router().address(),
             &mut self.blocks_aggregator,
         )
     }

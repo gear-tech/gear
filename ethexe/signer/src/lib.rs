@@ -198,7 +198,7 @@ impl TryFrom<Signature> for RecoverableSignature {
     fn try_from(sig: Signature) -> Result<Self> {
         RecoverableSignature::from_compact(
             sig.0[..64].as_ref(),
-            RecoveryId::from_i32(sig.0[64] as i32)?,
+            RecoveryId::from_i32((sig.0[64] - 27) as i32)?,
         )
         .map_err(Into::into)
     }
@@ -349,6 +349,8 @@ impl Signer {
 
 #[cfg(test)]
 mod tests {
+    use std::env::temp_dir;
+
     use super::*;
 
     use ethers::utils::keccak256;
@@ -443,5 +445,29 @@ mod tests {
             ActorId::from_str("0x1111111111111111111111116e4c403878dbcb0dadcbe562346e8387f9542829")
                 .unwrap();
         Address::try_from(id).expect_err("Must be incorrect ethereum address");
+    }
+
+    #[test]
+    fn recover_digest() {
+        let private_key_hex = "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f";
+        let message = b"hello world";
+
+        let key_store = temp_dir().join("signer-tests");
+        let signer = Signer::new(key_store).expect("Failed to create signer");
+
+        let private_key = PrivateKey::from_str(private_key_hex).expect("Invalid private key hex");
+        let public_key = signer.add_key(private_key).expect("Failed to add key");
+
+        let signature = signer
+            .sign(public_key, message)
+            .expect("Failed to sign message");
+
+        let hash = keccak256(message);
+
+        let recovered_public_key = signature
+            .recover_digest(hash)
+            .expect("Failed to recover public key");
+
+        assert_eq!(recovered_public_key, public_key);
     }
 }
