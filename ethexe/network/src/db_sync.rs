@@ -115,7 +115,7 @@ impl Behaviour {
         tokio::task::spawn_blocking(move || match request {
             Request::BlockEndProgramStates(block_hash) => Response::BlockEndProgramStates {
                 block_hash,
-                states: db.block_end_program_states(block_hash).expect("TODO"),
+                states: db.block_end_program_states(block_hash).unwrap_or_default(),
             },
             Request::DataForHashes(hashes) => Response::DataForHashes(
                 hashes
