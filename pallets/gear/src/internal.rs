@@ -420,10 +420,26 @@ where
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
-            // TODO: Replace with unreachable call after:
-            // - `HoldBound` safety usage stabilized;
-            log::error!("Failed to figure out correct wait hold bound");
-            return;
+            let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id()).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "wait_dispatch: failed getting message gas limit. Message id - {message_id}. \
+                        Got error - {e:?}",
+                    message_id = dispatch.id()
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            let err_msg = format!(
+                "wait_dispatch: message got zero duration hold bound for waitlist. \
+                Requested duration - {duration:?}, gas limit - {gas_limit}, \
+                wait reason - {reason:?}, message id - {}.",
+                dispatch.id(),
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         // Locking funds for holding.

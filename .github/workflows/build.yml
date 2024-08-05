@@ -147,8 +147,6 @@ jobs:
 
       - name: "Test: Try runtime migrations"
         run: |
-          export RUST_LOG=remote-ext=debug,runtime=debug
-
           echo "---------- Downloading try-runtime CLI ----------"
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.5.4/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
@@ -159,7 +157,7 @@ jobs:
           time ./try-runtime --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all --no-weight-warnings --disable-spec-version-check live --uri ws://rpc-private.vara-network.io:9944
           sleep 5
         env:
-          RUST_LOG: info,remote-ext=debug,runtime=debug
+          RUST_LOG: info,pallet=debug
 
       - name: "Build: Production binaries"
         if: ${{ inputs.production && matrix.profiles.name == 'release' }}

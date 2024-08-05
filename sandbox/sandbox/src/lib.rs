@@ -37,6 +37,7 @@
 //! - executing a wasm substrate runtime inside of a wasm parachain
 
 #![warn(missing_docs)]
+#![allow(clippy::needless_borrows_for_generic_args)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;

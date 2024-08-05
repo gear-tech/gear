@@ -20,7 +20,6 @@
 
 #![no_std]
 #![warn(missing_docs)]
-#![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
@@ -45,8 +44,9 @@ pub use ext::{
 };
 pub use handler::handle_journal;
 pub use precharge::{
-    precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
-    precharge_for_module_instantiation, precharge_for_program, SuccessfulDispatchResultKind,
+    precharge_for_allocations, precharge_for_code, precharge_for_code_length,
+    precharge_for_instrumentation, precharge_for_module_instantiation, precharge_for_program,
+    SuccessfulDispatchResultKind,
 };
 pub use processing::{
     process, process_execution_error, process_non_executable, process_reinstrumentation_error,

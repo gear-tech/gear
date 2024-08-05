@@ -29,10 +29,7 @@ use crate::{
 };
 use ::alloc::{collections::BTreeSet, format, vec};
 use common::{Origin, ProgramStorage};
-use core::{
-    fmt::{Debug, Formatter},
-    mem::size_of,
-};
+use core::fmt::{Debug, Formatter};
 use core_processor::common::{DispatchOutcome, JournalNote};
 use gear_core::{
     memory::{MemoryInterval, PageBuf},
@@ -235,7 +232,7 @@ where
                 // We use syscall gr_random here, because it has read and write access,
                 // and cannot cause errors because of input params
                 let subject_size = gsys::Hash::max_encoded_len() as u32;
-                let bn_random_size = core::mem::size_of::<gsys::BlockNumberWithHash>() as u32;
+                let bn_random_size = size_of::<gsys::BlockNumberWithHash>() as u32;
 
                 let subject_ptr = rng.gen_range(0..max_addr - subject_size) as i32;
                 let bn_random_ptr = rng.gen_range(0..max_addr - bn_random_size) as i32;

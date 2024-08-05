@@ -20,6 +20,8 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 #![allow(clippy::items_after_test_module)]
+#![allow(clippy::legacy_numeric_constants)]
+#![allow(non_local_definitions)]
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
@@ -1569,7 +1571,7 @@ where
 
     fn from_parts(call: &C, params: Self::Params) -> Self {
         Self {
-            call: unsafe { std::mem::transmute(call) },
+            call: unsafe { std::mem::transmute::<&C, &C>(call) },
             transaction_depth: params.0.into(),
             changes: core::cell::RefCell::new(params.1),
             recorder: params.2,

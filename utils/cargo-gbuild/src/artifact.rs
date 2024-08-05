@@ -29,8 +29,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const ARTIFACT_DIR: &str = "gbuild";
-
 /// Gbuild artifact registry
 ///
 /// This instance simply holds the paths of the built binaries
@@ -195,8 +193,33 @@ fn collect_crates(cwd: &Path, patterns: &[String], opt: OptType) -> Result<Vec<A
     crates
         .into_iter()
         .map(|manifest| -> Result<Artifact> {
+            let mut toml = Manifest::from_slice(&fs::read(&manifest)?)?;
+            let mut cdylib = false;
+            if let Some(lib) = &toml.lib {
+                cdylib = lib.crate_type.contains(&"cdylib".to_string());
+            }
+
+            // Specifying `--crate-type` in rustc flags doesn't work
+            // for our case since crates like gstd, gmeta don't have
+            // `cdylib` specified and it would slow down compilation
+            // time if adding `cdylib` in their [lib].
+            //
+            // So here we simply panic if users don't have `cdylib`
+            // in their manifest, otherwise using shadow manifest
+            // could be a dirty solution.
+            //
+            // see: https://github.com/rust-lang/cargo/issues/11232
+            if !cdylib {
+                eprint!(
+                    "{}: could not find `cdylib` in [lib.crate-type] from {}",
+                    "error".bold().red(),
+                    manifest.display()
+                );
+                std::process::exit(1);
+            }
+
             Ok(Artifact {
-                name: Manifest::from_path(&manifest).map(|m| m.package().name().into())?,
+                name: toml.package().name().into(),
                 opt,
                 manifest,
             })

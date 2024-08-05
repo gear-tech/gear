@@ -59,8 +59,8 @@
 //! ```
 //!
 //! 2. Provide associated type for your pallet's `Config`, which implements
-//! `gear_common::{CodeStorage, ProgramStorage}` traits,
-//! specifying associated types if needed.
+//!    `gear_common::{CodeStorage, ProgramStorage}` traits,
+//!    specifying associated types if needed.
 //!
 //! ```ignore
 //! // `some_pallet/src/lib.rs`
@@ -121,7 +121,7 @@
 //! ```
 //!
 //! 5. Work with Gear Program Pallet in your pallet with provided
-//! associated type interface.
+//!    associated type interface.
 //!
 //! ## Genesis config
 //!
@@ -130,6 +130,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![allow(clippy::manual_inspect)]
 
 extern crate alloc;
 
@@ -158,14 +159,13 @@ pub mod pallet {
         code::InstrumentedCode,
         ids::{CodeId, ProgramId},
         memory::PageBuf,
-        pages::GearPage,
+        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, Program},
     };
-
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(9);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(10);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -259,6 +259,18 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
+    pub(crate) type AllocationsStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, IntervalsTree<WasmPage>>;
+
+    common::wrap_storage_map!(
+        storage: AllocationsStorage,
+        name: AllocationsStorageWrap,
+        key: ProgramId,
+        value: IntervalsTree<WasmPage>
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
         StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 
@@ -303,6 +315,7 @@ pub mod pallet {
         type BlockNumber = BlockNumberFor<T>;
         type AccountId = T::AccountId;
 
+        type AllocationsMap = AllocationsStorageWrap<T>;
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
 

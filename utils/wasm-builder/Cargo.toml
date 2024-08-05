@@ -13,7 +13,6 @@ readme = "README.md"
 anyhow.workspace = true
 cargo_metadata.workspace = true
 chrono = "0.4"
-once_cell.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
 thiserror.workspace = true

@@ -205,7 +205,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let precharged_dispatch = match core_processor::precharge_for_program(
+    let context = match core_processor::precharge_for_program(
         &block_config,
         1_000_000_000_000,
         dispatch,
@@ -217,11 +217,21 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
 
     let code = instrumented_code.expect("Instrumented code must be provided if program is active");
 
+    // TODO: support normal allocations len #4068
     let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_allocations(hash)
             .expect("Cannot get allocations")
     });
+
+    let context = match core_processor::precharge_for_allocations(
+        &block_config,
+        context,
+        allocations.intervals_amount() as u32,
+    ) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
 
     let gas_reservation_map = active_state
         .gas_reservation_map_hash
@@ -245,15 +255,11 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         memory_infix: active_state.memory_infix,
     };
 
-    let context = match core_processor::precharge_for_code_length(
-        &block_config,
-        precharged_dispatch,
-        program_id,
-        actor_data,
-    ) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
+    let context =
+        match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
 
     let context = ContextChargedForCode::from(context);
     let context = ContextChargedForInstrumentation::from(context);
