@@ -82,7 +82,7 @@ pub(crate) struct Behaviour {
     inner: InnerBehaviour,
     user_requests: Vec<Request>,
     db: Database,
-    db_reader: Option<(
+    ongoing_response: Option<(
         request_response::ResponseChannel<Response>,
         JoinHandle<Response>,
     )>,
@@ -95,7 +95,7 @@ impl Behaviour {
             inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], cfg),
             user_requests: Vec::new(),
             db,
-            db_reader: None,
+            ongoing_response: None,
             connections: HashMap::new(),
         }
     }
@@ -139,7 +139,7 @@ impl Behaviour {
                         channel,
                     },
             } => {
-                self.db_reader = Some((channel, self.read_db(request)));
+                self.ongoing_response = Some((channel, self.read_db(request)));
             }
             request_response::Event::Message {
                 peer,
@@ -290,13 +290,13 @@ impl NetworkBehaviour for Behaviour {
             }
         }
 
-        if let Some((channel, mut db_reader)) = self.db_reader.take() {
+        if let Some((channel, mut db_reader)) = self.ongoing_response.take() {
             if let Poll::Ready(data) = db_reader.poll_unpin(cx) {
                 // TODO: check request kind corresponds to response kind
                 let resp = data.expect("database panicked");
                 let _res = self.inner.send_response(channel, resp);
             } else {
-                self.db_reader = Some((channel, db_reader));
+                self.ongoing_response = Some((channel, db_reader));
             }
         }
 
