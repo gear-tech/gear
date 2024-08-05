@@ -19,9 +19,9 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    AccountIdOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
-    SchedulingCostOf, TaskPoolOf, WaitlistOf,
+    AccountIdOf, Config, CostsPerBlockOf, DispatchStashOf, Event, ExtManager, GasBalanceOf,
+    GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf, SchedulingCostOf, TaskPoolOf,
+    WaitlistOf,
 };
 use alloc::{collections::BTreeSet, format};
 use common::{
@@ -38,7 +38,6 @@ use core::{
     cmp::{Ord, Ordering},
     num::NonZeroUsize,
 };
-use frame_support::traits::{fungible, Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{prelude::*, MessageId, ProgramId, ReservationId},
@@ -47,10 +46,7 @@ use gear_core::{
         UserStoredMessage,
     },
 };
-use sp_runtime::{
-    traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero},
-    DispatchError, TokenError,
-};
+use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
 type MailboxError<T> = <<<T as Config>::Messenger as Messenger>::Mailbox as Mailbox>::OutputError;
 type WaitlistError<T> =
@@ -1078,28 +1074,38 @@ where
             // Note that we have no guarantees of the user account to exist. Since no minimum
             // transfer value is enforced, the transfer can fail. Handle it gracefully.
             // TODO #4018 Introduce a safer way to handle this.
-            CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
-                .unwrap_or_else(|e| match e {
-                    DispatchError::Token(TokenError::BelowMinimum) => {
-                        log::debug!(
-                            "Failed to transfer value: {:?}. User account balance is too low.",
-                            e
-                        );
-                        <CurrencyOf<T> as fungible::Unbalanced<_>>::handle_dust(fungible::Dust(
-                            value,
-                        ));
-                    }
-                    e => {
-                        // Other errors are ruled out by the protocol guarantees.
-                        let err_msg = format!(
-                            "send_user_message: failed to transfer value. Got error: {e:?}"
-                        );
+            /*CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
+            .unwrap_or_else(|e| match e {
+                DispatchError::Token(TokenError::BelowMinimum) => {
+                    log::debug!(
+                        "Failed to transfer value: {:?}. User account balance is too low.",
+                        e
+                    );
+                    <CurrencyOf<T> as fungible::Unbalanced<_>>::handle_dust(fungible::Dust(
+                        value,
+                    ));
+                }
+                e => {
+                    // Other errors are ruled out by the protocol guarantees.
+                    let err_msg = format!(
+                        "send_user_message: failed to transfer value. Got error: {e:?}"
+                    );
 
-                        log::error!("{err_msg}");
-                        unreachable!("{err_msg}");
-                    }
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                }
+            });*/
+
+            GearBank::<T>::deposit_value(&from, value, false)
+                .and_then(|_| GearBank::<T>::transfer_value(&from, &to, value))
+                .unwrap_or_else(|e| {
+                    // errors are ruled out by the protocol guarantees.
+                    let err_msg =
+                        format!("send_user_message: failed to transfer value. Got error: {e:?}");
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
                 });
-
             if message.details().is_none() {
                 // Creating auto reply message.
                 let reply_message = ReplyMessage::auto(message.id());
