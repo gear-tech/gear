@@ -535,4 +535,22 @@ pub mod constants {
     pub const MODULE_INSTRUMENTATION_BYTE_COST: Gas = 13;
     /// Initial random seed for testing environment.
     pub const INITIAL_RANDOM_SEED: u64 = 42;
+
+    /* Default users constants with initial balance */
+
+    pub const DEFAULT_USER_ALICE: u64 = 1;
+    pub const DEFAULT_USER_BOB: u64 = 2;
+    pub const DEFAULT_USER_CHARLIE: u64 = 3;
+    pub const DEFAULT_USER_EVE: u64 = 4;
+
+    pub const fn default_users_list() -> &'static [u64] {
+        &[
+            DEFAULT_USER_ALICE,
+            DEFAULT_USER_BOB,
+            DEFAULT_USER_CHARLIE,
+            DEFAULT_USER_EVE,
+        ]
+    }
+
+    pub const DEFAULT_USERS_INITIAL_BALANCE: Value = EXISTENTIAL_DEPOSIT * 100_000;
 }

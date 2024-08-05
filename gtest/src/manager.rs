@@ -18,13 +18,14 @@
 
 use crate::{
     blocks::BlocksManager,
+    default_users_list,
     gas_tree::GasTreeManager,
     log::{CoreLog, RunResult},
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
-    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
+    Result, TestError, DEFAULT_USERS_INITIAL_BALANCE, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS,
+    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL,
+    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
     MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
@@ -257,7 +258,7 @@ pub(crate) struct ExtManager {
 impl ExtManager {
     #[track_caller]
     pub(crate) fn new() -> Self {
-        Self {
+        let mut manager = Self {
             msg_nonce: 1,
             id_nonce: 1,
             blocks_manager: BlocksManager::new(),
@@ -272,6 +273,21 @@ impl ExtManager {
                 0,
             ),
             ..Default::default()
+        };
+
+        manager.init_default_users();
+        manager
+    }
+
+    fn init_default_users(&mut self) {
+        for &default_user_id in default_users_list() {
+            let free_id = self.free_id_nonce();
+
+            assert_eq!(default_user_id, free_id);
+            self.actors.insert(
+                default_user_id.into(),
+                (TestActor::User, DEFAULT_USERS_INITIAL_BALANCE),
+            );
         }
     }
 

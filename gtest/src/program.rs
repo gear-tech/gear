@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    default_users_list,
     log::RunResult,
     manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
     system::System,
@@ -399,6 +400,10 @@ impl<'a> Program<'a> {
         program: InnerProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
+
+        if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
+            panic!("Can't create program with id {id:?}, because it's reserved for default users")
+        }
 
         if system
             .0
@@ -885,7 +890,10 @@ pub mod gbuild {
 mod tests {
     use super::Program;
 
-    use crate::{manager::Balance, Log, ProgramIdWrapper, System, GAS_MULTIPLIER};
+    use crate::{
+        manager::Balance, Log, ProgramIdWrapper, System, DEFAULT_USERS_INITIAL_BALANCE,
+        DEFAULT_USER_ALICE, DEFAULT_USER_BOB, GAS_MULTIPLIER,
+    };
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
 
@@ -898,7 +906,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
         let message = "Signal handle";
         let panic_message = "Gotcha!";
 
@@ -931,7 +939,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 100;
+        let user_id = DEFAULT_USER_ALICE;
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
@@ -1064,33 +1072,40 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
+        const RECEIVER_INITIAL_BALANCE: Balance = 2 * crate::EXISTENTIAL_DEPOSIT;
+
         let sender = 42;
         let receiver = 84;
+        let mut receiver_expected_balance = RECEIVER_INITIAL_BALANCE;
 
         sys.mint_to(sender, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(receiver, RECEIVER_INITIAL_BALANCE);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
-        prog.send_bytes(receiver, b"init");
+        receiver_expected_balance -= prog.send_bytes(receiver, b"init").spent_value();
 
         // Get zero value to the receiver's mailbox
-        prog.send_bytes(receiver, b"smash");
+        receiver_expected_balance -= prog.send_bytes(receiver, b"smash").spent_value();
 
         let receiver_mailbox = sys.get_mailbox(receiver);
         assert!(receiver_mailbox
             .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
             .is_ok());
-        assert_eq!(sys.balance_of(receiver), 0);
+        assert_eq!(sys.balance_of(receiver), receiver_expected_balance);
 
         // Get the value > ED to the receiver's mailbox
         prog.send_bytes_with_value(sender, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
-        prog.send_bytes(receiver, b"smash");
+        receiver_expected_balance -= prog.send_bytes(receiver, b"smash").spent_value();
 
         // Check receiver's balance
         assert!(receiver_mailbox
             .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
             .is_ok());
-        assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(
+            sys.balance_of(receiver),
+            2 * crate::EXISTENTIAL_DEPOSIT + receiver_expected_balance
+        );
     }
 
     struct CleanupFolderOnDrop {
@@ -1256,7 +1271,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
         let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
 
         // Initialize program
@@ -1302,7 +1317,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
         let prog_id = 4242;
         let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
@@ -1349,28 +1364,17 @@ mod tests {
 
     #[test]
     fn test_send_message_decreases_user_balance() {
-        use super::Gas;
         use demo_constructor::WASM_BINARY;
-
-        const INITIAL_VALUE: Balance = 20 * crate::EXISTENTIAL_DEPOSIT;
 
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
 
-        sys.mint_to(user_id, 20 * crate::EXISTENTIAL_DEPOSIT);
         let prog = Program::from_binary_with_id(&sys, 1337, WASM_BINARY);
 
         let run_result = prog.send(user_id, Scheme::empty());
-
-        let spent_gas = run_result.main_gas_burned()
-            + run_result
-                .others_gas_burned()
-                .values()
-                .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
-        let spent_value = GAS_MULTIPLIER.gas_to_value(spent_gas.0);
-        let expected_value = INITIAL_VALUE - spent_value;
+        let expected_value = DEFAULT_USERS_INITIAL_BALANCE - run_result.spent_value();
 
         assert_eq!(sys.balance_of(user_id), expected_value);
     }
