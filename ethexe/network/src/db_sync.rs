@@ -36,7 +36,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     task::{Context, Poll},
 };
 use tokio::task::JoinHandle;
@@ -58,7 +58,7 @@ pub enum Request {
     ProgramCodeIds(Vec<ProgramId>),
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Eq, PartialEq, Encode, Decode)]
 pub enum Response {
     BlockEndProgramStates {
         /// Block hash states requested for
@@ -72,7 +72,7 @@ pub enum Response {
     ProgramCodeIds(ProgramCodeIds),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Event {
     RequestSucceed {
         /// Peer who responded to data request
@@ -86,7 +86,7 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    requests: VecDeque<Request>,
+    user_requests: Vec<Request>,
     db: Database,
     db_reader: Option<(
         request_response::ResponseChannel<Response>,
@@ -99,7 +99,7 @@ impl Behaviour {
     pub fn new(cfg: request_response::Config, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], cfg),
-            requests: VecDeque::new(),
+            user_requests: Vec::new(),
             db,
             db_reader: None,
             connections: HashMap::new(),
@@ -107,7 +107,7 @@ impl Behaviour {
     }
 
     pub fn request(&mut self, request: Request) {
-        self.requests.push_back(request);
+        self.user_requests.push(request);
     }
 
     fn read_db(&self, request: Request) -> JoinHandle<Response> {
@@ -267,9 +267,9 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        for request in self.requests.drain(..) {
-            // TODO: way to choose peer
-            if let Some(peer_id) = self.connections.keys().next() {
+        // TODO: way to choose peer
+        if let Some(peer_id) = self.connections.keys().next() {
+            for request in self.user_requests.drain(..) {
                 let _outbound_request_id = self.inner.send_request(peer_id, request);
             }
         }
@@ -294,5 +294,57 @@ impl NetworkBehaviour for Behaviour {
         }
 
         Poll::Pending
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::tests::init_logger;
+    use ethexe_db::MemDb;
+    use libp2p::Swarm;
+    use libp2p_swarm_test::SwarmExt;
+
+    fn new_swarm() -> (Swarm<Behaviour>, Database) {
+        let db = Database::from_one(&MemDb::default());
+        let behaviour = Behaviour::new(request_response::Config::default(), db.clone());
+        let swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
+        (swarm, db)
+    }
+
+    #[tokio::test]
+    async fn smoke() {
+        init_logger();
+
+        let (mut alice, alice_db) = new_swarm();
+        let (mut bob, bob_db) = new_swarm();
+        bob.listen().with_memory_addr_external().await;
+        let bob_id = *bob.local_peer_id();
+
+        let hello_hash = bob_db.write(b"hello");
+        let world_hash = bob_db.write(b"world");
+
+        alice.connect(&mut bob).await;
+
+        tokio::spawn(bob.loop_on_next());
+
+        alice
+            .behaviour_mut()
+            .request(Request::DataForHashes([hello_hash, world_hash].into()));
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestSucceed {
+                peer_id: bob_id,
+                response: Response::DataForHashes(
+                    [
+                        (hello_hash, b"hello".to_vec()),
+                        (world_hash, b"world".to_vec())
+                    ]
+                    .into()
+                )
+            }
+        )
     }
 }
