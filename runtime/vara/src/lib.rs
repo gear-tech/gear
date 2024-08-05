@@ -1192,7 +1192,7 @@ impl pallet_gear_builtin::Config for Runtime {
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
-    type QueueCapacity = ConstU32<1024>;
+    type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;
     type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
 }

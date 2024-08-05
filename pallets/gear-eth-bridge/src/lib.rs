@@ -49,7 +49,7 @@ pub mod pallet {
     use common::Origin;
     use frame_support::{
         pallet_prelude::*,
-        traits::{ConstBool, OneSessionHandler, StorageVersion},
+        traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
         StorageHasher,
     };
     use frame_system::{
@@ -71,7 +71,7 @@ pub mod pallet {
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_staking::Config {
+    pub trait Config: frame_system::Config {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -196,10 +196,12 @@ pub mod pallet {
 
     /// Operational storage.
     ///
-    /// Defines should queue, queue merkle root and grandpa keys hash be cleared.
+    /// Defines in how many on_initialize hooks queue, queue merkle root and
+    /// grandpa keys hash should be cleared.
     ///
-    /// **Invariant**: exist in storage and equals `true` once per era in the
-    /// very first block, to perform removal on next block's initialization.
+    /// **Invariant**: set to 2 on_init hooks when new session with authorities
+    /// set change, then decreasing to zero on each new block hook. When equals
+    /// to zero, reset is performed.
     #[pallet::storage]
     pub(crate) type ClearTimer<T> = StorageValue<_, u32>;
 
@@ -441,10 +443,9 @@ pub mod pallet {
     impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
         type Key = <Self as BoundToRuntimeAppPublic>::Public;
 
-        // TODO (breathx): consider supporting genesis session, avoiding `Initialized`.
         fn on_genesis_session<'a, I: 'a>(_validators: I) {}
 
-        // TODO (breathx): support `Stalled` changes of grandpa.
+        // TODO: consider support of `Stalled` changes of grandpa (#4113).
         fn on_new_session<'a, I: 'a>(changed: bool, _validators: I, queued_validators: I)
         where
             I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
@@ -524,5 +525,29 @@ pub mod pallet {
         }
 
         fn on_disabled(_validator_index: u32) {}
+    }
+
+    /// Prefix alias of the `pallet_gear_eth_bridge::AuthoritySetHash` storage.
+    pub struct AuthoritySetHashPrefix<T>(PhantomData<T>);
+
+    impl<T: Config> StorageInstance for AuthoritySetHashPrefix<T> {
+        const STORAGE_PREFIX: &'static str =
+            <_GeneratedPrefixForStorageAuthoritySetHash<T> as StorageInstance>::STORAGE_PREFIX;
+
+        fn pallet_prefix() -> &'static str {
+            <_GeneratedPrefixForStorageAuthoritySetHash<T> as StorageInstance>::pallet_prefix()
+        }
+    }
+
+    /// Prefix alias of the `pallet_gear_eth_bridge::QueueMerkleRoot` storage.
+    pub struct QueueMerkleRootPrefix<T>(PhantomData<T>);
+
+    impl<T: Config> StorageInstance for QueueMerkleRootPrefix<T> {
+        const STORAGE_PREFIX: &'static str =
+            <_GeneratedPrefixForStorageQueueMerkleRoot<T> as StorageInstance>::STORAGE_PREFIX;
+
+        fn pallet_prefix() -> &'static str {
+            <_GeneratedPrefixForStorageQueueMerkleRoot<T> as StorageInstance>::pallet_prefix()
+        }
     }
 }

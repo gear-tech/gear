@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Auxiliary implementations of the complexity data structures,
+//! Auxiliary implementations of the complex data structures,
 //! which manage important for the gear runtime storages. These
 //! implementations can be used in a non-wasm environment.
 

@@ -25,12 +25,11 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use pallet_tests_staking_config_impl::{BondingDuration, SessionsPerEra};
 use sp_core::{ed25519::Public, H256};
 use sp_runtime::{
     impl_opaque_keys,
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill, Permill,
+    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -58,7 +57,6 @@ construct_runtime!(
         Authorship: pallet_authorship,
         Grandpa: pallet_grandpa,
         Balances: pallet_balances,
-        Staking: pallet_staking,
         Session: pallet_session,
 
         GearProgram: pallet_gear_program,
@@ -147,7 +145,6 @@ common::impl_pallet_system!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
-common::impl_pallet_staking!(Test);
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
@@ -192,13 +189,11 @@ pub const EPOCH_DURATION_IN_SLOTS: u64 = {
 };
 
 parameter_types! {
+    pub const SessionsPerEra: u32 = 6;
     pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
     pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
     pub const MaxAuthorities: u32 = 100_000;
     pub const MaxNominatorRewardedPerValidator: u32 = 256;
-    pub const MaxSetIdSessionEntries: u32 = 14 * BondingDuration::get() * SessionsPerEra::get();
-    pub const ReportLongevity: u64 =
-        BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 }
 
 impl pallet_grandpa::Config for Test {
@@ -207,7 +202,7 @@ impl pallet_grandpa::Config for Test {
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
     type MaxNominators = MaxNominatorRewardedPerValidator;
-    type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
+    type MaxSetIdSessionEntries = ();
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem = ();
 }
@@ -280,7 +275,7 @@ impl SessionManager<AccountId> for TestSessionManager {
 impl pallet_session::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = pallet_staking::StashOf<Self>;
+    type ValidatorIdOf = ();
     type ShouldEndSession = TestSessionRotator;
     type NextSessionRotation = ();
     type SessionManager = TestSessionManager;
@@ -300,7 +295,6 @@ impl pallet_gear_eth_bridge::Config for Test {
 // Build genesis storage according to the mock runtime.
 #[derive(Default)]
 pub struct ExtBuilder {
-    initial_authorities: Vec<AccountId>,
     endowed_accounts: Vec<AccountId>,
     endowment: Balance,
 }
@@ -344,28 +338,6 @@ impl ExtBuilder {
             .assimilate_storage(&mut storage)
             .unwrap();
 
-        pallet_staking::GenesisConfig::<Test> {
-            validator_count: self.initial_authorities.len() as u32,
-            minimum_validator_count: self.initial_authorities.len() as u32,
-            stakers: self
-                .initial_authorities
-                .iter()
-                .map(|x| {
-                    (
-                        *x,
-                        *x,
-                        self.endowment,
-                        pallet_staking::StakerStatus::<AccountId>::Validator,
-                    )
-                })
-                .collect::<Vec<_>>(),
-            invulnerables: self.initial_authorities.to_vec(),
-            slash_reward_fraction: Perbill::from_percent(10),
-            ..Default::default()
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
-
         let mut ext: sp_io::TestExternalities = storage.into();
 
         ext.execute_with(|| {
@@ -402,7 +374,6 @@ pub(crate) fn on_initialize(new: BlockNumberFor<Test>) {
     Authorship::on_initialize(new);
     Grandpa::on_initialize(new);
     Balances::on_initialize(new);
-    Staking::on_initialize(new);
     Session::on_initialize(new);
 
     GearProgram::on_initialize(new);
@@ -427,7 +398,6 @@ pub(crate) fn on_finalize(bn: BlockNumberFor<Test>) {
     GearProgram::on_finalize(bn);
 
     Session::on_finalize(bn);
-    Staking::on_finalize(bn);
     Balances::on_finalize(bn);
     Grandpa::on_finalize(bn);
     Authorship::on_finalize(bn);

@@ -13,6 +13,10 @@ use sp_core::{H160, H256};
 use sp_runtime::traits::{BadOrigin, Keccak256};
 use utils::*;
 
+const EPOCH_BLOCKS: u64 = EpochDuration::get();
+const ERA_BLOCKS: u64 = EPOCH_BLOCKS * SessionsPerEra::get() as u64;
+const WHEN_INITIALIZED: u64 = 42;
+
 type AuthoritySetHash = crate::AuthoritySetHash<Test>;
 type MessageNonce = crate::MessageNonce<Test>;
 type Queue = crate::Queue<Test>;
@@ -33,56 +37,56 @@ fn bridge_got_initialized() {
         assert!(!QueueMerkleRoot::exists());
         assert!(Paused::get());
 
-        run_to_block(6);
+        run_to_block(EPOCH_BLOCKS);
         do_events_assertion(0, 6, []);
 
-        run_to_block(7);
+        run_to_block(EPOCH_BLOCKS + 1);
         do_events_assertion(1, 7, [SessionEvent::NewSession { session_index: 1 }.into()]);
 
-        run_to_block(12);
+        run_to_block(EPOCH_BLOCKS * 2);
         do_events_assertion(1, 12, []);
 
-        run_to_block(13);
+        run_to_block(EPOCH_BLOCKS * 2 + 1);
         do_events_assertion(
             2,
             13,
             [SessionEvent::NewSession { session_index: 2 }.into()],
         );
 
-        run_to_block(18);
+        run_to_block(EPOCH_BLOCKS * 3);
         do_events_assertion(2, 18, []);
 
-        run_to_block(19);
+        run_to_block(EPOCH_BLOCKS * 3 + 1);
         do_events_assertion(
             3,
             19,
             [SessionEvent::NewSession { session_index: 3 }.into()],
         );
 
-        run_to_block(24);
+        run_to_block(EPOCH_BLOCKS * 4);
         do_events_assertion(3, 24, []);
 
-        run_to_block(25);
+        run_to_block(EPOCH_BLOCKS * 4 + 1);
         do_events_assertion(
             4,
             25,
             [SessionEvent::NewSession { session_index: 4 }.into()],
         );
 
-        run_to_block(30);
+        run_to_block(EPOCH_BLOCKS * 5);
         do_events_assertion(4, 30, []);
 
-        run_to_block(31);
+        run_to_block(EPOCH_BLOCKS * 5 + 1);
         do_events_assertion(
             5,
             31,
             [SessionEvent::NewSession { session_index: 5 }.into()],
         );
 
-        run_to_block(36);
+        run_to_block(ERA_BLOCKS);
         do_events_assertion(5, 36, []);
 
-        run_to_block(37);
+        run_to_block(ERA_BLOCKS + 1);
         do_events_assertion(
             6,
             37,
@@ -95,7 +99,7 @@ fn bridge_got_initialized() {
         assert!(Initialized::get());
         assert!(Paused::get());
 
-        on_finalize_gear_block(37);
+        on_finalize_gear_block(ERA_BLOCKS + 1);
         do_events_assertion(
             6,
             37,
@@ -111,7 +115,7 @@ fn bridge_got_initialized() {
 fn bridge_unpause_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_noop!(
             GearEthBridge::unpause(RuntimeOrigin::signed(SIGNER)),
@@ -132,7 +136,7 @@ fn bridge_unpause_works() {
 fn bridge_pause_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_noop!(
             GearEthBridge::pause(RuntimeOrigin::signed(SIGNER)),
@@ -157,7 +161,7 @@ fn bridge_pause_works() {
 fn bridge_send_eth_message_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
@@ -221,7 +225,7 @@ fn bridge_send_eth_message_works() {
 fn bridge_queue_root_changes() {
     init_logger();
     new_test_ext().execute_with(|| {
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
@@ -239,12 +243,12 @@ fn bridge_queue_root_changes() {
 
         let expected_root = binary_merkle_tree::merkle_root::<Keccak256, _>(Queue::get());
 
-        on_finalize_gear_block(42);
+        on_finalize_gear_block(WHEN_INITIALIZED);
 
         System::assert_last_event(Event::QueueMerkleRootChanged(expected_root).into());
         assert!(!QueueChanged::get());
 
-        on_initialize(43);
+        on_initialize(WHEN_INITIALIZED + 1);
 
         assert!(!QueueChanged::get());
     })
@@ -256,10 +260,10 @@ fn bridge_updates_authorities_and_clears() {
     new_test_ext().execute_with(|| {
         assert!(!AuthoritySetHash::exists());
 
-        run_to_block(37);
+        run_to_block(ERA_BLOCKS + 1);
         do_events_assertion(6, 37, None::<[_; 0]>);
 
-        on_finalize_gear_block(37);
+        on_finalize_gear_block(ERA_BLOCKS + 1);
         do_events_assertion(
             6,
             37,
@@ -269,7 +273,7 @@ fn bridge_updates_authorities_and_clears() {
             .into()],
         );
 
-        on_initialize(38);
+        on_initialize(ERA_BLOCKS + 2);
         do_events_assertion(6, 38, []);
 
         assert!(!AuthoritySetHash::exists());
@@ -284,7 +288,7 @@ fn bridge_updates_authorities_and_clears() {
             ));
         }
 
-        on_finalize_gear_block(38);
+        on_finalize_gear_block(ERA_BLOCKS + 2);
 
         assert_eq!(System::events().len(), 7);
         assert!(matches!(
@@ -293,10 +297,10 @@ fn bridge_updates_authorities_and_clears() {
         ));
         assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
 
-        on_initialize(39);
+        on_initialize(ERA_BLOCKS + 3);
         do_events_assertion(6, 39, None::<[_; 0]>);
 
-        run_to_block(66);
+        run_to_block(ERA_BLOCKS + EPOCH_BLOCKS * 5);
         do_events_assertion(
             10,
             66,
@@ -316,7 +320,7 @@ fn bridge_updates_authorities_and_clears() {
             .collect::<Vec<u8>>();
         let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
 
-        run_to_block(67);
+        run_to_block(ERA_BLOCKS + EPOCH_BLOCKS * 5 + 1);
         do_events_assertion(
             11,
             67,
@@ -332,25 +336,25 @@ fn bridge_updates_authorities_and_clears() {
         );
         assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
 
-        run_to_block(73);
+        run_to_block(ERA_BLOCKS * 2 + 1);
         do_events_assertion(
             12,
             73,
             [SessionEvent::NewSession { session_index: 12 }.into()],
         );
 
-        on_finalize_gear_block(73);
+        on_finalize_gear_block(ERA_BLOCKS * 2 + 1);
         System::assert_last_event(GrandpaEvent::NewAuthorities { authority_set }.into());
 
         System::reset_events();
 
-        on_initialize(74);
+        on_initialize(ERA_BLOCKS * 2 + 2);
         do_events_assertion(12, 74, [Event::BridgeCleared.into()]);
 
         assert!(!AuthoritySetHash::exists());
         assert!(QueueMerkleRoot::get().expect("infallible").is_zero());
 
-        run_to_block(102);
+        run_to_block(ERA_BLOCKS * 2 + EPOCH_BLOCKS * 5);
         do_events_assertion(
             16,
             102,
@@ -370,7 +374,7 @@ fn bridge_updates_authorities_and_clears() {
             .collect::<Vec<u8>>();
         let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
 
-        run_to_block(103);
+        run_to_block(ERA_BLOCKS * 2 + EPOCH_BLOCKS * 5 + 1);
         do_events_assertion(
             17,
             103,
@@ -380,8 +384,8 @@ fn bridge_updates_authorities_and_clears() {
             ],
         );
 
-        run_to_block(109);
-        on_finalize_gear_block(109);
+        run_to_block(ERA_BLOCKS * 3 + 1);
+        on_finalize_gear_block(ERA_BLOCKS * 3 + 1);
         do_events_assertion(
             18,
             109,
@@ -391,7 +395,7 @@ fn bridge_updates_authorities_and_clears() {
             ],
         );
 
-        on_initialize(110);
+        on_initialize(ERA_BLOCKS * 3 + 2);
         do_events_assertion(18, 110, [Event::BridgeCleared.into()]);
     })
 }
@@ -405,7 +409,7 @@ fn bridge_is_not_yet_initialized_err() {
         run_to_block(1);
         run_block_and_assert_bridge_error(ERR);
 
-        run_to_block(35);
+        run_to_block(ERA_BLOCKS - 1);
         run_block_and_assert_bridge_error(ERR);
     })
 }
@@ -416,7 +420,7 @@ fn bridge_is_paused_err() {
     new_test_ext().execute_with(|| {
         const ERR: Error = Error::BridgeIsPaused;
 
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
         run_block_and_assert_messaging_error(
             Request::SendEthMessage {
                 destination: H160::zero(),
@@ -433,7 +437,7 @@ fn bridge_max_payload_size_exceeded_err() {
     new_test_ext().execute_with(|| {
         const ERR: Error = Error::MaxPayloadSizeExceeded;
 
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
@@ -455,7 +459,7 @@ fn bridge_queue_capacity_exceeded_err() {
     new_test_ext().execute_with(|| {
         const ERR: Error = Error::QueueCapacityExceeded;
 
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
@@ -483,7 +487,7 @@ fn bridge_incorrect_value_applied_err() {
     new_test_ext().execute_with(|| {
         const ERR: Error = Error::IncorrectValueApplied;
 
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
@@ -512,7 +516,7 @@ fn bridge_insufficient_gas_err() {
             SimpleExecutionError::RanOutOfGas,
         ));
 
-        run_to_block(42);
+        run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
