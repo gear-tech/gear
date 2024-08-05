@@ -59,33 +59,26 @@ pub enum Request {
 }
 
 #[derive(Debug, Encode, Decode)]
-pub(crate) enum Response {
-    BlockEndProgramStates(H256, BlockEndProgramStates),
+pub enum Response {
+    BlockEndProgramStates {
+        /// Block hash states requested for
+        block_hash: H256,
+        /// Program states for request block
+        states: BlockEndProgramStates,
+    },
+    /// Key (hash) - value (bytes) data
     DataForHashes(DataForHashes),
+    /// Program IDs and their corresponding code IDs
     ProgramCodeIds(ProgramCodeIds),
 }
 
 #[derive(Debug)]
 pub enum Event {
-    BlockEndProgramStates {
+    RequestSucceed {
         /// Peer who responded to data request
         peer_id: PeerId,
-        /// Block hash states requested for
-        block_hash: H256,
-        /// Program states for request block
-        states: BTreeMap<ActorId, H256>,
-    },
-    DataForHashes {
-        /// Peer who responded to data request
-        peer_id: PeerId,
-        /// Key (hash) - value (bytes) data
-        data: DataForHashes,
-    },
-    ProgramCodeIds {
-        /// Peer who responded to data request
-        peer_id: PeerId,
-        /// Program IDs and their corresponding code IDs
-        ids: ProgramCodeIds,
+        /// Response itself
+        response: Response,
     },
 }
 
@@ -120,10 +113,10 @@ impl Behaviour {
     fn read_db(&self, request: Request) -> JoinHandle<Response> {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || match request {
-            Request::BlockEndProgramStates(block_hash) => Response::BlockEndProgramStates(
+            Request::BlockEndProgramStates(block_hash) => Response::BlockEndProgramStates {
                 block_hash,
-                db.block_end_program_states(block_hash).expect("TODO"),
-            ),
+                states: db.block_end_program_states(block_hash).expect("TODO"),
+            },
             Request::DataForHashes(hashes) => Response::DataForHashes(
                 hashes
                     .into_iter()
@@ -162,19 +155,9 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let event = match response {
-                    Response::BlockEndProgramStates(block_hash, states) => {
-                        Event::BlockEndProgramStates {
-                            peer_id: peer,
-                            block_hash,
-                            states,
-                        }
-                    }
-                    Response::DataForHashes(data) => Event::DataForHashes {
-                        peer_id: peer,
-                        data,
-                    },
-                    Response::ProgramCodeIds(ids) => Event::ProgramCodeIds { peer_id: peer, ids },
+                let event = Event::RequestSucceed {
+                    peer_id: peer,
+                    response,
                 };
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
