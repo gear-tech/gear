@@ -20,6 +20,7 @@
 
 use crate::args::Args;
 
+use crate::params::SyncModeParams;
 use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
 use ethexe_network::NetworkEventLoopConfig;
@@ -82,6 +83,21 @@ impl PrometheusConfig {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum SyncMode {
+    Full,
+    Fast,
+}
+
+impl From<SyncModeParams> for SyncMode {
+    fn from(params: SyncModeParams) -> Self {
+        match params {
+            SyncModeParams::Full => Self::Full,
+            SyncModeParams::Fast => Self::Fast,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Config {
     /// Name of node for telemetry
@@ -116,6 +132,9 @@ pub struct Config {
 
     /// Sender address to send Ethereum transaction.
     pub sender_address: Option<String>,
+
+    /// Synchronization mode
+    pub sync_mode: SyncMode,
 
     // Network configuration
     pub net_config: Option<NetworkEventLoopConfig>,
@@ -201,6 +220,7 @@ impl TryFrom<Args> for Config {
             sequencer,
             validator,
             sender_address: args.sender_address,
+            sync_mode: args.sync_mode.into(),
             net_config,
             prometheus_config: args.prometheus_params.and_then(|params| {
                 params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())

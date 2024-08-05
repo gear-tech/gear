@@ -1,0 +1,385 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::{
+    export::{Multiaddr, PeerId},
+    utils::ParityScaleCodec,
+};
+use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use gear_core::ids::ProgramId;
+use gprimitives::{ActorId, CodeId, H256};
+use libp2p::{
+    core::Endpoint,
+    futures::FutureExt,
+    request_response,
+    request_response::{Message, ProtocolSupport},
+    swarm::{
+        behaviour::ConnectionEstablished, ConnectionClosed, ConnectionDenied, ConnectionId,
+        FromSwarm, NetworkBehaviour, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
+    },
+    StreamProtocol,
+};
+use parity_scale_codec::{Decode, Encode};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    task::{Context, Poll},
+};
+use tokio::task::JoinHandle;
+
+const STREAM_PROTOCOL: StreamProtocol =
+    StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
+
+type BlockEndProgramStates = BTreeMap<ActorId, H256>;
+
+type DataForHashesKeys = BTreeSet<H256>;
+type DataForHashes = BTreeMap<H256, Vec<u8>>;
+
+type ProgramCodeIds = BTreeMap<ProgramId, CodeId>;
+
+#[derive(Debug, Encode, Decode)]
+pub enum Request {
+    BlockEndProgramStates(H256),
+    DataForHashes(DataForHashesKeys),
+    ProgramCodeIds(Vec<ProgramId>),
+}
+
+#[derive(Debug, Encode, Decode)]
+pub(crate) enum Response {
+    BlockEndProgramStates(H256, BlockEndProgramStates),
+    DataForHashes(DataForHashes),
+    ProgramCodeIds(ProgramCodeIds),
+}
+
+#[derive(Debug)]
+pub enum Event {
+    BlockEndProgramStates {
+        /// Peer who responded to data request
+        peer_id: PeerId,
+        /// Block hash states requested for
+        block_hash: H256,
+        /// Program states for request block
+        states: BTreeMap<ActorId, H256>,
+    },
+    DataForHashes {
+        /// Peer who responded to data request
+        peer_id: PeerId,
+        /// Key (hash) - value (bytes) data
+        data: DataForHashes,
+    },
+    ProgramCodeIds {
+        /// Peer who responded to data request
+        peer_id: PeerId,
+        /// Program IDs and their corresponding code IDs
+        ids: ProgramCodeIds,
+    },
+}
+
+type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
+
+pub(crate) struct Behaviour {
+    inner: InnerBehaviour,
+    requests: VecDeque<Request>,
+    db: Database,
+    db_reader: Option<(
+        request_response::ResponseChannel<Response>,
+        JoinHandle<Response>,
+    )>,
+    connections: HashMap<PeerId, HashSet<ConnectionId>>,
+}
+
+impl Behaviour {
+    pub fn new(cfg: request_response::Config, db: Database) -> Self {
+        Self {
+            inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], cfg),
+            requests: VecDeque::new(),
+            db,
+            db_reader: None,
+            connections: HashMap::new(),
+        }
+    }
+
+    pub fn request(&mut self, request: Request) {
+        self.requests.push_back(request);
+    }
+
+    fn read_db(&self, request: Request) -> JoinHandle<Response> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || match request {
+            Request::BlockEndProgramStates(block_hash) => Response::BlockEndProgramStates(
+                block_hash,
+                db.block_end_program_states(block_hash).expect("TODO"),
+            ),
+            Request::DataForHashes(hashes) => Response::DataForHashes(
+                hashes
+                    .into_iter()
+                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                    .collect(),
+            ),
+            Request::ProgramCodeIds(ids) => Response::ProgramCodeIds(
+                ids.into_iter()
+                    .filter_map(|program_id| Some((program_id, db.program_code_id(program_id)?)))
+                    .collect(),
+            ),
+        })
+    }
+
+    fn handle_inner_event(
+        &mut self,
+        event: request_response::Event<Request, Response>,
+    ) -> Poll<ToSwarm<Event, THandlerInEvent<Self>>> {
+        match event {
+            request_response::Event::Message {
+                peer: _,
+                message:
+                    Message::Request {
+                        request_id: _,
+                        request,
+                        channel,
+                    },
+            } => {
+                self.db_reader = Some((channel, self.read_db(request)));
+            }
+            request_response::Event::Message {
+                peer,
+                message:
+                    Message::Response {
+                        request_id: _,
+                        response,
+                    },
+            } => {
+                let event = match response {
+                    Response::BlockEndProgramStates(block_hash, states) => {
+                        Event::BlockEndProgramStates {
+                            peer_id: peer,
+                            block_hash,
+                            states,
+                        }
+                    }
+                    Response::DataForHashes(data) => Event::DataForHashes {
+                        peer_id: peer,
+                        data,
+                    },
+                    Response::ProgramCodeIds(ids) => Event::ProgramCodeIds { peer_id: peer, ids },
+                };
+                return Poll::Ready(ToSwarm::GenerateEvent(event));
+            }
+            request_response::Event::OutboundFailure { .. } => {}
+            request_response::Event::InboundFailure { .. } => {}
+            request_response::Event::ResponseSent { .. } => {}
+        }
+
+        Poll::Pending
+    }
+}
+
+impl NetworkBehaviour for Behaviour {
+    type ConnectionHandler = THandler<InnerBehaviour>;
+    type ToSwarm = Event;
+
+    fn handle_pending_inbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        local_addr: &Multiaddr,
+        remote_addr: &Multiaddr,
+    ) -> Result<(), ConnectionDenied> {
+        self.inner
+            .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+    }
+
+    fn handle_established_inbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        peer: PeerId,
+        local_addr: &Multiaddr,
+        remote_addr: &Multiaddr,
+    ) -> Result<THandler<Self>, ConnectionDenied> {
+        self.inner.handle_established_inbound_connection(
+            connection_id,
+            peer,
+            local_addr,
+            remote_addr,
+        )
+    }
+
+    fn handle_pending_outbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        maybe_peer: Option<PeerId>,
+        addresses: &[Multiaddr],
+        effective_role: Endpoint,
+    ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+        self.inner.handle_pending_outbound_connection(
+            connection_id,
+            maybe_peer,
+            addresses,
+            effective_role,
+        )
+    }
+
+    fn handle_established_outbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        peer: PeerId,
+        addr: &Multiaddr,
+        role_override: Endpoint,
+    ) -> Result<THandler<Self>, ConnectionDenied> {
+        self.inner
+            .handle_established_outbound_connection(connection_id, peer, addr, role_override)
+    }
+
+    fn on_swarm_event(&mut self, event: FromSwarm) {
+        self.inner.on_swarm_event(event);
+
+        match event {
+            FromSwarm::ConnectionEstablished(ConnectionEstablished {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                self.connections
+                    .entry(peer_id)
+                    .or_default()
+                    .insert(connection_id);
+            }
+            FromSwarm::ConnectionClosed(ConnectionClosed {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                self.connections
+                    .entry(peer_id)
+                    .or_default()
+                    .remove(&connection_id);
+            }
+            _ => {}
+        }
+    }
+
+    fn on_connection_handler_event(
+        &mut self,
+        peer_id: PeerId,
+        connection_id: ConnectionId,
+        event: THandlerOutEvent<Self>,
+    ) {
+        self.inner
+            .on_connection_handler_event(peer_id, connection_id, event)
+    }
+
+    fn poll(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
+        for request in self.requests.drain(..) {
+            // TODO: way to choose peer
+            if let Some(peer_id) = self.connections.keys().next() {
+                let _outbound_request_id = self.inner.send_request(peer_id, request);
+            }
+        }
+
+        if let Some((channel, mut db_reader)) = self.db_reader.take() {
+            if let Poll::Ready(data) = db_reader.poll_unpin(cx) {
+                // TODO: check request kind corresponds to response kind
+                let resp = data.expect("database panicked");
+                let _res = self.inner.send_response(channel, resp);
+            } else {
+                self.db_reader = Some((channel, db_reader));
+            }
+        }
+
+        if let Poll::Ready(to_swarm) = self.inner.poll(cx) {
+            return match to_swarm {
+                ToSwarm::GenerateEvent(event) => self.handle_inner_event(event),
+                to_swarm => Poll::Ready(to_swarm.map_out::<Event>(|_event| {
+                    unreachable!("`ToSwarm::GenerateEvent` is handled above")
+                })),
+            };
+        }
+
+        Poll::Pending
+    }
+}
+
+/*
+#[derive(Debug, Default)]
+pub struct DbSyncState {
+    requests: Vec<Vec<H256>>,
+}
+
+impl DbSyncState {
+    pub fn request_by_hashes(&mut self, hashes: Vec<H256>) {
+        self.requests.push(hashes);
+    }
+
+    pub fn handle_swarm_event(&mut self, event: &SwarmEvent<crate::BehaviourEvent>) {
+        match event {
+            SwarmEvent::Behaviour(_) => unreachable!("handled outside"),
+            SwarmEvent::ConnectionEstablished { .. } => {}
+            SwarmEvent::ConnectionClosed { .. } => {}
+            _ => {}
+        }
+    }
+
+    pub async fn handle_behaviour_event(
+        &mut self,
+        swarm: &mut Swarm<crate::Behaviour>,
+        db: &Database,
+        tx: mpsc::UnboundedSender<NetworkReceiverEvent>,
+        event: request_response::Event<Request, Response>,
+    ) {
+        let db_sync = &mut swarm.behaviour_mut().db_sync;
+
+        match event {
+            request_response::Event::Message {
+                peer: _,
+                message:
+                    Message::Request {
+                        request_id: _,
+                        request,
+                        channel,
+                    },
+            } => {
+                let Request::GetHashes(hashes) = request;
+                let db = db.clone();
+                let hashes = tokio::task::spawn_blocking(move || {
+                    hashes
+                        .into_iter()
+                        .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                        .collect()
+                })
+                .await
+                .unwrap_or_else(|e| unreachable!("database panicked: {e}"));
+                let _res = db_sync.send_response(channel, Response::Hashes(hashes));
+            }
+            request_response::Event::Message {
+                peer: _,
+                message:
+                    Message::Response {
+                        request_id: _,
+                        response,
+                    },
+            } => {
+                let Response::Hashes(hashes) = response;
+                let _res = tx.send(NetworkReceiverEvent::DbHashes(hashes));
+            }
+            request_response::Event::OutboundFailure { .. } => {}
+            request_response::Event::InboundFailure { .. } => {}
+            request_response::Event::ResponseSent { .. } => {}
+        }
+    }
+}
+*/

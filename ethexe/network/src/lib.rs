@@ -17,30 +17,31 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod custom_connection_limits;
+mod db_sync;
+mod utils;
 
-pub mod utils {
+pub mod export {
     pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 }
 
 use anyhow::Context;
+use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
+use gprimitives::H256;
 use libp2p::{
     connection_limits,
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping, request_response,
-    request_response::{Event, Message},
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
         NetworkBehaviour, SwarmEvent,
     },
-    Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder,
+    Multiaddr, PeerId, Swarm, SwarmBuilder,
 };
-use parity_scale_codec::Decode;
-use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
@@ -57,9 +58,6 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-const DB_SYNC_STREAM_PROTOCOL: StreamProtocol =
-    StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
-
 pub struct NetworkService {
     pub sender: NetworkSender,
     pub receiver: NetworkReceiver,
@@ -67,13 +65,17 @@ pub struct NetworkService {
 }
 
 impl NetworkService {
-    pub fn new(config: NetworkEventLoopConfig, signer: &Signer) -> anyhow::Result<NetworkService> {
+    pub fn new(
+        config: NetworkEventLoopConfig,
+        signer: &Signer,
+        db: Database,
+    ) -> anyhow::Result<NetworkService> {
         fs::create_dir_all(&config.config_dir)
             .context("failed to create network configuration directory")?;
 
         let keypair =
             NetworkEventLoop::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkEventLoop::create_swarm(keypair)?;
+        let mut swarm = NetworkEventLoop::create_swarm(keypair, db)?;
 
         for multiaddr in config.external_addresses {
             swarm.add_external_address(multiaddr);
@@ -116,7 +118,7 @@ impl NetworkService {
 #[derive(Debug)]
 enum NetworkSenderEvent {
     PublishCommitments { data: Vec<u8> },
-    RequestDb {},
+    RequestDbData(db_sync::Request),
 }
 
 #[derive(Debug, Clone)]
@@ -136,8 +138,8 @@ impl NetworkSender {
             .send(NetworkSenderEvent::PublishCommitments { data: data.into() });
     }
 
-    pub fn request_db(&self) {
-        let _res = self.tx.send(NetworkSenderEvent::RequestDb {});
+    pub fn request_db_data(&self, request: db_sync::Request) {
+        let _res = self.tx.send(NetworkSenderEvent::RequestDbData(request));
     }
 }
 
@@ -147,6 +149,7 @@ pub enum NetworkReceiverEvent {
         source: Option<PeerId>,
         data: Vec<u8>,
     },
+    DbHashes(BTreeMap<H256, Vec<u8>>),
 }
 
 pub struct NetworkReceiver {
@@ -163,12 +166,6 @@ impl NetworkReceiver {
         self.rx.recv().await
     }
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DbSyncRequest {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DbSyncResponse {}
 
 #[derive(Debug, Clone)]
 pub struct NetworkEventLoopConfig {
@@ -229,11 +226,11 @@ impl NetworkEventLoop {
         Ok(identity::Keypair::from(pair))
     }
 
-    fn create_swarm(keypair: identity::Keypair) -> anyhow::Result<Swarm<Behaviour>> {
+    fn create_swarm(keypair: identity::Keypair, db: Database) -> anyhow::Result<Swarm<Behaviour>> {
         let swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
             .with_quic()
-            .with_behaviour(Behaviour::from_keypair)?
+            .with_behaviour(move |keypair| Behaviour::new(keypair, db))?
             .build();
         Ok(swarm)
     }
@@ -298,8 +295,9 @@ impl NetworkEventLoop {
                 }
             }
             BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
-                log::debug!("{peer_id} is not identified: {error}. Disconnecting...");
-                let _res = self.swarm.disconnect_peer_id(peer_id);
+                // FIXME: floating IO error during identification
+                log::warn!("{peer_id} is not identified: {error}");
+                //let _res = self.swarm.disconnect_peer_id(peer_id);
             }
             BehaviourEvent::Identify(_) => {}
             //
@@ -347,56 +345,15 @@ impl NetworkEventLoop {
                     .send(NetworkReceiverEvent::Commitments { source, data })
                     .expect("channel dropped unexpectedly");
             }
-            BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message:
-                    gossipsub::Message {
-                        source,
-                        data,
-                        sequence_number: _,
-                        topic,
-                    },
-                ..
-            }) if DbSyncTopicMessage::ident_topic().hash() == topic => {
-                let _message = match DbSyncTopicMessage::decode(&mut data.as_slice()) {
-                    Ok(m) => m,
-                    Err(err) => {
-                        log::debug!("invalid db-sync topic message: {err}");
-                        return;
-                    }
-                };
-            }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
                 let _res = self.swarm.disconnect_peer_id(peer_id);
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(e) => match e {
-                Event::Message { peer, message } => match message {
-                    Message::Request {
-                        request_id,
-                        request,
-                        channel,
-                    } => {
-                        let DbSyncRequest {} = request;
-                        if let Err(_resp) = self
-                            .swarm
-                            .behaviour_mut()
-                            .db_sync
-                            .send_response(channel, DbSyncResponse {})
-                        {
-                            log::debug!("failed to send response for {peer} peer and {request_id} request: channel is closed");
-                        }
-                    }
-                    Message::Response {
-                        request_id,
-                        response,
-                    } => {}
-                },
-                Event::OutboundFailure { .. } => {}
-                Event::InboundFailure { .. } => {}
-                Event::ResponseSent { .. } => {}
-            },
+            BehaviourEvent::DbSync(event) => {
+                log::error!("Got data from db: {event:?}");
+            }
         }
     }
 
@@ -412,13 +369,15 @@ impl NetworkEventLoop {
                     log::debug!("gossipsub publishing failed: {e}")
                 }
             }
-            NetworkSenderEvent::RequestDb {} => {}
+            NetworkSenderEvent::RequestDbData(request) => {
+                self.swarm.behaviour_mut().db_sync.request(request);
+            }
         }
     }
 }
 
 #[derive(NetworkBehaviour)]
-pub struct Behaviour {
+pub(crate) struct Behaviour {
     // custom options to limit connections
     pub custom_connection_limits: custom_connection_limits::Behaviour,
     // limit connections
@@ -434,13 +393,14 @@ pub struct Behaviour {
     pub kad: kad::Behaviour<kad::store::MemoryStore>,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
-    //
-    pub db_sync: request_response::json::Behaviour<DbSyncRequest, DbSyncResponse>,
+    // database synchronization protocol
+    pub db_sync: db_sync::Behaviour,
 }
 
 impl Behaviour {
-    fn from_keypair(
+    fn new(
         keypair: &identity::Keypair,
+        db: Database,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let peer_id = keypair.public().to_peer_id();
 
@@ -497,13 +457,7 @@ impl Behaviour {
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 
-        let db_sync = request_response::json::Behaviour::new(
-            [(
-                DB_SYNC_STREAM_PROTOCOL,
-                request_response::ProtocolSupport::Full,
-            )],
-            request_response::Config::default(),
-        );
+        let db_sync = db_sync::Behaviour::new(request_response::Config::default(), db);
 
         Ok(Self {
             custom_connection_limits,
@@ -521,13 +475,4 @@ impl Behaviour {
 fn gpu_commitments_topic() -> gossipsub::IdentTopic {
     // TODO: use router address in topic name to avoid obsolete router
     gossipsub::IdentTopic::new("gpu-commitments")
-}
-
-#[derive(Decode)]
-struct DbSyncTopicMessage {}
-
-impl DbSyncTopicMessage {
-    fn ident_topic() -> gossipsub::IdentTopic {
-        gossipsub::IdentTopic::new("db-sync")
-    }
 }

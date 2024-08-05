@@ -21,3 +21,16 @@ mod prometheus_params;
 
 pub use network_params::*;
 pub use prometheus_params::*;
+
+use clap::ValueEnum;
+use serde::Deserialize;
+
+#[derive(Clone, Debug, Default, ValueEnum, Deserialize, derive_more::Display)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncModeParams {
+    #[default]
+    #[display(fmt = "full")]
+    Full,
+    #[display(fmt = "fast")]
+    Fast,
+}
