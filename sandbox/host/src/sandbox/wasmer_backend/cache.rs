@@ -30,11 +30,9 @@ use tempfile::TempDir;
 use uluru::LRUCache;
 use wasmer_cache::Hash;
 
-use CachedModuleErr::*;
-
-pub enum CachedModuleErr {
-    FileSystemErr,
-    CacheMissErr(FileSystemCache, Hash),
+pub struct CacheMissErr {
+    pub fs_cache: FileSystemCache,
+    pub code_hash: Hash,
 }
 
 // CachedModules holds a mutex-protected LRU cache of compiled wasm modules.
@@ -53,7 +51,7 @@ fn lru_cache() -> &'static CachedModules {
     CACHED_MODULES.get_or_init(|| Mutex::new(LRUCache::default()))
 }
 
-fn fs_cache() -> Result<FileSystemCache, CachedModuleErr> {
+fn fs_cache() -> FileSystemCache {
     static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
 
     // Try to load from tempfile cache
@@ -64,13 +62,13 @@ fn fs_cache() -> Result<FileSystemCache, CachedModuleErr> {
         .path();
     log::trace!("Wasmer sandbox cache dir is: {cache_path:?}");
 
-    FileSystemCache::new(cache_path).map_err(|_| FileSystemErr)
+    FileSystemCache::new(cache_path)
 }
 
 pub fn get_cached_module(
     wasm: &[u8],
     store: &sandbox_wasmer::Store,
-) -> Result<Module, CachedModuleErr> {
+) -> Result<Module, CacheMissErr> {
     let mut lru_lock = lru_cache().lock().expect("CACHED_MODULES lock fail");
 
     let maybe_module = lru_lock.find(|x| x.wasm == wasm);
@@ -89,10 +87,11 @@ pub fn get_cached_module(
     } else {
         let code_hash = Hash::generate(wasm);
 
-        let fs_cache = fs_cache()?;
-        let serialized_module = fs_cache
-            .load(code_hash)
-            .map_err(|_| CacheMissErr(fs_cache.clone(), code_hash))?;
+        let fs_cache = fs_cache();
+        let serialized_module = fs_cache.load(code_hash).map_err(|_| CacheMissErr {
+            fs_cache: fs_cache.clone(),
+            code_hash,
+        })?;
 
         lru_lock.insert(CachedModule {
             wasm: wasm.to_vec(),
@@ -102,9 +101,12 @@ pub fn get_cached_module(
         // SAFETY: We trust the module in FS cache.
         let module = unsafe {
             Module::deserialize(store, serialized_module).map_err(|_| {
-                // Module in FS cache is corrupted, remove it.
+                log::debug!("Module in FS cache is corrupted, remove it");
                 fs_cache.remove_key(code_hash);
-                CacheMissErr(fs_cache, code_hash)
+                CacheMissErr {
+                    fs_cache,
+                    code_hash,
+                }
             })?
         };
 
@@ -142,57 +144,18 @@ pub fn try_to_store_module_in_cache(
 #[derive(Debug, Clone)]
 pub struct FileSystemCache {
     path: PathBuf,
-    ext: Option<String>,
 }
 
 impl FileSystemCache {
     /// Construct a new `FileSystemCache` around the specified directory.
-    fn new<P: Into<PathBuf>>(path: P) -> io::Result<Self> {
-        let path: PathBuf = path.into();
-        if path.exists() {
-            let metadata = path.metadata()?;
-            if metadata.is_dir() {
-                if !metadata.permissions().readonly() {
-                    Ok(Self { path, ext: None })
-                } else {
-                    // This directory is readonly.
-                    Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        format!("the supplied path is readonly: {}", path.display()),
-                    ))
-                }
-            } else {
-                // This path points to a file.
-                Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    format!(
-                        "the supplied path already points to a file: {}",
-                        path.display()
-                    ),
-                ))
-            }
-        } else {
-            // Create the directory and any parent directories if they don't yet exist.
-            let res = fs::create_dir_all(&path);
-            if res.is_err() {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("failed to create cache directory: {}", path.display()),
-                ))
-            } else {
-                Ok(Self { path, ext: None })
-            }
-        }
+    /// The directory should exist and be readable/writable.
+    fn new<P: Into<PathBuf>>(path: P) -> Self {
+        Self { path: path.into() }
     }
 
     /// Load the serialized module from the cache.
     fn load(&self, key: Hash) -> Result<Vec<u8>, io::Error> {
-        let filename = if let Some(ref ext) = self.ext {
-            format!("{}.{}", key, ext)
-        } else {
-            key.to_string()
-        };
-        let path = self.path.join(filename);
+        let path = self.path.join(key.to_string());
 
         fs::read(path)
     }
@@ -200,8 +163,7 @@ impl FileSystemCache {
     /// If an error occurs while deserializing then we can not trust it anymore
     /// so delete the cache file
     fn remove_key(&self, key: Hash) {
-        let filename = Self::compose_filename(self.ext.as_deref(), key);
-        let path = self.path.join(filename);
+        let path = self.path.join(key.to_string());
 
         let res = fs::remove_file(path);
         log::trace!("Remove module from FS cache with result: {:?}", res);
@@ -209,20 +171,11 @@ impl FileSystemCache {
 
     /// Store the serialized module in the cache.
     fn store(&mut self, key: Hash, serialized_module: &[u8]) -> Result<(), io::Error> {
-        let filename = Self::compose_filename(self.ext.as_deref(), key);
-        let path = self.path.join(filename);
-        let mut file = File::create(path)?;
+        let path = self.path.join(key.to_string());
 
+        let mut file = File::create(path)?;
         file.write_all(serialized_module)?;
 
         Ok(())
-    }
-
-    fn compose_filename(extension: Option<&str>, key: Hash) -> PathBuf {
-        match extension {
-            Some(extension) => format!("{key}.{extension}"),
-            None => key.to_string(),
-        }
-        .into()
     }
 }

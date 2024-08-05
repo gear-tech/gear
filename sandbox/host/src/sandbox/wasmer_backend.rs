@@ -166,16 +166,16 @@ pub fn instantiate(
             log::trace!("Found cached module for current program");
             module
         }
-        Err(err) => {
+        Err(CacheMissErr {
+            fs_cache,
+            code_hash,
+        }) => {
             log::trace!("Cache for program has not been found, so compile it now");
             let module = Module::new(&context.store().borrow(), wasm)
                 .map_err(|_| InstantiationError::ModuleDecoding)?;
-            match err {
-                CachedModuleErr::FileSystemErr => log::error!("Cannot open fs cache"),
-                CachedModuleErr::CacheMissErr(fs_cache, code_hash) => {
-                    try_to_store_module_in_cache(fs_cache, code_hash, wasm, &module)
-                }
-            };
+
+            try_to_store_module_in_cache(fs_cache, code_hash, wasm, &module);
+
             module
         }
     };
