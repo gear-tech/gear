@@ -1074,28 +1074,6 @@ where
             // Note that we have no guarantees of the user account to exist. Since no minimum
             // transfer value is enforced, the transfer can fail. Handle it gracefully.
             // TODO #4018 Introduce a safer way to handle this.
-            /*CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
-            .unwrap_or_else(|e| match e {
-                DispatchError::Token(TokenError::BelowMinimum) => {
-                    log::debug!(
-                        "Failed to transfer value: {:?}. User account balance is too low.",
-                        e
-                    );
-                    <CurrencyOf<T> as fungible::Unbalanced<_>>::handle_dust(fungible::Dust(
-                        value,
-                    ));
-                }
-                e => {
-                    // Other errors are ruled out by the protocol guarantees.
-                    let err_msg = format!(
-                        "send_user_message: failed to transfer value. Got error: {e:?}"
-                    );
-
-                    log::error!("{err_msg}");
-                    unreachable!("{err_msg}");
-                }
-            });*/
-
             GearBank::<T>::deposit_value(&from, value, false)
                 .and_then(|_| GearBank::<T>::transfer_value(&from, &to, value))
                 .unwrap_or_else(|e| {
