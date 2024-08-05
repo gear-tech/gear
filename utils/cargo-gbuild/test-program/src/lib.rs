@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn test_init() {
-        gtest::ensure_gbuild();
+        gtest::ensure_gbuild(false);
 
         // Initialize system environment
         let system = System::new();

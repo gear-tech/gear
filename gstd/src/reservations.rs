@@ -136,8 +136,8 @@ impl Reservation {
 /// ```
 ///
 /// # See also
-/// - [`ReservationId`](ReservationId) is used to reserve and unreserve gas
-/// for program execution later.
+/// - [`ReservationId`](ReservationId) is used to reserve and unreserve gas for
+///   program execution later.
 /// - [`Reservation`] stores some additional data along with `ReservationId`.
 #[derive(Default, Clone, Debug, TypeInfo, Hash, Encode, Decode)]
 pub struct Reservations(Vec<Reservation>);
@@ -218,8 +218,8 @@ impl Reservations {
     /// reservations that were found in process of search are cleaned out.
     ///
     /// # See also
-    /// - [`ReservationId`] is used to reserve and unreserve gas amount
-    /// for program execution later.
+    /// - [`ReservationId`] is used to reserve and unreserve gas amount for
+    ///   program execution later.
     /// - [`Reservation`] stores some additional data along with
     ///   `ReservationId`.
     pub fn try_take_reservation(&mut self, amount: u64) -> Option<Reservation> {

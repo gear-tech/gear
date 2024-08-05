@@ -129,6 +129,7 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Display for LocalType<'t,
 
 /// Local type registry
 pub trait LocalRegistry: Sized + Clone {
+    #[allow(dead_code)]
     fn from_hex(hex: &str) -> Result<Self>;
 
     /// Get type from identity

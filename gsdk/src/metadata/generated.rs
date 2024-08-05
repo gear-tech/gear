@@ -693,8 +693,13 @@ pub mod runtime_types {
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IntoPageBufError;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
-                    pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
+                    pub  runtime_types::gear_core::buffer::LimitedVec<
+                        ::core::primitive::u8,
+                        runtime_types::gear_core::memory::IntoPageBufError,
+                    >,
                 );
             }
             pub mod message {
@@ -879,12 +884,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ActiveProgram<_0> {
-                    pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page2,
-                    >,
-                    pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page,
-                    >,
+                    pub allocations_tree_len: ::core::primitive::u32,
                     pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                     pub gas_reservation_map: ::subxt::utils::KeyedVec<
                         runtime_types::gprimitives::ReservationId,
@@ -2497,6 +2497,7 @@ pub mod runtime_types {
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
+                    pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
@@ -8992,6 +8993,7 @@ pub mod storage {
         CodeLenStorage,
         OriginalCodeStorage,
         MetadataStorage,
+        AllocationsStorage,
         ProgramStorage,
         MemoryPages,
     }
@@ -9003,6 +9005,7 @@ pub mod storage {
                 Self::CodeLenStorage => "CodeLenStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::MetadataStorage => "MetadataStorage",
+                Self::AllocationsStorage => "AllocationsStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
             }

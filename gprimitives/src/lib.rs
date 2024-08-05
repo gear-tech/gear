@@ -307,7 +307,7 @@ mod tests {
     #[should_panic]
     fn duplicate_version_in_actor_id_fmt_test() {
         let id = actor_id();
-        format!("{id:+42}");
+        let _ = format!("{id:+42}");
     }
 
     #[test]

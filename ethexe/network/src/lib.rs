@@ -27,7 +27,9 @@ use ethexe_signer::{PublicKey, Signer};
 use libp2p::{
     connection_limits,
     futures::{Stream, StreamExt},
-    gossipsub, identify, identity, kad, mdns, ping,
+    gossipsub, identify, identity, kad, mdns,
+    multiaddr::Protocol,
+    ping,
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
         NetworkBehaviour, SwarmEvent,
@@ -53,6 +55,59 @@ pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO
 const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
+
+pub struct NetworkService {
+    pub sender: NetworkSender,
+    pub gossip_stream: GossipsubMessageStream,
+    pub event_loop: NetworkEventLoop,
+}
+
+impl NetworkService {
+    pub fn new(config: NetworkEventLoopConfig, signer: &Signer) -> anyhow::Result<NetworkService> {
+        fs::create_dir_all(&config.config_dir)
+            .context("failed to create network configuration directory")?;
+
+        let keypair =
+            NetworkEventLoop::generate_keypair(signer, &config.config_dir, config.public_key)?;
+        let mut swarm = NetworkEventLoop::create_swarm(keypair)?;
+
+        for multiaddr in config.external_addresses {
+            swarm.add_external_address(multiaddr);
+        }
+
+        for multiaddr in config.listen_addresses {
+            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+        }
+
+        for multiaddr in config.bootstrap_addresses {
+            let peer_id = multiaddr
+                .iter()
+                .find_map(|p| {
+                    if let Protocol::P2p(peer_id) = p {
+                        Some(peer_id)
+                    } else {
+                        None
+                    }
+                })
+                .context("bootstrap nodes are not allowed without peer ID")?;
+
+            swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
+        }
+
+        let (general_tx, general_rx) = mpsc::unbounded_channel();
+        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
+
+        Ok(Self {
+            sender: NetworkSender { tx: general_tx },
+            gossip_stream: GossipsubMessageStream { rx: gossipsub_rx },
+            event_loop: NetworkEventLoop {
+                swarm,
+                general_rx,
+                gossipsub_tx,
+            },
+        })
+    }
+}
 
 #[derive(Debug)]
 enum NetworkSenderEvent {
@@ -123,42 +178,6 @@ pub struct NetworkEventLoop {
 }
 
 impl NetworkEventLoop {
-    pub fn new(
-        config: NetworkEventLoopConfig,
-        signer: &Signer,
-    ) -> anyhow::Result<(NetworkSender, GossipsubMessageStream, Self)> {
-        fs::create_dir_all(&config.config_dir)
-            .context("failed to create network configuration directory")?;
-
-        let keypair = Self::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = Self::create_swarm(keypair)?;
-
-        for multiaddr in config.external_addresses {
-            swarm.add_external_address(multiaddr);
-        }
-
-        for multiaddr in config.listen_addresses {
-            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
-        }
-
-        for multiaddr in config.bootstrap_addresses {
-            swarm.dial(multiaddr)?;
-        }
-
-        let (general_tx, general_rx) = mpsc::unbounded_channel();
-        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
-
-        Ok((
-            NetworkSender { tx: general_tx },
-            GossipsubMessageStream { rx: gossipsub_rx },
-            Self {
-                swarm,
-                general_rx,
-                gossipsub_tx,
-            },
-        ))
-    }
-
     fn generate_keypair(
         signer: &Signer,
         config_path: &Path,
@@ -203,7 +222,15 @@ impl NetworkEventLoop {
         loop {
             select! {
                 event = self.swarm.select_next_some() => self.handle_swarm_event(event),
-                event = self.general_rx.recv() => self.handle_general_rx_event(event),
+                event = self.general_rx.recv() => match event {
+                    Some(event) => {
+                        self.handle_network_rx_event(event);
+                    }
+                    None => {
+                        log::info!("Network channel has been disconnected, shutting down network service...");
+                        break;
+                    },
+                },
             }
         }
     }
@@ -300,12 +327,9 @@ impl NetworkEventLoop {
         }
     }
 
-    fn handle_general_rx_event(&mut self, event: Option<NetworkSenderEvent>) {
+    fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
         match event {
-            None => {
-                log::trace!("network channel has been disconnected");
-            }
-            Some(NetworkSenderEvent::PublishCommitments { data }) => {
+            NetworkSenderEvent::PublishCommitments { data } => {
                 if let Err(e) = self
                     .swarm
                     .behaviour_mut()
