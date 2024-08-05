@@ -45,17 +45,10 @@ use tokio::task::JoinHandle;
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
 
-type BlockEndProgramStates = BTreeMap<ActorId, H256>;
-
-type DataForHashesKeys = BTreeSet<H256>;
-type DataForHashes = BTreeMap<H256, Vec<u8>>;
-
-type ProgramCodeIds = BTreeMap<ProgramId, CodeId>;
-
 #[derive(Debug, Encode, Decode)]
 pub enum Request {
     BlockEndProgramStates(H256),
-    DataForHashes(DataForHashesKeys),
+    DataForHashes(BTreeSet<H256>),
     ProgramCodeIds(Vec<ProgramId>),
 }
 
@@ -65,12 +58,12 @@ pub enum Response {
         /// Block hash states requested for
         block_hash: H256,
         /// Program states for request block
-        states: BlockEndProgramStates,
+        states: BTreeMap<ActorId, H256>,
     },
     /// Key (hash) - value (bytes) data
-    DataForHashes(DataForHashes),
+    DataForHashes(BTreeMap<H256, Vec<u8>>),
     /// Program IDs and their corresponding code IDs
-    ProgramCodeIds(ProgramCodeIds),
+    ProgramCodeIds(BTreeMap<ProgramId, CodeId>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
