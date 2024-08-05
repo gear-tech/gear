@@ -11171,6 +11171,7 @@ dependencies = [
  "gbuiltin-eth-bridge",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "gprimitives",
  "log",
  "pallet-authorship",

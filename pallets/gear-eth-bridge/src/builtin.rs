@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Error, Pallet};
+use crate::{Config, Error, Pallet, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
 use gbuiltin_eth_bridge::{Request, Response};
@@ -66,7 +66,6 @@ where
     }
 }
 
-// TODO (breathx): properly handle gas limit.
 fn send_message_request<T: Config>(
     source: ActorId,
     destination: H160,
@@ -76,6 +75,12 @@ fn send_message_request<T: Config>(
 where
     T::AccountId: Origin,
 {
+    let gas_cost = <T as Config>::WeightInfo::send_eth_message().ref_time();
+
+    if gas_limit < gas_cost {
+        return (Err(BuiltinActorError::InsufficientGas), 0);
+    }
+
     let res = Pallet::<T>::queue_message(source, destination, payload)
         .map(|(nonce, hash)| {
             Response::EthMessageQueued { nonce, hash }
@@ -85,7 +90,7 @@ where
         })
         .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))));
 
-    (res, gas_limit)
+    (res, gas_cost)
 }
 
 pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {

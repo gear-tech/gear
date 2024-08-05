@@ -1,9 +1,10 @@
-use crate::{builtin, mock::*, EthMessage};
+use crate::{builtin, mock::*, Config, EthMessage, WeightInfo};
 use common::Origin as _;
 use frame_support::{
     assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
 };
 use gbuiltin_eth_bridge::{Request, Response};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use pallet_gear::Event as GearEvent;
 use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
@@ -195,18 +196,17 @@ fn bridge_send_eth_message_works() {
 
         queue.push(hash);
 
-        let response = Response::decode(
-            &mut run_block_with_builtin_call(
-                SIGNER,
-                Request::SendEthMessage {
-                    destination,
-                    payload,
-                },
-                0,
-            )
-            .as_ref(),
-        )
-        .expect("should be `Response`");
+        let (response, _) = run_block_with_builtin_call(
+            SIGNER,
+            Request::SendEthMessage {
+                destination,
+                payload,
+            },
+            None,
+            0,
+        );
+
+        let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
 
         assert_eq!(response, Response::EthMessageQueued { nonce, hash });
 
@@ -487,12 +487,13 @@ fn bridge_incorrect_value_applied_err() {
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
-        let response = run_block_with_builtin_call(
+        let (response, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
                 destination: H160::zero(),
                 payload: vec![],
             },
+            None,
             1,
         );
 
@@ -503,15 +504,41 @@ fn bridge_incorrect_value_applied_err() {
     })
 }
 
-mod utils {
-    use crate::builtin;
+#[test]
+fn bridge_insufficient_gas_err() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ERR_CODE: ReplyCode = ReplyCode::Error(ErrorReplyReason::Execution(
+            SimpleExecutionError::RanOutOfGas,
+        ));
 
+        run_to_block(42);
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let (_, code) = run_block_with_builtin_call(
+            SIGNER,
+            Request::SendEthMessage {
+                destination: H160::zero(),
+                payload: vec![],
+            },
+            Some(<Test as Config>::WeightInfo::send_eth_message().ref_time() - 1),
+            0,
+        );
+
+        assert_eq!(code, ERR_CODE);
+    })
+}
+
+mod utils {
     use super::*;
+    use crate::builtin;
     use gear_core::message::UserMessage;
     use gprimitives::{ActorId, MessageId};
+    use pallet_gear_builtin::BuiltinActor;
 
     pub(crate) fn builtin_id() -> ActorId {
-        GearBuiltin::generate_actor_id(3)
+        GearBuiltin::generate_actor_id(builtin::Actor::<Test>::ID)
     }
 
     #[track_caller]
@@ -549,7 +576,7 @@ mod utils {
             error
         );
 
-        let response = run_block_with_builtin_call(SIGNER, request, 0);
+        let (response, _) = run_block_with_builtin_call(SIGNER, request, None, 0);
 
         assert_eq!(
             String::from_utf8_lossy(&response),
@@ -561,13 +588,15 @@ mod utils {
     pub(crate) fn run_block_with_builtin_call(
         source: AccountId,
         request: Request,
+        gas_limit: Option<u64>,
         value: u128,
-    ) -> Vec<u8> {
+    ) -> (Vec<u8>, ReplyCode) {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(source),
             builtin_id(),
             request.encode(),
-            10_000_000_000,
+            gas_limit
+                .unwrap_or_else(|| <Test as Config>::WeightInfo::send_eth_message().ref_time()),
             value,
             false,
         ));
@@ -578,10 +607,13 @@ mod utils {
 
         let message = last_user_message_sent();
 
-        let replied_to = message.details().expect("must be reply").to_message_id();
-        assert_eq!(replied_to, mid);
+        let reply_details = message.details().expect("must be reply");
+        assert_eq!(reply_details.to_message_id(), mid);
 
-        message.payload_bytes().to_vec()
+        (
+            message.payload_bytes().to_vec(),
+            reply_details.to_reply_code(),
+        )
     }
 
     #[track_caller]
