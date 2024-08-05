@@ -294,6 +294,7 @@ impl pallet_gear_eth_bridge::Config for Test {
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
     type SessionsPerEra = SessionsPerEra;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.

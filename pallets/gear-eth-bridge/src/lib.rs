@@ -26,6 +26,12 @@
 pub use builtin::Actor;
 pub use internal::{EthMessage, Proof};
 pub use pallet::*;
+pub use weights::WeightInfo;
+
+pub mod weights;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 mod builtin;
 mod internal;
@@ -84,6 +90,9 @@ pub mod pallet {
         /// Similar to `pallet_staking::SessionsPerEra`.
         #[pallet::constant]
         type SessionsPerEra: Get<u32>;
+
+        /// Weight cost incurred by pallet calls.
+        type WeightInfo: WeightInfo;
     }
 
     /// Pallet Gear Eth Bridge's event.
@@ -219,7 +228,7 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         #[pallet::call_index(0)]
-        #[pallet::weight(T::DbWeight::get().reads_writes(2, 1))]
+        #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             // Ensuring called by root.
             ensure_root(origin)?;
@@ -241,7 +250,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(1)]
-        #[pallet::weight(T::DbWeight::get().reads_writes(2, 1))]
+        #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             // Ensuring called by root.
             ensure_root(origin)?;
@@ -266,7 +275,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(2)]
-        #[pallet::weight(Weight::zero())]
+        #[pallet::weight(<T as Config>::WeightInfo::send_eth_message())]
         pub fn send_eth_message(
             origin: OriginFor<T>,
             destination: H160,

@@ -11163,6 +11163,7 @@ version = "1.4.2"
 dependencies = [
  "binary-merkle-tree",
  "env_logger",
+ "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
  "frame-support-test",

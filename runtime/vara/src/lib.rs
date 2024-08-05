@@ -1185,7 +1185,7 @@ pub type BuiltinActors = (
 impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
-    type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
 }
 
 #[cfg(feature = "dev")]
@@ -1194,6 +1194,7 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<1024>;
     type SessionsPerEra = SessionsPerEra;
+    type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -1441,7 +1442,23 @@ type DebugInfo = ();
 #[macro_use]
 extern crate frame_benchmarking;
 
-#[cfg(feature = "runtime-benchmarks")]
+#[cfg(all(feature = "runtime-benchmarks", feature = "dev"))]
+mod benches {
+    define_benchmarks!(
+        // Substrate pallets
+        [frame_system, SystemBench::<Runtime>]
+        [pallet_balances, Balances]
+        [pallet_timestamp, Timestamp]
+        [pallet_utility, Utility]
+        // Gear pallets
+        [pallet_gear, Gear]
+        [pallet_gear_voucher, GearVoucher]
+        [pallet_gear_builtin, GearBuiltin]
+        [pallet_gear_eth_bridge, GearEthBridge]
+    );
+}
+
+#[cfg(all(feature = "runtime-benchmarks", not(feature = "dev")))]
 mod benches {
     define_benchmarks!(
         // Substrate pallets
