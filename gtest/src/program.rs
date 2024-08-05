@@ -892,7 +892,7 @@ mod tests {
 
     use crate::{
         manager::Balance, Log, ProgramIdWrapper, System, DEFAULT_USERS_INITIAL_BALANCE,
-        DEFAULT_USER_ALICE, DEFAULT_USER_BOB, GAS_MULTIPLIER,
+        DEFAULT_USER_ALICE, DEFAULT_USER_BOB, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
     };
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
@@ -1261,14 +1261,19 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = [42; 32];
+        let user_id = 42;
+        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT);
+
         let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
 
         let run_result = prog.send(user_id, demo_exit_handle::scheme());
         assert!(!run_result.main_failed());
+        assert_eq!(sys.balance_of(user_id), 0);
 
+        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT);
         let run_result = prog.send_bytes(user_id, []);
         assert!(!run_result.main_failed());
+        assert_eq!(sys.balance_of(user_id), 0);
     }
 
     #[test]
