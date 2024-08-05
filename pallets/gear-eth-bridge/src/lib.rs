@@ -221,7 +221,6 @@ pub mod pallet {
     #[pallet::storage_version(ETH_BRIDGE_STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
-    // TODO (breathx): write benchmarks.
     #[pallet::call]
     impl<T: Config> Pallet<T>
     where

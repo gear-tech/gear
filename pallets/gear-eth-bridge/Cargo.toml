@@ -1,13 +1,12 @@
 [package]
 name = "pallet-gear-eth-bridge"
-description = "TODO (breathx): write pallet's description"
+description = "Pallet containing interface for storing and mutating data for Ethereum bridging"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-readme = "README.md"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
