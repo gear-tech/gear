@@ -892,7 +892,7 @@ mod tests {
 
     use crate::{
         manager::Balance, Log, ProgramIdWrapper, System, DEFAULT_USERS_INITIAL_BALANCE,
-        DEFAULT_USER_ALICE, DEFAULT_USER_BOB, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
+        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT,
     };
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;

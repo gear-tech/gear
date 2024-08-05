@@ -538,11 +538,16 @@ pub mod constants {
 
     /* Default users constants with initial balance */
 
-    pub const DEFAULT_USER_ALICE: u64 = 1;
-    pub const DEFAULT_USER_BOB: u64 = 2;
-    pub const DEFAULT_USER_CHARLIE: u64 = 3;
-    pub const DEFAULT_USER_EVE: u64 = 4;
+    /// Default user id for Alice.
+    pub const DEFAULT_USER_ALICE: u64 = u64::MAX - 1;
+    /// Default user id for Bob.
+    pub const DEFAULT_USER_BOB: u64 = u64::MAX - 2;
+    /// Default user id for Charlie.
+    pub const DEFAULT_USER_CHARLIE: u64 = u64::MAX - 3;
+    /// Default user id for Eve.
+    pub const DEFAULT_USER_EVE: u64 = u64::MAX - 4;
 
+    /// Default list of users.
     pub const fn default_users_list() -> &'static [u64] {
         &[
             DEFAULT_USER_ALICE,
@@ -552,5 +557,6 @@ pub mod constants {
         ]
     }
 
+    /// Default initial balance for users.
     pub const DEFAULT_USERS_INITIAL_BALANCE: Value = EXISTENTIAL_DEPOSIT * 100_000;
 }

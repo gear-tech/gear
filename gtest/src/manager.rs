@@ -279,11 +279,9 @@ impl ExtManager {
         manager
     }
 
+    // Should be called once inside `new` method.
     fn init_default_users(&mut self) {
         for &default_user_id in default_users_list() {
-            let free_id = self.free_id_nonce();
-
-            assert_eq!(default_user_id, free_id);
             self.actors.insert(
                 default_user_id.into(),
                 (TestActor::User, DEFAULT_USERS_INITIAL_BALANCE),

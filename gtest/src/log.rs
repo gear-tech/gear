@@ -466,7 +466,7 @@ impl RunResult {
         );
     }
 
-    // Calculate the total spent value.
+    /// Calculate the total spent value.
     pub fn spent_value(&self) -> Balance {
         let spent_gas = self.main_gas_burned()
             + self
