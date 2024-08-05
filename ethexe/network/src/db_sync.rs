@@ -27,10 +27,11 @@ use libp2p::{
     core::Endpoint,
     futures::FutureExt,
     request_response,
-    request_response::{Message, ProtocolSupport},
+    request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
     swarm::{
-        behaviour::ConnectionEstablished, ConnectionClosed, ConnectionDenied, ConnectionId,
-        FromSwarm, NetworkBehaviour, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
+        behaviour::ConnectionEstablished, CloseConnection, ConnectionClosed, ConnectionDenied,
+        ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent, THandlerOutEvent,
+        ToSwarm,
     },
     StreamProtocol,
 };
@@ -161,7 +162,29 @@ impl Behaviour {
                 };
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
+            request_response::Event::OutboundFailure {
+                peer,
+                request_id: _,
+                error: OutboundFailure::UnsupportedProtocols,
+            } => {
+                log::debug!("Request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol. Disconnecting...");
+                return Poll::Ready(ToSwarm::CloseConnection {
+                    peer_id: peer,
+                    connection: CloseConnection::All,
+                });
+            }
             request_response::Event::OutboundFailure { .. } => {}
+            request_response::Event::InboundFailure {
+                peer,
+                request_id: _,
+                error: InboundFailure::UnsupportedProtocols,
+            } => {
+                log::debug!("Request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol. Disconnecting...");
+                return Poll::Ready(ToSwarm::CloseConnection {
+                    peer_id: peer,
+                    connection: CloseConnection::All,
+                });
+            }
             request_response::Event::InboundFailure { .. } => {}
             request_response::Event::ResponseSent { .. } => {}
         }
