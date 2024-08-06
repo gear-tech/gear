@@ -22,6 +22,9 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![warn(missing_docs)]
+// TODO: remove on rust update.
+#![allow(unknown_lints)]
+#![allow(clippy::manual_inspect)]
 
 pub use builtin::Actor;
 pub use internal::{EthMessage, Proof};
