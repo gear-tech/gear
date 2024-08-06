@@ -780,7 +780,7 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
 
-    // Send mesage in between.
+    // Send message in between.
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
     let ping_program = env.ethereum.program(program_address);
     let _tx = ping_program
