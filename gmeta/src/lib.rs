@@ -220,7 +220,7 @@ pub use scale_info::{MetaType, PortableRegistry, Registry};
 
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
-use core::{any::TypeId, mem};
+use core::any::TypeId;
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -349,7 +349,7 @@ impl MetadataRepr {
 
     /// Decode metadata from bytes using codec.
     pub fn from_bytes(data: impl AsRef<[u8]>) -> Result<Self, MetadataParseError> {
-        let preamble_len = mem::size_of::<LanguageId>() | mem::size_of_val(&METADATA_VERSION);
+        let preamble_len = size_of::<LanguageId>() | size_of_val(&METADATA_VERSION);
         let data = data.as_ref();
         if data.len() < preamble_len {
             return Err(MetadataParseError::InvalidMetadata);

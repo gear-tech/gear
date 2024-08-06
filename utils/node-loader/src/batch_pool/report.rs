@@ -61,6 +61,7 @@ impl From<BTreeSet<MessageId>> for MailboxReport {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct BatchRunReport {
     /// Seed of the batch is the id.

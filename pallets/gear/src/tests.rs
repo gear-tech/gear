@@ -33,8 +33,8 @@ use crate::{
     Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
-    ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
@@ -47,15 +47,18 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
-        InstrumentedCodeAndId,
+        InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::WasmPage,
-    program::{ActiveProgram, Program},
+    pages::{
+        numerated::{self, tree::IntervalsTree},
+        WasmPage,
+    },
+    program::ActiveProgram,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -15196,6 +15199,131 @@ fn critical_hook_in_handle_signal() {
 }
 
 #[test]
+fn handle_reply_hook() {
+    use demo_async_reply_hook::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(utils::is_active(pid));
+
+        // Init conversation
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let messages = MailboxOf::<Test>::iter_key(USER_1).map(|(msg, _bn)| msg);
+
+        let mut timeout_msg_id = None;
+
+        for msg in messages {
+            match msg.payload_bytes() {
+                b"for_reply_1" => {
+                    // Reply to the first message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [1].to_vec(),
+                        1_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                b"for_reply_2" => {
+                    // Don't reply, message should time out
+                }
+                b"for_reply_3" => {
+                    // Reply to the third message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [3].to_vec(),
+                        1_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                b"for_reply_4" => {
+                    // reply later
+                    timeout_msg_id = Some(msg.id());
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        run_to_block(4, None);
+
+        // Expect a reply back
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"saw_reply_3");
+
+        run_to_block(10, None);
+
+        // Program finished
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"completed");
+
+        // Reply to a message that timed out
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            timeout_msg_id.unwrap(),
+            [4].to_vec(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(11, None);
+
+        let messages = all_user_messages(USER_1);
+        let vec: Vec<gstd::borrow::Cow<'_, str>> = messages
+            .iter()
+            .filter_map(|m| {
+                if m.details().is_some() {
+                    None
+                } else {
+                    Some(String::from_utf8_lossy(m.payload_bytes()))
+                }
+            })
+            .collect();
+        // Hook executed after completed
+        assert_eq!(
+            vec,
+            [
+                "for_reply_1",
+                "for_reply_2",
+                "for_reply_3",
+                "for_reply_4",
+                "saw_reply_3",
+                "completed",
+                "saw_reply_4"
+            ]
+        );
+    });
+}
+
+#[test]
 fn program_with_large_indexes() {
     // There is a security problem in module deserialization found by
     // casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
@@ -15409,12 +15537,9 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
-            program.allocations,
+            allocations,
             [WasmPage::from(static_pages)].into_iter().collect()
         );
 
@@ -15430,11 +15555,8 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
-        assert_eq!(program.allocations, Default::default());
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
+        assert_eq!(allocations, Default::default());
     });
 }
 
@@ -15666,6 +15788,125 @@ fn test_gasless_steal_gas_for_wait() {
         );
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
     })
+}
+
+#[test]
+fn use_big_memory() {
+    let last_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT).offset() - 4;
+    let middle_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2).offset();
+    let last_page_number = MAX_WASM_PAGES_AMOUNT.checked_sub(1).unwrap();
+
+    let wat = format!(
+        r#"
+        (module
+		    (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (drop (call $alloc (i32.const {MAX_WASM_PAGES_AMOUNT})))
+
+                ;; access last 4 bytes
+                (i32.store (i32.const {last_4_bytes_offset}) (i32.const 0x42))
+
+                ;; access first 4 bytes
+                (i32.store (i32.const 0) (i32.const 0x42))
+
+                ;; access 4 bytes in the middle
+                (i32.store (i32.const {middle_4_bytes_offset}) (i32.const 0x42))
+            )
+            (func $handle
+                (drop (call $free_range (i32.const 0) (i32.const {last_page_number})))
+            )
+        )"#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        let expected_allocations: IntervalsTree<WasmPage> =
+            [numerated::interval::Interval::try_from(
+                WasmPage::from(0)..WasmPage::from(MAX_WASM_PAGES_AMOUNT),
+            )
+            .unwrap()]
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(expected_allocations),
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id).expect("Program not found");
+        let Program::Active(program) = program else {
+            panic!("Program is not active");
+        };
+
+        assert_eq!(program.allocations_tree_len, 1);
+
+        let pages_with_data =
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .map(|(page, buf)| {
+                assert_eq!(buf.iter().copied().sum::<u8>(), 0x42);
+                page
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            pages_with_data,
+            vec![
+                GearPage::from_offset(0),
+                GearPage::from_offset(middle_4_bytes_offset),
+                GearPage::from_offset(last_4_bytes_offset)
+            ]
+        );
+
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(Default::default()),
+        );
+
+        assert_eq!(
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .count(),
+            0
+        );
+    });
 }
 
 pub(crate) mod utils {
@@ -16670,5 +16911,24 @@ pub(crate) mod utils {
 
     pub(super) fn gas_price(gas: u64) -> u128 {
         <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
+    }
+
+    // Collect all messages by account in chronological order (oldest first)
+    #[track_caller]
+    pub(super) fn all_user_messages(user_id: AccountId) -> Vec<UserMessage> {
+        System::events()
+            .into_iter()
+            .filter_map(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    if message.destination() == user_id.into() {
+                        Some(message)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }

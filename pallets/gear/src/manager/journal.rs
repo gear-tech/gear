@@ -373,62 +373,39 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            for (page, data) in pages_data {
-                log::trace!("{:?} has been write accessed, update it in storage", page);
-
-                ProgramStorageOf::<T>::set_program_page_data(
-                    program_id,
-                    p.memory_infix,
-                    page,
-                    data,
-                );
-                p.pages_with_data.insert(page);
-            }
-        })
-        .unwrap_or_else(|e| {
+        // TODO: pass `memory_infix` as argument #4025
+        let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             // Guaranteed to be called on existing active program
-            let err_msg = format!(
-                "JournalHandler::update_pages_data: failed to update program. \
-            Program - {program_id}. Got error: {e:?}"
-            );
+            let err_msg =
+                format!("JournalHandler::update_pages_data: program is not active {program_id}");
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}");
         });
+
+        for (page, data) in pages_data {
+            ProgramStorageOf::<T>::set_program_page_data(program_id, memory_infix, page, data);
+        }
     }
 
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            for page in p
-                .allocations
-                .difference(&allocations)
-                .flat_map(|i| i.iter())
-                .flat_map(|p| p.to_iter())
-            {
-                // TODO: do not use `contains` #3879
-                if p.pages_with_data.contains(page) {
-                    p.pages_with_data.remove(page);
-                    ProgramStorageOf::<T>::remove_program_page_data(
-                        program_id,
-                        p.memory_infix,
-                        page,
-                    );
-                }
-            }
-
-            p.allocations = allocations;
-        })
-        .unwrap_or_else(|e| {
+        // TODO: pass `memory_infix` as argument #4025
+        let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             // Guaranteed to be called on existing active program
-            let err_msg = format!(
-                "JournalHandler::update_allocations: failed to update program. \
-            Program - {program_id}. Got error: {e:?}"
-            );
+            let err_msg =
+                format!("JournalHandler::update_allocations: program is not active {program_id}.");
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}");
         });
+
+        let old_allocations = ProgramStorageOf::<T>::allocations(program_id).unwrap_or_default();
+        let remove_pages = old_allocations
+            .difference(&allocations)
+            .flat_map(|i| i.iter())
+            .flat_map(|i| i.to_iter());
+        ProgramStorageOf::<T>::remove_data_for_pages(program_id, memory_infix, remove_pages);
+        ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {

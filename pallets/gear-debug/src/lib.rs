@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::manual_inspect)]
 
 pub use pallet::*;
 pub use weights::WeightInfo;
@@ -160,12 +161,6 @@ pub mod pallet {
         fn on_finalize(_bn: BlockNumberFor<T>) {}
     }
 
-    #[derive(Decode, Encode)]
-    struct Node {
-        value: StoredDispatch,
-        next: Option<H256>,
-    }
-
     fn remap_with(dispatch: StoredDispatch, progs: &BTreeMap<H256, H256>) -> StoredDispatch {
         let (kind, msg, context) = dispatch.into_parts();
         let mut source = msg.source().into_origin();
@@ -217,12 +212,8 @@ pub mod pallet {
                         Some(code) => code.static_pages(),
                         None => 0.into(),
                     };
-                    let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
-                        id,
-                        active.memory_infix,
-                        active.pages_with_data.points_iter(),
-                    )
-                    .unwrap();
+                    let persistent_pages =
+                        T::ProgramStorage::get_program_pages_data(id, active.memory_infix).unwrap();
 
                     ProgramDetails {
                         id,

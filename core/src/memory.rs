@@ -98,8 +98,16 @@ impl Debug for MemoryInterval {
     }
 }
 
+/// Error in attempt to make wrong size page buffer.
+#[derive(Debug, Default, PartialEq, Eq, Clone, TypeInfo, derive_more::Display)]
+#[display(
+    fmt = "Trying to make wrong size page buffer, must be {:#x}",
+    GearPage::SIZE
+)]
+pub struct IntoPageBufError;
+
 /// Alias for inner type of page buffer.
-pub type PageBufInner = LimitedVec<u8, (), { GearPage::SIZE as usize }>;
+pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
 #[derive(Clone, PartialEq, Eq, TypeInfo)]
@@ -178,7 +186,7 @@ impl PageBuf {
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;
 
-const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
+const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
 /// Core memory error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
