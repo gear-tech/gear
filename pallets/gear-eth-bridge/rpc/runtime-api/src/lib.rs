@@ -16,17 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! A list of the different weight modules for our runtime.
+#![cfg_attr(not(feature = "std"), no_std)]
 
-#![allow(dead_code)]
+pub use pallet_gear_eth_bridge::Proof;
 
-pub mod frame_system;
-pub mod pallet_balances;
-pub mod pallet_gear;
-pub mod pallet_gear_builtin;
-pub mod pallet_gear_voucher;
-pub mod pallet_timestamp;
-pub mod pallet_utility;
+use sp_core::H256;
 
-#[cfg(feature = "dev")]
-pub mod pallet_gear_eth_bridge;
+sp_api::decl_runtime_apis! {
+    pub trait GearEthBridgeApi {
+        /// Generate merkle inclusion proof of the message hash in bridge queue.
+        fn merkle_proof(hash: H256) -> Option<Proof>;
+    }
+}

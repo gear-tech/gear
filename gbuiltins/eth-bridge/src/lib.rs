@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,17 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! A list of the different weight modules for our runtime.
+#![no_std]
 
-#![allow(dead_code)]
+extern crate alloc;
 
-pub mod frame_system;
-pub mod pallet_balances;
-pub mod pallet_gear;
-pub mod pallet_gear_builtin;
-pub mod pallet_gear_voucher;
-pub mod pallet_timestamp;
-pub mod pallet_utility;
+use alloc::vec::Vec;
+use gprimitives::{H160, H256, U256};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
-#[cfg(feature = "dev")]
-pub mod pallet_gear_eth_bridge;
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
+pub enum Request {
+    #[codec(index = 0)]
+    SendEthMessage { destination: H160, payload: Vec<u8> },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
+pub enum Response {
+    #[codec(index = 0)]
+    EthMessageQueued { nonce: U256, hash: H256 },
+}

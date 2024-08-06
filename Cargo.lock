@@ -1674,6 +1674,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 
 [[package]]
+name = "binary-merkle-tree"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.4.0#09bdd2a6953d057ae360ec3ef6ec735f9306cc04"
+dependencies = [
+ "hash-db",
+ "log",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6029,6 +6038,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin-eth-bridge"
+version = "1.5.0"
+dependencies = [
+ "gprimitives",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "gbuiltin-staking"
 version = "1.5.0"
 dependencies = [
@@ -6674,6 +6692,8 @@ dependencies = [
  "log",
  "pallet-gear-builtin-rpc",
  "pallet-gear-builtin-rpc-runtime-api",
+ "pallet-gear-eth-bridge-rpc",
+ "pallet-gear-eth-bridge-rpc-runtime-api",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-staking-rewards-rpc",
@@ -11148,6 +11168,68 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.4.0)",
  "test-syscalls",
  "wabt",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge"
+version = "1.5.0"
+dependencies = [
+ "binary-merkle-tree",
+ "env_logger",
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-support-test",
+ "frame-system",
+ "gbuiltin-eth-bridge",
+ "gear-common",
+ "gear-core",
+ "gear-core-errors",
+ "gprimitives",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-bank",
+ "pallet-gear-builtin",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
+ "pallet-grandpa",
+ "pallet-session",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-consensus-grandpa",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.4.0)",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge-rpc"
+version = "1.5.0"
+dependencies = [
+ "jsonrpsee 0.16.3",
+ "pallet-gear-eth-bridge-rpc-runtime-api",
+ "primitive-types",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge-rpc-runtime-api"
+version = "1.5.0"
+dependencies = [
+ "pallet-gear-eth-bridge",
+ "sp-api",
+ "sp-core",
 ]
 
 [[package]]
@@ -18162,6 +18244,8 @@ dependencies = [
  "pallet-gear-builtin",
  "pallet-gear-builtin-rpc-runtime-api",
  "pallet-gear-debug",
+ "pallet-gear-eth-bridge",
+ "pallet-gear-eth-bridge-rpc-runtime-api",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-payment",
