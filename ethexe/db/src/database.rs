@@ -96,7 +96,7 @@ impl BlockMetaStorage for Database {
             .get(&KeyPrefix::BlockHeader.one(block_hash))
             .map(|data| {
                 BlockHeader::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BTreeMap`")
+                    .expect("Failed to decode data into `BlockHeader`")
             })
     }
 
@@ -104,14 +104,6 @@ impl BlockMetaStorage for Database {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set header: {header:?}");
         self.kv
             .put(&KeyPrefix::BlockHeader.one(block_hash), header.encode());
-        // let meta = self.block_small_meta(block_hash).unwrap_or_default();
-        // self.set_block_small_meta(
-        //     block_hash,
-        //     BlockSmallMetaInfo {
-        //         header: Some(header),
-        //         ..meta
-        //     },
-        // );
     }
 
     fn block_end_state_is_valid(&self, block_hash: H256) -> Option<bool> {
