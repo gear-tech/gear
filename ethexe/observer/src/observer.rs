@@ -12,8 +12,11 @@ use ethexe_signer::Address;
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::watch;
+
+/// Max number of blocks to query in alloy.
+pub(crate) const MAX_QUERY_BLOCK_RANGE: u32 = 100_000;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
@@ -81,6 +84,8 @@ impl Observer {
                             log::info!("Block stream ended");
                             break;
                         };
+
+                        log::trace!("Received block: {:?}", block.header.hash);
 
                         let block_header = block.header;
                         let block_hash = block_header.hash.expect("failed to get block hash");
@@ -204,6 +209,47 @@ pub(crate) async fn read_block_events(
     }
 
     Ok(events)
+}
+
+pub(crate) async fn read_block_events_batch(
+    from_block: u32,
+    to_block: u32,
+    provider: &ObserverProvider,
+    router_address: AlloyAddress,
+) -> Result<BTreeMap<H256, Vec<BlockEvent>>> {
+    let mut events_map: BTreeMap<H256, Vec<BlockEvent>> = BTreeMap::new();
+    let mut start_block = from_block;
+
+    while start_block <= to_block {
+        let end_block = std::cmp::min(start_block + MAX_QUERY_BLOCK_RANGE - 1, to_block);
+        let router_events_filter = Filter::new()
+            .from_block(start_block as u64)
+            .to_block(end_block as u64)
+            .address(router_address)
+            .event_signature(Topic::from_iter(
+                signature_hash::ROUTER_EVENTS
+                    .iter()
+                    .map(|hash| B256::new(*hash)),
+            ));
+
+        let logs = provider.get_logs(&router_events_filter).await?;
+
+        for log in logs.iter() {
+            let block_hash = H256(log.block_hash.ok_or(anyhow!("Block hash is missing"))?.0);
+
+            let Some(event) = match_log(log)? else {
+                continue;
+            };
+
+            events_map
+                .entry(block_hash)
+                .and_modify(|events| events.push(event.clone()))
+                .or_insert(vec![event]);
+        }
+        start_block = end_block + 1;
+    }
+
+    Ok(events_map)
 }
 
 #[cfg(test)]

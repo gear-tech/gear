@@ -45,7 +45,9 @@ pub(crate) fn with_optimized_encode<T, E: Encode>(payload: E, f: impl FnOnce(&[u
             // &[MaybeUninit<T>]` is written to uninitialized memory via `copy_from_slice`.
             let end_offset = self.offset + bytes.len();
             let this = unsafe { self.buffer.get_unchecked_mut(self.offset..end_offset) };
-            this.copy_from_slice(unsafe { transmute(bytes) });
+            this.copy_from_slice(unsafe {
+                transmute::<&[u8], &[core::mem::MaybeUninit<u8>]>(bytes)
+            });
             self.offset = end_offset;
         }
     }

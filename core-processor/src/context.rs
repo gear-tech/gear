@@ -29,6 +29,17 @@ use gear_core::{
     reservation::GasReserver,
 };
 
+/// Struct with dispatch and counters charged for program data.
+#[derive(Debug)]
+pub struct ContextChargedForProgram {
+    pub(crate) dispatch: IncomingDispatch,
+    pub(crate) destination_id: ProgramId,
+    pub(crate) gas_counter: GasCounter,
+    pub(crate) gas_allowance_counter: GasAllowanceCounter,
+}
+
+pub struct ContextChargedForAllocations(pub(crate) ContextChargedForProgram);
+
 pub(crate) struct ContextData {
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,

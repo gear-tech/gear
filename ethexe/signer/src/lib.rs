@@ -28,7 +28,18 @@ use std::{fmt, fs, path::PathBuf, str::FromStr};
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PublicKey(pub [u8; 33]);
 
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PrivateKey(pub [u8; 32]);
+
+impl From<PrivateKey> for PublicKey {
+    fn from(key: PrivateKey) -> Self {
+        let secret_key =
+            secp256k1::SecretKey::from_slice(&key.0[..]).expect("32 bytes, within curve order");
+        let public_key = secp256k1::PublicKey::from_secret_key_global(&secret_key);
+
+        PublicKey::from_bytes(public_key.serialize())
+    }
+}
 
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Address(pub [u8; 20]);

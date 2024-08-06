@@ -214,6 +214,9 @@ impl InvocableSyscall {
                 SyscallName::SendCommitWGas,
             ],
             SyscallName::ReplyDeposit => &[SyscallName::SendInput, SyscallName::ReplyDeposit],
+            // Enable `MessageId` syscall import if `Wake` syscall is enabled.
+            // This is done to provide a syscall `Wake` with a correct message id.
+            SyscallName::Wake => &[SyscallName::MessageId],
             _ => return None,
         })
     }

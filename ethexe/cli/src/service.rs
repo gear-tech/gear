@@ -282,6 +282,9 @@ impl Service {
         // Set block as valid - means state db has all states for the end of the block
         db.set_block_end_state_is_valid(block_hash, true);
 
+        let header = db.block_header(block_hash).expect("must be set; qed");
+        db.set_latest_valid_block_height(header.height);
+
         Ok(transition_outcomes)
     }
 
@@ -371,7 +374,7 @@ impl Service {
         Ok(commitments)
     }
 
-    pub async fn run(self) -> Result<()> {
+    async fn run_inner(self) -> Result<()> {
         let Service {
             db,
             network,
@@ -468,6 +471,7 @@ impl Service {
                         }
                     }
 
+                    log::trace!("Sending timeout after observer event...");
                     delay = Some(tokio::time::sleep(block_time / 4));
                 }
                 _ = maybe_await(delay.take()) => {
@@ -506,6 +510,13 @@ impl Service {
         }
 
         Ok(())
+    }
+
+    pub async fn run(self) -> Result<()> {
+        self.run_inner().await.map_err(|err| {
+            log::error!("Service finished work with error: {:?}", err);
+            err
+        })
     }
 }
 
