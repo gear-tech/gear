@@ -174,20 +174,20 @@ impl Signer {
         Ok(Self { key_store })
     }
 
-    pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<RawSignature> {
+    pub fn raw_sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<RawSignature> {
         let private_key = self.get_private_key(public_key)?;
 
         RawSignature::create_for_digest(private_key, digest)
     }
 
-    pub fn sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
+    pub fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
 
         Signature::create_for_digest(private_key, digest)
     }
 
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
-        self.sign_digest(public_key, sha3::Keccak256::digest(data).into())
+        self.sign_digest(public_key, data.as_digest())
     }
 
     pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {
@@ -400,7 +400,7 @@ mod tests {
         let hash = keccak256(message);
 
         let recovered_public_key = signature
-            .recover_from_digest(hash)
+            .recover_from_digest(hash.into())
             .expect("Failed to recover public key");
 
         assert_eq!(recovered_public_key, public_key);

@@ -1,11 +1,38 @@
+use core::fmt;
 use ethexe_common::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition};
 use gprimitives::{MessageId, H256};
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
 use crate::Address;
 
-pub type Digest = [u8; 32];
+#[derive(
+    Clone,
+    Copy,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Hash,
+    Encode,
+    Decode,
+    derive_more::From,
+    derive_more::Into,
+    derive_more::AsRef,
+)]
+pub struct Digest([u8; 32]);
+
+impl fmt::Debug for Digest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
+
+impl fmt::Display for Digest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
 
 pub trait AsDigest {
     fn as_digest(&self) -> Digest;
@@ -37,7 +64,7 @@ impl<T: AsDigest> AsDigest for Vec<T> {
 
 impl AsDigest for [u8] {
     fn as_digest(&self) -> Digest {
-        sha3::Keccak256::digest(self).into()
+        Digest(sha3::Keccak256::digest(self).into())
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{digest::AsDigest, PrivateKey, PublicKey};
+use crate::{Digest, PrivateKey, PublicKey};
 use anyhow::{Context, Result};
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
@@ -10,11 +10,11 @@ use std::fmt;
 pub struct RawSignature([u8; 65]);
 
 impl RawSignature {
-    pub fn create_for_digest(private_key: PrivateKey, digest: [u8; 32]) -> Result<RawSignature> {
+    pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<RawSignature> {
         let secp_secret_key = secp256k1::SecretKey::from_slice(&private_key.0)
             .with_context(|| "Invalid secret key format for {:?}")?;
 
-        let message = Message::from_digest(digest);
+        let message = Message::from_digest(digest.into());
 
         let recoverable =
             secp256k1::global::SECP256K1.sign_ecdsa_recoverable(&message, &secp_secret_key);
@@ -54,14 +54,14 @@ impl Signature {
         hex::encode(self.0)
     }
 
-    pub fn recover_from_digest(&self, digest: [u8; 32]) -> Result<PublicKey> {
+    pub fn recover_from_digest(&self, digest: Digest) -> Result<PublicKey> {
         let sig = self.clone().try_into()?;
-        let public_key =
-            secp256k1::global::SECP256K1.recover_ecdsa(&Message::from_digest(digest), &sig)?;
+        let public_key = secp256k1::global::SECP256K1
+            .recover_ecdsa(&Message::from_digest(digest.into()), &sig)?;
         Ok(PublicKey::from_bytes(public_key.serialize()))
     }
 
-    pub fn create_for_digest(private_key: PrivateKey, digest: [u8; 32]) -> Result<Signature> {
+    pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<Signature> {
         let raw_signature = RawSignature::create_for_digest(private_key, digest)?;
         Ok(raw_signature.into())
     }
@@ -113,26 +113,5 @@ impl TryFrom<Signature> for RecoverableSignature {
             RecoveryId::from_i32((sig.0[64] - 27) as i32)?,
         )
         .map_err(Into::into)
-    }
-}
-
-pub struct SignedData<D: AsDigest> {
-    pub data: D,
-    signature: Signature,
-}
-
-impl<D: AsDigest> SignedData<D> {
-    pub fn create(data: D, private_key: PrivateKey) -> Result<Self> {
-        let digest = data.as_digest();
-        let signature = Signature::create_for_digest(private_key, digest)?;
-        Ok(SignedData { data, signature })
-    }
-
-    pub fn signature(&self) -> &Signature {
-        &self.signature
-    }
-
-    pub fn into_parts(self) -> (D, Signature) {
-        (self.data, self.signature)
     }
 }

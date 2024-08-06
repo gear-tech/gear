@@ -97,7 +97,7 @@ impl AsDigest for BlockCommitmentValidationRequest {
         message.extend_from_slice(self.block_hash.as_bytes());
         message.extend_from_slice(self.allowed_pred_block_hash.as_bytes());
         message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
-        message.extend_from_slice(&self.transitions_digest);
+        message.extend_from_slice(self.transitions_digest.as_ref());
 
         message.as_digest()
     }
