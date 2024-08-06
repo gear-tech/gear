@@ -65,4 +65,4 @@ ark-std = { workspace = true }
 
 [features]
 default = ["client"]
-client = ["gtest", "tokio", "tracing"]
+client = ["dep:gtest", "dep:tokio", "dep:tracing"]

@@ -45,10 +45,8 @@ pub struct Client<T: Backend> {
 
 impl<T: Backend> Client<T> {
     /// Create new client
-    pub fn new(backend: impl Into<T>) -> Client<T> {
-        Self {
-            backend: backend.into(),
-        }
+    pub fn new(backend: T) -> Client<T> {
+        Self { backend }
     }
 }
 

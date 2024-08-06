@@ -21,7 +21,6 @@ use crate::{
     Event, GearApi, GearEvent,
 };
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use gear_core::{
     ids::ProgramId,
     message::{UserMessage, UserStoredMessage},
@@ -37,11 +36,7 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use tokio::{
-    runtime::Builder,
-    sync::{Mutex, MutexGuard},
-    task::LocalSet,
-};
+use tokio::sync::{Mutex, MutexGuard};
 
 const MESSAGES_DEPTH: usize = 16;
 const DEFAULT_TIMEOUT: u64 = 3000;
@@ -64,7 +59,7 @@ impl GClient {
     /// Create new gclient instance with message timeout
     pub async fn new_with_timeout(api: GearApi, timeout: Duration) -> Result<Self> {
         let messages = Arc::new(Mutex::new(BTreeMap::new()));
-        Self::spawn(api.subscribe_blocks().await?, messages.clone())?;
+        Self::spawn(api.subscribe_blocks().await?, messages.clone());
 
         Ok(Self {
             inner: Arc::new(Mutex::new(api)),
@@ -123,47 +118,35 @@ impl GClient {
     }
 
     /// Spawn gear messages
-    fn spawn(
-        mut sub: Events,
-        gmessages: Arc<Mutex<BTreeMap<H256, Vec<UserMessage>>>>,
-    ) -> Result<()> {
-        let rt = Builder::new_current_thread().enable_all().build()?;
-        std::thread::spawn(move || {
-            let local = LocalSet::new();
-            local.spawn_local(async move {
-                while let Ok(Some((hash, events))) = sub.next_with_hash().await {
-                    let messages = events
-                        .into_iter()
-                        .filter_map(|e| {
-                            if let Event::Gear(GearEvent::UserMessageSent { message, .. }) = e {
-                                Some(message.into())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>();
+    fn spawn(mut sub: Events, gmessages: Arc<Mutex<BTreeMap<H256, Vec<UserMessage>>>>) {
+        tokio::spawn(async move {
+            while let Ok(Some((hash, events))) = sub.next_with_hash().await {
+                let messages = events
+                    .into_iter()
+                    .filter_map(|e| {
+                        if let Event::Gear(GearEvent::UserMessageSent { message, .. }) = e {
+                            Some(message.into())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
 
-                    if messages.is_empty() {
-                        continue;
-                    }
-
-                    let mut map = gmessages.lock().await;
-                    while map.len() > MESSAGES_DEPTH {
-                        map.pop_first();
-                    }
-
-                    map.insert(hash, messages);
+                if messages.is_empty() {
+                    continue;
                 }
-            });
 
-            rt.block_on(local);
+                let mut map = gmessages.lock().await;
+                while map.len() > MESSAGES_DEPTH {
+                    map.pop_first();
+                }
+
+                map.insert(hash, messages);
+            }
         });
-
-        Ok(())
     }
 }
 
-#[async_trait]
 impl Backend for GClient {
     async fn program(&self, id: ProgramId) -> Result<Program<Self>> {
         let _ = self.inner.lock().await.program_at(id, None).await?;
@@ -178,7 +161,7 @@ impl Backend for GClient {
     where
         M: Into<Message> + Send,
     {
-        let wasm = code.wasm()?;
+        let wasm = code.bytes()?;
         let message = message.into();
         self.switch_pair(message.signer).await?;
 

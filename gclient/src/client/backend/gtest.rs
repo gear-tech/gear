@@ -18,7 +18,6 @@
 
 use crate::client::{Backend, Client, Code, Message, Program, TxResult};
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
 use gprimitives::{ActorId, MessageId};
 use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
@@ -27,23 +26,16 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc,
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
     },
     time::{Duration, SystemTime},
-};
-use tokio::{
-    runtime::Builder,
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-        Mutex,
-    },
-    task::LocalSet,
 };
 
 /// gear general client gtest backend
 #[derive(Clone)]
 pub struct GTest {
-    tx: UnboundedSender<Request>,
+    tx: Sender<Request>,
     resps: Arc<Mutex<HashMap<usize, Response>>>,
     timeout: Duration,
     nonce: Arc<AtomicUsize>,
@@ -55,7 +47,7 @@ impl GTest {
     /// New gtest instance with timeout
     pub fn new(timeout: Duration) -> Result<Self> {
         let resps = Arc::new(Mutex::new(HashMap::new()));
-        let (tx, rx) = mpsc::unbounded_channel::<Request>();
+        let (tx, rx) = mpsc::channel::<Request>();
         Self::spawn(resps.clone(), rx)?;
 
         Ok(Self {
@@ -82,50 +74,43 @@ impl GTest {
                 return Err(anyhow!("gtest: Transaction timed out!"));
             }
 
-            if let Some(resp) = self.resps.lock().await.remove(&nonce) {
+            if let Some(resp) = self.resps.lock().unwrap().remove(&nonce) {
                 return Ok(resp);
             }
         }
     }
 
     /// Spawn gtest service
-    fn spawn(
-        resps: Arc<Mutex<HashMap<usize, Response>>>,
-        mut rx: UnboundedReceiver<Request>,
-    ) -> Result<()> {
-        let rt = Builder::new_current_thread().enable_all().build()?;
+    fn spawn(resps: Arc<Mutex<HashMap<usize, Response>>>, rx: Receiver<Request>) -> Result<()> {
         std::thread::spawn(move || {
-            let local = LocalSet::new();
-            local.spawn_local(async move {
-                let system = System::new();
-                while let Some(tx) = rx.recv().await {
-                    let (result, nounce) = match tx {
-                        Request::Deploy {
-                            nonce,
-                            code,
-                            message,
-                            signer,
-                        } => (handle::deploy(&system, code, message, signer), nonce),
-                        Request::Send {
-                            nonce,
-                            prog,
-                            message,
-                            signer,
-                        } => (handle::send(&system, prog, message, signer), nonce),
-                        Request::Program { nonce, id } => (handle::prog(&system, id), nonce),
-                    };
+            let system = System::new();
+            while let Ok(tx) = rx.recv() {
+                let (result, nounce) = match tx {
+                    Request::Deploy {
+                        nonce,
+                        code,
+                        message,
+                        signer,
+                    } => (handle::deploy(&system, code, message, signer), nonce),
+                    Request::Send {
+                        nonce,
+                        prog,
+                        message,
+                        signer,
+                    } => (handle::send(&system, prog, message, signer), nonce),
+                    Request::Program { nonce, id } => (handle::prog(&system, id), nonce),
+                };
 
-                    resps.lock().await.insert(nounce, result);
+                if let Ok(mut resps) = resps.lock() {
+                    resps.insert(nounce, result);
                 }
-            });
-
-            rt.block_on(local);
+            }
         });
+
         Ok(())
     }
 }
 
-#[async_trait]
 impl Backend for GTest {
     async fn program(&self, id: ProgramId) -> Result<Program<Self>> {
         let nonce = self.nonce.load(Ordering::SeqCst);
@@ -151,7 +136,7 @@ impl Backend for GTest {
         let nonce = self.nonce.load(Ordering::SeqCst);
         self.tx.send(Request::Deploy {
             nonce,
-            code: code.wasm()?,
+            code: code.bytes()?,
             message: message.into(),
             signer: Default::default(),
         })?;

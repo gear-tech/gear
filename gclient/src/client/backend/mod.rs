@@ -18,7 +18,6 @@
 
 use crate::client::{Message, Program, TxResult};
 use anyhow::Result;
-use async_trait::async_trait;
 pub use gclient::GClient;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
 use gprimitives::MessageId;
@@ -30,7 +29,6 @@ mod gclient;
 mod gtest;
 
 /// Backend for the general client
-#[async_trait]
 pub trait Backend: Sized {
     /// Get program instance
     async fn program(&self, id: ProgramId) -> Result<Program<Self>>;
@@ -55,23 +53,23 @@ pub trait Backend: Sized {
 /// Generate gear program code, could be path or bytes.
 pub trait Code: Sized + Send {
     /// Get wasm bytes
-    fn wasm(self) -> Result<Vec<u8>>;
+    fn bytes(&self) -> Result<Vec<u8>>;
 }
 
 impl Code for PathBuf {
-    fn wasm(self) -> Result<Vec<u8>> {
+    fn bytes(&self) -> Result<Vec<u8>> {
         fs::read(self).map_err(Into::into)
     }
 }
 
 impl Code for Vec<u8> {
-    fn wasm(self) -> Result<Vec<u8>> {
-        Ok(self)
+    fn bytes(&self) -> Result<Vec<u8>> {
+        Ok(self.clone())
     }
 }
 
 impl Code for &[u8] {
-    fn wasm(self) -> Result<Vec<u8>> {
+    fn bytes(&self) -> Result<Vec<u8>> {
         Ok(self.to_vec())
     }
 }
