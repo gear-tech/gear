@@ -39,7 +39,7 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-const LOG_TARGET: &str = "hyper-db";
+const LOG_TARGET: &str = "ethexe-db";
 
 #[repr(u64)]
 enum KeyPrefix {
@@ -52,6 +52,7 @@ enum KeyPrefix {
     BlockSmallMeta = 6,
     CodeUpload = 7,
     LatestValidBlock = 8,
+    BlockHeader = 9,
 }
 
 impl KeyPrefix {
@@ -68,6 +69,7 @@ impl KeyPrefix {
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,
+    router_address: [u8; 20],
 }
 
 impl Clone for Database {
@@ -75,13 +77,13 @@ impl Clone for Database {
         Self {
             cas: self.cas.clone_boxed(),
             kv: self.kv.clone_boxed_kv(),
+            router_address: self.router_address,
         }
     }
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 struct BlockSmallMetaInfo {
-    header: Option<BlockHeader>,
     block_end_state_is_valid: bool,
     is_empty: Option<bool>,
     prev_commitment: Option<H256>,
@@ -90,20 +92,26 @@ struct BlockSmallMetaInfo {
 
 impl BlockMetaStorage for Database {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
-        self.block_small_meta(block_hash)
-            .and_then(|meta| meta.header)
+        self.kv
+            .get(&KeyPrefix::BlockHeader.one(block_hash))
+            .map(|data| {
+                BlockHeader::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
     }
 
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set header: {header:?}");
-        let meta = self.block_small_meta(block_hash).unwrap_or_default();
-        self.set_block_small_meta(
-            block_hash,
-            BlockSmallMetaInfo {
-                header: Some(header),
-                ..meta
-            },
-        );
+        self.kv
+            .put(&KeyPrefix::BlockHeader.one(block_hash), header.encode());
+        // let meta = self.block_small_meta(block_hash).unwrap_or_default();
+        // self.set_block_small_meta(
+        //     block_hash,
+        //     BlockSmallMetaInfo {
+        //         header: Some(header),
+        //         ..meta
+        //     },
+        // );
     }
 
     fn block_end_state_is_valid(&self, block_hash: H256) -> Option<bool> {
@@ -308,14 +316,23 @@ impl CodesStorage for Database {
 }
 
 impl Database {
-    pub fn new(cas: Box<dyn CASDatabase>, kv: Box<dyn KVDatabase>) -> Self {
-        Self { cas, kv }
+    pub fn new(
+        cas: Box<dyn CASDatabase>,
+        kv: Box<dyn KVDatabase>,
+        router_address: [u8; 20],
+    ) -> Self {
+        Self {
+            cas,
+            kv,
+            router_address,
+        }
     }
 
-    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
+    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB, router_address: [u8; 20]) -> Self {
         Self {
             cas: CASDatabase::clone_boxed(db),
             kv: KVDatabase::clone_boxed_kv(db),
+            router_address,
         }
     }
 
@@ -331,7 +348,7 @@ impl Database {
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
         self.kv
-            .get(&KeyPrefix::BlockSmallMeta.one(block_hash))
+            .get(&KeyPrefix::BlockSmallMeta.two(self.router_address, block_hash))
             .map(|data| {
                 BlockSmallMetaInfo::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BlockSmallMetaInfo`")
@@ -339,8 +356,10 @@ impl Database {
     }
 
     fn set_block_small_meta(&self, block_hash: H256, meta: BlockSmallMetaInfo) {
-        self.kv
-            .put(&KeyPrefix::BlockSmallMeta.one(block_hash), meta.encode());
+        self.kv.put(
+            &KeyPrefix::BlockSmallMeta.two(self.router_address, block_hash),
+            meta.encode(),
+        );
     }
 }
 
@@ -436,7 +455,7 @@ mod tests {
     #[test]
     fn test_database() {
         let db = crate::MemDb::default();
-        let database = crate::Database::from_one(&db);
+        let database = crate::Database::from_one(&db, Default::default());
 
         let block_hash = H256::zero();
         // let parent_hash = H256::zero();

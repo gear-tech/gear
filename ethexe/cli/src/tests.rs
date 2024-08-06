@@ -160,7 +160,7 @@ impl TestEnv {
             block_time,
         } = config;
 
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::from_one(&MemDb::default(), router_address.unwrap_or_default().0);
 
         let tempdir = tempfile::tempdir()?.into_path();
         let signer = Signer::new(tempdir.join("key"))?;
