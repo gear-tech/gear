@@ -434,18 +434,18 @@ mod grandpa_keys_handler {
             Grandpa::on_disabled(validator_index);
             GearEthBridge::on_disabled(validator_index);
         }
-        fn on_genesis_session<'a, I: 'a>(validators: I)
+        fn on_genesis_session<'a, I>(validators: I)
         where
-            I: Iterator<Item = (&'a AccountId, Self::Key)>,
+            I: 'a + Iterator<Item = (&'a AccountId, Self::Key)>,
             AccountId: 'a,
         {
             let validators: Vec<_> = validators.collect();
             Grandpa::on_genesis_session(validators.clone().into_iter());
             GearEthBridge::on_genesis_session(validators.into_iter());
         }
-        fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued_validators: I)
+        fn on_new_session<'a, I>(changed: bool, validators: I, queued_validators: I)
         where
-            I: Iterator<Item = (&'a AccountId, Self::Key)>,
+            I: 'a + Iterator<Item = (&'a AccountId, Self::Key)>,
             AccountId: 'a,
         {
             let validators: Vec<_> = validators.collect();
