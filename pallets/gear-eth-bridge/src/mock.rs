@@ -101,18 +101,18 @@ mod grandpa_keys_handler {
             Grandpa::on_disabled(validator_index);
             GearEthBridge::on_disabled(validator_index);
         }
-        fn on_genesis_session<'a, I: 'a>(validators: I)
+        fn on_genesis_session<'a, I>(validators: I)
         where
-            I: Iterator<Item = (&'a AccountId, Self::Key)>,
+            I: 'a + Iterator<Item = (&'a AccountId, Self::Key)>,
             AccountId: 'a,
         {
             let validators: Vec<_> = validators.collect();
             Grandpa::on_genesis_session(validators.clone().into_iter());
             GearEthBridge::on_genesis_session(validators.into_iter());
         }
-        fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued_validators: I)
+        fn on_new_session<'a, I>(changed: bool, validators: I, queued_validators: I)
         where
-            I: Iterator<Item = (&'a AccountId, Self::Key)>,
+            I: 'a + Iterator<Item = (&'a AccountId, Self::Key)>,
             AccountId: 'a,
         {
             let validators: Vec<_> = validators.collect();
@@ -226,13 +226,11 @@ pub fn era_validators(session_idx: u32, do_set_keys: bool) -> Vec<AccountId> {
     let last_validator = first_validator + 3;
 
     (first_validator..last_validator)
-        .map(|acc| {
+        .inspect(|&acc| {
             if do_set_keys {
                 let grandpa = account_into_grandpa_key(acc);
                 pallet_session::NextKeys::<Test>::insert(acc, SessionKeys { grandpa });
             }
-
-            acc
         })
         .collect()
 }

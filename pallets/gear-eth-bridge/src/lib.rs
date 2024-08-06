@@ -324,7 +324,7 @@ pub mod pallet {
                     .flatten()
                     .ok_or(Error::<T>::QueueCapacityExceeded)
             })
-            .map_err(|e| {
+            .inspect_err(|_| {
                 // In case of error, reverting increase of `MessageNonce` performed
                 // in message creation to keep builtin interactions transactional.
                 MessageNonce::<T>::mutate_exists(|nonce| {
@@ -332,8 +332,6 @@ pub mod pallet {
                         inner.checked_sub(U256::one()).filter(|new| !new.is_zero())
                     });
                 });
-
-                e
             })?;
 
             // Marking queue as changed, so root will be updated later.
@@ -446,9 +444,9 @@ pub mod pallet {
         fn on_genesis_session<'a, I: 'a>(_validators: I) {}
 
         // TODO: consider support of `Stalled` changes of grandpa (#4113).
-        fn on_new_session<'a, I: 'a>(changed: bool, _validators: I, queued_validators: I)
+        fn on_new_session<'a, I>(changed: bool, _validators: I, queued_validators: I)
         where
-            I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
+            I: 'a + Iterator<Item = (&'a T::AccountId, Self::Key)>,
         {
             // If historically pallet hasn't yet faced `changed = true`,
             // any type of calculations aren't performed.
