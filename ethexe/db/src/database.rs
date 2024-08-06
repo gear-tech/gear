@@ -176,7 +176,7 @@ impl BlockMetaStorage for Database {
 
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
         self.kv
-            .get(&KeyPrefix::BlockStartProgramStates.one(block_hash))
+            .get(&KeyPrefix::BlockStartProgramStates.two(self.router_address, block_hash))
             .map(|data| {
                 BTreeMap::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -186,14 +186,14 @@ impl BlockMetaStorage for Database {
     fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set start program states: {map:?}");
         self.kv.put(
-            &KeyPrefix::BlockStartProgramStates.one(block_hash),
+            &KeyPrefix::BlockStartProgramStates.two(self.router_address, block_hash),
             map.encode(),
         );
     }
 
     fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
         self.kv
-            .get(&KeyPrefix::BlockEndProgramStates.one(block_hash))
+            .get(&KeyPrefix::BlockEndProgramStates.two(self.router_address, block_hash))
             .map(|data| {
                 BTreeMap::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -202,14 +202,14 @@ impl BlockMetaStorage for Database {
 
     fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         self.kv.put(
-            &KeyPrefix::BlockEndProgramStates.one(block_hash),
+            &KeyPrefix::BlockEndProgramStates.two(self.router_address, block_hash),
             map.encode(),
         );
     }
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
         self.kv
-            .get(&KeyPrefix::BlockEvents.one(block_hash))
+            .get(&KeyPrefix::BlockEvents.two(self.router_address, block_hash))
             .map(|data| {
                 Vec::<BlockEvent>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<BlockEvent>`")
@@ -217,13 +217,15 @@ impl BlockMetaStorage for Database {
     }
 
     fn set_block_events(&self, block_hash: H256, events: Vec<BlockEvent>) {
-        self.kv
-            .put(&KeyPrefix::BlockEvents.one(block_hash), events.encode());
+        self.kv.put(
+            &KeyPrefix::BlockEvents.two(self.router_address, block_hash),
+            events.encode(),
+        );
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
         self.kv
-            .get(&KeyPrefix::BlockOutcome.one(block_hash))
+            .get(&KeyPrefix::BlockOutcome.two(self.router_address, block_hash))
             .map(|data| {
                 Vec::<StateTransition>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<StateTransition>`")
@@ -231,13 +233,15 @@ impl BlockMetaStorage for Database {
     }
 
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
-        self.kv
-            .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
+        self.kv.put(
+            &KeyPrefix::BlockOutcome.two(self.router_address, block_hash),
+            outcome.encode(),
+        );
     }
 
     fn latest_valid_block_height(&self) -> Option<u32> {
         self.kv
-            .get(&KeyPrefix::LatestValidBlock.one([]))
+            .get(&KeyPrefix::LatestValidBlock.one(self.router_address))
             .map(|block_height| {
                 u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
             })
@@ -245,7 +249,7 @@ impl BlockMetaStorage for Database {
 
     fn set_latest_valid_block_height(&self, block_height: u32) {
         self.kv.put(
-            &KeyPrefix::LatestValidBlock.one([]),
+            &KeyPrefix::LatestValidBlock.one(self.router_address),
             block_height.to_le_bytes().to_vec(),
         );
     }
