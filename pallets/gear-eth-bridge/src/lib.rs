@@ -45,7 +45,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[allow(missing_docs)]
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -121,7 +120,12 @@ pub mod pallet {
         BridgeUnpaused,
 
         /// A new message was queued for bridging.
-        MessageQueued { message: EthMessage, hash: H256 },
+        MessageQueued {
+            /// Enqueued message.
+            message: EthMessage,
+            /// Hash of the enqueued message.
+            hash: H256,
+        },
 
         /// Merkle root of the queue changed: new messages queued within the block.
         QueueMerkleRootChanged(H256),
@@ -231,6 +235,8 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        /// Root extrinsic that pauses pallet.
+        /// When paused, no new messages could be queued.
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
@@ -253,6 +259,8 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Root extrinsic that unpauses pallet.
+        /// When paused, no new messages could be queued.
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
@@ -278,6 +286,8 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Extrinsic that inserts message in a bridging queue,
+        /// updating queue merkle root at the end of the block.
         #[pallet::call_index(2)]
         #[pallet::weight(<T as Config>::WeightInfo::send_eth_message())]
         pub fn send_eth_message(

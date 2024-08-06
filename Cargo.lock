@@ -6039,7 +6039,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-eth-bridge"
-version = "1.4.2"
+version = "1.5.0"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -11172,7 +11172,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge"
-version = "1.4.2"
+version = "1.5.0"
 dependencies = [
  "binary-merkle-tree",
  "env_logger",
@@ -11213,7 +11213,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc"
-version = "1.4.2"
+version = "1.5.0"
 dependencies = [
  "jsonrpsee 0.16.3",
  "pallet-gear-eth-bridge-rpc-runtime-api",
@@ -11225,7 +11225,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc-runtime-api"
-version = "1.4.2"
+version = "1.5.0"
 dependencies = [
  "pallet-gear-eth-bridge",
  "sp-api",
