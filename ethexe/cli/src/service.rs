@@ -587,23 +587,13 @@ impl Service {
         }
 
         let code_requests: BTreeMap<_, _> = codes_hash
-            .and_then(|hash| sequencer.get_multisigned_code_commitments(hash))
-            .map(|commitments| {
-                commitments
-                    .iter()
-                    .map(|c| (c.as_digest(), c.clone()))
-                    .collect()
-            })
+            .and_then(|hash| sequencer.get_candidate_code_commitments(hash))
+            .map(|commitments| commitments.map(|c| (c.as_digest(), c.clone())).collect())
             .unwrap_or_default();
 
         let block_requests: BTreeMap<_, _> = blocks_hash
-            .and_then(|hash| sequencer.get_multisigned_block_commitments(hash))
-            .map(|commitments| {
-                commitments
-                    .iter()
-                    .map(|c| (c.as_digest(), c.into()))
-                    .collect()
-            })
+            .and_then(|hash| sequencer.get_candidate_block_commitments(hash))
+            .map(|commitments| commitments.map(|c| (c.as_digest(), c.into())).collect())
             .unwrap_or_default();
 
         if let Some(network_sender) = maybe_network_sender {
@@ -617,7 +607,11 @@ impl Service {
         }
 
         if let Some(validator) = maybe_validator {
-            log::debug!("Validating aggregated commitments on local validator...");
+            log::debug!(
+                "Validate local ({}) code commitments and ({}) block commitments...",
+                code_requests.len(),
+                block_requests.len()
+            );
 
             let origin = validator.address();
 

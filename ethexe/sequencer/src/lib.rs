@@ -18,7 +18,7 @@
 
 //! Sequencer for ethexe.
 
-mod agro;
+pub mod agro;
 
 use agro::MultisignedCommitments;
 use anyhow::{anyhow, Result};
@@ -29,7 +29,7 @@ use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ops::Not,
 };
 use tokio::sync::watch;
@@ -50,20 +50,22 @@ pub struct SequencerStatus {
     pub submitted_block_commitments: u64,
 }
 
-#[allow(unused)]
+type CommitmentsMap<C> = BTreeMap<Digest, (C, HashSet<Address>)>;
+type MultisignedDigests = (BTreeSet<Digest>, HashMap<Address, Signature>);
+type Candidate = (Digest, MultisignedDigests);
+
 pub struct Sequencer {
-    signer: Signer,
     key: PublicKey,
     ethereum: Ethereum,
 
     validators: HashSet<Address>,
     threshold: u64,
 
-    code_commitments: BTreeMap<Digest, (CodeCommitment, HashSet<Address>)>,
-    block_commitments: BTreeMap<Digest, (BlockCommitment, HashSet<Address>)>,
+    code_commitments: CommitmentsMap<CodeCommitment>,
+    block_commitments: CommitmentsMap<BlockCommitment>,
 
-    codes_aggregator: BTreeMap<Digest, MultisignedCommitments<CodeCommitment>>,
-    blocks_aggregator: BTreeMap<Digest, MultisignedCommitments<BlockCommitment>>,
+    codes_candidate: Option<Candidate>,
+    blocks_candidate: Option<Candidate>,
 
     status: SequencerStatus,
     status_sender: watch::Sender<SequencerStatus>,
@@ -122,8 +124,7 @@ pub enum NetworkMessage {
 impl Sequencer {
     pub async fn new(config: &Config, signer: Signer) -> Result<Self> {
         let (status_sender, _status_receiver) = watch::channel(SequencerStatus::default());
-        Ok(Self {
-            signer: signer.clone(),
+        Ok(Sequencer {
             key: config.sign_tx_public,
             ethereum: Ethereum::new(
                 &config.ethereum_rpc,
@@ -134,11 +135,11 @@ impl Sequencer {
             .await?,
             validators: config.validators.iter().cloned().collect(),
             threshold: 1,
-            code_commitments: BTreeMap::new(),
-            block_commitments: BTreeMap::new(),
-            codes_aggregator: BTreeMap::new(),
-            blocks_aggregator: BTreeMap::new(),
-            status: SequencerStatus::default(),
+            code_commitments: Default::default(),
+            block_commitments: Default::default(),
+            codes_candidate: Default::default(),
+            blocks_candidate: Default::default(),
+            status: Default::default(),
             status_sender,
         })
     }
@@ -147,6 +148,9 @@ impl Sequencer {
     pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
         if let Event::Block(data) = event {
             log::debug!("Receive block {:?}", data.block_hash);
+
+            self.codes_candidate = None;
+            self.blocks_candidate = None;
 
             self.update_status(|status| {
                 *status = SequencerStatus::default();
@@ -157,15 +161,19 @@ impl Sequencer {
     }
 
     pub fn process_collected_commitments(&mut self) -> Result<(Option<Digest>, Option<Digest>)> {
-        let codes_digest = Self::pop_suitable_commitments(
-            &mut self.code_commitments,
-            &mut self.codes_aggregator,
+        if self.codes_candidate.is_some() || self.blocks_candidate.is_some() {
+            return Err(anyhow!("Previous commitments candidate are not submitted"));
+        }
+
+        let codes_digest = Self::set_candidate_commitments(
+            &self.code_commitments,
+            &mut self.codes_candidate,
             self.threshold,
         );
 
-        let blocks_digest = Self::pop_suitable_commitments(
-            &mut self.block_commitments,
-            &mut self.blocks_aggregator,
+        let blocks_digest = Self::set_candidate_commitments(
+            &self.block_commitments,
+            &mut self.blocks_candidate,
             self.threshold,
         );
 
@@ -178,10 +186,17 @@ impl Sequencer {
         let mut code_commitments_len = 0;
         let mut block_commitments_len = 0;
 
-        let codes_candidate =
-            Self::process_multisigned_candidate(&mut self.codes_aggregator, self.threshold);
-        let blocks_candidate =
-            Self::process_multisigned_candidate(&mut self.blocks_aggregator, self.threshold);
+        let codes_candidate = Self::process_multisigned_candidate(
+            &mut self.codes_candidate,
+            &mut self.code_commitments,
+            self.threshold,
+        );
+
+        let blocks_candidate = Self::process_multisigned_candidate(
+            &mut self.blocks_candidate,
+            &mut self.block_commitments,
+            self.threshold,
+        );
 
         if let Some(candidate) = codes_candidate {
             log::debug!(
@@ -262,7 +277,7 @@ impl Sequencer {
             signature,
             &self.validators,
             self.ethereum.router().address(),
-            &mut self.codes_aggregator,
+            self.codes_candidate.as_mut(),
         )
     }
 
@@ -278,7 +293,7 @@ impl Sequencer {
             signature,
             &self.validators,
             self.ethereum.router().address(),
-            &mut self.blocks_aggregator,
+            self.blocks_candidate.as_mut(),
         )
     }
 
@@ -290,72 +305,106 @@ impl Sequencer {
         self.status_sender.subscribe()
     }
 
-    pub fn get_multisigned_code_commitments(&self, digest: Digest) -> Option<&[CodeCommitment]> {
-        self.codes_aggregator
-            .get(&digest)
-            .map(|multisigned| multisigned.commitments.as_slice())
+    pub fn get_candidate_code_commitments(
+        &self,
+        digest: Digest,
+    ) -> Option<impl Iterator<Item = &CodeCommitment> + '_> {
+        Self::get_candidate_commitments(digest, &self.codes_candidate, &self.code_commitments)
     }
 
-    pub fn get_multisigned_block_commitments(&self, digest: Digest) -> Option<&[BlockCommitment]> {
-        self.blocks_aggregator
-            .get(&digest)
-            .map(|multisigned| multisigned.commitments.as_slice())
+    pub fn get_candidate_block_commitments(
+        &self,
+        digest: Digest,
+    ) -> Option<impl Iterator<Item = &BlockCommitment> + '_> {
+        Self::get_candidate_commitments(digest, &self.blocks_candidate, &self.block_commitments)
     }
 
-    fn pop_suitable_commitments<C: AsDigest>(
-        commitments: &mut BTreeMap<Digest, (C, HashSet<Address>)>,
-        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
+    fn get_candidate_commitments<'a, C>(
+        digest: Digest,
+        candidate: &'a Option<Candidate>,
+        commitments: &'a CommitmentsMap<C>,
+    ) -> Option<impl Iterator<Item = &'a C> + 'a> {
+        let Some((candidate_digest, (digests, _))) = candidate else {
+            return None;
+        };
+
+        if *candidate_digest != digest {
+            return None;
+        }
+
+        Some(digests.iter().map(|digest| {
+            commitments
+                .get(digest)
+                .map(|(commitment, _)| commitment)
+                .unwrap_or_else(|| {
+                    unreachable!("Guarantied by `Sequencer` implementation to be in the map")
+                })
+        }))
+    }
+
+    fn set_candidate_commitments<C: AsDigest>(
+        commitments: &CommitmentsMap<C>,
+        candidate: &mut Option<Candidate>,
         threshold: u64,
     ) -> Option<Digest> {
         let suitable_digests: Vec<_> = commitments
             .iter()
-            .filter_map(|(&hash, (_, set))| (set.len() as u64 >= threshold).then_some(hash))
+            .filter_map(|(&digest, (_, set))| (set.len() as u64 >= threshold).then_some(digest))
             .collect();
 
         if suitable_digests.is_empty() {
             return None;
         }
 
-        let mut suitable_commitments = Vec::new();
-        for hash in suitable_digests.iter() {
-            let (commitment, _) = commitments
-                .remove(hash)
-                .unwrap_or_else(|| unreachable!("Must be in the map"));
-            suitable_commitments.push(commitment);
-        }
-
         let digest = suitable_digests.as_digest();
-        debug_assert_eq!(digest, suitable_commitments.as_digest());
 
-        aggregator.insert(
+        *candidate = Some((
             digest,
-            MultisignedCommitments {
-                commitments: suitable_commitments,
-                sources: Vec::new(),
-                signatures: Vec::new(),
-            },
-        );
+            (suitable_digests.into_iter().collect(), HashMap::new()),
+        ));
 
         Some(digest)
     }
 
     fn process_multisigned_candidate<C: AsDigest>(
-        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
+        candidate: &mut Option<Candidate>,
+        commitments: &mut CommitmentsMap<C>,
         threshold: u64,
     ) -> Option<MultisignedCommitments<C>> {
-        let candidate = aggregator.iter().find_map(|(&digest, multisigned)| {
-            (multisigned.sources.len() >= threshold as usize).then_some(digest)
-        })?;
-
-        let multisigned = aggregator
-            .remove(&candidate)
-            .unwrap_or_else(|| unreachable!("Must be in the map"));
-
-        if multisigned.commitments.is_empty() {
-            unreachable!("Guarantied to be not empty");
+        if candidate
+            .as_ref()
+            .map(|(_digest, (_, sigs))| threshold > sigs.len() as u64)
+            .unwrap_or(true)
+        {
+            return None;
         }
 
-        Some(multisigned)
+        let (_, (digests, signatures)) = candidate.take()?;
+
+        if digests.is_empty() {
+            unreachable!("Guarantied by `Sequencer` implementation to be not empty");
+        }
+
+        let commitments: Vec<_> = digests
+            .iter()
+            .map(|digest| {
+                commitments
+                    .remove(digest)
+                    .map(|(commitment, _)| commitment)
+                    .unwrap_or_else(|| {
+                        unreachable!("Guarantied by `Sequencer` implementation to be in the map");
+                    })
+            })
+            .collect();
+
+        let sources = signatures.keys().cloned().collect();
+        let signatures = signatures.values().cloned().collect();
+
+        Some(MultisignedCommitments {
+            commitments,
+            sources,
+            signatures,
+        })
     }
 
     async fn submit_codes_commitment(
@@ -439,29 +488,31 @@ impl Sequencer {
         Ok(())
     }
 
-    fn receive_signature<C: AsDigest>(
+    fn receive_signature(
         origin: Address,
         digest: Digest,
         signature: Signature,
         validators: &HashSet<Address>,
         router_address: Address,
-        aggregator: &mut BTreeMap<Digest, MultisignedCommitments<C>>,
+        candidate: Option<&mut Candidate>,
     ) -> Result<()> {
+        let Some((candidate_digest, (_, signatures))) = candidate else {
+            return Err(anyhow!("No candidate found"));
+        };
+
+        if *candidate_digest != digest {
+            return Err(anyhow!("Digest mismatch"));
+        }
+
         if !validators.contains(&origin) {
             return Err(anyhow!("Unknown validator {origin}"));
         }
 
-        if AggregatedCommitments::<C>::recover_digest(digest, &signature, router_address)? != origin
-        {
+        if agro::recover_from_digest(digest, &signature, router_address)? != origin {
             return Err(anyhow!("Invalid signature"));
         }
 
-        let multisigned = aggregator
-            .get_mut(&digest)
-            .ok_or(anyhow!("Aggregated commitment {digest:?} not found"))?;
-
-        multisigned.sources.push(origin);
-        multisigned.signatures.push(signature);
+        signatures.insert(origin, signature);
 
         Ok(())
     }

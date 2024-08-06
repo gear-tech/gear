@@ -36,8 +36,7 @@ impl<T: AsDigest> AggregatedCommitments<T> {
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
-        let signature =
-            Self::sign_commitments(commitments.as_digest(), signer, pub_key, router_address)?;
+        let signature = sign_digest(commitments.as_digest(), signer, pub_key, router_address)?;
 
         Ok(AggregatedCommitments {
             commitments,
@@ -45,31 +44,12 @@ impl<T: AsDigest> AggregatedCommitments<T> {
         })
     }
 
-    pub fn sign_commitments(
-        commitments_digest: Digest,
-        signer: &Signer,
-        pub_key: PublicKey,
-        router_address: Address,
-    ) -> Result<Signature> {
-        signer.sign_digest(pub_key, Self::digest(commitments_digest, router_address))
-    }
-
     pub fn recover(&self, router_address: Address) -> Result<Address> {
-        Self::recover_digest(
+        recover_from_digest(
             self.commitments.as_digest(),
             &self.signature,
             router_address,
         )
-    }
-
-    pub fn recover_digest(
-        commitments_digest: Digest,
-        signature: &Signature,
-        router_address: Address,
-    ) -> Result<Address> {
-        signature
-            .recover_from_digest(Self::digest(commitments_digest, router_address))
-            .map(|k| k.to_address())
     }
 
     pub fn len(&self) -> usize {
@@ -79,16 +59,35 @@ impl<T: AsDigest> AggregatedCommitments<T> {
     pub fn is_empty(&self) -> bool {
         self.commitments.is_empty()
     }
+}
 
-    fn digest(commitments_digest: Digest, router_address: Address) -> Digest {
-        [
-            [0x19, 0x00].as_ref(),
-            router_address.0.as_ref(),
-            commitments_digest.as_ref(),
-        ]
-        .concat()
-        .as_digest()
-    }
+pub fn sign_digest(
+    commitments_digest: Digest,
+    signer: &Signer,
+    pub_key: PublicKey,
+    router_address: Address,
+) -> Result<Signature> {
+    signer.sign_digest(pub_key, digest(commitments_digest, router_address))
+}
+
+pub fn recover_from_digest(
+    commitments_digest: Digest,
+    signature: &Signature,
+    router_address: Address,
+) -> Result<Address> {
+    signature
+        .recover_from_digest(digest(commitments_digest, router_address))
+        .map(|k| k.to_address())
+}
+
+fn digest(commitments_digest: Digest, router_address: Address) -> Digest {
+    [
+        [0x19, 0x00].as_ref(),
+        router_address.0.as_ref(),
+        commitments_digest.as_ref(),
+    ]
+    .concat()
+    .as_digest()
 }
 
 #[derive(Clone)]
@@ -108,129 +107,65 @@ impl<D: fmt::Debug> fmt::Debug for MultisignedCommitments<D> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_signer::PrivateKey;
+    use std::str::FromStr;
 
-//     use super::*;
-//     use ethexe_signer::{Address, Signature};
-//     use gear_core::ids::ActorId;
+    #[derive(Clone, Debug)]
+    pub struct MyComm([u8; 2]);
 
-//     #[derive(Clone, Debug)]
-//     pub struct MyComm([u8; 2]);
+    impl AsDigest for MyComm {
+        fn as_digest(&self) -> Digest {
+            self.0.as_digest()
+        }
+    }
 
-//     impl SeqHash for MyComm {
-//         fn hash(&self) -> H256 {
-//             ethexe_signer::hash(&self.0[..])
-//         }
-//     }
+    #[test]
+    fn test_sign_digest() {
+        let key_store = tempfile::tempdir().unwrap();
+        let signer = Signer::new(key_store.path().to_path_buf()).unwrap();
 
-//     fn signer(id: u8) -> Address {
-//         let mut array = [0; 20];
-//         array[0] = id;
-//         Address(array)
-//     }
+        let private_key = PrivateKey::from_str(
+            "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
+        )
+        .unwrap();
+        let pub_key = signer.add_key(private_key).unwrap();
 
-//     fn signature(id: u8) -> Signature {
-//         let mut array = [0; 65];
-//         array[0] = id;
-//         Signature::from(array)
-//     }
+        let router_address = Address([0x01; 20]);
+        let commitments = vec![MyComm([1, 2]), MyComm([3, 4])];
 
-//     #[allow(unused)]
-//     fn block_hash(id: u8) -> H256 {
-//         let mut array = [0; 32];
-//         array[0] = id;
-//         H256::from(array)
-//     }
+        let digest = commitments.as_digest();
+        let signature = sign_digest(digest, &signer, pub_key, router_address).unwrap();
+        let recovered = recover_from_digest(digest, &signature, router_address).unwrap();
 
-//     #[allow(unused)]
-//     fn pid(id: u8) -> ActorId {
-//         let mut array = [0; 32];
-//         array[0] = id;
-//         ActorId::from(array)
-//     }
+        assert_eq!(recovered, pub_key.to_address());
+    }
 
-//     #[allow(unused)]
-//     fn state_id(id: u8) -> H256 {
-//         let mut array = [0; 32];
-//         array[0] = id;
-//         H256::from(array)
-//     }
+    #[test]
+    fn test_aggregated_commitments() {
+        let key_store = tempfile::tempdir().unwrap();
+        let signer = Signer::new(key_store.path().to_path_buf()).unwrap();
 
-//     fn gen_commitment(
-//         signature_id: u8,
-//         commitments: Vec<(u8, u8)>,
-//     ) -> AggregatedCommitments<MyComm> {
-//         let commitments = commitments
-//             .into_iter()
-//             .map(|v| MyComm([v.0, v.1]))
-//             .collect();
+        let private_key = PrivateKey::from_str(
+            "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
+        )
+        .unwrap();
+        let pub_key = signer.add_key(private_key).unwrap();
 
-//         AggregatedCommitments {
-//             commitments,
-//             signature: signature(signature_id),
-//         }
-//     }
+        let router_address = Address([0x01; 20]);
+        let commitments = vec![MyComm([1, 2]), MyComm([3, 4])];
 
-//     #[test]
-//     fn simple() {
-//         // aggregator with threshold 1
-//         let mut aggregator = Aggregator::new(1);
+        let agg = AggregatedCommitments::aggregate_commitments(
+            commitments,
+            &signer,
+            pub_key,
+            router_address,
+        )
+        .unwrap();
+        let recovered = agg.recover(router_address).unwrap();
 
-//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-
-//         let root = aggregator
-//             .find_root()
-//             .expect("Failed to generate root commitment");
-
-//         assert_eq!(root.signatures.len(), 1);
-//         assert_eq!(root.commitments.len(), 1);
-
-//         // aggregator with threshold 1
-//         let mut aggregator = Aggregator::new(1);
-
-//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-//         aggregator.push(signer(1), gen_commitment(1, vec![(1, 1), (2, 2)]));
-
-//         let root = aggregator
-//             .find_root()
-//             .expect("Failed to generate root commitment");
-
-//         assert_eq!(root.signatures.len(), 1);
-
-//         // should be latest commitment
-//         assert_eq!(root.commitments.len(), 2);
-//     }
-
-//     #[test]
-//     fn more_threshold() {
-//         // aggregator with threshold 2
-//         let mut aggregator = Aggregator::new(2);
-
-//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
-//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
-
-//         let root = aggregator
-//             .find_root()
-//             .expect("Failed to generate root commitment");
-
-//         assert_eq!(root.signatures.len(), 2);
-//         assert_eq!(root.commitments.len(), 1); // only (1, 1) is committed by both aggregators
-
-//         // aggregator with threshold 2
-//         let mut aggregator = Aggregator::new(2);
-
-//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
-//         aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
-//         aggregator.push(signer(1), gen_commitment(0, vec![(1, 1), (2, 2)]));
-
-//         let root = aggregator
-//             .find_root()
-//             .expect("Failed to generate root commitment");
-
-//         assert_eq!(root.signatures.len(), 2);
-//         assert_eq!(root.commitments.len(), 2); // both (1, 1) and (2, 2) is committed by both aggregators
-//     }
-// }
+        assert_eq!(recovered, pub_key.to_address());
+    }
+}
