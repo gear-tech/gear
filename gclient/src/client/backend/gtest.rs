@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Backend, Client, Code, Message, Program, TxResult};
+use crate::client::{Backend, Code, Message, Program, TxResult};
 use anyhow::{anyhow, Result};
-use gear_core::{ids::ProgramId, message::UserStoredMessage};
+use gear_core::ids::ProgramId;
 use gprimitives::{ActorId, MessageId};
-use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
 use gtest::System;
 use std::{
     collections::HashMap,
@@ -44,27 +43,6 @@ pub struct GTest {
 const DEFAULT_TIMEOUT: u64 = 500;
 
 impl GTest {
-    /// New gtest instance with timeout
-    pub fn new(timeout: Duration) -> Result<Self> {
-        let resps = Arc::new(Mutex::new(HashMap::new()));
-        let (tx, rx) = mpsc::channel::<Request>();
-        Self::spawn(resps.clone(), rx)?;
-
-        Ok(Self {
-            tx,
-            resps,
-            timeout,
-            nonce: Arc::new(AtomicUsize::new(0)),
-        })
-    }
-
-    /// New general client with `GTest` as backend
-    pub fn client() -> Result<Client<GTest>> {
-        Ok(Client::<GTest> {
-            backend: GTest::new(Duration::from_millis(DEFAULT_TIMEOUT))?,
-        })
-    }
-
     /// Get gtest result from nonce.
     async fn resp(&self, nonce: usize) -> Result<Response> {
         let now = SystemTime::now();
@@ -74,14 +52,14 @@ impl GTest {
                 return Err(anyhow!("gtest: Transaction timed out!"));
             }
 
-            if let Some(resp) = self.resps.lock().unwrap().remove(&nonce) {
+            if let Ok(Some(resp)) = self.resps.lock().map(|mut resps| resps.remove(&nonce)) {
                 return Ok(resp);
             }
         }
     }
 
     /// Spawn gtest service
-    fn spawn(resps: Arc<Mutex<HashMap<usize, Response>>>, rx: Receiver<Request>) -> Result<()> {
+    fn spawn(resps: Arc<Mutex<HashMap<usize, Response>>>, rx: Receiver<Request>) {
         std::thread::spawn(move || {
             let system = System::new();
             while let Ok(tx) = rx.recv() {
@@ -106,8 +84,6 @@ impl GTest {
                 }
             }
         });
-
-        Ok(())
     }
 }
 
@@ -172,17 +148,30 @@ impl Backend for GTest {
         let result = self.resp(nonce).await?;
         let Response::Send(result) = result else {
             return Err(anyhow!(
-                "Response is not matched with send request, {result:?}"
+                "Response is not matched with sent request, {result:?}"
             ));
         };
 
-        Ok(result)
+        result.ensure()
     }
 
-    async fn message(&self, _mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
-        Err(anyhow!(
-            "gtest backend currently doesn't support this method"
-        ))
+    fn timeout(&mut self, timeout: Duration) {
+        self.timeout = timeout
+    }
+}
+
+impl Default for GTest {
+    fn default() -> Self {
+        let resps = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, rx) = mpsc::channel::<Request>();
+        Self::spawn(resps.clone(), rx);
+
+        Self {
+            tx,
+            resps,
+            timeout: Duration::from_millis(DEFAULT_TIMEOUT),
+            nonce: Arc::new(AtomicUsize::new(0)),
+        }
     }
 }
 
@@ -207,16 +196,17 @@ pub enum Request {
 }
 
 /// GTest responses
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Response {
     Deploy(TxResult<ActorId>),
-    Send(TxResult<MessageId>),
+    Send(TxResult<Result<MessageId>>),
     Program(Option<ActorId>),
 }
 
 /// gtest handles
 pub(crate) mod handle {
     use crate::client::{backend::gtest::Response, Message, TxResult};
+    use anyhow::anyhow;
     use gear_core::{
         buffer::LimitedVec,
         ids::{prelude::CodeIdExt, ProgramId},
@@ -244,11 +234,13 @@ pub(crate) mod handle {
 
     /// Send message via gtest
     pub fn send(system: &System, prog: ActorId, message: Message, signer: ActorId) -> Response {
-        let prog = system.get_program(prog).unwrap();
-        let r = prog.send_bytes(signer, message.payload);
+        let Some(prog) = system.get_program(prog) else {
+            return Response::Send(TxResult::error(anyhow!("program {prog} not found")));
+        };
 
+        let r = prog.send_bytes(signer, message.payload);
         Response::Send(TxResult {
-            result: r.sent_message_id(),
+            result: Ok(r.sent_message_id()),
             logs: map_logs(r.log()),
         })
     }

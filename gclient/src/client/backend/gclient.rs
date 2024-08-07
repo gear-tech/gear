@@ -51,40 +51,17 @@ pub struct GClient {
 }
 
 impl GClient {
-    /// New gclient instance
+    /// Create new gclient instance
     pub async fn new(api: GearApi) -> Result<Self> {
-        Self::new_with_timeout(api, Duration::from_millis(DEFAULT_TIMEOUT)).await
-    }
-
-    /// Create new gclient instance with message timeout
-    pub async fn new_with_timeout(api: GearApi, timeout: Duration) -> Result<Self> {
         let messages = Arc::new(Mutex::new(BTreeMap::new()));
         Self::spawn(api.subscribe_blocks().await?, messages.clone());
 
         Ok(Self {
             inner: Arc::new(Mutex::new(api)),
             pairs: HashMap::from_iter(vec![(ALICE, "//Alice".to_string())].into_iter()),
-            timeout,
+            timeout: Duration::from_millis(DEFAULT_TIMEOUT),
             messages,
         })
-    }
-
-    /// Add sr25519 pair to gclient
-    ///
-    /// NOTE: the suri of the pairs will be stored in memory, use this method
-    /// at your own risk! If you have better ideas to optimize this method, PRs
-    /// are welcome!
-    pub fn add_pair(&mut self, suri: impl AsRef<str>) -> Result<()> {
-        let mut patt = suri.as_ref().splitn(2, ':');
-        let pair = sr25519::Pair::from_string(
-            patt.next()
-                .ok_or(anyhow!("Invalid suri, failed to add pair"))?,
-            patt.next(),
-        )?;
-        self.pairs
-            .insert(pair.public().0.into(), suri.as_ref().to_string());
-
-        Ok(())
     }
 
     /// Switch to the provided pair
@@ -215,5 +192,22 @@ impl Backend for GClient {
             .get_mailbox_message(mid)
             .await
             .map_err(Into::into)
+    }
+
+    fn add_pair(&mut self, suri: impl AsRef<str>) -> Result<()> {
+        let mut patt = suri.as_ref().splitn(2, ':');
+        let pair = sr25519::Pair::from_string(
+            patt.next()
+                .ok_or(anyhow!("Invalid suri, failed to add pair"))?,
+            patt.next(),
+        )?;
+        self.pairs
+            .insert(pair.public().0.into(), suri.as_ref().to_string());
+
+        Ok(())
+    }
+
+    fn timeout(&mut self, timeout: Duration) {
+        self.timeout = timeout
     }
 }

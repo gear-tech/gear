@@ -18,10 +18,7 @@
 
 use anyhow::Result;
 use demo_proxy::{InputArgs, WASM_BINARY};
-use gclient::{
-    client::{Backend, Client, GClient, GTest, Message},
-    GearApi,
-};
+use gclient::{Backend, Client, Message};
 
 async fn test_ping<T: Backend>(client: Client<T>) -> Result<()> {
     let prog = client
@@ -51,11 +48,10 @@ async fn test_ping<T: Backend>(client: Client<T>) -> Result<()> {
 
 #[tokio::test]
 async fn test_gtest() -> Result<()> {
-    test_ping(GTest::client()?).await
+    test_ping(Client::gtest()).await
 }
 
 #[tokio::test]
 async fn test_gclient() -> Result<()> {
-    let api = GClient::new(GearApi::dev_from_path("../target/release/gear").await?).await?;
-    test_ping(Client::new(api)).await
+    test_ping(Client::gclient("../target/release/gear").await?).await
 }

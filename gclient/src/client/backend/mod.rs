@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::client::{Message, Program, TxResult};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 pub use gclient::GClient;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
 use gprimitives::MessageId;
 use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
 pub use gtest::GTest;
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, time::Duration};
 
 mod gclient;
 mod gtest;
@@ -47,7 +47,25 @@ pub trait Backend: Sized {
         M: Into<Message> + Send;
 
     /// Get mailbox message from message id
-    async fn message(&self, mid: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>>;
+    ///
+    /// NOTE: this only works in gclient client
+    async fn message(&self, _: MessageId) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
+        Err(anyhow!(
+            "gtest backend currently doesn't support this method"
+        ))
+    }
+
+    /// Set timeout for the backend
+    fn timeout(&mut self, timeout: Duration);
+
+    /// Add sr25519 pair to backend
+    ///
+    /// NOTE: the suri of the pairs will be stored in memory, use this method
+    /// at your own risk! If you have better ideas to optimize this method, PRs
+    /// are welcome!
+    fn add_pair(&mut self, _: impl AsRef<str>) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Generate gear program code, could be path or bytes.

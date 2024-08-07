@@ -27,7 +27,7 @@ async-trait.workspace = true
 url.workspace = true
 wabt.workspace = true
 
-# client dependencies
+# General client dependencies
 gtest = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
@@ -64,5 +64,5 @@ ark-ff = { workspace = true }
 ark-std = { workspace = true }
 
 [features]
-default = ["client"]
-client = ["dep:gtest", "dep:tokio", "dep:tracing"]
+default = ["experimental"]
+experimental = ["dep:gtest", "dep:tokio", "dep:tracing"]
