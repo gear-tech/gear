@@ -64,7 +64,7 @@ impl Service {
 
         let ethereum_router_address = config.ethereum_router_address;
         let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
-        let db = ethexe_db::Database::from_one(&rocks_db, ethereum_router_address.0.clone());
+        let db = ethexe_db::Database::from_one(&rocks_db, ethereum_router_address.0);
 
         let observer = ethexe_observer::Observer::new(
             &config.ethereum_rpc,
