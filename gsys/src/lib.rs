@@ -20,6 +20,8 @@
 
 #![no_std]
 
+use core::mem::size_of;
+
 /// Represents error code type.
 pub type ErrorCode = u32;
 
