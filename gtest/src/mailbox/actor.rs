@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, Log, RunResult, GAS_ALLOWANCE};
+use crate::{manager::ExtManager, Log, GAS_ALLOWANCE};
 use codec::Encode;
 use gear_common::{auxiliary::mailbox::*, storage::Interval};
 use gear_core::{
@@ -54,7 +54,7 @@ impl<'a> ActorMailbox<'a> {
         log: Log,
         payload: impl Encode,
         value: u128,
-    ) -> Result<RunResult, MailboxErrorImpl> {
+    ) -> Result<MessageId, MailboxErrorImpl> {
         self.reply_bytes(log, payload.encode(), value)
     }
 
@@ -65,7 +65,7 @@ impl<'a> ActorMailbox<'a> {
         log: Log,
         raw_payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<RunResult, MailboxErrorImpl> {
+    ) -> Result<MessageId, MailboxErrorImpl> {
         let mailboxed_msg = self
             .find_message_by_log(&log)
             .ok_or(MailboxErrorImpl::ElementNotFound)?;
@@ -93,7 +93,7 @@ impl<'a> ActorMailbox<'a> {
         Ok(self
             .manager
             .borrow_mut()
-            .validate_and_run_dispatch(dispatch))
+            .validate_and_route_dispatch(dispatch))
     }
 
     /// Claims value from a message in mailbox.
@@ -124,17 +124,10 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        program::ProgramIdWrapper, Log, Program, System, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    };
+    use crate::{Log, Program, System, EXISTENTIAL_DEPOSIT};
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
-    use gear_common::auxiliary::mailbox::MailboxErrorImpl;
-    use gear_core::{
-        ids::{prelude::MessageIdExt, MessageId, ProgramId},
-        message::{Dispatch, DispatchKind, HandleMessage, HandlePacket, Payload},
-    };
-    use std::convert::TryInto;
+    use gear_core::ids::ProgramId;
 
     fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
         let program = Program::from_binary_with_id(system, 121, WASM_BINARY);
@@ -143,42 +136,11 @@ mod tests {
         let payload = b"sup!".to_vec();
         let log = Log::builder().dest(sender).payload_bytes(payload.clone());
 
-        let res = program.send(sender, Scheme::empty());
-        assert!(!res.main_failed());
+        let msg_id = program.send(sender, Scheme::empty());
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         (program, (sender, payload, log))
-    }
-
-    #[test]
-    fn user2user_doesnt_reach_mailbox() {
-        let system = System::new();
-
-        let source = ProgramIdWrapper::from(100).0;
-        let message_id: MessageId = MessageId::generate_from_user(0, source, 0);
-        let destination = ProgramIdWrapper::from(200).0;
-        let payload: Payload = vec![1, 2, 3].try_into().expect("len exceed");
-        let log = Log::builder()
-            .dest(destination)
-            .payload_bytes(payload.inner());
-
-        let dispatch = Dispatch::new(
-            DispatchKind::Handle,
-            HandleMessage::from_packet(
-                message_id,
-                HandlePacket::new_with_gas(destination, payload, GAS_ALLOWANCE, 0),
-            )
-            .into_message(source),
-        );
-
-        // Log exists
-        let res = system.send_dispatch(dispatch);
-        assert!(res.contains(&log));
-
-        // But message doesn't exist in mailbox
-        let mailbox = system.get_mailbox(destination);
-        let res = mailbox.reply(log, b"", 0);
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), MailboxErrorImpl::ElementNotFound);
     }
 
     #[test]
@@ -191,8 +153,9 @@ mod tests {
 
         let value_send = 2 * EXISTENTIAL_DEPOSIT;
         let handle = Calls::builder().send_value(sender, payload, value_send);
-        let res = program.send_bytes_with_value(sender, handle.encode(), value_send);
-        assert!(!res.main_failed());
+        let msg_id = program.send_bytes_with_value(sender, handle.encode(), value_send);
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
         assert_eq!(system.balance_of(sender), original_balance - value_send);
 
@@ -208,16 +171,18 @@ mod tests {
         let (program, (sender, payload, log)) = prepare_program(&system);
 
         let handle = Calls::builder().send(sender, payload);
-        let res = program.send(sender, handle);
-        assert!(!res.main_failed());
+        let msg_id = program.send(sender, handle);
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
 
         let mailbox = system.get_mailbox(sender);
         assert!(mailbox.contains(&log));
-        let res = mailbox
+        let msg_id = mailbox
             .reply(log, Calls::default(), 0)
             .expect("sending reply failed: didn't find message in mailbox");
-        assert!(!res.main_failed());
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
     }
 
     #[test]
@@ -233,10 +198,11 @@ mod tests {
             0.into(),
             delay.into(),
         ));
-        let res = program.send(sender, handle);
-        assert!(!res.main_failed());
+        let msg_id = program.send(sender, handle);
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
-        let results = system.spend_blocks(delay);
+        let results = system.run_scheduled_tasks(delay);
         let delayed_dispatch_res = results.last().expect("internal error: no blocks spent");
 
         assert!(delayed_dispatch_res.contains(&log));

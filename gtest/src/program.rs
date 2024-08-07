@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    log::RunResult,
     manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
     system::System,
     Result, GAS_ALLOWANCE,
@@ -26,9 +25,8 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalMessage},
+    message::{Dispatch, DispatchKind, Message},
 };
-use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
@@ -485,7 +483,7 @@ impl<'a> Program<'a> {
     }
 
     /// Send message to the program.
-    pub fn send<ID, C>(&self, from: ID, payload: C) -> RunResult
+    pub fn send<ID, C>(&self, from: ID, payload: C) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         C: Codec,
@@ -494,7 +492,7 @@ impl<'a> Program<'a> {
     }
 
     /// Send message to the program with value.
-    pub fn send_with_value<ID, C>(&self, from: ID, payload: C, value: u128) -> RunResult
+    pub fn send_with_value<ID, C>(&self, from: ID, payload: C, value: u128) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         C: Codec,
@@ -509,7 +507,7 @@ impl<'a> Program<'a> {
         payload: P,
         gas_limit: u64,
         value: u128,
-    ) -> RunResult
+    ) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         P: Encode,
@@ -518,7 +516,7 @@ impl<'a> Program<'a> {
     }
 
     /// Send message to the program with bytes payload.
-    pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> RunResult
+    pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -528,7 +526,7 @@ impl<'a> Program<'a> {
 
     /// Send the message to the program with bytes payload and value.
     #[track_caller]
-    pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> RunResult
+    pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -543,7 +541,7 @@ impl<'a> Program<'a> {
         payload: T,
         gas_limit: u64,
         value: u128,
-    ) -> RunResult
+    ) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -551,15 +549,13 @@ impl<'a> Program<'a> {
         self.send_bytes_with_gas_and_value(from, payload, gas_limit, value)
     }
 
-    // todo [sab] this will return message id and adds message to the end of the queue
-    // need to be sure that you can obtain info about message being executed
     fn send_bytes_with_gas_and_value<ID, T>(
         &self,
         from: ID,
         payload: T,
         gas_limit: u64,
         value: u128,
-    ) -> RunResult
+    ) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -593,34 +589,7 @@ impl<'a> Program<'a> {
         };
 
         drop(actors);
-        system.validate_and_run_dispatch(Dispatch::new(kind, message))
-    }
-
-    /// Send signal to the program.
-    // todo [sab] remove that?
-    #[track_caller]
-    pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
-        let mut system = self.manager.borrow_mut();
-
-        let source = from.into().0;
-
-        let origin_msg_id = MessageId::generate_from_user(
-            system.blocks_manager.get().height,
-            source,
-            system.fetch_inc_message_nonce() as u128,
-        );
-        let message = SignalMessage::new(origin_msg_id, code);
-
-        let mut actors = system.actors.borrow_mut();
-        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
-
-        if let TestActor::Uninitialized(id @ None, _) = actor {
-            *id = Some(message.id());
-        };
-
-        drop(actors);
-        let dispatch = message.into_dispatch(origin_msg_id, self.id);
-        system.validate_and_run_dispatch(dispatch)
+        system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
 
     /// Get program id.
@@ -903,18 +872,22 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
         let init_msg_payload = String::from("InvalidInput");
-        let run_result = prog.send(user_id, init_msg_payload);
+        let msg_id = prog.send(user_id, init_msg_payload);
 
-        run_result.assert_panicked_with("Failed to load destination: Decode(Error)");
+        let res = sys.run_next_block();
 
-        let run_result = prog.send(user_id, String::from("should_be_skipped"));
+        res.assert_panicked_with(msg_id, "Failed to load destination: Decode(Error)");
+
+        let msg_id = prog.send(user_id, String::from("should_be_skipped"));
+
+        let res = sys.run_next_block();
 
         let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
             .source(prog.id())
             .dest(user_id);
 
-        assert!(!run_result.main_failed());
-        assert!(run_result.contains(&expected_log));
+        assert!(res.not_executed.contains(&msg_id));
+        assert!(res.contains(&expected_log));
     }
 
     #[test]
@@ -932,10 +905,12 @@ mod tests {
         assert_eq!(prog.balance(), 2 * crate::EXISTENTIAL_DEPOSIT);
 
         prog.send_with_value(user_id, "init".to_string(), crate::EXISTENTIAL_DEPOSIT);
+        sys.run_next_block();
         assert_eq!(prog.balance(), 3 * crate::EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), 9 * crate::EXISTENTIAL_DEPOSIT);
 
         prog.send_with_value(user_id, "PING".to_string(), 2 * crate::EXISTENTIAL_DEPOSIT);
+        sys.run_next_block();
         assert_eq!(prog.balance(), 5 * crate::EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), 7 * crate::EXISTENTIAL_DEPOSIT);
     }
@@ -958,21 +933,26 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
+        sys.run_next_block();
         assert_eq!(prog.balance(), 0);
 
         // Send values to the program
         prog.send_bytes_with_value(sender0, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        sys.run_next_block();
         assert_eq!(sys.balance_of(sender0), 18 * crate::EXISTENTIAL_DEPOSIT);
         prog.send_bytes_with_value(sender1, b"insert", 4 * crate::EXISTENTIAL_DEPOSIT);
+        sys.run_next_block();
         assert_eq!(sys.balance_of(sender1), 16 * crate::EXISTENTIAL_DEPOSIT);
         prog.send_bytes_with_value(sender2, b"insert", 6 * crate::EXISTENTIAL_DEPOSIT);
+        sys.run_next_block();
         assert_eq!(sys.balance_of(sender2), 14 * crate::EXISTENTIAL_DEPOSIT);
 
         // Check program's balance
         assert_eq!(prog.balance(), (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT);
 
         // Request to smash the piggy bank and send the value to the receiver address
-        let res = prog.send_bytes(receiver, b"smash");
+        prog.send_bytes(receiver, b"smash");
+        let res = sys.run_next_block();
         let reply_to_id = {
             let log = res.log();
             // 1 auto reply and 1 message from program
@@ -1024,6 +1004,7 @@ mod tests {
         assert_eq!(sys.balance_of(user), crate::EXISTENTIAL_DEPOSIT);
 
         prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
+        sys.run_next_block();
     }
 
     #[test]
@@ -1039,9 +1020,11 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
+        sys.run_next_block();
 
         // Get zero value to the receiver's mailbox
         prog.send_bytes(receiver, b"smash");
+        sys.run_next_block();
 
         let receiver_mailbox = sys.get_mailbox(receiver);
         assert!(receiver_mailbox
@@ -1052,6 +1035,7 @@ mod tests {
         // Get the value > ED to the receiver's mailbox
         prog.send_bytes_with_value(sender, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
         prog.send_bytes(receiver, b"smash");
+        sys.run_next_block();
 
         // Check receiver's balance
         assert!(receiver_mailbox
@@ -1084,14 +1068,16 @@ mod tests {
 
         // Init capacitor with limit = 15
         prog.send(signer, InitMessage::Capacitor("15".to_string()));
+        sys.run_next_block();
 
         // Charge capacitor with charge = 10
-        let response = dbg!(prog.send_bytes(signer, b"10"));
+        dbg!(prog.send_bytes(signer, b"10"));
+        let res = sys.run_next_block();
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes([]);
-        assert!(response.contains(&log));
+        assert!(res.contains(&log));
 
         let cleanup = CleanupFolderOnDrop {
             path: "./296c6962726".to_string(),
@@ -1099,25 +1085,27 @@ mod tests {
         prog.save_memory_dump("./296c6962726/demo_custom.dump");
 
         // Charge capacitor with charge = 10
-        let response = prog.send_bytes(signer, b"10");
+        prog.send_bytes(signer, b"10");
+        let res = sys.run_next_block();
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("Discharged: 20");
         // dbg!(log.clone());
-        assert!(response.contains(&log));
+        assert!(res.contains(&log));
         assert!(signer_mailbox.claim_value(log).is_ok());
 
         prog.load_memory_dump("./296c6962726/demo_custom.dump");
         drop(cleanup);
 
         // Charge capacitor with charge = 10
-        let response = prog.send_bytes(signer, b"10");
+        prog.send_bytes(signer, b"10");
+        let res = sys.run_next_block();
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("Discharged: 20");
-        assert!(response.contains(&log));
+        assert!(res.contains(&log));
         assert!(signer_mailbox.claim_value(log).is_ok());
     }
 
@@ -1133,22 +1121,24 @@ mod tests {
 
         // Init simple waiter
         prog.send(signer, InitMessage::SimpleWaiter);
+        sys.run_next_block();
 
         // Invoke `exec::wait_for` when running for the first time
-        let result = prog.send_bytes(signer, b"doesn't matter");
+        prog.send_bytes(signer, b"doesn't matter");
+        let result = sys.run_next_block();
 
         // No log entries as the program is waiting
         assert!(result.log().is_empty());
 
-        // Spend 20 blocks and make the waiter to wake up
-        let results = sys.spend_blocks(20);
+        // Run task pool to make the waiter to wake up
+        let _ = sys.run_scheduled_tasks(20);
+        let res = sys.run_next_block();
 
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("hello");
-
-        assert!(results.iter().any(|result| result.contains(&log)));
+        assert!(res.contains(&log));
     }
 
     // Test for issue#3699
@@ -1163,15 +1153,18 @@ mod tests {
 
         // Init reserver
         prog.send(signer, InitMessage::Reserver);
+        sys.run_next_block();
 
         for _ in 0..258 {
             // Reserve
-            let result = prog.send_bytes(signer, b"reserve");
-            assert!(!result.main_failed());
+            let msg_id = prog.send_bytes(signer, b"reserve");
+            let result = sys.run_next_block();
+            assert!(result.succeed.contains(&msg_id));
 
             // Spend
-            let result = prog.send_bytes(signer, b"send from reservation");
-            assert!(!result.main_failed());
+            let msg_id = prog.send_bytes(signer, b"send from reservation");
+            let result = sys.run_next_block();
+            assert!(result.succeed.contains(&msg_id));
         }
     }
 
@@ -1185,11 +1178,13 @@ mod tests {
         let user_id = [42; 32];
         let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
 
-        let run_result = prog.send(user_id, demo_exit_handle::scheme());
-        assert!(!run_result.main_failed());
+        let msg_id = prog.send(user_id, demo_exit_handle::scheme());
+        let result = sys.run_next_block();
+        assert!(result.succeed.contains(&msg_id));
 
-        let run_result = prog.send_bytes(user_id, []);
-        assert!(!run_result.main_failed());
+        let msg_id = prog.send_bytes(user_id, []);
+        let result = sys.run_next_block();
+        assert!(result.succeed.contains(&msg_id));
     }
 
     #[test]
@@ -1202,7 +1197,8 @@ mod tests {
         let user_id = ActorId::zero();
 
         // set insufficient gas for execution
-        let res = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+        let msg_id = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+        let res = sys.run_next_block();
 
         let expected_log =
             Log::builder()
@@ -1213,7 +1209,7 @@ mod tests {
                 )));
 
         assert!(res.contains(&expected_log));
-        assert!(res.main_failed());
+        assert!(res.failed.contains(&msg_id));
     }
 
     #[test]
@@ -1227,13 +1223,15 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
 
         // Initialize program
-        let res = prog.send(user_id, Scheme::empty());
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, Scheme::empty());
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Reserve gas handle
         let handle = Calls::builder().reserve_gas(1_000_000, 10);
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Get reservation id from program
         let reservation_id = sys
@@ -1255,8 +1253,9 @@ mod tests {
 
         // Unreserve gas handle
         let handle = Calls::builder().unreserve_gas(reservation_id.into_bytes());
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Check reservation is removed from the tree
         assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
@@ -1274,8 +1273,9 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
         // Initialize program
-        let res = prog.send(user_id, Scheme::empty());
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, Scheme::empty());
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Send user message from reservation
         let payload = b"to_user".to_vec();
@@ -1283,8 +1283,9 @@ mod tests {
             .reserve_gas(10_000_000_000, 5)
             .store("reservation")
             .reservation_send_value("reservation", user_id.into_origin().0, payload.clone(), 0);
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Check user message in mailbox
         let mailbox = sys.get_mailbox(user_id);
@@ -1301,16 +1302,18 @@ mod tests {
             Calls::builder().noop(),
             Calls::builder().noop(),
         );
-        let res = new_program.send(user_id, scheme);
-        assert!(!res.main_failed());
+        let msg_id = new_program.send(user_id, scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Send program message from reservation
         let handle = Calls::builder()
             .reserve_gas(10_000_000_000, 5)
             .store("reservation")
             .reservation_send_value("reservation", new_prog_id.into_origin().0, [], 0);
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
     }
 }
