@@ -407,3 +407,10 @@ fn prepaid_call_to_scale_value(call: PrepaidCall<u128>) -> Value {
         }
     }
 }
+
+pub fn option_to_value<T>(val: Option<T>, into: impl Fn(T) -> Value<()>) -> Value<()> {
+    match val {
+        Some(v) => Value::unnamed_variant("Some", [into(v)]),
+        None => Value::unnamed_variant("None", []),
+    }
+}

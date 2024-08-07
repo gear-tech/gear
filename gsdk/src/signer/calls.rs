@@ -22,6 +22,7 @@ use crate::{
     config::GearConfig,
     metadata::{
         calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
+        option_to_value,
         runtime_types::{
             pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
             sp_weights::weight_v2::Weight,
@@ -248,15 +249,9 @@ impl SignerCalls {
         code_uploading: bool,
         duration: u32,
     ) -> Result<TxInBlock> {
-        let programs_value = match programs {
-            Some(vec) => Value::unnamed_variant(
-                "Some",
-                [Value::unnamed_composite(
-                    vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
-                )],
-            ),
-            None => Value::unnamed_variant("None", []),
-        };
+        let programs_value = option_to_value(programs, |vec| {
+            Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
+        });
 
         self.0
             .run_tx(
@@ -268,6 +263,66 @@ impl SignerCalls {
                     Value::bool(code_uploading),
                     Value::from(duration),
                 ],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::update`
+    pub async fn update_voucher(
+        &self,
+        spender: impl Into<AccountId32>,
+        voucher_id: VoucherId,
+        move_ownership: Option<impl Into<AccountId32>>,
+        balance_top_up: Option<u128>,
+        append_programs: Option<Option<Vec<ActorId>>>,
+        code_uploading: Option<bool>,
+        prolong_duration: u32,
+    ) -> Result<TxInBlock> {
+        let append_programs_value = option_to_value(append_programs, |v| {
+            option_to_value(v, |vec| {
+                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
+            })
+        });
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Update,
+                vec![
+                    Value::from_bytes(spender.into()),
+                    Value::from_bytes(voucher_id.0),
+                    option_to_value(move_ownership, |v| Value::from_bytes(v.into())),
+                    option_to_value(balance_top_up, Value::u128),
+                    append_programs_value,
+                    option_to_value(code_uploading, Value::bool),
+                    Value::from(prolong_duration),
+                ],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::revoke`
+    pub async fn revoke_voucher(
+        &self,
+        spender: impl Into<AccountId32>,
+        voucher_id: VoucherId,
+    ) -> Result<TxInBlock> {
+        self.0
+            .run_tx(
+                GearVoucherCall::Revoke,
+                vec![
+                    Value::from_bytes(spender.into()),
+                    Value::from_bytes(voucher_id.0),
+                ],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::decline`
+    pub async fn decline_voucher(&self, voucher_id: VoucherId) -> Result<TxInBlock> {
+        self.0
+            .run_tx(
+                GearVoucherCall::Decline,
+                vec![Value::from_bytes(voucher_id.0)],
             )
             .await
     }
