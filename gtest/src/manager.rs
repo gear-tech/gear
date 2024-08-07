@@ -419,12 +419,8 @@ impl ExtManager {
         message_id
     }
 
-    // todo [sab] include task pool gas charges and stop processing if gas allowance
-    // is not enough (test that) todo [sab] bring queue processing from common
-    // todo [sab] check programs states and their executions in accordance to
-    // `process_dispatch` and etc. basically refactor the
-    // process_dormant/process_normal and etc. for example test
-    // `test_handle_messages_to_failing_program` must deny sending to dormant actor
+    // TODO #4120 Charge for task pool processing the gas from gas allowance
+    // TODO #4121
     #[track_caller]
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
         self.gas_allowance = allowance;

@@ -396,7 +396,7 @@ pub struct BlockRunResult {
     /// Total messages processed during the current
     /// execution.
     pub total_processed: u32,
-    // todo [sab] change concept of the log
+    // TODO #4122
     /// Logs created during the current execution.
     pub log: Vec<CoreLog>,
     /// Mapping gas burned for each message during
