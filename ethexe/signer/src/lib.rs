@@ -47,7 +47,7 @@ impl From<PrivateKey> for PublicKey {
     }
 }
 
-#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Address(pub [u8; 20]);
 
 impl TryFrom<ActorId> for Address {

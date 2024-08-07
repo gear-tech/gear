@@ -20,6 +20,7 @@
 
 pub mod agro;
 
+use agro::CommitmentsDigestSigner;
 use anyhow::{anyhow, Result};
 use ethexe_common::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
@@ -28,7 +29,7 @@ use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     ops::Not,
 };
 use tokio::sync::watch;
@@ -49,10 +50,31 @@ pub struct SequencerStatus {
     pub submitted_block_commitments: u64,
 }
 
-type CommitmentsMap<C> = BTreeMap<Digest, (C, HashSet<Address>)>;
-type MultisignedCommitments<C> = (BTreeMap<Digest, C>, HashMap<Address, Signature>);
-type MultisignedDigests = (BTreeSet<Digest>, HashMap<Address, Signature>);
-type Candidate = (Digest, MultisignedDigests);
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CommitmentAndOrigins<C> {
+    commitment: C,
+    origins: BTreeSet<Address>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MultisignedCommitments<C> {
+    commitments: BTreeMap<Digest, C>,
+    signatures: BTreeMap<Address, Signature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MultisignedDigests {
+    digests: BTreeSet<Digest>,
+    signatures: BTreeMap<Address, Signature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Candidate {
+    digest: Digest,
+    multisigned: MultisignedDigests,
+}
+
+type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
 
 pub struct Sequencer {
     key: PublicKey,
@@ -199,14 +221,14 @@ impl Sequencer {
         );
 
         if let Some(candidate) = codes_candidate {
-            code_commitments_len = candidate.0.len() as u64;
+            code_commitments_len = candidate.commitments.len() as u64;
             log::debug!("Collected {code_commitments_len} code commitments. Trying to submit...");
 
             codes_future = Some(self.submit_codes_commitment(candidate));
         };
 
         if let Some(candidate) = blocks_candidate {
-            block_commitments_len = candidate.0.len() as u64;
+            block_commitments_len = candidate.commitments.len() as u64;
             log::debug!("Collected {block_commitments_len} block commitments. Trying to submit...",);
 
             blocks_future = Some(self.submit_block_commitments(candidate));
@@ -318,18 +340,18 @@ impl Sequencer {
         candidate: &'a Option<Candidate>,
         commitments: &'a CommitmentsMap<C>,
     ) -> Option<impl Iterator<Item = &'a C> + 'a> {
-        let Some((candidate_digest, (digests, _))) = candidate else {
+        let Some(candidate) = candidate else {
             return None;
         };
 
-        if *candidate_digest != digest {
+        if candidate.digest != digest {
             return None;
         }
 
-        Some(digests.iter().map(|digest| {
+        Some(candidate.multisigned.digests.iter().map(|digest| {
             commitments
                 .get(digest)
-                .map(|(commitment, _)| commitment)
+                .map(|c| &c.commitment)
                 .unwrap_or_else(|| {
                     unreachable!("Guarantied by `Sequencer` implementation to be in the map")
                 })
@@ -343,7 +365,7 @@ impl Sequencer {
     ) -> Option<Digest> {
         let suitable_digests: Vec<_> = commitments
             .iter()
-            .filter_map(|(&digest, (_, set))| (set.len() as u64 >= threshold).then_some(digest))
+            .filter_map(|(digest, c)| (c.origins.len() as u64 >= threshold).then_some(*digest))
             .collect();
 
         if suitable_digests.is_empty() {
@@ -352,10 +374,13 @@ impl Sequencer {
 
         let digest = suitable_digests.as_digest();
 
-        *candidate = Some((
+        *candidate = Some(Candidate {
             digest,
-            (suitable_digests.into_iter().collect(), HashMap::new()),
-        ));
+            multisigned: MultisignedDigests {
+                digests: suitable_digests.into_iter().collect(),
+                signatures: Default::default(),
+            },
+        });
 
         Some(digest)
     }
@@ -367,39 +392,46 @@ impl Sequencer {
     ) -> Option<MultisignedCommitments<C>> {
         if candidate
             .as_ref()
-            .map(|(_digest, (_, sigs))| threshold > sigs.len() as u64)
+            .map(|c| threshold > c.multisigned.signatures.len() as u64)
             .unwrap_or(true)
         {
             return None;
         }
 
-        let (_, (digests, signatures)) = candidate.take()?;
+        let Candidate { multisigned, .. } = candidate.take()?;
 
-        if digests.is_empty() {
+        if multisigned.digests.is_empty() {
             unreachable!("Guarantied by `Sequencer` implementation to be not empty");
         }
 
-        let commitments = digests
+        let commitments = multisigned
+            .digests
             .iter()
             .map(|digest| {
                 commitments
                     .remove(digest)
-                    .map(|(commitment, _)| (*digest, commitment))
+                    .map(|c| (*digest, c.commitment))
                     .unwrap_or_else(|| {
                         unreachable!("Guarantied by `Sequencer` implementation to be in the map");
                     })
             })
             .collect();
 
-        Some((commitments, signatures))
+        Some(MultisignedCommitments {
+            commitments,
+            signatures: multisigned.signatures,
+        })
     }
 
     async fn submit_codes_commitment(
         &self,
-        commitments: MultisignedCommitments<CodeCommitment>,
+        MultisignedCommitments {
+            commitments,
+            signatures,
+        }: MultisignedCommitments<CodeCommitment>,
     ) -> Result<()> {
-        let codes = commitments.0.into_values().map(Into::into).collect();
-        let (origins, signatures): (Vec<_>, _) = commitments.1.into_iter().unzip();
+        let codes = commitments.into_values().map(Into::into).collect();
+        let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
 
         log::debug!("Code commitments to submit: {codes:?}, signed by: {origins:?}",);
 
@@ -414,10 +446,13 @@ impl Sequencer {
 
     async fn submit_block_commitments(
         &self,
-        commitments: MultisignedCommitments<BlockCommitment>,
+        MultisignedCommitments {
+            commitments,
+            signatures,
+        }: MultisignedCommitments<BlockCommitment>,
     ) -> Result<()> {
-        let blocks = commitments.0.into_values().map(Into::into).collect();
-        let (origins, signatures): (Vec<_>, _) = commitments.1.into_iter().unzip();
+        let blocks = commitments.into_values().map(Into::into).collect();
+        let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
 
         log::debug!("Block commitments to submit: {blocks:?}, signed by: {origins:?}",);
 
@@ -442,7 +477,7 @@ impl Sequencer {
         aggregated: AggregatedCommitments<C>,
         validators: &HashSet<Address>,
         router_address: Address,
-        commitments_storage: &mut BTreeMap<Digest, (C, HashSet<Address>)>,
+        commitments_storage: &mut CommitmentsMap<C>,
     ) -> Result<()> {
         if validators.contains(&origin).not() {
             return Err(anyhow!("Unknown validator {origin}"));
@@ -458,10 +493,14 @@ impl Sequencer {
             if !processed.insert(digest) {
                 continue;
             }
-            let (_, set) = commitments_storage
+            commitments_storage
                 .entry(digest)
-                .or_insert_with(|| (commitment, HashSet::new()));
-            set.insert(origin);
+                .or_insert_with(|| CommitmentAndOrigins {
+                    commitment,
+                    origins: Default::default(),
+                })
+                .origins
+                .insert(origin);
         }
 
         Ok(())
@@ -469,17 +508,17 @@ impl Sequencer {
 
     fn receive_signature(
         origin: Address,
-        digest: Digest,
+        commitments_digest: Digest,
         signature: Signature,
         validators: &HashSet<Address>,
         router_address: Address,
         candidate: Option<&mut Candidate>,
     ) -> Result<()> {
-        let Some((candidate_digest, (_, signatures))) = candidate else {
+        let Some(candidate) = candidate else {
             return Err(anyhow!("No candidate found"));
         };
 
-        if *candidate_digest != digest {
+        if candidate.digest != commitments_digest {
             return Err(anyhow!("Digest mismatch"));
         }
 
@@ -487,11 +526,13 @@ impl Sequencer {
             return Err(anyhow!("Unknown validator {origin}"));
         }
 
-        if agro::recover_from_digest(digest, &signature, router_address)? != origin {
+        if Signer::recover_from_commitments_digest(commitments_digest, &signature, router_address)?
+            != origin
+        {
             return Err(anyhow!("Invalid signature"));
         }
 
-        signatures.insert(origin, signature);
+        candidate.multisigned.signatures.insert(origin, signature);
 
         Ok(())
     }
@@ -504,4 +545,530 @@ impl Sequencer {
         update_fn(&mut status);
         let _ = self.status_sender.send_replace(status);
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_signer::PrivateKey;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct TestComm([u8; 2]);
+
+    impl AsDigest for TestComm {
+        fn as_digest(&self) -> Digest {
+            self.0.as_digest()
+        }
+    }
+
+    #[test]
+    fn test_receive_signature() {
+        let router_address = Address([1; 20]);
+
+        let validators_private_keys = [PrivateKey([1; 32]), PrivateKey([2; 32])];
+        let validators: HashSet<_> = validators_private_keys
+            .iter()
+            .cloned()
+            .map(|key| PublicKey::from(key).to_address())
+            .collect();
+
+        let validator1_private_key = validators_private_keys[0];
+        let validator1_pub_key = PublicKey::from(validator1_private_key);
+        let validator1 = validator1_pub_key.to_address();
+
+        let commitments = [TestComm([0, 1]), TestComm([2, 3])];
+        let commitments_digest = commitments.as_digest();
+        let aggregated = AggregatedCommitments::aggregate_commitments(
+            commitments.to_vec(),
+            &validator1_private_key,
+            validator1_pub_key,
+            router_address,
+        )
+        .unwrap();
+        let signature = aggregated.signature;
+
+        Sequencer::receive_signature(
+            validator1,
+            commitments_digest,
+            signature,
+            &validators,
+            router_address,
+            None,
+        )
+        .expect_err("No candidate is provided");
+
+        let mut signatures: BTreeMap<_, _> = Default::default();
+        let digests: BTreeSet<_> = commitments.iter().map(AsDigest::as_digest).collect();
+        let mut candidate = Candidate {
+            digest: commitments_digest,
+            multisigned: MultisignedDigests {
+                digests: digests.clone(),
+                signatures: signatures.clone(),
+            },
+        };
+
+        Sequencer::receive_signature(
+            validator1,
+            Digest::from([1; 32]),
+            signature,
+            &validators,
+            router_address,
+            Some(&mut candidate),
+        )
+        .expect_err("Incorrect digest has been provided");
+
+        Sequencer::receive_signature(
+            Address([3; 20]),
+            commitments_digest,
+            signature,
+            &validators,
+            router_address,
+            Some(&mut candidate),
+        )
+        .expect_err("Unknown validator has been provided");
+
+        Sequencer::receive_signature(
+            validator1,
+            commitments_digest,
+            Signature::create_for_digest(validator1_private_key, Digest::from([1; 32])).unwrap(),
+            &validators,
+            router_address,
+            Some(&mut candidate),
+        )
+        .expect_err("Signature verification must fail");
+
+        Sequencer::receive_signature(
+            validator1,
+            commitments_digest,
+            signature,
+            &validators,
+            router_address,
+            Some(&mut candidate),
+        )
+        .unwrap();
+
+        signatures.insert(validator1, signature);
+        assert_eq!(
+            candidate,
+            Candidate {
+                digest: commitments_digest,
+                multisigned: MultisignedDigests {
+                    digests: digests.clone(),
+                    signatures: signatures.clone(),
+                },
+            }
+        );
+
+        let validator2_private_key = validators_private_keys[1];
+        let validator2_pub_key = PublicKey::from(validator2_private_key);
+        let validator2 = validator2_pub_key.to_address();
+
+        let aggregated = AggregatedCommitments::aggregate_commitments(
+            commitments.to_vec(),
+            &validator2_private_key,
+            validator2_pub_key,
+            router_address,
+        )
+        .unwrap();
+        let signature = aggregated.signature;
+
+        Sequencer::receive_signature(
+            validator2,
+            commitments_digest,
+            signature,
+            &validators,
+            router_address,
+            Some(&mut candidate),
+        )
+        .unwrap();
+
+        signatures.insert(validator2, signature);
+        assert_eq!(
+            candidate,
+            Candidate {
+                digest: commitments_digest,
+                multisigned: MultisignedDigests {
+                    digests,
+                    signatures,
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn test_receive_commitments() {
+        let router_address = Address([1; 20]);
+
+        let validators_private_keys = [PrivateKey([1; 32]), PrivateKey([2; 32])];
+        let validators: HashSet<_> = validators_private_keys
+            .iter()
+            .cloned()
+            .map(|key| PublicKey::from(key).to_address())
+            .collect();
+
+        let validator1_private_key = validators_private_keys[0];
+        let validator1_pub_key = PublicKey::from(validator1_private_key);
+        let validator1 = validator1_pub_key.to_address();
+
+        let commitments = [TestComm([0, 1]), TestComm([2, 3])];
+        let aggregated = AggregatedCommitments::aggregate_commitments(
+            commitments.to_vec(),
+            &validator1_private_key,
+            validator1_pub_key,
+            router_address,
+        )
+        .unwrap();
+
+        let mut expected_commitments_storage = CommitmentsMap::new();
+        let mut commitments_storage = CommitmentsMap::new();
+
+        Sequencer::receive_commitments(
+            Address([3; 20]),
+            aggregated.clone(),
+            &validators,
+            router_address,
+            &mut commitments_storage,
+        )
+        .expect_err("Unknown validator has been provided");
+
+        let private_key = PrivateKey([3; 32]);
+        let incorrect_aggregated = AggregatedCommitments::aggregate_commitments(
+            commitments.to_vec(),
+            &private_key,
+            private_key.into(),
+            router_address,
+        )
+        .unwrap();
+        Sequencer::receive_commitments(
+            validator1,
+            incorrect_aggregated,
+            &validators,
+            router_address,
+            &mut commitments_storage,
+        )
+        .expect_err("Signature verification must fail");
+
+        Sequencer::receive_commitments(
+            validator1,
+            aggregated.clone(),
+            &validators,
+            router_address,
+            &mut commitments_storage,
+        )
+        .unwrap();
+
+        expected_commitments_storage.insert(
+            commitments[0].as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitments[0],
+                origins: [validator1].iter().cloned().collect(),
+            },
+        );
+        expected_commitments_storage.insert(
+            commitments[1].as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitments[1],
+                origins: [validator1].iter().cloned().collect(),
+            },
+        );
+        assert_eq!(expected_commitments_storage, commitments_storage);
+
+        let validator2_private_key = validators_private_keys[1];
+        let validator2_pub_key = PublicKey::from(validator2_private_key);
+        let validator2 = validator2_pub_key.to_address();
+
+        let aggregated = AggregatedCommitments::aggregate_commitments(
+            commitments.to_vec(),
+            &validator2_private_key,
+            validator2_pub_key,
+            router_address,
+        )
+        .unwrap();
+
+        Sequencer::receive_commitments(
+            validator2,
+            aggregated,
+            &validators,
+            router_address,
+            &mut commitments_storage,
+        )
+        .unwrap();
+
+        expected_commitments_storage
+            .get_mut(&commitments[0].as_digest())
+            .unwrap()
+            .origins
+            .insert(validator2);
+        expected_commitments_storage
+            .get_mut(&commitments[1].as_digest())
+            .unwrap()
+            .origins
+            .insert(validator2);
+        assert_eq!(expected_commitments_storage, commitments_storage);
+    }
+
+    #[test]
+    fn test_set_candidate_commitments() {
+        let mut candidate = None;
+        let threshold = 2;
+
+        let mut commitments = BTreeMap::new();
+        assert_eq!(
+            Sequencer::set_candidate_commitments(&commitments, &mut candidate, threshold),
+            None
+        );
+        assert_eq!(candidate, None);
+
+        let commitment1 = TestComm([0, 1]);
+        commitments.insert(
+            commitment1.as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment1,
+                origins: Default::default(),
+            },
+        );
+        assert_eq!(
+            Sequencer::set_candidate_commitments(&commitments, &mut candidate, threshold),
+            None
+        );
+        assert_eq!(candidate, None);
+
+        commitments
+            .get_mut(&commitment1.as_digest())
+            .unwrap()
+            .origins
+            .insert(Address([1; 20]));
+        assert_eq!(
+            Sequencer::set_candidate_commitments(&commitments, &mut candidate, threshold),
+            None
+        );
+        assert_eq!(candidate, None);
+
+        commitments
+            .get_mut(&commitment1.as_digest())
+            .unwrap()
+            .origins
+            .insert(Address([2; 20]));
+        assert_eq!(
+            Sequencer::set_candidate_commitments(&commitments, &mut candidate, threshold),
+            Some([commitment1].as_digest())
+        );
+        assert_eq!(
+            candidate,
+            Some(Candidate {
+                digest: [commitment1].as_digest(),
+                multisigned: MultisignedDigests {
+                    digests: [commitment1.as_digest()].iter().cloned().collect(),
+                    signatures: Default::default(),
+                },
+            })
+        );
+
+        let commitment2 = TestComm([2, 3]);
+        commitments.insert(
+            commitment2.as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment2,
+                origins: [Address([3; 20]), Address([4; 20])]
+                    .iter()
+                    .cloned()
+                    .collect(),
+            },
+        );
+        assert_eq!(
+            Sequencer::set_candidate_commitments(&commitments, &mut candidate, threshold),
+            Some([commitment1, commitment2].as_digest())
+        );
+        assert_eq!(
+            candidate,
+            Some(Candidate {
+                digest: [commitment1, commitment2].as_digest(),
+                multisigned: MultisignedDigests {
+                    digests: [commitment1.as_digest(), commitment2.as_digest()]
+                        .iter()
+                        .cloned()
+                        .collect(),
+                    signatures: Default::default(),
+                },
+            })
+        );
+
+        let commitment3 = TestComm([4, 5]);
+        commitments.insert(
+            commitment3.as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment3,
+                origins: [Address([5; 20])].iter().cloned().collect(),
+            },
+        );
+        assert_eq!(
+            Sequencer::set_candidate_commitments(&commitments, &mut candidate, threshold),
+            Some([commitment1, commitment2].as_digest())
+        );
+        assert_eq!(
+            candidate,
+            Some(Candidate {
+                digest: [commitment1, commitment2].as_digest(),
+                multisigned: MultisignedDigests {
+                    digests: [commitment1.as_digest(), commitment2.as_digest()]
+                        .iter()
+                        .cloned()
+                        .collect(),
+                    signatures: Default::default(),
+                },
+            })
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Guarantied by `Sequencer` implementation to be in the map")]
+    fn test_process_multisigned_candidate_empty_map() {
+        let candidate = Candidate {
+            digest: [1; 32].into(),
+            multisigned: MultisignedDigests {
+                digests: [[2; 32]].map(Into::into).into_iter().collect(),
+                signatures: Default::default(),
+            },
+        };
+        Sequencer::process_multisigned_candidate::<TestComm>(
+            &mut Some(candidate),
+            &mut Default::default(),
+            0,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Guarantied by `Sequencer` implementation to be not empty")]
+    fn test_process_multisigned_candidate_empty_digests() {
+        let candidate = Candidate {
+            digest: [1; 32].into(),
+            multisigned: MultisignedDigests {
+                digests: Default::default(),
+                signatures: Default::default(),
+            },
+        };
+        Sequencer::process_multisigned_candidate::<TestComm>(
+            &mut Some(candidate),
+            &mut Default::default(),
+            0,
+        );
+    }
+
+    // #[test]
+    // fn test_process_multisigned_candidate() {
+    //     // Test candidate is None
+    //     assert_eq!(
+    //         Sequencer::process_multisigned_candidate::<TestComm>(&mut None, &mut Default::default(), 0),
+    //         None
+    //     );
+
+    //     // Test not enough signatures
+    //     let mut candidate = Some(Candidate {
+    //         digest: [1; 32].into(),
+    //         multisigned: MultisignedDigests {
+    //             digests: [[2; 32]].map(Into::into).into_iter().collect(),
+    //             signatures: Default::default(),
+    //         },
+    //     });
+    //     assert_eq!(
+    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut Default::default(), 2),
+    //         None
+    //     );
+
+    //     let mut candidate = None;
+    //     let threshold = 2;
+
+    //     let mut commitments = CommitmentsMap::new();
+    //     let origins: BTreeSet<_> = [[1; 20], [2; 20]].map(Address).into_iter().collect();
+
+    //     let commitment = TestComm([0, 1]);
+    //     commitments.insert(
+    //         commitment1.as_digest(),
+    //         CommitmentAndOrigins {
+    //             commitment: commitment1,
+    //             origins: Default::default(),
+    //         },
+    //     );
+
+    //     let commitment2 = TestComm([2, 3]);
+    //     commitments.insert(
+    //         commitment2.as_digest(),
+    //         CommitmentAndOrigins {
+    //             commitment: commitment2,
+    //             origins: Default::default(),
+    //         },
+    //     );
+
+    //     let x = catch_unwind(|| {
+    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold)
+    //     })
+    //     assert_eq!(
+    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
+    //         None
+    //     );
+    //     assert_eq!(candidate, None);
+
+    //     let commitment1 = TestComm([0, 1]);
+    //     commitments.insert(
+    //         commitment1.as_digest(),
+    //         CommitmentAndOrigins {
+    //             commitment: commitment1,
+    //         },
+    //     );
+
+    //     let commitment2 = TestComm([2, 3]);
+    //     commitments.insert(
+    //         commitment2.as_digest(),
+    //         CommitmentAndOrigins {
+    //             commitment: commitment2,
+    //             origins: [[1; 20], [2; 20]].map(Address).into_iter().collect(),
+    //         },
+    //     );
+
+    //     let commitment3 = TestComm([4, 5]);
+    //     commitments.insert(
+    //         commitment3.as_digest(),
+    //         CommitmentAndOrigins {
+    //             commitment: commitment3,
+    //             origins: [[1; 20], [2; 20]].map(Address).into_iter().collect(),
+    //         },
+    //     );
+
+    //     assert_eq!(
+    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
+    //         None
+    //     );
+    //     assert_eq!(candidate, None);
+
+    //     commitments
+    //         .get_mut(&commitment1.as_digest())
+    //         .unwrap()
+    //         .origins
+    //         .insert(Address([3; 20]));
+    //     assert_eq!(
+    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
+    //         None
+    //     );
+    //     assert_eq!(candidate, None);
+
+    //     commitments
+    //         .get_mut(&commitment1.as_digest())
+    //         .unwrap()
+    //         .origins
+    //         .insert(Address([4; 20]));
+    //     assert_eq!(
+    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
+    //         Some(MultisignedCommitments {
+    //             commitments: [
+    //                 (commitment1.as_digest(), commitment1),
+    //                 (commitment2.as_digest(), commitment2)
+    //             ]
+    //             .iter()
+    //             .cloned()
+    //             .collect(),
+    //             signatures: Default::default(),
+    //         })
+    //     );
+    //     assert_eq!(candidate, None);
+    // }
 }

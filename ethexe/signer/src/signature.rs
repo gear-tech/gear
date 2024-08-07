@@ -7,6 +7,7 @@ use secp256k1::{
 };
 use std::fmt;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct RawSignature([u8; 65]);
 
 impl RawSignature {
@@ -46,7 +47,7 @@ impl From<Signature> for RawSignature {
     }
 }
 
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq)]
 pub struct Signature([u8; 65]);
 
 impl Signature {
@@ -55,7 +56,7 @@ impl Signature {
     }
 
     pub fn recover_from_digest(&self, digest: Digest) -> Result<PublicKey> {
-        let sig = self.clone().try_into()?;
+        let sig = (*self).try_into()?;
         let public_key = secp256k1::global::SECP256K1
             .recover_ecdsa(&Message::from_digest(digest.into()), &sig)?;
         Ok(PublicKey::from_bytes(public_key.serialize()))

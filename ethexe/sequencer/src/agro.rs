@@ -19,8 +19,49 @@
 //! Abstract commitment aggregator.
 
 use anyhow::Result;
-use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{Address, AsDigest, Digest, PrivateKey, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
+
+pub trait CommitmentsDigestSigner {
+    fn sign_commitments_digest(
+        &self,
+        commitments_digest: Digest,
+        pub_key: PublicKey,
+        router_address: Address,
+    ) -> Result<Signature>;
+
+    fn recover_from_commitments_digest(
+        commitments_digest: Digest,
+        signature: &Signature,
+        router_address: Address,
+    ) -> Result<Address> {
+        recover_from_commitments_digest(commitments_digest, signature, router_address)
+    }
+}
+
+impl CommitmentsDigestSigner for Signer {
+    fn sign_commitments_digest(
+        &self,
+        commitments_digest: Digest,
+        pub_key: PublicKey,
+        router_address: Address,
+    ) -> Result<Signature> {
+        let digest = to_router_digest(commitments_digest, router_address);
+        self.sign_digest(pub_key, digest)
+    }
+}
+
+impl CommitmentsDigestSigner for PrivateKey {
+    fn sign_commitments_digest(
+        &self,
+        commitments_digest: Digest,
+        _pub_key: PublicKey,
+        router_address: Address,
+    ) -> Result<Signature> {
+        let digest = to_router_digest(commitments_digest, router_address);
+        Signature::create_for_digest(*self, digest)
+    }
+}
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedCommitments<D: AsDigest> {
@@ -31,11 +72,12 @@ pub struct AggregatedCommitments<D: AsDigest> {
 impl<T: AsDigest> AggregatedCommitments<T> {
     pub fn aggregate_commitments(
         commitments: Vec<T>,
-        signer: &Signer,
+        signer: &impl CommitmentsDigestSigner,
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
-        let signature = sign_digest(commitments.as_digest(), signer, pub_key, router_address)?;
+        let signature =
+            signer.sign_commitments_digest(commitments.as_digest(), pub_key, router_address)?;
 
         Ok(AggregatedCommitments {
             commitments,
@@ -44,7 +86,7 @@ impl<T: AsDigest> AggregatedCommitments<T> {
     }
 
     pub fn recover(&self, router_address: Address) -> Result<Address> {
-        recover_from_digest(
+        recover_from_commitments_digest(
             self.commitments.as_digest(),
             &self.signature,
             router_address,
@@ -60,26 +102,17 @@ impl<T: AsDigest> AggregatedCommitments<T> {
     }
 }
 
-pub fn sign_digest(
-    commitments_digest: Digest,
-    signer: &Signer,
-    pub_key: PublicKey,
-    router_address: Address,
-) -> Result<Signature> {
-    signer.sign_digest(pub_key, digest(commitments_digest, router_address))
-}
-
-pub fn recover_from_digest(
+fn recover_from_commitments_digest(
     commitments_digest: Digest,
     signature: &Signature,
     router_address: Address,
 ) -> Result<Address> {
     signature
-        .recover_from_digest(digest(commitments_digest, router_address))
+        .recover_from_digest(to_router_digest(commitments_digest, router_address))
         .map(|k| k.to_address())
 }
 
-fn digest(commitments_digest: Digest, router_address: Address) -> Digest {
+fn to_router_digest(commitments_digest: Digest, router_address: Address) -> Digest {
     [
         [0x19, 0x00].as_ref(),
         router_address.0.as_ref(),
@@ -119,8 +152,11 @@ mod tests {
         let commitments = vec![MyComm([1, 2]), MyComm([3, 4])];
 
         let digest = commitments.as_digest();
-        let signature = sign_digest(digest, &signer, pub_key, router_address).unwrap();
-        let recovered = recover_from_digest(digest, &signature, router_address).unwrap();
+        let signature = signer
+            .sign_commitments_digest(digest, pub_key, router_address)
+            .unwrap();
+        let recovered =
+            recover_from_commitments_digest(digest, &signature, router_address).unwrap();
 
         assert_eq!(recovered, pub_key.to_address());
     }

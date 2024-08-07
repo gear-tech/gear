@@ -23,7 +23,9 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     BlockCommitment, CodeCommitment,
 };
-use ethexe_sequencer::{agro, AggregatedCommitments, BlockCommitmentValidationRequest};
+use ethexe_sequencer::{
+    agro::CommitmentsDigestSigner, AggregatedCommitments, BlockCommitmentValidationRequest,
+};
 use ethexe_signer::{Address, AsDigest, PublicKey, Signature, Signer};
 use gprimitives::H256;
 
@@ -95,12 +97,8 @@ impl Validator {
             digests.push(request.as_digest());
         }
 
-        agro::sign_digest(
-            digests.as_digest(),
-            &self.signer,
-            self.pub_key,
-            self.router_address,
-        )
+        self.signer
+            .sign_commitments_digest(digests.as_digest(), self.pub_key, self.router_address)
     }
 
     pub fn validate_block_commitments(
@@ -154,12 +152,8 @@ impl Validator {
             digests.push(request.as_digest());
         }
 
-        agro::sign_digest(
-            digests.as_digest(),
-            &self.signer,
-            self.pub_key,
-            self.router_address,
-        )
+        self.signer
+            .sign_commitments_digest(digests.as_digest(), self.pub_key, self.router_address)
     }
 
     /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
