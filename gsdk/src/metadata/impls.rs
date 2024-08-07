@@ -27,6 +27,7 @@ use super::{
         gear_core_errors as generated_core_errors, gprimitives as generated_ids,
         pallet_balances::pallet::Call as BalancesCall,
         pallet_gear::pallet::Call as GearCall,
+        pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
         pallet_sudo::pallet::Call as SudoCall,
     },
     vara_runtime::{RuntimeCall, RuntimeEvent},
@@ -162,7 +163,7 @@ impl_basic! {
     ApiEvent, generated_ids::MessageId,
     generated_ids::ActorId, generated_ids::CodeId, generated_ids::ReservationId,
     Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>,
-    generated_core_errors::simple::ReplyCode
+    generated_core_errors::simple::ReplyCode, VoucherId
 }
 
 impl From<RuntimeCall> for Value {
@@ -353,6 +354,56 @@ impl Convert<subxt::utils::MultiAddress<subxt::utils::AccountId32, ()>>
             sp_runtime::MultiAddress::Id(id) => subxt::utils::MultiAddress::Id(id.convert()),
             sp_runtime::MultiAddress::Index(index) => subxt::utils::MultiAddress::Index(index),
             sp_runtime::MultiAddress::Raw(raw) => subxt::utils::MultiAddress::Raw(raw),
+        }
+    }
+}
+
+impl From<PrepaidCall<u128>> for Value {
+    fn from(call: PrepaidCall<u128>) -> Value {
+        prepaid_call_to_scale_value(call)
+    }
+}
+
+fn prepaid_call_to_scale_value(call: PrepaidCall<u128>) -> Value {
+    match call {
+        PrepaidCall::SendMessage {
+            destination,
+            payload,
+            gas_limit,
+            value,
+            keep_alive,
+        } => Value::named_variant(
+            "send_message",
+            [
+                ("destination", Value::from_bytes(destination.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
+        PrepaidCall::SendReply {
+            reply_to_id,
+            payload,
+            gas_limit,
+            value,
+            keep_alive,
+        } => Value::named_variant(
+            "send_reply",
+            [
+                ("reply_to_id", Value::from_bytes(reply_to_id.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
+        PrepaidCall::UploadCode { code } => {
+            Value::named_variant("upload_code", [("code", Value::from_bytes(code))])
+        }
+        PrepaidCall::DeclineVoucher => Value::unnamed_variant("decline_voucher", []),
+        _ => {
+            unimplemented!("calls that won't be used in batch call");
         }
     }
 }

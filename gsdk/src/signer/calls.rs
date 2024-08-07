@@ -21,8 +21,11 @@ use super::Inner;
 use crate::{
     config::GearConfig,
     metadata::{
-        calls::{BalancesCall, GearCall, SudoCall, UtilityCall},
-        runtime_types::sp_weights::weight_v2::Weight,
+        calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
+        runtime_types::{
+            pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
+            sp_weights::weight_v2::Weight,
+        },
         vara_runtime::RuntimeCall,
     },
     Error, Result, TxInBlock,
@@ -82,7 +85,7 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                BalancesCall::TransferAllowDeath,
+                BalancesCall::TransferAll,
                 vec![
                     Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
                     Value::bool(keep_alive),
@@ -229,6 +232,58 @@ impl SignerCalls {
                         ("proof_size", Value::u128(weight.proof_size as u128)),
                     ]),
                 ],
+            )
+            .await
+    }
+}
+
+// pallet-gear-voucher
+impl SignerCalls {
+    /// `pallet_gear_voucher::issue`
+    pub async fn issue_voucher(
+        &self,
+        spender: impl Into<AccountId32>,
+        balance: u128,
+        programs: Option<Vec<ActorId>>,
+        code_uploading: bool,
+        duration: u32,
+    ) -> Result<TxInBlock> {
+        let programs_value = match programs {
+            Some(vec) => Value::unnamed_variant(
+                "Some",
+                [Value::unnamed_composite(
+                    vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
+                )],
+            ),
+            None => Value::unnamed_variant("None", []),
+        };
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Issue,
+                vec![
+                    Value::from_bytes(spender.into()),
+                    Value::u128(balance),
+                    programs_value,
+                    Value::bool(code_uploading),
+                    Value::from(duration),
+                ],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::call`
+    pub async fn upload_code_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        code: Vec<u8>,
+    ) -> Result<TxInBlock> {
+        let call = PrepaidCall::<u128>::UploadCode { code };
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Call,
+                vec![Value::from_bytes(voucher_id.0), call.into()],
             )
             .await
     }
