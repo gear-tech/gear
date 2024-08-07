@@ -95,7 +95,7 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(["+stable", "check", "--lib", "--manifest-path", manifest])
+        .args(["+stable", "check", "--manifest-path", manifest])
         .status()
         .map_err(Into::into)
 }
