@@ -20,7 +20,6 @@
 
 pub mod agro;
 
-use agro::MultisignedCommitments;
 use anyhow::{anyhow, Result};
 use ethexe_common::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
@@ -51,6 +50,7 @@ pub struct SequencerStatus {
 }
 
 type CommitmentsMap<C> = BTreeMap<Digest, (C, HashSet<Address>)>;
+type MultisignedCommitments<C> = (BTreeMap<Digest, C>, HashMap<Address, Signature>);
 type MultisignedDigests = (BTreeSet<Digest>, HashMap<Address, Signature>);
 type Candidate = (Digest, MultisignedDigests);
 
@@ -199,22 +199,16 @@ impl Sequencer {
         );
 
         if let Some(candidate) = codes_candidate {
-            log::debug!(
-                "Collected some {0} code commitments. Trying to submit...",
-                candidate.commitments.len()
-            );
+            code_commitments_len = candidate.0.len() as u64;
+            log::debug!("Collected {code_commitments_len} code commitments. Trying to submit...");
 
-            code_commitments_len = candidate.commitments.len() as u64;
             codes_future = Some(self.submit_codes_commitment(candidate));
         };
 
         if let Some(candidate) = blocks_candidate {
-            log::debug!(
-                "Collected some {0} transition commitments. Trying to submit...",
-                candidate.commitments.len()
-            );
+            block_commitments_len = candidate.0.len() as u64;
+            log::debug!("Collected {block_commitments_len} block commitments. Trying to submit...",);
 
-            block_commitments_len = candidate.commitments.len() as u64;
             blocks_future = Some(self.submit_block_commitments(candidate));
         };
 
@@ -385,40 +379,29 @@ impl Sequencer {
             unreachable!("Guarantied by `Sequencer` implementation to be not empty");
         }
 
-        let commitments: Vec<_> = digests
+        let commitments = digests
             .iter()
             .map(|digest| {
                 commitments
                     .remove(digest)
-                    .map(|(commitment, _)| commitment)
+                    .map(|(commitment, _)| (*digest, commitment))
                     .unwrap_or_else(|| {
                         unreachable!("Guarantied by `Sequencer` implementation to be in the map");
                     })
             })
             .collect();
 
-        let sources = signatures.keys().cloned().collect();
-        let signatures = signatures.values().cloned().collect();
-
-        Some(MultisignedCommitments {
-            commitments,
-            sources,
-            signatures,
-        })
+        Some((commitments, signatures))
     }
 
     async fn submit_codes_commitment(
         &self,
-        signed_commitments: MultisignedCommitments<CodeCommitment>,
+        commitments: MultisignedCommitments<CodeCommitment>,
     ) -> Result<()> {
-        log::debug!("Code commitment to submit: {signed_commitments:?}");
+        let codes = commitments.0.into_values().map(Into::into).collect();
+        let (origins, signatures): (Vec<_>, _) = commitments.1.into_iter().unzip();
 
-        let codes = signed_commitments
-            .commitments
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>();
-        let signatures = signed_commitments.signatures;
+        log::debug!("Code commitments to submit: {codes:?}, signed by: {origins:?}",);
 
         let router = self.ethereum.router();
         if let Err(e) = router.commit_codes(codes, signatures).await {
@@ -431,19 +414,15 @@ impl Sequencer {
 
     async fn submit_block_commitments(
         &self,
-        signed_commitments: MultisignedCommitments<BlockCommitment>,
+        commitments: MultisignedCommitments<BlockCommitment>,
     ) -> Result<()> {
-        log::debug!("Transition commitment to submit: {signed_commitments:?}");
+        let blocks = commitments.0.into_values().map(Into::into).collect();
+        let (origins, signatures): (Vec<_>, _) = commitments.1.into_iter().unzip();
 
-        let block_commitments = signed_commitments
-            .commitments
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>();
-        let signatures = signed_commitments.signatures;
+        log::debug!("Block commitments to submit: {blocks:?}, signed by: {origins:?}",);
 
         let router = self.ethereum.router();
-        match router.commit_blocks(block_commitments, signatures).await {
+        match router.commit_blocks(blocks, signatures).await {
             Err(e) => {
                 // TODO: return error?
                 log::error!("Failed to commit transitions: {e}");

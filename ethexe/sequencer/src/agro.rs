@@ -21,7 +21,6 @@
 use anyhow::Result;
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
-use std::fmt;
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedCommitments<D: AsDigest> {
@@ -88,23 +87,6 @@ fn digest(commitments_digest: Digest, router_address: Address) -> Digest {
     ]
     .concat()
     .as_digest()
-}
-
-#[derive(Clone)]
-pub struct MultisignedCommitments<D> {
-    pub commitments: Vec<D>,
-    pub sources: Vec<Address>,
-    pub signatures: Vec<Signature>,
-}
-
-impl<D: fmt::Debug> fmt::Debug for MultisignedCommitments<D> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "MultisignedCommitments {{ commitments: {:?}, sources: {:?}, signatures: {:?} }}",
-            self.commitments, self.sources, self.signatures
-        )
-    }
 }
 
 #[cfg(test)]
