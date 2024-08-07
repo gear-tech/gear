@@ -290,3 +290,20 @@ fn lazy_page_costs_heuristic_test() {
 
     check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
 }
+
+/// Check that it is not possible to write/change memory pages too cheaply,
+/// so that could lead to runtime heap memory overflow.
+#[test]
+fn write_is_not_too_cheap() {
+    let costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let cheapest_write = costs
+        .signal_write
+        .cost_for_one()
+        .min(costs.signal_read.cost_for_one() + costs.signal_write_after_read.cost_for_one())
+        .min(costs.host_func_write.cost_for_one())
+        .min(costs.signal_read.cost_for_one() + costs.signal_write_after_read.cost_for_one());
+
+    let block_max_gas = 3 * 10 ^ 12; // 3 seconds
+    let runtime_heap_size_in_wasm_pages = 0x4000; // 1GB
+    assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
+}
