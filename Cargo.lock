@@ -18561,7 +18561,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-proc"
-version = "0.1.0"
+version = "1.5.0"
 dependencies = [
  "clap 4.5.9",
  "env_logger",
