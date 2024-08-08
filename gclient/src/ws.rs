@@ -21,6 +21,7 @@ use anyhow::anyhow;
 use std::{
     fmt,
     net::{AddrParseError, SocketAddrV4},
+    str::FromStr,
 };
 use url::Url;
 
@@ -181,6 +182,16 @@ impl From<SocketAddrV4> for WSAddress {
         let scheme_prefix = if tls { "wss" } else { "ws" }.to_string() + "://";
 
         Self::new(scheme_prefix + &addr.ip().to_string(), addr.port())
+    }
+}
+
+impl FromStr for WSAddress {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse()
+            .map_err(|e: AddrParseError| Error::Anyhow(e.into()))
+            .map(|addr: SocketAddrV4| addr.into())
     }
 }
 

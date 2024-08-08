@@ -129,8 +129,10 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![allow(async_fn_in_trait)]
 
 mod api;
+mod client;
 mod utils;
 mod ws;
 
@@ -141,3 +143,6 @@ pub use gsdk::{
 };
 pub use utils::*;
 pub use ws::WSAddress;
+
+#[cfg(feature = "experimental")]
+pub use client::{Backend, Client, Message};

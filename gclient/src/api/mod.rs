@@ -28,7 +28,7 @@ use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
-    Api,
+    Api, Events,
 };
 use std::{ffi::OsStr, sync::Arc};
 
@@ -130,6 +130,11 @@ impl GearApi {
         Ok(EventListener(events))
     }
 
+    /// Subscribe events by blocks
+    pub async fn subscribe_blocks(&self) -> Result<Events> {
+        self.0.api().finalized_events().await.map_err(Into::into)
+    }
+
     /// Set the number used once (`nonce`) that will be used while sending
     /// extrinsics.
     ///
@@ -172,6 +177,18 @@ impl GearApi {
     /// ```
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
+    }
+
+    /// Change the singer of `GearApi`, see also [`GearApi::init_with`].
+    pub fn change_signer(&mut self, suri: impl AsRef<str>) -> Result<()> {
+        let mut suri = suri.as_ref().splitn(2, ':');
+        let new_signer = self
+            .0
+            .clone()
+            .change(suri.next().expect("Infallible"), suri.next())?;
+        self.0 = new_signer;
+
+        Ok(())
     }
 }
 

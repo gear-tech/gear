@@ -4,7 +4,6 @@ use crate::{
     cmd::Opt,
     result::{Error, Result},
 };
-use futures::StreamExt;
 use gsdk::{
     ext::{
         sp_core::crypto::{PublicError, Ss58Codec},
