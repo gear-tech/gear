@@ -428,7 +428,6 @@ impl NetworkBehaviour for Behaviour {
 
         if let Some((channel, mut db_reader)) = self.ongoing_response.take() {
             if let Poll::Ready(data) = db_reader.poll_unpin(cx) {
-                // TODO: check request kind corresponds to response kind
                 let resp = data.expect("database panicked");
                 let _res = self.inner.send_response(channel, resp);
             } else {
