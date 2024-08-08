@@ -954,121 +954,79 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn test_process_multisigned_candidate() {
-    //     // Test candidate is None
-    //     assert_eq!(
-    //         Sequencer::process_multisigned_candidate::<TestComm>(&mut None, &mut Default::default(), 0),
-    //         None
-    //     );
+    #[test]
+    fn test_process_multisigned_candidate() {
+        // Test candidate is None
+        assert_eq!(
+            Sequencer::process_multisigned_candidate::<TestComm>(
+                &mut None,
+                &mut Default::default(),
+                0
+            ),
+            None
+        );
 
-    //     // Test not enough signatures
-    //     let mut candidate = Some(Candidate {
-    //         digest: [1; 32].into(),
-    //         multisigned: MultisignedDigests {
-    //             digests: [[2; 32]].map(Into::into).into_iter().collect(),
-    //             signatures: Default::default(),
-    //         },
-    //     });
-    //     assert_eq!(
-    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut Default::default(), 2),
-    //         None
-    //     );
+        // Test not enough signatures
+        let mut candidate = Some(Candidate {
+            digest: [1; 32].into(),
+            multisigned: MultisignedDigests {
+                digests: Default::default(),
+                signatures: Default::default(),
+            },
+        });
+        assert_eq!(
+            Sequencer::process_multisigned_candidate(
+                &mut candidate,
+                &mut CommitmentsMap::<TestComm>::new(),
+                2
+            ),
+            None
+        );
 
-    //     let mut candidate = None;
-    //     let threshold = 2;
+        let mut commitments_map = CommitmentsMap::new();
+        let validators_private_keys = [PrivateKey([1; 32]), PrivateKey([2; 32])];
+        let validators_pub_keys = validators_private_keys.map(PublicKey::from);
+        let origins: BTreeSet<_> = validators_pub_keys
+            .map(|k| k.to_address())
+            .into_iter()
+            .collect();
 
-    //     let mut commitments = CommitmentsMap::new();
-    //     let origins: BTreeSet<_> = [[1; 20], [2; 20]].map(Address).into_iter().collect();
+        let commitments = [TestComm([0, 1]), TestComm([2, 3]), TestComm([4, 5])];
+        commitments.iter().for_each(|commitment| {
+            commitments_map.insert(
+                commitment.as_digest(),
+                CommitmentAndOrigins {
+                    commitment: *commitment,
+                    origins: origins.clone(),
+                },
+            );
+        });
 
-    //     let commitment = TestComm([0, 1]);
-    //     commitments.insert(
-    //         commitment1.as_digest(),
-    //         CommitmentAndOrigins {
-    //             commitment: commitment1,
-    //             origins: Default::default(),
-    //         },
-    //     );
+        Sequencer::set_candidate_commitments(&commitments_map, &mut candidate, 2).unwrap();
 
-    //     let commitment2 = TestComm([2, 3]);
-    //     commitments.insert(
-    //         commitment2.as_digest(),
-    //         CommitmentAndOrigins {
-    //             commitment: commitment2,
-    //             origins: Default::default(),
-    //         },
-    //     );
+        let mut candidate = candidate.unwrap();
+        let router_address = Address([1; 20]);
+        let signatures = [0, 1].map(|i| {
+            AggregatedCommitments::aggregate_commitments(
+                commitments.to_vec(),
+                &validators_private_keys[i],
+                validators_pub_keys[i],
+                router_address,
+            )
+            .unwrap()
+            .signature
+        });
+        candidate.multisigned.signatures = [0, 1]
+            .map(|i| (validators_pub_keys[i].to_address(), signatures[i]))
+            .into_iter()
+            .collect();
 
-    //     let x = catch_unwind(|| {
-    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold)
-    //     })
-    //     assert_eq!(
-    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
-    //         None
-    //     );
-    //     assert_eq!(candidate, None);
-
-    //     let commitment1 = TestComm([0, 1]);
-    //     commitments.insert(
-    //         commitment1.as_digest(),
-    //         CommitmentAndOrigins {
-    //             commitment: commitment1,
-    //         },
-    //     );
-
-    //     let commitment2 = TestComm([2, 3]);
-    //     commitments.insert(
-    //         commitment2.as_digest(),
-    //         CommitmentAndOrigins {
-    //             commitment: commitment2,
-    //             origins: [[1; 20], [2; 20]].map(Address).into_iter().collect(),
-    //         },
-    //     );
-
-    //     let commitment3 = TestComm([4, 5]);
-    //     commitments.insert(
-    //         commitment3.as_digest(),
-    //         CommitmentAndOrigins {
-    //             commitment: commitment3,
-    //             origins: [[1; 20], [2; 20]].map(Address).into_iter().collect(),
-    //         },
-    //     );
-
-    //     assert_eq!(
-    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
-    //         None
-    //     );
-    //     assert_eq!(candidate, None);
-
-    //     commitments
-    //         .get_mut(&commitment1.as_digest())
-    //         .unwrap()
-    //         .origins
-    //         .insert(Address([3; 20]));
-    //     assert_eq!(
-    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
-    //         None
-    //     );
-    //     assert_eq!(candidate, None);
-
-    //     commitments
-    //         .get_mut(&commitment1.as_digest())
-    //         .unwrap()
-    //         .origins
-    //         .insert(Address([4; 20]));
-    //     assert_eq!(
-    //         Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments, threshold),
-    //         Some(MultisignedCommitments {
-    //             commitments: [
-    //                 (commitment1.as_digest(), commitment1),
-    //                 (commitment2.as_digest(), commitment2)
-    //             ]
-    //             .iter()
-    //             .cloned()
-    //             .collect(),
-    //             signatures: Default::default(),
-    //         })
-    //     );
-    //     assert_eq!(candidate, None);
-    // }
+        let mut candidate = Some(candidate);
+        assert!(
+            Sequencer::process_multisigned_candidate(&mut candidate, &mut commitments_map, 2)
+                .is_some(),
+        );
+        assert!(commitments_map.is_empty());
+        assert_eq!(candidate, None);
+    }
 }
