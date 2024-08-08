@@ -99,7 +99,7 @@ impl Validator {
 
     pub fn validate_code_commitments(
         &mut self,
-        db: impl CodesStorage,
+        db: &impl CodesStorage,
         requests: impl IntoIterator<Item = CodeCommitment>,
     ) -> Result<Signature> {
         let mut digests = Vec::new();
@@ -120,7 +120,7 @@ impl Validator {
 
     pub fn validate_block_commitments(
         &mut self,
-        db: impl BlockMetaStorage,
+        db: &impl BlockMetaStorage,
         requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
     ) -> Result<Signature> {
         let mut digests = Vec::new();
@@ -160,7 +160,7 @@ impl Validator {
                 return Err(anyhow!("block prev commitment hash mismatch"));
             }
 
-            if Self::verify_is_predecessor(&db, allowed_pred_block_hash, block_hash, None)?.not() {
+            if Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)?.not() {
                 return Err(anyhow!(
                     "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
                 ));

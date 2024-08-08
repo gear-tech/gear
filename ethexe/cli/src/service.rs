@@ -480,7 +480,7 @@ impl Service {
                     log::debug!("Collection round timeout, process collected commitments...");
 
                     Self::process_collected_commitments(
-                        db.clone(),
+                        &db,
                         validator.as_mut(),
                         sequencer.as_mut(),
                         network_sender.as_mut()
@@ -500,7 +500,7 @@ impl Service {
 
                     let _ = Self::process_network_message(
                         message,
-                        db.clone(),
+                        &db,
                         validator.as_mut(),
                         sequencer.as_mut(),
                         network_sender.as_mut(),
@@ -538,7 +538,10 @@ impl Service {
             return Ok(());
         };
 
-        let origin = validator.address();
+        if maybe_network_sender.is_none() && maybe_sequencer.is_none() {
+            return Ok(());
+        }
+
         let aggregated_codes = code_commitments
             .is_empty()
             .not()
@@ -553,6 +556,8 @@ impl Service {
         if aggregated_codes.is_none() && aggregated_blocks.is_none() {
             return Ok(());
         }
+
+        let origin = validator.address();
 
         if let Some(network_sender) = maybe_network_sender {
             log::debug!("Publishing commitments to network...");
@@ -587,7 +592,7 @@ impl Service {
     }
 
     fn process_collected_commitments(
-        db: Database,
+        db: &Database,
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
@@ -633,13 +638,13 @@ impl Service {
 
             if code_requests.is_empty().not() {
                 let digest = code_requests.as_digest();
-                let signature = validator.validate_code_commitments(db.clone(), code_requests)?;
+                let signature = validator.validate_code_commitments(db, code_requests)?;
                 sequencer.receive_codes_signature(origin, digest, signature)?;
             }
 
             if block_requests.is_empty().not() {
                 let digest = block_requests.as_digest();
-                let signature = validator.validate_block_commitments(db.clone(), block_requests)?;
+                let signature = validator.validate_block_commitments(db, block_requests)?;
                 sequencer.receive_blocks_signature(origin, digest, signature)?;
             }
         }
@@ -659,7 +664,7 @@ impl Service {
 
     fn process_network_message(
         message: GossipsubMessage,
-        db: Database,
+        db: &Database,
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
@@ -695,7 +700,7 @@ impl Service {
                     .not()
                     .then(|| {
                         let digest = codes.as_digest();
-                        let signature = validator.validate_code_commitments(db.clone(), codes)?;
+                        let signature = validator.validate_code_commitments(db, codes)?;
                         Ok((digest, signature))
                     })
                     .transpose()?;
@@ -705,7 +710,7 @@ impl Service {
                     .not()
                     .then(|| {
                         let digest = blocks.as_digest();
-                        let signature = validator.validate_block_commitments(db.clone(), blocks)?;
+                        let signature = validator.validate_block_commitments(db, blocks)?;
                         Ok((digest, signature))
                     })
                     .transpose()?;
