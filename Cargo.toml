@@ -113,7 +113,7 @@ members = [
 
 [workspace.dependencies]
 alloy = "0.1.4"
-anyhow = { version = "1.0.86", features = ["std", "backtrace"] }
+anyhow = "1.0.86"
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
 async-trait = "0.1.81"

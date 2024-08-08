@@ -65,18 +65,6 @@ impl TryFrom<ActorId> for Address {
     }
 }
 
-pub struct Hash([u8; 32]);
-
-impl From<Hash> for gprimitives::H256 {
-    fn from(source: Hash) -> gprimitives::H256 {
-        gprimitives::H256::from_slice(&source.0)
-    }
-}
-
-pub fn hash(data: &[u8]) -> gprimitives::H256 {
-    Hash(<[u8; 32]>::from(sha3::Keccak256::digest(data))).into()
-}
-
 fn strip_prefix(s: &str) -> &str {
     if let Some(s) = s.strip_prefix("0x") {
         s

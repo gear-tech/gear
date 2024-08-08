@@ -126,7 +126,7 @@ pub struct Config {
     /// RPC port
     pub rpc_port: Option<u16>,
 
-    /// Validators to use
+    /// Validators set
     pub validators: Vec<Address>,
 }
 

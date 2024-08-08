@@ -108,7 +108,7 @@ pub struct Args {
     #[clap(flatten)]
     pub prometheus_params: Option<PrometheusParams>,
 
-    /// Validators to use
+    /// Validators set
     pub validators: Option<Vec<String>>,
 
     #[command(subcommand)]

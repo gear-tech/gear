@@ -88,27 +88,13 @@ impl Validator {
         self.pub_key.to_address()
     }
 
-    fn aggregate<C: AsDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
+    pub fn aggregate<C: AsDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
         AggregatedCommitments::aggregate_commitments(
             commitments,
             &self.signer,
             self.pub_key,
             self.router_address,
         )
-    }
-
-    pub fn aggregate_codes(
-        &self,
-        commitments: Vec<CodeCommitment>,
-    ) -> Result<AggregatedCommitments<CodeCommitment>> {
-        self.aggregate(commitments)
-    }
-
-    pub fn aggregate_blocks(
-        &self,
-        commitments: Vec<BlockCommitment>,
-    ) -> Result<AggregatedCommitments<BlockCommitment>> {
-        self.aggregate(commitments)
     }
 
     pub fn validate_code_commitments(

@@ -23,9 +23,7 @@ use crate::{
     metrics::MetricsService,
 };
 use anyhow::{anyhow, Ok, Result};
-use ethexe_common::{
-    events::BlockEvent, BlockCommitment, CodeCommitment, Commitments, StateTransition,
-};
+use ethexe_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
 use ethexe_network::GossipsubMessage;
 use ethexe_observer::{BlockData, CodeLoadedData};
@@ -358,7 +356,7 @@ impl Service {
         processor: &mut ethexe_processor::Processor,
         maybe_sequencer: &mut Option<ethexe_sequencer::Sequencer>,
         observer_event: ethexe_observer::Event,
-    ) -> Result<Commitments> {
+    ) -> Result<(Vec<CodeCommitment>, Vec<BlockCommitment>)> {
         if let Some(sequencer) = maybe_sequencer {
             sequencer.process_observer_event(&observer_event)?;
         }
@@ -373,7 +371,7 @@ impl Service {
                 );
                 let commitments =
                     Self::process_block_event(db, query, processor, block_data).await?;
-                Ok((Vec::new(), commitments).into())
+                Ok((Vec::new(), commitments))
             }
             ethexe_observer::Event::CodeLoaded(CodeLoadedData { code_id, code, .. }) => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
@@ -391,7 +389,7 @@ impl Service {
                         _ => unreachable!("Only code outcomes are expected here"),
                     })
                     .collect();
-                Ok((commitments, Vec::new()).into())
+                Ok((commitments, Vec::new()))
             }
         }
     }
@@ -460,7 +458,7 @@ impl Service {
                         break;
                     };
 
-                    let commitments = Self::process_observer_event(
+                    let (code_commitments, block_commitments) = Self::process_observer_event(
                         &db,
                         &mut query,
                         &mut processor,
@@ -469,7 +467,8 @@ impl Service {
                     ).await?;
 
                     Self::post_process_commitments(
-                        commitments,
+                        code_commitments,
+                        block_commitments,
                         validator.as_mut(),
                         sequencer.as_mut(),
                         network_sender.as_mut(),
@@ -529,7 +528,8 @@ impl Service {
     }
 
     async fn post_process_commitments(
-        commitments: Commitments,
+        code_commitments: Vec<CodeCommitment>,
+        block_commitments: Vec<BlockCommitment>,
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
@@ -539,17 +539,15 @@ impl Service {
         };
 
         let origin = validator.address();
-        let aggregated_codes = commitments
-            .codes
+        let aggregated_codes = code_commitments
             .is_empty()
             .not()
-            .then(|| validator.aggregate_codes(commitments.codes))
+            .then(|| validator.aggregate(code_commitments))
             .transpose()?;
-        let aggregated_blocks = commitments
-            .blocks
+        let aggregated_blocks = block_commitments
             .is_empty()
             .not()
-            .then(|| validator.aggregate_blocks(commitments.blocks))
+            .then(|| validator.aggregate(block_commitments))
             .transpose()?;
 
         if aggregated_codes.is_none() && aggregated_blocks.is_none() {
