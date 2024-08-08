@@ -5163,6 +5163,7 @@ version = "1.4.2"
 dependencies = [
  "anyhow",
  "ethexe-common",
+ "ethexe-db",
  "ethexe-sequencer",
  "ethexe-signer",
  "futures",

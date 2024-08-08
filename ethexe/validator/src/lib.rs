@@ -24,7 +24,7 @@ use ethexe_common::{
     BlockCommitment, CodeCommitment,
 };
 use ethexe_sequencer::{
-    agro::CommitmentsDigestSigner, AggregatedCommitments, BlockCommitmentValidationRequest,
+    AggregatedCommitments, BlockCommitmentValidationRequest, CommitmentsDigestSigner,
 };
 use ethexe_signer::{Address, AsDigest, PublicKey, Signature, Signer};
 use gprimitives::H256;
@@ -190,5 +190,68 @@ impl Validator {
         }
 
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_db::BlockHeader;
+
+    #[test]
+    fn test_verify_is_predecessor() {
+        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default());
+
+        let blocks = [H256::random(), H256::random(), H256::random()];
+        db.set_block_header(
+            blocks[0],
+            BlockHeader {
+                height: 100,
+                timestamp: 100,
+                parent_hash: H256::zero(),
+            },
+        );
+        db.set_block_header(
+            blocks[1],
+            BlockHeader {
+                height: 101,
+                timestamp: 101,
+                parent_hash: blocks[0],
+            },
+        );
+        db.set_block_header(
+            blocks[2],
+            BlockHeader {
+                height: 102,
+                timestamp: 102,
+                parent_hash: blocks[1],
+            },
+        );
+
+        Validator::verify_is_predecessor(&db, blocks[1], H256::random(), None)
+            .expect_err("Unknown pred block is provided");
+
+        Validator::verify_is_predecessor(&db, H256::random(), blocks[0], None)
+            .expect_err("Unknown block is provided");
+
+        Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(1))
+            .expect_err("Distance is too large");
+
+        // Another chain block
+        let block3 = H256::random();
+        db.set_block_header(
+            block3,
+            BlockHeader {
+                height: 1,
+                timestamp: 1,
+                parent_hash: blocks[0],
+            },
+        );
+        Validator::verify_is_predecessor(&db, blocks[2], block3, None)
+            .expect_err("Block is from other chain with incorrect height");
+
+        assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap());
+        assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2)).unwrap());
+        assert!(!Validator::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1)).unwrap());
     }
 }

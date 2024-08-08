@@ -18,9 +18,10 @@
 
 //! Sequencer for ethexe.
 
-pub mod agro;
+mod agro;
 
-use agro::CommitmentsDigestSigner;
+pub use agro::{AggregatedCommitments, CommitmentsDigestSigner};
+
 use anyhow::{anyhow, Result};
 use ethexe_common::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
@@ -33,8 +34,6 @@ use std::{
     ops::Not,
 };
 use tokio::sync::watch;
-
-pub use agro::AggregatedCommitments;
 
 pub struct Config {
     pub ethereum_rpc: String,
