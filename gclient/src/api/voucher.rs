@@ -34,19 +34,15 @@ impl GearApi {
     ///
     /// Arguments:
     /// * spender:  user id that is eligible to use the voucher;
-    /// * balance:  voucher balance could be used for transactions
-    ///             fees and gas;
-    /// * programs: pool of programs spender can interact with,
-    ///             if None - means any program,
-    ///             limited by Config param;
-    /// * code_uploading:
-    ///             allow voucher to be used as payer for `upload_code`
-    ///             transactions fee;
-    /// * duration: amount of blocks voucher could be used by spender
-    ///             and couldn't be revoked by owner.
-    ///             Must be out in [MinDuration; MaxDuration] constants.
-    ///             Expiration block of the voucher calculates as:
-    ///             current bn (extrinsic exec bn) + duration + 1.
+    /// * balance:  voucher balance could be used for transactions fees and gas;
+    /// * programs: pool of programs spender can interact with, if None - means
+    ///   any program, limited by Config param;
+    /// * code_uploading: allow voucher to be used as payer for `upload_code`
+    ///   transactions fee;
+    /// * duration: amount of blocks voucher could be used by spender and
+    ///   couldn't be revoked by owner. Must be out in [MinDuration;
+    ///   MaxDuration] constants. Expiration block of the voucher calculates as:
+    ///   current bn (extrinsic exec bn) + duration + 1.
     pub async fn issue_voucher(
         &self,
         spender: ProgramId,
@@ -86,20 +82,17 @@ impl GearApi {
     /// * voucher_id:       voucher id to be updated;
     /// * move_ownership:   optionally moves ownership to another account;
     /// * balance_top_up:   optionally top ups balance of the voucher from
-    ///                     origins balance;
+    ///   origins balance;
     /// * append_programs:  optionally extends pool of programs by
-    ///                     `Some(programs_set)` passed or allows
-    ///                     it to interact with any program by
-    ///                     `None` passed;
-    /// * code_uploading:   optionally allows voucher to be used to pay
-    ///                     fees for `upload_code` extrinsics;
-    /// * prolong_duration: optionally increases expiry block number.
-    ///                     If voucher is expired, prolongs since current bn.
-    ///                     Validity prolongation (since current block number
-    ///                     for expired or since storage written expiry)
-    ///                     should be in [MinDuration; MaxDuration], in other
-    ///                     words voucher couldn't have expiry greater than
-    ///                     current block number + MaxDuration.
+    ///   `Some(programs_set)` passed or allows it to interact with any program
+    ///   by `None` passed;
+    /// * code_uploading:   optionally allows voucher to be used to pay fees for
+    ///   `upload_code` extrinsics;
+    /// * prolong_duration: optionally increases expiry block number. If voucher
+    ///   is expired, prolongs since current bn. Validity prolongation (since
+    ///   current block number for expired or since storage written expiry)
+    ///   should be in [MinDuration; MaxDuration], in other words voucher
+    ///   couldn't have expiry greater than current block number + MaxDuration.
     #[allow(clippy::too_many_arguments)]
     pub async fn update_voucher(
         &self,
@@ -181,6 +174,28 @@ impl GearApi {
     /// * voucher_id:   voucher id to be declined.
     pub async fn decline_voucher(&self, voucher_id: VoucherId) -> Result<(VoucherId, H256)> {
         let tx = self.0.calls.decline_voucher(voucher_id).await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::GearVoucher(VoucherEvent::VoucherDeclined { voucher_id, .. }) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok((voucher_id, tx.block_hash()));
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Decline existing and not expired voucher with voucher.
+    pub async fn decline_voucher_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+    ) -> Result<(VoucherId, H256)> {
+        let tx = self
+            .0
+            .calls
+            .decline_voucher_with_voucher(voucher_id)
+            .await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherDeclined { voucher_id, .. }) =

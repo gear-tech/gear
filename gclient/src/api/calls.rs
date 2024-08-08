@@ -1467,8 +1467,8 @@ impl GearApi {
         Err(Error::EventNotFound)
     }
 
-    /// Same as [`send_message_bytes`](Self::send_message_bytes), but sends a message
-    /// using voucher.
+    /// Same as [`send_message_bytes`](Self::send_message_bytes), but sends a
+    /// message using voucher.
     pub async fn send_message_bytes_with_voucher(
         &self,
         voucher_id: VoucherId,

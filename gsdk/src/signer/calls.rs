@@ -404,4 +404,16 @@ impl SignerCalls {
             )
             .await
     }
+
+    /// `pallet_gear_voucher::call`
+    pub async fn decline_voucher_with_voucher(&self, voucher_id: VoucherId) -> Result<TxInBlock> {
+        let call = PrepaidCall::<u128>::DeclineVoucher;
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Call,
+                vec![Value::from_bytes(voucher_id.0), call.into()],
+            )
+            .await
+    }
 }
