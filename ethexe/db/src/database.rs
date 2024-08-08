@@ -64,6 +64,16 @@ impl KeyPrefix {
         let key = [key1.as_ref(), key2.as_ref()].concat();
         self.one(key)
     }
+
+    fn three(
+        self,
+        key1: impl AsRef<[u8]>,
+        key2: impl AsRef<[u8]>,
+        key3: impl AsRef<[u8]>,
+    ) -> Vec<u8> {
+        let key = [key1.as_ref(), key2.as_ref(), key3.as_ref()].concat();
+        self.one(key)
+    }
 }
 
 pub struct Database {
@@ -282,7 +292,11 @@ impl CodesStorage for Database {
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
-            .get(&KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id))
+            .get(&KeyPrefix::InstrumentedCode.three(
+                self.router_address,
+                runtime_id.to_le_bytes(),
+                code_id,
+            ))
             .map(|data| {
                 InstrumentedCode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
@@ -291,7 +305,11 @@ impl CodesStorage for Database {
 
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
         self.kv.put(
-            &KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id),
+            &KeyPrefix::InstrumentedCode.three(
+                self.router_address,
+                runtime_id.to_le_bytes(),
+                code_id,
+            ),
             code.encode(),
         );
     }
