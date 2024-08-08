@@ -30,8 +30,9 @@ use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Dat
 use ethexe_network::GossipsubMessage;
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
-use ethexe_sequencer::NetworkMessage;
-use ethexe_signer::{AsDigest, PublicKey, Signer};
+use ethexe_sequencer::AggregatedCommitments;
+use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -52,6 +53,24 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
     rpc: Option<ethexe_rpc::RpcService>,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum NetworkMessage {
+    PublishCommitments {
+        origin: Address,
+        codes: Option<AggregatedCommitments<CodeCommitment>>,
+        blocks: Option<AggregatedCommitments<BlockCommitment>>,
+    },
+    RequestCommitmentsValidation {
+        codes: BTreeMap<Digest, CodeCommitment>,
+        blocks: BTreeMap<Digest, BlockCommitmentValidationRequest>,
+    },
+    ApproveCommitments {
+        origin: Address,
+        codes: Option<(Digest, Signature)>,
+        blocks: Option<(Digest, Signature)>,
+    },
 }
 
 impl Service {

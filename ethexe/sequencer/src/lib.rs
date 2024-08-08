@@ -27,13 +27,28 @@ use ethexe_common::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::Event;
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
-use gprimitives::H256;
-use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     ops::Not,
 };
 use tokio::sync::watch;
+
+pub struct Sequencer {
+    key: PublicKey,
+    ethereum: Ethereum,
+
+    validators: HashSet<Address>,
+    threshold: u64,
+
+    code_commitments: CommitmentsMap<CodeCommitment>,
+    block_commitments: CommitmentsMap<BlockCommitment>,
+
+    codes_candidate: Option<Candidate>,
+    blocks_candidate: Option<Candidate>,
+
+    status: SequencerStatus,
+    status_sender: watch::Sender<SequencerStatus>,
+}
 
 pub struct Config {
     pub ethereum_rpc: String,
@@ -74,73 +89,6 @@ struct Candidate {
 }
 
 type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
-
-pub struct Sequencer {
-    key: PublicKey,
-    ethereum: Ethereum,
-
-    validators: HashSet<Address>,
-    threshold: u64,
-
-    code_commitments: CommitmentsMap<CodeCommitment>,
-    block_commitments: CommitmentsMap<BlockCommitment>,
-
-    codes_candidate: Option<Candidate>,
-    blocks_candidate: Option<Candidate>,
-
-    status: SequencerStatus,
-    status_sender: watch::Sender<SequencerStatus>,
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct BlockCommitmentValidationRequest {
-    pub block_hash: H256,
-    pub allowed_pred_block_hash: H256,
-    pub allowed_prev_commitment_hash: H256,
-    pub transitions_digest: Digest,
-}
-
-impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
-    fn from(commitment: &BlockCommitment) -> Self {
-        Self {
-            block_hash: commitment.block_hash,
-            allowed_pred_block_hash: commitment.allowed_pred_block_hash,
-            allowed_prev_commitment_hash: commitment.allowed_prev_commitment_hash,
-            transitions_digest: commitment.transitions.as_digest(),
-        }
-    }
-}
-
-impl AsDigest for BlockCommitmentValidationRequest {
-    fn as_digest(&self) -> Digest {
-        let mut message = Vec::with_capacity(3 * size_of::<H256>() + size_of::<Digest>());
-
-        message.extend_from_slice(self.block_hash.as_bytes());
-        message.extend_from_slice(self.allowed_pred_block_hash.as_bytes());
-        message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
-        message.extend_from_slice(self.transitions_digest.as_ref());
-
-        message.as_digest()
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub enum NetworkMessage {
-    PublishCommitments {
-        origin: Address,
-        codes: Option<AggregatedCommitments<CodeCommitment>>,
-        blocks: Option<AggregatedCommitments<BlockCommitment>>,
-    },
-    RequestCommitmentsValidation {
-        codes: BTreeMap<Digest, CodeCommitment>,
-        blocks: BTreeMap<Digest, BlockCommitmentValidationRequest>,
-    },
-    ApproveCommitments {
-        origin: Address,
-        codes: Option<(Digest, Signature)>,
-        blocks: Option<(Digest, Signature)>,
-    },
-}
 
 impl Sequencer {
     pub async fn new(config: &Config, signer: Signer) -> Result<Self> {

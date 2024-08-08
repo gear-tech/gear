@@ -23,21 +23,52 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     BlockCommitment, CodeCommitment,
 };
-use ethexe_sequencer::{
-    AggregatedCommitments, BlockCommitmentValidationRequest, CommitmentsDigestSigner,
-};
-use ethexe_signer::{Address, AsDigest, PublicKey, Signature, Signer};
+use ethexe_sequencer::{AggregatedCommitments, CommitmentsDigestSigner};
+use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use gprimitives::H256;
+use parity_scale_codec::{Decode, Encode};
+
+pub struct Validator {
+    pub_key: PublicKey,
+    signer: Signer,
+    router_address: Address,
+}
 
 pub struct Config {
     pub pub_key: PublicKey,
     pub router_address: Address,
 }
 
-pub struct Validator {
-    pub_key: PublicKey,
-    signer: Signer,
-    router_address: Address,
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct BlockCommitmentValidationRequest {
+    pub block_hash: H256,
+    pub allowed_pred_block_hash: H256,
+    pub allowed_prev_commitment_hash: H256,
+    pub transitions_digest: Digest,
+}
+
+impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
+    fn from(commitment: &BlockCommitment) -> Self {
+        Self {
+            block_hash: commitment.block_hash,
+            allowed_pred_block_hash: commitment.allowed_pred_block_hash,
+            allowed_prev_commitment_hash: commitment.allowed_prev_commitment_hash,
+            transitions_digest: commitment.transitions.as_digest(),
+        }
+    }
+}
+
+impl AsDigest for BlockCommitmentValidationRequest {
+    fn as_digest(&self) -> Digest {
+        let mut message = Vec::with_capacity(3 * size_of::<H256>() + size_of::<Digest>());
+
+        message.extend_from_slice(self.block_hash.as_bytes());
+        message.extend_from_slice(self.allowed_pred_block_hash.as_bytes());
+        message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
+        message.extend_from_slice(self.transitions_digest.as_ref());
+
+        message.as_digest()
+    }
 }
 
 impl Validator {
