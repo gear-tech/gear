@@ -122,6 +122,9 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
+/// Default memory size in wasm pages for benchmarks.
+const DEFAULT_MEM_SIZE: u16 = 512;
+
 // Initializes new block.
 fn init_block<T: Config>(previous: Option<BlockNumberFor<T>>)
 where
@@ -1487,7 +1490,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_read {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
@@ -1498,7 +1501,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
     }: {
@@ -1509,9 +1512,9 @@ benchmarks! {
     }
 
     lazy_pages_signal_write_after_read {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into(), DEFAULT_MEM_SIZE.into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1520,7 +1523,7 @@ benchmarks! {
     }
 
     lazy_pages_load_page_storage_data {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
     }: {
@@ -1567,7 +1570,7 @@ benchmarks! {
     instr_i64load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
@@ -1585,7 +1588,7 @@ benchmarks! {
     instr_i32load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
@@ -1603,7 +1606,7 @@ benchmarks! {
     instr_i64store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
@@ -1621,7 +1624,7 @@ benchmarks! {
     instr_i32store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
