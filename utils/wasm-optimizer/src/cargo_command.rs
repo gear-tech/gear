@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-n// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,10 +17,8 @@ n// Copyright (C) 2022-2024 Gear Technologies Inc.
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::cargo_toolchain::Toolchain;
-use anyhow::{ensure, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use std::{env, path::PathBuf, process::Command};
-
-use crate::builder_error::BuilderError;
 
 /// Helper to deal with the `cargo` command.
 #[derive(Clone)]
@@ -85,12 +83,12 @@ impl CargoCommand {
     }
 
     /// Sets whether to check the version of the recommended toolchain.
-    pub(crate) fn set_check_recommended_toolchain(&mut self, check_recommended_toolchain: bool) {
+    pub fn set_check_recommended_toolchain(&mut self, check_recommended_toolchain: bool) {
         self.check_recommended_toolchain = check_recommended_toolchain;
     }
 
     /// Sets whether to force the version of the recommended toolchain.
-    pub(crate) fn set_force_recommended_toolchain(&mut self, force_recommended_toolchain: bool) {
+    pub fn set_force_recommended_toolchain(&mut self, force_recommended_toolchain: bool) {
         self.force_recommended_toolchain = force_recommended_toolchain;
     }
 
@@ -158,10 +156,7 @@ impl CargoCommand {
         }
 
         let status = cargo.status().context("unable to execute cargo command")?;
-        ensure!(
-            status.success(),
-            BuilderError::CargoRunFailed(status.to_string())
-        );
+        ensure!(status.success(), anyhow!("cargo run failed {status}"));
 
         Ok(())
     }

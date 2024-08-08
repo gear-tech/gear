@@ -6873,6 +6873,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-wasm-optimizer"
+version = "1.5.0"
+dependencies = [
+ "anyhow",
+ "colored",
+ "gear-pwasm-utils",
+ "gear-wasm-instrument",
+ "log",
+ "regex",
+ "wabt",
+ "wasm-opt",
+ "wasmi 0.14.0",
+ "wasmparser-nostd 0.100.1",
+ "which",
+]
+
+[[package]]
 name = "gear-weight-diff"
 version = "1.0.0"
 dependencies = [
