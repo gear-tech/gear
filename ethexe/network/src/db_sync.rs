@@ -75,7 +75,7 @@ pub struct RequestId(u64);
 pub enum Request {
     BlockEndProgramStates(H256),
     DataForHashes(BTreeSet<H256>),
-    ProgramCodeIds(Vec<ProgramId>),
+    ProgramCodeIds(BTreeSet<ProgramId>),
 }
 
 impl Request {
@@ -85,6 +85,23 @@ impl Request {
             Request::DataForHashes(_) => RequestKind::DataForHashes,
             Request::ProgramCodeIds(_) => RequestKind::ProgramCodeIds,
         }
+    }
+
+    fn validate_keys_equality<T: Ord + Copy, U>(
+        a: &BTreeSet<T>,
+        b: &BTreeMap<T, U>,
+    ) -> Result<(), RequestFailure> {
+        let b_keys = b.keys().copied().collect();
+        let diff = a.symmetric_difference(&b_keys).next();
+        if let Some(elem) = diff {
+            return if a.contains(&elem) {
+                Err(RequestFailure::InsufficientData)
+            } else {
+                Err(RequestFailure::ExcessiveData)
+            };
+        }
+
+        Ok(())
     }
 
     fn validate_response(&self, resp: &Response) -> Result<(), RequestFailure> {
@@ -103,17 +120,9 @@ impl Request {
                 }
             }
             (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
-                for request_hash in requested_hashes {
-                    if !hashes.contains_key(request_hash) {
-                        return Err(RequestFailure::InsufficientData);
-                    }
-                }
+                Self::validate_keys_equality(requested_hashes, hashes)?;
 
                 for (hash, data) in hashes {
-                    if !requested_hashes.contains(hash) {
-                        return Err(RequestFailure::ExcessiveData);
-                    }
-
                     if *hash != ethexe_db::hash(data) {
                         return Err(RequestFailure::DataHashMismatch);
                     }
@@ -122,17 +131,7 @@ impl Request {
                 Ok(())
             }
             (Request::ProgramCodeIds(requested_ids), Response::ProgramCodeIds(ids)) => {
-                for requested_pid in requested_ids {
-                    if !ids.contains_key(requested_pid) {
-                        return Err(RequestFailure::InsufficientData);
-                    }
-                }
-
-                for pid in ids.keys() {
-                    if !requested_ids.contains(pid) {
-                        return Err(RequestFailure::ExcessiveData);
-                    }
-                }
+                Self::validate_keys_equality(requested_ids, ids)?;
 
                 Ok(())
             }
@@ -486,7 +485,7 @@ mod tests {
             Err(RequestFailure::ExcessiveData)
         );
 
-        let request = Request::ProgramCodeIds(vec![ProgramId::from(1), ProgramId::from(2)]);
+        let request = Request::ProgramCodeIds([ProgramId::from(1), ProgramId::from(2)].into());
         let response = Response::ProgramCodeIds(
             [
                 (ProgramId::from(1), CodeId::default()),
@@ -515,11 +514,9 @@ mod tests {
             Err(RequestFailure::InsufficientData)
         );
 
-        let request = Request::ProgramCodeIds(vec![
-            ProgramId::from(1),
-            ProgramId::from(2),
-            ProgramId::from(3),
-        ]);
+        let request = Request::ProgramCodeIds(
+            [ProgramId::from(1), ProgramId::from(2), ProgramId::from(3)].into(),
+        );
         let response = Response::ProgramCodeIds(
             [
                 (ProgramId::from(1), CodeId::default()),
