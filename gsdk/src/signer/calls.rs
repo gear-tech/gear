@@ -245,7 +245,7 @@ impl SignerCalls {
         &self,
         spender: impl Into<AccountId32>,
         balance: u128,
-        programs: Option<Vec<ActorId>>,
+        programs: Option<Vec<ProgramId>>,
         code_uploading: bool,
         duration: u32,
     ) -> Result<TxInBlock> {
@@ -270,13 +270,14 @@ impl SignerCalls {
     }
 
     /// `pallet_gear_voucher::update`
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_voucher(
         &self,
         spender: impl Into<AccountId32>,
         voucher_id: VoucherId,
         move_ownership: Option<impl Into<AccountId32>>,
         balance_top_up: Option<u128>,
-        append_programs: Option<Option<Vec<ActorId>>>,
+        append_programs: Option<Option<Vec<ProgramId>>>,
         code_uploading: Option<bool>,
         prolong_duration: u32,
     ) -> Result<TxInBlock> {
