@@ -36,7 +36,7 @@ use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{collections::BTreeMap, future::Future, ops::Not, sync::Arc, time::Duration};
+use std::{future::Future, ops::Not, sync::Arc, time::Duration};
 
 /// ethexe service.
 pub struct Service {
@@ -63,8 +63,8 @@ pub enum NetworkMessage {
         blocks: Option<AggregatedCommitments<BlockCommitment>>,
     },
     RequestCommitmentsValidation {
-        codes: BTreeMap<Digest, CodeCommitment>,
-        blocks: BTreeMap<Digest, BlockCommitmentValidationRequest>,
+        codes: Vec<CodeCommitment>,
+        blocks: Vec<BlockCommitmentValidationRequest>,
     },
     ApproveCommitments {
         origin: Address,
@@ -441,7 +441,7 @@ impl Service {
         };
 
         let mut collection_round_timer: Option<_> = None;
-        let mut submission_round_timer: Option<_> = None;
+        let mut validation_round_timer: Option<_> = None;
 
         let mut roles = "Observer".to_string();
         if let Some(seq) = sequencer.as_ref() {
@@ -478,7 +478,7 @@ impl Service {
                     collection_round_timer = Some(tokio::time::sleep(block_time / 4));
                 }
                 _ = maybe_await(collection_round_timer.take()) => {
-                    log::debug!("Reach timeout after block event...");
+                    log::debug!("Collection round timeout, process collected commitments...");
 
                     Self::process_collected_commitments(
                         db.clone(),
@@ -487,10 +487,10 @@ impl Service {
                         network_sender.as_mut()
                     )?;
 
-                    submission_round_timer = Some(tokio::time::sleep(block_time / 4));
+                    validation_round_timer = Some(tokio::time::sleep(block_time / 4));
                 }
-                _ = maybe_await(submission_round_timer.take()) => {
-                    log::debug!("Reach timeout after collecting commitments...");
+                _ = maybe_await(validation_round_timer.take()) => {
+                    log::debug!("Validation round timeout, process validated commitments...");
 
                     Self::process_approved_commitments(sequencer.as_mut()).await?;
                 }
@@ -598,25 +598,21 @@ impl Service {
             return Ok(());
         };
 
-        let (codes_hash, blocks_hash) = sequencer.process_collected_commitments()?;
-
-        if codes_hash.is_none() && blocks_hash.is_none() {
-            return Ok(());
-        }
+        sequencer.process_collected_commitments()?;
 
         if maybe_validator.is_none() && maybe_network_sender.is_none() {
             return Ok(());
         }
 
-        let code_requests: BTreeMap<_, _> = codes_hash
-            .and_then(|hash| sequencer.get_candidate_code_commitments(hash))
-            .map(|commitments| commitments.map(|c| (c.as_digest(), c.clone())).collect())
-            .unwrap_or_default();
+        let code_requests: Vec<_> = sequencer
+            .get_candidate_code_commitments()
+            .cloned()
+            .collect();
 
-        let block_requests: BTreeMap<_, _> = blocks_hash
-            .and_then(|hash| sequencer.get_candidate_block_commitments(hash))
-            .map(|commitments| commitments.map(|c| (c.as_digest(), c.into())).collect())
-            .unwrap_or_default();
+        let block_requests: Vec<_> = sequencer
+            .get_candidate_block_commitments()
+            .map(BlockCommitmentValidationRequest::from)
+            .collect();
 
         if let Some(network_sender) = maybe_network_sender {
             log::debug!("Request validation of aggregated commitments...");
@@ -637,16 +633,16 @@ impl Service {
 
             let origin = validator.address();
 
-            if let Some(aggregated_hash) = codes_hash {
-                let signature =
-                    validator.validate_code_commitments(db.clone(), code_requests.into_values())?;
-                sequencer.receive_codes_signature(origin, aggregated_hash, signature)?;
+            if code_requests.is_empty().not() {
+                let digest = code_requests.as_digest();
+                let signature = validator.validate_code_commitments(db.clone(), code_requests)?;
+                sequencer.receive_codes_signature(origin, digest, signature)?;
             }
 
-            if let Some(aggregated_hash) = blocks_hash {
-                let signature = validator
-                    .validate_block_commitments(db.clone(), block_requests.into_values())?;
-                sequencer.receive_blocks_signature(origin, aggregated_hash, signature)?;
+            if block_requests.is_empty().not() {
+                let digest = block_requests.as_digest();
+                let signature = validator.validate_block_commitments(db.clone(), block_requests)?;
+                sequencer.receive_blocks_signature(origin, digest, signature)?;
             }
         }
 
@@ -696,34 +692,30 @@ impl Service {
                     return Ok(());
                 };
 
-                let codes_signature = if let Some(codes_hash) = codes
+                let codes = codes
                     .is_empty()
                     .not()
-                    .then(|| codes.keys().cloned().collect::<Vec<_>>().as_digest())
-                {
-                    let signature =
-                        validator.validate_code_commitments(db.clone(), codes.into_values())?;
-                    Some((codes_hash, signature))
-                } else {
-                    None
-                };
+                    .then(|| {
+                        let digest = codes.as_digest();
+                        let signature = validator.validate_code_commitments(db.clone(), codes)?;
+                        Ok((digest, signature))
+                    })
+                    .transpose()?;
 
-                let blocks_signature = if let Some(blocks_hash) = blocks
+                let blocks = blocks
                     .is_empty()
                     .not()
-                    .then(|| blocks.keys().cloned().collect::<Vec<_>>().as_digest())
-                {
-                    let signature =
-                        validator.validate_block_commitments(db.clone(), blocks.into_values())?;
-                    Some((blocks_hash, signature))
-                } else {
-                    None
-                };
+                    .then(|| {
+                        let digest = blocks.as_digest();
+                        let signature = validator.validate_block_commitments(db.clone(), blocks)?;
+                        Ok((digest, signature))
+                    })
+                    .transpose()?;
 
                 let message = NetworkMessage::ApproveCommitments {
                     origin: validator.address(),
-                    codes: codes_signature,
-                    blocks: blocks_signature,
+                    codes,
+                    blocks,
                 };
                 network_sender.publish_message(message.encode());
 
