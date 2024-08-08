@@ -39,7 +39,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     task::{Context, Poll},
 };
 use tokio::task::JoinHandle;
@@ -58,6 +58,9 @@ pub enum RequestKind {
 pub enum RequestFailure {
     TypeMismatch,
 }
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub struct RequestId(u64);
 
 #[derive(Debug, Eq, PartialEq, Encode, Decode)]
 pub enum Request {
@@ -101,10 +104,11 @@ impl Response {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+#[allow(clippy::enum_variant_names)]
 pub enum Event {
     RequestInitiated {
         /// The ID of request
-        request_id: OutboundRequestId,
+        request_id: RequestId,
         /// Kind of request
         kind: RequestKind,
     },
@@ -112,13 +116,13 @@ pub enum Event {
         /// Peer who responded to data request
         peer_id: PeerId,
         /// The ID of request
-        request_id: OutboundRequestId,
+        request_id: RequestId,
         /// Response itself
         response: Response,
     },
     RequestFailed {
         /// The ID of request
-        request_id: OutboundRequestId,
+        request_id: RequestId,
         /// Reason of request failure
         error: RequestFailure,
     },
@@ -128,30 +132,43 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    user_requests: Vec<Request>,
+    connections: HashMap<PeerId, HashSet<ConnectionId>>,
+    // requests
+    request_id_counter: u64,
+    user_requests: VecDeque<(RequestId, Request)>,
+    ongoing_requests: HashMap<OutboundRequestId, (RequestId, RequestKind)>,
+    // responses
     db: Database,
     ongoing_response: Option<(
         request_response::ResponseChannel<Response>,
         JoinHandle<Response>,
     )>,
-    ongoing_requests: HashMap<OutboundRequestId, RequestKind>,
-    connections: HashMap<PeerId, HashSet<ConnectionId>>,
 }
 
 impl Behaviour {
     pub fn new(cfg: request_response::Config, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], cfg),
-            user_requests: Vec::new(),
+            connections: HashMap::new(),
+            //
+            request_id_counter: 0,
+            user_requests: VecDeque::new(),
+            ongoing_requests: HashMap::new(),
+            //
             db,
             ongoing_response: None,
-            ongoing_requests: HashMap::new(),
-            connections: HashMap::new(),
         }
     }
 
-    pub fn request(&mut self, request: Request) {
-        self.user_requests.push(request);
+    fn next_request_id(&mut self) -> RequestId {
+        self.request_id_counter += 1;
+        RequestId(self.request_id_counter)
+    }
+
+    pub fn request(&mut self, request: Request) -> RequestId {
+        let request_id = self.next_request_id();
+        self.user_requests.push_back((request_id, request));
+        request_id
     }
 
     fn read_db(&self, request: Request) -> JoinHandle<Response> {
@@ -199,7 +216,7 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let request_kind = self
+                let (request_id, request_kind) = self
                     .ongoing_requests
                     .remove(&request_id)
                     .expect("unknown response");
@@ -349,14 +366,14 @@ impl NetworkBehaviour for Behaviour {
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         // TODO: way to choose peer
         if let Some(peer_id) = self.connections.keys().next() {
-            for request in self.user_requests.drain(..) {
+            if let Some((request_id, request)) = self.user_requests.pop_back() {
                 let request_kind = request.kind();
                 let outbound_request_id = self.inner.send_request(peer_id, request);
                 self.ongoing_requests
-                    .insert(outbound_request_id, request_kind);
+                    .insert(outbound_request_id, (request_id, request_kind));
 
                 return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestInitiated {
-                    request_id: outbound_request_id,
+                    request_id,
                     kind: request_kind,
                 }));
             }
