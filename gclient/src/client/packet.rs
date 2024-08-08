@@ -22,7 +22,7 @@ use parity_scale_codec::Encode;
 
 /// Message builder
 ///
-/// NOTE: The default signer is [`crate::client::ALICE`]
+/// NOTE: The default signer is `//Alice`
 pub struct Message {
     /// The maximum gas amount allowed to spend for the program
     /// creation and initialization;
