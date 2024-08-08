@@ -37,6 +37,8 @@ contract WrappedVara is
         setValuePerGas(_valuePerGas);
     }
 
+    function reinitialize() public onlyOwner reinitializer(2) {}
+
     function setValuePerGas(uint128 _valuePerGas) public onlyOwner {
         require(_valuePerGas > 0, "valuePerGas must be greater than zero");
         valuePerGas = _valuePerGas;
