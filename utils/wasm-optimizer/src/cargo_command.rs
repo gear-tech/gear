@@ -156,7 +156,10 @@ impl CargoCommand {
         }
 
         let status = cargo.status().context("unable to execute cargo command")?;
-        ensure!(status.success(), anyhow!("cargo run failed {status}"));
+        ensure!(
+            status.success(),
+            anyhow!("cargo command run failed: {status}")
+        );
 
         Ok(())
     }

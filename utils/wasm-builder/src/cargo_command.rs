@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-n// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,11 +16,9 @@ n// Copyright (C) 2022-2024 Gear Technologies Inc.
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::cargo_toolchain::Toolchain;
+use crate::{builder_error::BuilderError, cargo_toolchain::Toolchain};
 use anyhow::{ensure, Context, Result};
 use std::{env, path::PathBuf, process::Command};
-
-use crate::builder_error::BuilderError;
 
 /// Helper to deal with the `cargo` command.
 #[derive(Clone)]

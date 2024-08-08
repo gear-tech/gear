@@ -6814,11 +6814,11 @@ dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
  "chrono",
- "colored",
  "dirs 4.0.0",
  "gear-core",
  "gear-pwasm-utils",
  "gear-wasm-instrument",
+ "gear-wasm-optimizer",
  "gmeta",
  "log",
  "parity-wasm",
@@ -6828,10 +6828,7 @@ dependencies = [
  "thiserror",
  "toml 0.8.14",
  "wabt",
- "wasm-opt",
  "wasmi 0.14.0",
- "wasmparser-nostd 0.100.1",
- "which",
 ]
 
 [[package]]

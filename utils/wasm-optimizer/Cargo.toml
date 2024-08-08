@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 gear-wasm-instrument.workspace = true
-pwasm-utils.workspace = true
+pwasm-utils = { workspace = true, features = ["sign_ext"] }
 wasm-opt = { workspace = true, optional = true }
 regex.workspace = true
 log.workspace = true
