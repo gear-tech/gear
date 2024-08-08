@@ -33,5 +33,5 @@ pub use self::{
         },
         storage::{self, StorageInfo},
     },
-    impls::{option_to_value, Convert},
+    impls::Convert,
 };

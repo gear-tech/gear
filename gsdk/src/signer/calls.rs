@@ -22,12 +22,12 @@ use crate::{
     config::GearConfig,
     metadata::{
         calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
-        option_to_value,
         runtime_types::{
             pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
             sp_weights::weight_v2::Weight,
         },
         vara_runtime::RuntimeCall,
+        Convert,
     },
     Error, Result, TxInBlock,
 };
@@ -249,9 +249,11 @@ impl SignerCalls {
         code_uploading: bool,
         duration: u32,
     ) -> Result<TxInBlock> {
-        let programs_value = option_to_value(programs, |vec| {
-            Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
-        });
+        let programs_value = programs
+            .map(|vec| {
+                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
+            })
+            .convert();
 
         self.0
             .run_tx(
@@ -278,11 +280,16 @@ impl SignerCalls {
         code_uploading: Option<bool>,
         prolong_duration: u32,
     ) -> Result<TxInBlock> {
-        let append_programs_value = option_to_value(append_programs, |v| {
-            option_to_value(v, |vec| {
-                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
+        let append_programs_value = append_programs
+            .map(|o| {
+                o.map(|vec| {
+                    Value::unnamed_composite(
+                        vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
+                    )
+                })
+                .convert()
             })
-        });
+            .convert();
 
         self.0
             .run_tx(
@@ -290,10 +297,12 @@ impl SignerCalls {
                 vec![
                     Value::from_bytes(spender.into()),
                     Value::from_bytes(voucher_id.0),
-                    option_to_value(move_ownership, |v| Value::from_bytes(v.into())),
-                    option_to_value(balance_top_up, Value::u128),
+                    move_ownership
+                        .map(|v| Value::from_bytes(v.into()))
+                        .convert(),
+                    balance_top_up.map(Value::u128).convert(),
                     append_programs_value,
-                    option_to_value(code_uploading, Value::bool),
+                    code_uploading.map(Value::bool).convert(),
                     Value::from(prolong_duration),
                 ],
             )
@@ -334,6 +343,58 @@ impl SignerCalls {
         code: Vec<u8>,
     ) -> Result<TxInBlock> {
         let call = PrepaidCall::<u128>::UploadCode { code };
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Call,
+                vec![Value::from_bytes(voucher_id.0), call.into()],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::call`
+    pub async fn send_message_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<TxInBlock> {
+        let call = PrepaidCall::<u128>::SendMessage {
+            destination: destination.into(),
+            payload,
+            gas_limit,
+            value,
+            keep_alive,
+        };
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Call,
+                vec![Value::from_bytes(voucher_id.0), call.into()],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::call`
+    pub async fn send_reply_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        reply_to_id: MessageId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<TxInBlock> {
+        let call = PrepaidCall::<u128>::SendReply {
+            reply_to_id: reply_to_id.into(),
+            payload,
+            gas_limit,
+            value,
+            keep_alive,
+        };
 
         self.0
             .run_tx(
