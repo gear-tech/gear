@@ -1,7 +1,14 @@
 [package]
 name = "wasm-proc"
-version = "0.1.0"
+description = "Gear wasm processor"
+keywords = ["gear", "cli", "wasm"]
+categories = ["command-line-interface", "command-line-utilities", "wasm"]
+documentation = "https://docs.rs/wasm-proc"
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
