@@ -56,13 +56,22 @@ pub enum RequestKind {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum RequestFailure {
+    /// Request kind unequal to response kind
     TypeMismatch,
+    /// Hash field in request unequal to one in response
+    HashInequality,
+    /// Response contains more data than requested
+    ExcessiveData,
+    /// Response contains less data than requested
+    InsufficientData,
+    /// Hashed data unequal to its corresponding hash
+    DataHashMismatch,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct RequestId(u64);
 
-#[derive(Debug, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub enum Request {
     BlockEndProgramStates(H256),
     DataForHashes(BTreeSet<H256>),
@@ -75,6 +84,59 @@ impl Request {
             Request::BlockEndProgramStates(_) => RequestKind::BlockEndProgramStates,
             Request::DataForHashes(_) => RequestKind::DataForHashes,
             Request::ProgramCodeIds(_) => RequestKind::ProgramCodeIds,
+        }
+    }
+
+    fn validate_response(&self, resp: &Response) -> Result<(), RequestFailure> {
+        match (self, resp) {
+            (
+                Request::BlockEndProgramStates(requested_block_hash),
+                Response::BlockEndProgramStates {
+                    block_hash,
+                    states: _,
+                },
+            ) => {
+                if requested_block_hash == block_hash {
+                    Ok(())
+                } else {
+                    Err(RequestFailure::HashInequality)
+                }
+            }
+            (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
+                for request_hash in requested_hashes {
+                    if !hashes.contains_key(request_hash) {
+                        return Err(RequestFailure::InsufficientData);
+                    }
+                }
+
+                for (hash, data) in hashes {
+                    if !requested_hashes.contains(hash) {
+                        return Err(RequestFailure::ExcessiveData);
+                    }
+
+                    if *hash != ethexe_db::hash(data) {
+                        return Err(RequestFailure::DataHashMismatch);
+                    }
+                }
+
+                Ok(())
+            }
+            (Request::ProgramCodeIds(requested_ids), Response::ProgramCodeIds(ids)) => {
+                for requested_pid in requested_ids {
+                    if !ids.contains_key(requested_pid) {
+                        return Err(RequestFailure::InsufficientData);
+                    }
+                }
+
+                for pid in ids.keys() {
+                    if !requested_ids.contains(pid) {
+                        return Err(RequestFailure::ExcessiveData);
+                    }
+                }
+
+                Ok(())
+            }
+            (_, _) => Err(RequestFailure::TypeMismatch),
         }
     }
 }
@@ -91,16 +153,6 @@ pub enum Response {
     DataForHashes(BTreeMap<H256, Vec<u8>>),
     /// Program IDs and their corresponding code IDs
     ProgramCodeIds(BTreeMap<ProgramId, CodeId>),
-}
-
-impl Response {
-    fn kind(&self) -> RequestKind {
-        match self {
-            Response::BlockEndProgramStates { .. } => RequestKind::BlockEndProgramStates,
-            Response::DataForHashes { .. } => RequestKind::DataForHashes,
-            Response::ProgramCodeIds { .. } => RequestKind::ProgramCodeIds,
-        }
-    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -136,7 +188,7 @@ pub(crate) struct Behaviour {
     // requests
     request_id_counter: u64,
     user_requests: VecDeque<(RequestId, Request)>,
-    ongoing_requests: HashMap<OutboundRequestId, (RequestId, RequestKind)>,
+    ongoing_requests: HashMap<OutboundRequestId, (RequestId, Request)>,
     // responses
     db: Database,
     ongoing_response: Option<(
@@ -216,22 +268,18 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let (request_id, request_kind) = self
+                let (request_id, request) = self
                     .ongoing_requests
                     .remove(&request_id)
                     .expect("unknown response");
 
-                let event = if request_kind == response.kind() {
-                    Event::RequestSucceed {
+                let event = match request.validate_response(&response) {
+                    Ok(()) => Event::RequestSucceed {
                         request_id,
                         peer_id: peer,
                         response,
-                    }
-                } else {
-                    Event::RequestFailed {
-                        request_id,
-                        error: RequestFailure::TypeMismatch,
-                    }
+                    },
+                    Err(error) => Event::RequestFailed { request_id, error },
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -368,9 +416,9 @@ impl NetworkBehaviour for Behaviour {
         if let Some(peer_id) = self.connections.keys().next() {
             if let Some((request_id, request)) = self.user_requests.pop_back() {
                 let request_kind = request.kind();
-                let outbound_request_id = self.inner.send_request(peer_id, request);
+                let outbound_request_id = self.inner.send_request(peer_id, request.clone());
                 self.ongoing_requests
-                    .insert(outbound_request_id, (request_id, request_kind));
+                    .insert(outbound_request_id, (request_id, request));
 
                 return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestInitiated {
                     request_id,
@@ -416,6 +464,85 @@ mod tests {
         let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
         (swarm, db)
+    }
+
+    #[test]
+    fn validate_excessive_data() {
+        let hash1 = ethexe_db::hash(b"1");
+        let hash2 = ethexe_db::hash(b"2");
+        let hash3 = ethexe_db::hash(b"3");
+
+        let request = Request::DataForHashes([hash1, hash2].into());
+        let response = Response::DataForHashes(
+            [
+                (hash1, b"1".to_vec()),
+                (hash2, b"2".to_vec()),
+                (hash3, b"3".to_vec()),
+            ]
+            .into(),
+        );
+        assert_eq!(
+            request.validate_response(&response),
+            Err(RequestFailure::ExcessiveData)
+        );
+
+        let request = Request::ProgramCodeIds(vec![ProgramId::from(1), ProgramId::from(2)]);
+        let response = Response::ProgramCodeIds(
+            [
+                (ProgramId::from(1), CodeId::default()),
+                (ProgramId::from(2), CodeId::default()),
+                (ProgramId::from(3), CodeId::default()),
+            ]
+            .into(),
+        );
+        assert_eq!(
+            request.validate_response(&response),
+            Err(RequestFailure::ExcessiveData)
+        );
+    }
+
+    #[test]
+    fn validate_insufficient_data() {
+        let hash1 = ethexe_db::hash(b"1");
+        let hash2 = ethexe_db::hash(b"2");
+        let hash3 = ethexe_db::hash(b"3");
+
+        let request = Request::DataForHashes([hash1, hash2, hash3].into());
+        let response =
+            Response::DataForHashes([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into());
+        assert_eq!(
+            request.validate_response(&response),
+            Err(RequestFailure::InsufficientData)
+        );
+
+        let request = Request::ProgramCodeIds(vec![
+            ProgramId::from(1),
+            ProgramId::from(2),
+            ProgramId::from(3),
+        ]);
+        let response = Response::ProgramCodeIds(
+            [
+                (ProgramId::from(1), CodeId::default()),
+                (ProgramId::from(2), CodeId::default()),
+            ]
+            .into(),
+        );
+        assert_eq!(
+            request.validate_response(&response),
+            Err(RequestFailure::InsufficientData)
+        );
+    }
+
+    #[test]
+    fn validate_data_hash_mismatch() {
+        let hash1 = ethexe_db::hash(b"1");
+
+        let request = Request::DataForHashes([hash1].into());
+        let response = Response::DataForHashes([(hash1, b"2".to_vec())].into());
+        assert_eq!(
+            request.validate_response(&response),
+            Err(RequestFailure::DataHashMismatch)
+        );
     }
 
     #[tokio::test]
