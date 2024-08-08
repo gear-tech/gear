@@ -6442,6 +6442,7 @@ dependencies = [
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-wasm-instrument",
+ "log",
 ]
 
 [[package]]

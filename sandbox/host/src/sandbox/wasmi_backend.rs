@@ -366,7 +366,13 @@ pub fn invoke(
                         // in node binaries forever. If this panic occur, then we must increase stack memory size,
                         // or tune stack limit injection.
                         // see also https://github.com/wasmerio/wasmer/issues/4181
-                        unreachable!("Suppose that this can not happen, because we have a stack limit instrumentation in programs");
+                        let err_msg = format!(
+                            "invoke: Suppose that this can not happen, because we have a stack limit instrumentation in programs. \
+                            Export name - {export_name}, args - {args:?}",
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
                     }
                     error::Error::Sandbox(error.to_string())
                 })

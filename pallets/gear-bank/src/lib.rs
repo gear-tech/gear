@@ -21,11 +21,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
 
+extern crate alloc;
+
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
+
+use alloc::format;
 
 pub use pallet::*;
 
@@ -403,7 +407,26 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| {
+                let bank_address = T::BankAddress::get();
+                let reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                        &bank_address,
+                        Preservation::Expendable,
+                        Fortitude::Polite,
+                );
+                let unused_value = UnusedValue::<T>::get();
+                let finalize_value = OnFinalizeValue::<T>::get();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::withdraw_gas: withdraw failed. \
+                    Account id - {account_id:?}, amount - {amount}, bank address - {bank_address:?}, \
+                    reducible balance - {reducible_balance:?}, unused value - {unused_value:?}, finalize value - {finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -413,8 +436,12 @@ pub mod pallet {
             amount: u64,
             multiplier: GasMultiplier<T>,
         ) -> Result<(), Error<T>> {
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+            let block_author = Authorship::<T>::author().unwrap_or_else(|| {
+                let err_msg = "pallet_gear_bank::spend_gas: Failed to find block author";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Self::spend_gas_to(&block_author, account_id, amount, multiplier)
         }
@@ -431,8 +458,26 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
-            Self::withdraw_on_finalize(to, value)
-                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
+                let bank_address = T::BankAddress::get();
+                let reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                        &bank_address,
+                        Preservation::Expendable,
+                        Fortitude::Polite,
+                );
+                let unused_value = UnusedValue::<T>::get();
+                let finalize_value = OnFinalizeValue::<T>::get();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::spend_gas_to: withdraw on finalize failed. \
+                    Account id - {account_id:?}, amount - {amount}, bank address - {bank_address:?}, \
+                    reducible balance - {reducible_balance:?}, unused value - {unused_value:?}, finalize value - {finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -501,7 +546,26 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| {
+                let bank_address = T::BankAddress::get();
+                let reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                        &bank_address,
+                        Preservation::Expendable,
+                        Fortitude::Polite,
+                );
+                let unused_value = UnusedValue::<T>::get();
+                let finalize_value = OnFinalizeValue::<T>::get();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::withdraw_value: withdraw failed. \
+                    Account id - {account_id:?}, value - {value:?}, bank address - {bank_address:?}, \
+                    reducible balance - {reducible_balance:?}, unused value - {unused_value:?}, finalize value - {finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -522,7 +586,26 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(destination, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(destination, value).unwrap_or_else(|e| {
+                let bank_address = T::BankAddress::get();
+                let reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                        &bank_address,
+                        Preservation::Expendable,
+                        Fortitude::Polite,
+                );
+                let unused_value = UnusedValue::<T>::get();
+                let finalize_value = OnFinalizeValue::<T>::get();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::transfer_value: withdraw failed. \
+                    Account id - {account_id:?}, destination - {destination:?}, value - {value:?}, bank address - {bank_address:?}, \
+                    reducible balance - {reducible_balance:?}, unused value - {unused_value:?}, finalize value - {finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }

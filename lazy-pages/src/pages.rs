@@ -73,7 +73,16 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         Page::<S>::max_value(ctx)
             .raw
             .checked_add(1)
-            .unwrap_or_else(|| unreachable!("Page size == 1 byte is restricted"))
+            .unwrap_or_else(|| {
+                let err_msg = format!(
+                    "Bound::upper: Page size == 1 byte is restricted. \
+                    Page max value - {}",
+                    Page::<S>::max_value(ctx).raw
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            })
     }
     fn new<M: SizeManager>(ctx: &M, raw: u32) -> Option<Self> {
         let page = match raw.cmp(&Self::upper(ctx)) {
@@ -89,7 +98,14 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         (raw as usize)
             .checked_mul(Page::<S>::size(ctx) as usize)
             .unwrap_or_else(|| {
-                unreachable!("changing page size during program execution is restricted")
+                let err_msg = format!(
+                    "Bound::offset: changing page size during program execution is restricted. \
+                    Page number - {raw}, page size - {}",
+                    Page::<S>::size(ctx)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
             })
     }
     fn convert<M: SizeManager, S1: SizeNumber>(self, ctx: &M) -> PagesAmount<S1> {
@@ -143,9 +159,17 @@ impl<S: SizeNumber> Page<S> {
 
     /// Returns offset of page.
     pub fn offset<M: SizeManager>(&self, ctx: &M) -> u32 {
-        self.raw
-            .checked_mul(Self::size(ctx))
-            .unwrap_or_else(|| unreachable!("`self` page size has been changed - it's restricted"))
+        self.raw.checked_mul(Self::size(ctx)).unwrap_or_else(|| {
+            let err_msg = format!(
+                "Bound::offset: `self` page size has been changed - it's restricted. \
+                    Page number - {}, page size - {}",
+                self.raw,
+                Self::size(ctx)
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        })
     }
 
     /// Returns offset of end of page.
@@ -154,7 +178,16 @@ impl<S: SizeNumber> Page<S> {
         self.raw
             .checked_mul(size)
             .and_then(|offset| offset.checked_add(size - 1))
-            .unwrap_or_else(|| unreachable!("`self` page size has been changed - it's restricted"))
+            .unwrap_or_else(|| {
+                let err_msg = format!(
+                    "Bound::end_offset: `self` page size has been changed - it's restricted. \
+                    Page number - {}, page size - {size}",
+                    self.raw,
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            })
     }
 
     /// Creates page from offset.

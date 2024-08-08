@@ -481,3 +481,65 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    // Checking node that have external data do not have root id
+    fn asserts_node_have_either_external_data_or_root_id() {
+        let nodes_with_external_data: [gas_provider::node::GasNode<i32, i32, i32, i32>; 3] = [
+            GasNode::External {
+                id: Default::default(),
+                multiplier: Default::default(),
+                value: Default::default(),
+                lock: Default::default(),
+                system_reserve: Default::default(),
+                refs: Default::default(),
+                consumed: Default::default(),
+                deposit: Default::default(),
+            },
+            GasNode::Cut {
+                id: Default::default(),
+                multiplier: Default::default(),
+                value: Default::default(),
+                lock: Default::default(),
+            },
+            GasNode::Reserved {
+                id: Default::default(),
+                multiplier: Default::default(),
+                value: Default::default(),
+                lock: Default::default(),
+                refs: Default::default(),
+                consumed: Default::default(),
+            },
+        ];
+
+        for node in nodes_with_external_data {
+            assert!(node.external_data().is_some() || node.root_id().is_none());
+        }
+
+        let nodes_with_root_id: [gas_provider::node::GasNode<i32, i32, i32, i32>; 2] = [
+            GasNode::SpecifiedLocal {
+                parent: Default::default(),
+                root: Default::default(),
+                value: Default::default(),
+                lock: Default::default(),
+                system_reserve: Default::default(),
+                refs: Default::default(),
+                consumed: Default::default(),
+            },
+            GasNode::UnspecifiedLocal {
+                parent: Default::default(),
+                root: Default::default(),
+                lock: Default::default(),
+                system_reserve: Default::default(),
+            },
+        ];
+
+        for node in nodes_with_root_id {
+            assert!(node.external_data().is_none() || node.root_id().is_some());
+        }
+    }
+}

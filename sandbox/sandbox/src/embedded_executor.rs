@@ -346,9 +346,15 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
                                     *ret = val;
                                 }
-                                _ => unreachable!(
-                                    "embedded executor doesn't support multi-value return"
-                                ),
+                                _results => {
+                                    let err_msg = format!(
+                                        "Instance::new: embedded executor doesn't support multi-value return. \
+                                        Function name - {key:?}, params - {params:?}, results - {_results:?}"
+                                    );
+
+                                    log::error!("{err_msg}");
+                                    unreachable!("{err_msg}")
+                                }
                             }
 
                             gas.set(&mut caller.0, RuntimeValue::I64(val.gas))
@@ -412,7 +418,15 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                 let val = to_interface(val.clone()).ok_or(Error::Execution)?;
                 Ok(ReturnValue::Value(val))
             }
-            _ => unreachable!(),
+            _results => {
+                let err_msg = format!(
+                    "Instance::invoke: embedded executor doesn't support multi-value return. \
+                    Function name - {name:?}, params - {args:?}, results - {_results:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
@@ -439,7 +453,10 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
     }
 
     fn get_instance_ptr(&self) -> HostPointer {
-        unreachable!("Must not be called for embedded executor")
+        let err_msg = "Must not be called for embedded executor";
+
+        log::error!("{err_msg}");
+        unreachable!("{err_msg}")
     }
 }
 

@@ -22,6 +22,7 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    format,
     vec::Vec,
 };
 use core::marker::PhantomData;
@@ -327,7 +328,14 @@ impl<Context, LP: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L
         // Add new allocations to lazy pages.
         // Protect all lazy pages including new allocations.
         let new_mem_addr = mem.get_buffer_host_addr(ctx).unwrap_or_else(|| {
-            unreachable!("Memory size cannot be zero after grow is applied for memory")
+            let err_msg = format!(
+                "LazyGrowHandler::after_grow_action: Memory size cannot be zero after grow is applied for memory. \
+                Old memory address - {:?}, old memory size - {:?}",
+                self.old_mem_addr, self.old_mem_size
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         });
         LP::update_lazy_pages_and_protect_again(
             ctx,
@@ -799,14 +807,38 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             CounterType::GasLimit => gas.checked_sub(amount),
             CounterType::GasAllowance => allowance.checked_sub(amount),
         }
-        .unwrap_or_else(|| unreachable!("Checked above"));
+        .unwrap_or_else(|| {
+            let err_msg = format!(
+                "CounterOwner::decrease_current_counter_to: Checked sub operation overflowed. \
+                Message id - {message_id}, program id - {program_id}, current counter type - {current_counter_type:?}, \
+                gas - {gas}, allowance - {allowance}, amount - {amount}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, current_counter_type = self.current_counter_type()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
-            unreachable!("Tried to set gas limit left bigger than before")
+            let err_msg = format!(
+                "CounterOwner::decrease_current_counter_to: Tried to set gas limit left bigger than before. \
+                Message id - {message_id}, program id - {program_id}, gas counter - {gas_counter:?}, diff - {diff}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_counter = self.context.gas_counter
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         }
 
         if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
-            unreachable!("Tried to set gas allowance left bigger than before")
+            let err_msg = format!(
+                "CounterOwner::decrease_current_counter_to: Tried to set gas allowance left bigger than before. \
+                Message id - {message_id}, program id - {program_id}, gas allowance counter - {gas_allowance_counter:?}, diff - {diff}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_allowance_counter = self.context.gas_allowance_counter,
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         }
     }
 

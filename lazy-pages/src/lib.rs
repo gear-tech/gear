@@ -202,7 +202,13 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
         let start: GearPage = exec_ctx.stack_end.to_page(rt_ctx);
         let end: GearPagesAmount = exec_ctx.wasm_mem_size.convert(rt_ctx);
         let interval = start.to_end_interval(rt_ctx, end).unwrap_or_else(|| {
-            unreachable!("`stack_end` must be less or equal to `wasm_mem_size`")
+            let err_msg = format!(
+                "set_lazy_pages_protection: `stack_end` must be less or equal to `wasm_mem_size`. \
+                Stack end start - {start:?}, wasm memory size - {end:?}",
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         });
         let pages = exec_ctx.write_accessed_pages.voids(interval);
         mprotect::mprotect_pages(mem_addr, pages, rt_ctx, false, false)?;

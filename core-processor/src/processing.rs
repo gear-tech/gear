@@ -28,6 +28,7 @@ use crate::{
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{
+    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -284,10 +285,15 @@ fn process_error(
         let (err, err_payload) = case.to_reason_and_payload();
 
         // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload
-            .into_bytes()
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("Error message is too large"));
+        let err_payload = err_payload.into_bytes().try_into().unwrap_or_else(|_| {
+            let (_, err_payload) = case.to_reason_and_payload();
+            let err_msg =
+                format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         // # Safety
         //

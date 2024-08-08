@@ -184,7 +184,14 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                         page,
                         buffer_as_slice,
                     )? {
-                        unreachable!("`read` returns, that page has no data, but `exist` returns that there is one");
+                        let err_msg = format!(
+                            "process_lazy_pages: `read` returns, that page has no data, but `exist` returns that there is one. \
+                            Page - {page:?}, program storage prefix - {:?}",
+                            &exec_ctx.program_storage_prefix,
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
                     }
                     true
                 } else {

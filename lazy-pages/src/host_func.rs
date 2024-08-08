@@ -188,7 +188,15 @@ pub fn pre_process_memory_accesses(
             Error::WasmMemAddrIsNotSet | Error::OutOfWasmMemoryAccess => {
                 ProcessAccessError::OutOfBounds
             }
-            err => unreachable!("Lazy-pages unexpected error: {}", err),
+            err => {
+                let err_msg = format!(
+                    "pre_process_memory_accesses: unexpected error. \
+                    Reads - {reads:?}, writes - {writes:?}, gas counter - {gas_counter}. Got error - {err}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         })
         .map(|status| match status {
             Status::Normal => Ok(()),
