@@ -19,7 +19,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-pub use gear_wasm_optimizer::CargoCommand;
+pub use gear_wasm_optimizer::{self as optimize, CargoCommand};
 pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 use crate::wasm_project::WasmProject;
