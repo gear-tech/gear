@@ -22,6 +22,7 @@
 
 pub mod gas_provider;
 pub mod mailbox;
+pub mod task_pool;
 
 use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter};
 

@@ -22,6 +22,7 @@ use crate::{
     log::{CoreLog, RunResult},
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
+    task_pool::manager::TaskPoolManager,
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, MAILBOX_THRESHOLD,
     MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
@@ -38,7 +39,7 @@ use core_processor::{
     },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
-use gear_common::{auxiliary::mailbox::MailboxErrorImpl, Origin};
+use gear_common::{auxiliary::mailbox::MailboxErrorImpl, scheduler::ScheduledTask, Origin};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
@@ -238,6 +239,7 @@ pub(crate) struct ExtManager {
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
+    pub(crate) task_pool: TaskPoolManager,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_list_schedules: BTreeMap<u32, Vec<(ProgramId, MessageId)>>,
     pub(crate) gas_tree: GasTreeManager,
@@ -1266,7 +1268,7 @@ impl JournalHandler for ExtManager {
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        _program_id: ProgramId,
+        program_id: ProgramId,
         amount: u64,
         duration: u32,
     ) {
@@ -1281,6 +1283,20 @@ impl JournalHandler for ExtManager {
         self.gas_tree
             .reserve_gas(message_id, reservation_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+        let expected_bn = self.blocks_manager.get().height + duration;
+        self.task_pool.add(
+            expected_bn,
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+        ).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: failed adding task for gas reservation removal. \
+                Expected bn - {bn:?}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
+                bn = expected_bn
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
     }
 
     fn unreserve_gas(
