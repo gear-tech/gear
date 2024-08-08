@@ -16,6 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod bail;
-mod debug;
-pub(crate) mod log;
+/// Prints a string to the log.
+///
+/// Shortcut of [`crate::msg::log_str`] with formatter.
+///
+/// # Example
+///
+/// ```no_run
+/// # let payload = &[];
+/// // in program
+/// let _ = gstd::log!("the answer is {}", 42);
+///
+/// // on client side, after extracting payload from events.
+/// assert_eq!(
+///     String::from_utf8_lossy(payload),
+///     "the answer is 42".to_string()
+/// )
+/// ```
+#[macro_export]
+macro_rules! log {
+    ($($arg:tt)*) => {{
+        $crate::msg::log_str($crate::format!($($arg)*))
+    }};
+}

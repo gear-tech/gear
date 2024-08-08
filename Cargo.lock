@@ -3552,6 +3552,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-logs"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "gtest",
+]
+
+[[package]]
 name = "demo-messenger"
 version = "0.1.0"
 dependencies = [

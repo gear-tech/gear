@@ -167,6 +167,7 @@ pub use gcore::{
     ReservationId, Ss58Address, Value,
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
+pub use hex;
 pub use prelude::*;
 pub use reservations::*;
 
