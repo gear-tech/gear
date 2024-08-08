@@ -105,7 +105,8 @@ mod tests {
 
         let from = 42;
 
-        let res = program.send(from, InitMessage::BTree);
+        program.send(from, InitMessage::BTree);
+        let res = system.run_next_block();
         let log = Log::builder().source(program.id()).dest(from);
         assert!(res.contains(&log));
     }
@@ -119,7 +120,7 @@ mod tests {
 
         let from = 42;
 
-        let _res = program.send(from, InitMessage::BTree);
+        program.send(from, InitMessage::BTree);
 
         IntoIterator::into_iter([
             Request::Insert(0, 1),
@@ -131,7 +132,10 @@ mod tests {
             Request::Clear,
             Request::List,
         ])
-        .map(|r| program.send(from, r))
+        .map(|r| {
+            program.send(from, r);
+            system.run_next_block()
+        })
         .zip(IntoIterator::into_iter([
             Reply::Value(None),
             Reply::Value(Some(1)),

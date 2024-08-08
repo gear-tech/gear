@@ -53,7 +53,8 @@ mod tests {
 
         let from = 42;
 
-        let res = program.send_bytes(from, b"init");
+        let msg_id = program.send_bytes(from, b"init");
+        let res = system.run_next_block();
         let log = Log::builder().source(program.id()).dest(from);
         assert!(res.contains(&log));
     }
@@ -66,26 +67,28 @@ mod tests {
         let from = 42;
 
         let program = Program::current(&system);
-        let _res = program.send_bytes(from, b"init");
+        program.send_bytes(from, b"init");
 
         let msg_1_echo_wait = 100;
-        let res = program.send(from, Request::EchoWait(msg_1_echo_wait));
-        let msg_id_1 = res.sent_message_id();
+        let msg_id_1 = program.send(from, Request::EchoWait(msg_1_echo_wait));
+        let res = system.run_next_block();
         assert!(res.log().is_empty());
 
         let msg_2_echo_wait = 200;
-        let res = program.send(from, Request::EchoWait(msg_2_echo_wait));
-        let msg_id_2 = res.sent_message_id();
+        let msg_id_2 = program.send(from, Request::EchoWait(msg_2_echo_wait));
+        let res = system.run_next_block();
         assert!(res.log().is_empty());
 
-        let res = program.send(from, Request::Wake(msg_id_1.into()));
+        program.send(from, Request::Wake(msg_id_1.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program.id())
             .dest(from)
             .payload(msg_1_echo_wait);
         assert!(res.contains(&log));
 
-        let res = program.send(from, Request::Wake(msg_id_2.into()));
+        program.send(from, Request::Wake(msg_id_2.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program.id())
             .dest(from)
@@ -101,30 +104,32 @@ mod tests {
         let from = 42;
 
         let program_1 = Program::current(&system);
-        let _res = program_1.send_bytes(from, b"init");
+        program_1.send_bytes(from, b"init");
 
         let program_2 = Program::current(&system);
-        let _res = program_2.send_bytes(from, b"init");
+        program_2.send_bytes(from, b"init");
 
         let msg_1_echo_wait = 100;
-        let res = program_1.send(from, Request::EchoWait(msg_1_echo_wait));
-        let msg_id_1 = res.sent_message_id();
+        let msg_id_1 = program_1.send(from, Request::EchoWait(msg_1_echo_wait));
+        let res = system.run_next_block();
         assert!(res.log().is_empty());
 
         let msg_2_echo_wait = 200;
-        let res = program_2.send(from, Request::EchoWait(msg_2_echo_wait));
-        let msg_id_2 = res.sent_message_id();
+        let msg_id_2 = program_2.send(from, Request::EchoWait(msg_2_echo_wait));
+        let res = system.run_next_block();
         assert!(res.log().is_empty());
 
         // try to wake other messages
-        let res = program_2.send(from, Request::Wake(msg_id_1.into()));
+        program_2.send(from, Request::Wake(msg_id_1.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_2.id())
             .dest(from)
             .payload_bytes([]);
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Wake(msg_id_2.into()));
+        program_1.send(from, Request::Wake(msg_id_2.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
@@ -132,14 +137,16 @@ mod tests {
         assert!(res.contains(&log));
 
         // wake msg_1 for program_1 and msg_2 for program_2
-        let res = program_1.send(from, Request::Wake(msg_id_1.into()));
+        program_1.send(from, Request::Wake(msg_id_1.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(msg_1_echo_wait);
         assert!(res.contains(&log));
 
-        let res = program_2.send(from, Request::Wake(msg_id_2.into()));
+        program_2.send(from, Request::Wake(msg_id_2.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_2.id())
             .dest(from)

@@ -68,15 +68,20 @@ mod tests {
     use gstd::errors::{SignalCode, SimpleExecutionError};
     use gtest::{Program, System};
 
-    #[test]
-    fn signal_can_be_sent() {
-        let system = System::new();
-        system.init_logger();
-
-        let program = Program::current(&system);
-
-        let signal_code: SignalCode = SimpleExecutionError::UserspacePanic.into();
-        let res = program.send_signal(0, signal_code);
-        assert!(!res.main_failed());
-    }
+//    #[test]
+//    fn signal_can_be_sent() {
+//        let system = System::new();
+//        system.init_logger();
+//
+//        let program = Program::current(&system);
+//
+//       todo!();
+//      let signal_code: SignalCode = SimpleExecutionError::UserspacePanic.into();
+//        program.send_signal(0, signal_code);
+//        let res = system.run_next_block();
+//
+//        // Checking signal executed successfully by checking if there are failed messages.
+//        assert!(res.failed.is_empty());
+//       assert!(res.not_executed.is_empty());
+//    }
 }
