@@ -972,6 +972,16 @@ where
         let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
 
+        // Reserving value from source for future transfer or unreserve.
+        GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "send_user_message: failed depositting value on gear bank. \
+                                From - {from:?}, value - {value:?}. Got error - {e:?}",
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
         let expiration = if message.details().is_none() && gas_limit >= threshold {
@@ -997,17 +1007,6 @@ where
                         Origin node - {msg_id}, cut node id - {id}, amount - {gas_limit}. \
                         Got error - {e:?}",
                     id = message.id()
-                );
-
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}");
-            });
-
-            // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
-                let err_msg = format!(
-                    "send_user_message: failed depositting value on gear bank. \
-                        From - {from:?}, value - {value:?}. Got error - {e:?}",
                 );
 
                 log::error!("{err_msg}");
@@ -1074,16 +1073,15 @@ where
             // Note that we have no guarantees of the user account to exist. Since no minimum
             // transfer value is enforced, the transfer can fail. Handle it gracefully.
             // TODO #4018 Introduce a safer way to handle this.
-            GearBank::<T>::deposit_value(&from, value, false)
-                .and_then(|_| GearBank::<T>::transfer_value(&from, &to, value))
-                .unwrap_or_else(|e| {
-                    // errors are ruled out by the protocol guarantees.
-                    let err_msg =
-                        format!("send_user_message: failed to transfer value. Got error: {e:?}");
+            GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
+                // errors are ruled out by the protocol guarantees.
+                let err_msg =
+                    format!("send_user_message: failed to transfer value. Got error: {e:?}");
 
-                    log::error!("{err_msg}");
-                    unreachable!("{err_msg}");
-                });
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
             if message.details().is_none() {
                 // Creating auto reply message.
                 let reply_message = ReplyMessage::auto(message.id());
