@@ -2137,7 +2137,7 @@ dependencies = [
  "clap 4.5.9",
  "colored",
  "etc",
- "gear-wasm-builder",
+ "gear-wasm-optimizer",
  "glob 0.3.1",
  "gtest",
  "serde",
