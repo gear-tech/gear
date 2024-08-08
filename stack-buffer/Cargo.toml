@@ -6,6 +6,7 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [build-dependencies]
 cc = { version = "1.0", optional = true }
