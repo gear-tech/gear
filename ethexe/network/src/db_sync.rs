@@ -27,7 +27,9 @@ use libp2p::{
     core::Endpoint,
     futures::FutureExt,
     request_response,
-    request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
+    request_response::{
+        InboundFailure, Message, OutboundFailure, OutboundRequestId, ProtocolSupport,
+    },
     swarm::{
         behaviour::ConnectionEstablished, CloseConnection, ConnectionClosed, ConnectionDenied,
         ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent, THandlerOutEvent,
@@ -45,11 +47,33 @@ use tokio::task::JoinHandle;
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestKind {
+    BlockEndProgramStates,
+    DataForHashes,
+    ProgramCodeIds,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum RequestFailure {
+    TypeMismatch,
+}
+
+#[derive(Debug, Eq, PartialEq, Encode, Decode)]
 pub enum Request {
     BlockEndProgramStates(H256),
     DataForHashes(BTreeSet<H256>),
     ProgramCodeIds(Vec<ProgramId>),
+}
+
+impl Request {
+    fn kind(&self) -> RequestKind {
+        match self {
+            Request::BlockEndProgramStates(_) => RequestKind::BlockEndProgramStates,
+            Request::DataForHashes(_) => RequestKind::DataForHashes,
+            Request::ProgramCodeIds(_) => RequestKind::ProgramCodeIds,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Encode, Decode)]
@@ -66,13 +90,37 @@ pub enum Response {
     ProgramCodeIds(BTreeMap<ProgramId, CodeId>),
 }
 
+impl Response {
+    fn kind(&self) -> RequestKind {
+        match self {
+            Response::BlockEndProgramStates { .. } => RequestKind::BlockEndProgramStates,
+            Response::DataForHashes { .. } => RequestKind::DataForHashes,
+            Response::ProgramCodeIds { .. } => RequestKind::ProgramCodeIds,
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum Event {
+    RequestInitiated {
+        /// The ID of request
+        request_id: OutboundRequestId,
+        /// Kind of request
+        kind: RequestKind,
+    },
     RequestSucceed {
         /// Peer who responded to data request
         peer_id: PeerId,
+        /// The ID of request
+        request_id: OutboundRequestId,
         /// Response itself
         response: Response,
+    },
+    RequestFailed {
+        /// The ID of request
+        request_id: OutboundRequestId,
+        /// Reason of request failure
+        error: RequestFailure,
     },
 }
 
@@ -86,6 +134,7 @@ pub(crate) struct Behaviour {
         request_response::ResponseChannel<Response>,
         JoinHandle<Response>,
     )>,
+    ongoing_requests: HashMap<OutboundRequestId, RequestKind>,
     connections: HashMap<PeerId, HashSet<ConnectionId>>,
 }
 
@@ -96,6 +145,7 @@ impl Behaviour {
             user_requests: Vec::new(),
             db,
             ongoing_response: None,
+            ongoing_requests: HashMap::new(),
             connections: HashMap::new(),
         }
     }
@@ -145,14 +195,28 @@ impl Behaviour {
                 peer,
                 message:
                     Message::Response {
-                        request_id: _,
+                        request_id,
                         response,
                     },
             } => {
-                let event = Event::RequestSucceed {
-                    peer_id: peer,
-                    response,
+                let request_kind = self
+                    .ongoing_requests
+                    .remove(&request_id)
+                    .expect("unknown response");
+
+                let event = if request_kind == response.kind() {
+                    Event::RequestSucceed {
+                        request_id,
+                        peer_id: peer,
+                        response,
+                    }
+                } else {
+                    Event::RequestFailed {
+                        request_id,
+                        error: RequestFailure::TypeMismatch,
+                    }
                 };
+
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
             request_response::Event::OutboundFailure {
@@ -286,7 +350,15 @@ impl NetworkBehaviour for Behaviour {
         // TODO: way to choose peer
         if let Some(peer_id) = self.connections.keys().next() {
             for request in self.user_requests.drain(..) {
-                let _outbound_request_id = self.inner.send_request(peer_id, request);
+                let request_kind = request.kind();
+                let outbound_request_id = self.inner.send_request(peer_id, request);
+                self.ongoing_requests
+                    .insert(outbound_request_id, request_kind);
+
+                return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestInitiated {
+                    request_id: outbound_request_id,
+                    kind: request_kind,
+                }));
             }
         }
 
@@ -321,10 +393,11 @@ mod tests {
     use libp2p::Swarm;
     use libp2p_swarm_test::SwarmExt;
 
-    fn new_swarm() -> (Swarm<Behaviour>, Database) {
+    async fn new_swarm() -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default());
         let behaviour = Behaviour::new(request_response::Config::default(), db.clone());
-        let swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
+        let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
+        swarm.listen().with_memory_addr_external().await;
         (swarm, db)
     }
 
@@ -332,16 +405,14 @@ mod tests {
     async fn smoke() {
         init_logger();
 
-        let (mut alice, alice_db) = new_swarm();
-        let (mut bob, bob_db) = new_swarm();
-        bob.listen().with_memory_addr_external().await;
+        let (mut alice, _alice_db) = new_swarm().await;
+        let (mut bob, bob_db) = new_swarm().await;
         let bob_id = *bob.local_peer_id();
 
         let hello_hash = bob_db.write(b"hello");
         let world_hash = bob_db.write(b"world");
 
         alice.connect(&mut bob).await;
-
         tokio::spawn(bob.loop_on_next());
 
         alice
@@ -349,10 +420,22 @@ mod tests {
             .request(Request::DataForHashes([hello_hash, world_hash].into()));
 
         let event = alice.next_behaviour_event().await;
+        let request_id = if let Event::RequestInitiated {
+            request_id: outbound_request_id,
+            kind: RequestKind::DataForHashes,
+        } = event
+        {
+            outbound_request_id
+        } else {
+            unreachable!()
+        };
+
+        let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
             Event::RequestSucceed {
                 peer_id: bob_id,
+                request_id,
                 response: Response::DataForHashes(
                     [
                         (hello_hash, b"hello".to_vec()),
@@ -362,5 +445,67 @@ mod tests {
                 )
             }
         )
+    }
+
+    #[tokio::test]
+    async fn request_response_type_mismatch() {
+        init_logger();
+
+        let (mut alice, _alice_db) = new_swarm().await;
+        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+            InnerBehaviour::new(
+                [(STREAM_PROTOCOL, ProtocolSupport::Full)],
+                request_response::Config::default(),
+            )
+        });
+        bob.connect(&mut alice).await;
+
+        alice
+            .behaviour_mut()
+            .request(Request::DataForHashes([].into()));
+
+        let event = alice.next_behaviour_event().await;
+        let request_id = if let Event::RequestInitiated {
+            request_id,
+            kind: RequestKind::DataForHashes,
+        } = event
+        {
+            request_id
+        } else {
+            unreachable!()
+        };
+
+        loop {
+            tokio::select! {
+                event = bob.next_behaviour_event() => {
+                    match event {
+                        request_response::Event::Message {
+                            message:
+                                Message::Request {
+                                    channel, request, ..
+                                },
+                            ..
+                        } => {
+                            assert_eq!(request, Request::DataForHashes([].into()));
+                            let _res = bob
+                                .behaviour_mut()
+                                .send_response(channel, Response::ProgramCodeIds([].into()));
+                        }
+                        request_response::Event::ResponseSent { .. } => continue,
+                        e => unreachable!("unexpected event: {:?}", e),
+                    }
+                }
+                event = alice.next_behaviour_event() => {
+                    assert_eq!(
+                        event,
+                        Event::RequestFailed {
+                            request_id,
+                            error: RequestFailure::TypeMismatch
+                        }
+                    );
+                    break;
+                }
+            }
+        }
     }
 }
