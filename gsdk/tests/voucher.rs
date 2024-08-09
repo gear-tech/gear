@@ -23,7 +23,7 @@ use gsdk::{
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
-use utils::dev_node;
+use utils::{alice_account_id, dev_node};
 
 mod utils;
 
@@ -35,7 +35,7 @@ async fn test_issue_voucher() -> Result<()> {
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
-    let account_id = signer.account_id();
+    let account_id = alice_account_id();
     let voucher_initial_balance = 100_000_000_000_000;
 
     // act
