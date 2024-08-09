@@ -888,11 +888,14 @@ mod tests {
 
         let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
 
-        let run_result = prog.send(user_id, scheme);
-        assert!(!run_result.main_failed());
-        let run_result = prog.send(user_id, *b"Hello");
+        let msg_id = prog.send(user_id, scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
-        run_result.assert_panicked_with(panic_message);
+        let msg_id = prog.send(user_id, *b"Hello");
+        let res = sys.run_next_block();
+
+        res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
         assert!(value.is_ok());
