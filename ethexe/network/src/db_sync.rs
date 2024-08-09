@@ -261,6 +261,7 @@ impl OngoingRequest {
         }
     }
 
+    /// Peer failed to handle request, so we create new ongoing request for the next round.
     fn peer_failed(mut self, peer: PeerId) -> Self {
         self.tried_peers.insert(peer);
         self
