@@ -43,7 +43,7 @@ pub struct Service {
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
-    sync_mode: SyncMode,
+    _sync_mode: SyncMode,
 
     // Optional services
     network: Option<ethexe_network::NetworkService>,
@@ -157,7 +157,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.block_time,
-            sync_mode: config.sync_mode,
+            _sync_mode: config.sync_mode,
         })
     }
 
@@ -197,7 +197,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
-            sync_mode,
+            _sync_mode: sync_mode,
         }
     }
 
@@ -389,7 +389,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time,
-            sync_mode: _,
+            _sync_mode,
         } = self;
 
         if let Some(metrics_service) = metrics_service {
