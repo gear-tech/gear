@@ -102,20 +102,15 @@ impl Validator {
         db: &impl CodesStorage,
         requests: impl IntoIterator<Item = CodeCommitment>,
     ) -> Result<Signature> {
-        let mut digests = Vec::new();
+        let mut commitment_digests = Vec::new();
         for request in requests.into_iter() {
-            if db
-                .code_approved(request.code_id)
-                .ok_or(anyhow!("code not found"))?
-                != request.approved
-            {
-                return Err(anyhow!("approved mismatch"));
-            }
-            digests.push(request.as_digest());
+            commitment_digests.push(request.as_digest());
+            Self::validate_code_commitment(db, request)?;
         }
 
+        let commitments_digest = commitment_digests.as_digest();
         self.signer
-            .sign_commitments_digest(digests.as_digest(), self.pub_key, self.router_address)
+            .sign_commitments_digest(commitments_digest, self.pub_key, self.router_address)
     }
 
     pub fn validate_block_commitments(
@@ -123,54 +118,81 @@ impl Validator {
         db: &impl BlockMetaStorage,
         requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
     ) -> Result<Signature> {
-        let mut digests = Vec::new();
+        let mut commitment_digests = Vec::new();
         for request in requests.into_iter() {
-            let BlockCommitmentValidationRequest {
-                block_hash,
-                allowed_pred_block_hash,
-                allowed_prev_commitment_hash,
-                transitions_digest: transitions_hash,
-            } = request;
-
-            if db
-                .block_end_state_is_valid(block_hash)
-                .ok_or(anyhow!("block not found"))?
-                .not()
-            {
-                return Err(anyhow!("block is not validated"));
-            }
-
-            if db
-                .block_outcome(block_hash)
-                .ok_or(anyhow!("block not found"))?
-                .iter()
-                .map(AsDigest::as_digest)
-                .collect::<Vec<_>>()
-                .as_digest()
-                .ne(&transitions_hash)
-            {
-                return Err(anyhow!("block transitions hash mismatch"));
-            }
-
-            if db
-                .block_prev_commitment(block_hash)
-                .ok_or(anyhow!("block not found"))?
-                .ne(&allowed_prev_commitment_hash)
-            {
-                return Err(anyhow!("block prev commitment hash mismatch"));
-            }
-
-            if Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)?.not() {
-                return Err(anyhow!(
-                    "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
-                ));
-            }
-
-            digests.push(request.as_digest());
+            commitment_digests.push(request.as_digest());
+            Self::validate_block_commitment(db, request)?;
         }
 
+        let commitments_digest = commitment_digests.as_digest();
         self.signer
-            .sign_commitments_digest(digests.as_digest(), self.pub_key, self.router_address)
+            .sign_commitments_digest(commitments_digest, self.pub_key, self.router_address)
+    }
+
+    fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {
+        let CodeCommitment { code_id, approved } = request;
+        if db
+            .code_approved(code_id)
+            .ok_or(anyhow!("Code {code_id} is not processed by this node"))?
+            .ne(&approved)
+        {
+            return Err(anyhow!("Requested and local code approval mismatch"));
+        }
+        Ok(())
+    }
+
+    fn validate_block_commitment(
+        db: &impl BlockMetaStorage,
+        request: BlockCommitmentValidationRequest,
+    ) -> Result<()> {
+        let BlockCommitmentValidationRequest {
+            block_hash,
+            allowed_pred_block_hash,
+            allowed_prev_commitment_hash,
+            transitions_digest,
+        } = request;
+
+        if db
+            .block_end_state_is_valid(block_hash)
+            .unwrap_or(false)
+            .not()
+        {
+            return Err(anyhow!(
+                "Requested block {block_hash} is not processed by this node"
+            ));
+        }
+
+        if db
+            .block_outcome(block_hash)
+            .ok_or(anyhow!("Cannot get from db outcome for block {block_hash}"))?
+            .iter()
+            .map(AsDigest::as_digest)
+            .collect::<Vec<_>>()
+            .as_digest()
+            .ne(&transitions_digest)
+        {
+            return Err(anyhow!("Requested and local transitions digest mismatch"));
+        }
+
+        if db
+            .block_prev_commitment(block_hash)
+            .ok_or(anyhow!(
+                "Cannot get from db previous commitment block for block {block_hash}"
+            ))?
+            .ne(&allowed_prev_commitment_hash)
+        {
+            return Err(anyhow!(
+                "Requested and local previous commitment block hash mismatch"
+            ));
+        }
+
+        if Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)?.not() {
+            return Err(anyhow!(
+                "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
+            ));
+        }
+
+        Ok(())
     }
 
     /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
@@ -180,17 +202,24 @@ impl Validator {
         pred_hash: H256,
         max_distance: Option<u32>,
     ) -> Result<bool> {
+        if block_hash == pred_hash {
+            return Ok(true);
+        }
+
+        let block_header = db
+            .block_header(block_hash)
+            .ok_or(anyhow!("header not found for block: {block_hash}"))?;
+
+        if block_header.parent_hash == pred_hash {
+            return Ok(true);
+        }
+
         let pred_height = db
             .block_header(pred_hash)
             .ok_or(anyhow!("header not found for pred block: {pred_hash}"))?
             .height;
 
-        let block_height = db
-            .block_header(block_hash)
-            .ok_or(anyhow!("header not found for block: {block_hash}"))?
-            .height;
-
-        let distance = block_height.saturating_sub(pred_height);
+        let distance = block_header.height.saturating_sub(pred_height);
         if max_distance.map(|d| d < distance).unwrap_or(false) {
             return Err(anyhow!("distance is too large: {distance}"));
         }
@@ -214,6 +243,120 @@ impl Validator {
 mod tests {
     use super::*;
     use ethexe_db::BlockHeader;
+    use gprimitives::CodeId;
+
+    #[test]
+    fn test_validate_code_commitments() {
+        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default());
+
+        let code_id = CodeId::from(H256::random());
+
+        Validator::validate_code_commitment(
+            &db,
+            CodeCommitment {
+                code_id,
+                approved: true,
+            },
+        )
+        .expect_err("Code is not in db");
+
+        db.set_code_approved(code_id, true);
+        Validator::validate_code_commitment(
+            &db,
+            CodeCommitment {
+                code_id,
+                approved: false,
+            },
+        )
+        .expect_err("Approval mismatch");
+
+        Validator::validate_code_commitment(
+            &db,
+            CodeCommitment {
+                code_id,
+                approved: true,
+            },
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_validate_block_commitment() {
+        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default());
+
+        let block_hash = H256::random();
+        let pred_block_hash = H256::random();
+        let prev_commitment_hash = H256::random();
+        let transitions = vec![];
+        let transitions_digest = transitions.as_digest();
+
+        db.set_block_end_state_is_valid(block_hash, true);
+        db.set_block_outcome(block_hash, transitions);
+        db.set_block_prev_commitment(block_hash, prev_commitment_hash);
+        db.set_block_header(
+            block_hash,
+            BlockHeader {
+                height: 100,
+                timestamp: 100,
+                parent_hash: pred_block_hash,
+            },
+        );
+
+        Validator::validate_block_commitment(
+            &db,
+            BlockCommitmentValidationRequest {
+                block_hash,
+                allowed_pred_block_hash: block_hash,
+                allowed_prev_commitment_hash: prev_commitment_hash,
+                transitions_digest,
+            },
+        )
+        .unwrap();
+
+        Validator::validate_block_commitment(
+            &db,
+            BlockCommitmentValidationRequest {
+                block_hash,
+                allowed_pred_block_hash: H256::random(),
+                allowed_prev_commitment_hash: prev_commitment_hash,
+                transitions_digest,
+            },
+        )
+        .expect_err("Unknown pred block is provided");
+
+        Validator::validate_block_commitment(
+            &db,
+            BlockCommitmentValidationRequest {
+                block_hash,
+                allowed_pred_block_hash: block_hash,
+                allowed_prev_commitment_hash: H256::random(),
+                transitions_digest,
+            },
+        )
+        .expect_err("Unknown prev commitment is provided");
+
+        Validator::validate_block_commitment(
+            &db,
+            BlockCommitmentValidationRequest {
+                block_hash,
+                allowed_pred_block_hash: block_hash,
+                allowed_prev_commitment_hash: prev_commitment_hash,
+                transitions_digest: Digest::from([2; 32]),
+            },
+        )
+        .expect_err("Transitions digest mismatch");
+
+        Validator::validate_block_commitment(
+            &db,
+            BlockCommitmentValidationRequest {
+                block_hash: H256::random(),
+                allowed_pred_block_hash: block_hash,
+                allowed_prev_commitment_hash: prev_commitment_hash,
+                transitions_digest,
+            },
+        )
+        .expect_err("Block is not processed by this node");
+    }
 
     #[test]
     fn test_verify_is_predecessor() {
@@ -270,5 +413,6 @@ mod tests {
         assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap());
         assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2)).unwrap());
         assert!(!Validator::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1)).unwrap());
+        assert!(Validator::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap());
     }
 }

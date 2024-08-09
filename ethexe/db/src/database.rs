@@ -315,9 +315,9 @@ impl CodesStorage for Database {
             })
     }
 
-    fn set_code_approved(&self, code_id: CodeId, rejected: bool) {
+    fn set_code_approved(&self, code_id: CodeId, approved: bool) {
         self.kv
-            .put(&KeyPrefix::CodeApproved.one(code_id), rejected.encode());
+            .put(&KeyPrefix::CodeApproved.one(code_id), approved.encode());
     }
 }
 

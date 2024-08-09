@@ -498,13 +498,17 @@ impl Service {
                         continue;
                     };
 
-                    let _ = Self::process_network_message(
+                    let result = Self::process_network_message(
                         message,
                         &db,
                         validator.as_mut(),
                         sequencer.as_mut(),
                         network_sender.as_mut(),
                     );
+
+                    if let Err(err) = result {
+                        log::warn!("Failed to process network message: {:?}", err);
+                    }
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
@@ -733,12 +737,12 @@ impl Service {
                     return Ok(());
                 };
 
-                if let Some((hash, signature)) = codes {
-                    sequencer.receive_codes_signature(origin, hash, signature)?;
+                if let Some((digest, signature)) = codes {
+                    sequencer.receive_codes_signature(origin, digest, signature)?;
                 }
 
-                if let Some((hash, signature)) = blocks {
-                    sequencer.receive_blocks_signature(origin, hash, signature)?;
+                if let Some((digest, signature)) = blocks {
+                    sequencer.receive_blocks_signature(origin, digest, signature)?;
                 }
 
                 Ok(())
