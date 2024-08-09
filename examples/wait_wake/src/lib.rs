@@ -53,7 +53,7 @@ mod tests {
 
         let from = 42;
 
-        let msg_id = program.send_bytes(from, b"init");
+        program.send_bytes(from, b"init");
         let res = system.run_next_block();
         let log = Log::builder().source(program.id()).dest(from);
         assert!(res.contains(&log));
@@ -68,6 +68,7 @@ mod tests {
 
         let program = Program::current(&system);
         program.send_bytes(from, b"init");
+        system.run_next_block();
 
         let msg_1_echo_wait = 100;
         let msg_id_1 = program.send(from, Request::EchoWait(msg_1_echo_wait));
@@ -105,9 +106,11 @@ mod tests {
 
         let program_1 = Program::current(&system);
         program_1.send_bytes(from, b"init");
+        system.run_next_block();
 
         let program_2 = Program::current(&system);
         program_2.send_bytes(from, b"init");
+        system.run_next_block();
 
         let msg_1_echo_wait = 100;
         let msg_id_1 = program_1.send(from, Request::EchoWait(msg_1_echo_wait));

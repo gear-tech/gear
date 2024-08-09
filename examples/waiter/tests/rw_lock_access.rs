@@ -83,9 +83,8 @@ fn access_rw_lock_guard_from_different_msg_fails(
     );
     let lock_access_result = system.run_next_block();
 
-    lock_access_result.assert_panicked_with(format!(
-        "{lock_type:?} lock guard held by message {lock_msg_id} is being accessed by message {lock_access_msg_id}",
-        lock_access_result.sent_message_id(),
+    lock_access_result.assert_panicked_with(lock_access_msg_id, format!(
+        "{lock_type:?} lock guard held by message {lock_msg_id} is being accessed by message {lock_access_msg_id}"
     ));
 }
 

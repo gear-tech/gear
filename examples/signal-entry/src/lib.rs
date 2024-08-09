@@ -90,7 +90,7 @@ mod tests {
         assert!(res.not_executed.is_empty());
 
         // Signal sends user message
-        let log = Log::builder().dest(user_id);
+        let log = Log::builder().dest(user_id).payload(b"handle_signal");
         assert!(res.contains(&log));
         let mailbox = system.get_mailbox(user_id);
         assert!(mailbox.contains(&log));

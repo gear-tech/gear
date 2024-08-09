@@ -247,7 +247,6 @@ extern "C" fn handle_signal() {
                 )
             ));
 
-            debug!("HERE!");
             if let Some(handle_msg) = unsafe { HANDLE_MSG } {
                 assert_eq!(msg::signal_from(), Ok(handle_msg));
             }
