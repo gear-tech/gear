@@ -42,6 +42,8 @@ macro_rules! impl_config {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
+            type SplitGas = SplitGas;
+            type SplitTxFeeRatio = SplitTxFeeRatio;
         }
     };
 }
@@ -74,7 +76,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::traits::Zero;
+    use sp_runtime::{traits::Zero, Perbill};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -96,6 +98,11 @@ pub mod pallet {
         #[pallet::constant]
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
+
+        type SplitGas: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+
+        /// The ratio of how much of the tx fees goes to the treasury
+        type SplitTxFeeRatio: Get<Option<u32>>;
     }
 
     // Funds pallets error.
@@ -214,10 +221,28 @@ pub mod pallet {
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
                 total = total.saturating_add(value);
 
-                if let Err(e) = Self::withdraw(&account_id, value) {
-                    log::error!(
-                        "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                    );
+                if let Some((gas_split, split_dest)) = T::SplitGas::get() {
+                    // split value by `SplitGas`.
+                    let to_split = gas_split.mul_floor(value);
+                    let to_user = value - to_split;
+
+                    // Withdraw value to user.
+                    if let Err(e) = Self::withdraw(&account_id, to_user) {
+                        log::error!(
+                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                        );
+                    }
+
+                    // Withdraw value to `SplitGas` destination.
+                    if let Err(e) = Self::withdraw(&split_dest, to_split) {
+                        log::error!(
+                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                        );
+                    }
+                } else {
+                    let _ = Self::withdraw(&account_id, value).map_err(|e| log::error!(
+                                "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                            ));
                 }
             }
 

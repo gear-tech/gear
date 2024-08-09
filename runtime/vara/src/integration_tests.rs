@@ -861,3 +861,48 @@ fn fungible_api_works() {
             );
         });
 }
+
+#[test]
+fn test_fees_and_tip_split() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let charlie = AccountKeyring::Charlie;
+
+    ExtBuilder::default()
+        .initial_authorities(vec![(
+            alice.into(),
+            charlie.into(),
+            alice.public(),
+            ed25519::Pair::from_string("//Alice", None)
+                .unwrap()
+                .public(),
+            alice.public(),
+            alice.public(),
+        )])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            let fee = Balances::issue(10);
+            let tip = Balances::issue(20);
+
+            assert_eq!(
+                Balances::free_balance(Treasury::account_id()),
+                EXISTENTIAL_DEPOSIT
+            );
+            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH);
+
+            DealWithFees::on_unbalanceds(vec![fee, tip].into_iter());
+
+            // Author gets 100% of the tip and 100% of the fee = 30
+            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH + 30);
+            // Treasury gets 0% of the fee
+            assert_eq!(
+                Balances::free_balance(Treasury::account_id()),
+                EXISTENTIAL_DEPOSIT
+            );
+        });
+}
