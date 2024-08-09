@@ -173,6 +173,7 @@ pub trait PrepaidCallsDispatcher {
     PartialOrd,
     Eq,
     derive_more::From,
+    derive_more::AsRef,
     TypeInfo,
     Encode,
     Decode,

@@ -21,6 +21,7 @@ pub mod error;
 pub mod listener;
 mod rpc;
 pub mod storage;
+pub mod voucher;
 
 use crate::{ws::WSAddress, EventListener};
 use error::*;
