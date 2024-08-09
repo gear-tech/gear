@@ -50,6 +50,8 @@ const STREAM_PROTOCOL: StreamProtocol =
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum RequestFailure {
+    /// No available peers to complete request
+    NoAvailablePeers,
     /// Request kind unequal to response kind
     TypeMismatch,
     /// Hash field in request unequal to one in response
@@ -219,6 +221,7 @@ struct OngoingRequest {
     request_id: RequestId,
     request: Request,
     response: Option<Response>,
+    // TODO: remove
     current_peer: Option<PeerId>,
     tried_peers: HashSet<PeerId>,
 }
@@ -260,6 +263,11 @@ impl OngoingRequest {
             let response = self.merge_response(response);
             Ok(OngoingRequestCompletion::Full(response))
         }
+    }
+
+    fn peer_failed(mut self) -> Self {
+        self.tried_peers.extend(self.current_peer.take());
+        self
     }
 
     fn choose_next_peer(
@@ -468,7 +476,42 @@ impl Behaviour {
                     connection: CloseConnection::All,
                 });
             }
-            request_response::Event::OutboundFailure { .. } => {}
+            request_response::Event::OutboundFailure {
+                peer,
+                request_id,
+                error,
+            } => {
+                log::trace!("outbound failure for request {request_id} to {peer}: {error}");
+
+                let ongoing_request = self
+                    .ongoing_requests
+                    .remove(request_id)
+                    .expect("unknown response");
+
+                let request_id = ongoing_request.request_id;
+
+                let new_ongoing_request = ongoing_request.peer_failed();
+                let event = match self
+                    .ongoing_requests
+                    .send_request(&mut self.inner, new_ongoing_request)
+                {
+                    Ok(peer_id) => Event::NewRequestRound {
+                        request_id,
+                        peer_id,
+                    },
+                    Err(new_ongoing_request) => match new_ongoing_request.response {
+                        Some(response) => Event::RequestSucceed {
+                            request_id,
+                            response,
+                        },
+                        None => Event::RequestFailed {
+                            request_id,
+                            error: RequestFailure::NoAvailablePeers,
+                        },
+                    },
+                };
+                return Poll::Ready(ToSwarm::GenerateEvent(event));
+            }
             request_response::Event::InboundFailure {
                 peer,
                 request_id: _,

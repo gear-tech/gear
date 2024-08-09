@@ -149,7 +149,7 @@ pub enum NetworkReceiverEvent {
         source: Option<PeerId>,
         data: Vec<u8>,
     },
-    DbHashes(BTreeMap<H256, Vec<u8>>),
+    DbResponse(db_sync::Response),
 }
 
 pub struct NetworkReceiver {
