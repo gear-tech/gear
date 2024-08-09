@@ -252,6 +252,7 @@ gear-stack-buffer = { path = "stack-buffer" }
 gear-ss58 = { path = "utils/ss58", default-features = false }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
+gear-wasm-optimizer = { path = "utils/wasm-optimizer", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }

@@ -20,10 +20,7 @@ use crate::metadata::Metadata;
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use colored::Colorize;
-use gear_wasm_builder::{
-    optimize::{self, OptType, Optimizer},
-    CargoCommand,
-};
+use gear_wasm_optimizer::{self as optimize, CargoCommand, OptType, Optimizer};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -159,7 +156,7 @@ impl Artifact {
         if !self.opt.is_meta() {
             optimizer
                 .insert_stack_end_export()
-                .map_err(|e| anyhow!(e))?;
+                .map_err(|e| anyhow!("{e}"));
             optimizer.strip_custom_sections();
         }
 

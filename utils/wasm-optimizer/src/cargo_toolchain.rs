@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::builder_error::BuilderError;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use regex::Regex;
 use std::{borrow::Cow, process::Command, sync::LazyLock};
 
@@ -67,7 +66,7 @@ impl Toolchain {
 
         let toolchain = TOOLCHAIN_CHANNEL_RE
             .captures(toolchain_desc)
-            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?
+            .ok_or_else(|| anyhow!("cargo toolchain is invalid {toolchain_desc}"))?
             .get(0)
             .unwrap() // It is safe to use unwrap here because we know the regex matches
             .as_str()
@@ -93,7 +92,12 @@ impl Toolchain {
         let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
         anyhow::ensure!(
             self.raw_toolchain_str() == toolchain,
-            BuilderError::RecommendedToolchainNotFound(toolchain.into()),
+            anyhow!(
+                "recommended toolchain `{x}` not found, install it using the command:\n\
+        rustup toolchain install {x} --component llvm-tools --target wasm32-unknown-unknown\n\n\
+        after installation, do not forget to set `channel = \"{x}\"` in `rust-toolchain.toml` file",
+                x = toolchain
+            )
         );
         Ok(())
     }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::stack_end;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
@@ -61,10 +61,6 @@ impl OptType {
         self.eq(&OptType::Meta)
     }
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error("Optimizer failed: {0:?}")]
-pub struct OptimizerError(pwasm_utils::OptimizerError);
 
 pub struct Optimizer {
     module: Module,
@@ -129,7 +125,7 @@ impl Optimizer {
         };
 
         pwasm_utils::optimize(&mut module, exports)
-            .map_err(OptimizerError)
+            .map_err(|e| anyhow!("{e:?}"))
             .with_context(|| {
                 format!(
                     "unable to optimize the WASM file `{0}`",

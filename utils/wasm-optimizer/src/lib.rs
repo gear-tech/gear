@@ -16,18 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::path::PathBuf;
-use thiserror::Error;
+mod cargo_command;
+mod cargo_toolchain;
+mod optimize;
+mod stack_end;
 
-/// Errors than can occur when building.
-#[derive(Error, Debug)]
-pub enum BuilderError {
-    #[error("invalid manifest path `{0}`")]
-    ManifestPathInvalid(PathBuf),
-
-    #[error("please add \"rlib\" to [lib.crate-type]")]
-    CrateTypeInvalid,
-
-    #[error("unable to find the root package in cargo metadata")]
-    RootPackageNotFound,
-}
+pub use cargo_command::CargoCommand;
+pub use optimize::*;

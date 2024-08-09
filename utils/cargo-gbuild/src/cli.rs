@@ -21,7 +21,7 @@ use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
 use colored::Colorize;
-use gear_wasm_builder::CargoCommand;
+use gear_wasm_optimizer::CargoCommand;
 use std::{
     env, fs,
     path::{Path, PathBuf},
