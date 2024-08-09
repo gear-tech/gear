@@ -126,9 +126,8 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
         let export_idx = self
             .module
             .gear_entry_point(EntryPointName::Init)
-            .map(|idx| {
+            .inspect(|_| {
                 log::trace!("Info will be logged in init");
-                idx
             })
             .or_else(|| {
                 log::trace!("Info will be logged in handle");

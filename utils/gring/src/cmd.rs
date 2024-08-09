@@ -104,9 +104,8 @@ impl Command {
             .ok_or_else(|| anyhow!("Failed to locate app directory."))?
             .join(app);
 
-        fs::create_dir_all(&store).map_err(|e| {
+        fs::create_dir_all(&store).inspect_err(|_| {
             tracing::error!("Failed to create keyring store at {store:?}");
-            e
         })?;
 
         tracing::info!(

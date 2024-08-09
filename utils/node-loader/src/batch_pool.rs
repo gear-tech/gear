@@ -144,9 +144,8 @@ async fn run_batch(
         Err(err) => {
             // Propagate crash error or return report
             CrashAlert::try_from(err)
-                .map(|crash_err| {
+                .inspect(|crash_err| {
                     tracing::info!("{crash_err}");
-                    crash_err
                 })
                 .map_err(|err| tracing::debug!("Error occurred while running batch: {err}"))
                 .swap_result()?;

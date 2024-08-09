@@ -51,6 +51,7 @@ enum KeyPrefix {
     BlockOutcome = 5,
     BlockSmallMeta = 6,
     CodeUpload = 7,
+    LatestValidBlock = 8,
 }
 
 impl KeyPrefix {
@@ -232,6 +233,21 @@ impl BlockMetaStorage for Database {
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
         self.kv
             .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
+    }
+
+    fn latest_valid_block_height(&self) -> Option<u32> {
+        self.kv
+            .get(&KeyPrefix::LatestValidBlock.one([]))
+            .map(|block_height| {
+                u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
+            })
+    }
+
+    fn set_latest_valid_block_height(&self, block_height: u32) {
+        self.kv.put(
+            &KeyPrefix::LatestValidBlock.one([]),
+            block_height.to_le_bytes().to_vec(),
+        );
     }
 }
 

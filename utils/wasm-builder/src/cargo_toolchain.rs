@@ -18,9 +18,8 @@
 
 use crate::builder_error::BuilderError;
 use anyhow::{Context, Result};
-use once_cell::sync::Lazy;
 use regex::Regex;
-use std::{borrow::Cow, process::Command};
+use std::{borrow::Cow, process::Command, sync::LazyLock};
 
 // The channel patterns we support (borrowed from the rustup code)
 static TOOLCHAIN_CHANNELS: &[&str] = &[
@@ -36,7 +35,7 @@ pub(crate) struct Toolchain(String);
 
 impl Toolchain {
     /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2024-01-25";
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2024-07-30";
 
     /// Returns `Toolchain` representing the recommended nightly version.
     pub fn recommended_nightly() -> Self {
@@ -58,12 +57,11 @@ impl Toolchain {
         let toolchain_desc =
             std::str::from_utf8(&output.stdout).expect("unexpected `rustup` output");
 
-        // TODO #3499: replace it with `std::sync::LazyLock` when it becomes stable
-        static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
+        static TOOLCHAIN_CHANNEL_RE: LazyLock<Regex> = LazyLock::new(|| {
             let channels = TOOLCHAIN_CHANNELS.join("|");
             let pattern = format!(r"(?:{channels})(?:-\d{{4}}-\d{{2}}-\d{{2}})?");
             // Note this regex gives you a guaranteed match of the channel[-date] as group 0,
-            // for example: `nightly-2024-01-25`
+            // for example: `nightly-2024-07-30`
             Regex::new(&pattern).unwrap()
         });
 

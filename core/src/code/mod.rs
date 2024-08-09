@@ -431,8 +431,6 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use core::mem;
-
     use crate::code::{
         utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
         StackEndError, TableSectionError, GENERIC_OS_PAGE_SIZE,
@@ -1066,7 +1064,7 @@ mod tests {
 
     #[test]
     fn global_section_bytes() {
-        const INSTRUMENTATION_GLOBALS_SIZE: usize = mem::size_of::<i32>() + mem::size_of::<i64>();
+        const INSTRUMENTATION_GLOBALS_SIZE: usize = size_of::<i32>() + size_of::<i64>();
 
         let wat = r#"
             (module
@@ -1084,8 +1082,7 @@ mod tests {
                 .unwrap()
                 .instantiated_section_sizes
                 .global_section,
-            (INSTRUMENTATION_GLOBALS_SIZE + mem::size_of::<i32>() * 2 + mem::size_of::<i64>())
-                as u32,
+            (INSTRUMENTATION_GLOBALS_SIZE + size_of::<i32>() * 2 + size_of::<i64>()) as u32,
         );
     }
 

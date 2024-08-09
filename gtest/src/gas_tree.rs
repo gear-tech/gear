@@ -165,4 +165,18 @@ impl GasTreeManager {
     pub(crate) fn reset(&self) {
         <AuxiliaryGasProvider as Provider>::reset();
     }
+
+    /// Unreserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    pub(crate) fn system_unreserve(&self, key: MessageId) -> Result<Gas, GasTreeError> {
+        GasTree::system_unreserve(GasNodeId::from(key.cast::<PlainNodeId>()))
+    }
+
+    /// Reserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    pub(crate) fn system_reserve(&self, key: MessageId, amount: Gas) -> Result<(), GasTreeError> {
+        GasTree::system_reserve(GasNodeId::from(key.cast::<PlainNodeId>()), amount)
+    }
 }

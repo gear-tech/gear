@@ -20,8 +20,6 @@
 
 #![no_std]
 
-use core::mem;
-
 /// Represents error code type.
 pub type ErrorCode = u32;
 
@@ -204,7 +202,7 @@ impl From<Result<Handle, ErrorCode>> for ErrorWithHandle {
 
 #[repr(C, packed)]
 #[derive(Default, Debug)]
-pub struct ErrorBytes([u8; mem::size_of::<ErrorCode>()]);
+pub struct ErrorBytes([u8; size_of::<ErrorCode>()]);
 
 impl From<Result<(), ErrorCode>> for ErrorBytes {
     fn from(value: Result<(), ErrorCode>) -> Self {
