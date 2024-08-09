@@ -221,7 +221,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
-</span><span class="kw">use </span>gear_core::pages::{numerated::tree::IntervalsTree, <a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>};
+</span><span class="kw">use </span>gear_core::pages::{numerated::tree::IntervalsTree, WasmPage};
 
 <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <span class="kw">use </span><span class="kw">crate</span>::storage::{<a href="storage/primitives/map.rs.html#30-68">MapStorage</a>, <a href="storage/primitives/triple_map.rs.html#29-89">TripleMapStorage</a>};
@@ -263,7 +263,7 @@
         Key3 = <a href="../../gear_common/type.GearPage.html">GearPage</a>,
         Value = <a href="../../gear_common/struct.PageBuf.html">PageBuf</a>,
     &gt;;
-    <span class="kw">type </span>AllocationsMap: MapStorage&lt;Key = <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, Value = IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;&gt;;
+    <span class="kw">type </span>AllocationsMap: MapStorage&lt;Key = <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, Value = IntervalsTree&lt;WasmPage&gt;&gt;;
 
     <span class="doccomment">/// Attempt to remove all items from all the associated maps.
     </span><span class="kw">fn </span>reset() {
@@ -321,11 +321,11 @@
         }
     }
 
-    <span class="kw">fn </span>allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) -&gt; <span class="prelude-ty">Option</span>&lt;IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;&gt; {
+    <span class="kw">fn </span>allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) -&gt; <span class="prelude-ty">Option</span>&lt;IntervalsTree&lt;WasmPage&gt;&gt; {
         <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::AllocationsMap::get</a>(<span class="kw-2">&amp;</span><a href="#119">program_id</a>)
     }
 
-    <span class="kw">fn </span>set_allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, allocations: IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;) {
+    <span class="kw">fn </span>set_allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, allocations: IntervalsTree&lt;WasmPage&gt;) {
         <a href="#96-107"><span class="self">Self</span>::update_active_program</a>(<a href="#123">program_id</a>, |program| {
             <a href="#124">program</a>.allocations_tree_len = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">u32::try_from</a>(<a href="#123">allocations</a>.intervals_amount())
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|err| {

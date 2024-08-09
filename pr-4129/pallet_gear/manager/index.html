@@ -9,8 +9,8 @@ reserving value before message is executed and repatriating reserved in favor of
 in case of execution resulting in a trap. So, it gives us a guarantee that regardless of the result of message execution, there is <strong>always some
 value</strong> to perform asset management, i.e move tokens further to the recipient or give back to sender. The guarantee is implemented by using
 corresponding <code>pallet_balances</code> functions (<code>reserve</code>, <code>repatriate_reserved</code>, <code>unreserve</code> along with <code>transfer</code>) in <code>pallet_gear</code> extrinsics,
-<a href="core_processor::common::JournalHandler::send_dispatch"><code>JournalHandler::send_dispatch</code></a> and
-<a href="core_processor::common::JournalHandler::send_value"><code>JournalHandler::send_value</code></a> procedures.</p>
+<a href="../../gear_core_processor/common/trait.JournalHandler.html#tymethod.send_dispatch" title="method gear_core_processor::common::JournalHandler::send_dispatch"><code>JournalHandler::send_dispatch</code></a> and
+<a href="../../gear_core_processor/common/trait.JournalHandler.html#tymethod.send_value" title="method gear_core_processor::common::JournalHandler::send_value"><code>JournalHandler::send_value</code></a> procedures.</p>
 </li>
 <li>
 <p><strong>Balance sufficiency before adding message with value to the queue</strong>.
@@ -21,7 +21,7 @@ value sent within the executing message). So if during execution of the original
 by program’s balance checks. The check gives guarantee that value reservation call in</p>
 </li>
 </ol>
-<p><a href="core_processor::common::JournalHandler::send_dispatch"><code>JournalHandler::send_dispatch</code></a> for program’s messages won’t fail, because there is always a
+<p><a href="../../gear_core_processor/common/trait.JournalHandler.html#tymethod.send_dispatch" title="method gear_core_processor::common::JournalHandler::send_dispatch"><code>JournalHandler::send_dispatch</code></a> for program’s messages won’t fail, because there is always a
 sufficient balance for the call.</p>
 <ol start="3">
 <li><strong>Messages’s value management considers existential deposit rule</strong>.

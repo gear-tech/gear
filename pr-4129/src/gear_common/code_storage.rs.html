@@ -125,7 +125,7 @@
 
 </span><span class="kw">use super</span>::<span class="kw-2">*</span>;
 <span class="kw">use </span><a href="storage/primitives/map.rs.html#30-68"><span class="kw">crate</span>::storage::MapStorage</a>;
-<span class="kw">use </span>gear_core::code::{<a href="../../gear_core/code/struct.CodeAndId.html">CodeAndId</a>, <a href="../../gear_core/code/instrumented/struct.InstrumentedCode.html">InstrumentedCode</a>, <a href="../../gear_core/code/instrumented/struct.InstrumentedCodeAndId.html">InstrumentedCodeAndId</a>};
+<span class="kw">use </span>gear_core::code::{CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
 
 <span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub enum </span><a href="../../gear_common/code_storage/enum.Error.html">Error</a> {
@@ -135,7 +135,7 @@
 
 <span class="doccomment">/// Trait to work with program binary codes in a storage.
 </span><span class="kw">pub trait </span><a href="../../gear_common/code_storage/trait.CodeStorage.html">CodeStorage</a> {
-    <span class="kw">type </span>InstrumentedCodeStorage: MapStorage&lt;Key = <a href="../../gear_common/struct.CodeId.html">CodeId</a>, Value = <a href="../../gear_core/code/instrumented/struct.InstrumentedCode.html">InstrumentedCode</a>&gt;;
+    <span class="kw">type </span>InstrumentedCodeStorage: MapStorage&lt;Key = <a href="../../gear_common/struct.CodeId.html">CodeId</a>, Value = InstrumentedCode&gt;;
     <span class="kw">type </span>InstrumentedLenStorage: MapStorage&lt;Key = <a href="../../gear_common/struct.CodeId.html">CodeId</a>, Value = <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;;
     <span class="kw">type </span>OriginalCodeStorage: MapStorage&lt;Key = <a href="../../gear_common/struct.CodeId.html">CodeId</a>, Value = Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;;
     <span class="kw">type </span>MetadataStorage: MapStorage&lt;Key = <a href="../../gear_common/struct.CodeId.html">CodeId</a>, Value = <a href="lib.rs.html#237-241">CodeMetadata</a>&gt;;
@@ -148,16 +148,16 @@
         <a href="storage/primitives/map.rs.html#63"><span class="self">Self</span>::InstrumentedCodeStorage::clear</a>();
     }
 
-    <span class="kw">fn </span>add_code(code_and_id: <a href="../../gear_core/code/struct.CodeAndId.html">CodeAndId</a>, metadata: <a href="lib.rs.html#237-241">CodeMetadata</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), <a href="#24-27">Error</a>&gt; {
-        <span class="kw">let </span>(code, code_id) = <a href="#44">code_and_id</a>.<a href="../../gear_core/code/struct.CodeAndId.html#method.into_parts">into_parts</a>();
-        <span class="kw">let </span>(code, original_code) = <a href="#45">code</a>.<a href="../../gear_core/code/struct.Code.html#method.into_parts">into_parts</a>();
+    <span class="kw">fn </span>add_code(code_and_id: CodeAndId, metadata: <a href="lib.rs.html#237-241">CodeMetadata</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), <a href="#24-27">Error</a>&gt; {
+        <span class="kw">let </span>(code, code_id) = <a href="#44">code_and_id</a>.into_parts();
+        <span class="kw">let </span>(code, original_code) = <a href="#45">code</a>.into_parts();
 
         <a href="storage/primitives/map.rs.html#49"><span class="self">Self</span>::InstrumentedCodeStorage::mutate</a>(<a href="#45">code_id</a>, |maybe| {
             <span class="kw">if </span>maybe.is_some() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<a href="#26">CodeStorageError::DuplicateItem</a>);
             }
 
-            <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::InstrumentedLenStorage::insert</a>(<a href="#45">code_id</a>, <a href="#46">code</a>.<a href="../../gear_core/code/instrumented/struct.InstrumentedCode.html#method.code">code</a>().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>);
+            <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::InstrumentedLenStorage::insert</a>(<a href="#45">code_id</a>, <a href="#46">code</a>.code().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>);
             <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::OriginalCodeStorage::insert</a>(<a href="#45">code_id</a>, <a href="#46">original_code</a>);
             <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::MetadataStorage::insert</a>(<a href="#45">code_id</a>, <a href="#44">metadata</a>);
 
@@ -167,10 +167,10 @@
     }
 
     <span class="doccomment">/// Update the corresponding code in the storage.
-    </span><span class="kw">fn </span>update_code(code_and_id: <a href="../../gear_core/code/instrumented/struct.InstrumentedCodeAndId.html">InstrumentedCodeAndId</a>) {
-        <span class="kw">let </span>(code, code_id) = <a href="#63">code_and_id</a>.<a href="../../gear_core/code/instrumented/struct.InstrumentedCodeAndId.html#method.into_parts">into_parts</a>();
+    </span><span class="kw">fn </span>update_code(code_and_id: InstrumentedCodeAndId) {
+        <span class="kw">let </span>(code, code_id) = <a href="#63">code_and_id</a>.into_parts();
 
-        <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::InstrumentedLenStorage::insert</a>(<a href="#64">code_id</a>, <a href="#64">code</a>.<a href="../../gear_core/code/instrumented/struct.InstrumentedCode.html#method.code">code</a>().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>);
+        <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::InstrumentedLenStorage::insert</a>(<a href="#64">code_id</a>, <a href="#64">code</a>.code().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>);
         <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::InstrumentedCodeStorage::insert</a>(<a href="#64">code_id</a>, <a href="#64">code</a>);
     }
 
@@ -196,7 +196,7 @@
         </span>})
     }
 
-    <span class="kw">fn </span>get_code(code_id: <a href="../../gear_common/struct.CodeId.html">CodeId</a>) -&gt; <span class="prelude-ty">Option</span>&lt;<a href="../../gear_core/code/instrumented/struct.InstrumentedCode.html">InstrumentedCode</a>&gt; {
+    <span class="kw">fn </span>get_code(code_id: <a href="../../gear_common/struct.CodeId.html">CodeId</a>) -&gt; <span class="prelude-ty">Option</span>&lt;InstrumentedCode&gt; {
         <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::InstrumentedCodeStorage::get</a>(<span class="kw-2">&amp;</span><a href="#92">code_id</a>)
     }
 

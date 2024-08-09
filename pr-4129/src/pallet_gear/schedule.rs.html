@@ -1597,7 +1597,7 @@
 
 </span><span class="kw">use crate</span>::{<a href="weights.rs.html#39-231">weights::WeightInfo</a>, <a href="lib.rs.html#164-292">Config</a>, <a href="lib.rs.html#125">CostsPerBlockOf</a>, <a href="lib.rs.html#114">DbWeightOf</a>};
 <span class="kw">use </span>common::scheduler::SchedulingCostsPerBlock;
-<span class="kw">use </span>core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
+<span class="kw">use </span>core_processor::configs::{<a href="../../gear_core_processor/configs/struct.ExtCosts.html">ExtCosts</a>, <a href="../../gear_core_processor/configs/struct.InstantiationCosts.html">InstantiationCosts</a>, <a href="../../gear_core_processor/configs/struct.ProcessCosts.html">ProcessCosts</a>, <a href="../../gear_core_processor/configs/struct.RentCosts.html">RentCosts</a>};
 <span class="kw">use </span>frame_support::{traits::Get, weights::Weight};
 <span class="kw">use </span>gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
@@ -2748,11 +2748,11 @@
         }
     }
 
-    <span class="kw">pub fn </span>process_costs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProcessCosts {
-        ProcessCosts {
-            ext: ExtCosts {
+    <span class="kw">pub fn </span>process_costs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="../../gear_core_processor/configs/struct.ProcessCosts.html">ProcessCosts</a> {
+        <a href="../../gear_core_processor/configs/struct.ProcessCosts.html">ProcessCosts</a> {
+            ext: <a href="../../gear_core_processor/configs/struct.ExtCosts.html">ExtCosts</a> {
                 syscalls: <a class="self" href="#1175">self</a>.syscall_weights.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-                rent: RentCosts {
+                rent: <a href="../../gear_core_processor/configs/struct.RentCosts.html">RentCosts</a> {
                     waitlist: CostsPerBlockOf::&lt;T&gt;::waitlist().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                     dispatch_stash: CostsPerBlockOf::&lt;T&gt;::dispatch_stash().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                     reservation: CostsPerBlockOf::&lt;T&gt;::reservation().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -2766,7 +2766,7 @@
             write: DbWeightOf::&lt;T&gt;::get().writes(<span class="number">1</span>).ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
             instrumentation: <a class="self" href="#1175">self</a>.code_instrumentation_cost.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
             instrumentation_per_byte: <a class="self" href="#1175">self</a>.code_instrumentation_byte_cost.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-            instantiation_costs: InstantiationCosts {
+            instantiation_costs: <a href="../../gear_core_processor/configs/struct.InstantiationCosts.html">InstantiationCosts</a> {
                 code_section_per_byte: <span class="self"><a href="#1175">self</a>
                     </span>.instantiation_weights
                     .code_section_per_byte

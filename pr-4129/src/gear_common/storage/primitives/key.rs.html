@@ -113,7 +113,7 @@
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">core::marker::PhantomData</a>;
 <span class="kw">use </span>gear_core::{
     ids::{<a href="../../../../gear_common/struct.MessageId.html">MessageId</a>, <a href="../../../../gear_common/type.ProgramId.html">ProgramId</a>},
-    message::{<a href="../../../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>, <a href="../../../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>},
+    message::{StoredDispatch, UserStoredMessage},
 };
 
 <span class="doccomment">/// Represents logic of providing key as specified
@@ -138,10 +138,10 @@
 // destination parameter.
 </span><span class="kw">impl</span>&lt;T: <a href="../../lib.rs.html#80-86">Origin</a>&gt; <a href="#35-43">KeyFor</a> <span class="kw">for </span>MailboxKeyGen&lt;T&gt; {
     <span class="kw">type </span>Key = (T, <a href="../../../../gear_common/struct.MessageId.html">MessageId</a>);
-    <span class="kw">type </span>Value = <a href="../../../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>;
+    <span class="kw">type </span>Value = UserStoredMessage;
 
     <span class="kw">fn </span>key_for(value: <span class="kw-2">&amp;</span><span class="self">Self</span>::Value) -&gt; <span class="self">Self</span>::Key {
-        (<a href="#56">value</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.destination">destination</a>().<a href="../../lib.rs.html#83-85">cast</a>(), <a href="#56">value</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>())
+        (<a href="#56">value</a>.destination().<a href="../../lib.rs.html#83-85">cast</a>(), <a href="#56">value</a>.id())
     }
 }
 
@@ -152,10 +152,10 @@
 // it's `MessageId` id parameter.
 </span><span class="kw">impl </span><a href="#35-43">KeyFor</a> <span class="kw">for </span><a href="#62">QueueKeyGen</a> {
     <span class="kw">type </span>Key = <a href="../../../../gear_common/struct.MessageId.html">MessageId</a>;
-    <span class="kw">type </span>Value = <a href="../../../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>;
+    <span class="kw">type </span>Value = StoredDispatch;
 
     <span class="kw">fn </span>key_for(value: <span class="kw-2">&amp;</span><span class="self">Self</span>::Value) -&gt; <span class="self">Self</span>::Key {
-        <a href="#70">value</a>.<a href="../../../../gear_core/message/stored/struct.StoredMessage.html#method.id">id</a>()
+        <a href="#70">value</a>.id()
     }
 }
 
@@ -166,10 +166,10 @@
 // `ProgramId` and `MessageId` id parameters.
 </span><span class="kw">impl </span><a href="#35-43">KeyFor</a> <span class="kw">for </span><a href="#76">WaitlistKeyGen</a> {
     <span class="kw">type </span>Key = (<a href="../../../../gear_common/type.ProgramId.html">ProgramId</a>, <a href="../../../../gear_common/struct.MessageId.html">MessageId</a>);
-    <span class="kw">type </span>Value = <a href="../../../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>;
+    <span class="kw">type </span>Value = StoredDispatch;
 
     <span class="kw">fn </span>key_for(value: <span class="kw-2">&amp;</span><span class="self">Self</span>::Value) -&gt; <span class="self">Self</span>::Key {
-        (<a href="#84">value</a>.<a href="../../../../gear_core/message/stored/struct.StoredMessage.html#method.destination">destination</a>(), <a href="#84">value</a>.<a href="../../../../gear_core/message/stored/struct.StoredMessage.html#method.id">id</a>())
+        (<a href="#84">value</a>.destination(), <a href="#84">value</a>.id())
     }
 }
 </code></pre></div></section></main></body></html>

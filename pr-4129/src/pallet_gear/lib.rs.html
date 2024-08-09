@@ -2144,8 +2144,8 @@
 };
 <span class="kw">use </span>core::{<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">marker::PhantomData</a>, <a href="https://doc.rust-lang.org/nightly/core/num/nonzero/type.NonZeroU32.html">num::NonZeroU32</a>};
 <span class="kw">use </span>core_processor::{
-    common::{DispatchOutcome <span class="kw">as </span>CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{BlockConfig, BlockInfo},
+    common::{<a href="../../gear_core_processor/common/enum.DispatchOutcome.html">DispatchOutcome</a> <span class="kw">as </span>CoreDispatchOutcome, <a href="../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a>, <a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>},
+    configs::{<a href="../../gear_core_processor/configs/struct.BlockConfig.html">BlockConfig</a>, <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a>},
 };
 <span class="kw">use </span>frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
@@ -3138,15 +3138,15 @@
             }
         }
 
-        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_config() -&gt; BlockConfig {
-            <span class="kw">let </span>block_info = BlockInfo {
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_config() -&gt; <a href="../../gear_core_processor/configs/struct.BlockConfig.html">BlockConfig</a> {
+            <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
                 height: <a href="#531-533"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
                 timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
             };
 
             <span class="kw">let </span>schedule = T::Schedule::get();
 
-            BlockConfig {
+            <a href="../../gear_core_processor/configs/struct.BlockConfig.html">BlockConfig</a> {
                 <a href="#1063">block_info</a>,
                 performance_multiplier: T::PerformanceMultiplier::get().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                 forbidden_funcs: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),

@@ -268,7 +268,7 @@
 //! This module contains components for depositing proper
 //! and extensive data about actions happen.
 
-</span><span class="kw">use </span>gear_core::{<a href="../../gear_common/struct.MessageId.html">ids::MessageId</a>, <a href="../../gear_core/message/enum.MessageWaitedType.html">message::MessageWaitedType</a>};
+</span><span class="kw">use </span>gear_core::{<a href="../../gear_common/struct.MessageId.html">ids::MessageId</a>, message::MessageWaitedType};
 <span class="kw">use </span>sp_runtime::{
     codec::{<span class="self">self</span>, Decode, Encode},
     scale_info::{<span class="self">self</span>, TypeInfo},
@@ -362,13 +362,13 @@
     </span>WaitUpToCalledFull,
 }
 
-<span class="kw">impl </span>From&lt;<a href="../../gear_core/message/enum.MessageWaitedType.html">MessageWaitedType</a>&gt; <span class="kw">for </span><a href="#105-116">MessageWaitedRuntimeReason</a> {
-    <span class="kw">fn </span>from(src: <a href="../../gear_core/message/enum.MessageWaitedType.html">MessageWaitedType</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>From&lt;MessageWaitedType&gt; <span class="kw">for </span><a href="#105-116">MessageWaitedRuntimeReason</a> {
+    <span class="kw">fn </span>from(src: MessageWaitedType) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span><a href="#119">src</a> {
-            <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.Wait">MessageWaitedType::Wait</a> =&gt; <a href="#107">MessageWaitedRuntimeReason::WaitCalled</a>,
-            <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.WaitFor">MessageWaitedType::WaitFor</a> =&gt; <a href="#109">MessageWaitedRuntimeReason::WaitForCalled</a>,
-            <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.WaitUpTo">MessageWaitedType::WaitUpTo</a> =&gt; <a href="#112">MessageWaitedRuntimeReason::WaitUpToCalled</a>,
-            <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.WaitUpToFull">MessageWaitedType::WaitUpToFull</a> =&gt; <a href="#115">MessageWaitedRuntimeReason::WaitUpToCalledFull</a>,
+            MessageWaitedType::Wait =&gt; <a href="#107">MessageWaitedRuntimeReason::WaitCalled</a>,
+            MessageWaitedType::WaitFor =&gt; <a href="#109">MessageWaitedRuntimeReason::WaitForCalled</a>,
+            MessageWaitedType::WaitUpTo =&gt; <a href="#112">MessageWaitedRuntimeReason::WaitUpToCalled</a>,
+            MessageWaitedType::WaitUpToFull =&gt; <a href="#115">MessageWaitedRuntimeReason::WaitUpToCalledFull</a>,
         }
     }
 }

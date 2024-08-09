@@ -333,11 +333,11 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use super</span>::<span class="kw-2">*</span>;
-<span class="kw">use </span>core_processor::ContextChargedForInstrumentation;
+<span class="kw">use </span><a href="../../gear_core_processor/context/struct.ContextChargedForInstrumentation.html">core_processor::ContextChargedForInstrumentation</a>;
 <span class="kw">use </span>gear_core::program::ProgramState;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>QueueStep&lt;<span class="lifetime">'a</span>, T: <a href="lib.rs.html#164-292">Config</a>&gt; {
-    <span class="kw">pub </span>block_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BlockConfig,
+    <span class="kw">pub </span>block_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><a href="../../gear_core_processor/configs/struct.BlockConfig.html">BlockConfig</a>,
     <span class="kw">pub </span>gas_limit: GasBalanceOf&lt;T&gt;,
     <span class="kw">pub </span>dispatch: StoredDispatch,
     <span class="kw">pub </span>balance: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
@@ -347,7 +347,7 @@
 <span class="kw">where
     </span>T::AccountId: Origin,
 {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_queue_step(queue_step: QueueStep&lt;<span class="lifetime">'_</span>, T&gt;) -&gt; Vec&lt;JournalNote&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_queue_step(queue_step: QueueStep&lt;<span class="lifetime">'_</span>, T&gt;) -&gt; Vec&lt;<a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>&gt; {
         <span class="kw">let </span><a href="#23-28">QueueStep</a> {
             block_config,
             gas_limit,
@@ -362,7 +362,7 @@
         <span class="comment">// To start executing a message resources of a destination program should be
         // fetched from the storage.
         // The first step is to get program data so charge gas for the operation.
-        </span><span class="kw">let </span>context = <span class="kw">match </span>core_processor::precharge_for_program(
+        </span><span class="kw">let </span>context = <span class="kw">match </span><a href="../../gear_core_processor/precharge/fn.precharge_for_program.html">core_processor::precharge_for_program</a>(
             <a href="#36">block_config</a>,
             GasAllowanceOf::&lt;T&gt;::get(),
             <a href="#38">dispatch</a>.into_incoming(<a href="#37">gas_limit</a>),
@@ -375,7 +375,7 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(Program::Active(program)) = ProgramStorageOf::&lt;T&gt;::get_program(<a href="#42">destination_id</a>)
         <span class="kw">else </span>{
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Message {dispatch_id} is sent to non-active program {destination_id}"</span>);
-            <span class="kw">return </span>core_processor::process_non_executable(<a href="#49">context</a>);
+            <span class="kw">return </span><a href="../../gear_core_processor/processing/fn.process_non_executable.html">core_processor::process_non_executable</a>(<a href="#49">context</a>);
         };
 
         <span class="kw">if </span>program.state == ProgramState::Initialized &amp;&amp; dispatch_kind == DispatchKind::Init {
@@ -408,10 +408,10 @@
                 <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"{err_msg}"</span>);
             }
 
-            <span class="kw">return </span>core_processor::process_non_executable(<a href="#49">context</a>);
+            <span class="kw">return </span><a href="../../gear_core_processor/processing/fn.process_non_executable.html">core_processor::process_non_executable</a>(<a href="#49">context</a>);
         }
 
-        <span class="kw">let </span>context = <span class="kw">match </span>core_processor::precharge_for_allocations(
+        <span class="kw">let </span>context = <span class="kw">match </span><a href="../../gear_core_processor/precharge/fn.precharge_for_allocations.html">core_processor::precharge_for_allocations</a>(
             <a href="#36">block_config</a>,
             <a href="#49">context</a>,
             <a href="#59">program</a>.allocations_tree_len,
@@ -429,7 +429,7 @@
             })
         }).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>();
 
-        <span class="kw">let </span>actor_data = ExecutableActorData {
+        <span class="kw">let </span>actor_data = <a href="../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a> {
             <a href="#107">allocations</a>,
             code_id: <a href="#59">program</a>.code_hash.cast(),
             code_exports: <a href="#59">program</a>.code_exports,
@@ -441,13 +441,13 @@
         <span class="comment">// The second step is to load instrumented binary code of the program but
         // first its correct length should be obtained.
         </span><span class="kw">let </span>context =
-            <span class="kw">match </span>core_processor::precharge_for_code_length(<a href="#36">block_config</a>, <a href="#98">context</a>, <a href="#116">actor_data</a>) {
+            <span class="kw">match </span><a href="../../gear_core_processor/precharge/fn.precharge_for_code_length.html">core_processor::precharge_for_code_length</a>(<a href="#36">block_config</a>, <a href="#98">context</a>, <a href="#116">actor_data</a>) {
                 <span class="prelude-val">Ok</span>(context) =&gt; <a href="#129">context</a>,
                 <span class="prelude-val">Err</span>(journal) =&gt; <span class="kw">return </span><a href="#130">journal</a>,
             };
 
         <span class="comment">// Load correct code length value.
-        </span><span class="kw">let </span>code_id = <a href="#127">context</a>.actor_data().code_id;
+        </span><span class="kw">let </span>code_id = <a href="#127">context</a>.<a href="../../gear_core_processor/context/struct.ContextChargedForCodeLength.html#method.actor_data">actor_data</a>().code_id;
         <span class="kw">let </span>code_len_bytes = T::CodeStorage::get_code_len(<a href="#134">code_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
             <span class="comment">// `Program` exists, so do code and code len.
             </span><span class="kw">let </span>err_msg = <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
@@ -461,7 +461,7 @@
 
         <span class="comment">// Adjust gas counters for fetching instrumented binary code.
         </span><span class="kw">let </span>context =
-            <span class="kw">match </span>core_processor::precharge_for_code(<a href="#36">block_config</a>, <a href="#127">context</a>, <a href="#135">code_len_bytes</a>) {
+            <span class="kw">match </span><a href="../../gear_core_processor/precharge/fn.precharge_for_code.html">core_processor::precharge_for_code</a>(<a href="#36">block_config</a>, <a href="#127">context</a>, <a href="#135">code_len_bytes</a>) {
                 <span class="prelude-val">Ok</span>(context) =&gt; <a href="#149">context</a>,
                 <span class="prelude-val">Err</span>(journal) =&gt; <span class="kw">return </span><a href="#150">journal</a>,
             };
@@ -486,7 +486,7 @@
             } <span class="kw">else </span>{
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Re-instrumenting code for program '{destination_id:?}'"</span>);
 
-                <span class="kw">let </span>context = <span class="kw">match </span>core_processor::precharge_for_instrumentation(
+                <span class="kw">let </span>context = <span class="kw">match </span><a href="../../gear_core_processor/precharge/fn.precharge_for_instrumentation.html">core_processor::precharge_for_instrumentation</a>(
                     <a href="#36">block_config</a>,
                     <a href="#147">context</a>,
                     <a href="#154">code</a>.original_code_len(),
@@ -499,7 +499,7 @@
                     <span class="prelude-val">Ok</span>(code) =&gt; <a href="#183">code</a>,
                     <span class="prelude-val">Err</span>(e) =&gt; {
                         <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Re-instrumentation error for code {code_id:?}: {e:?}"</span>);
-                        <span class="kw">return </span>core_processor::process_reinstrumentation_error(<a href="#173">context</a>);
+                        <span class="kw">return </span><a href="../../gear_core_processor/processing/fn.process_reinstrumentation_error.html">core_processor::process_reinstrumentation_error</a>(<a href="#173">context</a>);
                     }
                 };
 
@@ -507,7 +507,7 @@
             };
 
         <span class="comment">// The last one thing is to load program memory. Adjust gas counters for memory pages.
-        </span><span class="kw">let </span>context = <span class="kw">match </span>core_processor::precharge_for_module_instantiation(
+        </span><span class="kw">let </span>context = <span class="kw">match </span><a href="../../gear_core_processor/precharge/fn.precharge_for_module_instantiation.html">core_processor::precharge_for_module_instantiation</a>(
             <a href="#36">block_config</a>,
             <a href="#167">context</a>,
             <a href="#167">code</a>.instantiated_section_sizes(),
