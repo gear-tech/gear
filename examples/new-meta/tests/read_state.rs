@@ -192,5 +192,6 @@ fn initialize_current_program(system: &System) -> Program {
             currency: "USD".into(),
         },
     );
+    system.run_next_block();
     program
 }

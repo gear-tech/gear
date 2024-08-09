@@ -65,18 +65,34 @@ mod wasm;
 
 #[cfg(test)]
 mod tests {
-    use gstd::errors::{SignalCode, SimpleExecutionError};
-    use gtest::{Program, System};
+    use crate::HandleAction;
+    use gtest::{Log, Program, System};
 
     #[test]
     fn signal_can_be_sent() {
         let system = System::new();
         system.init_logger();
 
+        let user_id = 42;
         let program = Program::current(&system);
 
-        let signal_code: SignalCode = SimpleExecutionError::UserspacePanic.into();
-        let res = program.send_signal(0, signal_code);
-        assert!(!res.main_failed());
+        // Initialize program
+        program.send_bytes(user_id, b"init_program");
+        system.run_next_block();
+
+        // Make program panic
+        let msg_id = program.send(user_id, HandleAction::Panic);
+        let res = system.run_next_block();
+
+        // Checking signal executed successfully by checking if there are failed messages.
+        assert_eq!(res.failed.len(), 1);
+        assert!(res.failed.contains(&msg_id));
+        assert!(res.not_executed.is_empty());
+
+        // Signal sends user message
+        let log = Log::builder().dest(user_id).payload(b"handle_signal");
+        assert!(res.contains(&log));
+        let mailbox = system.get_mailbox(user_id);
+        assert!(mailbox.contains(&log));
     }
 }

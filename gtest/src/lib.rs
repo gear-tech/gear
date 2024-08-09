@@ -332,18 +332,31 @@
 //! assert_eq!(y, y_from);
 //! ```
 //!
-//! ## Spending blocks
+//! ## Blocks execution model
 //!
-//! You may control time in the system by spending blocks.
+//! Block execution has 2 main step:
+//! - tasks processing
+//! - messages processing
 //!
-//! It adds the amount of blocks passed as arguments to the current block of the
-//! system. Same for the timestamp. Note, that for now 1 block in Gear-based
-//! network is 3 sec duration.
+//! Tasks processing is a step, when all scheduled for the current block number
+//! tasks are tried to be processed. This includes processing delayed
+//! dispatches, waking waited messages and etc.
+//!
+//! Messages processing is a step, when messages from the queue are processed
+//! until either the queue is empty or the block gas allowance is not enough for
+//! the execution.
+//!
+//! Blocks can't be "spent" without their execution except for use the
+//! [`System::run_scheduled_tasks`] method, which doesn't process the message
+//! queue, but only processes scheduled tasks triggering blocks info
+//! adjustments, which can be used to "spend" blocks.
+//!
+//! Note, that for now 1 block in Gear-based network is 3 sec duration.
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();
-//! // Spend 150 blocks (7.5 mins for 3 sec block).
-//! sys.spend_blocks(150);
+//! // Spend 150 blocks by running only the task pool (7.5 mins for 3 sec block).
+//! sys.run_scheduled_tasks(150);
 //! ```
 //!
 //! Note that processing messages (e.g. by using
@@ -429,7 +442,7 @@ mod manager;
 mod program;
 mod system;
 
-pub use crate::log::{CoreLog, Log, RunResult};
+pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
 pub use error::{Result, TestError};
 pub use mailbox::ActorMailbox;
