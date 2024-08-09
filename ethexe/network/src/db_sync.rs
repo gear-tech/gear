@@ -186,6 +186,7 @@ pub enum Event {
     },
 }
 
+#[derive(Debug)]
 struct OngoingRequest {
     request_id: RequestId,
     request: Request,
@@ -203,16 +204,27 @@ impl OngoingRequest {
         }
     }
 
-    fn check_fullness(&mut self, response: &Response) -> Result<bool, RequestFailure> {
+    /// Try to bring request to the complete state.
+    ///
+    /// # Success
+    ///
+    /// Returns `Some(self)` if request is not completed.
+    ///
+    /// Returns `None` if request is completed.
+    ///
+    /// # Error
+    ///
+    /// Returns error if response validation is failed.
+    fn try_complete(mut self, response: &Response) -> Result<Option<Self>, RequestFailure> {
         self.request.validate_response(response)?;
 
         if let Some(new_request) = self.request.difference(response) {
             self.request = new_request;
             self.tried_peers.extend(self.current_peer.take());
-            return Ok(false);
+            Ok(Some(self))
+        } else {
+            Ok(None)
         }
-
-        Ok(true)
     }
 
     fn choose_next_peer(
@@ -229,15 +241,74 @@ impl OngoingRequest {
     }
 }
 
+#[derive(Debug, Default)]
+struct OngoingRequests {
+    inner: HashMap<OutboundRequestId, OngoingRequest>,
+    connections: HashMap<PeerId, HashSet<ConnectionId>>,
+}
+
+impl OngoingRequests {
+    /// Tracks all active connections.
+    fn on_swarm_event(&mut self, event: FromSwarm) {
+        match event {
+            FromSwarm::ConnectionEstablished(ConnectionEstablished {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                self.connections
+                    .entry(peer_id)
+                    .or_default()
+                    .insert(connection_id);
+            }
+            FromSwarm::ConnectionClosed(ConnectionClosed {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                self.connections
+                    .entry(peer_id)
+                    .or_default()
+                    .remove(&connection_id);
+            }
+            _ => {}
+        }
+    }
+
+    fn remove(&mut self, outbound_request_id: OutboundRequestId) -> Option<OngoingRequest> {
+        self.inner.remove(&outbound_request_id)
+    }
+
+    /// Send actual request to behaviour and tracks its state.
+    ///
+    /// Returns request back if no peer connected to the swarm.
+    fn send_request(
+        &mut self,
+        behaviour: &mut InnerBehaviour,
+        mut ongoing_request: OngoingRequest,
+    ) -> Result<(), OngoingRequest> {
+        let peer_id = ongoing_request.choose_next_peer(&self.connections);
+        if let Some(peer_id) = peer_id {
+            let outbound_request_id =
+                behaviour.send_request(&peer_id, ongoing_request.request.clone());
+
+            self.inner.insert(outbound_request_id, ongoing_request);
+
+            Ok(())
+        } else {
+            Err(ongoing_request)
+        }
+    }
+}
+
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    connections: HashMap<PeerId, HashSet<ConnectionId>>,
     // requests
     request_id_counter: u64,
-    user_requests: VecDeque<(RequestId, Request)>,
-    ongoing_requests: HashMap<OutboundRequestId, OngoingRequest>,
+    pending_requests: VecDeque<(RequestId, Request)>,
+    ongoing_requests: OngoingRequests,
     // responses
     db: Database,
     ongoing_response: Option<(
@@ -250,11 +321,10 @@ impl Behaviour {
     pub fn new(cfg: request_response::Config, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], cfg),
-            connections: HashMap::new(),
             //
             request_id_counter: 0,
-            user_requests: VecDeque::new(),
-            ongoing_requests: HashMap::new(),
+            pending_requests: VecDeque::new(),
+            ongoing_requests: OngoingRequests::default(),
             //
             db,
             ongoing_response: None,
@@ -268,7 +338,7 @@ impl Behaviour {
 
     pub fn request(&mut self, request: Request) -> RequestId {
         let request_id = self.next_request_id();
-        self.user_requests.push_back((request_id, request));
+        self.pending_requests.push_back((request_id, request));
         request_id
     }
 
@@ -317,34 +387,29 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let mut ongoing_request = self
+                let ongoing_request = self
                     .ongoing_requests
-                    .remove(&request_id)
+                    .remove(request_id)
                     .expect("unknown response");
 
                 let request_id = ongoing_request.request_id;
-
-                let event = match ongoing_request.check_fullness(&response) {
-                    Ok(true) => Event::RequestSucceed {
+                let event = match ongoing_request.try_complete(&response) {
+                    Ok(None) => Event::RequestSucceed {
                         request_id,
                         response,
                     },
-                    Ok(false) => {
-                        let peer_id = ongoing_request.choose_next_peer(&self.connections);
-                        if let Some(peer_id) = peer_id {
-                            let outbound_request_id = self
-                                .inner
-                                .send_request(&peer_id, ongoing_request.request.clone());
-
-                            self.ongoing_requests
-                                .insert(outbound_request_id, ongoing_request);
-
-                            return Poll::Pending;
-                        } else {
-                            Event::RequestSucceed {
+                    Ok(Some(new_ongoing_request)) => {
+                        match self
+                            .ongoing_requests
+                            .send_request(&mut self.inner, new_ongoing_request)
+                        {
+                            Ok(()) => {
+                                return Poll::Pending;
+                            }
+                            Err(_) => Event::RequestSucceed {
                                 request_id,
                                 response,
-                            }
+                            },
                         }
                     }
                     Err(error) => Event::RequestFailed { request_id, error },
@@ -440,30 +505,7 @@ impl NetworkBehaviour for Behaviour {
 
     fn on_swarm_event(&mut self, event: FromSwarm) {
         self.inner.on_swarm_event(event);
-
-        match event {
-            FromSwarm::ConnectionEstablished(ConnectionEstablished {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                self.connections
-                    .entry(peer_id)
-                    .or_default()
-                    .insert(connection_id);
-            }
-            FromSwarm::ConnectionClosed(ConnectionClosed {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                self.connections
-                    .entry(peer_id)
-                    .or_default()
-                    .remove(&connection_id);
-            }
-            _ => {}
-        }
+        self.ongoing_requests.on_swarm_event(event);
     }
 
     fn on_connection_handler_event(
@@ -480,24 +522,24 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some((request_id, request)) = self.user_requests.pop_back() {
+        if let Some((request_id, request)) = self.pending_requests.pop_back() {
             let request_kind = request.kind();
-            let mut ongoing_request = OngoingRequest::new(request_id, request);
-            let peer = ongoing_request.choose_next_peer(&self.connections);
-            if let Some(peer) = peer {
-                let outbound_request_id = self
-                    .inner
-                    .send_request(&peer, ongoing_request.request.clone());
-                self.ongoing_requests
-                    .insert(outbound_request_id, ongoing_request);
+            let ongoing_request = OngoingRequest::new(request_id, request);
 
-                return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestInitiated {
-                    request_id,
-                    kind: request_kind,
-                }));
-            } else {
-                self.user_requests
-                    .push_back((request_id, ongoing_request.request));
+            match self
+                .ongoing_requests
+                .send_request(&mut self.inner, ongoing_request)
+            {
+                Ok(()) => {
+                    return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestInitiated {
+                        request_id,
+                        kind: request_kind,
+                    }));
+                }
+                Err(ongoing_request) => {
+                    self.pending_requests
+                        .push_back((request_id, ongoing_request.request));
+                }
             }
         }
 
