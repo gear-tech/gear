@@ -20,27 +20,42 @@ use gsdk::{
     metadata::runtime_types::pallet_gear_voucher::internal::VoucherId, Api, Event, Result,
     TxInBlock,
 };
-use utils::{alice_account_id, dev_node};
+use sp_core::crypto::Ss58Codec;
+use sp_runtime::AccountId32;
+use utils::dev_node;
 
 mod utils;
 
 #[tokio::test]
 async fn test_issue_voucher() -> Result<()> {
+    // arrange
     let node = dev_node();
 
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
-    let account_id = alice_account_id();
+    let account_id = signer.account_id();
 
-    let voucher_initial_balance = 0;
+    let voucher_initial_balance = 100_000_000_000_000;
 
+    // act
     let tx = signer
         .calls
-        .issue_voucher(account_id, voucher_initial_balance, None, false, 100)
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            None,
+            false,
+            100,
+        )
         .await?;
 
-    let _voucher_id = get_last_voucher_id(tx).await?;
+    let voucher_id = get_last_voucher_id(tx).await?;
+    let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
+    let voucher_balance = signer.api().get_balance(&voucher_address).await?;
+
+    // assert
+    assert_eq!(voucher_initial_balance, voucher_balance);
 
     Ok(())
 }
