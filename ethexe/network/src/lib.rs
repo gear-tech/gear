@@ -17,19 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod custom_connection_limits;
+mod db_sync;
+mod utils;
 
-pub mod utils {
+pub mod export {
     pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 }
 
 use anyhow::Context;
+use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
+use gprimitives::H256;
 use libp2p::{
     connection_limits,
-    futures::{Stream, StreamExt},
+    futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
-    ping,
+    ping, request_response,
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
         NetworkBehaviour, SwarmEvent,
@@ -37,13 +41,11 @@ use libp2p::{
     Multiaddr, PeerId, Swarm, SwarmBuilder,
 };
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
-    pin::Pin,
     str::FromStr,
-    task::Poll,
 };
 use tokio::{select, sync::mpsc};
 
@@ -58,18 +60,22 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 pub struct NetworkService {
     pub sender: NetworkSender,
-    pub gossip_stream: GossipsubMessageStream,
+    pub receiver: NetworkReceiver,
     pub event_loop: NetworkEventLoop,
 }
 
 impl NetworkService {
-    pub fn new(config: NetworkEventLoopConfig, signer: &Signer) -> anyhow::Result<NetworkService> {
+    pub fn new(
+        config: NetworkEventLoopConfig,
+        signer: &Signer,
+        db: Database,
+    ) -> anyhow::Result<NetworkService> {
         fs::create_dir_all(&config.config_dir)
             .context("failed to create network configuration directory")?;
 
         let keypair =
             NetworkEventLoop::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkEventLoop::create_swarm(keypair)?;
+        let mut swarm = NetworkEventLoop::create_swarm(keypair, db)?;
 
         for multiaddr in config.external_addresses {
             swarm.add_external_address(multiaddr);
@@ -94,16 +100,16 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let (general_tx, general_rx) = mpsc::unbounded_channel();
-        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
+        let (network_sender, sender_rx) = NetworkSender::new();
+        let (receiver_tx, network_receiver) = NetworkReceiver::new();
 
         Ok(Self {
-            sender: NetworkSender { tx: general_tx },
-            gossip_stream: GossipsubMessageStream { rx: gossipsub_rx },
+            sender: network_sender,
+            receiver: network_receiver,
             event_loop: NetworkEventLoop {
                 swarm,
-                general_rx,
-                gossipsub_tx,
+                rx: sender_rx,
+                tx: receiver_tx,
             },
         })
     }
@@ -112,41 +118,52 @@ impl NetworkService {
 #[derive(Debug)]
 enum NetworkSenderEvent {
     PublishCommitments { data: Vec<u8> },
+    RequestDbData(db_sync::Request),
 }
 
-/// Communication with [`NetworkEventLoop`]
 #[derive(Debug, Clone)]
 pub struct NetworkSender {
     tx: mpsc::UnboundedSender<NetworkSenderEvent>,
 }
 
 impl NetworkSender {
+    fn new() -> (Self, mpsc::UnboundedReceiver<NetworkSenderEvent>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (Self { tx }, rx)
+    }
+
     pub fn publish_commitments(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
             .send(NetworkSenderEvent::PublishCommitments { data: data.into() });
     }
+
+    pub fn request_db_data(&self, request: db_sync::Request) {
+        let _res = self.tx.send(NetworkSenderEvent::RequestDbData(request));
+    }
 }
 
 #[derive(Debug)]
-pub struct GossipsubMessage {
-    pub source: Option<PeerId>,
-    pub data: Vec<u8>,
+pub enum NetworkReceiverEvent {
+    Commitments {
+        source: Option<PeerId>,
+        data: Vec<u8>,
+    },
+    DbHashes(BTreeMap<H256, Vec<u8>>),
 }
 
-#[derive(Debug)]
-pub struct GossipsubMessageStream {
-    rx: mpsc::UnboundedReceiver<GossipsubMessage>,
+pub struct NetworkReceiver {
+    rx: mpsc::UnboundedReceiver<NetworkReceiverEvent>,
 }
 
-impl Stream for GossipsubMessageStream {
-    type Item = GossipsubMessage;
+impl NetworkReceiver {
+    fn new() -> (mpsc::UnboundedSender<NetworkReceiverEvent>, Self) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (tx, Self { rx })
+    }
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.rx).poll_recv(cx)
+    pub async fn recv(&mut self) -> Option<NetworkReceiverEvent> {
+        self.rx.recv().await
     }
 }
 
@@ -173,8 +190,8 @@ impl NetworkEventLoopConfig {
 
 pub struct NetworkEventLoop {
     swarm: Swarm<Behaviour>,
-    general_rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
-    gossipsub_tx: mpsc::UnboundedSender<GossipsubMessage>,
+    rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
+    tx: mpsc::UnboundedSender<NetworkReceiverEvent>,
 }
 
 impl NetworkEventLoop {
@@ -209,11 +226,11 @@ impl NetworkEventLoop {
         Ok(identity::Keypair::from(pair))
     }
 
-    fn create_swarm(keypair: identity::Keypair) -> anyhow::Result<Swarm<Behaviour>> {
+    fn create_swarm(keypair: identity::Keypair, db: Database) -> anyhow::Result<Swarm<Behaviour>> {
         let swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
             .with_quic()
-            .with_behaviour(Behaviour::from_keypair)?
+            .with_behaviour(move |keypair| Behaviour::new(keypair, db))?
             .build();
         Ok(swarm)
     }
@@ -222,7 +239,7 @@ impl NetworkEventLoop {
         loop {
             select! {
                 event = self.swarm.select_next_some() => self.handle_swarm_event(event),
-                event = self.general_rx.recv() => match event {
+                event = self.rx.recv() => match event {
                     Some(event) => {
                         self.handle_network_rx_event(event);
                     }
@@ -278,8 +295,9 @@ impl NetworkEventLoop {
                 }
             }
             BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
-                log::debug!("{peer_id} is not identified: {error}. Disconnecting...");
-                let _res = self.swarm.disconnect_peer_id(peer_id);
+                // FIXME: floating IO error during identification
+                log::warn!("{peer_id} is not identified: {error}");
+                //let _res = self.swarm.disconnect_peer_id(peer_id);
             }
             BehaviourEvent::Identify(_) => {}
             //
@@ -314,16 +332,28 @@ impl NetworkEventLoop {
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message: gossipsub::Message { source, data, .. },
+                message:
+                    gossipsub::Message {
+                        source,
+                        data,
+                        sequence_number: _,
+                        topic,
+                    },
                 ..
-            }) => {
-                let _res = self.gossipsub_tx.send(GossipsubMessage { source, data });
+            }) if gpu_commitments_topic().hash() == topic => {
+                self.tx
+                    .send(NetworkReceiverEvent::Commitments { source, data })
+                    .expect("channel dropped unexpectedly");
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
                 let _res = self.swarm.disconnect_peer_id(peer_id);
             }
             BehaviourEvent::Gossipsub(_) => {}
+            //
+            BehaviourEvent::DbSync(event) => {
+                log::error!("Got data from db: {event:?}");
+            }
         }
     }
 
@@ -339,12 +369,15 @@ impl NetworkEventLoop {
                     log::debug!("gossipsub publishing failed: {e}")
                 }
             }
+            NetworkSenderEvent::RequestDbData(request) => {
+                self.swarm.behaviour_mut().db_sync.request(request);
+            }
         }
     }
 }
 
 #[derive(NetworkBehaviour)]
-pub struct Behaviour {
+pub(crate) struct Behaviour {
     // custom options to limit connections
     pub custom_connection_limits: custom_connection_limits::Behaviour,
     // limit connections
@@ -360,11 +393,14 @@ pub struct Behaviour {
     pub kad: kad::Behaviour<kad::store::MemoryStore>,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
+    // database synchronization protocol
+    pub db_sync: db_sync::Behaviour,
 }
 
 impl Behaviour {
-    fn from_keypair(
+    fn new(
         keypair: &identity::Keypair,
+        db: Database,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let peer_id = keypair.public().to_peer_id();
 
@@ -421,6 +457,8 @@ impl Behaviour {
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 
+        let db_sync = db_sync::Behaviour::new(request_response::Config::default(), db);
+
         Ok(Self {
             custom_connection_limits,
             connection_limits,
@@ -429,6 +467,7 @@ impl Behaviour {
             mdns4,
             kad,
             gossipsub,
+            db_sync,
         })
     }
 }

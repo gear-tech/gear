@@ -4911,6 +4911,7 @@ dependencies = [
  "anyhow",
  "clap 4.5.9",
  "demo-ping",
+ "derive_more",
  "directories",
  "env_logger",
  "ethexe-common",
@@ -4996,11 +4997,17 @@ name = "ethexe-network"
 version = "1.5.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "env_logger",
+ "ethexe-db",
  "ethexe-signer",
+ "gear-core",
+ "gprimitives",
  "libp2p 0.54.0",
  "libp2p-swarm-test",
  "log",
+ "parity-scale-codec",
+ "rand 0.8.5",
  "tempfile",
  "tokio",
  "void",
@@ -8728,7 +8735,7 @@ dependencies = [
  "libp2p-noise",
  "libp2p-ping 0.42.0",
  "libp2p-quic 0.7.0-alpha.3",
- "libp2p-request-response",
+ "libp2p-request-response 0.24.1",
  "libp2p-swarm 0.42.2",
  "libp2p-tcp 0.39.0",
  "libp2p-wasm-ext",
@@ -8760,6 +8767,7 @@ dependencies = [
  "libp2p-metrics 0.14.2",
  "libp2p-ping 0.44.2",
  "libp2p-quic 0.10.3",
+ "libp2p-request-response 0.26.4",
  "libp2p-swarm 0.45.0",
  "libp2p-tcp 0.42.0",
  "libp2p-upnp",
@@ -9271,6 +9279,25 @@ dependencies = [
  "libp2p-swarm 0.42.2",
  "rand 0.8.5",
  "smallvec",
+]
+
+[[package]]
+name = "libp2p-request-response"
+version = "0.26.4"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+dependencies = [
+ "async-trait",
+ "futures",
+ "futures-bounded",
+ "futures-timer",
+ "libp2p-core 0.41.3",
+ "libp2p-identity 0.2.9",
+ "libp2p-swarm 0.45.0",
+ "rand 0.8.5",
+ "smallvec",
+ "tracing",
+ "void",
+ "web-time",
 ]
 
 [[package]]

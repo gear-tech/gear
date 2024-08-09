@@ -48,6 +48,7 @@ hex.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 futures-timer.workspace = true
+derive_more.workspace = true
 
 static_init = "1.0.3"
 

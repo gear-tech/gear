@@ -19,7 +19,7 @@
 use anyhow::Context;
 use clap::Args;
 use ethexe_network::{
-    utils::{Multiaddr, Protocol},
+    export::{Multiaddr, Protocol},
     NetworkEventLoopConfig,
 };
 use serde::Deserialize;

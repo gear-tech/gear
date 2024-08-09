@@ -19,12 +19,13 @@
 //! Main service in ethexe node.
 
 use crate::{
-    config::{Config, ConfigPublicKey, PrometheusConfig},
+    config::{Config, ConfigPublicKey, PrometheusConfig, SyncMode},
     metrics::MetricsService,
 };
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
+use ethexe_network::NetworkReceiverEvent;
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
 use ethexe_signer::{PublicKey, Signer};
@@ -42,6 +43,7 @@ pub struct Service {
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
+    sync_mode: SyncMode,
 
     // Optional services
     network: Option<ethexe_network::NetworkService>,
@@ -135,7 +137,7 @@ impl Service {
             .net_config
             .as_ref()
             .map(|config| -> Result<_> {
-                ethexe_network::NetworkService::new(config.clone(), &signer)
+                ethexe_network::NetworkService::new(config.clone(), &signer, db.clone())
             })
             .transpose()?;
 
@@ -155,6 +157,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.block_time,
+            sync_mode: config.sync_mode,
         })
     }
 
@@ -180,6 +183,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
+        sync_mode: SyncMode,
     ) -> Self {
         Self {
             db,
@@ -193,6 +197,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            sync_mode,
         }
     }
 
@@ -387,6 +392,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time,
+            sync_mode: _,
         } = self;
 
         if let Some(metrics_service) = metrics_service {
@@ -399,11 +405,11 @@ impl Service {
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
-        let (mut network_sender, mut gossipsub_stream, mut network_handle) =
+        let (mut network_sender, mut network_receiver, mut network_handle) =
             if let Some(network) = network {
                 (
                     Some(network.sender),
-                    Some(network.gossip_stream),
+                    Some(network.receiver),
                     Some(tokio::spawn(network.event_loop.run())),
                 )
             } else {
@@ -486,12 +492,12 @@ impl Service {
                         validator.clear();
                     };
                 }
-                message = maybe_await(gossipsub_stream.as_mut().map(|stream| stream.next())) => {
-                    if let Some(message) = message {
+                event = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
+                    if let Some(NetworkReceiverEvent::Commitments { source, data }) = event {
                         if let Some(sequencer) = sequencer.as_mut() {
-                            log::debug!("Received p2p commitments from: {:?}", message.source);
+                            log::debug!("Received p2p commitments from: {:?}", source);
 
-                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut message.data.as_slice())?;
+                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut data.as_slice())?;
 
                             sequencer.receive_codes_commitment(origin, codes_aggregated_commitment)?;
                             sequencer.receive_block_commitment(origin, transitions_aggregated_commitment)?;
@@ -531,7 +537,7 @@ pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
 #[cfg(test)]
 mod tests {
     use super::Service;
-    use crate::config::{Config, PrometheusConfig};
+    use crate::config::{Config, PrometheusConfig, SyncMode};
     use std::{
         net::{Ipv4Addr, SocketAddr},
         time::Duration,
@@ -566,6 +572,7 @@ mod tests {
                 "dev".to_string(),
             )),
             rpc_port: Some(9090),
+            sync_mode: SyncMode::Full,
         })
         .await
         .unwrap();
@@ -588,6 +595,7 @@ mod tests {
             net_config: None,
             prometheus_config: None,
             rpc_port: None,
+            sync_mode: SyncMode::Full,
         })
         .await
         .unwrap();

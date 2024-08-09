@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ethexe_network::utils::Multiaddr;
+use ethexe_network::export::Multiaddr;
 use serde::Deserialize;
 use std::{fs, path::Path};
 
