@@ -373,7 +373,7 @@ fn prepaid_call_to_scale_value(call: PrepaidCall<u128>) -> Value {
             value,
             keep_alive,
         } => Value::named_variant(
-            "send_message",
+            "SendMessage",
             [
                 ("destination", Value::from_bytes(destination.0)),
                 ("payload", Value::from_bytes(payload)),
@@ -389,7 +389,7 @@ fn prepaid_call_to_scale_value(call: PrepaidCall<u128>) -> Value {
             value,
             keep_alive,
         } => Value::named_variant(
-            "send_reply",
+            "SendReply",
             [
                 ("reply_to_id", Value::from_bytes(reply_to_id.0)),
                 ("payload", Value::from_bytes(payload)),
@@ -399,12 +399,10 @@ fn prepaid_call_to_scale_value(call: PrepaidCall<u128>) -> Value {
             ],
         ),
         PrepaidCall::UploadCode { code } => {
-            Value::named_variant("upload_code", [("code", Value::from_bytes(code))])
+            Value::named_variant("UploadCode", [("code", Value::from_bytes(code))])
         }
-        PrepaidCall::DeclineVoucher => Value::unnamed_variant("decline_voucher", []),
-        _ => {
-            unimplemented!("calls that won't be used in batch call");
-        }
+        PrepaidCall::DeclineVoucher => Value::unnamed_variant("DeclineVoucher", []),
+        _ => unreachable!("other prepaid calls aren't supported"),
     }
 }
 
