@@ -135,14 +135,23 @@ impl Request {
             ) => None,
             (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
                 let hashes_keys = hashes.keys().copied().collect();
-                let new_requested_hashes =
+                let new_requested_hashes: BTreeSet<H256> =
                     requested_hashes.difference(&hashes_keys).copied().collect();
-                Some(Request::DataForHashes(new_requested_hashes))
+                if !new_requested_hashes.is_empty() {
+                    Some(Request::DataForHashes(new_requested_hashes))
+                } else {
+                    None
+                }
             }
             (Request::ProgramCodeIds(requested_ids), Response::ProgramCodeIds(ids)) => {
                 let ids_keys = ids.keys().copied().collect();
-                let new_requested_ids = requested_ids.difference(&ids_keys).copied().collect();
-                Some(Request::ProgramCodeIds(new_requested_ids))
+                let new_requested_ids: BTreeSet<ProgramId> =
+                    requested_ids.difference(&ids_keys).copied().collect();
+                if !new_requested_ids.is_empty() {
+                    Some(Request::ProgramCodeIds(new_requested_ids))
+                } else {
+                    None
+                }
             }
             _ => unreachable!("should be checked in `validate_response`"),
         }
@@ -163,6 +172,34 @@ pub enum Response {
     ProgramCodeIds(BTreeMap<ProgramId, CodeId>),
 }
 
+impl Response {
+    fn merge(self, new_response: Response) -> Response {
+        match (self, new_response) {
+            (
+                Response::BlockEndProgramStates {
+                    block_hash,
+                    mut states,
+                },
+                Response::BlockEndProgramStates {
+                    states: new_states, ..
+                },
+            ) => {
+                states.extend(new_states);
+                Response::BlockEndProgramStates { block_hash, states }
+            }
+            (Response::DataForHashes(mut data), Response::DataForHashes(new_data)) => {
+                data.extend(new_data);
+                Response::DataForHashes(data)
+            }
+            (Response::ProgramCodeIds(mut ids), Response::ProgramCodeIds(new_ids)) => {
+                ids.extend(new_ids);
+                Response::ProgramCodeIds(ids)
+            }
+            _ => unreachable!("should be checked in `validate_response`"),
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub enum Event {
@@ -171,6 +208,10 @@ pub enum Event {
         request_id: RequestId,
         /// Kind of request
         kind: RequestKind,
+    },
+    NewRequestRound {
+        /// The ID of request
+        request_id: RequestId,
     },
     RequestSucceed {
         /// The ID of request
@@ -186,10 +227,16 @@ pub enum Event {
     },
 }
 
+enum OngoingRequestCompletion {
+    Full(Response),
+    Partial(OngoingRequest),
+}
+
 #[derive(Debug)]
 struct OngoingRequest {
     request_id: RequestId,
     request: Request,
+    response: Option<Response>,
     current_peer: Option<PeerId>,
     tried_peers: HashSet<PeerId>,
 }
@@ -199,31 +246,37 @@ impl OngoingRequest {
         Self {
             request_id,
             request,
+            response: None,
             current_peer: None,
             tried_peers: HashSet::new(),
         }
     }
 
+    fn merge_response(&mut self, new_response: Response) -> Response {
+        if let Some(response) = self.response.take() {
+            response.merge(new_response)
+        } else {
+            new_response
+        }
+    }
+
     /// Try to bring request to the complete state.
     ///
-    /// # Success
-    ///
-    /// Returns `Some(self)` if request is not completed.
-    ///
-    /// Returns `None` if request is completed.
-    ///
-    /// # Error
-    ///
     /// Returns error if response validation is failed.
-    fn try_complete(mut self, response: &Response) -> Result<Option<Self>, RequestFailure> {
-        self.request.validate_response(response)?;
+    fn try_complete(
+        mut self,
+        response: Response,
+    ) -> Result<OngoingRequestCompletion, RequestFailure> {
+        self.request.validate_response(&response)?;
 
-        if let Some(new_request) = self.request.difference(response) {
+        if let Some(new_request) = self.request.difference(&response) {
             self.request = new_request;
             self.tried_peers.extend(self.current_peer.take());
-            Ok(Some(self))
+            self.response = Some(self.merge_response(response));
+            Ok(OngoingRequestCompletion::Partial(self))
         } else {
-            Ok(None)
+            let response = self.merge_response(response);
+            Ok(OngoingRequestCompletion::Full(response))
         }
     }
 
@@ -393,22 +446,22 @@ impl Behaviour {
                     .expect("unknown response");
 
                 let request_id = ongoing_request.request_id;
-                let event = match ongoing_request.try_complete(&response) {
-                    Ok(None) => Event::RequestSucceed {
+                let event = match ongoing_request.try_complete(response) {
+                    Ok(OngoingRequestCompletion::Full(response)) => Event::RequestSucceed {
                         request_id,
                         response,
                     },
-                    Ok(Some(new_ongoing_request)) => {
+                    Ok(OngoingRequestCompletion::Partial(new_ongoing_request)) => {
                         match self
                             .ongoing_requests
                             .send_request(&mut self.inner, new_ongoing_request)
                         {
-                            Ok(()) => {
-                                return Poll::Pending;
-                            }
-                            Err(_) => Event::RequestSucceed {
+                            Ok(()) => Event::NewRequestRound { request_id },
+                            Err(new_ongoing_request) => Event::RequestSucceed {
                                 request_id,
-                                response,
+                                response: new_ongoing_request
+                                    .response
+                                    .expect("`try_complete` called above"),
                             },
                         }
                     }
@@ -641,20 +694,18 @@ mod tests {
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        alice
+        let request_id = alice
             .behaviour_mut()
             .request(Request::DataForHashes([hello_hash, world_hash].into()));
 
         let event = alice.next_behaviour_event().await;
-        let request_id = if let Event::RequestInitiated {
-            request_id: outbound_request_id,
-            kind: RequestKind::DataForHashes,
-        } = event
-        {
-            outbound_request_id
-        } else {
-            unreachable!()
-        };
+        assert_eq!(
+            event,
+            Event::RequestInitiated {
+                request_id,
+                kind: RequestKind::DataForHashes
+            }
+        );
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -685,20 +736,18 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        alice
+        let request_id = alice
             .behaviour_mut()
             .request(Request::DataForHashes([].into()));
 
         let event = alice.next_behaviour_event().await;
-        let request_id = if let Event::RequestInitiated {
-            request_id,
-            kind: RequestKind::DataForHashes,
-        } = event
-        {
-            request_id
-        } else {
-            unreachable!()
-        };
+        assert_eq!(
+            event,
+            Event::RequestInitiated {
+                request_id,
+                kind: RequestKind::DataForHashes
+            }
+        );
 
         loop {
             tokio::select! {
@@ -732,5 +781,53 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn request_completed_by_2_rounds() {
+        init_logger();
+
+        let (mut alice, _alice_db) = new_swarm().await;
+        let (mut bob, bob_db) = new_swarm().await;
+        let (mut charlie, charlie_db) = new_swarm().await;
+
+        alice.connect(&mut bob).await;
+        alice.connect(&mut charlie).await;
+        tokio::spawn(bob.loop_on_next());
+        tokio::spawn(charlie.loop_on_next());
+
+        let hello_hash = bob_db.write(b"hello");
+        let world_hash = charlie_db.write(b"world");
+
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::DataForHashes([hello_hash, world_hash].into()));
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestInitiated {
+                request_id,
+                kind: RequestKind::DataForHashes
+            }
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::NewRequestRound { request_id });
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestSucceed {
+                request_id,
+                response: Response::DataForHashes(
+                    [
+                        (hello_hash, b"hello".to_vec()),
+                        (world_hash, b"world".to_vec())
+                    ]
+                    .into()
+                )
+            }
+        );
     }
 }
