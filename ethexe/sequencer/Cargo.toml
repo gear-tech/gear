@@ -23,3 +23,6 @@ log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

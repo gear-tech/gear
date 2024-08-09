@@ -5130,6 +5130,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "tempfile",
  "tokio",
 ]
 
@@ -5168,7 +5169,7 @@ version = "1.5.0"
 dependencies = [
  "anyhow",
  "ethexe-common",
- "ethexe-network",
+ "ethexe-db",
  "ethexe-sequencer",
  "ethexe-signer",
  "futures",

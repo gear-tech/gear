@@ -111,7 +111,7 @@ impl NetworkService {
 
 #[derive(Debug)]
 enum NetworkSenderEvent {
-    PublishCommitments { data: Vec<u8> },
+    Message { data: Vec<u8> },
 }
 
 /// Communication with [`NetworkEventLoop`]
@@ -121,10 +121,10 @@ pub struct NetworkSender {
 }
 
 impl NetworkSender {
-    pub fn publish_commitments(&self, data: impl Into<Vec<u8>>) {
+    pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
-            .send(NetworkSenderEvent::PublishCommitments { data: data.into() });
+            .send(NetworkSenderEvent::Message { data: data.into() });
     }
 }
 
@@ -329,7 +329,7 @@ impl NetworkEventLoop {
 
     fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
         match event {
-            NetworkSenderEvent::PublishCommitments { data } => {
+            NetworkSenderEvent::Message { data } => {
                 if let Err(e) = self
                     .swarm
                     .behaviour_mut()

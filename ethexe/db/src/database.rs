@@ -52,6 +52,7 @@ enum KeyPrefix {
     BlockSmallMeta = 6,
     CodeUpload = 7,
     LatestValidBlock = 8,
+    CodeApproved = 9,
 }
 
 impl KeyPrefix {
@@ -304,6 +305,19 @@ impl CodesStorage for Database {
     fn set_code_upload_info(&self, code_id: CodeId, info: CodeUploadInfo) {
         self.kv
             .put(&KeyPrefix::CodeUpload.one(code_id), info.encode());
+    }
+
+    fn code_approved(&self, code_id: CodeId) -> Option<bool> {
+        self.kv
+            .get(&KeyPrefix::CodeApproved.one(code_id))
+            .map(|data| {
+                bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
+            })
+    }
+
+    fn set_code_approved(&self, code_id: CodeId, approved: bool) {
+        self.kv
+            .put(&KeyPrefix::CodeApproved.one(code_id), approved.encode());
     }
 }
 
