@@ -73,7 +73,7 @@ pub const STACKED_DEPENDENCIES: [&str; 13] = [
 /// NOTE: Each package in this array could possibly depend
 /// on the previous one, please be cautious about changing
 /// the order.
-pub const PACKAGES: [&str; 10] = [
+pub const PACKAGES: [&str; 11] = [
     "gring",
     "gear-wasm-optimizer",
     "gear-wasm-builder",

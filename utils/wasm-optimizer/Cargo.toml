@@ -1,5 +1,8 @@
 [package]
 name = "gear-wasm-optimizer"
+description = "Utility for optimizing Gear programs"
+documentation = "https://docs.rs/gear-wasm-optimizer"
+keywords = ["gear", "wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
