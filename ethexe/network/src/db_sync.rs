@@ -38,6 +38,7 @@ use libp2p::{
     StreamProtocol,
 };
 use parity_scale_codec::{Decode, Encode};
+use rand::seq::IteratorRandom;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     task::{Context, Poll},
@@ -125,6 +126,27 @@ impl Request {
             (_, _) => Err(RequestFailure::TypeMismatch),
         }
     }
+
+    fn difference(&self, resp: &Response) -> Option<Self> {
+        match (self, resp) {
+            (
+                Request::BlockEndProgramStates(_request_block_hash),
+                Response::BlockEndProgramStates { .. },
+            ) => None,
+            (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
+                let hashes_keys = hashes.keys().copied().collect();
+                let new_requested_hashes =
+                    requested_hashes.difference(&hashes_keys).copied().collect();
+                Some(Request::DataForHashes(new_requested_hashes))
+            }
+            (Request::ProgramCodeIds(requested_ids), Response::ProgramCodeIds(ids)) => {
+                let ids_keys = ids.keys().copied().collect();
+                let new_requested_ids = requested_ids.difference(&ids_keys).copied().collect();
+                Some(Request::ProgramCodeIds(new_requested_ids))
+            }
+            _ => unreachable!("should be checked in `validate_response`"),
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Encode, Decode)]
@@ -151,8 +173,6 @@ pub enum Event {
         kind: RequestKind,
     },
     RequestSucceed {
-        /// Peer who responded to data request
-        peer_id: PeerId,
         /// The ID of request
         request_id: RequestId,
         /// Response itself
@@ -166,6 +186,49 @@ pub enum Event {
     },
 }
 
+struct OngoingRequest {
+    request_id: RequestId,
+    request: Request,
+    current_peer: Option<PeerId>,
+    tried_peers: HashSet<PeerId>,
+}
+
+impl OngoingRequest {
+    fn new(request_id: RequestId, request: Request) -> Self {
+        Self {
+            request_id,
+            request,
+            current_peer: None,
+            tried_peers: HashSet::new(),
+        }
+    }
+
+    fn check_fullness(&mut self, response: &Response) -> Result<bool, RequestFailure> {
+        self.request.validate_response(response)?;
+
+        if let Some(new_request) = self.request.difference(response) {
+            self.request = new_request;
+            self.tried_peers.extend(self.current_peer.take());
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+
+    fn choose_next_peer(
+        &mut self,
+        peers: &HashMap<PeerId, HashSet<ConnectionId>>,
+    ) -> Option<PeerId> {
+        let peers: HashSet<PeerId> = peers.keys().copied().collect();
+        let peer = peers
+            .difference(&self.tried_peers)
+            .choose_stable(&mut rand::thread_rng())
+            .copied();
+        self.current_peer = peer;
+        peer
+    }
+}
+
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
 
 pub(crate) struct Behaviour {
@@ -174,7 +237,7 @@ pub(crate) struct Behaviour {
     // requests
     request_id_counter: u64,
     user_requests: VecDeque<(RequestId, Request)>,
-    ongoing_requests: HashMap<OutboundRequestId, (RequestId, Request)>,
+    ongoing_requests: HashMap<OutboundRequestId, OngoingRequest>,
     // responses
     db: Database,
     ongoing_response: Option<(
@@ -247,24 +310,43 @@ impl Behaviour {
                 self.ongoing_response = Some((channel, self.read_db(request)));
             }
             request_response::Event::Message {
-                peer,
+                peer: _,
                 message:
                     Message::Response {
                         request_id,
                         response,
                     },
             } => {
-                let (request_id, request) = self
+                let mut ongoing_request = self
                     .ongoing_requests
                     .remove(&request_id)
                     .expect("unknown response");
 
-                let event = match request.validate_response(&response) {
-                    Ok(()) => Event::RequestSucceed {
+                let request_id = ongoing_request.request_id;
+
+                let event = match ongoing_request.check_fullness(&response) {
+                    Ok(true) => Event::RequestSucceed {
                         request_id,
-                        peer_id: peer,
                         response,
                     },
+                    Ok(false) => {
+                        let peer_id = ongoing_request.choose_next_peer(&self.connections);
+                        if let Some(peer_id) = peer_id {
+                            let outbound_request_id = self
+                                .inner
+                                .send_request(&peer_id, ongoing_request.request.clone());
+
+                            self.ongoing_requests
+                                .insert(outbound_request_id, ongoing_request);
+
+                            return Poll::Pending;
+                        } else {
+                            Event::RequestSucceed {
+                                request_id,
+                                response,
+                            }
+                        }
+                    }
                     Err(error) => Event::RequestFailed { request_id, error },
                 };
 
@@ -398,18 +480,24 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        // TODO: way to choose peer
-        if let Some(peer_id) = self.connections.keys().next() {
-            if let Some((request_id, request)) = self.user_requests.pop_back() {
-                let request_kind = request.kind();
-                let outbound_request_id = self.inner.send_request(peer_id, request.clone());
+        if let Some((request_id, request)) = self.user_requests.pop_back() {
+            let request_kind = request.kind();
+            let mut ongoing_request = OngoingRequest::new(request_id, request);
+            let peer = ongoing_request.choose_next_peer(&self.connections);
+            if let Some(peer) = peer {
+                let outbound_request_id = self
+                    .inner
+                    .send_request(&peer, ongoing_request.request.clone());
                 self.ongoing_requests
-                    .insert(outbound_request_id, (request_id, request));
+                    .insert(outbound_request_id, ongoing_request);
 
                 return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestInitiated {
                     request_id,
                     kind: request_kind,
                 }));
+            } else {
+                self.user_requests
+                    .push_back((request_id, ongoing_request.request));
             }
         }
 
@@ -504,7 +592,6 @@ mod tests {
 
         let (mut alice, _alice_db) = new_swarm().await;
         let (mut bob, bob_db) = new_swarm().await;
-        let bob_id = *bob.local_peer_id();
 
         let hello_hash = bob_db.write(b"hello");
         let world_hash = bob_db.write(b"world");
@@ -531,7 +618,6 @@ mod tests {
         assert_eq!(
             event,
             Event::RequestSucceed {
-                peer_id: bob_id,
                 request_id,
                 response: Response::DataForHashes(
                     [
