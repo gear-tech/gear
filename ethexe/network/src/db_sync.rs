@@ -221,8 +221,6 @@ struct OngoingRequest {
     request_id: RequestId,
     request: Request,
     response: Option<Response>,
-    // TODO: remove
-    current_peer: Option<PeerId>,
     tried_peers: HashSet<PeerId>,
 }
 
@@ -232,7 +230,6 @@ impl OngoingRequest {
             request_id,
             request,
             response: None,
-            current_peer: None,
             tried_peers: HashSet::new(),
         }
     }
@@ -250,13 +247,14 @@ impl OngoingRequest {
     /// Returns error if response validation is failed.
     fn try_complete(
         mut self,
+        peer: PeerId,
         response: Response,
     ) -> Result<OngoingRequestCompletion, RequestFailure> {
         self.request.validate_response(&response)?;
 
         if let Some(new_request) = self.request.difference(&response) {
             self.request = new_request;
-            self.tried_peers.extend(self.current_peer.take());
+            self.tried_peers.insert(peer);
             self.response = Some(self.merge_response(response));
             Ok(OngoingRequestCompletion::Partial(self))
         } else {
@@ -265,8 +263,8 @@ impl OngoingRequest {
         }
     }
 
-    fn peer_failed(mut self) -> Self {
-        self.tried_peers.extend(self.current_peer.take());
+    fn peer_failed(mut self, peer: PeerId) -> Self {
+        self.tried_peers.insert(peer);
         self
     }
 
@@ -279,7 +277,6 @@ impl OngoingRequest {
             .difference(&self.tried_peers)
             .choose_stable(&mut rand::thread_rng())
             .copied();
-        self.current_peer = peer;
         peer
     }
 }
@@ -425,7 +422,7 @@ impl Behaviour {
                 self.ongoing_response = Some((channel, self.read_db(request)));
             }
             request_response::Event::Message {
-                peer: _,
+                peer,
                 message:
                     Message::Response {
                         request_id,
@@ -438,7 +435,7 @@ impl Behaviour {
                     .expect("unknown response");
 
                 let request_id = ongoing_request.request_id;
-                let event = match ongoing_request.try_complete(response) {
+                let event = match ongoing_request.try_complete(peer, response) {
                     Ok(OngoingRequestCompletion::Full(response)) => Event::RequestSucceed {
                         request_id,
                         response,
@@ -490,7 +487,7 @@ impl Behaviour {
 
                 let request_id = ongoing_request.request_id;
 
-                let new_ongoing_request = ongoing_request.peer_failed();
+                let new_ongoing_request = ongoing_request.peer_failed(peer);
                 let event = match self
                     .ongoing_requests
                     .send_request(&mut self.inner, new_ongoing_request)
