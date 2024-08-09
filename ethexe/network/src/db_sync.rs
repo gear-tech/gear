@@ -48,13 +48,6 @@ use tokio::task::JoinHandle;
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RequestKind {
-    BlockEndProgramStates,
-    DataForHashes,
-    ProgramCodeIds,
-}
-
 #[derive(Debug, Eq, PartialEq)]
 pub enum RequestFailure {
     /// Request kind unequal to response kind
@@ -78,14 +71,6 @@ pub enum Request {
 }
 
 impl Request {
-    fn kind(&self) -> RequestKind {
-        match self {
-            Request::BlockEndProgramStates(_) => RequestKind::BlockEndProgramStates,
-            Request::DataForHashes(_) => RequestKind::DataForHashes,
-            Request::ProgramCodeIds(_) => RequestKind::ProgramCodeIds,
-        }
-    }
-
     fn validate_response(&self, resp: &Response) -> Result<(), RequestFailure> {
         match (self, resp) {
             (
@@ -127,6 +112,7 @@ impl Request {
         }
     }
 
+    /// Calculate missing request keys in response and create a new request with these keys
     fn difference(&self, resp: &Response) -> Option<Self> {
         match (self, resp) {
             (
@@ -203,15 +189,11 @@ impl Response {
 #[derive(Debug, Eq, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub enum Event {
-    RequestInitiated {
-        /// The ID of request
-        request_id: RequestId,
-        /// Kind of request
-        kind: RequestKind,
-    },
     NewRequestRound {
         /// The ID of request
         request_id: RequestId,
+        /// Peer we are currently requesting to
+        peer_id: PeerId,
     },
     RequestSucceed {
         /// The ID of request
@@ -334,12 +316,14 @@ impl OngoingRequests {
 
     /// Send actual request to behaviour and tracks its state.
     ///
-    /// Returns request back if no peer connected to the swarm.
+    /// On success, returns peer ID we sent request to.
+    ///
+    /// On error, returns request back if no peer connected to the swarm.
     fn send_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
         mut ongoing_request: OngoingRequest,
-    ) -> Result<(), OngoingRequest> {
+    ) -> Result<PeerId, OngoingRequest> {
         let peer_id = ongoing_request.choose_next_peer(&self.connections);
         if let Some(peer_id) = peer_id {
             let outbound_request_id =
@@ -347,7 +331,7 @@ impl OngoingRequests {
 
             self.inner.insert(outbound_request_id, ongoing_request);
 
-            Ok(())
+            Ok(peer_id)
         } else {
             Err(ongoing_request)
         }
@@ -456,7 +440,10 @@ impl Behaviour {
                             .ongoing_requests
                             .send_request(&mut self.inner, new_ongoing_request)
                         {
-                            Ok(()) => Event::NewRequestRound { request_id },
+                            Ok(peer_id) => Event::NewRequestRound {
+                                request_id,
+                                peer_id,
+                            },
                             Err(new_ongoing_request) => Event::RequestSucceed {
                                 request_id,
                                 response: new_ongoing_request
@@ -576,17 +563,16 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Some((request_id, request)) = self.pending_requests.pop_back() {
-            let request_kind = request.kind();
             let ongoing_request = OngoingRequest::new(request_id, request);
 
             match self
                 .ongoing_requests
                 .send_request(&mut self.inner, ongoing_request)
             {
-                Ok(()) => {
-                    return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestInitiated {
+                Ok(peer_id) => {
+                    return Poll::Ready(ToSwarm::GenerateEvent(Event::NewRequestRound {
                         request_id,
-                        kind: request_kind,
+                        peer_id,
                     }));
                 }
                 Err(ongoing_request) => {
@@ -687,6 +673,7 @@ mod tests {
 
         let (mut alice, _alice_db) = new_swarm().await;
         let (mut bob, bob_db) = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
 
         let hello_hash = bob_db.write(b"hello");
         let world_hash = bob_db.write(b"world");
@@ -701,9 +688,9 @@ mod tests {
         let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
-            Event::RequestInitiated {
+            Event::NewRequestRound {
                 request_id,
-                kind: RequestKind::DataForHashes
+                peer_id: bob_peer_id,
             }
         );
 
@@ -743,9 +730,9 @@ mod tests {
         let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
-            Event::RequestInitiated {
+            Event::NewRequestRound {
                 request_id,
-                kind: RequestKind::DataForHashes
+                peer_id: *bob.local_peer_id(),
             }
         );
 
@@ -803,17 +790,16 @@ mod tests {
             .behaviour_mut()
             .request(Request::DataForHashes([hello_hash, world_hash].into()));
 
+        // first round
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestInitiated {
-                request_id,
-                kind: RequestKind::DataForHashes
-            }
+        assert!(
+            matches!(event, Event::NewRequestRound { request_id: rid, .. } if rid == request_id)
         );
-
+        // second round
         let event = alice.next_behaviour_event().await;
-        assert_eq!(event, Event::NewRequestRound { request_id });
+        assert!(
+            matches!(event, Event::NewRequestRound { request_id: rid, .. } if rid == request_id)
+        );
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
