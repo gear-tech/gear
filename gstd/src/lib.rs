@@ -29,7 +29,7 @@
 //! providing convenient instruments for creating programs from programs, etc.
 //!
 //! # Minimum supported Rust version
-//! This crate requires **Rust >= 1.73** due to the implementation of the panic
+//! This crate requires **Rust >= 1.81** due to the implementation of the panic
 //! handler in the stable version.
 //!
 //! # Crate features

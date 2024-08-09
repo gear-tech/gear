@@ -34,7 +34,6 @@ pub struct CargoCommand {
     toolchain: Toolchain,
     check_recommended_toolchain: bool,
     force_recommended_toolchain: bool,
-    paths_to_remap: Vec<(PathBuf, &'static str)>,
 }
 
 impl CargoCommand {
@@ -50,7 +49,6 @@ impl CargoCommand {
             toolchain: Toolchain::try_from_rustup().expect("Failed to get toolchain from rustup"),
             check_recommended_toolchain: false,
             force_recommended_toolchain: false,
-            paths_to_remap: vec![],
         }
     }
 }
@@ -94,13 +92,6 @@ impl CargoCommand {
         self.force_recommended_toolchain = force_recommended_toolchain;
     }
 
-    /// Set paths to remap.
-    ///
-    /// Used to hide the username from the panic message.
-    pub fn set_paths_to_remap(&mut self, paths_to_remap: &[(PathBuf, &'static str)]) {
-        self.paths_to_remap = paths_to_remap.into();
-    }
-
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         if self.check_recommended_toolchain {
@@ -140,22 +131,6 @@ impl CargoCommand {
             .env("__GEAR_WASM_BUILDER_NO_BUILD", "1"); // Don't build the original crate recursively
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
-
-        if !self.paths_to_remap.is_empty() {
-            // `--remap-path-prefix` is used to remove username from panic messages
-            // https://doc.rust-lang.org/rustc/command-line-arguments.html#--remap-path-prefix-remap-source-names-in-output
-            let global_encoded_rustflags = self
-                .paths_to_remap
-                .iter()
-                .map(|(from, to)| format!("--remap-path-prefix={from}={to}", from = from.display()))
-                .collect::<Vec<_>>()
-                .join("\x1f");
-
-            // The environment variable `CARGO_ENCODED_RUSTFLAGS` is used to globally remap path prefix.
-            // It is also separated by `\x1f` to support folders with spaces or any unusual characters.
-            // Unlike `cargo rust`, this is useful for passing flags to all dependencies (i.e. globally).
-            cargo.env("CARGO_ENCODED_RUSTFLAGS", global_encoded_rustflags);
-        }
 
         let status = cargo.status().context("unable to execute cargo command")?;
         ensure!(
