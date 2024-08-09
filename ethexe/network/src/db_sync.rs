@@ -62,8 +62,6 @@ pub enum RequestFailure {
     HashInequality,
     /// Response contains more data than requested
     ExcessiveData,
-    /// Response contains less data than requested
-    InsufficientData,
     /// Hashed data unequal to its corresponding hash
     DataHashMismatch,
 }
@@ -87,23 +85,6 @@ impl Request {
         }
     }
 
-    fn validate_keys_equality<T: Ord + Copy, U>(
-        a: &BTreeSet<T>,
-        b: &BTreeMap<T, U>,
-    ) -> Result<(), RequestFailure> {
-        let b_keys = b.keys().copied().collect();
-        let diff = a.symmetric_difference(&b_keys).next();
-        if let Some(elem) = diff {
-            return if a.contains(&elem) {
-                Err(RequestFailure::InsufficientData)
-            } else {
-                Err(RequestFailure::ExcessiveData)
-            };
-        }
-
-        Ok(())
-    }
-
     fn validate_response(&self, resp: &Response) -> Result<(), RequestFailure> {
         match (self, resp) {
             (
@@ -120,9 +101,11 @@ impl Request {
                 }
             }
             (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
-                Self::validate_keys_equality(requested_hashes, hashes)?;
-
                 for (hash, data) in hashes {
+                    if !requested_hashes.contains(hash) {
+                        return Err(RequestFailure::ExcessiveData);
+                    }
+
                     if *hash != ethexe_db::hash(data) {
                         return Err(RequestFailure::DataHashMismatch);
                     }
@@ -131,7 +114,11 @@ impl Request {
                 Ok(())
             }
             (Request::ProgramCodeIds(requested_ids), Response::ProgramCodeIds(ids)) => {
-                Self::validate_keys_equality(requested_ids, ids)?;
+                for pid in ids.keys() {
+                    if !requested_ids.contains(pid) {
+                        return Err(RequestFailure::ExcessiveData);
+                    }
+                }
 
                 Ok(())
             }
@@ -496,36 +483,6 @@ mod tests {
         assert_eq!(
             request.validate_response(&response),
             Err(RequestFailure::ExcessiveData)
-        );
-    }
-
-    #[test]
-    fn validate_insufficient_data() {
-        let hash1 = ethexe_db::hash(b"1");
-        let hash2 = ethexe_db::hash(b"2");
-        let hash3 = ethexe_db::hash(b"3");
-
-        let request = Request::DataForHashes([hash1, hash2, hash3].into());
-        let response =
-            Response::DataForHashes([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into());
-        assert_eq!(
-            request.validate_response(&response),
-            Err(RequestFailure::InsufficientData)
-        );
-
-        let request = Request::ProgramCodeIds(
-            [ProgramId::from(1), ProgramId::from(2), ProgramId::from(3)].into(),
-        );
-        let response = Response::ProgramCodeIds(
-            [
-                (ProgramId::from(1), CodeId::default()),
-                (ProgramId::from(2), CodeId::default()),
-            ]
-            .into(),
-        );
-        assert_eq!(
-            request.validate_response(&response),
-            Err(RequestFailure::InsufficientData)
         );
     }
 
