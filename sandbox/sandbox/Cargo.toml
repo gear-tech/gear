@@ -3,12 +3,13 @@ name = "gear-sandbox"
 description = "This crate provides means to instantiate and execute wasm modules."
 documentation = "https://docs.rs/gear-sandbox"
 readme = "README.md"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-version.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]

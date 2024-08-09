@@ -21,7 +21,7 @@
 use super::{
     code::{
         body::{self, unreachable_condition_i32, DynInstr::*},
-        max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
+        DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
     utils::{self, PrepareConfig},
     Exec, Program, API_BENCHMARK_BATCHES,
@@ -1535,8 +1535,11 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_write_after_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
-        let instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
+    pub fn lazy_pages_signal_write_after_read(
+        end_page: WasmPage,
+        max_page: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
+        let instrs = body::read_access_all_pages_instrs(max_page, vec![]);
         let instrs = body::write_access_all_pages_instrs(end_page, instrs);
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

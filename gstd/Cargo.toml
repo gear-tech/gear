@@ -4,14 +4,13 @@ description = "Gear programs standard library"
 documentation = "https://docs.rs/gstd"
 keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
 categories = ["api-bindings"]
-# Stable version of Rust >=1.81 is required due to `panic_info_message` feature.
-rust-version = "1.81"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false, optional = true }
