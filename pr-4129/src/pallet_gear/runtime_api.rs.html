@@ -1129,7 +1129,7 @@
             <a href="#388">allowance_multiplier</a>,
         )<span class="question-mark">?</span>);
 
-        <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
+        <span class="kw">let </span>block_info = BlockInfo {
             height: <a href="lib.rs.html#531-533"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
             timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
         };
@@ -1166,7 +1166,7 @@
             memory_infix,
         } = <a href="#521-550"><span class="self">Self</span>::code_with_memory</a>(<a href="#445">program_id</a>)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
+        <span class="kw">let </span>block_info = BlockInfo {
             height: <a href="lib.rs.html#531-533"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
             timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
         };
@@ -1202,7 +1202,7 @@
             memory_infix,
         } = <a href="#521-550"><span class="self">Self</span>::code_with_memory</a>(<a href="#482">program_id</a>)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
+        <span class="kw">let </span>block_info = BlockInfo {
             height: <a href="lib.rs.html#531-533"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
             timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
         };
@@ -1297,7 +1297,7 @@
     </span><span class="kw">fn </span>dequeue_head_and_run(
         ext_manager: <span class="kw-2">&amp;mut </span>ExtManager&lt;T&gt;,
         forbidden_funcs: <span class="prelude-ty">Option</span>&lt;BTreeSet&lt;SyscallName&gt;&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;(Dispatch, Vec&lt;<a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>&gt;, <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>)&gt;, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;(Dispatch, Vec&lt;JournalNote&gt;, <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>)&gt;, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt; {
         <span class="comment">// Extracting queued dispatch.
         </span><span class="kw">let </span>head =
             QueueOf::&lt;T&gt;::dequeue().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <a href="#704-709"><span class="self">Self</span>::internal_err_string</a>(<span class="string">"Queue corrupted"</span>))<span class="question-mark">?</span>;
