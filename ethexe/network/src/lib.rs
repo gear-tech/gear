@@ -27,7 +27,6 @@ pub mod export {
 use anyhow::Context;
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
-use gprimitives::H256;
 use libp2p::{
     connection_limits,
     futures::StreamExt,
@@ -41,7 +40,7 @@ use libp2p::{
     Multiaddr, PeerId, Swarm, SwarmBuilder,
 };
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::HashSet,
     fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
@@ -149,7 +148,7 @@ pub enum NetworkReceiverEvent {
         source: Option<PeerId>,
         data: Vec<u8>,
     },
-    DbResponse(db_sync::Response),
+    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
 }
 
 pub struct NetworkReceiver {
@@ -351,9 +350,19 @@ impl NetworkEventLoop {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(event) => {
-                log::error!("Got data from db: {event:?}");
+            BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
+                request_id: _,
+                response,
+            }) => {
+                let _res = self.tx.send(NetworkReceiverEvent::DbResponse(Ok(response)));
             }
+            BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
+                request_id: _,
+                error,
+            }) => {
+                let _res = self.tx.send(NetworkReceiverEvent::DbResponse(Err(error)));
+            }
+            BehaviourEvent::DbSync(_) => {}
         }
     }
 
