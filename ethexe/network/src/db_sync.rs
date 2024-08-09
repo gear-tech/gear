@@ -50,8 +50,6 @@ const STREAM_PROTOCOL: StreamProtocol =
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum RequestFailure {
-    /// No available peers to complete request
-    NoAvailablePeers,
     /// Request kind unequal to response kind
     TypeMismatch,
     /// Hash field in request unequal to one in response
@@ -501,10 +499,12 @@ impl Behaviour {
                             request_id,
                             response,
                         },
-                        None => Event::RequestFailed {
-                            request_id,
-                            error: RequestFailure::NoAvailablePeers,
-                        },
+                        None => {
+                            // requeue request and wait for new peers
+                            self.pending_requests
+                                .push_back((request_id, new_ongoing_request.request));
+                            return Poll::Pending;
+                        }
                     },
                 };
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
