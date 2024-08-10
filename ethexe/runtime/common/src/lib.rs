@@ -44,7 +44,8 @@ use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use state::{
-    ActiveProgram, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState, Storage, Waitlist,
+    ActiveProgram, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState,
+    Storage, Waitlist,
 };
 
 extern crate alloc;
@@ -181,9 +182,9 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         ]
         .into(),
         reserve_for: 125_000_000,
-        gas_multiplier: GasMultiplier::from_gas_per_value(1), // TODO
-        costs: Default::default(),                            // TODO
-        existential_deposit: 0,                               // TODO
+        gas_multiplier: GasMultiplier::one(), // TODO
+        costs: Default::default(),            // TODO
+        existential_deposit: 0,               // TODO
         mailbox_threshold: 3000,
         max_reservations: 50,
         max_pages: 512.into(),
@@ -199,10 +200,15 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         }
     };
 
-    let stored_dispatch_with_hash = queue.pop_front().unwrap();
-
-    let dispatch_id = stored_dispatch_with_hash.id();
-    let kind = stored_dispatch_with_hash.kind();
+    let Dispatch {
+        id: dispatch_id,
+        kind,
+        source,
+        payload_hash,
+        value,
+        details,
+        context,
+    } = queue.pop_front().unwrap();
 
     if active_state.initialized && kind == DispatchKind::Init {
         // Panic is impossible, because gear protocol does not provide functionality
@@ -219,18 +225,18 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         todo!("Process messages to uninitialized program");
     }
 
-    let stored_dispatch = stored_dispatch_with_hash.cast(|maybe_hash| {
-        maybe_hash.with_hash_or_default(|hash| {
-            ri.storage().read_payload(hash).expect("Cannot get payload")
-        })
-    });
+    let payload = payload_hash
+        .with_hash_or_default(|hash| ri.storage().read_payload(hash).expect("Cannot get payload"));
 
     let gas_limit = block_config
         .gas_multiplier
         .value_to_gas(program_state.executable_balance)
         .min(BLOCK_GAS_LIMIT);
 
-    let dispatch = stored_dispatch.into_incoming(gas_limit);
+    let incoming_message =
+        IncomingMessage::new(dispatch_id, source, payload, gas_limit, value, details);
+
+    let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
     let context = match core_processor::precharge_for_program(
         &block_config,

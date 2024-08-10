@@ -351,7 +351,7 @@ pub struct GasMultiplier {
 // TODO: make implementation safer, check overflows and division remaining (#4137).
 impl GasMultiplier {
     /// Creates GasMultiplier with gas == value.
-    pub fn one() -> Self {
+    pub const fn one() -> Self {
         Self {
             gas_per_value: 1,
             value_per_gas: 1,

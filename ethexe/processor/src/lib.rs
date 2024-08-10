@@ -22,10 +22,12 @@ use anyhow::Result;
 use core_processor::common::JournalNote;
 use ethexe_common::{events::BlockEvent, StateTransition};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::{self, ActiveProgram, MaybeHash, ProgramState, Storage};
+use ethexe_runtime_common::state::{
+    self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
+};
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
-    message::{DispatchKind, Payload, StoredDispatch, StoredMessage},
+    message::{DispatchKind, Payload},
     program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
@@ -169,19 +171,16 @@ impl Processor {
                 .then_some(MaybeHash::Empty)
                 .unwrap_or_else(|| self.db.write_payload(payload).into());
 
-            // TODO: handle replies.
-            let dispatch = StoredDispatch::new(
-                message.kind,
-                StoredMessage::new(
-                    message.id,
-                    message.source,
-                    ActorId::zero(), // TODO: store IncomingMessages without gas
-                    payload_hash,
-                    message.value,
-                    None,
-                ),
-                None,
-            );
+            let dispatch = Dispatch {
+                id: message.id,
+                kind: message.kind,
+                source: message.source,
+                payload_hash,
+                value: message.value,
+                // TODO: handle replies.
+                details: None,
+                context: None,
+            };
 
             dispatches.push(dispatch);
         }
