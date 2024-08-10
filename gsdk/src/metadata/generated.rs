@@ -693,8 +693,13 @@ pub mod runtime_types {
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IntoPageBufError;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
-                    pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
+                    pub  runtime_types::gear_core::buffer::LimitedVec<
+                        ::core::primitive::u8,
+                        runtime_types::gear_core::memory::IntoPageBufError,
+                    >,
                 );
             }
             pub mod message {
@@ -881,12 +886,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ActiveProgram<_0> {
-                    pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page2,
-                    >,
-                    pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                        runtime_types::gear_core::pages::Page,
-                    >,
+                    pub allocations_tree_len: ::core::primitive::u32,
                     pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                     pub gas_reservation_map: ::subxt::utils::KeyedVec<
                         runtime_types::gprimitives::ReservationId,
@@ -2499,6 +2499,7 @@ pub mod runtime_types {
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
+                    pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
@@ -2678,6 +2679,91 @@ pub mod runtime_types {
                     Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
                     #[codec(index = 1)]
                     Terminated,
+                }
+            }
+        }
+        pub mod pallet_gear_eth_bridge {
+            use super::runtime_types;
+            pub mod internal {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct EthMessage {
+                    pub nonce: runtime_types::primitive_types::U256,
+                    pub source: ::subxt::utils::H256,
+                    pub destination: ::subxt::utils::H160,
+                    pub payload: ::std::vec::Vec<::core::primitive::u8>,
+                }
+            }
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "See [`Pallet::pause`]."]
+                    pause,
+                    #[codec(index = 1)]
+                    #[doc = "See [`Pallet::unpause`]."]
+                    unpause,
+                    #[codec(index = 2)]
+                    #[doc = "See [`Pallet::send_eth_message`]."]
+                    send_eth_message {
+                        destination: ::subxt::utils::H160,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Pallet Gear Eth Bridge's error."]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "The error happens when bridge got called before"]
+                    #[doc = "proper initialization after deployment."]
+                    BridgeIsNotYetInitialized,
+                    #[codec(index = 1)]
+                    #[doc = "The error happens when bridge got called when paused."]
+                    BridgeIsPaused,
+                    #[codec(index = 2)]
+                    #[doc = "The error happens when bridging message sent with too big payload."]
+                    MaxPayloadSizeExceeded,
+                    #[codec(index = 3)]
+                    #[doc = "The error happens when bridging queue capacity exceeded,"]
+                    #[doc = "so message couldn't be sent."]
+                    QueueCapacityExceeded,
+                    #[codec(index = 4)]
+                    #[doc = "The error happens when bridging thorough builtin and message value"]
+                    #[doc = "is inapplicable to operation or insufficient."]
+                    IncorrectValueApplied,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Pallet Gear Eth Bridge's event."]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "Grandpa validator's keys set was hashed and set in storage at"]
+                    #[doc = "first block of the last session in the era."]
+                    AuthoritySetHashChanged(::subxt::utils::H256),
+                    #[codec(index = 1)]
+                    #[doc = "Bridge got cleared on initialization of the second block in a new era."]
+                    BridgeCleared,
+                    #[codec(index = 2)]
+                    #[doc = "Optimistically, single-time called event defining that pallet"]
+                    #[doc = "got initialized and started processing session changes,"]
+                    #[doc = "as well as putting initial zeroed queue merkle root."]
+                    BridgeInitialized,
+                    #[codec(index = 3)]
+                    #[doc = "Bridge was paused and temporary doesn't process any incoming requests."]
+                    BridgePaused,
+                    #[codec(index = 4)]
+                    #[doc = "Bridge was unpaused and from now on processes any incoming requests."]
+                    BridgeUnpaused,
+                    #[codec(index = 5)]
+                    #[doc = "A new message was queued for bridging."]
+                    MessageQueued {
+                        message: runtime_types::pallet_gear_eth_bridge::internal::EthMessage,
+                        hash: ::subxt::utils::H256,
+                    },
+                    #[codec(index = 6)]
+                    #[doc = "Merkle root of the queue changed: new messages queued within the block."]
+                    QueueMerkleRootChanged(::subxt::utils::H256),
                 }
             }
         }
@@ -6432,6 +6518,11 @@ pub mod runtime_types {
                 }
             }
         }
+        pub mod primitive_types {
+            use super::runtime_types;
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct U256(pub [::core::primitive::u64; 4usize]);
+        }
         pub mod sp_arithmetic {
             use super::runtime_types;
             pub mod fixed_point {
@@ -7732,6 +7823,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Call),
+                #[codec(index = 110)]
+                GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Call),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Call),
                 #[codec(index = 199)]
@@ -7807,6 +7900,8 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Error),
                 #[codec(index = 108)]
                 GearBank(runtime_types::pallet_gear_bank::pallet::Error),
+                #[codec(index = 110)]
+                GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Error),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Error),
                 #[codec(index = 199)]
@@ -7874,6 +7969,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
+                #[codec(index = 110)]
+                GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Event),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Event),
                 #[codec(index = 199)]
@@ -8145,6 +8242,22 @@ pub mod calls {
             match self {
                 Self::EnableDebugMode => "enable_debug_mode",
                 Self::ExhaustBlockResources => "exhaust_block_resources",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `GearEthBridge`."]
+    pub enum GearEthBridgeCall {
+        Pause,
+        Unpause,
+        SendEthMessage,
+    }
+    impl CallInfo for GearEthBridgeCall {
+        const PALLET: &'static str = "GearEthBridge";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Pause => "pause",
+                Self::Unpause => "unpause",
+                Self::SendEthMessage => "send_eth_message",
             }
         }
     }
@@ -8948,6 +9061,34 @@ pub mod storage {
             }
         }
     }
+    #[doc = "Storage of pallet `GearEthBridge`."]
+    pub enum GearEthBridgeStorage {
+        Initialized,
+        Paused,
+        AuthoritySetHash,
+        QueueMerkleRoot,
+        Queue,
+        SessionsTimer,
+        ClearTimer,
+        MessageNonce,
+        QueueChanged,
+    }
+    impl StorageInfo for GearEthBridgeStorage {
+        const PALLET: &'static str = "GearEthBridge";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Initialized => "Initialized",
+                Self::Paused => "Paused",
+                Self::AuthoritySetHash => "AuthoritySetHash",
+                Self::QueueMerkleRoot => "QueueMerkleRoot",
+                Self::Queue => "Queue",
+                Self::SessionsTimer => "SessionsTimer",
+                Self::ClearTimer => "ClearTimer",
+                Self::MessageNonce => "MessageNonce",
+                Self::QueueChanged => "QueueChanged",
+            }
+        }
+    }
     #[doc = "Storage of pallet `GearGas`."]
     pub enum GearGasStorage {
         TotalIssuance,
@@ -9000,6 +9141,7 @@ pub mod storage {
         CodeLenStorage,
         OriginalCodeStorage,
         MetadataStorage,
+        AllocationsStorage,
         ProgramStorage,
         MemoryPages,
     }
@@ -9011,6 +9153,7 @@ pub mod storage {
                 Self::CodeLenStorage => "CodeLenStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::MetadataStorage => "MetadataStorage",
+                Self::AllocationsStorage => "AllocationsStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
             }
@@ -9613,6 +9756,9 @@ pub mod exports {
     }
     pub mod gear_voucher {
         pub use super::runtime_types::pallet_gear_voucher::pallet::Event;
+    }
+    pub mod gear_eth_bridge {
+        pub use super::runtime_types::pallet_gear_eth_bridge::pallet::Event;
     }
     pub mod sudo {
         pub use super::runtime_types::pallet_sudo::pallet::Event;

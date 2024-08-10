@@ -540,9 +540,11 @@ where
                 .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?;
         }
 
+        let allocations = ProgramStorageOf::<T>::allocations(program_id).unwrap_or_default();
+
         Ok(CodeWithMemoryData {
             instrumented_code: code,
-            allocations: program.allocations,
+            allocations,
             memory_infix: program.memory_infix,
         })
     }

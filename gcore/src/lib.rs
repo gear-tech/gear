@@ -48,13 +48,13 @@
 //!     }
 //! }
 //!
-//! # #[cfg(target = "wasm32")]
+//! # #[cfg(target_arch = "wasm32")]
 //! #[alloc_error_handler]
 //! pub fn oom(_: core::alloc::Layout) -> ! {
 //!     core::arch::wasm32::unreachable()
 //! }
 //!
-//! # #[cfg(target = "wasm32")]
+//! # #[cfg(target_arch = "wasm32")]
 //! #[panic_handler]
 //! fn panic(_: &core::panic::PanicInfo) -> ! {
 //!     core::arch::wasm32::unreachable()
@@ -64,7 +64,6 @@
 
 #![no_std]
 #![warn(missing_docs)]
-#![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
@@ -84,4 +83,4 @@ pub use utils::ext;
 pub use gsys::{BlockCount, BlockNumber, EnvVars, Gas, GasMultiplier, Percent, Value};
 
 // This allows all casts from u32 into usize be safe.
-const _: () = assert!(core::mem::size_of::<u32>() <= core::mem::size_of::<usize>());
+const _: () = assert!(size_of::<u32>() <= size_of::<usize>());

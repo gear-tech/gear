@@ -18,12 +18,58 @@
 
 use super::*;
 use crate::Runtime;
+use frame_support::traits::StorageInstance;
 use gear_lazy_pages_common::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use runtime_common::weights::{
     check_instructions_weights, check_lazy_pages_costs, check_pages_costs, check_syscall_weights,
     PagesCosts,
 };
+
+#[cfg(feature = "dev")]
+#[test]
+fn bridge_storages_have_correct_prefixes() {
+    // # SAFETY: Do not change storage prefixes without total bridge re-deploy.
+    const PALLET_PREFIX: &str = "GearEthBridge";
+
+    assert_eq!(
+        pallet_gear_eth_bridge::AuthoritySetHashPrefix::<Runtime>::pallet_prefix(),
+        PALLET_PREFIX
+    );
+    assert_eq!(
+        pallet_gear_eth_bridge::QueueMerkleRootPrefix::<Runtime>::pallet_prefix(),
+        PALLET_PREFIX
+    );
+
+    assert_eq!(
+        pallet_gear_eth_bridge::AuthoritySetHashPrefix::<Runtime>::STORAGE_PREFIX,
+        "AuthoritySetHash"
+    );
+    assert_eq!(
+        pallet_gear_eth_bridge::QueueMerkleRootPrefix::<Runtime>::STORAGE_PREFIX,
+        "QueueMerkleRoot"
+    );
+}
+
+#[cfg(feature = "dev")]
+#[test]
+fn bridge_session_timer_is_correct() {
+    assert_eq!(
+        <Runtime as pallet_gear_eth_bridge::Config>::SessionsPerEra::get(),
+        <Runtime as pallet_staking::Config>::SessionsPerEra::get()
+    );
+
+    // # SAFETY: Do not change staking's SessionsPerEra parameter without
+    // making sure of correct integration with already running network.
+    //
+    // Change of the param will require migrating `pallet-gear-eth-bridge`'s
+    // `ClearTimer` (or any actual time- or epoch- dependent entity) and
+    // corresponding constant or even total bridge re-deploy.
+    assert_eq!(
+        <Runtime as pallet_staking::Config>::SessionsPerEra::get(),
+        6
+    );
+}
 
 #[test]
 fn instruction_weights_heuristics_test() {
@@ -243,4 +289,20 @@ fn lazy_page_costs_heuristic_test() {
     };
 
     check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
+}
+
+/// Check that it is not possible to write/change memory pages too cheaply,
+/// because this may cause runtime heap memory overflow.
+#[test]
+fn write_is_not_too_cheap() {
+    let costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let cheapest_write = u64::MAX
+        .min(costs.signal_write.cost_for_one())
+        .min(costs.signal_read.cost_for_one() + costs.signal_write_after_read.cost_for_one())
+        .min(costs.host_func_write.cost_for_one())
+        .min(costs.host_func_read.cost_for_one() + costs.host_func_write_after_read.cost_for_one());
+
+    let block_max_gas = 3 * 10 ^ 12; // 3 seconds
+    let runtime_heap_size_in_wasm_pages = 0x4000; // 1GB
+    assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }

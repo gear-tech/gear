@@ -668,3 +668,146 @@ async fn ping_reorg() {
 
     log::info!("📗 Done");
 }
+
+// Mine 150 blocks - send message - mine 150 blocks.
+// Deep sync must load chain in batch.
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn ping_deep_sync() {
+    gear_utils::init_default_logger();
+
+    let anvil = TestEnv::start_anvil();
+
+    let mut env = TestEnv::new(TestEnvConfig::default().rpc_url(anvil.ws_endpoint()))
+        .await
+        .unwrap();
+    let mut listener = env.new_listener().await;
+
+    env.start_service().await.unwrap();
+
+    let provider = env.observer.provider().clone();
+
+    let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
+
+    log::info!("📗 Waiting for code loaded");
+    listener
+        .apply_until(|event| {
+            if let Event::CodeLoaded(loaded) = event {
+                assert_eq!(loaded.code_id, code_id);
+                assert_eq!(loaded.code.as_slice(), demo_ping::WASM_BINARY);
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    log::info!("📗 Waiting for code approval");
+    listener
+        .apply_until_block_event(|event| {
+            if let BlockEvent::CodeApproved(approved) = event {
+                assert_eq!(approved.code_id, code_id);
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    let code = env
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    let _ = env
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    assert_eq!(code, demo_ping::WASM_BINARY);
+
+    let _ = env
+        .ethereum
+        .router()
+        .create_program(code_id, H256::random(), b"PING", 10_000_000_000, 0)
+        .await
+        .unwrap();
+
+    log::info!("📗 Waiting for program create, PONG reply and program update");
+    let mut reply_sent = false;
+    let mut program_id = ActorId::default();
+    let mut block_committed = None;
+    listener
+        .apply_until_block_event(|event| {
+            match event {
+                BlockEvent::CreateProgram(create) => {
+                    assert_eq!(create.code_id, code_id);
+                    assert_eq!(create.init_payload, b"PING");
+                    assert_eq!(create.gas_limit, 10_000_000_000);
+                    assert_eq!(create.value, 0);
+                    program_id = create.actor_id;
+                }
+                BlockEvent::UserReplySent(reply) => {
+                    assert_eq!(reply.value, 0);
+                    assert_eq!(reply.payload, b"PONG");
+                    reply_sent = true;
+                }
+                BlockEvent::UpdatedProgram(updated) => {
+                    assert_eq!(updated.actor_id, program_id);
+                    assert_eq!(updated.old_state_hash, H256::zero());
+                    assert!(reply_sent);
+                }
+                BlockEvent::BlockCommitted(committed) => {
+                    block_committed = Some(committed.block_hash);
+                    return Ok(Some(()));
+                }
+                _ => {}
+            }
+            Ok(None)
+        })
+        .await
+        .unwrap();
+
+    let block_committed_on_router = env.router_query.last_commitment_block_hash().await.unwrap();
+    assert_eq!(block_committed, Some(block_committed_on_router));
+
+    // Mine some blocks to check deep sync.
+    provider
+        .evm_mine(Some(MineOptions::Options {
+            timestamp: None,
+            blocks: Some(150),
+        }))
+        .await
+        .unwrap();
+
+    // Send message in between.
+    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+    let ping_program = env.ethereum.program(program_address);
+    let _tx = ping_program
+        .send_message(b"PING", 10_000_000_000, 0)
+        .await
+        .unwrap();
+
+    // Mine some blocks to check deep sync.
+    provider
+        .evm_mine(Some(MineOptions::Options {
+            timestamp: None,
+            blocks: Some(150),
+        }))
+        .await
+        .unwrap();
+
+    log::info!("📗 Waiting for PONG reply");
+    listener
+        .apply_until_block_event(|event| {
+            if let BlockEvent::UserReplySent(reply) = event {
+                assert_eq!(reply.value, 0);
+                assert_eq!(reply.payload, b"PONG");
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+}

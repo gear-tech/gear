@@ -67,6 +67,7 @@ struct SupervisorContext<'a, 'b> {
 }
 
 impl<'a, 'b> sandbox_env::SupervisorContext for SupervisorContext<'a, 'b> {
+    #[allow(clippy::needless_borrows_for_generic_args)]
     fn invoke(
         &mut self,
         invoke_args_ptr: Pointer<u8>,
@@ -464,6 +465,7 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
     method_result
 }
 
+#[allow(clippy::needless_borrows_for_generic_args)]
 pub fn memory_set(
     context: &mut dyn FunctionContext,
     memory_idx: u32,

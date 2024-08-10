@@ -133,21 +133,13 @@
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(
-    all(
-        target_arch = "wasm32",
-        feature = "panic-info-message",
-        feature = "panic-message"
-    ),
-    feature(panic_info_message)
-)]
-#![cfg_attr(
     all(target_arch = "wasm32", feature = "oom-handler"),
     feature(alloc_error_handler)
 )]
-#![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
+#![allow(ambiguous_glob_reexports)]
 
 extern crate alloc;
 
@@ -169,7 +161,7 @@ mod reservations;
 pub mod sync;
 pub mod util;
 
-pub use async_runtime::{message_loop, record_reply};
+pub use async_runtime::{handle_reply_with_hook, message_loop};
 pub use common::errors;
 pub use config::{Config, SYSTEM_RESERVE};
 pub use gcore::{
@@ -185,4 +177,4 @@ pub use {
 };
 
 // This allows all casts from u32 into usize be safe.
-const _: () = assert!(core::mem::size_of::<u32>() <= core::mem::size_of::<usize>());
+const _: () = assert!(size_of::<u32>() <= size_of::<usize>());

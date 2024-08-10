@@ -21,7 +21,7 @@
 use super::{
     code::{
         body::{self, unreachable_condition_i32, DynInstr::*},
-        max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
+        DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
     utils::{self, PrepareConfig},
     Exec, Program, API_BENCHMARK_BATCHES,
@@ -32,7 +32,7 @@ use crate::{
 };
 use alloc::{vec, vec::Vec};
 use common::{benchmarking, storage::*, Origin, ProgramStorage};
-use core::{marker::PhantomData, mem::size_of};
+use core::marker::PhantomData;
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -202,10 +202,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
 
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            program.allocations = allocations.collect();
-        })
-        .expect("Program must be active");
+        ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
@@ -1538,8 +1535,11 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_write_after_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
-        let instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
+    pub fn lazy_pages_signal_write_after_read(
+        end_page: WasmPage,
+        max_page: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
+        let instrs = body::read_access_all_pages_instrs(max_page, vec![]);
         let instrs = body::write_access_all_pages_instrs(end_page, instrs);
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

@@ -35,7 +35,7 @@ use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
-use sp_std::{convert::TryFrom, mem, result::Result, vec::Vec};
+use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 #[cfg(feature = "std")]
 use {
     ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
@@ -52,7 +52,7 @@ pub use gear_sandbox_interface::sandbox;
 #[cfg(feature = "std")]
 pub use gear_sandbox_interface::{detail as sandbox_detail, init as sandbox_init, Instantiate};
 
-const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
+const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
 // Domain Separation Tag for signatures on G2.
 pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
@@ -223,7 +223,7 @@ pub mod lazy_pages_detail {
     use super::*;
 
     pub fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
-        let mem_interval_size = mem::size_of::<MemoryInterval>();
+        let mem_interval_size = size_of::<MemoryInterval>();
         let reads_len = reads.len();
         let writes_len = writes.len();
 
@@ -308,7 +308,7 @@ pub mod lazy_pages_detail {
     }
 
     fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
-        let mem_interval_size = mem::size_of::<MemoryInterval>();
+        let mem_interval_size = size_of::<MemoryInterval>();
         for chunk in bytes.chunks_exact(mem_interval_size) {
             // can't panic because of chunks_exact
             intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());

@@ -21,27 +21,28 @@
 //! Should be mentioned, that if message contains value we have a guarantee that it will be sent further in case of successful execution,
 //! or sent back in case execution ends up with an error. This guarantee is reached by the following conditions:
 //! 1. **Reserve/unreserve model for transferring values**.
-//! Ownership over message value is moved not by simple transfer operation, which decreases **free** balance of sender. That is done by
-//! reserving value before message is executed and repatriating reserved in favor of beneficiary in case of successful execution, or unreserving
-//! in case of execution resulting in a trap. So, it gives us a guarantee that regardless of the result of message execution, there is **always some
-//! value** to perform asset management, i.e move tokens further to the recipient or give back to sender. The guarantee is implemented by using
-//! corresponding `pallet_balances` functions (`reserve`, `repatriate_reserved`, `unreserve` along with `transfer`) in `pallet_gear` extrinsics,
-//! [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) and
-//! [`JournalHandler::send_value`](core_processor::common::JournalHandler::send_value) procedures.
+//!    Ownership over message value is moved not by simple transfer operation, which decreases **free** balance of sender. That is done by
+//!    reserving value before message is executed and repatriating reserved in favor of beneficiary in case of successful execution, or unreserving
+//!    in case of execution resulting in a trap. So, it gives us a guarantee that regardless of the result of message execution, there is **always some
+//!    value** to perform asset management, i.e move tokens further to the recipient or give back to sender. The guarantee is implemented by using
+//!    corresponding `pallet_balances` functions (`reserve`, `repatriate_reserved`, `unreserve` along with `transfer`) in `pallet_gear` extrinsics,
+//!    [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) and
+//!    [`JournalHandler::send_value`](core_processor::common::JournalHandler::send_value) procedures.
 //!
 //! 2. **Balance sufficiency before adding message with value to the queue**.
-//! Before message is added to the queue, sender's balance is checked for having adequate amount of assets to send desired value. For actors, who
-//! can sign transactions, these checks are done in extrinsic calls. For programs these checks are done on core backend level during execution. In details,
-//! when a message is executed, it has some context, which is set from the pallet level, and a part of the context data is program's actual balance (current balance +
-//! value sent within the executing message). So if during execution of the original message some other messages were sent, message send call is followed
-//! by program's balance checks. The check gives guarantee that value reservation call in
+//!    Before message is added to the queue, sender's balance is checked for having adequate amount of assets to send desired value. For actors, who
+//!    can sign transactions, these checks are done in extrinsic calls. For programs these checks are done on core backend level during execution. In details,
+//!    when a message is executed, it has some context, which is set from the pallet level, and a part of the context data is program's actual balance (current balance +
+//!    value sent within the executing message). So if during execution of the original message some other messages were sent, message send call is followed
+//!    by program's balance checks. The check gives guarantee that value reservation call in
+//!
 //! [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) for program's messages won't fail, because there is always a
 //! sufficient balance for the call.
 //!
 //! 3. **Messages's value management considers existential deposit rule**.
-//! It means that before message with value is added to the queue, value is checked to be in the valid range - `{0} ∪ [existential_deposit; +inf)`. This is
-//! crucial for programs. The check gives guarantee that if funds were moved to the program, the program will definitely have an account in `pallet_balances`
-//! registry and will be able then to manage these funds. Without this check, program could receive funds, but won't be able to use them.
+//!    It means that before message with value is added to the queue, value is checked to be in the valid range - `{0} ∪ [existential_deposit; +inf)`. This is
+//!    crucial for programs. The check gives guarantee that if funds were moved to the program, the program will definitely have an account in `pallet_balances`
+//!    registry and will be able then to manage these funds. Without this check, program could receive funds, but won't be able to use them.
 //!
 //! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
 
@@ -63,7 +64,6 @@ use common::{
     CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::{fmt, mem};
-use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -78,7 +78,7 @@ use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
-    traits::{UniqueSaturatedInto, Zero},
+    traits::Zero,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -207,33 +207,6 @@ where
         !self.check_program_id(id)
     }
 
-    /// NOTE: By calling this function we can't differ whether `None` returned, because
-    /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
-        let code_id = active.code_hash.cast();
-
-        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-            &id.cast(),
-            Preservation::Expendable,
-            Fortitude::Polite,
-        )
-        .unique_saturated_into();
-
-        Some(Actor {
-            balance,
-            destination_program: id,
-            executable_data: ExecutableActorData {
-                allocations: active.allocations.clone(),
-                code_id,
-                code_exports: active.code_exports,
-                static_pages: active.static_pages,
-                gas_reservation_map: active.gas_reservation_map,
-                memory_infix: active.memory_infix,
-            },
-        })
-    }
-
     pub fn set_program(
         &self,
         program_id: ProgramId,
@@ -252,8 +225,7 @@ where
 
         // An empty program has been just constructed: it contains no mem allocations.
         let program = ActiveProgram {
-            allocations: Default::default(),
-            pages_with_data: Default::default(),
+            allocations_tree_len: 0,
             code_hash: code_info.id,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
@@ -379,8 +351,6 @@ where
         value_destination: ProgramId,
     ) {
         Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
-
-        ProgramStorageOf::<T>::remove_program_pages(program_id, program.memory_infix);
 
         let program_account = program_id.cast();
         let value_destination = value_destination.cast();

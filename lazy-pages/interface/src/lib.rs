@@ -36,7 +36,7 @@ use gear_lazy_pages_common::{
     GlobalsAccessConfig, LazyPagesCosts, LazyPagesInitContext, ProcessAccessError, Status,
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
-use sp_std::{mem, vec::Vec};
+use sp_std::vec::Vec;
 
 pub struct LazyPagesRuntimeInterface;
 
@@ -171,7 +171,7 @@ impl LazyPagesInterface for LazyPagesRuntimeInterface {
 }
 
 fn serialize_mem_intervals(intervals: &[MemoryInterval]) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(mem::size_of_val(intervals));
+    let mut bytes = Vec::with_capacity(size_of_val(intervals));
     for interval in intervals {
         bytes.extend_from_slice(&interval.to_bytes());
     }
