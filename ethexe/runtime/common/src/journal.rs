@@ -206,7 +206,6 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             let (queue_hash, pop_id) = Self::pop_queue_message(&state, storage);
 
             if pop_id != dispatch.id() {
-                // TODO (breathx): figure out what's it.
                 unreachable!(
                     "First message in queue is {pop_id}, but {} was waited",
                     dispatch.id()
