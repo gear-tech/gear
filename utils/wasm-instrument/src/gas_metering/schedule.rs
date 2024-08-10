@@ -26,11 +26,12 @@ pub struct Schedule {
     pub instruction_weights: InstructionWeights,
     pub syscall_weights: SyscallWeights,
     pub memory_weights: MemoryWeights,
-    pub module_instantiation_per_byte: Weight,
+    pub instantiation_weights: InstantiationWeights,
     pub db_write_per_byte: Weight,
     pub db_read_per_byte: Weight,
     pub code_instrumentation_cost: Weight,
     pub code_instrumentation_byte_cost: Weight,
+    pub load_allocations_weight: Weight,
 }
 
 impl Default for Schedule {
@@ -40,10 +41,7 @@ impl Default for Schedule {
             instruction_weights: InstructionWeights::default(),
             syscall_weights: SyscallWeights::default(),
             memory_weights: MemoryWeights::default(),
-            module_instantiation_per_byte: Weight {
-                ref_time: 192,
-                proof_size: 0,
-            },
+            instantiation_weights: InstantiationWeights::default(),
             db_write_per_byte: Weight {
                 ref_time: 237,
                 proof_size: 0,
@@ -53,11 +51,15 @@ impl Default for Schedule {
                 proof_size: 0,
             },
             code_instrumentation_cost: Weight {
-                ref_time: 230751537,
-                proof_size: 3682,
+                ref_time: 285084454,
+                proof_size: 3791,
             },
             code_instrumentation_byte_cost: Weight {
-                ref_time: 59895,
+                ref_time: 623806,
+                proof_size: 0,
+            },
+            load_allocations_weight: Weight {
+                ref_time: 19776,
                 proof_size: 0,
             },
         }
@@ -87,7 +89,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: 512,
+            memory_pages: 32768,
             table_size: 4096,
             table_number: 100,
             br_table_size: 256,
@@ -655,7 +657,6 @@ pub struct MemoryWeights {
     pub lazy_pages_host_func_write_after_read: Weight,
     pub load_page_data: Weight,
     pub upload_page_data: Weight,
-    pub static_page: Weight,
     pub mem_grow: Weight,
     pub mem_grow_per_page: Weight,
     pub parachain_read_heuristic: Weight,
@@ -696,10 +697,6 @@ impl Default for MemoryWeights {
                 ref_time: 103888768,
                 proof_size: 0,
             },
-            static_page: Weight {
-                ref_time: 100,
-                proof_size: 0,
-            },
             mem_grow: Weight {
                 ref_time: 810343,
                 proof_size: 0,
@@ -710,6 +707,46 @@ impl Default for MemoryWeights {
             },
             parachain_read_heuristic: Weight {
                 ref_time: 0,
+                proof_size: 0,
+            },
+        }
+    }
+}
+
+pub struct InstantiationWeights {
+    pub code_section_per_byte: Weight,
+    pub data_section_per_byte: Weight,
+    pub global_section_per_byte: Weight,
+    pub table_section_per_byte: Weight,
+    pub element_section_per_byte: Weight,
+    pub type_section_per_byte: Weight,
+}
+
+impl Default for InstantiationWeights {
+    fn default() -> Self {
+        Self {
+            code_section_per_byte: Weight {
+                ref_time: 192,
+                proof_size: 0,
+            },
+            data_section_per_byte: Weight {
+                ref_time: 452,
+                proof_size: 0,
+            },
+            global_section_per_byte: Weight {
+                ref_time: 2359,
+                proof_size: 0,
+            },
+            table_section_per_byte: Weight {
+                ref_time: 350,
+                proof_size: 0,
+            },
+            element_section_per_byte: Weight {
+                ref_time: 18492,
+                proof_size: 0,
+            },
+            type_section_per_byte: Weight {
+                ref_time: 254,
                 proof_size: 0,
             },
         }
