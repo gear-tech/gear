@@ -34,7 +34,7 @@ use scale_info::{
 ///
 /// Gasless Message for storing.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct StoredMessage<P = Payload> {
+pub struct StoredMessage {
     /// Message id.
     pub(super) id: MessageId,
     /// Message source.
@@ -42,7 +42,7 @@ pub struct StoredMessage<P = Payload> {
     /// Message destination.
     pub(super) destination: ProgramId,
     /// Message payload.
-    pub(super) payload: P,
+    pub(super) payload: Payload,
     /// Message value.
     #[codec(compact)]
     pub(super) value: Value,
@@ -50,36 +50,13 @@ pub struct StoredMessage<P = Payload> {
     pub(super) details: Option<MessageDetails>,
 }
 
-impl<P> StoredMessage<P> {
-    /// Cast payload type.
-    pub fn cast<P2>(self, f: impl FnOnce(P) -> P2) -> StoredMessage<P2> {
-        let Self {
-            id,
-            source,
-            destination,
-            payload,
-            value,
-            details,
-        } = self;
-
-        let payload = f(payload);
-
-        StoredMessage::<P2> {
-            id,
-            source,
-            destination,
-            payload,
-            value,
-            details,
-        }
-    }
-
+impl StoredMessage {
     /// Create new StoredMessage.
     pub fn new(
         id: MessageId,
         source: ProgramId,
         destination: ProgramId,
-        payload: P,
+        payload: Payload,
         value: Value,
         details: Option<MessageDetails>,
     ) -> Self {
@@ -100,7 +77,7 @@ impl<P> StoredMessage<P> {
         MessageId,
         ProgramId,
         ProgramId,
-        P,
+        Payload,
         Value,
         Option<MessageDetails>,
     ) {
@@ -109,6 +86,18 @@ impl<P> StoredMessage<P> {
             self.source,
             self.destination,
             self.payload,
+            self.value,
+            self.details,
+        )
+    }
+
+    /// Convert StoredMessage into IncomingMessage for program processing.
+    pub fn into_incoming(self, gas_limit: GasLimit) -> IncomingMessage {
+        IncomingMessage::new(
+            self.id,
+            self.source,
+            self.payload,
+            gas_limit,
             self.value,
             self.details,
         )
@@ -129,9 +118,9 @@ impl<P> StoredMessage<P> {
         self.destination
     }
 
-    /// Message payload.
-    pub fn payload(&self) -> &P {
-        &self.payload
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message value.
@@ -166,66 +155,26 @@ impl<P> StoredMessage<P> {
     }
 }
 
-impl StoredMessage<Payload> {
-    /// Convert StoredMessage into IncomingMessage for program processing.
-    pub fn into_incoming(self, gas_limit: GasLimit) -> IncomingMessage {
-        IncomingMessage::new(
-            self.id,
-            self.source,
-            self.payload,
-            gas_limit,
-            self.value,
-            self.details,
-        )
-    }
-
-    /// Message payload bytes.
-    pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
-    }
-}
-
 /// Stored message with entry point and previous execution context, if exists.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct StoredDispatch<P = Payload> {
+pub struct StoredDispatch {
     /// Entry point.
     kind: DispatchKind,
     /// Stored message.
-    message: StoredMessage<P>,
+    message: StoredMessage,
     /// Previous execution context.
     context: Option<ContextStore>,
 }
 
-impl<P> From<StoredDispatch<P>> for (DispatchKind, StoredMessage<P>, Option<ContextStore>) {
-    fn from(dispatch: StoredDispatch<P>) -> (DispatchKind, StoredMessage<P>, Option<ContextStore>) {
+impl From<StoredDispatch> for (DispatchKind, StoredMessage, Option<ContextStore>) {
+    fn from(dispatch: StoredDispatch) -> (DispatchKind, StoredMessage, Option<ContextStore>) {
         (dispatch.kind, dispatch.message, dispatch.context)
     }
 }
 
-impl<P> StoredDispatch<P> {
-    /// Cast payload type.
-    pub fn cast<P2>(self, f: impl FnOnce(P) -> P2) -> StoredDispatch<P2> {
-        let Self {
-            kind,
-            message,
-            context,
-        } = self;
-
-        let message = message.cast(f);
-
-        StoredDispatch::<P2> {
-            kind,
-            message,
-            context,
-        }
-    }
-
+impl StoredDispatch {
     /// Create new StoredDispatch.
-    pub fn new(
-        kind: DispatchKind,
-        message: StoredMessage<P>,
-        context: Option<ContextStore>,
-    ) -> Self {
+    pub fn new(kind: DispatchKind, message: StoredMessage, context: Option<ContextStore>) -> Self {
         Self {
             kind,
             message,
@@ -233,8 +182,17 @@ impl<P> StoredDispatch<P> {
         }
     }
 
+    /// Convert StoredDispatch into IncomingDispatch for program processing.
+    pub fn into_incoming(self, gas_limit: GasLimit) -> IncomingDispatch {
+        IncomingDispatch::new(
+            self.kind,
+            self.message.into_incoming(gas_limit),
+            self.context,
+        )
+    }
+
     /// Decompose StoredDispatch for it's components: DispatchKind, StoredMessage and `Option<ContextStore>`.
-    pub fn into_parts(self) -> (DispatchKind, StoredMessage<P>, Option<ContextStore>) {
+    pub fn into_parts(self) -> (DispatchKind, StoredMessage, Option<ContextStore>) {
         self.into()
     }
 
@@ -244,7 +202,7 @@ impl<P> StoredDispatch<P> {
     }
 
     /// Dispatch message reference.
-    pub fn message(&self) -> &StoredMessage<P> {
+    pub fn message(&self) -> &StoredMessage {
         &self.message
     }
 
@@ -254,19 +212,8 @@ impl<P> StoredDispatch<P> {
     }
 }
 
-impl StoredDispatch<Payload> {
-    /// Convert StoredDispatch into IncomingDispatch for program processing.
-    pub fn into_incoming(self, gas_limit: GasLimit) -> IncomingDispatch {
-        IncomingDispatch::new(
-            self.kind,
-            self.message.into_incoming(gas_limit),
-            self.context,
-        )
-    }
-}
-
-impl<P> Deref for StoredDispatch<P> {
-    type Target = StoredMessage<P>;
+impl Deref for StoredDispatch {
+    type Target = StoredMessage;
 
     fn deref(&self) -> &Self::Target {
         self.message()
