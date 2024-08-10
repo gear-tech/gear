@@ -106,6 +106,7 @@ pub struct CodecMessageFuture<T> {
     pub waiting_reply_to: MessageId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) reply_deposit: u64,
     /// Marker
     ///
@@ -166,6 +167,7 @@ pub struct CodecCreateProgramFuture<T> {
     pub program_id: ActorId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) reply_deposit: u64,
     /// Marker
     ///
@@ -227,6 +229,7 @@ pub struct MessageFuture {
     pub waiting_reply_to: MessageId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) reply_deposit: u64,
 }
 
@@ -277,6 +280,7 @@ pub struct CreateProgramFuture {
     pub program_id: ActorId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) reply_deposit: u64,
 }
 

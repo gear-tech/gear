@@ -18,21 +18,26 @@
 
 mod futures;
 mod locks;
-mod reply_hooks;
 mod signals;
 mod waker;
 
+#[cfg(not(feature = "ethexe"))]
+mod reply_hooks;
+
 pub use self::futures::message_loop;
 pub(crate) use locks::Lock;
-pub(crate) use reply_hooks::HooksMap;
 pub(crate) use signals::ReplyPoll;
 
-use self::futures::FuturesMap;
 #[cfg(not(feature = "ethexe"))]
-use crate::critical;
+pub(crate) use reply_hooks::HooksMap;
+
+use self::futures::FuturesMap;
 use hashbrown::HashMap;
 use locks::LocksMap;
 use signals::WakeSignals;
+
+#[cfg(not(feature = "ethexe"))]
+use crate::critical;
 
 static mut FUTURES: Option<FuturesMap> = None;
 
@@ -52,8 +57,10 @@ pub(crate) fn locks() -> &'static mut LocksMap {
     unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
 }
 
+#[cfg(not(feature = "ethexe"))]
 static mut REPLY_HOOKS: Option<HooksMap> = None;
 
+#[cfg(not(feature = "ethexe"))]
 pub(crate) fn reply_hooks() -> &'static mut HooksMap {
     unsafe { REPLY_HOOKS.get_or_insert_with(HooksMap::new) }
 }
@@ -65,7 +72,12 @@ pub fn handle_reply_with_hook() {
     // Execute reply hook (if it was registered)
     let replied_to =
         crate::msg::reply_to().expect("`gstd::handle_reply_with_hook()` called in wrong context");
+
+    #[cfg(not(feature = "ethexe"))]
     reply_hooks().execute_and_remove(replied_to);
+
+    #[cfg(feature = "ethexe")]
+    let _ = replied_to;
 }
 
 /// Default signal handler.
