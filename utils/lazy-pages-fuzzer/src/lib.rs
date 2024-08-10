@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::Path};
 
 use anyhow::Result;
 use gear_wasm_instrument::parity_wasm::elements::Module;
@@ -77,6 +77,8 @@ struct RunResult {
 
 impl RunResult {
     fn verify_equality(wasmer_res: Self, wasmi_res: Self) {
+        fail_point();
+
         assert_eq!(wasmer_res.gas_global, wasmi_res.gas_global);
         assert_eq!(wasmer_res.pages.len(), wasmi_res.pages.len());
 
@@ -98,5 +100,11 @@ impl RunResult {
         }
 
         assert_eq!(wasmer_res.globals, wasmi_res.globals);
+    }
+}
+
+fn fail_point() {
+    if Path::new("fail_point").exists() {
+        panic!("Test Fail point triggered");
     }
 }
