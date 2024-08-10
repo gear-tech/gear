@@ -103,7 +103,6 @@ fn instruction_weights_heuristics_test() {
         global_set: 1_000,
         memory_current: 14_200,
 
-        // TODO (breathx): ALARM
         i64clz: 400,
         i32clz: 300,
         i64ctz: 400,
@@ -119,7 +118,6 @@ fn instruction_weights_heuristics_test() {
         i64extend32s: 400,
         i64extendsi32: 350,
         i64extendui32: 400,
-        // TODO (breathx): ALARM
         i32wrapi64: 10,
         i64eq: 1_800,
         i32eq: 1_100,
@@ -243,7 +241,6 @@ fn syscall_weights_test() {
         gr_debug: 1_200_000.into(),
         gr_debug_per_byte: 450.into(),
         gr_reply_code: 919_800.into(),
-        // TODO (breathx): ALARM
         gr_exit: 96_500_000.into(),
         gr_leave: 130_300_000.into(),
         gr_wait: 112_500_000.into(),
