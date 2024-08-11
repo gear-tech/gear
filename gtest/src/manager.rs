@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    balance::Bank,
     blocks::BlocksManager,
     default_users_list,
     gas_tree::GasTreeManager,
@@ -39,7 +40,7 @@ use core_processor::{
     },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
-use gear_common::{auxiliary::mailbox::MailboxErrorImpl, Origin};
+use gear_common::{auxiliary::mailbox::MailboxErrorImpl, gas_provider::Imbalance as _, Origin};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
@@ -67,10 +68,12 @@ use std::{
     rc::Rc,
 };
 
+pub use crate::balance::Balance;
+
 const OUTGOING_LIMIT: u32 = 1024;
 const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
-pub(crate) type Balance = u128;
+pub(crate) type Value = u128;
 
 #[derive(Debug)]
 pub(crate) enum TestActor {
@@ -236,6 +239,7 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) actors: Actors,
+    pub(crate) bank: Bank,
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
@@ -285,7 +289,7 @@ impl ExtManager {
         for &default_user_id in default_users_list() {
             self.actors.insert(
                 default_user_id.into(),
-                (TestActor::User, DEFAULT_USERS_INITIAL_BALANCE),
+                (TestActor::User, Balance::new(DEFAULT_USERS_INITIAL_BALANCE)),
             );
         }
     }
@@ -299,8 +303,10 @@ impl ExtManager {
         if let Program::Genuine(GenuineProgram { code, .. }) = &program {
             self.store_new_code(code.code().to_vec());
         }
-        self.actors
-            .insert(program_id, (TestActor::new(init_message_id, program), 0))
+        self.actors.insert(
+            program_id,
+            (TestActor::new(init_message_id, program), Balance::default()),
+        )
     }
 
     pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
@@ -480,7 +486,7 @@ impl ExtManager {
             let (actor, balance) = actors
                 .get_mut(&dispatch.destination())
                 .expect("Somehow message queue contains message for user");
-            let balance = *balance;
+            let balance = balance.available();
 
             if actor.is_dormant() {
                 drop(actors);
@@ -510,22 +516,39 @@ impl ExtManager {
         let mut actors = self.actors.borrow_mut();
         let (_, balance) = actors
             .entry(dispatch.source())
-            .or_insert((TestActor::User, 0));
+            .or_insert((TestActor::User, Balance::default()));
+        let keep_alive_sender = false;
 
-        if *balance < dispatch.value() {
+        // TODO: move panic into bank
+        if balance.available() < dispatch.value() {
             panic!(
                 "Insufficient value: user ({}) tries to send \
-                ({}) value, while his balance ({})",
+                ({}) value, while his balance ({:?})",
                 dispatch.source(),
                 dispatch.value(),
                 balance
             );
         } else {
-            *balance -= dispatch.value();
-            if *balance < crate::EXISTENTIAL_DEPOSIT {
-                *balance = 0;
-            }
+            // Deposit message value
+            self.bank.deposit_value(
+                balance,
+                dispatch.destination(),
+                dispatch.value(),
+                keep_alive_sender,
+            );
         }
+
+        let gas_limit = dispatch
+            .gas_limit()
+            .unwrap_or_else(|| unreachable!("message from program API always has gas"));
+
+        // Deposit gas
+        self.bank.deposit_gas(
+            balance,
+            dispatch.destination(),
+            gas_limit,
+            keep_alive_sender,
+        );
     }
 
     #[track_caller]
@@ -638,7 +661,7 @@ impl ExtManager {
         )
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance, mint_mode: MintMode) {
+    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Value, mint_mode: MintMode) {
         if mint_mode == MintMode::KeepAlive && value < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "An attempt to mint value ({}) less than existential deposit ({})",
@@ -648,34 +671,34 @@ impl ExtManager {
         }
 
         let mut actors = self.actors.borrow_mut();
-        let (_, balance) = actors.entry(*id).or_insert((TestActor::User, 0));
-        *balance = balance.saturating_add(value);
+        let (_, balance) = actors
+            .entry(*id)
+            .or_insert((TestActor::User, Balance::default()));
+        balance.increase(value);
     }
 
-    pub(crate) fn burn_from(&mut self, id: &ProgramId, value: Balance) {
+    pub(crate) fn burn_from(&mut self, id: &ProgramId, value: Value) {
         let mut actors = self.actors.borrow_mut();
         let (_, balance) = actors.get_mut(id).expect("Can't find existing program");
 
-        if *balance < value {
+        if balance.total() < value {
             panic!(
                 "Insufficient balance: user ({}) tries to burn \
-                ({}) value, while his balance ({})",
+                ({}) value, while his balance ({:?})",
                 id, value, balance
             );
         } else {
-            *balance -= value;
-            if *balance < crate::EXISTENTIAL_DEPOSIT {
-                *balance = 0;
-            }
+            balance.decrease(value, false);
         }
     }
 
-    pub(crate) fn balance_of(&self, id: &ProgramId) -> Balance {
+    pub(crate) fn balance_of(&self, id: &ProgramId) -> Value {
         self.actors
             .borrow()
             .get(id)
-            .map(|(_, balance)| *balance)
+            .map(|(_, balance)| balance.clone())
             .unwrap_or_default()
+            .total()
     }
 
     pub(crate) fn claim_value_from_mailbox(
@@ -696,7 +719,7 @@ impl ExtManager {
     }
 
     #[track_caller]
-    pub(crate) fn override_balance(&mut self, id: &ProgramId, balance: Balance) {
+    pub(crate) fn override_balance(&mut self, id: &ProgramId, balance: Value) {
         if self.is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({})",
@@ -706,8 +729,10 @@ impl ExtManager {
         }
 
         let mut actors = self.actors.borrow_mut();
-        let (_, actor_balance) = actors.entry(*id).or_insert((TestActor::User, 0));
-        *actor_balance = balance;
+        let (_, actor_balance) = actors
+            .entry(*id)
+            .or_insert((TestActor::User, Balance::default()));
+        *actor_balance = Balance::new(balance);
     }
 
     #[track_caller]
@@ -741,12 +766,17 @@ impl ExtManager {
     }
 
     #[track_caller]
-    fn init_failure(&mut self, program_id: ProgramId) {
+    fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
+        let total_value = {
+            let actors = self.actors.borrow_mut();
+            actors.get(&program_id).expect("Can't fail").1.total()
+        };
+        Balance::transfer(&mut self.actors, program_id, origin, total_value, false);
+
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
-
         *actor = TestActor::Dormant;
     }
 
@@ -1032,8 +1062,10 @@ impl JournalHandler for ExtManager {
             DispatchOutcome::Success | DispatchOutcome::Exit { .. } => {
                 self.succeed.insert(message_id);
             }
-            DispatchOutcome::InitFailure { program_id, .. } => {
-                self.init_failure(program_id);
+            DispatchOutcome::InitFailure {
+                program_id, origin, ..
+            } => {
+                self.init_failure(program_id, origin);
                 self.failed.insert(message_id);
             }
             DispatchOutcome::InitSuccess { program_id, .. } => {
@@ -1062,19 +1094,48 @@ impl JournalHandler for ExtManager {
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         let id: ProgramId = external.into_origin().into();
-        self.burn_from(&id, multiplier.gas_to_value(amount));
+        self.bank.spend_gas(id, amount, multiplier);
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        if let Some((_, balance)) = self.actors.remove(&id_exited) {
-            self.mint_to(&value_destination, balance, MintMode::AllowDeath);
-        }
+        let total_value = self
+            .actors
+            .borrow_mut()
+            .get(&id_exited)
+            .expect("Can't fail")
+            .1
+            .total();
+        Balance::transfer(
+            &mut self.actors,
+            id_exited,
+            value_destination,
+            total_value,
+            false,
+        );
+
+        self.actors.remove(&id_exited);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        self.gas_tree
+        let outcome = self
+            .gas_tree
             .consume(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Retrieve gas
+        if let Some((imbalance, multiplier, external)) = outcome {
+            // Peeking numeric value from negative imbalance.
+            let gas_left = imbalance.peek();
+
+            let id: ProgramId = external.into_origin().into();
+            let mut actors = self.actors.borrow_mut();
+            let (_, to) = actors.get_mut(&id).expect("Can't fail");
+
+            // Unreserving funds, if left non-zero amount of gas.
+            if gas_left != 0 {
+                self.bank.withdraw_gas(id, to, gas_left, multiplier);
+            }
+        }
     }
 
     fn send_dispatch(
@@ -1094,6 +1155,14 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
+
+        if dispatch.value() != 0 {
+            let mut actors = self.actors.borrow_mut();
+            let (_, balance) = actors.get_mut(&source).expect("Can't fail");
+
+            self.bank
+                .deposit_value(balance, source, dispatch.value(), false);
+        }
 
         if self.is_program(&dispatch.destination()) {
             match (dispatch.gas_limit(), reservation) {
@@ -1208,31 +1277,17 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
         if value == 0 {
             // Nothing to do
             return;
         }
-        if let Some(ref to) = to {
-            if self.is_program(&from) {
-                let mut actors = self.actors.borrow_mut();
-                let (_, balance) = actors.get_mut(&from).expect("Can't fail");
 
-                if *balance < value {
-                    unreachable!("Actor {:?} balance is less then sent value", from);
-                }
+        let to = to.unwrap_or(from);
+        let mut actors = self.actors.borrow_mut();
+        let (_, to) = actors.get_mut(&to).expect("Can't fail");
 
-                *balance -= value;
-
-                if *balance < crate::EXISTENTIAL_DEPOSIT {
-                    *balance = 0;
-                }
-            }
-
-            self.mint_to(to, value, MintMode::KeepAlive);
-        } else {
-            self.mint_to(&from, value, MintMode::KeepAlive);
-        }
+        self.bank.transfer_value(from, to, value);
     }
 
     #[track_caller]
@@ -1272,7 +1327,21 @@ impl JournalHandler for ExtManager {
                         Some(init_message_id),
                     );
                     // Transfer the ED from the program-creator to the new program
-                    self.send_value(program_id, Some(candidate_id), crate::EXISTENTIAL_DEPOSIT);
+                    Balance::transfer(
+                        &mut self.actors,
+                        program_id,
+                        candidate_id,
+                        crate::EXISTENTIAL_DEPOSIT,
+                        false,
+                    );
+
+                    // Set ED lock
+                    let mut actors = self.actors.borrow_mut();
+                    actors
+                        .get_mut(&candidate_id)
+                        .expect("Can't fail")
+                        .1
+                        .set_lock(EXISTENTIAL_DEPOSIT);
                 } else {
                     log::debug!("Program with id {candidate_id:?} already exists");
                 }
@@ -1281,7 +1350,7 @@ impl JournalHandler for ExtManager {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
                 self.actors
-                    .insert(invalid_candidate_id, (TestActor::Dormant, 0));
+                    .insert(invalid_candidate_id, (TestActor::Dormant, Balance::empty()));
             }
         }
     }

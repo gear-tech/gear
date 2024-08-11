@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::Balance,
     program::{Gas, ProgramIdWrapper},
     GAS_MULTIPLIER,
 };
@@ -452,7 +451,7 @@ impl BlockRunResult {
     }
 
     /// Calculate the total spent value.
-    pub fn spent_value(&self) -> Balance {
+    pub fn spent_value(&self) -> u128 {
         let spent_gas = self
             .gas_burned
             .values()

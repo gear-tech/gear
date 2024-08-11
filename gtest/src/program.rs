@@ -18,7 +18,7 @@
 
 use crate::{
     default_users_list,
-    manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
+    manager::{ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor, Value},
     system::System,
     Result, GAS_ALLOWANCE,
 };
@@ -732,14 +732,14 @@ impl<'a> Program<'a> {
     }
 
     /// Mint balance to the account.
-    pub fn mint(&mut self, value: Balance) {
+    pub fn mint(&mut self, value: Value) {
         self.manager
             .borrow_mut()
             .mint_to(&self.id(), value, MintMode::KeepAlive)
     }
 
     /// Returns the balance of the account.
-    pub fn balance(&self) -> Balance {
+    pub fn balance(&self) -> Value {
         self.manager.borrow().balance_of(&self.id())
     }
 
@@ -863,7 +863,7 @@ mod tests {
     use super::Program;
 
     use crate::{
-        manager::Balance, Log, ProgramIdWrapper, System, DEFAULT_USERS_INITIAL_BALANCE,
+        manager::Value, Log, ProgramIdWrapper, System, DEFAULT_USERS_INITIAL_BALANCE,
         DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT,
     };
     use demo_constructor::{Arg, Scheme};
@@ -1081,7 +1081,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        const RECEIVER_INITIAL_BALANCE: Balance = 2 * crate::EXISTENTIAL_DEPOSIT;
+        const RECEIVER_INITIAL_BALANCE: Value = 2 * crate::EXISTENTIAL_DEPOSIT;
 
         let sender = 42;
         let receiver = 84;

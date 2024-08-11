@@ -19,7 +19,7 @@
 use crate::{
     log::{BlockRunResult, CoreLog},
     mailbox::ActorMailbox,
-    manager::{Actors, Balance, ExtManager, MintMode},
+    manager::{Actors, ExtManager, MintMode, Value},
     program::{Program, ProgramIdWrapper},
     Gas, GAS_ALLOWANCE,
 };
@@ -376,7 +376,7 @@ impl System {
     }
 
     /// Mint balance to user with given `id` and `value`.
-    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
+    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
         let actor_id = id.into().0;
         self.0
             .borrow_mut()
@@ -384,7 +384,7 @@ impl System {
     }
 
     /// Returns balance of user with given `id`.
-    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
+    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
         self.0.borrow().balance_of(&actor_id)
     }
