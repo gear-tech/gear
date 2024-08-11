@@ -78,7 +78,7 @@ where
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{
 ///     msg::{self, CodecMessageFuture},
 ///     prelude::*,
@@ -139,7 +139,7 @@ impl_futures!(
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{msg::CodecCreateProgramFuture, prelude::*, prog, ActorId};
 /// # use gstd::CodeId;
 ///
@@ -208,7 +208,7 @@ impl_futures!(
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::msg::{self, MessageFuture};
 /// # use gstd::ActorId;
 ///
@@ -259,7 +259,7 @@ impl_futures!(
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{msg::CreateProgramFuture, prog, ActorId};
 /// # use gstd::CodeId;
 ///

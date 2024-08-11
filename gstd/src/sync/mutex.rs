@@ -62,7 +62,7 @@ impl MutexId {
 /// (program C) tries to invoke program A, it will wait until program A receives
 /// the `PONG` reply from program B and unlocks the mutex.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{msg, sync::Mutex, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();

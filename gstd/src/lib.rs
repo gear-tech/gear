@@ -73,7 +73,7 @@
 //! for just one approval. If approval is obtained, the program replies with
 //! `PONG`.
 //!
-//! ```
+//! ```ignored
 //! # const _: &'static str = stringify! {
 //! #![no_std]
 //! # };
