@@ -1180,9 +1180,9 @@ pub type BuiltinActors = (
 /// Builtin actors arranged in a tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
-    pallet_gear_builtin::bls12_381::Actor<Runtime>,
-    pallet_gear_builtin::staking::Actor<Runtime>,
-    pallet_gear_eth_bridge::Actor<Runtime>,
+    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
+    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
+    ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
 );
 
 impl pallet_gear_builtin::Config for Runtime {
