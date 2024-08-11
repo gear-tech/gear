@@ -109,6 +109,7 @@ where
     C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
     C::Api: pallet_gear_rpc::GearRuntimeApi<Block>,
     C::Api: pallet_gear_builtin_rpc::GearBuiltinRuntimeApi<Block>,
+    C::Api: pallet_gear_eth_bridge_rpc::GearEthBridgeRuntimeApi<Block>,
     C::Api: pallet_gear_staking_rewards_rpc::GearStakingRewardsRuntimeApi<Block>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: BabeApi<Block>,
@@ -119,6 +120,7 @@ where
     B::State: StateBackend<sp_runtime::traits::HashingFor<Block>>,
 {
     use pallet_gear_builtin_rpc::{GearBuiltin, GearBuiltinApiServer};
+    use pallet_gear_eth_bridge_rpc::{GearEthBridge, GearEthBridgeApiServer};
     use pallet_gear_rpc::{Gear, GearApiServer};
     use pallet_gear_staking_rewards_rpc::{GearStakingRewards, GearStakingRewardsApiServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
@@ -211,7 +213,9 @@ where
 
     io.merge(GearStakingRewards::new(client.clone()).into_rpc())?;
 
-    io.merge(GearBuiltin::new(client).into_rpc())?;
+    io.merge(GearBuiltin::new(client.clone()).into_rpc())?;
+
+    io.merge(GearEthBridge::new(client).into_rpc())?;
 
     Ok(io)
 }

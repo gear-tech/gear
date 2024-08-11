@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBoundBuilder,
-    manager::HandleKind,
+    builtin::BuiltinDispatcherFactory,
+    internal::{HoldBound, HoldBoundBuilder, InheritorForError},
+    manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
@@ -28,14 +29,15 @@ use crate::{
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
-    ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
+    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
+    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
-    ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
+use demo_constructor::{Calls, Scheme};
 use frame_support::{
     assert_noop, assert_ok,
     sp_runtime::traits::{TypedGet, Zero},
@@ -45,15 +47,18 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
-        InstrumentedCodeAndId,
+        InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::WasmPage,
-    program::{ActiveProgram, Program},
+    pages::{
+        numerated::{self, tree::IntervalsTree},
+        WasmPage,
+    },
+    program::ActiveProgram,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -71,6 +76,10 @@ use sp_runtime::{
     SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
+use std::{
+    collections::BTreeSet,
+    num::{NonZeroU32, NonZeroUsize},
+};
 pub use utils::init_logger;
 use utils::*;
 
@@ -107,7 +116,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 333_333_333, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 600_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -294,8 +303,10 @@ fn calculate_gas_zero_balance() {
 }
 
 #[test]
-fn delayed_send_from_reservation_not_for_mailbox() {
-    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
+fn test_failing_delayed_reservation_send() {
+    use demo_delayed_reservation_sender::{
+        ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
+    };
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -314,13 +325,22 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         run_to_next_block(None);
         assert!(Gear::is_initialized(pid));
 
+        let reservation_amount = <Test as Config>::MailboxThreshold::get();
+        let sending_delay = 1u32;
+        let sending_delay_hold_bound: HoldBound<Test> =
+            HoldBoundBuilder::new(StorageType::DispatchStash).duration(sending_delay as u64);
+        let sending_delay_gas = sending_delay_hold_bound.lock_amount();
+        // Sending delayed msg from a reservation checks: reservation_amount - delay_hold - mailbox_therhsold.
+        // Current example sets reseravtion_amount to mailbox_threshold. So, obviously, sending message
+        // from a reservation is impossible - reservation has insufficient gas reserved.
+        assert_ne!(sending_delay_gas, 0);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1_000,
-                sending_delay: 1,
+                sending_delay,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -331,11 +351,22 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         let mid = utils::get_last_message_id();
 
         run_to_next_block(None);
-        assert_succeed(mid);
+        let error_text = format!(
+            "panicked with '{SENDING_EXPECT}: {:?}'",
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
+        );
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
 
+        // Possibly sent message from reservation with a 1 block delay duration.
         let outgoing = MessageId::generate_outgoing(mid, 0);
+        let err_reply = MessageId::generate_reply(mid);
 
-        assert!(DispatchStashOf::<Test>::contains_key(&outgoing));
+        assert!(!DispatchStashOf::<Test>::contains_key(&outgoing));
 
         run_to_next_block(None);
 
@@ -343,7 +374,7 @@ fn delayed_send_from_reservation_not_for_mailbox() {
         assert!(!MailboxOf::<Test>::contains(&USER_1, &outgoing));
 
         let message = maybe_any_last_message().expect("Should be");
-        assert_eq!(message.id(), outgoing);
+        assert_eq!(message.id(), err_reply);
         assert_eq!(message.destination(), USER_1.into());
     });
 }
@@ -379,7 +410,9 @@ fn cascading_delayed_gasless_send_work() {
         )
         .expect("calculate_gas_info failed");
 
-        // Case when one of two goes into mailbox.
+        // Case when trying to send one of them to mailbox.
+        // Fails as any gasless message sending costs reducing
+        // mailbox threshold from the gas counter
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -391,16 +424,12 @@ fn cascading_delayed_gasless_send_work() {
 
         let mid = get_last_message_id();
 
-        let first_outgoing = MessageId::generate_outgoing(mid, 0);
-        let second_outgoing = MessageId::generate_outgoing(mid, 1);
-
         run_to_next_block(None);
 
-        assert_succeed(mid);
-
-        run_for_blocks(DELAY as u64, None);
-        assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
-        assert!(!MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
 
         // Similar case when two of two goes into mailbox.
         assert_ok!(Gear::send_message(
@@ -603,6 +632,27 @@ fn delayed_reservations_sending_validation() {
 fn delayed_reservations_to_mailbox() {
     use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
+    struct LockOrExpiration;
+
+    impl LockOrExpiration {
+        fn lock_for_stash(delay: u32) -> u64 {
+            let stash_hold =
+                Self::hold_bound_builder(StorageType::DispatchStash).duration(delay.into());
+
+            stash_hold.lock_amount()
+        }
+
+        fn expiration_for_mailbox(gas: u64) -> u64 {
+            let mailbox_hold = Self::hold_bound_builder(StorageType::Mailbox).maximum_for(gas);
+
+            mailbox_hold.expected()
+        }
+
+        fn hold_bound_builder(storage_type: StorageType) -> HoldBoundBuilder<Test> {
+            HoldBoundBuilder::<Test>::new(storage_type)
+        }
+    }
+
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
@@ -621,12 +671,16 @@ fn delayed_reservations_to_mailbox() {
         assert!(Gear::is_initialized(pid));
 
         let sending_delay = 10;
+        let delay_lock_amount = LockOrExpiration::lock_for_stash(sending_delay);
+
+        let reservation_amount = delay_lock_amount + 10 * <Test as Config>::MailboxThreshold::get();
+        let reservation_expiration = LockOrExpiration::expiration_for_mailbox(reservation_amount);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount,
                 reservation_delay: 1,
                 sending_delay,
             }
@@ -648,10 +702,7 @@ fn delayed_reservations_to_mailbox() {
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let mailed_msg = utils::get_last_mail(USER_1);
-        let expiration = utils::get_mailbox_expiration(mailed_msg.id());
-
-        run_to_block(expiration, None);
+        run_to_block(reservation_expiration, None);
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
     });
@@ -1196,7 +1247,6 @@ fn reply_deposit_to_user_auto_reply() {
     init_logger();
 
     let checker = USER_1;
-
     // To user case.
     new_test_ext().execute_with(|| {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
@@ -1215,6 +1265,7 @@ fn reply_deposit_to_user_auto_reply() {
         ));
 
         run_to_next_block(None);
+
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(!MailboxOf::<Test>::is_empty(&checker));
@@ -1247,6 +1298,7 @@ fn reply_deposit_panic_in_handle_reply() {
         ));
 
         run_to_next_block(None);
+
         // 1 init + 1 handle + 1 auto reply
         assert_total_dequeued(3);
         assert!(MailboxOf::<Test>::is_empty(&checker));
@@ -3018,69 +3070,57 @@ fn mailbox_sending_instant_transfer() {
     new_test_ext().execute_with(|| {
         let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
-        // Message doesn't add to mailbox.
-        //
-        // For both cases value moves to destination user instantly.
-        let cases = [
-            // Zero gas for gasful sending.
-            (Some(0), 1_000),
-            // Gasless message.
-            (None, 3_000),
-        ];
+        // Message with 0 gas limit is not added to mailbox.
+        let gas_limit = 0;
+        let value = 1_000;
 
-        for (gas_limit, value) in cases {
-            let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
+        let user_1_balance = Balances::free_balance(USER_1);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
-            let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
+        let user_2_balance = Balances::free_balance(USER_2);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
-            let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
-            assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
+        let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
+        assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
 
-            let payload = if let Some(gas_limit) = gas_limit {
-                TestData::gasful(gas_limit, value)
-            } else {
-                TestData::gasless(value, <Test as Config>::MailboxThreshold::get())
-            };
+        let payload = TestData::gasful(gas_limit, value);
 
-            // Used like that, because calculate gas info always provides
-            // message into mailbox while sending without gas.
-            let gas_info = Gear::calculate_gas_info(
-                USER_1.into_origin(),
-                HandleKind::Handle(sender),
-                payload.request(USER_2.into_origin()).encode(),
-                0,
-                true,
-                true,
-            )
-            .expect("calculate_gas_info failed");
+        // Used like that, because calculate gas info always provides
+        // message into mailbox while sending without gas.
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(sender),
+            payload.request(USER_2.into_origin()).encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
 
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                sender,
-                payload.request(USER_2.into_origin()).encode(),
-                gas_info.burned + gas_limit.unwrap_or_default(),
-                0,
-                false,
-            ));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            sender,
+            payload.request(USER_2.into_origin()).encode(),
+            gas_info.burned + gas_limit,
+            0,
+            false,
+        ));
 
-            utils::assert_balance(
-                USER_1,
-                user_1_balance - gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
-                gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
-            );
-            utils::assert_balance(USER_2, user_2_balance, 0u128);
-            utils::assert_balance(sender, prog_balance, 0u128);
-            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+        utils::assert_balance(
+            USER_1,
+            user_1_balance - gas_price(gas_info.burned + gas_limit),
+            gas_price(gas_info.burned + gas_limit),
+        );
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
 
-            run_to_next_block(None);
+        run_to_next_block(None);
 
-            utils::assert_balance(USER_1, user_1_balance - gas_price(gas_info.burned), 0u128);
-            utils::assert_balance(USER_2, user_2_balance + value, 0u128);
-            utils::assert_balance(sender, prog_balance - value, 0u128);
-            assert!(MailboxOf::<Test>::is_empty(&USER_2));
-        }
+        utils::assert_balance(USER_1, user_1_balance - gas_price(gas_info.burned), 0u128);
+        utils::assert_balance(USER_2, user_2_balance + value, 0u128);
+        utils::assert_balance(sender, prog_balance - value, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
     });
 }
 
@@ -6270,6 +6310,10 @@ fn exit_locking_funds() {
         ));
         let message_1 = utils::get_last_message_id();
 
+        run_to_next_block(None);
+
+        assert_succeed(message_1);
+
         let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -6283,10 +6327,21 @@ fn exit_locking_funds() {
 
         run_to_next_block(None);
 
-        assert_succeed(message_1);
         assert_succeed(message_2);
 
         // Both `value` and ED from the program's account go to the USER_2 as beneficiary.
+        assert_balance(USER_2, user_2_balance + value + ed, 0u128);
+        assert_balance(program_id, 0u128, 0u128);
+
+        // nothing should change
+        assert_ok!(Gear::claim_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            NonZeroU32::MAX,
+        ));
+
+        run_to_next_block(None);
+
         assert_balance(USER_2, user_2_balance + value + ed, 0u128);
         assert_balance(program_id, 0u128, 0u128);
     });
@@ -6590,6 +6645,319 @@ fn terminated_locking_funds() {
             Balances::free_balance(USER_1),
             user_1_balance + extra_gas_to_mb
         );
+
+        // nothing should change
+        assert_ok!(Gear::claim_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            NonZeroU32::MAX,
+        ));
+
+        run_to_next_block(None);
+
+        assert_balance(program_id, 0u128, 0u128);
+        assert_eq!(
+            Balances::free_balance(USER_3),
+            user_3_balance + prog_reserve
+        );
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + extra_gas_to_mb,
+        );
+    });
+}
+
+#[test]
+fn claim_value_to_inheritor() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, pid1) =
+            submit_constructor_with_args(USER_1, "constructor1", Scheme::empty(), 0);
+        let (_init_mid, pid2) =
+            submit_constructor_with_args(USER_1, "constructor2", Scheme::empty(), 0);
+        let (_init_mid, pid3) =
+            submit_constructor_with_args(USER_1, "constructor3", Scheme::empty(), 0);
+
+        run_to_next_block(None);
+
+        // also, noop cases are in `*_locking_funds` tests
+        assert_noop!(
+            Gear::claim_value_to_inheritor(RuntimeOrigin::signed(USER_1), pid1, NonZeroU32::MAX),
+            Error::<Test>::ActiveProgram
+        );
+
+        run_to_next_block(None);
+
+        let user_2_balance = Balances::free_balance(USER_2);
+
+        // add value to `pid1`
+        let value1 = 1_000;
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            Calls::default().encode(),
+            10_000_000_000,
+            value1,
+            false,
+        ));
+        let value_mid1 = utils::get_last_message_id();
+
+        // add value to `pid2`
+        let value2 = 4_000;
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            Calls::default().encode(),
+            10_000_000_000,
+            value2,
+            false,
+        ));
+        let value_mid2 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(value_mid1);
+        assert_succeed(value_mid2);
+
+        let ed = get_ed();
+        assert_program_balance(pid1, value1, ed, 0u128);
+        assert_program_balance(pid2, value2, ed, 0u128);
+        assert_program_balance(pid3, 0u128, ed, 0u128);
+
+        // exit in reverse order so the chain of inheritors will not transfer
+        // all the balances to `USER_2`
+
+        // make `pid3` exit and refer to `USER_2`
+        let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid3,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid3 = utils::get_last_message_id();
+
+        // make `pid2` exit and refer to `pid3`
+        let calls = Calls::builder().exit(pid3.into_bytes());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid2 = utils::get_last_message_id();
+
+        // make `pid1` exit and refer to `pid2`
+        let calls = Calls::builder().exit(pid2.into_bytes());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid1 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid1);
+        assert_succeed(mid2);
+        assert_succeed(mid3);
+
+        // `pid1` transferred all the balances to `pid2`
+        assert_program_balance(pid1, 0u128, 0u128, 0u128);
+        // `pid2` transferred `value2` and `ed` to `pid3`
+        // but have `value1` and `ed` of `pid1`
+        assert_balance(pid2, value1 + ed, 0u128);
+        // `pid3` transferred its 0 value and `ed` to `USER_2`
+        // but have `value2` and `ed` of `pid2`
+        assert_balance(pid3, value2 + ed, 0u128);
+        // `USER_2` have `ed` of `pid3`
+        assert_balance(USER_2, user_2_balance + ed, 0u128);
+
+        assert_ok!(Gear::claim_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            NonZeroU32::MAX,
+        ));
+
+        run_to_next_block(None);
+
+        assert_program_balance(pid1, 0u128, 0u128, 0u128);
+        assert_program_balance(pid2, 0u128, 0u128, 0u128);
+        assert_program_balance(pid3, 0u128, 0u128, 0u128);
+        assert_balance(USER_2, user_2_balance + value1 + value2 + 3 * ed, 0u128);
+    });
+}
+
+#[test]
+fn test_sequence_inheritor_of() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let manager = ExtManager::<Test>::new(builtins);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            demo_ping::WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code_info = CodeInfo::from_code(&code_id, &code);
+
+        let message_id = MessageId::from(1);
+
+        // serial inheritance
+        let mut programs = vec![];
+        for i in 1000..1100 {
+            let program_id = ProgramId::from(i);
+            manager.set_program(
+                program_id,
+                &code_info,
+                message_id,
+                1.unique_saturated_into(),
+            );
+
+            ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
+                let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.into());
+                if i % 2 == 0 {
+                    *program = Program::Exited(inheritor);
+                } else {
+                    *program = Program::Terminated(inheritor);
+                }
+            })
+            .unwrap();
+
+            programs.push(program_id);
+        }
+
+        let indexed_programs: Vec<u64> = (1000..1100).collect();
+        let convert_holders = |holders: BTreeSet<ProgramId>| {
+            let mut holders = holders
+                .into_iter()
+                .map(|x| u64::from_le_bytes(*x.into_bytes().split_first_chunk::<8>().unwrap().0))
+                .collect::<Vec<u64>>();
+            holders.sort();
+            holders
+        };
+        let inheritor_for = |id, max_depth| {
+            let max_depth = NonZeroUsize::new(max_depth).unwrap();
+            let (inheritor, holders) = Gear::inheritor_for(id, max_depth).unwrap();
+            let holders = convert_holders(holders);
+            (inheritor, holders)
+        };
+
+        let res = Gear::inheritor_for(USER_1.into(), NonZeroUsize::MAX);
+        assert_eq!(res, Err(InheritorForError::NotFound));
+
+        let (inheritor, holders) = inheritor_for(programs[99], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs);
+
+        let (inheritor, holders) = inheritor_for(programs[49], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=49]);
+
+        let (inheritor, holders) = inheritor_for(programs[0], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=0]);
+
+        let (inheritor, holders) = inheritor_for(programs[0], 1);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=0]);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 10);
+        assert_eq!(inheritor, programs[89]);
+        assert_eq!(holders, indexed_programs[90..]);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 50);
+        assert_eq!(inheritor, programs[49]);
+        assert_eq!(holders, indexed_programs[50..]);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 100);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 99);
+        assert_eq!(inheritor, programs[0]);
+        assert_eq!(holders, indexed_programs[1..]);
+    });
+}
+
+#[test]
+fn test_cyclic_inheritor_of() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let manager = ExtManager::<Test>::new(builtins);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            demo_ping::WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code_info = CodeInfo::from_code(&code_id, &code);
+
+        let message_id = MessageId::from(1);
+
+        // cyclic inheritance
+        let mut cyclic_programs = vec![];
+        for i in 2000..2100 {
+            let program_id = ProgramId::from(i);
+            manager.set_program(
+                program_id,
+                &code_info,
+                message_id,
+                1.unique_saturated_into(),
+            );
+
+            ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
+                let inheritor = cyclic_programs
+                    .last()
+                    .copied()
+                    .unwrap_or_else(|| 2099.into());
+                if i % 2 == 0 {
+                    *program = Program::Exited(inheritor);
+                } else {
+                    *program = Program::Terminated(inheritor);
+                }
+            })
+            .unwrap();
+
+            cyclic_programs.push(program_id);
+        }
+
+        let cyclic_programs: BTreeSet<ProgramId> = cyclic_programs.into_iter().collect();
+
+        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::MAX);
+        assert_eq!(
+            res,
+            Err(InheritorForError::Cyclic {
+                holders: cyclic_programs.clone(),
+            })
+        );
+
+        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::new(101).unwrap());
+        assert_eq!(
+            res,
+            Err(InheritorForError::Cyclic {
+                holders: cyclic_programs
+            })
+        );
+
+        let (inheritor, _holders) =
+            Gear::inheritor_for(2000.into(), NonZeroUsize::new(100).unwrap()).unwrap();
+        assert_eq!(inheritor, 2000.into());
+
+        let (inheritor, _holders) =
+            Gear::inheritor_for(2000.into(), NonZeroUsize::new(99).unwrap()).unwrap();
+        assert_eq!(inheritor, 2001.into());
     });
 }
 
@@ -14831,6 +15199,131 @@ fn critical_hook_in_handle_signal() {
 }
 
 #[test]
+fn handle_reply_hook() {
+    use demo_async_reply_hook::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(utils::is_active(pid));
+
+        // Init conversation
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let messages = MailboxOf::<Test>::iter_key(USER_1).map(|(msg, _bn)| msg);
+
+        let mut timeout_msg_id = None;
+
+        for msg in messages {
+            match msg.payload_bytes() {
+                b"for_reply_1" => {
+                    // Reply to the first message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [1].to_vec(),
+                        1_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                b"for_reply_2" => {
+                    // Don't reply, message should time out
+                }
+                b"for_reply_3" => {
+                    // Reply to the third message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [3].to_vec(),
+                        1_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                b"for_reply_4" => {
+                    // reply later
+                    timeout_msg_id = Some(msg.id());
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        run_to_block(4, None);
+
+        // Expect a reply back
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"saw_reply_3");
+
+        run_to_block(10, None);
+
+        // Program finished
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"completed");
+
+        // Reply to a message that timed out
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            timeout_msg_id.unwrap(),
+            [4].to_vec(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(11, None);
+
+        let messages = all_user_messages(USER_1);
+        let vec: Vec<gstd::borrow::Cow<'_, str>> = messages
+            .iter()
+            .filter_map(|m| {
+                if m.details().is_some() {
+                    None
+                } else {
+                    Some(String::from_utf8_lossy(m.payload_bytes()))
+                }
+            })
+            .collect();
+        // Hook executed after completed
+        assert_eq!(
+            vec,
+            [
+                "for_reply_1",
+                "for_reply_2",
+                "for_reply_3",
+                "for_reply_4",
+                "saw_reply_3",
+                "completed",
+                "saw_reply_4"
+            ]
+        );
+    });
+}
+
+#[test]
 fn program_with_large_indexes() {
     // There is a security problem in module deserialization found by
     // casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
@@ -15044,12 +15537,9 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
-            program.allocations,
+            allocations,
             [WasmPage::from(static_pages)].into_iter().collect()
         );
 
@@ -15065,11 +15555,8 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
-        assert_eq!(program.allocations, Default::default());
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
+        assert_eq!(allocations, Default::default());
     });
 }
 
@@ -15246,6 +15733,182 @@ fn dust_in_message_to_user_handled_ok() {
     });
 }
 
+#[test]
+fn test_gasless_steal_gas_for_wait() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme};
+
+        let wait_duration = 10;
+        let handle = Calls::builder()
+            .source("source_store")
+            .send("source_store", Arg::new("msg1".encode()))
+            .send("source_store", Arg::new("msg2".encode()))
+            .send("source_store", Arg::new("msg3".encode()))
+            .send("source_store", Arg::new("msg4".encode()))
+            .send("source_store", Arg::new("msg5".encode()))
+            .wait_for(wait_duration);
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            handle,
+            Calls::builder().noop(),
+            Calls::builder().noop(),
+        );
+
+        let (_, pid) = init_constructor(scheme);
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            Default::default(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+        let waiting_bound = HoldBoundBuilder::<Test>::new(StorageType::Waitlist)
+            .duration(wait_duration.unique_saturated_into());
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Default::default(),
+            min_limit - waiting_bound.lock_amount(),
+            0,
+            true
+        ));
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
+        );
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+    })
+}
+
+#[test]
+fn use_big_memory() {
+    let last_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT).offset() - 4;
+    let middle_4_bytes_offset = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2).offset();
+    let last_page_number = MAX_WASM_PAGES_AMOUNT.checked_sub(1).unwrap();
+
+    let wat = format!(
+        r#"
+        (module
+		    (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (drop (call $alloc (i32.const {MAX_WASM_PAGES_AMOUNT})))
+
+                ;; access last 4 bytes
+                (i32.store (i32.const {last_4_bytes_offset}) (i32.const 0x42))
+
+                ;; access first 4 bytes
+                (i32.store (i32.const 0) (i32.const 0x42))
+
+                ;; access 4 bytes in the middle
+                (i32.store (i32.const {middle_4_bytes_offset}) (i32.const 0x42))
+            )
+            (func $handle
+                (drop (call $free_range (i32.const 0) (i32.const {last_page_number})))
+            )
+        )"#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        let expected_allocations: IntervalsTree<WasmPage> =
+            [numerated::interval::Interval::try_from(
+                WasmPage::from(0)..WasmPage::from(MAX_WASM_PAGES_AMOUNT),
+            )
+            .unwrap()]
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(expected_allocations),
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id).expect("Program not found");
+        let Program::Active(program) = program else {
+            panic!("Program is not active");
+        };
+
+        assert_eq!(program.allocations_tree_len, 1);
+
+        let pages_with_data =
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .map(|(page, buf)| {
+                assert_eq!(buf.iter().copied().sum::<u8>(), 0x42);
+                page
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            pages_with_data,
+            vec![
+                GearPage::from_offset(0),
+                GearPage::from_offset(middle_4_bytes_offset),
+                GearPage::from_offset(last_4_bytes_offset)
+            ]
+        );
+
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+
+        assert_eq!(
+            ProgramStorageOf::<Test>::allocations(program_id),
+            Some(Default::default()),
+        );
+
+        assert_eq!(
+            <ProgramStorageOf<Test> as ProgramStorage>::MemoryPageMap::iter_prefix(
+                &program_id,
+                &program.memory_infix,
+            )
+            .count(),
+            0
+        );
+    });
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 
@@ -15373,10 +16036,15 @@ pub(crate) mod utils {
         reserved: impl Into<BalanceOf<Test>>,
     ) {
         let account_id = origin.cast();
-        assert_eq!(Balances::free_balance(account_id), free.into());
+        assert_eq!(
+            Balances::free_balance(account_id),
+            free.into(),
+            "Free balance"
+        );
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
-            reserved.into()
+            reserved.into(),
+            "Reserved balance"
         );
     }
 
@@ -15390,9 +16058,17 @@ pub(crate) mod utils {
         B: Into<BalanceOf<Test>> + Copy,
     {
         let account_id = origin.cast();
+        let available = available.into();
+        let locked = locked.into();
+        let reserved = reserved.into();
+
         let account_data = System::account(account_id).data;
-        assert_eq!(account_data.free, available.into() + locked.into());
-        assert_eq!(account_data.frozen, locked.into());
+        assert_eq!(
+            account_data.free,
+            available + locked,
+            "Free balance of {available} + {locked} (available + locked)"
+        );
+        assert_eq!(account_data.frozen, locked, "Frozen balance");
         let maybe_ed = Balances::locks(account_id)
             .into_iter()
             .filter_map(|lock| {
@@ -15404,10 +16080,11 @@ pub(crate) mod utils {
             })
             .reduce(|a, b| a + b)
             .unwrap_or_default();
-        assert_eq!(maybe_ed, locked.into());
+        assert_eq!(maybe_ed, locked, "Locked ED");
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
-            reserved.into()
+            reserved,
+            "Reserved balance"
         );
     }
 
@@ -16234,5 +16911,24 @@ pub(crate) mod utils {
 
     pub(super) fn gas_price(gas: u64) -> u128 {
         <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
+    }
+
+    // Collect all messages by account in chronological order (oldest first)
+    #[track_caller]
+    pub(super) fn all_user_messages(user_id: AccountId) -> Vec<UserMessage> {
+        System::events()
+            .into_iter()
+            .filter_map(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    if message.destination() == user_id.into() {
+                        Some(message)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }

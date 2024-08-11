@@ -32,8 +32,6 @@
 //! the only thing they do - wasmer take them in account, when compiles wasm code.
 //! So, we suppose this instruction have weight 0.
 
-#![cfg(feature = "runtime-benchmarks")]
-
 #[allow(dead_code)]
 mod code;
 mod sandbox;
@@ -110,7 +108,7 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill, Saturating,
 };
-use sp_std::prelude::*;
+use sp_std::{num::NonZeroU32, prelude::*};
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
@@ -123,6 +121,9 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
+
+/// Default memory size in wasm pages for benchmarks.
+const DEFAULT_MEM_SIZE: u16 = 512;
 
 // Initializes new block.
 fn init_block<T: Config>(previous: Option<BlockNumberFor<T>>)
@@ -594,6 +595,49 @@ benchmarks! {
         assert!(MailboxOf::<T>::is_empty(&caller))
     }
 
+    claim_value_to_inheritor {
+        let d in 1 .. 1024;
+
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
+
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
+
+        let mut inheritor = caller.clone().cast();
+        let mut programs = vec![];
+        for i in 0..d {
+            let program_id = benchmarking::account::<T::AccountId>("program", i, 100);
+            programs.push(program_id.clone());
+            let _ = CurrencyOf::<T>::deposit_creating(&program_id, minimum_balance);
+            let program_id = program_id.cast();
+            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
+
+            ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
+                if i % 2 == 0 {
+                    *program = common::Program::Terminated(inheritor);
+                } else {
+                    *program = common::Program::Exited(inheritor);
+                }
+            })
+            .unwrap();
+
+            inheritor = program_id;
+        }
+
+        let program_id = inheritor;
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller.clone()), program_id, NonZeroU32::MAX)
+    verify {
+        assert_eq!(
+            CurrencyOf::<T>::free_balance(&caller),
+            minimum_balance * d.unique_saturated_into()
+        );
+
+        for program_id in programs {
+            assert_eq!(CurrencyOf::<T>::free_balance(&program_id), BalanceOf::<T>::zero());
+        }
+    }
+
     // This benchmarks the additional weight that is charged when a program is executed the
     // first time after a new schedule was deployed: For every new schedule a program needs
     // to re-run the instrumentation once.
@@ -618,6 +662,17 @@ benchmarks! {
         let schedule = T::Schedule::get();
     }: {
         Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
+    }
+
+    load_allocations_per_interval {
+        let a in 0 .. u16::MAX as u32 / 2;
+        let allocations = (0..a).map(|p| WasmPage::from(p as u16 * 2 + 1));
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
+    }: {
+        let _ = ProgramStorageOf::<T>::allocations(program_id).unwrap();
     }
 
     alloc {
@@ -1435,7 +1490,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_read {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
@@ -1446,7 +1501,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
     }: {
@@ -1457,9 +1512,9 @@ benchmarks! {
     }
 
     lazy_pages_signal_write_after_read {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into(), DEFAULT_MEM_SIZE.into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1468,7 +1523,7 @@ benchmarks! {
     }
 
     lazy_pages_load_page_storage_data {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
     }: {
@@ -1515,7 +1570,7 @@ benchmarks! {
     instr_i64load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
@@ -1533,7 +1588,7 @@ benchmarks! {
     instr_i32load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
@@ -1551,7 +1606,7 @@ benchmarks! {
     instr_i64store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
@@ -1569,7 +1624,7 @@ benchmarks! {
     instr_i32store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = DEFAULT_MEM_SIZE;
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![

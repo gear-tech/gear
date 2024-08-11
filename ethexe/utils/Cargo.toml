@@ -1,0 +1,25 @@
+[package]
+name = "ethexe-utils"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+log = { workspace = true, default-features = true }
+sp-arithmetic = { workspace = true, default-features = false }
+
+async-channel = "1.8.0"
+futures = "0.3.21"
+futures-timer = "3.0.2"
+parking_lot = "0.12.1"
+prometheus = { version = "0.13.0", default-features = false }
+
+[features]
+default = ["metered"]
+metered = []
+
+[dev-dependencies]
+tokio-test = "0.4.2"

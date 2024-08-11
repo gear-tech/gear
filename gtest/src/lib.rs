@@ -208,7 +208,7 @@
 //!     ```
 //!
 //!     Every place in this lib, where you need to specify some ids, it requires
-//! generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
+//!   generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
 //!
 //!     `ProgramIdWrapper` may be built from:
 //!     - `u64`
@@ -432,6 +432,7 @@ mod system;
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;
 pub use error::{Result, TestError};
+pub use mailbox::ActorMailbox;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,
@@ -506,6 +507,8 @@ pub mod constants {
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).
 
+    /// Cost of loading allocations per interval.
+    pub const LOAD_ALLOCATIONS_PER_INTERVAL: Gas = 20_000;
     /// Maximal amount of reservations program may have.
     pub const MAX_RESERVATIONS: u64 = 256;
     /// Cost of wasm module code section instantiation before execution per byte

@@ -226,10 +226,12 @@ macro_rules! def_memory_layout {
                         )*
                     }
 
-                    const _: () = assert!(
-                        mem::size_of::<WasmMemoryLayout>() as u32 <= $name::RESERVED_MEMORY_SIZE,
-                        "reserved memory exceeded"
-                    );
+                    const {
+                        assert!(
+                            size_of::<WasmMemoryLayout>() as u32 <= $name::RESERVED_MEMORY_SIZE,
+                            "reserved memory exceeded"
+                        )
+                    };
 
                     let start_memory_ptr = mem_size.saturating_sub($name::RESERVED_MEMORY_SIZE) as i32;
 
@@ -270,6 +272,7 @@ def_memory_layout! {
         reservation_temp2_ptr: u32,
         reservation_flags_ptr: u32,
         reservation_array_ptr: [Hash; MemoryLayout::AMOUNT_OF_RESERVATIONS as _],
+        waited_message_id_ptr: Hash,
     }
 }
 

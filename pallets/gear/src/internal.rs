@@ -23,7 +23,7 @@ use crate::{
     GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
     SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, format};
 use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*, MessageWokenReason, Reason::*,
@@ -34,7 +34,10 @@ use common::{
     storage::*,
     GasTree, LockId, LockableTree, Origin,
 };
-use core::cmp::{Ord, Ordering};
+use core::{
+    cmp::{Ord, Ordering},
+    num::NonZeroUsize,
+};
 use frame_support::traits::{fungible, Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -48,6 +51,10 @@ use sp_runtime::{
     traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero},
     DispatchError, TokenError,
 };
+
+type MailboxError<T> = <<<T as Config>::Messenger as Messenger>::Mailbox as Mailbox>::OutputError;
+type WaitlistError<T> =
+    <<<T as Config>::Messenger as Messenger>::Waitlist as Waitlist>::OutputError;
 
 /// [`HoldBound`] builder
 #[derive(Clone, Debug)]
@@ -104,8 +111,15 @@ impl<T: Config> HoldBoundBuilder<T> {
     /// by querying it's gas limit.
     pub fn maximum_for_message(self, message_id: MessageId) -> HoldBound<T> {
         // Querying gas limit. Fails in cases of `GasTree` invalidations.
-        let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let gas_limit = GasHandlerOf::<T>::get_limit(message_id).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "HoldBoundBuilder::maximum_for_message: failed getting message gas limit. \
+                Message id - {message_id}. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         self.maximum_for(gas_limit)
     }
@@ -189,6 +203,12 @@ where
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum InheritorForError {
+    Cyclic { holders: BTreeSet<ProgramId> },
+    NotFound,
+}
+
 // Internal functionality implementation.
 impl<T: Config> Pallet<T>
 where
@@ -227,21 +247,40 @@ where
         }
 
         // Spending gas amount from `GasNode`.
-        GasHandlerOf::<T>::spend(id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::spend(id, amount).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "spend_gas: failed spending gas. Message id - {id}, amount - {amount}. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let (external, multiplier, _) = GasHandlerOf::<T>::get_origin_node(id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let (external, multiplier, _) = GasHandlerOf::<T>::get_origin_node(id).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "spend_gas: failed getting origin node for the current one. Message id - {id}, Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         // Transferring reserved funds from external user to destination.
-        let result = if let Some(account_id) = to {
-            GearBank::<T>::spend_gas_to(&account_id, &external, amount, multiplier)
+        if let Some(account_id) = &to {
+            GearBank::<T>::spend_gas_to(account_id, &external, amount, multiplier)
         } else {
             GearBank::<T>::spend_gas(&external, amount, multiplier)
-        };
+        }.unwrap_or_else(|e| {
+            let err_msg = format!(
+                "spend_gas: failed spending value for gas in gear bank. \
+                Spender - {external:?}, spending to - {to:?}, amount - {amount}, multiplier - {multiplier:?}. \
+                Got error - {e:?}"
+            );
 
-        result.unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        })
     }
 
     /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
@@ -251,8 +290,14 @@ where
         let id = id.into();
 
         // Consuming `GasNode`, returning optional outcome with imbalance.
-        let outcome = GasHandlerOf::<T>::consume(id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let outcome = GasHandlerOf::<T>::consume(id).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "consume_and_retrieve: failed consuming the rest of gas. Message id - {id:?}. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         // Unreserving funds, if imbalance returned.
         if let Some((imbalance, multiplier, external)) = outcome {
@@ -266,7 +311,16 @@ where
                 );
 
                 GearBank::<T>::withdraw_gas(&external, gas_left, multiplier)
-                    .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+                    .unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "consume_and_retrieve: failed withdrawing value for gas from bank. \
+                            Message id - {id:?}, withdraw to - {external:?}, amount - {gas_left}, multiplier - {multiplier:?}. \
+                            Got error - {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    });
             }
         }
     }
@@ -320,8 +374,15 @@ where
         let amount = storage_type.try_into().map_or_else(
             |_| duration.saturating_mul(cost),
             |lock_id| {
-                let prepaid = GasHandlerOf::<T>::unlock_all(id, lock_id)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                let prepaid = GasHandlerOf::<T>::unlock_all(id, lock_id).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "charge_for_hold: failed unlocking locked gas. Message id - {id:?}, lock id - {lock_id:?}, \
+                        Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                });
                 prepaid.min(duration.saturating_mul(cost))
             },
         );
@@ -353,33 +414,80 @@ where
             maximal_hold
         };
 
+        // Taking data for tasks and error logs.
+        let message_id = dispatch.id();
+        let destination = dispatch.destination();
+
         // Validating duration.
         if hold.expected_duration().is_zero() {
-            // TODO: Replace with unreachable call after:
-            // - `HoldBound` safety usage stabilized;
-            log::error!("Failed to figure out correct wait hold bound");
-            return;
+            let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id()).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "wait_dispatch: failed getting message gas limit. Message id - {message_id}. \
+                        Got error - {e:?}",
+                    message_id = dispatch.id()
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            let err_msg = format!(
+                "wait_dispatch: message got zero duration hold bound for waitlist. \
+                Requested duration - {duration:?}, gas limit - {gas_limit}, \
+                wait reason - {reason:?}, message id - {}.",
+                dispatch.id(),
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         // Locking funds for holding.
         let lock_id = hold.lock_id().unwrap_or_else(|| {
-            unreachable!("Waitlist storage is guaranteed to have an associated lock id")
+            // Waitlist storage is guaranteed to have an associated lock id
+            let err_msg = "wait_dispatch: No associated lock id for the waitlist storage";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         });
-        GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::lock(message_id, lock_id, hold.lock_amount()).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "wait_dispatch: failed locking gas for the waitlist hold. \
+                    Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
+                lock = hold.lock_amount()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
-        let origin_msg = GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(dispatch.id()))
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let origin_msg = GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(message_id))
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "wait_dispatch: failed getting origin node for the current one. \
+                    Message id - {message_id}, Got error - {e:?}",
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
         match reason {
             Runtime(WaitForCalled | WaitUpToCalledFull) => {
                 let expected = hold.expected();
-                let task = ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id());
+                let task = ScheduledTask::WakeMessage(destination, message_id);
 
                 if !TaskPoolOf::<T>::contains(&expected, &task) {
-                    TaskPoolOf::<T>::add(expected, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                    TaskPoolOf::<T>::add(expected, task).unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "wait_dispatch: failed adding task for waking message. \
+                            Expected bn - {expected:?}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}");
+                    });
                 }
             }
             Runtime(WaitCalled | WaitUpToCalled) => {
@@ -387,7 +495,16 @@ where
                     hold.expected(),
                     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
                 )
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "wait_dispatch: failed adding task for removing message from waitlist. \
+                        Expected bn - {bn:?}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
+                        bn = hold.expected(),
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             }
             System(reason) => match reason {},
         }
@@ -402,7 +519,16 @@ where
 
         // Adding message in waitlist.
         WaitlistOf::<T>::insert(dispatch, hold.expected())
-            .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "wait_dispatch: failed inserting message to the wailist. \
+                    Expected bn - {bn:?}, program id - {destination}, message id - {message_id}. Got error - {e:?}",
+                    bn = hold.expected(),
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            })
     }
 
     /// Wakes dispatch from waitlist, permanently charged for hold with
@@ -411,11 +537,10 @@ where
         program_id: ProgramId,
         message_id: MessageId,
         reason: MessageWokenReason,
-    ) -> Option<StoredDispatch> {
+    ) -> Result<StoredDispatch, WaitlistError<T>> {
         // Removing dispatch from waitlist, doing wake requirements if found.
         WaitlistOf::<T>::remove(program_id, message_id)
             .map(|v| Self::wake_dispatch_requirements(v, reason))
-            .ok()
     }
 
     /// Charges and deposits event for already taken from waitlist dispatch.
@@ -452,11 +577,10 @@ where
         user_id: T::AccountId,
         message_id: MessageId,
         reason: UserMessageReadReason,
-    ) -> Option<UserStoredMessage> {
+    ) -> Result<UserStoredMessage, MailboxError<T>> {
         // Removing message from mailbox, doing read requirements if found.
         MailboxOf::<T>::remove(user_id, message_id)
             .map(|v| Self::read_message_requirements(v, reason))
-            .ok()
     }
 
     /// Charges and deposits event for already taken from mailbox message.
@@ -481,7 +605,16 @@ where
 
         // Transferring reserved funds, associated with the message.
         GearBank::<T>::transfer_value(&from, &user_id, mailboxed.value().unique_saturated_into())
-            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "read_message_requirements: failed transferring value on gear bank. \
+                    Sender - {from:?}, destination - {user_id:?}, value - {value}. Got error - {e:?}",
+                    value = mailboxed.value(),
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::UserMessageRead {
@@ -516,17 +649,32 @@ where
     ) {
         // Validating delay.
         if delay.is_zero() {
-            unreachable!("Delayed sending with zero delay appeared");
+            let err_msg = "send_delayed_dispatch: delayed sending with zero delay appeared";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         // Validating stash from duplicates.
         if DispatchStashOf::<T>::contains_key(&dispatch.id()) {
-            unreachable!("Stash logic invalidated!")
+            let err_msg = format!(
+                "send_delayed_dispatch: stash already has the message id - {id}",
+                id = dispatch.id()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         // Validating dispatch wasn't sent from system with delay.
         if dispatch.is_error_reply() || matches!(dispatch.kind(), DispatchKind::Signal) {
-            unreachable!("Scheduling logic invalidated");
+            let err_msg = format!(
+                "send_delayed_dispatch: message of an invalid kind is sent: {kind:?}",
+                kind = dispatch.kind()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         // Indicates that message goes to mailbox and gas should be charged for holding
@@ -561,8 +709,15 @@ where
                 .gas_limit()
                 .or_else(|| {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                    let gas_limit = GasHandlerOf::<T>::get_limit(sender_node)
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                    let gas_limit = GasHandlerOf::<T>::get_limit(sender_node).unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "send_delayed_dispatch: failed getting message gas limit. \
+                                Lock sponsor id - {sender_node}. Got error - {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}");
+                    });
 
                     // If available gas is greater then threshold,
                     // than threshold can be used.
@@ -585,8 +740,17 @@ where
                 gas_for_delay
             };
 
-            GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_delayed_dispatch: failed creating cut node. \
+                        Origin node - {sender_node}, cut node id - {id}, amount - {gas_amount}. \
+                        Got error - {e:?}",
+                    id = dispatch.id()
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Generating gas node for future auto reply.
             // TODO: use `sender_node` (e.g. reservation case) as first argument after #1828.
@@ -606,13 +770,35 @@ where
 
             // Locking funds for holding.
             let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
-                unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
+                // Dispatch stash storage is guaranteed to have an associated lock id
+                let err_msg =
+                    "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             });
             GasHandlerOf::<T>::lock(dispatch.id(), lock_id, delay_hold.lock_amount())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                    "send_delayed_dispatch: failed locking gas for the user message stash hold. \
+                    Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
+                    message_id = dispatch.id(),
+                    lock = delay_hold.lock_amount()
+                );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
 
             if delay_hold.expected_duration().is_zero() {
-                unreachable!("Hold duration cannot be zero");
+                let err_msg = format!(
+                    "send_delayed_dispatch: user message got zero duration hold bound for dispatch stash. \
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
+                    cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::DispatchStash)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             }
 
             delay_hold.expected()
@@ -625,12 +811,17 @@ where
                     dispatch.is_reply(),
                 ),
                 (None, None) => Self::split(sender_node, dispatch.id(), dispatch.is_reply()),
-                (Some(_gas_limit), Some(_reservation_id)) => {
+                (Some(gas_limit), Some(reservation_id)) => {
                     // TODO: #1828
-                    unreachable!(
-                        "Sending dispatch with gas limit from reservation \
-                        is currently unimplemented and there is no way to send such dispatch"
+                    let err_msg = format!(
+                        "send_delayed_dispatch: sending dispatch with gas from reservation isn't implemented. \
+                        Message - {message_id}, sender - {sender}, gas limit - {gas_limit}, reservation - {reservation_id}",
+                        message_id = dispatch.id(),
+                        sender = dispatch.source(),
                     );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
                 }
                 (None, Some(reservation_id)) => {
                     Self::split(reservation_id, dispatch.id(), dispatch.is_reply());
@@ -640,13 +831,35 @@ where
 
             // Locking funds for holding.
             let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
-                unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
+                // Dispatch stash storage is guaranteed to have an associated lock id
+                let err_msg =
+                    "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             });
             GasHandlerOf::<T>::lock(dispatch.id(), lock_id, delay_hold.lock_amount())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_delayed_dispatch: failed locking gas for the program message stash hold. \
+                        Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
+                        message_id = dispatch.id(),
+                        lock = delay_hold.lock_amount()
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
 
             if delay_hold.expected_duration().is_zero() {
-                unreachable!("Hold duration cannot be zero");
+                let err_msg = format!(
+                    "send_delayed_dispatch: program message got zero duration hold bound for dispatch stash. \
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
+                    cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::DispatchStash)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             }
 
             delay_hold.expected()
@@ -654,8 +867,15 @@ where
 
         if !dispatch.value().is_zero() {
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value, false)
-                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+            GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_delayed_dispatch: failed depositting value on gear bank. \
+                        From - {from:?}, value - {value:?}. Got error - {e:?}",
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
         }
 
         // Saving id to allow moving dispatch further.
@@ -682,8 +902,15 @@ where
 
         // Adding removal request in task pool.
         let task_bn = Self::block_number().saturating_add(delay.unique_saturated_into());
-        TaskPoolOf::<T>::add(task_bn, task)
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+        TaskPoolOf::<T>::add(task_bn, task).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "send_delayed_dispatch: failed adding task for delayed message sending. \
+                    Message to user - {to_user}, message id - {message_id}. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
     }
 
     /// Sends message to user.
@@ -710,8 +937,15 @@ where
             .gas_limit()
             .or_else(|| {
                 // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                let gas_limit = GasHandlerOf::<T>::get_limit(msg_id)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                let gas_limit = GasHandlerOf::<T>::get_limit(msg_id).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message: failed getting message gas limit. \
+                            Lock sponsor id - {msg_id}. Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
 
                 // If available gas is greater then threshold,
                 // than threshold can be used.
@@ -719,15 +953,27 @@ where
             })
             .unwrap_or_default();
 
+        // Taking data for error log
+        let message_id = message.id();
+        let from = message.source();
+        let to = message.destination();
+
         // Converting message into stored one and user one.
         let message = message.into_stored();
-        let message: UserMessage = message
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
+        let message: UserMessage = message.try_into().unwrap_or_else(|_| {
+            // Signal message sent to user
+            let err_msg = format!(
+                "send_user_message: failed conversion from stored into user message. \
+                    Message id - {message_id}, program id - {from}, destination - {to}",
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         // Taking data for funds manipulations.
         let from = message.source().cast();
-        let to = message.destination().cast();
+        let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
 
         // If gas limit can cover threshold, message will be added to mailbox,
@@ -738,36 +984,92 @@ where
 
             // Validating holding duration.
             if hold.expected_duration().is_zero() {
-                unreachable!("Threshold for mailbox invalidated")
+                let err_msg = format!(
+                    "send_user_message: mailbox message got zero duration hold bound for storing. \
+                    Gas limit - {gas_limit}, block cost - {cost}, source - {from:?}",
+                    cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::Mailbox)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             }
 
             // Cutting gas for storing in mailbox.
-            GasHandlerOf::<T>::cut(msg_id, message.id(), gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            GasHandlerOf::<T>::cut(msg_id, message.id(), gas_limit).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message: failed creating cut node. \
+                        Origin node - {msg_id}, cut node id - {id}, amount - {gas_limit}. \
+                        Got error - {e:?}",
+                    id = message.id()
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value, false)
-                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+            GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message: failed depositting value on gear bank. \
+                        From - {from:?}, value - {value:?}. Got error - {e:?}",
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
-            GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message: failed locking gas for the user message mailbox. \
+                        Message id - {message_id}, lock amount - {gas_limit}. Got error - {e:?}",
+                    message_id = message.id(),
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Inserting message in mailbox.
             let message_id = message.id();
-            let message: UserStoredMessage = message
-                .clone()
-                .try_into()
-                .unwrap_or_else(|_| unreachable!("Replies are never added into mailbox"));
-            MailboxOf::<T>::insert(message, hold.expected())
-                .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+            let message: UserStoredMessage = message.clone().try_into().unwrap_or_else(|_| {
+                // Replies never sent to mailbox
+                let err_msg = format!(
+                    "send_user_message: failed conversion from user into user stored message. \
+                        Message id - {message_id}, program id - {from:?}, destination - {to:?}",
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
+            MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message: failed inserting message into mailbox. \
+                        Message id - {message_id}, source - {from:?}, destination - {to:?}, \
+                        expected bn - {bn:?}. Got error - {e:?}",
+                    bn = hold.expected(),
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Adding removal request in task pool.
             TaskPoolOf::<T>::add(
                 hold.expected(),
-                ScheduledTask::RemoveFromMailbox(to, message_id),
+                ScheduledTask::RemoveFromMailbox(to.clone(), message_id),
             )
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message: failed adding task for removing from mailbox. \
+                    Bn - {bn:?}, sent to - {to:?}, message id - {message_id}. \
+                    Got error - {e:?}",
+                    bn = hold.expected()
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Real expiration block.
             Some(hold.expected())
@@ -787,9 +1089,14 @@ where
                             value,
                         ));
                     }
-                    _ => {
+                    e => {
                         // Other errors are ruled out by the protocol guarantees.
-                        unreachable!("Failed to transfer value: {:?}", e)
+                        let err_msg = format!(
+                            "send_user_message: failed to transfer value. Got error: {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}");
                     }
                 });
 
@@ -809,8 +1116,13 @@ where
                 );
 
                 // Queueing dispatch.
-                QueueOf::<T>::queue(reply_dispatch)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                QueueOf::<T>::queue(reply_dispatch).unwrap_or_else(|e| {
+                    let err_msg =
+                        format!("send_user_message: failed queuing message. Got error - {e:?}");
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             }
 
             // No expiration block due to absence of insertion in storage.
@@ -833,7 +1145,7 @@ where
     pub(crate) fn send_user_message_after_delay(message: UserMessage, to_mailbox: bool) {
         // Taking data for funds manipulations.
         let from = message.source().cast();
-        let to = message.destination().cast();
+        let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
 
         // If gas limit can cover threshold, message will be added to mailbox,
@@ -841,43 +1153,102 @@ where
 
         let expiration = if to_mailbox {
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
-            let gas_limit = GasHandlerOf::<T>::get_limit(message.id())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            let gas_limit = GasHandlerOf::<T>::get_limit(message.id()).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message_after_delay: failed getting message gas limit. \
+                        Message id - {message_id}. Got error - {e:?}",
+                    message_id = message.id()
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Figuring out hold bound for given gas limit.
             let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
             // Validating holding duration.
             if hold.expected_duration().is_zero() {
-                unreachable!("Threshold for mailbox invalidated")
+                let err_msg = format!(
+                    "send_user_message_after_delay: mailbox message (after delay) got zero duration hold bound for storing. \
+                    Gas limit - {gas_limit}, block cost - {cost}, source - {from:?}",
+                    cost = CostsPerBlockOf::<T>::by_storage_type(StorageType::Mailbox)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
             }
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
             GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message_after_delay: failed locking gas for the user message mailbox. \
+                        Message id - {message_id}, lock amount - {gas_limit}. Got error - {e:?}",
+                        message_id = message.id(),
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
 
             // Inserting message in mailbox.
             let message_id = message.id();
             let message: UserStoredMessage = message
                 .clone()
                 .try_into()
-                .unwrap_or_else(|_| unreachable!("Replies are never added into mailbox"));
-            MailboxOf::<T>::insert(message, hold.expected())
-                .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+                .unwrap_or_else(|_| {
+                    // Replies never sent to mailbox
+                    let err_msg = format!(
+                        "send_user_message_after_delay: failed conversion from user into user stored message. \
+                        Message id - {message_id}, program id - {from:?}, destination - {to:?}",
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                });
+            MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message_after_delay: failed inserting message into mailbox. \
+                        Message id - {message_id}, source - {from:?}, destination - {to:?}, \
+                        expected bn - {bn:?}. Got error - {e:?}",
+                    bn = hold.expected(),
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Adding removal request in task pool.
             TaskPoolOf::<T>::add(
                 hold.expected(),
-                ScheduledTask::RemoveFromMailbox(to, message_id),
+                ScheduledTask::RemoveFromMailbox(to.clone(), message_id),
             )
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message_after_delay: failed adding task for removing from mailbox. \
+                    Bn - {bn:?}, sent to - {to:?}, message id - {message_id}. \
+                    Got error - {e:?}",
+                    bn = hold.expected()
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Real expiration block.
             Some(hold.expected())
         } else {
             // Transferring reserved funds.
-            GearBank::<T>::transfer_value(&from, &to, value)
-                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+            GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message_after_delay: failed transferring value on gear bank. \
+                        Sender - {from:?}, destination - {to:?}, value - {value:?}. Got error - {e:?}",
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
             // Message is never reply here, because delayed reply sending forbidden.
             if message.details().is_none() {
@@ -894,8 +1265,14 @@ where
                 );
 
                 // Queueing dispatch.
-                QueueOf::<T>::queue(reply_dispatch)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                QueueOf::<T>::queue(reply_dispatch).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message_after_delay: failed queuing message. Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
             }
 
             Self::consume_and_retrieve(message.id());
@@ -922,48 +1299,83 @@ where
         );
     }
 
-    pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
+    pub(crate) fn inheritor_for(
+        program_id: ProgramId,
+        max_depth: NonZeroUsize,
+    ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
+        let max_depth = max_depth.get();
+
         let mut inheritor = program_id;
+        let mut holders: BTreeSet<_> = [program_id].into();
 
-        let mut visited_ids: BTreeSet<_> = [program_id].into();
+        loop {
+            let next_inheritor =
+                Self::first_inheritor_of(inheritor).ok_or(InheritorForError::NotFound)?;
 
-        while let Some(id) =
-            Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
-        {
-            if !visited_ids.insert(id) {
+            inheritor = next_inheritor;
+
+            // don't insert user or active program
+            // because it's the final inheritor we already return
+            if Self::first_inheritor_of(next_inheritor).is_none() {
                 break;
             }
 
-            inheritor = id
+            if holders.len() == max_depth {
+                break;
+            }
+
+            if !holders.insert(next_inheritor) {
+                return Err(InheritorForError::Cyclic { holders });
+            }
         }
 
-        inheritor
+        Ok((inheritor, holders))
     }
 
     /// This fn and [`split_with_value`] works the same: they call api of gas
     /// handler to split (optionally with value) for all cases except reply
     /// sent and contains deposit in storage.
     pub(crate) fn split(
-        key: impl Into<GasNodeIdOf<T>>,
+        key: impl Into<GasNodeIdOf<T>> + Clone,
         new_key: impl Into<GasNodeIdOf<T>> + Clone,
         is_reply: bool,
     ) {
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(new_key.clone()) {
-            GasHandlerOf::<T>::split(key, new_key)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            GasHandlerOf::<T>::split(key.clone(), new_key.clone()).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "splt: failed to split gas node. Original message id - {key}, \
+                        new message id - {new_key}, is_reply - {is_reply}. Got error - {e:?}",
+                    key = key.into(),
+                    new_key = new_key.into(),
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
         }
     }
 
     /// See ['split'].
     pub(crate) fn split_with_value(
-        key: impl Into<GasNodeIdOf<T>>,
+        key: impl Into<GasNodeIdOf<T>> + Clone,
         new_key: impl Into<GasNodeIdOf<T>> + Clone,
         amount: GasBalanceOf<T>,
         is_reply: bool,
     ) {
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(new_key.clone()) {
-            GasHandlerOf::<T>::split_with_value(key, new_key, amount)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            GasHandlerOf::<T>::split_with_value(key.clone(), new_key.clone(), amount)
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "split_with_value: failed to split with value gas node. Original message id - {key}, \
+                        new message id - {new_key}. amount - {amount}, is_reply - {is_reply}. \
+                        Got error - {e:?}",
+                        key = key.into(),
+                        new_key = new_key.into(),
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
         }
     }
 
@@ -976,8 +1388,17 @@ where
     ) {
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(key.clone()) {
-            GasHandlerOf::<T>::create(origin, multiplier, key, amount)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            GasHandlerOf::<T>::create(origin.clone(), multiplier, key.clone(), amount)
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "create: failed to creat gas node. Origin - {origin:?}, message id - {key}, \
+                        amount - {amount}, is_reply - {is_reply}. Got error - {e:?}",
+                        key = key.into(),
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
         }
     }
 }

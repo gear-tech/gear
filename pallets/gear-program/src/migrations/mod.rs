@@ -18,5 +18,3 @@
 
 pub mod add_section_sizes;
 pub mod allocations;
-pub mod paused_storage;
-pub mod v8;

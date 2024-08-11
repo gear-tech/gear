@@ -22,9 +22,9 @@
 //! 1. Every generator has a disabled version of itself.
 //! 2. Almost all disabled generators can be converted to [`ModuleWithCallIndexes`], from which the wasm module can be retrieved.
 //! 3. Every generator has a "main" function, after finishing which a transition to another generator is available (either directly or through disabled
-//! version of the generator).
+//!    version of the generator).
 //! 4. Almost all generators are instantiated from the disabled generator worked on the previous generation step (see [`GearWasmGenerator::generate`]). This is how
-//! generator form a state-machine.
+//!    generator form a state-machine.
 //!
 //! Transitions paths:
 //! ```text

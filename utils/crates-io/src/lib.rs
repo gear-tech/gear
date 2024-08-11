@@ -73,7 +73,7 @@ pub const STACKED_DEPENDENCIES: [&str; 13] = [
 /// NOTE: Each package in this array could possibly depend
 /// on the previous one, please be cautious about changing
 /// the order.
-pub const PACKAGES: [&str; 9] = [
+pub const PACKAGES: [&str; 10] = [
     "gring",
     "gear-wasm-builder",
     "gear-node-wrapper",
@@ -83,6 +83,7 @@ pub const PACKAGES: [&str; 9] = [
     "gsdk",
     "gclient",
     "gcli",
+    "wasm-proc",
 ];
 
 /// Alias for packages.
@@ -94,7 +95,7 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(["+stable", "check", "--lib", "--manifest-path", manifest])
+        .args(["+stable", "check", "--manifest-path", manifest])
         .status()
         .map_err(Into::into)
 }
