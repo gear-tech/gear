@@ -25,13 +25,14 @@ use crate::{
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
     Result, TestError, DEFAULT_USERS_INITIAL_BALANCE, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS,
-    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL,
-    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST,
-    RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED,
+    LOAD_ALLOCATIONS_PER_INTERVAL, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
+    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST,
+    READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST,
+    WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -519,36 +520,33 @@ impl ExtManager {
             .or_insert((TestActor::User, Balance::default()));
         let keep_alive_sender = false;
 
-        // TODO: move panic into bank
-        if balance.available() < dispatch.value() {
-            panic!(
-                "Insufficient value: user ({}) tries to send \
-                ({}) value, while his balance ({:?})",
-                dispatch.source(),
-                dispatch.value(),
-                balance
-            );
-        } else {
-            // Deposit message value
-            self.bank.deposit_value(
-                balance,
-                dispatch.destination(),
-                dispatch.value(),
-                keep_alive_sender,
-            );
-        }
-
         let gas_limit = dispatch
             .gas_limit()
             .unwrap_or_else(|| unreachable!("message from program API always has gas"));
 
-        // Deposit gas
-        self.bank.deposit_gas(
+        // Check sender has enough balance to support dispatch
+        if balance.total() < { dispatch.value() + GAS_MULTIPLIER.gas_to_value(gas_limit) } {
+            panic!(
+                "Insufficient balance: user ({}) tries to send \
+                ({}) value and ({}) gas, while his balance ({:?})",
+                dispatch.source(),
+                dispatch.value(),
+                gas_limit,
+                balance.total(),
+            );
+        }
+
+        // Deposit message value
+        self.bank.deposit_value(
             balance,
-            dispatch.destination(),
-            gas_limit,
+            dispatch.source(),
+            dispatch.value(),
             keep_alive_sender,
         );
+
+        // Deposit gas
+        self.bank
+            .deposit_gas(balance, dispatch.source(), gas_limit, keep_alive_sender);
     }
 
     #[track_caller]

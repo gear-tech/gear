@@ -20,7 +20,7 @@
 
 use std::collections::HashMap;
 
-use crate::{manager::Actors, GAS_MULTIPLIER};
+use crate::{manager::Actors, DEFAULT_USER_ALICE, GAS_MULTIPLIER};
 use gear_common::{Gas, GasMultiplier, ProgramId};
 use gear_core::message::Value;
 
@@ -127,6 +127,7 @@ impl Bank {
             .gas += gas_value;
     }
 
+    #[track_caller]
     pub fn spend_gas(&mut self, from: ProgramId, gas: Gas, multiplier: GasMultiplier<Value, Gas>) {
         let gas_value = multiplier.gas_to_value(gas);
         self.accounts.get_mut(&from).expect("must exist").gas -= gas_value;

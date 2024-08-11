@@ -991,7 +991,7 @@ mod tests {
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
-        prog.send_bytes(receiver, b"init");
+        prog.send_with_gas(receiver, b"init", 1_000_000, 0);
         receiver_expected_balance -= sys.run_next_block().spent_value();
         assert_eq!(prog.balance(), 0);
 
@@ -1019,7 +1019,7 @@ mod tests {
         assert_eq!(prog.balance(), (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT);
 
         // Request to smash the piggy bank and send the value to the receiver address
-        prog.send_bytes(receiver, b"smash");
+        prog.send_bytes_with_gas(receiver, b"smash", 100_000_000, 0);
         let res = sys.run_next_block();
         receiver_expected_balance -= res.spent_value();
         let reply_to_id = {
@@ -1059,9 +1059,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Insufficient value: user \
-    (0x0500000000000000000000000000000000000000000000000000000000000000) tries \
-    to send (1000000000001) value, while his balance (1000000000000)")]
+    #[should_panic(
+        expected = "Insufficient balance: user (0x0500000000000000000000000000000000000000000000000000000000000000) \
+    tries to send (1000000000001) value and (750000000000) gas, while his balance (1000000000000)"
+    )]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
 
@@ -1081,7 +1082,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        const RECEIVER_INITIAL_BALANCE: Value = 2 * crate::EXISTENTIAL_DEPOSIT;
+        const RECEIVER_INITIAL_BALANCE: Value = 10 * crate::EXISTENTIAL_DEPOSIT;
 
         let sender = 42;
         let receiver = 84;
@@ -1253,20 +1254,28 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
-        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT);
+        let mut user_balance = EXISTENTIAL_DEPOSIT;
+        sys.mint_to(user_id, user_balance);
 
-        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
+        let prog_id = 137;
+        assert_eq!(sys.balance_of(prog_id), 0);
+        let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
-        let msg_id = prog.send(user_id, demo_exit_handle::scheme());
+        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 1_000_000_000, 0);
         let result = sys.run_next_block();
-        assert!(result.succeed.contains(&msg_id));
-        assert_eq!(sys.balance_of(user_id), 0);
+        user_balance -= result.spent_value();
 
-        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT);
-        let msg_id = prog.send_bytes(user_id, []);
-        let result = sys.run_next_block();
         assert!(result.succeed.contains(&msg_id));
-        assert_eq!(sys.balance_of(user_id), 0);
+        assert_eq!(sys.balance_of(prog_id), 0);
+        assert_eq!(sys.balance_of(user_id), user_balance);
+
+        let msg_id = prog.send_bytes_with_gas(user_id, [], 1_000_000_000, 0);
+        let result = sys.run_next_block();
+        user_balance -= result.spent_value();
+
+        assert!(result.succeed.contains(&msg_id));
+        assert_eq!(sys.balance_of(prog_id), 0);
+        assert_eq!(sys.balance_of(user_id), user_balance);
     }
 
     #[test]
@@ -1277,6 +1286,7 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
         let user_id = ActorId::zero();
+        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT + 1);
 
         // set insufficient gas for execution
         let msg_id = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
@@ -1407,6 +1417,7 @@ mod tests {
         sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
+        let _ = sys.balance_of(user_id);
 
         let prog = Program::from_binary_with_id(&sys, 1337, WASM_BINARY);
 
