@@ -554,7 +554,7 @@ impl ExtManager {
             .unwrap_or_else(|| unreachable!("message from program API always has gas"));
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas_limit);
 
-        // Check sender has enough balance to support dispatch
+        // Check sender has enough balance to cover dispatch costs
         if total_balance < { dispatch.value() + gas_value + maybe_ed } {
             panic!(
                 "Insufficient balance: user ({}) tries to send \

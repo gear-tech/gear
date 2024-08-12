@@ -137,7 +137,7 @@ struct AccountBalance {
     value: Value,
 }
 
-/// GTest bank.
+/// `gtest` bank.
 #[derive(Default, Debug)]
 pub struct Bank {
     accounts: HashMap<ProgramId, AccountBalance>,

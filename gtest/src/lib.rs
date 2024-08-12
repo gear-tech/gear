@@ -113,6 +113,7 @@
 //! mod tests {
 //!     use gtest::{Log, Program, System};
 //!
+//!     // Or you can use the default users from the `gtest::constants`.
 //!     const USER_ID: u64 = 100001;
 //!
 //!     #[test]
@@ -122,6 +123,9 @@
 //!
 //!         // Initialization of the current program structure.
 //!         let prog = Program::current(&sys);
+//!
+//!         // Provide user with some balance.
+//!         sys.min_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
 //!
 //!         // Send an init message to the program.
 //!         let res = prog.send_bytes(USER_ID, b"Doesn't matter");
@@ -247,6 +251,29 @@
 //! RUST_LOG="target_1=logging_level,target_2=logging_level" cargo test
 //! ```
 //!
+//! ## Pre-requisites for Sending a Message
+//!
+//! Prior to sending a message, it is necessary to mint sufficient balance for
+//! the sender to ensure coverage of the existential deposit and gas costs.
+//!
+//! ```no_run
+//! # let sys = gtest::System::new();
+//! let user_id = 42;
+//! sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 1000);
+//! ```
+//!
+//! Alternatively, you can use the default users from `gtest::constants`, which
+//! have a preallocated balance, as the message sender.
+//!
+//! ```no_run
+//! # use gtest::constants::DEFAULT_USERS_INITIAL_BALANCE;
+//! # let sys = gtest::System::new();
+//! assert_eq!(
+//!     sys.balance_of(gtest::constants::DEFAULT_USER_ALICE),
+//!     DEFAULT_USERS_INITIAL_BALANCE
+//! );
+//! ```
+//!
 //! ## Sending messages
 //!
 //! To send message to the program need to call one of two program's functions:
@@ -364,7 +391,22 @@
 //! changes the timestamp. If you write time dependent logic, you should spend
 //! blocks manually.
 //!
-//! ## Balance:
+//! ## Balance
+//!
+//! There are certain invariants in `gtest` regarding user and program balances:
+//!
+//! * For a user to successfully send a message to the program, they must have
+//!   sufficient balance to cover the existential deposit and gas costs.
+//! * The program charges the existential deposit from the user upon receiving
+//!   the initial message.
+//!
+//! As previously mentioned [here](#Pre-requisites-for-Sending-a-Message),
+//! a balance for the user must be minted before sending a message. This balance
+//! should be sufficient to cover both the existential deposit and gas costs.
+//!
+//! The `mint_to` method can be utilized to allocate a balance to the user,
+//! while the `mint` method serves to allocate a balance to the program. The
+//! `balance_of` method may be used to verify the current balance.
 //!
 //! ```no_run
 //! # use gtest::Program;
