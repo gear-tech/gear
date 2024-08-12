@@ -124,13 +124,17 @@
 //!         let prog = Program::current(&sys);
 //!
 //!         // Send an init message to the program.
-//!         let res = prog.send_bytes(USER_ID, b"Doesn't matter");
+//!         let init_message_id = prog.send_bytes(USER_ID, b"Doesn't matter");
+//!
+//!         // Run execution of the block which will contain `init_message_id`
+//!         let block_run_result = sys.run_next_block();
 //!
 //!         // Check whether the program was initialized successfully.
-//!         assert!(!res.main_failed());
+//!         assert!(block_run_result.succeed.contains(&init_message_id));
 //!
 //!         // Send a handle message to the program.
-//!         let res = prog.send_bytes(USER_ID, b"PING");
+//!         let handle_message_id = prog.send_bytes(USER_ID, b"PING");
+//!         let block_run_result = sys.run_next_block();
 //!
 //!         // Check the result of the program execution.
 //!         // 1. Create a log pattern with the expected result.
@@ -140,10 +144,10 @@
 //!             .payload_bytes(b"PONG");
 //!
 //!         // 2. Check whether the program was executed successfully.
-//!         assert!(!res.main_failed());
+//!         assert!(block_run_result.succeed.contains(&handle_message_id));
 //!
 //!         // 3. Make sure the log entry is in the result.
-//!         assert!(res.contains(&log));
+//!         assert!(block_run_result.contains(&log));
 //!     }
 //! }
 //! ```
@@ -279,22 +283,29 @@
 //!
 //! ## Processing the result of the program execution
 //!
-//! Any sending functions in the lib returns [`RunResult`] structure.
+//! Any sending functions in the lib returns an id of the sent message.
+//!
+//! In order to actually get the result of the program execution the block
+//! execution should be triggered (see "Block execution model" section).
+//! Block execution function returns the result of the block run
+//! ([`BlockRunResult`])
 //!
 //! It contains the final result of the processing message and others, which
 //! were created during the execution.
 //!
-//! It has 4 main functions:
+//! It has 2 main functions:
 //!
-//! - [`RunResult::log`] — returns the reference to the Vec produced to users
-//!   messages. You may assert them as you wish, iterating through them.
-//! - [`RunResult::main_failed`] — returns bool which shows that there was panic
-//!   during the execution of the main message.
-//! - [`RunResult::others_failed`] — returns bool which shows that there was
-//!   panic during the execution of the created messages during the main
-//!   execution. Equals false if no others were called.
-//! - [`RunResult::contains`] — returns bool which shows that logs contain a
-//!   given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
+//! - [`BlockRunResult::log`] — returns the reference to the Vec produced to
+//!   users messages. You may assert them as you wish, iterating through them.
+//! - [`BlockRunResult::contains`] — returns bool which shows that logs contain
+//!   a given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
+//!
+//! Fields of the type are public, and some of them can be really useful:
+//!
+//! - field `succeed` is a set of ids of messages that were successfully
+//!   executed.
+//! - field `failed` is a set of ids of messages that failed during the
+//!   execution.
 //!
 //! To build a log for assertion you need to use [`Log`] structure with its
 //! builders. All fields here are optional. Assertion with `Log`s from core are
