@@ -205,7 +205,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         uint128 totalValue = baseFeeValue + executableBalance + _value;
 
-        _retreiveValue(totalValue);
+        _retrieveValue(totalValue);
 
         address actorId = Clones.cloneDeterministic(router.mirrorProxy, keccak256(abi.encodePacked(codeId, salt)));
 
@@ -428,12 +428,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
     }
 
-    function _retreiveValue(uint128 _value) private {
+    function _retrieveValue(uint128 _value) private {
         Storage storage router = _getStorage();
 
         bool success = IERC20(router.wrappedVara).transferFrom(tx.origin, address(this), _value);
 
-        require(success, "failed to retreive WVara");
+        require(success, "failed to retrieve WVara");
     }
 
     function _cleanValidators() private {

@@ -22,7 +22,7 @@ contract Mirror is IMirror {
 
     function sendMessage(bytes calldata _payload, uint128 _value) external payable returns (bytes32) {
         uint128 baseFee = IRouter(router()).baseFee();
-        _retreiveValueToRouter(baseFee + _value);
+        _retrieveValueToRouter(baseFee + _value);
 
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
@@ -33,7 +33,7 @@ contract Mirror is IMirror {
 
     function sendReply(bytes32 _repliedTo, bytes calldata _payload, uint128 _value) external payable {
         uint128 baseFee = IRouter(router()).baseFee();
-        _retreiveValueToRouter(baseFee + _value);
+        _retrieveValueToRouter(baseFee + _value);
 
         emit ReplyQueueingRequested(_repliedTo, tx.origin, _payload, _value);
     }
@@ -44,7 +44,7 @@ contract Mirror is IMirror {
     }
 
     function executableBalanceTopUp(uint128 _value) external payable {
-        _retreiveValueToRouter(_value);
+        _retrieveValueToRouter(_value);
 
         emit ExecutableBalanceTopUpRequested(_value);
     }
@@ -104,14 +104,14 @@ contract Mirror is IMirror {
 
     /* Local helper functions */
 
-    function _retreiveValueToRouter(uint128 _value) public {
+    function _retrieveValueToRouter(uint128 _value) public {
         address routerAddress = router();
 
         IWrappedVara wrappedVara = IWrappedVara(IRouter(routerAddress).wrappedVara());
 
         bool success = wrappedVara.transferFrom(tx.origin, routerAddress, _value);
 
-        require(success, "failed to retreive WVara");
+        require(success, "failed to retrieve WVara");
     }
 
     // TODO (breathx): for such public fns should there be modifier? are they available out of this contract? (cc) StackOverflowException
