@@ -115,25 +115,18 @@ pub(crate) struct MultisignedCommitments<C: AsDigest> {
 impl<C: AsDigest> MultisignedCommitments<C> {
     pub fn from_multisigned_digests(
         multisigned: MultisignedCommitmentDigests,
-        mut get_commitment: impl FnMut(Digest) -> Option<C>,
-    ) -> Result<Self> {
+        get_commitment: impl FnMut(Digest) -> C,
+    ) -> Self {
         let MultisignedCommitmentDigests {
             digests,
             signatures,
             ..
         } = multisigned;
 
-        let mut commitments = Vec::new();
-        for digest in digests {
-            let commitment = get_commitment(digest)
-                .ok_or_else(|| anyhow::anyhow!("Missing commitment for {digest}"))?;
-            commitments.push(commitment);
-        }
-
-        Ok(Self {
-            commitments,
+        Self {
+            commitments: digests.into_iter().map(get_commitment).collect(),
             signatures,
-        })
+        }
     }
 
     pub fn commitments(&self) -> &[C] {

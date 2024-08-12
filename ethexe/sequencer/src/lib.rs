@@ -292,10 +292,12 @@ impl Sequencer {
 
         let candidate = candidate.take()?;
         let multisigned = MultisignedCommitments::from_multisigned_digests(candidate, |digest| {
-            commitments.remove(&digest).map(|c| c.commitment)
-        })
-        .unwrap_or_else(|_| {
-            unreachable!("Guarantied by `Sequencer` implementation to be in the map");
+            commitments
+                .remove(&digest)
+                .map(|c| c.commitment)
+                .unwrap_or_else(|| {
+                    unreachable!("Guarantied by `Sequencer` implementation to be in the map");
+                })
         });
 
         Some(multisigned)
