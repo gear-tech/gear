@@ -18,30 +18,33 @@
 
 //! Metering primitives and globals
 
-use lazy_static::lazy_static;
-use prometheus::{core::AtomicU64, Error as PrometheusError, Registry};
-
 use prometheus::{
-    core::{GenericCounterVec, GenericGaugeVec},
-    Opts,
+    core::{AtomicU64, GenericCounterVec, GenericGaugeVec},
+    Error as PrometheusError, Opts, Registry,
 };
+use std::sync::LazyLock;
 
-lazy_static! {
-    pub static ref UNBOUNDED_CHANNELS_COUNTER: GenericCounterVec<AtomicU64> = GenericCounterVec::new(
-        Opts::new(
-            "ethexe_unbounded_channel_len",
-            "Items sent/received/dropped on each mpsc::unbounded instance"
-        ),
-        &["entity", "action"], // name of channel, send|received|dropped
-    ).expect("Creating of statics doesn't fail. qed");
-    pub static ref UNBOUNDED_CHANNELS_SIZE: GenericGaugeVec<AtomicU64> = GenericGaugeVec::new(
+pub static UNBOUNDED_CHANNELS_COUNTER: LazyLock<GenericCounterVec<AtomicU64>> =
+    LazyLock::new(|| {
+        GenericCounterVec::new(
+            Opts::new(
+                "ethexe_unbounded_channel_len",
+                "Items sent/received/dropped on each mpsc::unbounded instance",
+            ),
+            &["entity", "action"], // name of channel, send|received|dropped
+        )
+        .expect("Creating of statics doesn't fail. qed")
+    });
+pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyLock::new(|| {
+    GenericGaugeVec::new(
         Opts::new(
             "ethexe_unbounded_channel_size",
             "Size (number of messages to be processed) of each mpsc::unbounded instance",
         ),
         &["entity"], // name of channel
-    ).expect("Creating of statics doesn't fail. qed");
-}
+    )
+    .expect("Creating of statics doesn't fail. qed")
+});
 
 pub static SENT_LABEL: &str = "send";
 pub static RECEIVED_LABEL: &str = "received";

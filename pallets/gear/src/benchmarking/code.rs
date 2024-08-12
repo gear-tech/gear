@@ -837,7 +837,7 @@ pub mod body {
 }
 
 /// The maximum amount of pages any program is allowed to have according to the current `Schedule`.
-pub fn max_pages<T: Config>() -> u16
+pub fn max_pages<T>() -> u16
 where
     T: Config,
 {

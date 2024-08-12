@@ -171,7 +171,7 @@ extern "C" fn handle() {
 
 #[no_mangle]
 extern "C" fn handle_reply() {
-    gstd::record_reply();
+    gstd::handle_reply_with_hook();
 }
 
 #[no_mangle]

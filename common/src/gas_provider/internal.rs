@@ -248,8 +248,9 @@ where
     /// Internal invariant of the procedure:
     ///
     /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in
-    /// `consume`, all the calls of catch_value on ancestor nodes will be
-    /// `CatchValueOutput::Missed` as well.
+    ///    `consume`, all the calls of catch_value on ancestor nodes will be
+    ///    `CatchValueOutput::Missed` as well.
+    ///
     /// That's because if there is an existing ancestor patron on the path from
     /// the `key` node to the root, catching value on all the nodes before that
     /// patron on this same path will give the same `CatchValueOutput::Missed`
@@ -257,23 +258,25 @@ where
     /// will receive their values.
     ///
     /// 2. Also in that case cascade ancestors consumption will last until
-    /// either the patron node or the first ancestor with specified child found.
+    ///    either the patron node or the first ancestor with specified child found.
     ///
     /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in
-    /// `consume`, all the calls of `catch_value` on ancestor nodes will be
-    /// `CatchValueOutput::Caught(0)`.
+    ///    `consume`, all the calls of `catch_value` on ancestor nodes will be
+    ///    `CatchValueOutput::Caught(0)`.
+    ///
     /// That's due to the 12-th invariant stated in [`super::property_tests`]
-    /// module docs. When node becomes consumed without unspec refs (i.e.,
-    /// stops being a patron) `consume` procedure call on such node either
-    /// moves value upstream (if there is an ancestor patron) or returns
-    /// value to the origin. So any repetitive `catch_value` call on such
-    /// nodes results in `CatchValueOutput::Caught(0)` (if there is an
-    /// ancestor patron).
+    ///   module docs. When node becomes consumed without unspec refs (i.e.,
+    ///   stops being a patron) `consume` procedure call on such node either
+    ///   moves value upstream (if there is an ancestor patron) or returns
+    ///   value to the origin. So any repetitive `catch_value` call on such
+    ///   nodes results in `CatchValueOutput::Caught(0)` (if there is an
+    ///   ancestor patron).
+    ///
     /// So if `consume` procedure on the node with `key` id resulted in value
-    /// being caught, it means that there are no ancestor patrons, so none of
-    /// `catch_value` calls on the node's ancestors will return
-    /// `CatchValueOutput::Missed`, but will return
-    /// `CatchValueOutput::Caught(0)`.
+    ///    being caught, it means that there are no ancestor patrons, so none of
+    ///    `catch_value` calls on the node's ancestors will return
+    ///    `CatchValueOutput::Missed`, but will return
+    ///    `CatchValueOutput::Caught(0)`.
     fn try_remove_consumed_ancestors(
         key: NodeId,
         descendant_catch_output: CatchValueOutput<Balance>,

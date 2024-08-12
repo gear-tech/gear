@@ -229,6 +229,9 @@ pub trait Packet {
 
     /// Packet value.
     fn value(&self) -> Value;
+
+    /// A dispatch kind the will be generated from the packet.
+    fn kind() -> DispatchKind;
 }
 
 /// The struct contains results of read only send message RPC call.

@@ -39,3 +39,4 @@ log.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true
+gear-utils.workspace = true

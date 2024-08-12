@@ -75,12 +75,14 @@ mod tests {
         const MAX_ACTIONS_AMOUNT: usize = 1000;
         const MAX_NUMBER: u8 = 255;
 
-        // Check that check sum is less than u32::MAX
-        const _: () = assert!(
-            MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize
-        );
-        // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
-        const _: () = assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+        const {
+            // Check that check sum is less than u32::MAX
+            assert!(
+                MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize
+            );
+            // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
+            assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+        }
 
         let from = 42;
         let system = System::new();

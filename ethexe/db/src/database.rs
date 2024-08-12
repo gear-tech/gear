@@ -34,7 +34,6 @@ use gear_core::{
     ids::{ActorId, CodeId, ProgramId},
     memory::PageBuf,
     message::Payload,
-    reservation::GasReservationMap,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -51,6 +50,7 @@ enum KeyPrefix {
     BlockOutcome = 5,
     BlockSmallMeta = 6,
     CodeUpload = 7,
+    LatestValidBlock = 8,
 }
 
 impl KeyPrefix {
@@ -233,6 +233,21 @@ impl BlockMetaStorage for Database {
         self.kv
             .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
     }
+
+    fn latest_valid_block_height(&self) -> Option<u32> {
+        self.kv
+            .get(&KeyPrefix::LatestValidBlock.one([]))
+            .map(|block_height| {
+                u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
+            })
+    }
+
+    fn set_latest_valid_block_height(&self, block_height: u32) {
+        self.kv.put(
+            &KeyPrefix::LatestValidBlock.one([]),
+            block_height.to_le_bytes().to_vec(),
+        );
+    }
 }
 
 impl CodesStorage for Database {
@@ -379,18 +394,6 @@ impl Storage for Database {
 
     fn write_allocations(&self, allocations: Allocations) -> H256 {
         self.cas.write(&allocations.encode())
-    }
-
-    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap> {
-        let data = self.cas.read(&hash)?;
-        Some(
-            GasReservationMap::decode(&mut &data[..])
-                .expect("Failed to decode data into `GasReservationMap`"),
-        )
-    }
-
-    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256 {
-        self.cas.write(&gas_reservation_map.encode())
     }
 
     fn read_payload(&self, hash: H256) -> Option<Payload> {

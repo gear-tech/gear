@@ -17,20 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! environment paths and binaries
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
 /// target path from the root workspace
 const TARGET: &str = "target";
 const WASM_TARGET: &str = "target/wasm32-unknown-unknown";
 
-lazy_static! {
-    static ref ROOT: String = env!("CARGO_MANIFEST_DIR").to_owned() + "/../";
-    pub static ref PROFILE: &'static str = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
-}
+static ROOT: LazyLock<String> = LazyLock::new(|| env!("CARGO_MANIFEST_DIR").to_owned() + "/../");
+pub static PROFILE: &str = if cfg!(debug_assertions) {
+    "debug"
+} else {
+    "release"
+};
 
 fn bin_path(name: &str, profile: &str, wasm: bool) -> String {
     ROOT.clone()
@@ -51,10 +49,10 @@ pub fn node_bin() -> String {
 
 /// path of binaries
 pub fn bin(name: &str) -> String {
-    bin_path(name, *PROFILE, false)
+    bin_path(name, PROFILE, false)
 }
 
 /// path of wasm binaries
 pub fn wasm_bin(name: &str) -> String {
-    bin_path(name, *PROFILE, true)
+    bin_path(name, PROFILE, true)
 }

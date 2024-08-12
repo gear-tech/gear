@@ -27,7 +27,7 @@ use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{HashMap, HashSet},
-    fmt, mem,
+    fmt,
 };
 
 pub trait SeqHash {
@@ -67,17 +67,17 @@ impl SeqHash for StateTransition {
 
         let state_transition_size = // concat of fields:
             // actorId
-            mem::size_of::<Address>()
+            size_of::<Address>()
             // prevStateHash
-            + mem::size_of::<H256>()
+            + size_of::<H256>()
             // newStateHash
-            + mem::size_of::<H256>()
+            + size_of::<H256>()
             // valueToReceive
-            + mem::size_of::<u128>()
+            + size_of::<u128>()
             // hash(valueClaimsBytes)
-            + mem::size_of::<H256>()
+            + size_of::<H256>()
             // hash(messagesHashesBytes)
-            + mem::size_of::<H256>();
+            + size_of::<H256>();
 
         let mut state_transition_bytes = Vec::with_capacity(state_transition_size);
 
@@ -91,11 +91,11 @@ impl SeqHash for StateTransition {
 
         let value_claim_size = // concat of fields:
             // messageId
-            mem::size_of::<MessageId>()
+            size_of::<MessageId>()
             // destination
-            + mem::size_of::<Address>()
+            + size_of::<Address>()
             // value
-            + mem::size_of::<u128>();
+            + size_of::<u128>();
 
         let mut value_claims_bytes = Vec::with_capacity(self.value_claims.len() * value_claim_size);
 
@@ -127,17 +127,17 @@ impl SeqHash for OutgoingMessage {
     fn hash(&self) -> H256 {
         let message_size = // concat of fields:
             // id
-            mem::size_of::<MessageId>()
+            size_of::<MessageId>()
             // destination
-            + mem::size_of::<Address>()
+            + size_of::<Address>()
             // payload
             + self.payload.len()
             // value
-            + mem::size_of::<u128>()
+            + size_of::<u128>()
             // replyDetails.to
-            + mem::size_of::<MessageId>()
+            + size_of::<MessageId>()
             // replyDetails.code
-            + mem::size_of::<[u8; 4]>();
+            + size_of::<[u8; 4]>();
 
         let mut message = Vec::with_capacity(message_size);
 
@@ -161,13 +161,13 @@ impl SeqHash for BlockCommitment {
     fn hash(&self) -> H256 {
         let block_commitment_size = // concat of fields:
             // blockHash
-            mem::size_of::<H256>()
+            size_of::<H256>()
             // prevCommitmentHash
-            + mem::size_of::<H256>()
+            + size_of::<H256>()
             // predBlockHash
-            + mem::size_of::<H256>()
+            + size_of::<H256>()
             // hash(transitionsHashesBytes)
-            + mem::size_of::<H256>();
+            + size_of::<H256>();
 
         let mut block_commitment_bytes = Vec::with_capacity(block_commitment_size);
 

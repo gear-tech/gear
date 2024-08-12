@@ -25,7 +25,7 @@ use crate::{
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_core::RuntimeDebug;
-use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, mem, prelude::*};
+use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 use sp_wasm_interface_common::HostPointer;
 use wasmi::{
     core::{Pages, Trap, UntypedValue},
@@ -48,7 +48,7 @@ impl<T> Store<T> {
 
 impl<T> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let register_len = mem::size_of::<UntypedValue>();
+        let register_len = size_of::<UntypedValue>();
 
         const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
         const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;

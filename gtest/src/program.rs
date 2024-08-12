@@ -861,12 +861,16 @@ pub mod gbuild {
     }
 
     /// Ensure the current project has been built by `cargo-gbuild`.
-    pub fn ensure_gbuild() {
-        if wasm_path().is_err() {
+    pub fn ensure_gbuild(rebuild: bool) {
+        if wasm_path().is_err() || rebuild {
             let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
-            if !Command::new("cargo")
-                .args(["gbuild", "-m"])
-                .arg(&manifest)
+            let mut kargo = Command::new("cargo");
+            kargo.args(["gbuild", "-m"]).arg(&manifest);
+
+            #[cfg(not(debug_assertions))]
+            kargo.arg("--release");
+
+            if !kargo
                 .status()
                 .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
                 .success()
@@ -880,9 +884,47 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{Log, System};
+
+    use crate::{Log, ProgramIdWrapper, System};
+    use demo_constructor::{Arg, Scheme};
+    use gear_common::Origin;
+
     use gear_core::ids::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+
+    #[test]
+    fn test_handle_signal() {
+        use demo_constructor::{Calls, Scheme, WASM_BINARY};
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        let message = "Signal handle";
+        let panic_message = "Gotcha!";
+
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            Calls::builder()
+                .system_reserve_gas(1_000_000_000)
+                .panic(panic_message),
+            Calls::builder().noop(),
+            Calls::builder().send(
+                Arg::new(ProgramIdWrapper::from(user_id).0.into_bytes()),
+                Arg::bytes(message),
+            ),
+        );
+
+        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
+
+        let run_result = prog.send(user_id, scheme);
+        assert!(!run_result.main_failed());
+        let run_result = prog.send(user_id, *b"Hello");
+
+        run_result.assert_panicked_with(panic_message);
+        let log = Log::builder().payload_bytes(message);
+        let value = sys.get_mailbox(user_id).claim_value(log);
+        assert!(value.is_ok());
+    }
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -1142,12 +1184,11 @@ mod tests {
         assert!(results.iter().any(|result| result.contains(&log)));
     }
 
+    // Test for issue#3699
     #[test]
-    #[should_panic]
     fn reservations_limit() {
         use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
@@ -1206,5 +1247,103 @@ mod tests {
 
         assert!(res.contains(&expected_log));
         assert!(res.main_failed());
+    }
+
+    #[test]
+    fn test_create_delete_reservation() {
+        use demo_constructor::{Calls, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
+
+        // Initialize program
+        let res = prog.send(user_id, Scheme::empty());
+        assert!(!res.main_failed());
+
+        // Reserve gas handle
+        let handle = Calls::builder().reserve_gas(1_000_000, 10);
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+
+        // Get reservation id from program
+        let reservation_id = sys
+            .0
+            .borrow_mut()
+            .update_genuine_program(prog.id(), |genuine_prog| {
+                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
+                genuine_prog
+                    .gas_reservation_map
+                    .iter()
+                    .next()
+                    .map(|(&id, _)| id)
+                    .expect("reservation exists, checked upper; qed.")
+            })
+            .expect("internal error: existing prog not found");
+
+        // Check reservation exists in the tree
+        assert!(sys.0.borrow().gas_tree.exists(reservation_id));
+
+        // Unreserve gas handle
+        let handle = Calls::builder().unreserve_gas(reservation_id.into_bytes());
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+
+        // Check reservation is removed from the tree
+        assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
+    }
+
+    #[test]
+    fn test_reservation_send() {
+        use demo_constructor::{Calls, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        let prog_id = 4242;
+        let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
+
+        // Initialize program
+        let res = prog.send(user_id, Scheme::empty());
+        assert!(!res.main_failed());
+
+        // Send user message from reservation
+        let payload = b"to_user".to_vec();
+        let handle = Calls::builder()
+            .reserve_gas(10_000_000_000, 5)
+            .store("reservation")
+            .reservation_send_value("reservation", user_id.into_origin().0, payload.clone(), 0);
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+
+        // Check user message in mailbox
+        let mailbox = sys.get_mailbox(user_id);
+        assert!(mailbox.contains(&Log::builder().payload(payload).source(prog_id)));
+
+        // Initialize another program for another test
+        let new_prog_id = 4343;
+        let new_program = Program::from_binary_with_id(&sys, new_prog_id, WASM_BINARY);
+        let payload = b"sup!".to_vec();
+        let handle = Calls::builder().send(user_id.into_origin().0, payload.clone());
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            handle,
+            Calls::builder().noop(),
+            Calls::builder().noop(),
+        );
+        let res = new_program.send(user_id, scheme);
+        assert!(!res.main_failed());
+
+        // Send program message from reservation
+        let handle = Calls::builder()
+            .reserve_gas(10_000_000_000, 5)
+            .store("reservation")
+            .reservation_send_value("reservation", new_prog_id.into_origin().0, [], 0);
+        let res = prog.send(user_id, handle);
+        assert!(!res.main_failed());
+        assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
     }
 }

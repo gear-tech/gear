@@ -12,8 +12,11 @@ use ethexe_signer::Address;
 use futures::{future, stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{CodeId, H256};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::watch;
+
+/// Max number of blocks to query in alloy.
+pub(crate) const MAX_QUERY_BLOCK_RANGE: u32 = 100_000;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
@@ -82,6 +85,8 @@ impl Observer {
                             break;
                         };
 
+                        log::trace!("Received block: {:?}", block.header.hash);
+
                         let block_hash = (*block.header.hash.expect("failed to get block hash")).into();
                         let parent_hash = (*block.header.parent_hash).into();
                         let block_number = block.header.number.expect("failed to get block number");
@@ -122,7 +127,9 @@ impl Observer {
 
                         self.update_status(|status| {
                             status.eth_block_number = block_number;
-                            if codes_len > 0 { status.last_router_state = block_number };
+                            if codes_len > 0 {
+                                status.last_router_state = block_number;
+                            }
                             status.pending_upload_code = codes_len as u64;
                         });
 
@@ -222,14 +229,60 @@ pub(crate) async fn read_block_events(
     Ok(block_events)
 }
 
+#[allow(unused)]
+pub(crate) async fn read_block_events_batch(
+    from_block: u32,
+    to_block: u32,
+    provider: &ObserverProvider,
+    router_address: AlloyAddress,
+) -> Result<BTreeMap<H256, Vec<BlockEvent>>> {
+    let _ = MAX_QUERY_BLOCK_RANGE;
+    todo!("TODO (breathx)")
+    // let mut events_map: BTreeMap<H256, Vec<BlockEvent>> = BTreeMap::new();
+    // let mut start_block = from_block;
+
+    // while start_block <= to_block {
+    //     let end_block = std::cmp::min(start_block + MAX_QUERY_BLOCK_RANGE - 1, to_block);
+    //     let router_events_filter = Filter::new()
+    //         .from_block(start_block as u64)
+    //         .to_block(end_block as u64)
+    //         .address(router_address)
+    //         .event_signature(Topic::from_iter(
+    //             signature_hash::ROUTER_EVENTS
+    //                 .iter()
+    //                 .map(|hash| B256::new(*hash)),
+    //         ));
+
+    //     let logs = provider.get_logs(&router_events_filter).await?;
+
+    //     for log in logs.iter() {
+    //         let block_hash = H256(log.block_hash.ok_or(anyhow!("Block hash is missing"))?.0);
+
+    //         let Some(event) = match_log(log)? else {
+    //             continue;
+    //         };
+
+    //         events_map
+    //             .entry(block_hash)
+    //             .and_modify(|events| events.push(event.clone()))
+    //             .or_insert(vec![event]);
+    //     }
+    //     start_block = end_block + 1;
+    // }
+
+    // Ok(events_map)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::MockBlobReader;
     use alloy::node_bindings::Anvil;
     use ethexe_ethereum::Ethereum;
     use ethexe_signer::Signer;
-    use tokio::task;
+    use tokio::{sync::oneshot, task};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
         wabt::Wat2Wasm::new()
@@ -246,7 +299,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_deployment() -> Result<()> {
-        let anvil = Anvil::new().try_spawn()?;
+        gear_utils::init_default_logger();
+
+        let mut anvil = Anvil::new().try_spawn()?;
+        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+
         let ethereum_rpc = anvil.ws_endpoint();
 
         let signer = Signer::new("/tmp/keys".into())?;
@@ -258,11 +315,12 @@ mod tests {
         let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
         let ethereum = Ethereum::deploy(&ethereum_rpc, validators, signer, sender_address).await?;
-        let blob_reader = Arc::new(MockBlobReader::default());
+        let blob_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
 
         let router_address = ethereum.router().address();
         let cloned_blob_reader = blob_reader.clone();
 
+        let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let handle = task::spawn(async move {
             let mut observer = Observer::new(&ethereum_rpc, router_address, cloned_blob_reader)
                 .await
@@ -270,6 +328,8 @@ mod tests {
 
             let observer_events = observer.events();
             futures::pin_mut!(observer_events);
+
+            send_subscription_created.send(()).unwrap();
 
             while let Some(event) = observer_events.next().await {
                 if matches!(event, Event::CodeLoaded { .. }) {
@@ -279,6 +339,7 @@ mod tests {
 
             None
         });
+        receive_subscription_created.await.unwrap();
 
         let wat = r#"
             (module
@@ -289,11 +350,14 @@ mod tests {
         "#;
         let wasm = wat2wasm(wat);
 
-        let (tx_hash, _) = ethereum
+        let code_id = CodeId::generate(&wasm);
+        let blob_tx = H256::random();
+
+        blob_reader.add_blob_transaction(blob_tx, wasm).await;
+        ethereum
             .router()
-            .request_code_validation_with_sidecar(&wasm)
+            .request_code_validation(code_id, blob_tx)
             .await?;
-        blob_reader.add_blob_transaction(tx_hash, wasm).await;
 
         assert!(
             handle.await?.is_some(),

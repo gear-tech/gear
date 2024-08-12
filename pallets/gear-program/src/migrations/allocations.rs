@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet, ProgramStorage};
+use crate::{AllocationsStorage, Config, Pallet, ProgramStorage};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::program::{ActiveProgram, Program};
+use sp_runtime::SaturatedConversion;
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -35,9 +36,9 @@ use {
     sp_std::vec::Vec,
 };
 
-const MIGRATE_FROM_VERSION: u16 = 5;
-const MIGRATE_TO_VERSION: u16 = 6;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 9;
+const MIGRATE_FROM_VERSION: u16 = 9;
+const MIGRATE_TO_VERSION: u16 = 10;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 10;
 
 pub struct MigrateAllocations<T: Config>(PhantomData<T>);
 
@@ -58,23 +59,30 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            ProgramStorage::<T>::translate(|_, program: v5::Program<BlockNumberFor<T>>| {
+            ProgramStorage::<T>::translate(|id, program: v9::Program<BlockNumberFor<T>>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                 Some(match program {
-                    v5::Program::Active(p) => Program::Active(ActiveProgram {
-                        allocations: p.allocations.into_iter().collect(),
-                        pages_with_data: p.pages_with_data.into_iter().collect(),
-                        memory_infix: p.memory_infix,
-                        gas_reservation_map: p.gas_reservation_map,
-                        code_hash: p.code_hash,
-                        code_exports: p.code_exports,
-                        static_pages: p.static_pages.into(),
-                        state: p.state,
-                        expiration_block: p.expiration_block,
-                    }),
-                    v5::Program::Exited(id) => Program::Exited(id),
-                    v5::Program::Terminated(id) => Program::Terminated(id),
+                    v9::Program::Active(p) => {
+                        let allocations_tree_len =
+                            p.allocations.intervals_amount().saturated_into();
+                        AllocationsStorage::<T>::insert(id, p.allocations);
+
+                        // NOTE: p.pages_with_data is removed from the program
+
+                        Program::Active(ActiveProgram {
+                            allocations_tree_len,
+                            memory_infix: p.memory_infix,
+                            gas_reservation_map: p.gas_reservation_map,
+                            code_hash: p.code_hash,
+                            code_exports: p.code_exports,
+                            static_pages: p.static_pages.into(),
+                            state: p.state,
+                            expiration_block: p.expiration_block,
+                        })
+                    }
+                    v9::Program::Exited(id) => Program::Exited(id),
+                    v9::Program::Terminated(id) => Program::Terminated(id),
                 })
             });
 
@@ -99,7 +107,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
             );
 
-            Some(v5::ProgramStorage::<T>::iter().count() as u64)
+            Some(v9::ProgramStorage::<T>::iter().count() as u64)
         } else {
             None
         };
@@ -115,7 +123,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
             let count = ProgramStorage::<T>::iter().count() as u64;
             ensure!(
                 old_count == count,
-                "incorrect count of elements old {} != new {}",
+                "incorrect count of programs after migration: old {} != new {}",
+            );
+            ensure!(
+                Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
+                "incorrect storage version after migration"
             );
         }
 
@@ -123,11 +135,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
     }
 }
 
-mod v5 {
+mod v9 {
     use gear_core::{
         ids::ProgramId,
         message::DispatchKind,
-        pages::{GearPage, WasmPage},
+        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, ProgramState},
         reservation::GasReservationMap,
     };
@@ -143,8 +155,8 @@ mod v5 {
     #[codec(crate = codec)]
     #[scale_info(crate = scale_info)]
     pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
-        pub allocations: BTreeSet<WasmPage>,
-        pub pages_with_data: BTreeSet<GearPage>,
+        pub allocations: IntervalsTree<WasmPage>,
+        pub pages_with_data: IntervalsTree<GearPage>,
         pub memory_infix: MemoryInfix,
         pub gas_reservation_map: GasReservationMap,
         pub code_hash: H256,
@@ -201,30 +213,29 @@ mod v5 {
 mod test {
     use super::*;
     use crate::mock::*;
+    use common::GearPage;
     use frame_support::traits::StorageVersion;
     use frame_system::pallet_prelude::BlockNumberFor;
-    use gear_core::{
-        ids::ProgramId,
-        pages::{GearPage, WasmPage},
-        program::ProgramState,
-    };
+    use gear_core::{ids::ProgramId, pages::WasmPage, program::ProgramState};
     use sp_runtime::traits::Zero;
 
     #[test]
     fn migration_works() {
+        let _ = env_logger::try_init();
+
         new_test_ext().execute_with(|| {
             StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 
             // add active program
             let active_program_id = ProgramId::from(1u64);
-            let program = v5::Program::<BlockNumberFor<Test>>::Active(v5::ActiveProgram {
+            let program = v9::Program::<BlockNumberFor<Test>>::Active(v9::ActiveProgram {
                 allocations: [1u16, 2, 3, 4, 5, 101, 102]
                     .into_iter()
-                    .map(Into::into)
+                    .map(WasmPage::from)
                     .collect(),
                 pages_with_data: [4u16, 5, 6, 7, 8, 400, 401]
                     .into_iter()
-                    .map(Into::into)
+                    .map(GearPage::from)
                     .collect(),
                 gas_reservation_map: Default::default(),
                 code_hash: Default::default(),
@@ -234,41 +245,38 @@ mod test {
                 expiration_block: 100,
                 memory_infix: Default::default(),
             });
-            v5::ProgramStorage::<Test>::insert(active_program_id, program);
+            v9::ProgramStorage::<Test>::insert(active_program_id, program);
 
             // add exited program
-            let program = v5::Program::<BlockNumberFor<Test>>::Exited(active_program_id);
+            let program = v9::Program::<BlockNumberFor<Test>>::Exited(active_program_id);
             let program_id = ProgramId::from(2u64);
-            v5::ProgramStorage::<Test>::insert(program_id, program);
+            v9::ProgramStorage::<Test>::insert(program_id, program);
 
             // add terminated program
-            let program = v5::Program::<BlockNumberFor<Test>>::Terminated(program_id);
+            let program = v9::Program::<BlockNumberFor<Test>>::Terminated(program_id);
             let program_id = ProgramId::from(3u64);
-            v5::ProgramStorage::<Test>::insert(program_id, program);
+            v9::ProgramStorage::<Test>::insert(program_id, program);
 
             let state = MigrateAllocations::<Test>::pre_upgrade().unwrap();
             let w = MigrateAllocations::<Test>::on_runtime_upgrade();
             assert!(!w.is_zero());
             MigrateAllocations::<Test>::post_upgrade(state).unwrap();
 
-            if let Program::Active(p) = ProgramStorage::<Test>::get(active_program_id).unwrap() {
-                assert_eq!(
-                    p.allocations.to_vec(),
-                    [
-                        WasmPage::from(1)..=WasmPage::from(5),
-                        WasmPage::from(101)..=WasmPage::from(102)
-                    ]
-                );
-                assert_eq!(
-                    p.pages_with_data.to_vec(),
-                    [
-                        GearPage::from(4)..=GearPage::from(8),
-                        GearPage::from(400)..=GearPage::from(401)
-                    ]
-                );
-            } else {
+            let allocations = AllocationsStorage::<Test>::get(active_program_id).unwrap();
+            assert_eq!(
+                allocations.to_vec(),
+                [
+                    WasmPage::from(1)..=WasmPage::from(5),
+                    WasmPage::from(101)..=WasmPage::from(102)
+                ]
+            );
+
+            let Some(Program::Active(program)) = ProgramStorage::<Test>::get(active_program_id)
+            else {
                 panic!("Program must be active");
-            }
+            };
+
+            assert_eq!(program.allocations_tree_len, 2);
 
             assert_eq!(
                 ProgramStorage::<Test>::get(ProgramId::from(2u64)).unwrap(),

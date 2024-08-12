@@ -35,7 +35,6 @@ use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::{AccountId, Balance};
-use std::mem;
 use vara_runtime::{RuntimeEvent, System, EXISTENTIAL_DEPOSIT};
 
 // Max code size - 25 KiB.
@@ -55,9 +54,9 @@ const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 const MAX_SALT_SIZE: usize = 512;
 const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
-const ID_SIZE: usize = mem::size_of::<ProgramId>();
-const GAS_SIZE: usize = mem::size_of::<u64>();
-const VALUE_SIZE: usize = mem::size_of::<u128>();
+const ID_SIZE: usize = size_of::<ProgramId>();
+const GAS_SIZE: usize = size_of::<u64>();
+const VALUE_SIZE: usize = size_of::<u128>();
 
 /// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
 /// to generate things like wasm code or message payload but also to generate some auxiliary
@@ -251,7 +250,11 @@ fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>
 
 fn arbitrary_value(u: &mut Unstructured, current_balance: u128) -> Result<u128> {
     let (lower, upper) = match u.int_in_range(0..=99)? {
-        5..=19 => (0, 0),
+        5..=10 => (0, 0),
+        11..=30 => (
+            EXISTENTIAL_DEPOSIT,
+            (current_balance / 4).max(EXISTENTIAL_DEPOSIT),
+        ),
         0..=2 => (0, EXISTENTIAL_DEPOSIT),
         _ => (EXISTENTIAL_DEPOSIT, current_balance),
     };
