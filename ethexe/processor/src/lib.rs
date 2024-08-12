@@ -41,13 +41,11 @@ mod run;
 #[cfg(test)]
 mod tests;
 
-#[allow(unused)]
 pub struct UserMessage {
     id: MessageId,
     kind: DispatchKind,
     source: ActorId,
     payload: Vec<u8>,
-    gas_limit: u64,
     value: u128,
 }
 
@@ -135,7 +133,6 @@ impl Processor {
         let active_program = ActiveProgram {
             allocations_hash: MaybeHash::Empty,
             pages_hash: MaybeHash::Empty,
-            gas_reservation_map_hash: MaybeHash::Empty,
             memory_infix: MemoryInfix::new(0),
             initialized: false,
         };
@@ -145,8 +142,8 @@ impl Processor {
             state: state::Program::Active(active_program),
             queue_hash: MaybeHash::Empty,
             waitlist_hash: MaybeHash::Empty,
-            // TODO: remove program balance from here.
             balance: 0,
+            executable_balance: 10_000_000_000_000, // TODO: remove this minting
         };
 
         // TODO: not write zero state, but just register it (or support default on get)
@@ -179,7 +176,6 @@ impl Processor {
                 kind: message.kind,
                 source: message.source,
                 payload_hash,
-                gas_limit: message.gas_limit,
                 value: message.value,
                 // TODO: handle replies.
                 details: None,
@@ -294,7 +290,6 @@ impl Processor {
                             kind: DispatchKind::Init,
                             source: create_program_info.origin,
                             payload: create_program_info.init_payload.clone(),
-                            gas_limit: create_program_info.gas_limit,
                             value: create_program_info.value,
                         }],
                     )?;
@@ -309,11 +304,11 @@ impl Processor {
                     let state_hash = self.handle_user_message(
                         *state_hash,
                         vec![UserMessage {
+                            // TODO: handle mid.
                             id: MessageId::zero(),
                             kind: DispatchKind::Handle,
                             source: send_message_info.origin,
                             payload: send_message_info.payload.clone(),
-                            gas_limit: send_message_info.gas_limit,
                             value: send_message_info.value,
                         }],
                     )?;

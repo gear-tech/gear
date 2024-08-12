@@ -106,7 +106,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 });
                 // TODO: return gas reservations
             }
-            DispatchOutcome::MessageTrap { .. } => todo!(),
+            DispatchOutcome::MessageTrap { trap, .. } => {
+                todo!("message trap handling is not yet implemented, but got: {trap}")
+            }
             DispatchOutcome::Success => {
                 // TODO: Implement
             }
@@ -156,11 +158,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         reservation: Option<ReservationId>,
     ) {
         if reservation.is_some() {
-            todo!()
+            unreachable!("deprecated");
         }
 
         if delay != 0 {
-            todo!()
+            todo!("delayed sending isn't supported yet");
         }
 
         if !self.program_states.contains_key(&dispatch.destination()) {
@@ -170,6 +172,10 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         let (kind, message) = dispatch.into_parts();
         let (id, source, destination, payload, gas_limit, value, details) = message.into_parts();
+
+        if gas_limit.is_some() {
+            unreachable!("gas limit should always be None for ethexe");
+        }
 
         let payload_hash = self.storage.write_payload(payload).into();
 
@@ -182,7 +188,6 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 kind,
                 source,
                 payload_hash,
-                gas_limit: gas_limit.unwrap_or(100_000_000_000), // TODO
                 value,
                 details,
                 context: None,
@@ -217,7 +222,6 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             kind,
             source,
             payload_hash,
-            gas_limit: 100_000_000_000, // TODO
             value,
             details,
             context,
@@ -370,45 +374,31 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         todo!()
     }
 
-    fn reserve_gas(
-        &mut self,
-        message_id: MessageId,
-        reservation_id: ReservationId,
-        program_id: ProgramId,
-        amount: u64,
-        bn: u32,
-    ) {
-        todo!()
+    fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ProgramId, _: u64, _: u32) {
+        unreachable!("deprecated");
     }
 
-    fn unreserve_gas(
-        &mut self,
-        reservation_id: ReservationId,
-        program_id: ProgramId,
-        expiration: u32,
-    ) {
-        todo!()
+    fn unreserve_gas(&mut self, _: ReservationId, _: ProgramId, _: u32) {
+        unreachable!("deprecated");
     }
 
-    fn update_gas_reservation(&mut self, _program_id: ProgramId, _reserver: GasReserver) {
-        // TODO: Implement
+    fn update_gas_reservation(&mut self, _: ProgramId, _: GasReserver) {
+        unreachable!("deprecated");
     }
 
-    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        log::trace!("System reserve gas {amount} for {message_id}")
-        // TODO: Implement
+    fn system_reserve_gas(&mut self, _: MessageId, _: u64) {
+        unreachable!("deprecated");
     }
 
-    fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        log::trace!("System unreserve gas for {message_id}")
-        // TODO: Implement
+    fn system_unreserve_gas(&mut self, _: MessageId) {
+        unreachable!("deprecated");
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
-        todo!()
+    fn send_signal(&mut self, _: MessageId, _: ProgramId, _: SignalCode) {
+        unreachable!("deprecated");
     }
 
-    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
-        todo!()
+    fn reply_deposit(&mut self, _: MessageId, _: MessageId, _: u64) {
+        unreachable!("deprecated");
     }
 }
