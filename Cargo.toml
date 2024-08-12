@@ -1,10 +1,11 @@
 [workspace.package]
-version = "1.4.2"
+version = "1.5.0"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
+rust-version = "1.80"
 
 [workspace]
 resolver = "2"
@@ -29,6 +30,7 @@ members = [
     "examples/async-critical",
     "examples/async-custom-entry",
     "examples/async-init",
+    "examples/async-reply-hook",
     "examples/async-signal-entry",
     "examples/async-tester",
     "examples/autoreply",
@@ -81,8 +83,7 @@ members = [
     "examples/waiting-proxy",
     "examples/wat",
     "galloc",
-    "gbuiltins/bls381",
-    "gbuiltins/staking",
+    "gbuiltins/*",
     "gcli",
     "gclient",
     "gcore",
@@ -143,11 +144,9 @@ hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 impl-trait-for-tuples = "0.2.2"
 jsonrpsee = { version = "^0.16" }
-lazy_static = "1.5.0"
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
 num_enum = { version = "0.6.1", default-features = false }
-once_cell = "1.19.0"
 parity-scale-codec = { version = "3.6.4", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.3"
@@ -212,6 +211,7 @@ common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
+gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
 gbuiltin-staking = { path = "gbuiltins/staking" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
@@ -259,6 +259,9 @@ actor-system-error = { path = "utils/actor-system-error" }
 calc-stack-height = { path = "utils/calc-stack-height" }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
+pallet-gear-eth-bridge = { path = "pallets/gear-eth-bridge", default-features = false }
+pallet-gear-eth-bridge-rpc = { path = "pallets/gear-eth-bridge/rpc", default-features = false }
+pallet-gear-eth-bridge-rpc-runtime-api = { path = "pallets/gear-eth-bridge/rpc/runtime-api", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }
 pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
 pallet-gear-payment = { path = "pallets/payment", default-features = false }
@@ -304,6 +307,7 @@ sandbox-wasmer-types = { package = "wasmer-types", version = "4.3.4" }
 sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 
 # Substrate deps
+binary-merkle-tree = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0" }
 frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
@@ -432,6 +436,7 @@ demo-async = { path = "examples/async" }
 demo-async-critical = { path = "examples/async-critical" }
 demo-async-custom-entry = { path = "examples/async-custom-entry" }
 demo-async-init = { path = "examples/async-init" }
+demo-async-reply-hook = { path = "examples/async-reply-hook" }
 demo-async-recursion = { path = "examples/async-recursion" }
 demo-async-signal-entry = { path = "examples/async-signal-entry" }
 demo-async-tester = { path = "examples/async-tester" }

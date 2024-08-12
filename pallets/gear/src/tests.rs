@@ -116,7 +116,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 333_333_333, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 600_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -15199,6 +15199,131 @@ fn critical_hook_in_handle_signal() {
 }
 
 #[test]
+fn handle_reply_hook() {
+    use demo_async_reply_hook::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(utils::is_active(pid));
+
+        // Init conversation
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let messages = MailboxOf::<Test>::iter_key(USER_1).map(|(msg, _bn)| msg);
+
+        let mut timeout_msg_id = None;
+
+        for msg in messages {
+            match msg.payload_bytes() {
+                b"for_reply_1" => {
+                    // Reply to the first message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [1].to_vec(),
+                        1_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                b"for_reply_2" => {
+                    // Don't reply, message should time out
+                }
+                b"for_reply_3" => {
+                    // Reply to the third message
+                    assert_ok!(Gear::send_reply(
+                        RuntimeOrigin::signed(USER_1),
+                        msg.id(),
+                        [3].to_vec(),
+                        1_000_000_000,
+                        0,
+                        false,
+                    ));
+                }
+                b"for_reply_4" => {
+                    // reply later
+                    timeout_msg_id = Some(msg.id());
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        run_to_block(4, None);
+
+        // Expect a reply back
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"saw_reply_3");
+
+        run_to_block(10, None);
+
+        // Program finished
+        let m = maybe_last_message(USER_1);
+        assert!(m.unwrap().payload_bytes() == b"completed");
+
+        // Reply to a message that timed out
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            timeout_msg_id.unwrap(),
+            [4].to_vec(),
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(11, None);
+
+        let messages = all_user_messages(USER_1);
+        let vec: Vec<gstd::borrow::Cow<'_, str>> = messages
+            .iter()
+            .filter_map(|m| {
+                if m.details().is_some() {
+                    None
+                } else {
+                    Some(String::from_utf8_lossy(m.payload_bytes()))
+                }
+            })
+            .collect();
+        // Hook executed after completed
+        assert_eq!(
+            vec,
+            [
+                "for_reply_1",
+                "for_reply_2",
+                "for_reply_3",
+                "for_reply_4",
+                "saw_reply_3",
+                "completed",
+                "saw_reply_4"
+            ]
+        );
+    });
+}
+
+#[test]
 fn program_with_large_indexes() {
     // There is a security problem in module deserialization found by
     // casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
@@ -16786,5 +16911,24 @@ pub(crate) mod utils {
 
     pub(super) fn gas_price(gas: u64) -> u128 {
         <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
+    }
+
+    // Collect all messages by account in chronological order (oldest first)
+    #[track_caller]
+    pub(super) fn all_user_messages(user_id: AccountId) -> Vec<UserMessage> {
+        System::events()
+            .into_iter()
+            .filter_map(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    if message.destination() == user_id.into() {
+                        Some(message)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }

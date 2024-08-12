@@ -19,7 +19,7 @@
 //! Module for pages which size can be different for different runtime versions.
 
 use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated, OptionBound};
-use std::{cmp::Ordering, marker::PhantomData, mem, num::NonZeroU32};
+use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32};
 
 /// Size number for dyn-size pages.
 pub trait SizeNumber: Copy + Ord + Eq {
@@ -93,7 +93,7 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         Some(page.into())
     }
     fn offset<M: SizeManager>(&self, ctx: &M) -> usize {
-        const _: () = assert!(mem::size_of::<usize>() > mem::size_of::<u32>());
+        const { assert!(size_of::<usize>() > size_of::<u32>()) };
         let raw = self.unbound().map(|p| p.raw).unwrap_or(Self::upper(ctx));
         (raw as usize)
             .checked_mul(Page::<S>::size(ctx) as usize)

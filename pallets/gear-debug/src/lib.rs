@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::manual_inspect)]
 
 extern crate alloc;
 
@@ -162,12 +163,6 @@ pub mod pallet {
 
         /// Finalization
         fn on_finalize(_bn: BlockNumberFor<T>) {}
-    }
-
-    #[derive(Decode, Encode)]
-    struct Node {
-        value: StoredDispatch,
-        next: Option<H256>,
     }
 
     fn remap_with(dispatch: StoredDispatch, progs: &BTreeMap<H256, H256>) -> StoredDispatch {

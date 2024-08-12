@@ -313,28 +313,28 @@ pub type GearPagesAmount = PagesAmount<GEAR_PAGE_SIZE>;
 
 impl From<u16> for WasmPagesAmount {
     fn from(value: u16) -> Self {
-        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
+        const { assert!(WASM_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }
 
 impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
-        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
+        const { assert!(WASM_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }
 
 impl From<u16> for GearPagesAmount {
     fn from(value: u16) -> Self {
-        const _: () = assert!(GEAR_PAGE_SIZE <= 0x10_000);
+        const { assert!(GEAR_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }
 
 impl From<u16> for GearPage {
     fn from(value: u16) -> Self {
-        const _: () = assert!(GEAR_PAGE_SIZE <= 0x10_000);
+        const { assert!(GEAR_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }

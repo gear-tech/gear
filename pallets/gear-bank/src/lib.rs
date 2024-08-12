@@ -19,6 +19,7 @@
 //! # Gear Bank Pallet.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::manual_inspect)]
 
 extern crate alloc;
 

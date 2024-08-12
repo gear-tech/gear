@@ -116,6 +116,7 @@ struct DeserializableSchedule {
     instruction_weights: IndexMap<String, Value>,
     syscall_weights: IndexMap<String, Weight>,
     memory_weights: IndexMap<String, Weight>,
+    instantiation_weights: IndexMap<String, Weight>,
     #[serde(flatten)]
     other_fields: IndexMap<String, Weight>,
 }
@@ -212,7 +213,12 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
         let structure_name = node.ident.to_string();
         if !matches!(
             structure_name.as_str(),
-            "Schedule" | "Limits" | "InstructionWeights" | "SyscallWeights" | "MemoryWeights"
+            "Schedule"
+                | "Limits"
+                | "InstructionWeights"
+                | "SyscallWeights"
+                | "MemoryWeights"
+                | "InstantiationWeights"
         ) {
             return;
         }
@@ -377,6 +383,9 @@ fn main() {
                         "InstructionWeights" => &raw_schedule["instruction_weights"][field_name],
                         "SyscallWeights" => &raw_schedule["syscall_weights"][field_name],
                         "MemoryWeights" => &raw_schedule["memory_weights"][field_name],
+                        "InstantiationWeights" => {
+                            &raw_schedule["instantiation_weights"][field_name]
+                        }
                         _ => &raw_schedule,
                     };
 

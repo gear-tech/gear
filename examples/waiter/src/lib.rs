@@ -39,7 +39,7 @@ mod wasm;
 
 #[cfg(feature = "std")]
 pub fn system_reserve() -> u64 {
-    gstd::Config::system_reserve()
+    gstd::SYSTEM_RESERVE
 }
 
 // Re-exports for testing

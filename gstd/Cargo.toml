@@ -4,14 +4,13 @@ description = "Gear programs standard library"
 documentation = "https://docs.rs/gstd"
 keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
 categories = ["api-bindings"]
-# Stable version of Rust >=1.73 is required due to new format of panic message.
-rust-version = "1.73"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false, optional = true }
@@ -74,6 +73,9 @@ panic-info-message = []
 oom-handler = []
 
 #! ## Additional features
+
+## Disables unsupported syscalls and their calls for executing on ethexe.
+ethexe = ["gcore/ethexe", "gstd-codegen/ethexe"]
 
 ## Enables debug logging; this heavily impacts gas cost
 ## and is therefore disabled by default.

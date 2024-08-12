@@ -50,7 +50,7 @@ impl From<&InnerNonce> for ReservationNonce {
 
 /// A changeable wrapper over u64 value, which is required
 /// to be used as an "active" reservations nonce in a gas reserver.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 struct InnerNonce(u64);
 
 impl InnerNonce {
@@ -73,7 +73,7 @@ impl From<ReservationNonce> for InnerNonce {
 /// Gas reserver.
 ///
 /// Controls gas reservations states.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct GasReserver {
     /// Message id within which reservations are created
     /// by the current instance of [`GasReserver`].
@@ -124,6 +124,11 @@ impl GasReserver {
             },
             max_reservations,
         }
+    }
+
+    /// Returns bool defining if gas reserver is empty.
+    pub fn is_empty(&self) -> bool {
+        self.states.is_empty()
     }
 
     /// Checks that the number of existing and newly created reservations

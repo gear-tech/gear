@@ -18,7 +18,6 @@
 
 use crate::host::{api::MemoryWrap, threads};
 use anyhow::Result;
-use core::mem;
 use gprimitives::H256;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
@@ -41,7 +40,7 @@ fn read_by_hash(caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
 
     let memory = MemoryWrap(caller.data().memory());
 
-    let hash_slice = memory.slice(&caller, hash_ptr as usize, mem::size_of::<H256>());
+    let hash_slice = memory.slice(&caller, hash_ptr as usize, size_of::<H256>());
     let hash = H256::from_slice(hash_slice);
 
     let maybe_data = threads::with_db(|db| db.read_by_hash(hash));

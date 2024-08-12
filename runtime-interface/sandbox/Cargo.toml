@@ -1,11 +1,13 @@
 [package]
 name = "gear-sandbox-interface"
+description = "Gear Sandbox Interface"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 sp-runtime-interface.workspace = true

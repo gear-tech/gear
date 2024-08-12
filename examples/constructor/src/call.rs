@@ -22,6 +22,13 @@ pub enum Call {
     ReplyCode,
     Value,
     ValueAvailable,
+    ReservationSend(
+        Arg<[u8; 32]>,
+        Arg<[u8; 32]>,
+        Arg<Vec<u8>>,
+        Arg<u128>,
+        Arg<u32>,
+    ),
     Send(
         Arg<[u8; 32]>,
         Arg<Vec<u8>>,
@@ -42,6 +49,8 @@ pub enum Call {
     Wake(Arg<[u8; 32]>),
     MessageId,
     Loop,
+    ReserveGas(Arg<u64>, Arg<u32>),
+    UnreserveGas(Arg<[u8; 32]>),
     SystemReserveGas(Arg<u64>),
     WriteN(Arg<u64>),
 }
@@ -178,6 +187,25 @@ mod wasm {
             } else {
                 panic!();
             }
+        }
+
+        fn reservation_send(self) -> Option<Vec<u8>> {
+            let Self::ReservationSend(reservation, destination, payload, value, delay) = self
+            else {
+                unreachable!()
+            };
+
+            let reservation = reservation.value().into();
+            let destination = destination.value().into();
+            let payload = payload.value();
+            let value = value.value();
+            let delay = delay.value();
+
+            let message_id =
+                msg::send_delayed_from_reservation(reservation, destination, payload, value, delay)
+                    .expect("Failed to send message from reservation");
+
+            Some(message_id.encode())
         }
 
         fn send(self) -> Option<Vec<u8>> {
@@ -332,6 +360,31 @@ mod wasm {
             None
         }
 
+        fn reserve_gas(self) -> Option<Vec<u8>> {
+            let Self::ReserveGas(amount, duration) = self else {
+                unreachable!()
+            };
+
+            let amount = amount.value();
+            let duration = duration.value();
+            let reservation_id =
+                exec::reserve_gas(amount, duration).expect("Failed to reserve gas");
+
+            Some(reservation_id.encode())
+        }
+
+        fn unreserve_gas(self) -> Option<Vec<u8>> {
+            let Self::UnreserveGas(reservation) = self else {
+                unreachable!()
+            };
+
+            let reservation = reservation.value().into();
+            let unreserved_value =
+                exec::unreserve_gas(reservation).expect("Failed to unreserve gas");
+
+            Some(unreserved_value.encode())
+        }
+
         fn write_n(self) -> Option<Vec<u8>> {
             let Self::WriteN(count) = self else {
                 unreachable!()
@@ -359,6 +412,7 @@ mod wasm {
                 Call::Source => self.source(),
                 Call::ReplyCode => self.reply_code(),
                 Call::Panic(..) => self.panic(),
+                Call::ReservationSend(..) => self.reservation_send(),
                 Call::Send(..) => self.send(),
                 Call::Reply(..) => self.reply(),
                 Call::Exit(..) => self.exit(),
@@ -376,6 +430,8 @@ mod wasm {
                 #[allow(clippy::empty_loop)]
                 Call::Loop => loop {},
                 Call::SystemReserveGas(..) => self.system_reserve_gas(),
+                Call::ReserveGas(..) => self.reserve_gas(),
+                Call::UnreserveGas(..) => self.unreserve_gas(),
                 Call::WriteN(..) => self.write_n(),
             };
 

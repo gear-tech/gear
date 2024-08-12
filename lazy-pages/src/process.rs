@@ -79,7 +79,7 @@ pub(crate) trait AccessHandler {
 /// for all gear pages from accessed native page.
 /// 1) Set new access pages protection accordingly it is read or write access.
 /// 2) If some page contains data in storage, then load this data and place it in
-/// program's wasm memory.
+///    program's wasm memory.
 /// 3) Charge gas for access and data loading.
 pub(crate) fn process_lazy_pages<H: AccessHandler>(
     rt_ctx: &mut LazyPagesRuntimeContext,

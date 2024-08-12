@@ -328,7 +328,7 @@ impl NonZeroU256 {
     }
 
     /// Fast exponentiation by squaring
-    /// https://en.wikipedia.org/wiki/Exponentiation_by_squaring
+    /// <https://en.wikipedia.org/wiki/Exponentiation_by_squaring>
     ///
     /// # Panics
     ///

@@ -35,7 +35,7 @@ use gear_wasm_instrument::{
     syscalls::SyscallName,
 };
 use gsys::{Handle, Hash, Length};
-use std::{collections::BTreeMap, mem, num::NonZeroU32};
+use std::{collections::BTreeMap, num::NonZeroU32};
 
 /// Gear syscalls imports generator.
 pub struct SyscallsImportsGenerator<'a, 'b> {
@@ -318,7 +318,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 
         // subtract to be sure we are in memory boundaries.
         let rid_pid_value_ptr = self.reserve_memory();
-        let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
+        let pid_value_ptr = rid_pid_value_ptr + size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
             // Copy the HashWithValue struct (48 bytes) containing
@@ -408,7 +408,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 
         // subtract to be sure we are in memory boundaries.
         let rid_value_ptr = self.reserve_memory();
-        let value_ptr = rid_value_ptr + mem::size_of::<Hash>() as i32;
+        let value_ptr = rid_value_ptr + size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
             // Amount of gas to reserve
@@ -479,7 +479,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
-        let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
+        let pid_value_ptr = handle_ptr + size_of::<Handle>() as i32;
 
         let mut elements = vec![
             // Pointer to the ErrorWithHandle struct
@@ -577,8 +577,8 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
-        let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
-        let length_ptr = pid_value_ptr + mem::size_of::<Length>() as i32;
+        let pid_value_ptr = handle_ptr + size_of::<Handle>() as i32;
+        let length_ptr = pid_value_ptr + size_of::<Length>() as i32;
 
         let mut elements = vec![
             // Pointer to the ErrorWithHandle struct
