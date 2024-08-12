@@ -18,7 +18,7 @@
 
 //! Auxiliary implementation of the mailbox.
 
-use super::AuxiliaryStorageWrap;
+use super::AuxiliaryDoubleStorageWrap;
 use crate::{
     auxiliary::DoubleBTreeMap,
     storage::{Interval, MailboxError, MailboxImpl, MailboxKeyGen},
@@ -52,7 +52,7 @@ std::thread_local! {
 /// `Mailbox` double storage map manager.
 pub struct MailboxStorageWrap;
 
-impl AuxiliaryStorageWrap for MailboxStorageWrap {
+impl AuxiliaryDoubleStorageWrap for MailboxStorageWrap {
     type Key1 = ProgramId;
     type Key2 = MessageId;
     type Value = (MailboxedMessage, Interval<BlockNumber>);

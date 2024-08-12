@@ -144,7 +144,7 @@ impl<K1, K2, V> Default for DoubleBTreeMap<K1, K2, V> {
 /// An auxiliary storage wrapper type.
 ///
 /// Implements DoubleMapStorage and traits like [`IterableByKeyMap`] for such type automatically.
-pub trait AuxiliaryStorageWrap {
+pub trait AuxiliaryDoubleStorageWrap {
     type Key1: Ord + Clone;
     type Key2: Ord + Clone;
     type Value: Clone;
@@ -157,7 +157,7 @@ pub trait AuxiliaryStorageWrap {
         F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R;
 }
 
-impl<T: AuxiliaryStorageWrap> DoubleMapStorage for T {
+impl<T: AuxiliaryDoubleStorageWrap> DoubleMapStorage for T {
     type Key1 = T::Key1;
     type Key2 = T::Key2;
     type Value = T::Value;
@@ -188,23 +188,61 @@ impl<T: AuxiliaryStorageWrap> DoubleMapStorage for T {
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(
-        _key1: Self::Key1,
-        _key2: Self::Key2,
-        _f: F,
+        key1: Self::Key1,
+        key2: Self::Key2,
+        f: F,
     ) -> R {
-        unimplemented!()
+        T::with_storage_mut(|map| {
+            let inner_map = map.inner.entry(key1).or_insert_with(BTreeMap::new);
+            match inner_map.entry(key2) {
+                Entry::Occupied(mut occupied) => {
+                    let mut value = Some(occupied.get().clone());
+                    let result = f(&mut value);
+                    if let Some(value) = value {
+                        *occupied.get_mut() = value;
+                    } else {
+                        occupied.remove();
+                    }
+
+                    result
+                }
+
+                Entry::Vacant(vacant) => {
+                    let mut value = None;
+                    let result = f(&mut value);
+                    if let Some(value) = value {
+                        vacant.insert(value);
+                    }
+                    result
+                }
+            }
+        })
     }
 
     fn mutate_exists<R, F: FnOnce(&mut Self::Value) -> R>(
-        _key1: Self::Key1,
-        _key2: Self::Key2,
-        _f: F,
+        key1: Self::Key1,
+        key2: Self::Key2,
+        f: F,
     ) -> Option<R> {
-        unimplemented!()
+        T::with_storage_mut(|map| {
+            if let Some(inner_map) = map.inner.get_mut(&key1) {
+                if let Some(value) = inner_map.get_mut(&key2) {
+                    return Some(f(value));
+                }
+            }
+
+            None
+        })
     }
 
-    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(_f: F) {
-        unimplemented!()
+    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(mut f: F) {
+        T::with_storage_mut(|map| {
+            for (_, inner_map) in map.inner.iter_mut() {
+                for (_, value) in inner_map.iter_mut() {
+                    *value = f(value.clone());
+                }
+            }
+        });
     }
 
     fn remove(key1: Self::Key1, key2: Self::Key2) {
@@ -216,7 +254,7 @@ impl<T: AuxiliaryStorageWrap> DoubleMapStorage for T {
     }
 }
 
-impl<T: AuxiliaryStorageWrap> IterableByKeyMap<T::Value> for T {
+impl<T: AuxiliaryDoubleStorageWrap> IterableByKeyMap<T::Value> for T {
     type Key = T::Key1;
 
     type DrainIter = IteratorWrap<IntoIter<T::Key2, T::Value>, T::Value, GetSecondPos>;
@@ -232,7 +270,7 @@ impl<T: AuxiliaryStorageWrap> IterableByKeyMap<T::Value> for T {
     }
 }
 
-impl<T: AuxiliaryStorageWrap> KeyIterableByKeyMap for T {
+impl<T: AuxiliaryDoubleStorageWrap> KeyIterableByKeyMap for T {
     type Key1 = T::Key1;
     type Key2 = T::Key2;
     type DrainIter = IteratorWrap<IntoIter<T::Key2, T::Value>, T::Key2, GetFirstPos>;
@@ -247,7 +285,7 @@ impl<T: AuxiliaryStorageWrap> KeyIterableByKeyMap for T {
     }
 }
 
-impl<T: AuxiliaryStorageWrap> CountedByKey for T {
+impl<T: AuxiliaryDoubleStorageWrap> CountedByKey for T {
     type Key = T::Key1;
     type Length = usize;
 
