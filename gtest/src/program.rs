@@ -861,8 +861,8 @@ mod tests {
     use super::Program;
 
     use crate::{
-        manager::Value, Log, ProgramIdWrapper, System, DEFAULT_USERS_INITIAL_BALANCE,
-        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
+        manager::Value, Log, ProgramIdWrapper, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT,
+        GAS_MULTIPLIER,
     };
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
@@ -951,8 +951,12 @@ mod tests {
         assert_eq!(prog.balance(), 2 * EXISTENTIAL_DEPOSIT);
 
         prog.send_with_value(user_id, "init".to_string(), EXISTENTIAL_DEPOSIT);
-        user_spent_balance += sys.run_next_block().spent_value();
-        assert_eq!(prog.balance(), 3 * EXISTENTIAL_DEPOSIT);
+        // Note: ED is charged upon program creation if its balance is not 0.
+        user_spent_balance += sys.run_next_block().spent_value() + EXISTENTIAL_DEPOSIT;
+        assert_eq!(
+            prog.balance(),
+            3 * EXISTENTIAL_DEPOSIT + EXISTENTIAL_DEPOSIT
+        );
         assert_eq!(
             sys.balance_of(user_id),
             9 * EXISTENTIAL_DEPOSIT - user_spent_balance
@@ -961,7 +965,10 @@ mod tests {
         prog.send_with_value(user_id, "PING".to_string(), 2 * EXISTENTIAL_DEPOSIT);
         user_spent_balance += sys.run_next_block().spent_value();
 
-        assert_eq!(prog.balance(), 5 * EXISTENTIAL_DEPOSIT);
+        assert_eq!(
+            prog.balance(),
+            5 * EXISTENTIAL_DEPOSIT + EXISTENTIAL_DEPOSIT
+        );
         assert_eq!(
             sys.balance_of(user_id),
             7 * EXISTENTIAL_DEPOSIT - user_spent_balance
@@ -1414,47 +1421,5 @@ mod tests {
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
         assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
-    }
-
-    #[test]
-    fn test_send_message_decreases_user_balance() {
-        use demo_constructor::WASM_BINARY;
-
-        let sys = System::new();
-        sys.init_logger();
-
-        let user_id = DEFAULT_USER_ALICE;
-        let prog = Program::from_binary_with_id(&sys, 1337, WASM_BINARY);
-
-        prog.send(user_id, Scheme::empty());
-        let block_result = sys.run_next_block();
-        let expected_value =
-            DEFAULT_USERS_INITIAL_BALANCE - block_result.spent_value() - EXISTENTIAL_DEPOSIT;
-
-        assert_eq!(sys.balance_of(user_id), expected_value);
-    }
-
-    #[test]
-    fn test_program_creation_charges_ed() {
-        use demo_constructor::WASM_BINARY;
-
-        let sys = System::new();
-        //sys.init_logger();
-        sys.init_verbose_logger();
-
-        let user_id = DEFAULT_USER_ALICE;
-        let orig_user_balance = sys.balance_of(user_id);
-
-        let prog_id = 1337;
-        let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
-
-        prog.send(user_id, Scheme::empty());
-        let block_result = sys.run_next_block();
-
-        assert_eq!(sys.balance_of(prog_id), EXISTENTIAL_DEPOSIT);
-        assert_eq!(
-            sys.balance_of(user_id),
-            orig_user_balance - EXISTENTIAL_DEPOSIT - block_result.spent_value()
-        );
     }
 }

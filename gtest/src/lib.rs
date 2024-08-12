@@ -429,7 +429,7 @@
 //! // without any arguments.
 //! ```
 //! -->
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 

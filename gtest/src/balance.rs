@@ -20,26 +20,29 @@
 
 use std::collections::HashMap;
 
-use crate::{manager::Actors, GAS_MULTIPLIER};
 use gear_common::{Gas, GasMultiplier, ProgramId};
-use gear_core::message::Value;
 
+use crate::{constants::Value, manager::Actors, GAS_MULTIPLIER};
+
+/// Balance of an actor.
 #[derive(Debug, Clone, Default)]
 pub struct Balance {
-    total: u128,
-    // Primary used for ED locking
-    locked: u128,
+    total: Value,
+    // Primary used for ED locking for programs
+    locked: Value,
 }
 
 impl Balance {
-    pub fn new(total: u128) -> Self {
+    /// Create a new balance.
+    pub fn new(total: Value) -> Self {
         Self { total, locked: 0 }
     }
 
+    /// Lock the balance.
     #[track_caller]
     pub fn set_lock(&mut self, value: Value) {
         if self.available() < value {
-            unreachable!(
+            panic!(
                 "Trying to lock more then available balance, total: {}, lock: {}",
                 self.available(),
                 value
@@ -48,6 +51,7 @@ impl Balance {
         self.locked = value;
     }
 
+    /// Unlock the balance.
     pub fn empty() -> Self {
         Self {
             total: 0,
@@ -55,42 +59,52 @@ impl Balance {
         }
     }
 
+    /// Get the available balance.
     #[track_caller]
-    pub fn available(&self) -> u128 {
+    pub fn available(&self) -> Value {
         self.total - self.locked
     }
 
-    pub fn total(&self) -> u128 {
+    /// Get the total balance.
+    pub fn total(&self) -> Value {
         self.total
     }
 
+    /// Decrease the balance.
+    ///
+    /// If `respect_lock` is true, the total balance will not be decreased lower
+    /// than the locked value. If `respect_lock` is false, the total balance
+    /// will be decreased lower than the locked value.
     #[track_caller]
-    pub fn decrease(&mut self, value: u128, keep_alive: bool) {
-        if keep_alive {
-            if self.available() < value {
-                unreachable!(
-                    "Not enough balance to decrease, available: {}, value: {}",
-                    self.available(),
-                    value
-                );
-            }
-        } else if self.total < value {
-            unreachable!(
+    pub fn decrease(&mut self, value: u128, respect_lock: bool) {
+        if respect_lock && self.total - value < self.locked {
+            panic!(
+                "Not enough balance to decrease, available: {}, value: {}",
+                self.available(),
+                value
+            );
+        }
+
+        if !respect_lock && self.total < value {
+            panic!(
                 "Not enough balance to decrease, total: {}, value: {}",
                 self.total, value
             );
         }
 
         self.total -= value;
-        if !keep_alive && self.total < self.locked {
+        if self.total < self.locked {
             self.locked = self.total;
         }
     }
 
-    pub fn increase(&mut self, value: u128) {
+    /// Increase the balance.
+    pub fn increase(&mut self, value: Value) {
         self.total += value;
     }
 
+    #[track_caller]
+    /// Transfer the balance.
     pub(crate) fn transfer(
         actors: &mut Actors,
         from: ProgramId,
@@ -99,15 +113,20 @@ impl Balance {
         keep_alive: bool,
     ) {
         let mut actors = actors.borrow_mut();
-        let (_, from) = actors.get_mut(&from).expect("Actor should exist");
+        let (_, from) = actors
+            .get_mut(&from)
+            .unwrap_or_else(|| panic!("Sender actor id {from:?} should exist"));
         from.decrease(value, keep_alive);
-        let (_, to) = actors.get_mut(&to).expect("Actor should exist");
+
+        let (_, to) = actors
+            .get_mut(&to)
+            .unwrap_or_else(|| panic!("Receiver actor id {to:?} should exist"));
         to.increase(value);
     }
 }
 
 impl PartialEq<u128> for Balance {
-    fn eq(&self, other: &u128) -> bool {
+    fn eq(&self, other: &Value) -> bool {
         self.total == *other
     }
 }
@@ -118,12 +137,14 @@ struct AccountBalance {
     value: Value,
 }
 
+/// GTest bank.
 #[derive(Default, Debug)]
 pub struct Bank {
     accounts: HashMap<ProgramId, AccountBalance>,
 }
 
 impl Bank {
+    /// Create a new bank.
     #[track_caller]
     pub fn deposit_value(
         &mut self,
@@ -139,6 +160,7 @@ impl Bank {
             .value += value;
     }
 
+    /// Deposit gas.
     #[track_caller]
     pub fn deposit_gas(&mut self, from: &mut Balance, to: ProgramId, gas: Gas, keep_alive: bool) {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas);
@@ -149,12 +171,17 @@ impl Bank {
             .gas += gas_value;
     }
 
+    /// Withdraw gas.
     #[track_caller]
     pub fn spend_gas(&mut self, from: ProgramId, gas: Gas, multiplier: GasMultiplier<Value, Gas>) {
         let gas_value = multiplier.gas_to_value(gas);
-        self.accounts.get_mut(&from).expect("must exist").gas -= gas_value;
+        self.accounts
+            .get_mut(&from)
+            .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {from:?} not found in bank"))
+            .gas -= gas_value;
     }
 
+    /// Withdraw value.
     #[track_caller]
     pub fn spend_gas_to(
         &mut self,
@@ -166,6 +193,7 @@ impl Bank {
         self.withdraw_gas(from, to, gas, multiplier)
     }
 
+    /// Withdraw gas.
     #[track_caller]
     pub fn withdraw_gas(
         &mut self,
@@ -175,14 +203,21 @@ impl Bank {
         multiplier: GasMultiplier<Value, Gas>,
     ) {
         let gas_left_value = multiplier.gas_to_value(gas_left);
-        self.accounts.get_mut(&from).expect("must exist").gas -= gas_left_value;
+        self.accounts
+            .get_mut(&from)
+            .unwrap_or_else(|| panic!("Bank::withdraw_gas: actor id {from:?} not found in bank"))
+            .gas -= gas_left_value;
         let value = multiplier.gas_to_value(gas_left);
         to.increase(value);
     }
 
+    /// Transfer value.
     #[track_caller]
     pub fn transfer_value(&mut self, from: ProgramId, to: &mut Balance, value: Value) {
-        self.accounts.get_mut(&from).expect("must exist").value -= value;
+        self.accounts
+            .get_mut(&from)
+            .unwrap_or_else(|| panic!("Bank::transfer_value: actor id {from:?} not found in bank"))
+            .value -= value;
         to.increase(value);
     }
 }

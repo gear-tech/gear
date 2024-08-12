@@ -18,7 +18,7 @@
 
 use crate::{
     program::{Gas, ProgramIdWrapper},
-    GAS_MULTIPLIER,
+    Value, GAS_MULTIPLIER,
 };
 use codec::{Codec, Encode};
 use core_processor::configs::BlockInfo;
@@ -451,7 +451,7 @@ impl BlockRunResult {
     }
 
     /// Calculate the total spent value.
-    pub fn spent_value(&self) -> u128 {
+    pub fn spent_value(&self) -> Value {
         let spent_gas = self
             .gas_burned
             .values()

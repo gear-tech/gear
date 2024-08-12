@@ -194,6 +194,20 @@ impl Program {
 pub(crate) struct Actors(Rc<RefCell<BTreeMap<ProgramId, (TestActor, Balance)>>>);
 
 impl Actors {
+    pub fn new() -> Self {
+        let mut actors = Actors::default();
+
+        // Add default users
+        for &default_user_id in default_users_list() {
+            actors.insert(
+                default_user_id.into(),
+                (TestActor::User, Balance::new(DEFAULT_USERS_INITIAL_BALANCE)),
+            );
+        }
+
+        actors
+    }
+
     pub fn borrow(&self) -> Ref<'_, BTreeMap<ProgramId, (TestActor, Balance)>> {
         self.0.borrow()
     }
@@ -283,9 +297,10 @@ pub(crate) struct ExtManager {
 impl ExtManager {
     #[track_caller]
     pub(crate) fn new() -> Self {
-        let mut manager = Self {
+        Self {
             msg_nonce: 1,
             id_nonce: 1,
+            actors: Actors::new(),
             blocks_manager: BlocksManager::new(),
             messages_processing_enabled: true,
             random_data: (
@@ -299,19 +314,6 @@ impl ExtManager {
                 0,
             ),
             ..Default::default()
-        };
-
-        manager.init_default_users();
-        manager
-    }
-
-    // Should be called once inside `new` method.
-    fn init_default_users(&mut self) {
-        for &default_user_id in default_users_list() {
-            self.actors.insert(
-                default_user_id.into(),
-                (TestActor::User, Balance::new(DEFAULT_USERS_INITIAL_BALANCE)),
-            );
         }
     }
 
@@ -537,25 +539,15 @@ impl ExtManager {
             panic!("Sending messages allowed only from users id");
         }
 
-        // Create user if it doesn't exist
+        // User must exist
         if !self.actors.contains_key(&source) {
-            self.actors
-                .borrow_mut()
-                .insert(source, (TestActor::User, Balance::default()));
+            panic!("User {source} doesn't exist; mint value to it first.");
         }
 
-        let charge_ed = self
-            .actors
-            .borrow()
-            .get(&destination)
-            .expect("Can't fail")
-            .0
-            .is_uninitialized()
-            && self.actors.total_balance(&destination) == 0;
-        let ed = if charge_ed { EXISTENTIAL_DEPOSIT } else { 0 };
-
+        let is_init_msg = dispatch.kind().is_init();
+        // We charge ED only for init messages
+        let maybe_ed = if is_init_msg { EXISTENTIAL_DEPOSIT } else { 0 };
         let total_balance = self.actors.total_balance(&source);
-        let keep_alive_sender = false;
 
         let gas_limit = dispatch
             .gas_limit()
@@ -563,26 +555,26 @@ impl ExtManager {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas_limit);
 
         // Check sender has enough balance to support dispatch
-        if total_balance < { dispatch.value() + gas_value + ed } {
+        if total_balance < { dispatch.value() + gas_value + maybe_ed } {
             panic!(
                 "Insufficient balance: user ({}) tries to send \
                 ({}) value, ({}) gas and ED {}, while his balance ({:?})",
                 source,
                 dispatch.value(),
                 gas_value,
-                EXISTENTIAL_DEPOSIT,
+                maybe_ed,
                 total_balance,
             );
         }
 
         // Charge for program ED upon creation
-        if charge_ed {
+        if is_init_msg {
             Balance::transfer(
                 &mut self.actors,
                 source,
                 destination,
                 EXISTENTIAL_DEPOSIT,
-                keep_alive_sender,
+                false,
             );
 
             // Set ED lock
@@ -595,11 +587,11 @@ impl ExtManager {
 
         // Deposit message value
         self.bank
-            .deposit_value(source_balance, source, dispatch.value(), keep_alive_sender);
+            .deposit_value(source_balance, source, dispatch.value(), false);
 
         // Deposit gas
         self.bank
-            .deposit_gas(source_balance, source, gas_limit, keep_alive_sender);
+            .deposit_gas(source_balance, source, gas_limit, false);
     }
 
     #[track_caller]
@@ -726,6 +718,16 @@ impl ExtManager {
             .entry(*id)
             .or_insert((TestActor::User, Balance::default()));
         balance.increase(value);
+    }
+
+    pub(crate) fn transfer(
+        &mut self,
+        from: &ProgramId,
+        to: &ProgramId,
+        value: Value,
+        keep_alive: bool,
+    ) {
+        Balance::transfer(&mut self.actors, *from, *to, value, keep_alive);
     }
 
     pub(crate) fn balance_of(&self, id: &ProgramId) -> Value {
@@ -1185,16 +1187,21 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
+        let is_program = self.is_program(&dispatch.destination());
 
-        if dispatch.value() != 0 {
-            let mut actors = self.actors.borrow_mut();
-            let (_, balance) = actors.get_mut(&source).expect("Can't fail");
+        let mut deposit_value = |actors: &mut Actors| {
+            if dispatch.value() != 0 {
+                let mut actors = actors.borrow_mut();
+                let (_, balance) = actors.get_mut(&source).expect("Can't fail");
 
-            self.bank
-                .deposit_value(balance, source, dispatch.value(), false);
-        }
+                self.bank
+                    .deposit_value(balance, source, dispatch.value(), false);
+            }
+        };
 
-        if self.is_program(&dispatch.destination()) {
+        if is_program {
+            deposit_value(&mut self.actors);
+
             match (dispatch.gas_limit(), reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
@@ -1217,6 +1224,8 @@ impl JournalHandler for ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
+            deposit_value(&mut self.actors);
+
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
 

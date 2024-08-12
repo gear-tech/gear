@@ -381,6 +381,20 @@ impl System {
         self.0.borrow_mut().mint_to(&actor_id, value);
     }
 
+    /// Transfer balance from user with given `from` id to user with given `to`
+    /// id.
+    pub fn transfer(
+        &mut self,
+        from: impl Into<ProgramIdWrapper>,
+        to: impl Into<ProgramIdWrapper>,
+        value: Value,
+        keep_alive: bool,
+    ) {
+        let from = from.into().0;
+        let to = to.into().0;
+        self.0.borrow_mut().transfer(&from, &to, value, keep_alive);
+    }
+
     /// Returns balance of user with given `id`.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
