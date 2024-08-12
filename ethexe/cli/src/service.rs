@@ -552,7 +552,7 @@ mod tests {
 
         Service::new(&Config {
             node_name: "test".to_string(),
-            ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
+            ethereum_rpc: "ws://54.67.75.1:8546".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
                 .parse()

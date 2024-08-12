@@ -104,21 +104,21 @@ impl Observer {
 
                         // Create futures to load codes
                         for event in events.iter() {
-                            if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id: _, blob_tx_hash: _ }) = event {
+                            if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
                                 codes_len += 1;
 
                                 let blob_reader = self.blob_reader.clone();
 
-                                futures.push(async {
+                                let code_id = code_id.clone();
+                                let blob_tx_hash = blob_tx_hash.clone();
+
+                                futures.push(async move {
                                     let attempts = Some(3);
 
-                                    // TODO (breathx): fix me.
                                     read_code_from_tx_hash(
                                         blob_reader,
-                                        Default::default(),
-                                        Default::default(),
-                                        // code_id.clone(),
-                                        // blob_tx_hash.clone(),
+                                        code_id,
+                                        blob_tx_hash,
                                         attempts,
                                     ).await
                                 });

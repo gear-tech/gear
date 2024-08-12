@@ -326,7 +326,8 @@ impl Processor {
                             payload,
                             value,
                         } => {
-                            let kind = if state_hash.is_zero() {
+                            // TODO (breathx): replace with state_hash.is_zero();
+                            let kind = if !initial_program_states.contains_key(address) {
                                 DispatchKind::Init
                             } else {
                                 DispatchKind::Handle

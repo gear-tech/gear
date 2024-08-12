@@ -393,9 +393,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         bytes32 predBlockHash,
         bytes32 transitionsHashesHash
     ) private pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(blockHash, prevCommitmentHash, predBlockHash, transitionsHashesHash)
-        );
+        return keccak256(abi.encodePacked(blockHash, prevCommitmentHash, predBlockHash, transitionsHashesHash));
     }
 
     function _stateTransitionHash(
