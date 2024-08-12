@@ -193,7 +193,7 @@ impl<T: AuxiliaryDoubleStorageWrap> DoubleMapStorage for T {
         f: F,
     ) -> R {
         T::with_storage_mut(|map| {
-            let inner_map = map.inner.entry(key1).or_insert_with(BTreeMap::new);
+            let inner_map = map.inner.entry(key1).or_default();
             match inner_map.entry(key2) {
                 Entry::Occupied(mut occupied) => {
                     let mut value = Some(occupied.get().clone());
