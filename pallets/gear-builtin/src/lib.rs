@@ -253,11 +253,9 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             unreachable!("{err_msg}")
         }
         if dispatch.context().is_some() {
-            let err_msg =
-                "BuiltinRegistry::run: Builtin actors can't have context from earlier executions";
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
+            unreachable!(
+                "BuiltinRegistry::run: Builtin actors can't have context from earlier executions"
+            );
         }
 
         // Creating a gas counter to track gas usage (because core processor needs it).
@@ -292,12 +290,10 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 let mut message_context =
                     MessageContext::new(dispatch, actor_id, Default::default()).unwrap_or_else(
                         || {
-                            let err_msg =
+                            unreachable!(
                                 "BuiltinRegistry::run: Builtin actor can't have context stored,
-                                 so must be always possible to create a new message context";
-
-                            log::error!("{err_msg}");
-                            unreachable!("{err_msg}")
+                                 so must be always possible to create a new message context"
+                            );
                         },
                     );
                 let packet = ReplyPacket::new(response_payload, 0);
@@ -314,10 +310,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     dispatch_result.generated_dispatches = generated_dispatches;
                     dispatch_result.reply_sent = true;
                 } else {
-                    let err_msg = "BuiltinRegistry::run: Failed to send reply from builtin actor";
-
-                    log::error!("{err_msg}");
-                    unreachable!("{err_msg}")
+                    unreachable!("BuiltinRegistry::run: Failed to send reply from builtin actor");
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
