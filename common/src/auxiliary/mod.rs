@@ -23,6 +23,10 @@
 pub mod gas_provider;
 pub mod mailbox;
 
+use crate::storage::{
+    CountedByKey, DoubleMapStorage, GetFirstPos, GetSecondPos, IterableByKeyMap, IteratorWrap,
+    KeyIterableByKeyMap,
+};
 use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter};
 
 /// Double key `BTreeMap`.
@@ -134,5 +138,120 @@ impl<K1, K2, V> DoubleBTreeMap<K1, K2, V> {
 impl<K1, K2, V> Default for DoubleBTreeMap<K1, K2, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// An auxiliary storage wrapper type.
+///
+/// Implements DoubleMapStorage and traits like [`IterableByKeyMap`] for such type automatically.
+pub trait AuxiliaryStorageWrap {
+    type Key1: Ord + Clone;
+    type Key2: Ord + Clone;
+    type Value: Clone;
+    fn with_storage<F, R>(f: F) -> R
+    where
+        F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R;
+
+    fn with_storage_mut<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R;
+}
+
+impl<T: AuxiliaryStorageWrap> DoubleMapStorage for T {
+    type Key1 = T::Key1;
+    type Key2 = T::Key2;
+    type Value = T::Value;
+
+    fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {
+        T::with_storage(|map| map.get(key1, key2).cloned())
+    }
+
+    fn insert(key1: Self::Key1, key2: Self::Key2, value: Self::Value) {
+        T::with_storage_mut(|map| map.insert(key1, key2, value));
+    }
+
+    fn clear() {
+        T::with_storage_mut(|map| map.clear());
+    }
+
+    fn clear_prefix(first_key: Self::Key1) {
+        T::with_storage_mut(|map| {
+            let keys = map.iter_key(&first_key).map(|(k, _)| k.clone());
+            for key in keys {
+                map.remove(first_key.clone(), key);
+            }
+        });
+    }
+
+    fn contains_keys(key1: &Self::Key1, key2: &Self::Key2) -> bool {
+        T::with_storage_mut(|map| map.contains_keys(key1, key2))
+    }
+
+    fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(
+        _key1: Self::Key1,
+        _key2: Self::Key2,
+        _f: F,
+    ) -> R {
+        unimplemented!()
+    }
+
+    fn mutate_exists<R, F: FnOnce(&mut Self::Value) -> R>(
+        _key1: Self::Key1,
+        _key2: Self::Key2,
+        _f: F,
+    ) -> Option<R> {
+        unimplemented!()
+    }
+
+    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(_f: F) {
+        unimplemented!()
+    }
+
+    fn remove(key1: Self::Key1, key2: Self::Key2) {
+        Self::take(key1, key2);
+    }
+
+    fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value> {
+        T::with_storage_mut(|map| map.remove(key1, key2))
+    }
+}
+
+impl<T: AuxiliaryStorageWrap> IterableByKeyMap<T::Value> for T {
+    type Key = T::Key1;
+
+    type DrainIter = IteratorWrap<IntoIter<T::Key2, T::Value>, T::Value, GetSecondPos>;
+
+    type Iter = IteratorWrap<IntoIter<T::Key2, T::Value>, T::Value, GetSecondPos>;
+
+    fn drain_key(key: Self::Key) -> Self::DrainIter {
+        T::with_storage_mut(|map| map.drain_key(&key)).into()
+    }
+
+    fn iter_key(key: Self::Key) -> Self::Iter {
+        T::with_storage(|map| map.iter_key(&key)).into()
+    }
+}
+
+impl<T: AuxiliaryStorageWrap> KeyIterableByKeyMap for T {
+    type Key1 = T::Key1;
+    type Key2 = T::Key2;
+    type DrainIter = IteratorWrap<IntoIter<T::Key2, T::Value>, T::Key2, GetFirstPos>;
+    type Iter = IteratorWrap<IntoIter<T::Key2, T::Value>, T::Key2, GetFirstPos>;
+
+    fn drain_prefix_keys(key: Self::Key1) -> Self::DrainIter {
+        T::with_storage_mut(|map| map.drain_key(&key).into())
+    }
+
+    fn iter_prefix_keys(key: Self::Key1) -> Self::Iter {
+        T::with_storage(|map| map.iter_key(&key)).into()
+    }
+}
+
+impl<T: AuxiliaryStorageWrap> CountedByKey for T {
+    type Key = T::Key1;
+    type Length = usize;
+
+    fn len(key: &Self::Key) -> Self::Length {
+        T::with_storage(|map| map.count_key(key))
     }
 }
