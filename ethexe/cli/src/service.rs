@@ -28,7 +28,7 @@ use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Dat
 use ethexe_network::GossipsubMessage;
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
-use ethexe_sequencer::AggregatedCommitments;
+use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{AsDigest, Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};

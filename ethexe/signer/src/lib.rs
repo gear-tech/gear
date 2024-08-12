@@ -162,6 +162,13 @@ impl Signer {
         Ok(Self { key_store })
     }
 
+    pub fn tmp() -> Self {
+        let temp_dir = tempfile::tempdir().expect("Cannot create temp dir for keys");
+        Self {
+            key_store: temp_dir.into_path(),
+        }
+    }
+
     pub fn raw_sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<RawSignature> {
         let private_key = self.get_private_key(public_key)?;
 

@@ -5130,7 +5130,6 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
- "tempfile",
  "tokio",
 ]
 
@@ -5147,6 +5146,7 @@ dependencies = [
  "parity-scale-codec",
  "secp256k1 0.29.0",
  "sha3",
+ "tempfile",
 ]
 
 [[package]]
@@ -5177,7 +5177,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "static_init",
- "tempfile",
 ]
 
 [[package]]

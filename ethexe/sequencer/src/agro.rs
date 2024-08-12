@@ -21,41 +21,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Result;
-use ethexe_signer::{Address, AsDigest, Digest, PrivateKey, PublicKey, Signature, Signer};
+use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
-
-pub trait CommitmentsDigestSigner {
-    fn sign_commitments_digest(
-        &self,
-        commitments_digest: Digest,
-        pub_key: PublicKey,
-        router_address: Address,
-    ) -> Result<Signature>;
-}
-
-impl CommitmentsDigestSigner for Signer {
-    fn sign_commitments_digest(
-        &self,
-        commitments_digest: Digest,
-        pub_key: PublicKey,
-        router_address: Address,
-    ) -> Result<Signature> {
-        let digest = to_router_digest(commitments_digest, router_address);
-        self.sign_digest(pub_key, digest)
-    }
-}
-
-impl CommitmentsDigestSigner for PrivateKey {
-    fn sign_commitments_digest(
-        &self,
-        commitments_digest: Digest,
-        _pub_key: PublicKey,
-        router_address: Address,
-    ) -> Result<Signature> {
-        let digest = to_router_digest(commitments_digest, router_address);
-        Signature::create_for_digest(*self, digest)
-    }
-}
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedCommitments<D: AsDigest> {
@@ -66,12 +33,12 @@ pub struct AggregatedCommitments<D: AsDigest> {
 impl<T: AsDigest> AggregatedCommitments<T> {
     pub fn aggregate_commitments(
         commitments: Vec<T>,
-        signer: &impl CommitmentsDigestSigner,
+        signer: &Signer,
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
         let signature =
-            signer.sign_commitments_digest(commitments.as_digest(), pub_key, router_address)?;
+            sign_commitments_digest(commitments.as_digest(), signer, pub_key, router_address)?;
 
         Ok(AggregatedCommitments {
             commitments,
@@ -96,7 +63,7 @@ impl<T: AsDigest> AggregatedCommitments<T> {
     }
 }
 
-pub struct MultisignedCommitmentDigests {
+pub(crate) struct MultisignedCommitmentDigests {
     digest: Digest,
     digests: Vec<Digest>,
     signatures: BTreeMap<Address, Signature>,
@@ -140,7 +107,7 @@ impl MultisignedCommitmentDigests {
     }
 }
 
-pub struct MultisignedCommitments<C: AsDigest> {
+pub(crate) struct MultisignedCommitments<C: AsDigest> {
     commitments: Vec<C>,
     signatures: BTreeMap<Address, Signature>,
 }
@@ -176,6 +143,16 @@ impl<C: AsDigest> MultisignedCommitments<C> {
     pub fn into_parts(self) -> (Vec<C>, BTreeMap<Address, Signature>) {
         (self.commitments, self.signatures)
     }
+}
+
+pub fn sign_commitments_digest(
+    commitments_digest: Digest,
+    signer: &Signer,
+    pub_key: PublicKey,
+    router_address: Address,
+) -> Result<Signature> {
+    let digest = to_router_digest(commitments_digest, router_address);
+    signer.sign_digest(pub_key, digest)
 }
 
 fn recover_from_commitments_digest(
@@ -215,8 +192,7 @@ mod tests {
 
     #[test]
     fn test_sign_digest() {
-        let key_store = tempfile::tempdir().unwrap();
-        let signer = Signer::new(key_store.path().to_path_buf()).unwrap();
+        let signer = Signer::tmp();
 
         let private_key = PrivateKey::from_str(
             "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
@@ -227,20 +203,19 @@ mod tests {
         let router_address = Address([0x01; 20]);
         let commitments = vec![MyComm([1, 2]), MyComm([3, 4])];
 
-        let digest = commitments.as_digest();
-        let signature = signer
-            .sign_commitments_digest(digest, pub_key, router_address)
-            .unwrap();
+        let commitments_digest = commitments.as_digest();
+        let signature =
+            sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
         let recovered =
-            recover_from_commitments_digest(digest, &signature, router_address).unwrap();
+            recover_from_commitments_digest(commitments_digest, &signature, router_address)
+                .unwrap();
 
         assert_eq!(recovered, pub_key.to_address());
     }
 
     #[test]
     fn test_aggregated_commitments() {
-        let key_store = tempfile::tempdir().unwrap();
-        let signer = Signer::new(key_store.path().to_path_buf()).unwrap();
+        let signer = Signer::tmp();
 
         let private_key = PrivateKey::from_str(
             "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",

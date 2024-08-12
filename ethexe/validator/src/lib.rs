@@ -23,7 +23,7 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     BlockCommitment, CodeCommitment,
 };
-use ethexe_sequencer::{AggregatedCommitments, CommitmentsDigestSigner};
+use ethexe_sequencer::agro::{self, AggregatedCommitments};
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -109,8 +109,12 @@ impl Validator {
         }
 
         let commitments_digest = commitment_digests.as_digest();
-        self.signer
-            .sign_commitments_digest(commitments_digest, self.pub_key, self.router_address)
+        agro::sign_commitments_digest(
+            commitments_digest,
+            &self.signer,
+            self.pub_key,
+            self.router_address,
+        )
     }
 
     pub fn validate_block_commitments(
@@ -125,8 +129,12 @@ impl Validator {
         }
 
         let commitments_digest = commitment_digests.as_digest();
-        self.signer
-            .sign_commitments_digest(commitments_digest, self.pub_key, self.router_address)
+        agro::sign_commitments_digest(
+            commitments_digest,
+            &self.signer,
+            self.pub_key,
+            self.router_address,
+        )
     }
 
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {

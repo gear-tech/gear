@@ -18,11 +18,9 @@
 
 //! Sequencer for ethexe.
 
-mod agro;
+pub mod agro;
 
-pub use agro::{AggregatedCommitments, CommitmentsDigestSigner};
-
-use agro::{MultisignedCommitmentDigests, MultisignedCommitments};
+use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
 use anyhow::{anyhow, Result};
 use ethexe_common::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
@@ -423,13 +421,15 @@ mod tests {
 
     #[test]
     fn test_receive_signature() {
+        let signer = Signer::tmp();
+
         let router_address = Address([1; 20]);
 
         let validators_private_keys = [PrivateKey([1; 32]), PrivateKey([2; 32])];
         let validators: HashSet<_> = validators_private_keys
             .iter()
             .cloned()
-            .map(|key| PublicKey::from(key).to_address())
+            .map(|key| signer.add_key(key).unwrap().to_address())
             .collect();
 
         let validator1_private_key = validators_private_keys[0];
@@ -438,14 +438,13 @@ mod tests {
 
         let commitments = [TestComm([0, 1]), TestComm([2, 3])];
         let commitments_digest = commitments.as_digest();
-        let aggregated = AggregatedCommitments::aggregate_commitments(
-            commitments.to_vec(),
-            &validator1_private_key,
+        let signature = agro::sign_commitments_digest(
+            commitments_digest,
+            &signer,
             validator1_pub_key,
             router_address,
         )
         .unwrap();
-        let signature = aggregated.signature;
 
         Sequencer::receive_signature(
             commitments_digest,
@@ -496,14 +495,13 @@ mod tests {
         let validator2_pub_key = PublicKey::from(validator2_private_key);
         let validator2 = validator2_pub_key.to_address();
 
-        let aggregated = AggregatedCommitments::aggregate_commitments(
-            commitments.to_vec(),
-            &validator2_private_key,
+        let signature = agro::sign_commitments_digest(
+            commitments_digest,
+            &signer,
             validator2_pub_key,
             router_address,
         )
         .unwrap();
-        let signature = aggregated.signature;
 
         Sequencer::receive_signature(
             commitments_digest,
@@ -521,13 +519,15 @@ mod tests {
 
     #[test]
     fn test_receive_commitments() {
+        let signer = Signer::tmp();
+
         let router_address = Address([1; 20]);
 
         let validators_private_keys = [PrivateKey([1; 32]), PrivateKey([2; 32])];
         let validators: HashSet<_> = validators_private_keys
             .iter()
             .cloned()
-            .map(|key| PublicKey::from(key).to_address())
+            .map(|key| signer.add_key(key).unwrap().to_address())
             .collect();
 
         let validator1_private_key = validators_private_keys[0];
@@ -537,7 +537,7 @@ mod tests {
         let commitments = [TestComm([0, 1]), TestComm([2, 3])];
         let aggregated = AggregatedCommitments::aggregate_commitments(
             commitments.to_vec(),
-            &validator1_private_key,
+            &signer,
             validator1_pub_key,
             router_address,
         )
@@ -547,10 +547,11 @@ mod tests {
         let mut commitments_storage = CommitmentsMap::new();
 
         let private_key = PrivateKey([3; 32]);
+        let pub_key = signer.add_key(private_key).unwrap();
         let incorrect_aggregated = AggregatedCommitments::aggregate_commitments(
             commitments.to_vec(),
-            &private_key,
-            private_key.into(),
+            &signer,
+            pub_key,
             router_address,
         )
         .unwrap();
@@ -592,7 +593,7 @@ mod tests {
 
         let aggregated = AggregatedCommitments::aggregate_commitments(
             commitments.to_vec(),
-            &validator2_private_key,
+            &signer,
             validator2_pub_key,
             router_address,
         )
@@ -718,6 +719,8 @@ mod tests {
 
     #[test]
     fn test_process_multisigned_candidate() {
+        let signer = Signer::tmp();
+
         // Test candidate is None
         assert!(Sequencer::process_multisigned_candidate::<TestComm>(
             &mut None,
@@ -737,7 +740,7 @@ mod tests {
 
         let mut commitments_map = CommitmentsMap::new();
         let validators_private_keys = [PrivateKey([1; 32]), PrivateKey([2; 32])];
-        let validators_pub_keys = validators_private_keys.map(PublicKey::from);
+        let validators_pub_keys = validators_private_keys.map(|key| signer.add_key(key).unwrap());
         let origins: BTreeSet<_> = validators_pub_keys
             .map(|k| k.to_address())
             .into_iter()
@@ -758,22 +761,23 @@ mod tests {
 
         let mut candidate = candidate.expect("Must be set");
         let router_address = Address([1; 20]);
-        validators_private_keys
-            .iter()
-            .zip(validators_pub_keys.iter())
-            .for_each(|(private_key, pub_key)| {
-                let commitments_digest = commitments.to_vec().as_digest();
-                candidate
-                    .append_signature_with_check(
+        validators_pub_keys.iter().for_each(|pub_key| {
+            let commitments_digest = commitments.to_vec().as_digest();
+            candidate
+                .append_signature_with_check(
+                    commitments_digest,
+                    agro::sign_commitments_digest(
                         commitments_digest,
-                        private_key
-                            .sign_commitments_digest(commitments_digest, *pub_key, router_address)
-                            .unwrap(),
+                        &signer,
+                        *pub_key,
                         router_address,
-                        |_| Ok(()),
                     )
-                    .unwrap();
-            });
+                    .unwrap(),
+                    router_address,
+                    |_| Ok(()),
+                )
+                .unwrap();
+        });
 
         let mut candidate = Some(candidate);
         assert!(
