@@ -18,13 +18,13 @@
 
 //! Manifest utils for crates-io-manager
 
-use crate::{handler, version};
+use crate::{handler, version, CARGO_REGISTRY_NAME};
 use anyhow::{anyhow, Result};
 use cargo_metadata::Package;
 use std::{
     fs,
     ops::{Deref, DerefMut},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 use toml_edit::{DocumentMut, Item};
 
@@ -36,16 +36,14 @@ pub struct Workspace(Manifest);
 impl Workspace {
     /// Get the workspace manifest with version overridden.
     pub fn lookup(version: Option<String>) -> Result<Self> {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(2)
-            .map(|workspace_dir| workspace_dir.join("Cargo.toml"))
-            .ok_or_else(|| anyhow::anyhow!("Could not find workspace manifest"))?
-            .canonicalize()?;
+        let path = Self::resolve_path("Cargo.toml")?;
+        let original_manifest: DocumentMut = fs::read_to_string(&path)?.parse()?;
+        let mutable_manifest = original_manifest.clone();
 
         let mut workspace: Self = Manifest {
             name: WORKSPACE_NAME.to_string(),
-            manifest: fs::read_to_string(&path)?.parse()?,
+            original_manifest,
+            mutable_manifest,
             path,
         }
         .into();
@@ -60,25 +58,37 @@ impl Workspace {
                 workspace.version()? + "-" + &version::hash()?
             };
 
-            workspace.manifest["workspace"]["package"]["version"] = toml_edit::value(version);
+            workspace.mutable_manifest["workspace"]["package"]["version"] =
+                toml_edit::value(version);
         }
 
-        workspace.manifest["workspace"]["dependencies"]["gstd"]["features"] = Item::None;
+        workspace.mutable_manifest["workspace"]["dependencies"]["gstd"]["features"] = Item::None;
 
         Ok(workspace)
     }
 
-    /// complete the versions of the specified crates
-    pub fn complete(&mut self, mut index: Vec<&str>) -> Result<()> {
+    /// Resolve path to file in workspace.
+    pub fn resolve_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .map(|workspace_dir| workspace_dir.join(path.as_ref()))
+            .ok_or_else(|| anyhow!("Could not find workspace manifest"))?
+            .canonicalize()?;
+        Ok(path)
+    }
+
+    /// Complete the versions of the specified crates.
+    pub fn complete(&mut self, mut index: Vec<&str>, simulate: bool) -> Result<()> {
         handler::patch_alias(&mut index);
 
-        let version = self.0.manifest["workspace"]["package"]["version"]
+        let version = self.0.mutable_manifest["workspace"]["package"]["version"]
             .clone()
             .as_str()
             .ok_or_else(|| anyhow!("Could not find version in workspace manifest"))?
             .to_string();
 
-        let Some(deps) = self.manifest["workspace"]["dependencies"].as_table_mut() else {
+        let Some(deps) = self.mutable_manifest["workspace"]["dependencies"].as_table_mut() else {
             return Err(anyhow!(
                 "Failed to parse dependencies from workspace {}",
                 self.path.display()
@@ -92,6 +102,10 @@ impl Workspace {
             }
 
             dep["version"] = toml_edit::value(version.clone());
+
+            if simulate {
+                dep["registry"] = toml_edit::value(CARGO_REGISTRY_NAME);
+            }
         }
 
         self.rename()?;
@@ -100,7 +114,7 @@ impl Workspace {
 
     /// Get version from the current manifest.
     pub fn version(&self) -> Result<String> {
-        Ok(self.manifest["workspace"]["package"]["version"]
+        Ok(self.mutable_manifest["workspace"]["package"]["version"]
             .as_str()
             .ok_or_else(|| {
                 anyhow!(
@@ -113,7 +127,8 @@ impl Workspace {
 
     /// Rename worskapce manifest.
     fn rename(&mut self) -> Result<()> {
-        let Some(deps) = self.manifest["workspace"]["dependencies"].as_table_like_mut() else {
+        let Some(deps) = self.mutable_manifest["workspace"]["dependencies"].as_table_like_mut()
+        else {
             return Ok(());
         };
 
@@ -151,11 +166,14 @@ impl DerefMut for Workspace {
 }
 
 /// Cargo manifest with path
+#[derive(Debug, Clone)]
 pub struct Manifest {
     /// Crate name
     pub name: String,
+    /// Original cargo manifest
+    pub original_manifest: DocumentMut,
     /// Cargo manifest
-    pub manifest: DocumentMut,
+    pub mutable_manifest: DocumentMut,
     /// Path of the manifest
     pub path: PathBuf,
 }
@@ -164,26 +182,29 @@ impl Manifest {
     /// Complete the manifest of the specified crate from
     /// the workspace manifest
     pub fn new(pkg: &Package) -> Result<Self> {
+        let original_manifest: DocumentMut = fs::read_to_string(&pkg.manifest_path)?.parse()?;
+        let mut mutable_manifest = original_manifest.clone();
+
         // Complete documentation as from <https://docs.rs>
-        let mut manifest: DocumentMut = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let name = pkg.name.clone();
-        manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
+        mutable_manifest["package"]["documentation"] =
+            toml_edit::value(format!("https://docs.rs/{name}"));
 
         Ok(Self {
             name,
-            manifest,
+            original_manifest,
+            mutable_manifest,
             path: pkg.manifest_path.clone().into(),
         })
     }
 
-    /// Write manifest to disk.
-    pub fn write(&self) -> Result<()> {
-        fs::write(&self.path, self.manifest.to_string()).map_err(Into::into)
+    /// Restore manifest
+    pub fn restore(&self) -> Result<()> {
+        fs::write(&self.path, self.original_manifest.to_string()).map_err(Into::into)
     }
-}
 
-impl From<Workspace> for Manifest {
-    fn from(workspace: Workspace) -> Self {
-        workspace.0
+    /// Patch manifest
+    pub fn patch(&self) -> Result<()> {
+        fs::write(&self.path, self.mutable_manifest.to_string()).map_err(Into::into)
     }
 }

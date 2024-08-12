@@ -21,6 +21,7 @@
 use anyhow::Result;
 use clap::Parser;
 use crates_io::Publisher;
+use std::path::PathBuf;
 
 /// The command to run.
 #[derive(Clone, Debug, Parser)]
@@ -34,6 +35,12 @@ enum Command {
         /// The version to publish.
         #[clap(long, short)]
         version: Option<String>,
+        /// Simulates publishing of packages.
+        #[clap(long, short)]
+        simulate: bool,
+        /// Path to registry for simulation.
+        #[arg(short, long)]
+        registry_path: Option<PathBuf>,
     },
 }
 
@@ -47,15 +54,30 @@ pub struct Opt {
     command: Command,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let Opt { command } = Opt::parse();
 
-    let publisher = Publisher::new()?;
     match command {
-        Command::Check => publisher.build(false, None)?.check(),
-        Command::Publish { version } => publisher.build(true, version)?.publish(),
+        Command::Check => {
+            let publisher = Publisher::new()?.build(false, None)?;
+            let result = publisher.check();
+            publisher.restore()?;
+            result
+        }
+        Command::Publish {
+            version,
+            simulate,
+            registry_path,
+        } => {
+            let publisher =
+                Publisher::with_simulation(simulate, registry_path)?.build(true, version)?;
+            let result = publisher.publish();
+            publisher.restore()?;
+            result
+        }
         Command::Build => {
-            publisher.build(false, None)?;
+            Publisher::new()?.build(false, None)?;
             Ok(())
         }
     }

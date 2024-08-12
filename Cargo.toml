@@ -498,6 +498,7 @@ demo-wat = { path = "examples/wat" }
 # TODO: remove these dependencies (from this file?) or add more docs.
 
 cfg-if = "1.0.0"                                             # gear-lazy-pages
+cargo-http-registry = "0.1.5"                                # crates-io
 errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 indexmap = "2.2.6"                                           # utils/weight-diff
@@ -579,3 +580,6 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-c
 
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
+
+# TODO: remove after release
+cargo-http-registry = { git = "https://github.com/d-e-s-o/cargo-http-registry.git" }
