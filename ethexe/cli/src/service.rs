@@ -29,7 +29,7 @@ use ethexe_network::GossipsubMessage;
 use ethexe_observer::{BlockData, CodeLoadedData};
 use ethexe_processor::LocalOutcome;
 use ethexe_sequencer::AggregatedCommitments;
-use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{AsDigest, Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
@@ -56,7 +56,6 @@ pub struct Service {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum NetworkMessage {
     PublishCommitments {
-        origin: Address,
         codes: Option<AggregatedCommitments<CodeCommitment>>,
         blocks: Option<AggregatedCommitments<BlockCommitment>>,
     },
@@ -65,7 +64,6 @@ pub enum NetworkMessage {
         blocks: Vec<BlockCommitmentValidationRequest>,
     },
     ApproveCommitments {
-        origin: Address,
         codes: Option<(Digest, Signature)>,
         blocks: Option<(Digest, Signature)>,
     },
@@ -561,13 +559,10 @@ impl Service {
             return Ok(());
         }
 
-        let origin = validator.address();
-
         if let Some(network_sender) = maybe_network_sender {
             log::debug!("Publishing commitments to network...");
             network_sender.publish_message(
                 NetworkMessage::PublishCommitments {
-                    origin,
                     codes: aggregated_codes.clone(),
                     blocks: aggregated_blocks.clone(),
                 }
@@ -581,14 +576,14 @@ impl Service {
                     "Received ({}) signed code commitments from local validator...",
                     aggregated.len()
                 );
-                sequencer.receive_code_commitments(origin, aggregated)?;
+                sequencer.receive_code_commitments(aggregated)?;
             }
             if let Some(aggregated) = aggregated_blocks {
                 log::debug!(
                     "Received ({}) signed block commitments from local validator...",
                     aggregated.len()
                 );
-                sequencer.receive_block_commitments(origin, aggregated)?;
+                sequencer.receive_block_commitments(aggregated)?;
             }
         }
 
@@ -638,18 +633,16 @@ impl Service {
                 block_requests.len()
             );
 
-            let origin = validator.address();
-
             if code_requests.is_empty().not() {
                 let digest = code_requests.as_digest();
                 let signature = validator.validate_code_commitments(db, code_requests)?;
-                sequencer.receive_codes_signature(origin, digest, signature)?;
+                sequencer.receive_codes_signature(digest, signature)?;
             }
 
             if block_requests.is_empty().not() {
                 let digest = block_requests.as_digest();
                 let signature = validator.validate_block_commitments(db, block_requests)?;
-                sequencer.receive_blocks_signature(origin, digest, signature)?;
+                sequencer.receive_blocks_signature(digest, signature)?;
             }
         }
 
@@ -675,19 +668,15 @@ impl Service {
     ) -> Result<()> {
         let message = NetworkMessage::decode(&mut message.data.as_slice())?;
         match message {
-            NetworkMessage::PublishCommitments {
-                origin,
-                codes,
-                blocks,
-            } => {
+            NetworkMessage::PublishCommitments { codes, blocks } => {
                 let Some(sequencer) = maybe_sequencer else {
                     return Ok(());
                 };
                 if let Some(aggregated) = codes {
-                    sequencer.receive_code_commitments(origin, aggregated)?;
+                    sequencer.receive_code_commitments(aggregated)?;
                 }
                 if let Some(aggregated) = blocks {
-                    sequencer.receive_block_commitments(origin, aggregated)?;
+                    sequencer.receive_block_commitments(aggregated)?;
                 }
                 Ok(())
             }
@@ -719,30 +708,22 @@ impl Service {
                     })
                     .transpose()?;
 
-                let message = NetworkMessage::ApproveCommitments {
-                    origin: validator.address(),
-                    codes,
-                    blocks,
-                };
+                let message = NetworkMessage::ApproveCommitments { codes, blocks };
                 network_sender.publish_message(message.encode());
 
                 Ok(())
             }
-            NetworkMessage::ApproveCommitments {
-                origin,
-                codes,
-                blocks,
-            } => {
+            NetworkMessage::ApproveCommitments { codes, blocks } => {
                 let Some(sequencer) = maybe_sequencer else {
                     return Ok(());
                 };
 
                 if let Some((digest, signature)) = codes {
-                    sequencer.receive_codes_signature(origin, digest, signature)?;
+                    sequencer.receive_codes_signature(digest, signature)?;
                 }
 
                 if let Some((digest, signature)) = blocks {
-                    sequencer.receive_blocks_signature(origin, digest, signature)?;
+                    sequencer.receive_blocks_signature(digest, signature)?;
                 }
 
                 Ok(())

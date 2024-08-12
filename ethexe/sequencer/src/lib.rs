@@ -21,8 +21,8 @@
 mod agro;
 
 pub use agro::{AggregatedCommitments, CommitmentsDigestSigner};
-use agro::{MultisignedCommitmentDigests, MultisignedCommitments};
 
+use agro::{MultisignedCommitmentDigests, MultisignedCommitments};
 use anyhow::{anyhow, Result};
 use ethexe_common::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
@@ -187,11 +187,9 @@ impl Sequencer {
 
     pub fn receive_code_commitments(
         &mut self,
-        origin: Address,
         aggregated: AggregatedCommitments<CodeCommitment>,
     ) -> Result<()> {
         Self::receive_commitments(
-            origin,
             aggregated,
             &self.validators,
             self.ethereum.router().address(),
@@ -201,11 +199,9 @@ impl Sequencer {
 
     pub fn receive_block_commitments(
         &mut self,
-        origin: Address,
         aggregated: AggregatedCommitments<BlockCommitment>,
     ) -> Result<()> {
         Self::receive_commitments(
-            origin,
             aggregated,
             &self.validators,
             self.ethereum.router().address(),
@@ -213,14 +209,8 @@ impl Sequencer {
         )
     }
 
-    pub fn receive_codes_signature(
-        &mut self,
-        origin: Address,
-        digest: Digest,
-        signature: Signature,
-    ) -> Result<()> {
+    pub fn receive_codes_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
         Self::receive_signature(
-            origin,
             digest,
             signature,
             &self.validators,
@@ -229,14 +219,8 @@ impl Sequencer {
         )
     }
 
-    pub fn receive_blocks_signature(
-        &mut self,
-        origin: Address,
-        digest: Digest,
-        signature: Signature,
-    ) -> Result<()> {
+    pub fn receive_blocks_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
         Self::receive_signature(
-            origin,
             digest,
             signature,
             &self.validators,
@@ -363,28 +347,20 @@ impl Sequencer {
     }
 
     fn receive_commitments<C: AsDigest>(
-        origin: Address,
         aggregated: AggregatedCommitments<C>,
         validators: &HashSet<Address>,
         router_address: Address,
         commitments_storage: &mut CommitmentsMap<C>,
     ) -> Result<()> {
+        let origin = aggregated.recover(router_address)?;
+
         if validators.contains(&origin).not() {
-            return Err(anyhow!("Unknown validator {origin}"));
+            return Err(anyhow!("Unknown validator {origin} or invalid signature"));
         }
 
-        if aggregated.recover(router_address)? != origin {
-            return Err(anyhow!("Signature verification failed for {origin}"));
-        }
-
-        let mut processed = HashSet::new();
         for commitment in aggregated.commitments {
-            let digest = commitment.as_digest();
-            if !processed.insert(digest) {
-                continue;
-            }
             commitments_storage
-                .entry(digest)
+                .entry(commitment.as_digest())
                 .or_insert_with(|| CommitmentAndOrigins {
                     commitment,
                     origins: Default::default(),
@@ -397,7 +373,6 @@ impl Sequencer {
     }
 
     fn receive_signature(
-        origin: Address,
         commitments_digest: Digest,
         signature: Signature,
         validators: &HashSet<Address>,
@@ -408,11 +383,17 @@ impl Sequencer {
             return Err(anyhow!("No candidate found"));
         };
 
-        if !validators.contains(&origin) {
-            return Err(anyhow!("Unknown validator {origin}"));
-        }
-
-        candidate.append_signature_with_check(commitments_digest, signature, origin, router_address)
+        candidate.append_signature_with_check(
+            commitments_digest,
+            signature,
+            router_address,
+            |origin| {
+                validators
+                    .contains(&origin)
+                    .then_some(())
+                    .ok_or_else(|| anyhow!("Unknown validator {origin} or invalid signature"))
+            },
+        )
     }
 
     fn update_status<F>(&mut self, update_fn: F)
@@ -428,6 +409,7 @@ impl Sequencer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::Ok;
     use ethexe_signer::PrivateKey;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -466,7 +448,6 @@ mod tests {
         let signature = aggregated.signature;
 
         Sequencer::receive_signature(
-            validator1,
             commitments_digest,
             signature,
             &validators,
@@ -481,7 +462,6 @@ mod tests {
         let mut candidate = MultisignedCommitmentDigests::new(digests);
 
         Sequencer::receive_signature(
-            validator1,
             Digest::from([1; 32]),
             signature,
             &validators,
@@ -491,17 +471,6 @@ mod tests {
         .expect_err("Incorrect digest has been provided");
 
         Sequencer::receive_signature(
-            Address([3; 20]),
-            commitments_digest,
-            signature,
-            &validators,
-            router_address,
-            Some(&mut candidate),
-        )
-        .expect_err("Unknown validator has been provided");
-
-        Sequencer::receive_signature(
-            validator1,
             commitments_digest,
             Signature::create_for_digest(validator1_private_key, Digest::from([1; 32])).unwrap(),
             &validators,
@@ -511,7 +480,6 @@ mod tests {
         .expect_err("Signature verification must fail");
 
         Sequencer::receive_signature(
-            validator1,
             commitments_digest,
             signature,
             &validators,
@@ -538,7 +506,6 @@ mod tests {
         let signature = aggregated.signature;
 
         Sequencer::receive_signature(
-            validator2,
             commitments_digest,
             signature,
             &validators,
@@ -579,15 +546,6 @@ mod tests {
         let mut expected_commitments_storage = CommitmentsMap::new();
         let mut commitments_storage = CommitmentsMap::new();
 
-        Sequencer::receive_commitments(
-            Address([3; 20]),
-            aggregated.clone(),
-            &validators,
-            router_address,
-            &mut commitments_storage,
-        )
-        .expect_err("Unknown validator has been provided");
-
         let private_key = PrivateKey([3; 32]);
         let incorrect_aggregated = AggregatedCommitments::aggregate_commitments(
             commitments.to_vec(),
@@ -597,7 +555,6 @@ mod tests {
         )
         .unwrap();
         Sequencer::receive_commitments(
-            validator1,
             incorrect_aggregated,
             &validators,
             router_address,
@@ -606,7 +563,6 @@ mod tests {
         .expect_err("Signature verification must fail");
 
         Sequencer::receive_commitments(
-            validator1,
             aggregated.clone(),
             &validators,
             router_address,
@@ -643,7 +599,6 @@ mod tests {
         .unwrap();
 
         Sequencer::receive_commitments(
-            validator2,
             aggregated,
             &validators,
             router_address,
@@ -814,8 +769,8 @@ mod tests {
                         private_key
                             .sign_commitments_digest(commitments_digest, *pub_key, router_address)
                             .unwrap(),
-                        pub_key.to_address(),
                         router_address,
+                        |_| Ok(()),
                     )
                     .unwrap();
             });

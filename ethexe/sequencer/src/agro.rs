@@ -116,16 +116,15 @@ impl MultisignedCommitmentDigests {
         &mut self,
         digest: Digest,
         signature: Signature,
-        origin: Address,
         router_address: Address,
+        check_origin: impl FnOnce(Address) -> Result<()>,
     ) -> Result<()> {
         if self.digest != digest {
             return Err(anyhow::anyhow!("Aggregated commitments digest mismatch"));
         }
 
-        if recover_from_commitments_digest(digest, &signature, router_address)? != origin {
-            return Err(anyhow::anyhow!("Invalid signature"));
-        }
+        let origin = recover_from_commitments_digest(digest, &signature, router_address)?;
+        check_origin(origin)?;
 
         self.signatures.insert(origin, signature);
 
