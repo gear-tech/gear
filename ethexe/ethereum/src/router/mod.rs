@@ -217,6 +217,15 @@ impl RouterQuery {
         )))
     }
 
+    pub async fn wrapped_vara_address(&self) -> Result<Address> {
+        self.0
+            .wrappedVara()
+            .call()
+            .await
+            .map(|res| res._0)
+            .map_err(Into::into)
+    }
+
     pub async fn last_commitment_block_hash(&self) -> Result<H256> {
         self.0
             .lastBlockCommitmentHash()

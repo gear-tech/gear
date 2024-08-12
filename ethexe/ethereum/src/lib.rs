@@ -47,13 +47,15 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;
-use router::Router;
+use router::{Router, RouterQuery};
 use std::sync::Arc;
+use wvara::WVara;
 
 mod abi;
 mod eip1167;
 pub mod mirror;
 pub mod router;
+pub mod wvara;
 
 pub(crate) type AlloyTransport = BoxTransport;
 type AlloyProvider =
@@ -70,6 +72,7 @@ pub(crate) fn decode_log<E: SolEvent>(log: Log) -> Result<E> {
 
 pub struct Ethereum {
     router_address: Address,
+    wrapped_vara_address: Address,
     provider: Arc<AlloyProvider>,
 }
 
@@ -80,9 +83,17 @@ impl Ethereum {
         signer: LocalSigner,
         sender_address: LocalAddress,
     ) -> Result<Self> {
+        let router_query = RouterQuery::new(rpc_url, router_address).await?;
+        let wrapped_vara_address = router_query.wrapped_vara_address().await?;
+
+        let router_address = Address::new(router_address.0);
+
+        let provider = create_provider(rpc_url, signer, sender_address).await?;
+
         Ok(Self {
-            router_address: Address::new(router_address.0),
-            provider: create_provider(rpc_url, signer, sender_address).await?,
+            router_address,
+            wrapped_vara_address,
+            provider,
         })
     }
 
@@ -163,6 +174,7 @@ impl Ethereum {
 
         Ok(Self {
             router_address,
+            wrapped_vara_address,
             provider,
         })
     }
@@ -177,6 +189,10 @@ impl Ethereum {
 
     pub fn mirror(&self, address: LocalAddress) -> Mirror {
         Mirror::new(address.0.into(), self.provider.clone())
+    }
+
+    pub fn wvara(&self) -> WVara {
+        WVara::new(self.wrapped_vara_address, self.provider.clone())
     }
 }
 
