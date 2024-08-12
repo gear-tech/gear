@@ -74,13 +74,11 @@ impl Balance {
                     value
                 );
             }
-        } else {
-            if self.total < value {
-                unreachable!(
-                    "Not enough balance to decrease, total: {}, value: {}",
-                    self.total, value
-                );
-            }
+        } else if self.total < value {
+            unreachable!(
+                "Not enough balance to decrease, total: {}, value: {}",
+                self.total, value
+            );
         }
 
         self.total -= value;
@@ -157,6 +155,7 @@ impl Bank {
         self.accounts.get_mut(&from).expect("must exist").gas -= gas_value;
     }
 
+    #[track_caller]
     pub fn spend_gas_to(
         &mut self,
         from: ProgramId,
@@ -167,6 +166,7 @@ impl Bank {
         self.withdraw_gas(from, to, gas, multiplier)
     }
 
+    #[track_caller]
     pub fn withdraw_gas(
         &mut self,
         from: ProgramId,
@@ -180,6 +180,7 @@ impl Bank {
         to.increase(value);
     }
 
+    #[track_caller]
     pub fn transfer_value(&mut self, from: ProgramId, to: &mut Balance, value: Value) {
         self.accounts.get_mut(&from).expect("must exist").value -= value;
         to.increase(value);

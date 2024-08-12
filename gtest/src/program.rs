@@ -18,7 +18,7 @@
 
 use crate::{
     default_users_list,
-    manager::{ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor, Value},
+    manager::{ExtManager, GenuineProgram, Program as InnerProgram, TestActor, Value},
     system::System,
     Result, GAS_ALLOWANCE,
 };
@@ -733,9 +733,7 @@ impl<'a> Program<'a> {
 
     /// Mint balance to the account.
     pub fn mint(&mut self, value: Value) {
-        self.manager
-            .borrow_mut()
-            .mint_to(&self.id(), value, MintMode::KeepAlive)
+        self.manager.borrow_mut().mint_to(&self.id(), value)
     }
 
     /// Returns the balance of the account.

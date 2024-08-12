@@ -218,8 +218,15 @@ impl Actors {
         self.balance(program_id, true)
     }
 
-    pub fn available_balance(&self, program_id: &ProgramId) -> Value {
-        self.balance(program_id, false)
+    #[track_caller]
+    pub fn set_balance_lock(&mut self, program_id: &ProgramId, value: Value) {
+        let mut actors = self.0.borrow_mut();
+        let balance = &mut actors
+            .get_mut(program_id)
+            .expect("Can't find existing program")
+            .1;
+
+        balance.set_lock(value);
     }
 
     fn balance(&self, program_id: &ProgramId, total: bool) -> Value {
@@ -239,15 +246,6 @@ impl Actors {
     fn remove(&mut self, program_id: &ProgramId) -> Option<(TestActor, Balance)> {
         self.0.borrow_mut().remove(program_id)
     }
-}
-
-/// Simple boolean for whether an account needs to be kept in existence.
-#[derive(PartialEq)]
-pub(crate) enum MintMode {
-    /// Operation must not result in the account going out of existence.
-    KeepAlive,
-    /// Operation may result in account going out of existence.
-    AllowDeath,
 }
 
 #[derive(Debug, Default)]
@@ -588,12 +586,8 @@ impl ExtManager {
             );
 
             // Set ED lock
-            let mut actors = self.actors.borrow_mut();
-            actors
-                .get_mut(&destination)
-                .expect("Can't fail")
-                .1
-                .set_lock(EXISTENTIAL_DEPOSIT);
+            self.actors
+                .set_balance_lock(&destination, EXISTENTIAL_DEPOSIT);
         }
 
         let mut actors = self.actors.borrow_mut();
@@ -718,8 +712,8 @@ impl ExtManager {
         )
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Value, mint_mode: MintMode) {
-        if mint_mode == MintMode::KeepAlive && value < crate::EXISTENTIAL_DEPOSIT {
+    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Value) {
+        if value < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "An attempt to mint value ({}) less than existential deposit ({})",
                 value,
@@ -732,21 +726,6 @@ impl ExtManager {
             .entry(*id)
             .or_insert((TestActor::User, Balance::default()));
         balance.increase(value);
-    }
-
-    pub(crate) fn burn_from(&mut self, id: &ProgramId, value: Value) {
-        let mut actors = self.actors.borrow_mut();
-        let (_, balance) = actors.get_mut(id).expect("Can't find existing program");
-
-        if balance.total() < value {
-            panic!(
-                "Insufficient balance: user ({}) tries to burn \
-                ({}) value, while his balance ({:?})",
-                id, value, balance
-            );
-        } else {
-            balance.decrease(value, false);
-        }
     }
 
     pub(crate) fn balance_of(&self, id: &ProgramId) -> Value {
@@ -1377,22 +1356,13 @@ impl JournalHandler for ExtManager {
                         }),
                         Some(init_message_id),
                     );
+
                     // Transfer the ED from the program-creator to the new program
-                    Balance::transfer(
-                        &mut self.actors,
-                        program_id,
-                        candidate_id,
-                        crate::EXISTENTIAL_DEPOSIT,
-                        true,
-                    );
+                    self.send_value(program_id, Some(candidate_id), EXISTENTIAL_DEPOSIT);
 
                     // Set ED lock
-                    let mut actors = self.actors.borrow_mut();
-                    actors
-                        .get_mut(&candidate_id)
-                        .expect("Can't fail")
-                        .1
-                        .set_lock(EXISTENTIAL_DEPOSIT);
+                    self.actors
+                        .set_balance_lock(&candidate_id, EXISTENTIAL_DEPOSIT);
                 } else {
                     log::debug!("Program with id {candidate_id:?} already exists");
                 }
