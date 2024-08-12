@@ -95,7 +95,7 @@ impl EventListener {
     pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
         while let Some(events) = self.0.next_events().await {
             let events = events?;
-            let events_bh = events.block_hash();
+            let events_bh = events.block_hash;
 
             if let Some(res) = self.proc_events_inner(events, |e| {
                 matches!(e, Event::Gear(GearEvent::QueueNotProcessed)).then_some(events_bh)

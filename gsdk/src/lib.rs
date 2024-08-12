@@ -25,7 +25,7 @@ pub use crate::{
     config::GearConfig,
     metadata::Event,
     result::{Error, Result},
-    //    signer::PairSigner,
+    signer::PairSigner,
     subscription::{Blocks, Events},
 };
 pub use gear_core::gas::GasInfo;
@@ -53,7 +53,7 @@ pub mod events;
 pub mod metadata;
 pub mod result;
 mod rpc;
-// pub mod signer;
+pub mod signer;
 mod storage;
 pub mod subscription;
 mod utils;

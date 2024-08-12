@@ -1335,11 +1335,11 @@ impl GearApi {
             .await
     }
 
-    fn process_set_code(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<H256> {
+    fn process_set_code(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<()> {
         for event in events.iter() {
             let event = event?.as_root_event::<Event>()?;
             if let Event::System(SystemEvent::CodeUpdated) = event {
-                return Ok(events.block_hash());
+                return Ok(());
             }
         }
 
@@ -1366,7 +1366,8 @@ impl GearApi {
                 },
             )
             .await?;
-        self.process_set_code(&events)
+        self.process_set_code(&events.1)?;
+        Ok(events.0)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1399,7 +1400,8 @@ impl GearApi {
                 },
             )
             .await?;
-        self.process_set_code(&events)
+        self.process_set_code(&events.1)?;
+        Ok(events.0)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1437,6 +1439,6 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(events.block_hash())
+        Ok(events.0)
     }
 }

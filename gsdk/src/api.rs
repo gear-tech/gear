@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{client::Rpc, config::GearConfig, metadata::Event, Blocks, Events, TxInBlock};
+use crate::{
+    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, TxInBlock,
+};
 use anyhow::Result;
 use core::ops::{Deref, DerefMut};
 use subxt::OnlineClient;
@@ -117,10 +119,10 @@ impl Api {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
-    // /// New signer from api
-    // pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-    //     Signer::new(self, suri, passwd)
-    // }
+    /// New signer from api
+    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
+        Signer::new(self, suri, passwd).map_err(Into::into)
+    }
 }
 
 impl Deref for Api {

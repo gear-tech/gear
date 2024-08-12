@@ -87,6 +87,8 @@ pub enum Error {
     #[error(transparent)]
     SubxtMetadata(#[from] subxt::error::MetadataError),
     #[error(transparent)]
+    ScaleValueEncode(#[from] scale_value::scale::EncodeError),
+    #[error(transparent)]
     Tx(#[from] TxError),
     #[error(transparent)]
     SubxtRpc(#[from] jsonrpsee::core::Error),
