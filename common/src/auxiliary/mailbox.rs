@@ -39,8 +39,7 @@ pub type AuxiliaryMailbox<MailboxCallbacks> = MailboxImpl<
     MailboxCallbacks,
     MailboxKeyGen<ProgramId>,
 >;
-/// Block number type.
-pub type BlockNumber = u32;
+
 /// Type represents message stored in the mailbox.
 pub type MailboxedMessage = UserStoredMessage;
 
