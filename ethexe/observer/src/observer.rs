@@ -109,8 +109,8 @@ impl Observer {
 
                                 let blob_reader = self.blob_reader.clone();
 
-                                let code_id = code_id.clone();
-                                let blob_tx_hash = blob_tx_hash.clone();
+                                let code_id = *code_id;
+                                let blob_tx_hash = *blob_tx_hash;
 
                                 futures.push(async move {
                                     let attempts = Some(3);
@@ -229,48 +229,85 @@ pub(crate) async fn read_block_events(
     Ok(block_events)
 }
 
-#[allow(unused)]
+// TODO (breathx): simplify code between two query funcs.
+// TODO (breathx): return HashMap.
 pub(crate) async fn read_block_events_batch(
     from_block: u32,
     to_block: u32,
     provider: &ObserverProvider,
     router_address: AlloyAddress,
 ) -> Result<BTreeMap<H256, Vec<BlockEvent>>> {
-    let _ = MAX_QUERY_BLOCK_RANGE;
-    todo!("TODO (breathx)")
-    // let mut events_map: BTreeMap<H256, Vec<BlockEvent>> = BTreeMap::new();
-    // let mut start_block = from_block;
+    let mut events_map: BTreeMap<H256, Vec<BlockEvent>> = BTreeMap::new();
+    let mut start_block = from_block;
 
-    // while start_block <= to_block {
-    //     let end_block = std::cmp::min(start_block + MAX_QUERY_BLOCK_RANGE - 1, to_block);
-    //     let router_events_filter = Filter::new()
-    //         .from_block(start_block as u64)
-    //         .to_block(end_block as u64)
-    //         .address(router_address)
-    //         .event_signature(Topic::from_iter(
-    //             signature_hash::ROUTER_EVENTS
-    //                 .iter()
-    //                 .map(|hash| B256::new(*hash)),
-    //         ));
+    while start_block <= to_block {
+        let end_block = std::cmp::min(start_block + MAX_QUERY_BLOCK_RANGE - 1, to_block);
+        let router_events_filter = Filter::new()
+            .from_block(start_block as u64)
+            .to_block(end_block as u64)
+            .address(router_address)
+            .event_signature(Topic::from_iter(
+                router::events::signatures::ALL
+                    .iter()
+                    .map(|hash| B256::new(hash.to_fixed_bytes())),
+            ));
 
-    //     let logs = provider.get_logs(&router_events_filter).await?;
+        let router_logs_fut = provider.get_logs(&router_events_filter);
 
-    //     for log in logs.iter() {
-    //         let block_hash = H256(log.block_hash.ok_or(anyhow!("Block hash is missing"))?.0);
+        let mirrors_events_filter = Filter::new()
+            .from_block(start_block as u64)
+            .to_block(end_block as u64)
+            .event_signature(Topic::from_iter(
+                mirror::events::signatures::ALL
+                    .iter()
+                    .map(|hash| B256::new(hash.to_fixed_bytes())),
+            ));
 
-    //         let Some(event) = match_log(log)? else {
-    //             continue;
-    //         };
+        let mirrors_logs_fut = provider.get_logs(&mirrors_events_filter);
 
-    //         events_map
-    //             .entry(block_hash)
-    //             .and_modify(|events| events.push(event.clone()))
-    //             .or_insert(vec![event]);
-    //     }
-    //     start_block = end_block + 1;
-    // }
+        let (router_logs, mirrors_logs) = future::join(router_logs_fut, mirrors_logs_fut).await;
+        let (router_logs, mirrors_logs) = (router_logs?, mirrors_logs?);
 
-    // Ok(events_map)
+        for router_log in router_logs {
+            let block_hash = router_log
+                .block_hash
+                .ok_or(anyhow!("Block hash is missing"))?
+                .0
+                .into();
+
+            let Some(router_event) = router::events::try_extract_event(router_log)? else {
+                continue;
+            };
+
+            events_map
+                .entry(block_hash)
+                .or_default()
+                .push(router_event.into());
+        }
+
+        for mirror_log in mirrors_logs {
+            let block_hash = mirror_log
+                .block_hash
+                .ok_or(anyhow!("Block hash is missing"))?
+                .0
+                .into();
+
+            let address = (*mirror_log.address().into_word()).into();
+
+            let Some(mirror_event) = mirror::events::try_extract_event(mirror_log)? else {
+                continue;
+            };
+
+            events_map
+                .entry(block_hash)
+                .or_default()
+                .push(BlockEvent::mirror(address, mirror_event));
+        }
+
+        start_block = end_block + 1;
+    }
+
+    Ok(events_map)
 }
 
 #[cfg(test)]
