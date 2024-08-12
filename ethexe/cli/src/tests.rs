@@ -446,7 +446,18 @@ async fn ping() {
     assert_eq!(block_committed, Some(block_committed_on_router));
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+
+    let wvara = env.ethereum.wvara();
+
+    log::info!("📗 Approving WVara to mirror");
+    wvara
+        .approve(program_address.0.into(), u128::MAX)
+        .await
+        .unwrap();
+
     let ping_program = env.ethereum.mirror(program_address);
+
+    log::info!("📗 Sending PING message");
     let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
 
     log::info!("📗 Waiting for PONG reply");
@@ -601,13 +612,22 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
+    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+
+    let wvara = env.ethereum.wvara();
+
+    log::info!("📗 Approving WVara to mirror");
+    wvara
+        .approve(program_address.0.into(), u128::MAX)
+        .await
+        .unwrap();
+
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
         provider.get_block_number().await.unwrap()
     );
     let program_created_snapshot_id = provider.anvil_snapshot().await.unwrap();
 
-    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
     let ping_program = env.ethereum.mirror(program_address);
 
     log::info!("📗 Sending PING message");
@@ -857,7 +877,18 @@ async fn ping_deep_sync() {
 
     // Send message in between.
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+
+    let wvara = env.ethereum.wvara();
+
+    log::info!("📗 Approving WVara to mirror");
+    wvara
+        .approve(program_address.0.into(), u128::MAX)
+        .await
+        .unwrap();
+
     let ping_program = env.ethereum.mirror(program_address);
+
+    log::info!("📗 Sending PING message");
     let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
 
     // Mine some blocks to check deep sync.
