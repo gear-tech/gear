@@ -34,7 +34,6 @@ use gear_core::{
     ids::{ActorId, CodeId, ProgramId},
     memory::PageBuf,
     message::Payload,
-    reservation::GasReservationMap,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -396,18 +395,6 @@ impl Storage for Database {
 
     fn write_allocations(&self, allocations: Allocations) -> H256 {
         self.cas.write(&allocations.encode())
-    }
-
-    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap> {
-        let data = self.cas.read(&hash)?;
-        Some(
-            GasReservationMap::decode(&mut &data[..])
-                .expect("Failed to decode data into `GasReservationMap`"),
-        )
-    }
-
-    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256 {
-        self.cas.write(&gas_reservation_map.encode())
     }
 
     fn read_payload(&self, hash: H256) -> Option<Payload> {
