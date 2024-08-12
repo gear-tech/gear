@@ -81,6 +81,8 @@ pub enum Error {
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
     #[error(transparent)]
+    SubxtCore(#[from] subxt::ext::subxt_core::Error),
+    #[error(transparent)]
     SubxtPublic(#[from] sp_core::crypto::PublicError),
     #[error(transparent)]
     SubxtMetadata(#[from] subxt::error::MetadataError),

@@ -19,12 +19,13 @@
 //! Subscription implementation.
 
 use crate::{config::GearConfig, metadata::Event};
+use anyhow::Result;
 use futures::{Stream, StreamExt};
-use std::{marker::Unpin, pin::Pin, result::Result as StdResult, task::Poll};
-use subxt::{backend::StreamOf, blocks::Block, events::Events as SubxtEvents, Error, OnlineClient};
+use std::{marker::Unpin, pin::Pin, task::Poll};
+use subxt::{backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents, OnlineClient};
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
-type BlockSubscription = StreamOf<StdResult<SubxtBlock, Error>>;
+type BlockSubscription = StreamOfResults<SubxtBlock>;
 
 /// Subscription of finalized blocks.
 pub struct Blocks(BlockSubscription);
@@ -32,7 +33,7 @@ pub struct Blocks(BlockSubscription);
 impl Unpin for Blocks {}
 
 impl Stream for Blocks {
-    type Item = StdResult<SubxtBlock, Error>;
+    type Item = Result<SubxtBlock>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -40,15 +41,15 @@ impl Stream for Blocks {
     ) -> Poll<Option<Self::Item>> {
         let res = futures::ready!(self.0.poll_next_unpin(cx));
 
-        Poll::Ready(res)
+        Poll::Ready(res.map(|inner| inner.map_err(Into::into)))
     }
 }
 
 impl Blocks {
     /// Wait for the next block from the subscription.
-    pub async fn next_events(&mut self) -> Option<StdResult<SubxtEvents<GearConfig>, Error>> {
+    pub async fn next_events(&mut self) -> Option<Result<SubxtEvents<GearConfig>>> {
         if let Some(block) = StreamExt::next(self).await {
-            Some(block.ok()?.events().await)
+            Some(block.ok()?.events().await.map_err(Into::into))
         } else {
             None
         }
@@ -66,12 +67,15 @@ pub struct Events(Blocks);
 
 impl Events {
     /// Wait for the next events from the subscription.
-    pub async fn next(&mut self) -> Option<StdResult<Vec<Event>, Error>> {
+    pub async fn next(&mut self) -> Option<Result<Vec<Event>>> {
         self.0.next_events().await.map(|r| {
             r.and_then(|es| {
                 es.iter()
-                    .map(|ev| ev.and_then(|e| e.as_root_event::<Event>()))
-                    .collect::<StdResult<Vec<_>, Error>>()
+                    .map(|ev| {
+                        ev.and_then(|e| e.as_root_event::<Event>())
+                            .map_err(Into::into)
+                    })
+                    .collect::<Result<Vec<_>>>()
             })
         })
     }

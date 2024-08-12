@@ -16,13 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, Result,
-    TxInBlock,
-};
+use crate::{client::Rpc, config::GearConfig, metadata::Event, Blocks, Events, TxInBlock};
+use anyhow::Result;
 use core::ops::{Deref, DerefMut};
-use std::result::Result as StdResult;
-use subxt::{Error, OnlineClient};
+use subxt::OnlineClient;
 
 /// Gear api wrapper.
 #[derive(Clone)]
@@ -108,8 +105,8 @@ impl Api {
         tx.fetch_events()
             .await?
             .iter()
-            .map(|e| -> StdResult<Event, Error> { e?.as_root_event::<Event>() })
-            .collect::<StdResult<Vec<Event>, Error>>()
+            .map(|e| -> Result<Event> { e?.as_root_event::<Event>().map_err(Into::into) })
+            .collect::<Result<Vec<Event>>>()
             .map_err(Into::into)
     }
 
@@ -120,10 +117,10 @@ impl Api {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
-    /// New signer from api
-    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd)
-    }
+    // /// New signer from api
+    // pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
+    //     Signer::new(self, suri, passwd)
+    // }
 }
 
 impl Deref for Api {

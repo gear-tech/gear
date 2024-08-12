@@ -32,7 +32,6 @@ use crate::{
         vara_runtime::RuntimeCall,
     },
     signer::Inner,
-    utils::storage_address_bytes,
     Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages, Result,
 };
 use gear_core::{
@@ -44,8 +43,8 @@ use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 use subxt::{
-    blocks::ExtrinsicEvents, dynamic::Value, metadata::EncodeWithMetadata, storage::StorageAddress,
-    utils::Static,
+    blocks::ExtrinsicEvents, dynamic::Value, metadata::EncodeWithMetadata,
+    storage::StaticStorageKey, utils::Static,
 };
 
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
@@ -96,7 +95,10 @@ impl SignerStorage {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = Api::storage(GearGasStorage::GasNodes, vec![Static(gas_node.0)]);
+            let addr = Api::storage(
+                GearGasStorage::GasNodes,
+                vec![StaticStorageKey::new(gas_node.0)],
+            );
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await
