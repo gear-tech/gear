@@ -20,7 +20,7 @@
 
 use std::collections::HashMap;
 
-use crate::{manager::Actors, DEFAULT_USER_ALICE, GAS_MULTIPLIER};
+use crate::{manager::Actors, GAS_MULTIPLIER};
 use gear_common::{Gas, GasMultiplier, ProgramId};
 use gear_core::message::Value;
 
@@ -38,6 +38,13 @@ impl Balance {
 
     #[track_caller]
     pub fn set_lock(&mut self, value: Value) {
+        if self.available() < value {
+            unreachable!(
+                "Trying to lock more then available balance, total: {}, lock: {}",
+                self.available(),
+                value
+            );
+        }
         self.locked = value;
     }
 
@@ -48,6 +55,7 @@ impl Balance {
         }
     }
 
+    #[track_caller]
     pub fn available(&self) -> u128 {
         self.total - self.locked
     }
@@ -57,12 +65,28 @@ impl Balance {
     }
 
     #[track_caller]
-    pub fn decrease(&mut self, value: u128, _keep_alive: bool) {
-        //if self.total < value {
-        //    unreachable!("Actor {:?} balance is less then sent value", from);
-        //}
+    pub fn decrease(&mut self, value: u128, keep_alive: bool) {
+        if keep_alive {
+            if self.available() < value {
+                unreachable!(
+                    "Not enough balance to decrease, available: {}, value: {}",
+                    self.available(),
+                    value
+                );
+            }
+        } else {
+            if self.total < value {
+                unreachable!(
+                    "Not enough balance to decrease, total: {}, value: {}",
+                    self.total, value
+                );
+            }
+        }
 
         self.total -= value;
+        if !keep_alive && self.total < self.locked {
+            self.locked = self.total;
+        }
     }
 
     pub fn increase(&mut self, value: u128) {

@@ -864,7 +864,7 @@ mod tests {
 
     use crate::{
         manager::Value, Log, ProgramIdWrapper, System, DEFAULT_USERS_INITIAL_BALANCE,
-        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT,
+        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
     };
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
@@ -944,29 +944,29 @@ mod tests {
 
         let user_id = 42;
         let mut user_spent_balance = 0;
-        sys.mint_to(user_id, 10 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user_id), 10 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(user_id, 10 * EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 10 * EXISTENTIAL_DEPOSIT);
 
         let mut prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
-        prog.mint(2 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(prog.balance(), 2 * crate::EXISTENTIAL_DEPOSIT);
+        prog.mint(2 * EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 2 * EXISTENTIAL_DEPOSIT);
 
-        prog.send_with_value(user_id, "init".to_string(), crate::EXISTENTIAL_DEPOSIT);
+        prog.send_with_value(user_id, "init".to_string(), EXISTENTIAL_DEPOSIT);
         user_spent_balance += sys.run_next_block().spent_value();
-        assert_eq!(prog.balance(), 3 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 3 * EXISTENTIAL_DEPOSIT);
         assert_eq!(
             sys.balance_of(user_id),
-            9 * crate::EXISTENTIAL_DEPOSIT - user_spent_balance
+            9 * EXISTENTIAL_DEPOSIT - user_spent_balance
         );
 
-        prog.send_with_value(user_id, "PING".to_string(), 2 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_with_value(user_id, "PING".to_string(), 2 * EXISTENTIAL_DEPOSIT);
         user_spent_balance += sys.run_next_block().spent_value();
 
-        assert_eq!(prog.balance(), 5 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 5 * EXISTENTIAL_DEPOSIT);
         assert_eq!(
             sys.balance_of(user_id),
-            7 * crate::EXISTENTIAL_DEPOSIT - user_spent_balance
+            7 * EXISTENTIAL_DEPOSIT - user_spent_balance
         );
     }
 
@@ -981,42 +981,45 @@ mod tests {
         let sender2 = 45;
 
         // Top-up senders balances
-        sys.mint_to(sender0, 20 * crate::EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender1, 20 * crate::EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender2, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender0, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender1, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender2, 20 * EXISTENTIAL_DEPOSIT);
 
         // Top-up receiver balance
-        let mut receiver_expected_balance = 2 * crate::EXISTENTIAL_DEPOSIT;
+        let mut receiver_expected_balance = 3 * EXISTENTIAL_DEPOSIT;
         sys.mint_to(receiver, receiver_expected_balance);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_with_gas(receiver, b"init", 1_000_000, 0);
-        receiver_expected_balance -= sys.run_next_block().spent_value();
-        assert_eq!(prog.balance(), 0);
+        receiver_expected_balance -= sys.run_next_block().spent_value() + EXISTENTIAL_DEPOSIT;
+        assert_eq!(prog.balance(), EXISTENTIAL_DEPOSIT);
 
         // Send values to the program
-        prog.send_bytes_with_value(sender0, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender0, b"insert", 2 * EXISTENTIAL_DEPOSIT);
         let sender0_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender0),
-            18 * crate::EXISTENTIAL_DEPOSIT - sender0_spent_value
+            18 * EXISTENTIAL_DEPOSIT - sender0_spent_value
         );
-        prog.send_bytes_with_value(sender1, b"insert", 4 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender1, b"insert", 4 * EXISTENTIAL_DEPOSIT);
         let sender1_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender1),
-            16 * crate::EXISTENTIAL_DEPOSIT - sender1_spent_value
+            16 * EXISTENTIAL_DEPOSIT - sender1_spent_value
         );
-        prog.send_bytes_with_value(sender2, b"insert", 6 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender2, b"insert", 6 * EXISTENTIAL_DEPOSIT);
         let sender2_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender2),
-            14 * crate::EXISTENTIAL_DEPOSIT - sender2_spent_value
+            14 * EXISTENTIAL_DEPOSIT - sender2_spent_value
         );
 
         // Check program's balance
-        assert_eq!(prog.balance(), (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(
+            prog.balance(),
+            (2 + 4 + 6) * EXISTENTIAL_DEPOSIT + EXISTENTIAL_DEPOSIT
+        );
 
         // Request to smash the piggy bank and send the value to the receiver address
         prog.send_bytes_with_gas(receiver, b"smash", 100_000_000, 0);
@@ -1043,11 +1046,10 @@ mod tests {
             .is_ok());
         assert_eq!(
             sys.balance_of(receiver),
-            (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT + receiver_expected_balance
+            (2 + 4 + 6) * EXISTENTIAL_DEPOSIT + receiver_expected_balance
         );
-
-        // Check program's balance is empty
-        assert_eq!(prog.balance(), 0);
+        // Program is alive and holds the ED
+        assert_eq!(prog.balance(), EXISTENTIAL_DEPOSIT);
     }
 
     #[test]
@@ -1061,7 +1063,7 @@ mod tests {
     #[test]
     #[should_panic(
         expected = "Insufficient balance: user (0x0500000000000000000000000000000000000000000000000000000000000000) \
-    tries to send (1000000000001) value and (750000000000) gas, while his balance (1000000000000)"
+    tries to send (1000000000001) value, (4500000000000) gas and ED 1000000000000, while his balance (1000000000000)"
     )]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
@@ -1070,10 +1072,10 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 6, demo_piggy_bank::WASM_BINARY);
 
         assert_eq!(sys.balance_of(user), 0);
-        sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user), crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(user, EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user), EXISTENTIAL_DEPOSIT);
 
-        prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
+        prog.send_bytes_with_value(user, b"init", EXISTENTIAL_DEPOSIT + 1);
         sys.run_next_block();
     }
 
@@ -1082,19 +1084,19 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        const RECEIVER_INITIAL_BALANCE: Value = 10 * crate::EXISTENTIAL_DEPOSIT;
+        const RECEIVER_INITIAL_BALANCE: Value = 10 * EXISTENTIAL_DEPOSIT;
 
         let sender = 42;
         let receiver = 84;
         let mut receiver_expected_balance = RECEIVER_INITIAL_BALANCE;
 
-        sys.mint_to(sender, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender, 20 * EXISTENTIAL_DEPOSIT);
         sys.mint_to(receiver, RECEIVER_INITIAL_BALANCE);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
-        receiver_expected_balance -= sys.run_next_block().spent_value();
+        receiver_expected_balance -= sys.run_next_block().spent_value() + EXISTENTIAL_DEPOSIT;
 
         // Get zero value to the receiver's mailbox
         prog.send_bytes(receiver, b"smash");
@@ -1107,7 +1109,7 @@ mod tests {
         assert_eq!(sys.balance_of(receiver), receiver_expected_balance);
 
         // Get the value > ED to the receiver's mailbox
-        prog.send_bytes_with_value(sender, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender, b"insert", 2 * EXISTENTIAL_DEPOSIT);
         sys.run_next_block();
         prog.send_bytes(receiver, b"smash");
         receiver_expected_balance -= sys.run_next_block().spent_value();
@@ -1118,8 +1120,10 @@ mod tests {
             .is_ok());
         assert_eq!(
             sys.balance_of(receiver),
-            2 * crate::EXISTENTIAL_DEPOSIT + receiver_expected_balance
+            2 * EXISTENTIAL_DEPOSIT + receiver_expected_balance
         );
+        // Program is alive and holds the ED
+        assert_eq!(prog.balance(), EXISTENTIAL_DEPOSIT);
     }
 
     struct CleanupFolderOnDrop {
@@ -1254,7 +1258,7 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
-        let mut user_balance = EXISTENTIAL_DEPOSIT;
+        let mut user_balance = 2 * EXISTENTIAL_DEPOSIT;
         sys.mint_to(user_id, user_balance);
 
         let prog_id = 137;
@@ -1263,16 +1267,18 @@ mod tests {
 
         let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 1_000_000_000, 0);
         let result = sys.run_next_block();
-        user_balance -= result.spent_value();
+        user_balance -= result.spent_value() + EXISTENTIAL_DEPOSIT;
 
         assert!(result.succeed.contains(&msg_id));
-        assert_eq!(sys.balance_of(prog_id), 0);
+        assert_eq!(sys.balance_of(prog_id), EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), user_balance);
 
         let msg_id = prog.send_bytes_with_gas(user_id, [], 1_000_000_000, 0);
         let result = sys.run_next_block();
         user_balance -= result.spent_value();
 
+        // ED returned upon program exit
+        user_balance += EXISTENTIAL_DEPOSIT;
         assert!(result.succeed.contains(&msg_id));
         assert_eq!(sys.balance_of(prog_id), 0);
         assert_eq!(sys.balance_of(user_id), user_balance);
@@ -1286,7 +1292,10 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
         let user_id = ActorId::zero();
-        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT + 1);
+        sys.mint_to(
+            user_id,
+            EXISTENTIAL_DEPOSIT + GAS_MULTIPLIER.gas_to_value(1),
+        );
 
         // set insufficient gas for execution
         let msg_id = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
@@ -1417,14 +1426,37 @@ mod tests {
         sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
-        let _ = sys.balance_of(user_id);
-
         let prog = Program::from_binary_with_id(&sys, 1337, WASM_BINARY);
 
         prog.send(user_id, Scheme::empty());
         let block_result = sys.run_next_block();
-        let expected_value = DEFAULT_USERS_INITIAL_BALANCE - block_result.spent_value();
+        let expected_value =
+            DEFAULT_USERS_INITIAL_BALANCE - block_result.spent_value() - EXISTENTIAL_DEPOSIT;
 
         assert_eq!(sys.balance_of(user_id), expected_value);
+    }
+
+    #[test]
+    fn test_program_creation_charges_ed() {
+        use demo_constructor::WASM_BINARY;
+
+        let sys = System::new();
+        //sys.init_logger();
+        sys.init_verbose_logger();
+
+        let user_id = DEFAULT_USER_ALICE;
+        let orig_user_balance = sys.balance_of(user_id);
+
+        let prog_id = 1337;
+        let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
+
+        prog.send(user_id, Scheme::empty());
+        let block_result = sys.run_next_block();
+
+        assert_eq!(sys.balance_of(prog_id), EXISTENTIAL_DEPOSIT);
+        assert_eq!(
+            sys.balance_of(user_id),
+            orig_user_balance - EXISTENTIAL_DEPOSIT - block_result.spent_value()
+        );
     }
 }

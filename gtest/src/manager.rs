@@ -214,6 +214,28 @@ impl Actors {
         self.0.borrow().contains_key(program_id)
     }
 
+    pub fn total_balance(&self, program_id: &ProgramId) -> Value {
+        self.balance(program_id, true)
+    }
+
+    pub fn available_balance(&self, program_id: &ProgramId) -> Value {
+        self.balance(program_id, false)
+    }
+
+    fn balance(&self, program_id: &ProgramId, total: bool) -> Value {
+        let actors = self.0.borrow();
+
+        let Some((_, balance)) = &actors.get(program_id) else {
+            return 0;
+        };
+
+        if total {
+            balance.total()
+        } else {
+            balance.available()
+        }
+    }
+
     fn remove(&mut self, program_id: &ProgramId) -> Option<(TestActor, Balance)> {
         self.0.borrow_mut().remove(program_id)
     }
@@ -510,43 +532,80 @@ impl ExtManager {
 
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
-        if self.is_program(&dispatch.source()) {
+        let source = dispatch.source();
+        let destination = dispatch.destination();
+
+        if self.is_program(&source) {
             panic!("Sending messages allowed only from users id");
         }
 
-        let mut actors = self.actors.borrow_mut();
-        let (_, balance) = actors
-            .entry(dispatch.source())
-            .or_insert((TestActor::User, Balance::default()));
+        // Create user if it doesn't exist
+        if !self.actors.contains_key(&source) {
+            self.actors
+                .borrow_mut()
+                .insert(source, (TestActor::User, Balance::default()));
+        }
+
+        let charge_ed = self
+            .actors
+            .borrow()
+            .get(&destination)
+            .expect("Can't fail")
+            .0
+            .is_uninitialized()
+            && self.actors.total_balance(&destination) == 0;
+        let ed = if charge_ed { EXISTENTIAL_DEPOSIT } else { 0 };
+
+        let total_balance = self.actors.total_balance(&source);
         let keep_alive_sender = false;
 
         let gas_limit = dispatch
             .gas_limit()
             .unwrap_or_else(|| unreachable!("message from program API always has gas"));
+        let gas_value = GAS_MULTIPLIER.gas_to_value(gas_limit);
 
         // Check sender has enough balance to support dispatch
-        if balance.total() < { dispatch.value() + GAS_MULTIPLIER.gas_to_value(gas_limit) } {
+        if total_balance < { dispatch.value() + gas_value + ed } {
             panic!(
                 "Insufficient balance: user ({}) tries to send \
-                ({}) value and ({}) gas, while his balance ({:?})",
-                dispatch.source(),
+                ({}) value, ({}) gas and ED {}, while his balance ({:?})",
+                source,
                 dispatch.value(),
-                gas_limit,
-                balance.total(),
+                gas_value,
+                EXISTENTIAL_DEPOSIT,
+                total_balance,
             );
         }
 
+        // Charge for program ED upon creation
+        if charge_ed {
+            Balance::transfer(
+                &mut self.actors,
+                source,
+                destination,
+                EXISTENTIAL_DEPOSIT,
+                keep_alive_sender,
+            );
+
+            // Set ED lock
+            let mut actors = self.actors.borrow_mut();
+            actors
+                .get_mut(&destination)
+                .expect("Can't fail")
+                .1
+                .set_lock(EXISTENTIAL_DEPOSIT);
+        }
+
+        let mut actors = self.actors.borrow_mut();
+        let source_balance = &mut actors.get_mut(&source).expect("Can't fail").1;
+
         // Deposit message value
-        self.bank.deposit_value(
-            balance,
-            dispatch.source(),
-            dispatch.value(),
-            keep_alive_sender,
-        );
+        self.bank
+            .deposit_value(source_balance, source, dispatch.value(), keep_alive_sender);
 
         // Deposit gas
         self.bank
-            .deposit_gas(balance, dispatch.source(), gas_limit, keep_alive_sender);
+            .deposit_gas(source_balance, source, gas_limit, keep_alive_sender);
     }
 
     #[track_caller]
@@ -1096,13 +1155,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        let total_value = self
-            .actors
-            .borrow_mut()
-            .get(&id_exited)
-            .expect("Can't fail")
-            .1
-            .total();
+        let total_value = self.actors.total_balance(&id_exited);
         Balance::transfer(
             &mut self.actors,
             id_exited,
@@ -1330,7 +1383,7 @@ impl JournalHandler for ExtManager {
                         program_id,
                         candidate_id,
                         crate::EXISTENTIAL_DEPOSIT,
-                        false,
+                        true,
                     );
 
                     // Set ED lock
