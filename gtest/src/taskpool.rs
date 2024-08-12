@@ -124,8 +124,9 @@ mod tests {
         let task = ScheduledTask::<ProgramId>::RemoveFromMailbox(422.into(), 16.into());
         manager.add(3, task.clone()).unwrap();
         manager.add(4, task.clone()).unwrap();
-        manager.clear();
         manager.delete(4, task.clone()).unwrap();
+        manager.clear();
+
         assert!(!manager.contains(&3, &task));
         assert!(!manager.contains(&4, &task));
     }
