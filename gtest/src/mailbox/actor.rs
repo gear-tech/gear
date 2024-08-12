@@ -18,7 +18,10 @@
 
 use crate::{manager::ExtManager, Log, RunResult, GAS_ALLOWANCE};
 use codec::Encode;
-use gear_common::{auxiliary::mailbox::*, storage::Interval};
+use gear_common::{
+    auxiliary::{mailbox::*, BlockNumber},
+    storage::Interval,
+};
 use gear_core::{
     ids::{prelude::MessageIdExt, MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket},

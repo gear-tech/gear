@@ -22,8 +22,12 @@
 
 pub mod gas_provider;
 pub mod mailbox;
+pub mod taskpool;
 
 use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter};
+
+/// An "auxiliary" block number type.
+pub type BlockNumber = u32;
 
 /// Double key `BTreeMap`.
 ///
