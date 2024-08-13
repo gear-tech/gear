@@ -24,8 +24,8 @@ pub mod gas_provider;
 pub mod mailbox;
 
 use crate::storage::{
-    CountedByKey, DoubleMapStorage, GetFirstPos, GetSecondPos, IterableByKeyMap, IteratorWrap,
-    KeyIterableByKeyMap,
+    Counted, CountedByKey, DoubleMapStorage, GetFirstPos, GetSecondPos, IterableByKeyMap,
+    IteratorWrap, KeyIterableByKeyMap, MapStorage,
 };
 use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter};
 
@@ -291,5 +291,94 @@ impl<T: AuxiliaryDoubleStorageWrap> CountedByKey for T {
 
     fn len(key: &Self::Key) -> Self::Length {
         T::with_storage(|map| map.count_key(key))
+    }
+}
+
+pub trait AuxiliaryStorageWrap {
+    type Key: Clone + Ord;
+    type Value: Clone;
+
+    fn with_storage<F, R>(f: F) -> R
+    where
+        F: FnOnce(&BTreeMap<Self::Key, Self::Value>) -> R;
+
+    fn with_storage_mut<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut BTreeMap<Self::Key, Self::Value>) -> R;
+}
+
+impl<T: AuxiliaryStorageWrap> MapStorage for T {
+    type Key = T::Key;
+    type Value = T::Value;
+
+    fn clear() {
+        T::with_storage_mut(|map| map.clear());
+    }
+
+    fn contains_key(key: &Self::Key) -> bool {
+        T::with_storage(|map| map.contains_key(key))
+    }
+
+    fn get(key: &Self::Key) -> Option<Self::Value> {
+        T::with_storage(|map| map.get(key).cloned())
+    }
+
+    fn insert(key: Self::Key, value: Self::Value) {
+        T::with_storage_mut(|map| map.insert(key, value));
+    }
+
+    fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(key: Self::Key, f: F) -> R {
+        T::with_storage_mut(|map| match map.entry(key) {
+            Entry::Occupied(mut occupied) => {
+                let mut value = Some(occupied.get().clone());
+
+                let result = f(&mut value);
+                if let Some(value) = value.take() {
+                    *occupied.get_mut() = value;
+                } else {
+                    occupied.remove();
+                }
+
+                result
+            }
+
+            Entry::Vacant(vacant) => {
+                let mut value = None;
+
+                let result = f(&mut value);
+
+                if let Some(value) = value.take() {
+                    vacant.insert(value);
+                }
+
+                result
+            }
+        })
+    }
+
+    fn mutate_exists<R, F: FnOnce(&mut Self::Value) -> R>(key: Self::Key, f: F) -> Option<R> {
+        T::with_storage_mut(|map| map.get_mut(&key).map(f))
+    }
+
+    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(mut f: F) {
+        T::with_storage_mut(|map| {
+            map.iter_mut()
+                .for_each(|(_, value)| *value = f(value.clone()))
+        });
+    }
+
+    fn remove(key: Self::Key) {
+        Self::take(key);
+    }
+
+    fn take(key: Self::Key) -> Option<Self::Value> {
+        T::with_storage_mut(|map| map.remove(&key))
+    }
+}
+
+impl<T: AuxiliaryStorageWrap> Counted for T {
+    type Length = usize;
+    fn len() -> Self::Length {
+        T::with_storage(|map| map.len())
     }
 }
