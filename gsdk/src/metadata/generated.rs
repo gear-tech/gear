@@ -2494,10 +2494,15 @@ pub mod runtime_types {
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub db_read: runtime_types::sp_weights::weight_v2::Weight,
+                    pub db_write: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
+                    pub waitlist_cost: runtime_types::sp_weights::weight_v2::Weight,
+                    pub dispatch_stash_cost: runtime_types::sp_weights::weight_v2::Weight,
+                    pub reservation_cost: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
