@@ -44,9 +44,18 @@ impl WVara {
         LocalAddress(*self.0.address().0)
     }
 
-    // TODO (breathx): handle events.
     pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {
         let value = Uint::<256, 4>::from(value);
+
+        self._approve(address, value).await
+    }
+
+    pub async fn approve_all(&self, address: Address) -> Result<H256> {
+        self._approve(address, Uint::<256, 4>::MAX).await
+    }
+
+    // TODO (breathx): handle events.
+    async fn _approve(&self, address: Address, value: Uint<256, 4>) -> Result<H256> {
         let builder = self.0.approve(address, value);
         let tx = builder.send().await?;
 

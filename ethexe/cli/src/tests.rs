@@ -454,10 +454,7 @@ async fn ping() {
     let wvara = env.ethereum.wvara();
 
     log::info!("📗 Approving WVara to mirror");
-    wvara
-        .approve(program_address.0.into(), u128::MAX)
-        .await
-        .unwrap();
+    wvara.approve_all(program_address.0.into()).await.unwrap();
 
     let ping_program = env.ethereum.mirror(program_address);
 
@@ -623,10 +620,7 @@ async fn ping_reorg() {
     let wvara = env.ethereum.wvara();
 
     log::info!("📗 Approving WVara to mirror");
-    wvara
-        .approve(program_address.0.into(), u128::MAX)
-        .await
-        .unwrap();
+    wvara.approve_all(program_address.0.into()).await.unwrap();
 
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
@@ -889,10 +883,7 @@ async fn ping_deep_sync() {
     let wvara = env.ethereum.wvara();
 
     log::info!("📗 Approving WVara to mirror");
-    wvara
-        .approve(program_address.0.into(), u128::MAX)
-        .await
-        .unwrap();
+    wvara.approve_all(program_address.0.into()).await.unwrap();
 
     let ping_program = env.ethereum.mirror(program_address);
 
