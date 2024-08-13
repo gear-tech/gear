@@ -30,8 +30,6 @@ const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
 pub struct Actor<T: Config>(PhantomData<T>);
 
 impl<T: Config> BuiltinActor for Actor<T> {
-    const ID: u64 = 1;
-
     type Error = BuiltinActorError;
 
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
