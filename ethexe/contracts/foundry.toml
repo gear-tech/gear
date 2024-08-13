@@ -9,7 +9,7 @@ ast = true
 build_info = true
 extra_output = ["storageLayout"]
 # Warning (3628): This contract has a payable fallback function, but no receive ether function.
-ignored_warnings_from = ["src/MinimalProgram.sol"]
+ignored_warnings_from = ["src/MirrorProxy.sol"]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"

@@ -22,9 +22,9 @@ use std::collections::{BTreeMap, VecDeque};
 
 use crate::{CASDatabase, KVDatabase};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage},
-    events::BlockEvent,
-    StateTransition,
+    db::{BlockHeader, BlockMetaStorage, CodesStorage},
+    router::StateTransition,
+    BlockEvent,
 };
 use ethexe_runtime_common::state::{
     Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
@@ -38,7 +38,7 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-const LOG_TARGET: &str = "hyper-db";
+const LOG_TARGET: &str = "ethexe-db";
 
 #[repr(u64)]
 enum KeyPrefix {
@@ -291,18 +291,17 @@ impl CodesStorage for Database {
         );
     }
 
-    fn code_upload_info(&self, code_id: CodeId) -> Option<CodeUploadInfo> {
+    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256> {
         self.kv
             .get(&KeyPrefix::CodeUpload.one(code_id))
             .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `(ActorId, H256)`")
+                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
             })
     }
 
-    fn set_code_upload_info(&self, code_id: CodeId, info: CodeUploadInfo) {
+    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), info.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
     }
 }
 
