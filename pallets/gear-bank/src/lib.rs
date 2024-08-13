@@ -408,24 +408,13 @@ pub mod pallet {
             //
             // This call does only currency trait final transfer.
             Self::withdraw(account_id, value).unwrap_or_else(|e| {
-                let account_gas_balance = Self::account_gas(account_id);
-                let account_reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                        account_id,
-                        Preservation::Expendable,
-                        Fortitude::Polite,
-                );
-                let bank_reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                        &T::BankAddress::get(),
-                        Preservation::Expendable,
-                        Fortitude::Polite,
-                );
-                let unused_value = UnusedValue::<T>::get();
+                let receiver_balance = Self::reducible_balance(account_id);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
 
                 let err_msg = format!(
                     "pallet_gear_bank::withdraw_gas: withdraw failed. \
-                    Account id - {account_id:?}, amount - {amount}, account gas balance - {account_gas_balance:?}, \
-                    account reducible balance - {account_reducible_balance:?}, \
-                    bank reducible balance - {bank_reducible_balance:?}, unused value - {unused_value:?}. \
+                    Receiver - {account_id:?}, amount - {amount}, receiver reducible balance - {receiver_balance:?}, \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
                     Got error - {e:?}"
                 );
 
@@ -464,18 +453,13 @@ pub mod pallet {
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
             Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
-                let account_gas_balance = Self::account_gas(account_id);
-                let bank_reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                        &T::BankAddress::get(),
-                        Preservation::Expendable,
-                        Fortitude::Polite,
-                );
-                let finalize_value = OnFinalizeValue::<T>::get();
+                let to_balance = Self::reducible_balance(to);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
 
                 let err_msg = format!(
                     "pallet_gear_bank::spend_gas_to: withdraw on finalize failed. \
-                    Account id - {account_id:?}, receiver account id - {to:?}, amount - {amount}, account gas balance - {account_gas_balance:?}, \
-                    bank reducible balance - {bank_reducible_balance:?}, finalize value - {finalize_value:?}. \
+                    Spending gas from - {account_id:?}, to - {to:?}, amount - {amount}, receiver reducible balance {to_balance:?} \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
                     Got error - {e:?}"
                 );
 
@@ -551,18 +535,14 @@ pub mod pallet {
             //
             // This call does only currency trait final transfer.
             Self::withdraw(account_id, value).unwrap_or_else(|e| {
-                let account_value_balance = Self::account_value(account_id);
-                let bank_reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                        &T::BankAddress::get(),
-                        Preservation::Expendable,
-                        Fortitude::Polite,
-                );
-                let unused_value = UnusedValue::<T>::get();
+                let receiver_balance = Self::reducible_balance(account_id);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
 
                 let err_msg = format!(
                     "pallet_gear_bank::withdraw_value: withdraw failed. \
-                    Account id - {account_id:?}, value - {value:?}, account value balance - {account_value_balance:?}, \
-                    bank reducible balance - {bank_reducible_balance:?}, unused value - {unused_value:?}. \
+                    Receiver - {account_id:?}, value - {value:?}, receiver reducible balance - {receiver_balance:?}, \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, 
+                    on finalize value - {on_finalize_value:?}. \
                     Got error - {e:?}"
                 );
 
@@ -590,24 +570,14 @@ pub mod pallet {
             //
             // This call does only currency trait final transfer.
             Self::withdraw(destination, value).unwrap_or_else(|e| {
-                let account_value_balance = Self::account_value(account_id);
-                let receiver_account_reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                        destination,
-                        Preservation::Expendable,
-                        Fortitude::Polite,
-                );
-                let bank_reducible_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                        &T::BankAddress::get(),
-                        Preservation::Expendable,
-                        Fortitude::Polite,
-                );
-                let unused_value = UnusedValue::<T>::get();
+                let receiver_balance = Self::reducible_balance(destination);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
 
                 let err_msg = format!(
                     "pallet_gear_bank::transfer_value: withdraw failed. \
-                    Account id - {account_id:?}, receiver account id - {destination:?}, value - {value:?}, account value balance - {account_value_balance:?}, \
-                    receiver account reducible balance - {receiver_account_reducible_balance:?}, bank reducible balance - {bank_reducible_balance:?}, \
-                    unused value - {unused_value:?}. \
+                    Sender - {account_id:?}, receiver - {destination:?}, value - {value:?},
+                    receiver reducible balance - {receiver_balance:?}, bank reducible balance - {bank_balance:?}, \
+                    unused value - {unused_value:?}, on finalize value - {on_finalize_value:?} \
                     Got error - {e:?}"
                 );
 
@@ -637,6 +607,22 @@ pub mod pallet {
             Self::account(account_id)
                 .map(|v| v.total())
                 .unwrap_or_default()
+        }
+
+        fn bank_balance_full_data() -> (BalanceOf<T>, BalanceOf<T>, BalanceOf<T>) {
+            (
+                Self::reducible_balance(&T::BankAddress::get()),
+                UnusedValue::<T>::get(),
+                OnFinalizeValue::<T>::get(),
+            )
+        }
+
+        fn reducible_balance(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
+            <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                account_id,
+                Preservation::Expendable,
+                Fortitude::Polite,
+            )
         }
     }
 }
