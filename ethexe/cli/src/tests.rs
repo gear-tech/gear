@@ -343,18 +343,16 @@ async fn ping() {
 
     log::info!("📗 Waiting for code loaded");
     listener
-        .apply_until(|event| {
-            if let Event::CodeLoaded {
+        .apply_until(|event| match event {
+            Event::CodeLoaded {
                 code_id: loaded_id,
                 code,
-            } = event
-            {
+            } => {
                 assert_eq!(code_id, loaded_id);
                 assert_eq!(&code, demo_ping::WASM_BINARY);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -510,18 +508,16 @@ async fn ping_reorg() {
 
     log::info!("📗 Waiting for code loaded");
     listener
-        .apply_until(|event| {
-            if let Event::CodeLoaded {
+        .apply_until(|event| match event {
+            Event::CodeLoaded {
                 code_id: loaded_id,
                 code,
-            } = event
-            {
+            } => {
                 assert_eq!(code_id, loaded_id);
                 assert_eq!(&code, demo_ping::WASM_BINARY);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -765,18 +761,16 @@ async fn ping_deep_sync() {
 
     log::info!("📗 Waiting for code loaded");
     listener
-        .apply_until(|event| {
-            if let Event::CodeLoaded {
+        .apply_until(|event| match event {
+            Event::CodeLoaded {
                 code_id: loaded_id,
                 code,
-            } = event
-            {
+            } => {
                 assert_eq!(code_id, loaded_id);
                 assert_eq!(&code, demo_ping::WASM_BINARY);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
