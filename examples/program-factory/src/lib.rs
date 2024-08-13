@@ -55,7 +55,11 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use gtest::{calculate_program_id, constants::UNITS, Program, System};
+    use gtest::{
+        calculate_program_id,
+        constants::{DEFAULT_USER_ALICE, UNITS},
+        Program, System,
+    };
     use std::io::Write;
 
     // Creates a new factory and initializes it.
@@ -67,7 +71,7 @@ mod tests {
         // Instantiate factory
         let factory = Program::current_with_id(sys, 100);
 
-        let user_id = 10001;
+        let user_id = DEFAULT_USER_ALICE;
         sys.mint_to(user_id, 100 * UNITS);
 
         // Send `init` msg to factory
@@ -98,7 +102,7 @@ mod tests {
         let factory = prepare_factory(&sys);
 
         // Send `handle` msg to factory to create a new child
-        let msg_id = factory.send_bytes(10001, CreateProgram::Default.encode());
+        let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, CreateProgram::Default.encode());
         let res = sys.run_next_block();
         let child_id_expected =
             calculate_program_id(CHILD_CODE_HASH.into(), &0i32.to_le_bytes(), Some(msg_id));
@@ -116,7 +120,7 @@ mod tests {
         let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000_000)]);
 
         // Send `handle` msg to factory to create a new child
-        let msg_id = factory.send_bytes(10001, payload.encode());
+        let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
         let res = sys.run_next_block();
 
         let child_id_expected = calculate_program_id(CHILD_CODE_HASH.into(), &salt, Some(msg_id));
@@ -125,7 +129,7 @@ mod tests {
         assert!(sys.is_active_program(child_id_expected));
 
         // Send `handle` msg to create a duplicate
-        let msg_id = factory.send_bytes(10001, payload.encode());
+        let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
         let res = sys.run_next_block();
 
         let child_id_expected = calculate_program_id(CHILD_CODE_HASH.into(), &salt, Some(msg_id));
@@ -146,7 +150,7 @@ mod tests {
         let non_existing_code_hash = [10u8; 32];
         let salt = b"some_salt";
         let payload = CreateProgram::Custom(vec![(non_existing_code_hash, salt.to_vec(), 100_000)]);
-        let msg_id = factory.send_bytes(10001, payload.encode());
+        let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
         let res = sys.run_next_block();
         let fictional_program_id =
             calculate_program_id(non_existing_code_hash.into(), salt, Some(msg_id));
@@ -171,7 +175,7 @@ mod tests {
             b"some_salt".to_vec(),
             100_000,
         )]);
-        factory.send_bytes(10001, payload.encode());
+        factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
         let _ = sys.run_next_block();
     }
 }

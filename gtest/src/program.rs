@@ -991,12 +991,12 @@ mod tests {
         sys.mint_to(sender2, 20 * EXISTENTIAL_DEPOSIT);
 
         // Top-up receiver balance
-        let mut receiver_expected_balance = 3 * EXISTENTIAL_DEPOSIT;
+        let mut receiver_expected_balance = 10 * EXISTENTIAL_DEPOSIT;
         sys.mint_to(receiver, receiver_expected_balance);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
-        prog.send_with_gas(receiver, b"init", 1_000_000, 0);
+        prog.send_bytes(receiver, b"init");
         receiver_expected_balance -= sys.run_next_block().spent_value() + EXISTENTIAL_DEPOSIT;
         assert_eq!(prog.balance(), EXISTENTIAL_DEPOSIT);
 
@@ -1027,7 +1027,7 @@ mod tests {
         );
 
         // Request to smash the piggy bank and send the value to the receiver address
-        prog.send_bytes_with_gas(receiver, b"smash", 100_000_000, 0);
+        prog.send_bytes(receiver, b"smash");
         let res = sys.run_next_block();
         receiver_expected_balance -= res.spent_value();
         let reply_to_id = {
