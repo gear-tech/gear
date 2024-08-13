@@ -17,10 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Auxiliary implementation of the mailbox.
-
-use super::AuxiliaryDoubleStorageWrap;
 use crate::{
-    auxiliary::{BlockNumber, DoubleBTreeMap},
+    auxiliary::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap},
     storage::{Interval, MailboxError, MailboxImpl, MailboxKeyGen},
 };
 use core::cell::RefCell;
