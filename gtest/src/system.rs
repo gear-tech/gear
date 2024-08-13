@@ -203,7 +203,7 @@ impl System {
         self.run_next_block_with_allowance(Gas(GAS_ALLOWANCE))
     }
 
-    /// Runs blocks same as [`Self::run_to_next_block`], but with limited
+    /// Runs blocks same as [`Self::run_next_block`], but with limited
     /// allowance.
     pub fn run_next_block_with_allowance(&self, allowance: Gas) -> BlockRunResult {
         if allowance > Gas(GAS_ALLOWANCE) {
@@ -213,7 +213,7 @@ impl System {
         self.0.borrow_mut().run_new_block(allowance)
     }
 
-    /// Runs blocks same as [`Self::run_to_next_block`], but executes blocks to
+    /// Runs blocks same as [`Self::run_next_block`], but executes blocks to
     /// block number `bn` including it.
     pub fn run_to_block(&self, bn: u32) -> Vec<BlockRunResult> {
         let mut manager = self.0.borrow_mut();
