@@ -1377,7 +1377,13 @@ impl JournalHandler for ExtManager {
                     );
 
                     // Transfer the ED from the program-creator to the new program
-                    self.send_value(program_id, Some(candidate_id), EXISTENTIAL_DEPOSIT);
+                    Balance::transfer(
+                        &mut self.actors,
+                        program_id,
+                        candidate_id,
+                        EXISTENTIAL_DEPOSIT,
+                        true,
+                    );
 
                     // Set ED lock
                     self.actors
