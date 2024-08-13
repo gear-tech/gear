@@ -497,16 +497,15 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
 
         let tmp_dir1 = tempfile::tempdir().unwrap();
-        let mut config =
-            NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
+        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
         let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
-        let mut service1 = NetworkService::new(config.clone(), &signer1).unwrap();
+        let service1 = NetworkService::new(config.clone(), &signer1).unwrap();
 
         let peer_id = service1.event_loop.local_peer_id().to_string();
 
         let multiaddr: Multiaddr = format!("/memory/1/p2p/{}", peer_id).parse().unwrap();
 
-        let (mut sender, mut _service1_handle) =
+        let (sender, mut _service1_handle) =
             (service1.sender, tokio::spawn(service1.event_loop.run()));
 
         // second service
@@ -517,7 +516,7 @@ mod tests {
 
         config2.bootstrap_addresses = [multiaddr].into();
 
-        let mut service2 = NetworkService::new(config2.clone(), &signer2).unwrap();
+        let service2 = NetworkService::new(config2.clone(), &signer2).unwrap();
 
         tokio::spawn(service2.event_loop.run());
 
@@ -532,7 +531,6 @@ mod tests {
         let mut gossip_stream = service2.gossip_stream;
 
         // Wait for the commitment to be received by service2
-
         let received_commitment = timeout(Duration::from_secs(5), async {
             while let Some(message) = gossip_stream.next().await {
                 if message.data == commitment_data {
