@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use gear_common::{Gas, GasMultiplier, ProgramId};
 
-use crate::{constants::Value, manager::Actors, GAS_MULTIPLIER};
+use crate::{constants::Value, manager::Actors, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
 
 /// Balance of an actor.
 #[derive(Debug, Clone, Default)]
@@ -100,6 +100,15 @@ impl Balance {
 
     /// Increase the balance.
     pub fn increase(&mut self, value: Value) {
+        if self.total + value < EXISTENTIAL_DEPOSIT {
+            panic!(
+                "Failed to increase balance: the sum {} of the total balance {} \
+                and the value {value} cannot be lower than the existential deposit",
+                self.total + value,
+                self.total,
+            );
+        }
+
         self.total += value;
     }
 

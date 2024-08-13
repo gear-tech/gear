@@ -1263,7 +1263,7 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
-        let mut user_balance = 2 * EXISTENTIAL_DEPOSIT;
+        let mut user_balance = 4 * EXISTENTIAL_DEPOSIT;
         sys.mint_to(user_id, user_balance);
 
         let prog_id = 137;
@@ -1421,5 +1421,22 @@ mod tests {
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
         assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Failed to increase balance: the sum 999850000000 of the total balance 994000000000 \
+        and the value 5850000000 cannot be lower than the existential deposit"
+    )]
+    fn fails_transfer_when_user_balance_lower_than_ed() {
+        let sys = System::new();
+        sys.init_verbose_logger();
+
+        let user = 42;
+        sys.mint_to(user, 2 * EXISTENTIAL_DEPOSIT);
+
+        let prog = Program::from_binary_with_id(&sys, 69, demo_piggy_bank::WASM_BINARY);
+        prog.send_bytes_with_gas(user, b"init", 1_000_000_000, 0);
+        sys.run_next_block();
     }
 }
