@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
+#[cfg(not(feature = "ethexe"))]
+use gprimitives::ReservationId;
+use gprimitives::{ActorId, CodeId, MessageId};
 
 pub(crate) trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
     fn as_ptr(&self) -> *const [u8; 32] {
@@ -31,6 +33,7 @@ pub(crate) trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
 impl AsRawPtr for ActorId {}
 impl AsRawPtr for CodeId {}
 impl AsRawPtr for MessageId {}
+#[cfg(not(feature = "ethexe"))]
 impl AsRawPtr for ReservationId {}
 
 /// Extensions for additional features.

@@ -22,7 +22,7 @@ mod agro;
 
 use agro::{Aggregator, MultisignedCommitments};
 use anyhow::Result;
-use ethexe_common::{BlockCommitment, CodeCommitment};
+use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::Event;
 use ethexe_signer::{Address, PublicKey, Signer};
@@ -97,11 +97,8 @@ impl Sequencer {
                     );
                 }
             }
-            Event::CodeLoaded(data) => {
-                log::debug!(
-                    "Observed code_hash#{:?}. Waiting for inclusion...",
-                    data.code_id
-                );
+            Event::CodeLoaded { code_id, .. } => {
+                log::debug!("Observed code_hash#{code_id:?}. Waiting for inclusion...")
             }
         }
 

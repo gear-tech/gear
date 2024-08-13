@@ -71,6 +71,9 @@ where
         memory_size,
     } = context;
 
+    // TODO: consider avoiding cloning here.
+    let initial_gas_reserver = gas_reserver.clone();
+
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program.id);
@@ -227,6 +230,11 @@ where
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
 
+    // Triggering update of gas reserver only in case of it changed.
+    let gas_reserver = initial_gas_reserver
+        .ne(&info.gas_reserver)
+        .then_some(info.gas_reserver);
+
     // Output
     Ok(DispatchResult {
         kind,
@@ -238,7 +246,7 @@ where
         reply_deposits: info.reply_deposits,
         program_candidates,
         gas_amount: info.gas_amount,
-        gas_reserver: Some(info.gas_reserver),
+        gas_reserver,
         system_reservation_context: info.system_reservation_context,
         page_update,
         allocations: info.allocations,
