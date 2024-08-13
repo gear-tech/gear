@@ -176,6 +176,7 @@ pub(crate) async fn read_code_from_tx_hash(
 
 // TODO (breathx): only read events that require some activity.
 // TODO (breathx): read WVara events.
+// TODO (breathx): don't store not our events.
 pub(crate) async fn read_block_events(
     block_hash: H256,
     provider: &ObserverProvider,

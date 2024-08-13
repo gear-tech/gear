@@ -87,7 +87,7 @@ interface IRouter {
      */
     event CodeGotValidated(bytes32 id, bool indexed valid);
 
-    // TODO: consider splitting init message creation.
+    // TODO (breathx): describe proposal of splitting init in two steps.
     /**
      * @dev Emitted when a new program created.
      */

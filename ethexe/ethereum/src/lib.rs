@@ -191,6 +191,7 @@ impl Ethereum {
         Mirror::new(address.0.into(), self.provider.clone())
     }
 
+    // TODO (breathx): move in router.
     pub fn wvara(&self) -> WVara {
         WVara::new(self.wrapped_vara_address, self.provider.clone())
     }
