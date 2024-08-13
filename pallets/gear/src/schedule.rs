@@ -782,8 +782,8 @@ impl<T: Config> Default for Schedule<T> {
             code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
             load_allocations_weight: cost(W::<T>::load_allocations_per_interval),
             dispatch_stash_cost: Weight::from_parts(CostsPerBlockOf::<T>::dispatch_stash(), 0),
-            reservation_cost: Weight::from_parts(CostsPerBlockOf::<T>::reservation().into(), 0),
-            waitlist_cost: Weight::from_parts(CostsPerBlockOf::<T>::waitlist().into(), 0),
+            reservation_cost: Weight::from_parts(CostsPerBlockOf::<T>::reservation(), 0),
+            waitlist_cost: Weight::from_parts(CostsPerBlockOf::<T>::waitlist(), 0),
         }
     }
 }
