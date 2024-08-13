@@ -135,6 +135,11 @@ pub struct Schedule<T: Config> {
     /// Single db read per byte cost.
     pub db_read_per_byte: Weight,
 
+    /// Single db read cost.
+    pub db_read: Weight,
+    /// Single db write cost.
+    pub db_write: Weight,
+
     /// WASM code instrumentation base cost.
     pub code_instrumentation_cost: Weight,
 
@@ -143,6 +148,14 @@ pub struct Schedule<T: Config> {
 
     /// Load allocations weight.
     pub load_allocations_weight: Weight,
+
+    /// Holding message in waitlist cost per block.
+    pub waitlist_cost: Weight,
+
+    /// Holding message in dispatch stash cost per block.
+    pub dispatch_stash_cost: Weight,
+    /// Holding reservation cost per block
+    pub reservation_cost: Weight,
 }
 
 /// Describes the upper limits on various metrics.
@@ -749,6 +762,8 @@ impl<T: Config> Default for Schedule<T> {
             instruction_weights: Default::default(),
             syscall_weights: Default::default(),
             memory_weights: Default::default(),
+            db_read: cost(W::<T>::db_read_per_kb),
+            db_write: cost(W::<T>::db_write_per_kb),
             db_write_per_byte: cost_byte(W::<T>::db_write_per_kb),
             db_read_per_byte: cost_byte(W::<T>::db_read_per_kb),
             instantiation_weights: InstantiationWeights {
@@ -766,6 +781,9 @@ impl<T: Config> Default for Schedule<T> {
             code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
             code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
             load_allocations_weight: cost(W::<T>::load_allocations_per_interval),
+            dispatch_stash_cost: Weight::from_parts(CostsPerBlockOf::<T>::dispatch_stash(), 0),
+            reservation_cost: Weight::from_parts(CostsPerBlockOf::<T>::reservation().into(), 0),
+            waitlist_cost: Weight::from_parts(CostsPerBlockOf::<T>::waitlist().into(), 0),
         }
     }
 }

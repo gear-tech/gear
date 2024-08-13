@@ -112,11 +112,6 @@ struct SerializableDump {
 #[derive(Debug, Deserialize)]
 struct DeserializableDump {
     vara_schedule: DeserializableSchedule,
-    read: u64,
-    write: u64,
-    waitlist: u64,
-    dispatch_stash: u64,
-    reservation: u64,
     label: Option<String>,
 }
 
@@ -451,37 +446,6 @@ fn main() {
                 pub struct Weight {
                     pub ref_time: u64,
                     pub proof_size: u64,
-                }
-            });
-
-            /* some extra weights: we do not bother with parsing core-processor files, it's too complicated and dumps too much stuff */
-            declarations.push(quote! {
-                pub struct ExtraWeights {
-                    pub rent_waitlist: u64,
-                    pub rent_dispatch_stash: u64,
-                    pub rent_reservation: u64,
-                    pub read: u64,
-                    pub write: u64,
-                }
-            });
-
-            let waitlist = dump.waitlist;
-            let dispatch_stash = dump.dispatch_stash;
-            let reservation = dump.reservation;
-            let read = dump.read;
-            let write = dump.write;
-
-            declarations.push(quote! {
-                impl Default for ExtraWeights {
-                    fn default() -> Self {
-                        Self {
-                            rent_waitlist: #waitlist,
-                            rent_dispatch_stash: #dispatch_stash,
-                            rent_reservation: #reservation,
-                            read: #read,
-                            write: #write
-                        }
-                    }
                 }
             });
 

@@ -29,9 +29,14 @@ pub struct Schedule {
     pub instantiation_weights: InstantiationWeights,
     pub db_write_per_byte: Weight,
     pub db_read_per_byte: Weight,
+    pub db_read: Weight,
+    pub db_write: Weight,
     pub code_instrumentation_cost: Weight,
     pub code_instrumentation_byte_cost: Weight,
     pub load_allocations_weight: Weight,
+    pub waitlist_cost: Weight,
+    pub dispatch_stash_cost: Weight,
+    pub reservation_cost: Weight,
 }
 
 impl Default for Schedule {
@@ -50,6 +55,14 @@ impl Default for Schedule {
                 ref_time: 569,
                 proof_size: 0,
             },
+            db_read: Weight {
+                ref_time: 583390,
+                proof_size: 0,
+            },
+            db_write: Weight {
+                ref_time: 239667,
+                proof_size: 0,
+            },
             code_instrumentation_cost: Weight {
                 ref_time: 306821000,
                 proof_size: 3793,
@@ -60,6 +73,18 @@ impl Default for Schedule {
             },
             load_allocations_weight: Weight {
                 ref_time: 20729,
+                proof_size: 0,
+            },
+            waitlist_cost: Weight {
+                ref_time: 100,
+                proof_size: 0,
+            },
+            dispatch_stash_cost: Weight {
+                ref_time: 100,
+                proof_size: 0,
+            },
+            reservation_cost: Weight {
+                ref_time: 100,
                 proof_size: 0,
             },
         }
@@ -756,24 +781,4 @@ impl Default for InstantiationWeights {
 pub struct Weight {
     pub ref_time: u64,
     pub proof_size: u64,
-}
-
-pub struct ExtraWeights {
-    pub rent_waitlist: u64,
-    pub rent_dispatch_stash: u64,
-    pub rent_reservation: u64,
-    pub read: u64,
-    pub write: u64,
-}
-
-impl Default for ExtraWeights {
-    fn default() -> Self {
-        Self {
-            rent_waitlist: 100u64,
-            rent_dispatch_stash: 100u64,
-            rent_reservation: 100u64,
-            read: 25000000u64,
-            write: 100000000u64,
-        }
-    }
 }

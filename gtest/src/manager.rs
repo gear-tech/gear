@@ -51,7 +51,7 @@ use gear_core::{
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
-use gear_wasm_instrument::gas_metering::{ExtraWeights, Schedule};
+use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -848,7 +848,7 @@ impl ExtManager {
             .gas_tree
             .get_limit(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        let extra_weights = ExtraWeights::default();
+
         let schedule = Schedule::default();
         let block_config = BlockConfig {
             block_info: self.blocks_manager.get(),
@@ -860,9 +860,9 @@ impl ExtManager {
                 ext: ExtCosts {
                     syscalls: Default::default(),
                     rent: RentCosts {
-                        waitlist: CostOf::new(extra_weights.rent_waitlist),
-                        dispatch_stash: CostOf::new(extra_weights.rent_dispatch_stash),
-                        reservation: CostOf::new(extra_weights.rent_reservation),
+                        waitlist: CostOf::new(schedule.waitlist_cost.ref_time),
+                        dispatch_stash: CostOf::new(schedule.dispatch_stash_cost.ref_time),
+                        reservation: CostOf::new(schedule.reservation_cost.ref_time),
                     },
                     mem_grow: CostOf::new(schedule.memory_weights.mem_grow.ref_time),
                     mem_grow_per_page: CostOf::new(
@@ -898,9 +898,9 @@ impl ExtManager {
                             .ref_time,
                     ),
                 },
-                read: CostOf::new(extra_weights.read),
+                read: CostOf::new(schedule.db_read.ref_time),
                 read_per_byte: CostOf::new(schedule.db_read_per_byte.ref_time),
-                write: CostOf::new(extra_weights.write),
+                write: CostOf::new(schedule.db_write.ref_time),
                 instrumentation: CostOf::new(schedule.code_instrumentation_cost.ref_time),
                 instrumentation_per_byte: CostOf::new(
                     schedule.code_instrumentation_byte_cost.ref_time,
