@@ -60,27 +60,27 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit StorageSlotChanged();
     }
 
-    function genesisBlockHash() external view returns (bytes32) {
+    function genesisBlockHash() public view returns (bytes32) {
         Storage storage router = _getStorage();
         return router.genesisBlockHash;
     }
 
-    function lastBlockCommitmentHash() external view returns (bytes32) {
+    function lastBlockCommitmentHash() public view returns (bytes32) {
         Storage storage router = _getStorage();
         return router.lastBlockCommitmentHash;
     }
 
-    function wrappedVara() external view returns (address) {
+    function wrappedVara() public view returns (address) {
         Storage storage router = _getStorage();
         return router.wrappedVara;
     }
 
-    function mirrorProxy() external view returns (address) {
+    function mirrorProxy() public view returns (address) {
         Storage storage router = _getStorage();
         return router.mirrorProxy;
     }
 
-    function mirror() external view returns (address) {
+    function mirror() public view returns (address) {
         Storage storage router = _getStorage();
         return router.mirror;
     }
@@ -92,22 +92,22 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /* Codes and programs observing functions */
 
-    function validatedCodesCount() external view returns (uint256) {
+    function validatedCodesCount() public view returns (uint256) {
         Storage storage router = _getStorage();
         return router.validatedCodesCount;
     }
 
-    function codeState(bytes32 codeId) external view returns (CodeState) {
+    function codeState(bytes32 codeId) public view returns (CodeState) {
         Storage storage router = _getStorage();
         return router.codes[codeId];
     }
 
-    function programsCount() external view returns (uint256) {
+    function programsCount() public view returns (uint256) {
         Storage storage router = _getStorage();
         return router.programsCount;
     }
 
-    function programExists(address program) external view returns (bool) {
+    function programExists(address program) public view returns (bool) {
         Storage storage router = _getStorage();
         return router.programs[program];
     }
@@ -129,12 +129,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return router.validatorsKeys.length;
     }
 
-    function validatorExists(address validator) external view returns (bool) {
+    function validatorExists(address validator) public view returns (bool) {
         Storage storage router = _getStorage();
         return router.validators[validator];
     }
 
-    function validators() external view returns (address[] memory) {
+    function validators() public view returns (address[] memory) {
         Storage storage router = _getStorage();
         return router.validatorsKeys;
     }

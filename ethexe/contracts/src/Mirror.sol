@@ -102,7 +102,7 @@ contract Mirror is IMirror {
 
     /* Local helper functions */
 
-    function _retrieveValueToRouter(uint128 _value) public {
+    function _retrieveValueToRouter(uint128 _value) private {
         address routerAddress = router();
 
         IWrappedVara wrappedVara = IWrappedVara(IRouter(routerAddress).wrappedVara());
@@ -112,8 +112,7 @@ contract Mirror is IMirror {
         require(success, "failed to retrieve WVara");
     }
 
-    // TODO (breathx): for such public fns should there be modifier? are they available out of this contract? (cc) StackOverflowException
-    function _sendValueTo(address destination, uint128 value) public {
+    function _sendValueTo(address destination, uint128 value) private {
         IWrappedVara wrappedVara = IWrappedVara(IRouter(router()).wrappedVara());
 
         if (value != 0) {
