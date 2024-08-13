@@ -59,8 +59,8 @@
 //! ```
 //!
 //! 2. Provide associated type for your pallet's `Config`, which implements
-//! `gear_common::{CodeStorage, ProgramStorage}` traits,
-//! specifying associated types if needed.
+//!    `gear_common::{CodeStorage, ProgramStorage}` traits,
+//!    specifying associated types if needed.
 //!
 //! ```ignore
 //! // `some_pallet/src/lib.rs`
@@ -121,7 +121,7 @@
 //! ```
 //!
 //! 5. Work with Gear Program Pallet in your pallet with provided
-//! associated type interface.
+//!    associated type interface.
 //!
 //! ## Genesis config
 //!
@@ -130,6 +130,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![allow(clippy::manual_inspect)]
 
 extern crate alloc;
 

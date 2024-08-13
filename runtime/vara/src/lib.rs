@@ -20,6 +20,8 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 #![allow(clippy::items_after_test_module)]
+#![allow(clippy::legacy_numeric_constants)]
+#![allow(non_local_definitions)]
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
@@ -95,12 +97,14 @@ use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashingFor;
+#[cfg(not(feature = "dev"))]
+use sp_runtime::traits::OpaqueKeys;
 use sp_runtime::{
     codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
-        IdentityLookup, NumberFor, One, OpaqueKeys, SignedExtension,
+        IdentityLookup, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
@@ -170,7 +174,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1420,
+    spec_version: 1500,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -396,6 +400,7 @@ impl pallet_transaction_payment::Config for Runtime {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
+// **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
@@ -405,14 +410,82 @@ impl_opaque_keys! {
     }
 }
 
+#[cfg(feature = "dev")]
+mod grandpa_keys_handler {
+    use super::{AccountId, GearEthBridge, Grandpa};
+    use frame_support::traits::OneSessionHandler;
+    use sp_runtime::BoundToRuntimeAppPublic;
+    use sp_std::vec::Vec;
+
+    /// Due to requirement of pallet_session to have one keys handler for each
+    /// type of opaque keys, this implementation is necessary: aggregates
+    /// `Grandpa` and `GearEthBridge` handling of grandpa keys rotations.
+    pub struct GrandpaAndGearEthBridge;
+
+    impl BoundToRuntimeAppPublic for GrandpaAndGearEthBridge {
+        type Public = <Grandpa as BoundToRuntimeAppPublic>::Public;
+    }
+
+    impl OneSessionHandler<AccountId> for GrandpaAndGearEthBridge {
+        type Key = <Grandpa as OneSessionHandler<AccountId>>::Key;
+        fn on_before_session_ending() {
+            Grandpa::on_before_session_ending();
+            GearEthBridge::on_before_session_ending();
+        }
+        fn on_disabled(validator_index: u32) {
+            Grandpa::on_disabled(validator_index);
+            GearEthBridge::on_disabled(validator_index);
+        }
+        fn on_genesis_session<'a, I>(validators: I)
+        where
+            I: 'a + Iterator<Item = (&'a AccountId, Self::Key)>,
+            AccountId: 'a,
+        {
+            let validators: Vec<_> = validators.collect();
+            Grandpa::on_genesis_session(validators.clone().into_iter());
+            GearEthBridge::on_genesis_session(validators.into_iter());
+        }
+        fn on_new_session<'a, I>(changed: bool, validators: I, queued_validators: I)
+        where
+            I: 'a + Iterator<Item = (&'a AccountId, Self::Key)>,
+            AccountId: 'a,
+        {
+            let validators: Vec<_> = validators.collect();
+            let queued_validators: Vec<_> = queued_validators.collect();
+            Grandpa::on_new_session(
+                changed,
+                validators.clone().into_iter(),
+                queued_validators.clone().into_iter(),
+            );
+            GearEthBridge::on_new_session(
+                changed,
+                validators.into_iter(),
+                queued_validators.into_iter(),
+            );
+        }
+    }
+}
+
+#[cfg(feature = "dev")]
+pub type VaraSessionHandler = (
+    Babe,
+    grandpa_keys_handler::GrandpaAndGearEthBridge,
+    ImOnline,
+    AuthorityDiscovery,
+);
+
+#[cfg(not(feature = "dev"))]
+pub type VaraSessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
     type ValidatorIdOf = pallet_staking::StashOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
+    // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
     type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
-    type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+    type SessionHandler = VaraSessionHandler;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
 }
@@ -618,6 +691,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 
 parameter_types! {
     // Six sessions in an era (12 hours)
+    // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
     // 42 eras for unbonding (7 days)
     pub const BondingDuration: sp_staking::EraIndex = 14;
@@ -656,6 +730,7 @@ impl pallet_staking::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
+    // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
     type SessionsPerEra = SessionsPerEra;
     type BondingDuration = BondingDuration;
     type SlashDeferDuration = SlashDeferDuration;
@@ -1095,15 +1170,33 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 /// Builtin actors arranged in a tuple.
+#[cfg(not(feature = "dev"))]
 pub type BuiltinActors = (
     pallet_gear_builtin::bls12_381::Actor<Runtime>,
     pallet_gear_builtin::staking::Actor<Runtime>,
 );
 
+/// Builtin actors arranged in a tuple.
+#[cfg(feature = "dev")]
+pub type BuiltinActors = (
+    pallet_gear_builtin::bls12_381::Actor<Runtime>,
+    pallet_gear_builtin::staking::Actor<Runtime>,
+    pallet_gear_eth_bridge::Actor<Runtime>,
+);
+
 impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
-    type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
+}
+
+#[cfg(feature = "dev")]
+impl pallet_gear_eth_bridge::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
+    type QueueCapacity = ConstU32<2048>;
+    type SessionsPerEra = SessionsPerEra;
+    type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -1232,6 +1325,7 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
         GearBuiltin: pallet_gear_builtin = 109,
+        GearEthBridge: pallet_gear_eth_bridge = 110,
 
         Sudo: pallet_sudo = 99,
 
@@ -1293,6 +1387,8 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
         GearBuiltin: pallet_gear_builtin = 109,
+        // Uncomment me, once ready for prod runtime.
+        // GearEthBridge: pallet_gear_eth_bridge = 110,
 
         // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1348,7 +1444,23 @@ type DebugInfo = ();
 #[macro_use]
 extern crate frame_benchmarking;
 
-#[cfg(feature = "runtime-benchmarks")]
+#[cfg(all(feature = "runtime-benchmarks", feature = "dev"))]
+mod benches {
+    define_benchmarks!(
+        // Substrate pallets
+        [frame_system, SystemBench::<Runtime>]
+        [pallet_balances, Balances]
+        [pallet_timestamp, Timestamp]
+        [pallet_utility, Utility]
+        // Gear pallets
+        [pallet_gear, Gear]
+        [pallet_gear_voucher, GearVoucher]
+        [pallet_gear_builtin, GearBuiltin]
+        [pallet_gear_eth_bridge, GearEthBridge]
+    );
+}
+
+#[cfg(all(feature = "runtime-benchmarks", not(feature = "dev")))]
 mod benches {
     define_benchmarks!(
         // Substrate pallets
@@ -1474,6 +1586,20 @@ impl_runtime_apis_plus_common! {
         }
     }
 
+    impl pallet_gear_eth_bridge_rpc_runtime_api::GearEthBridgeApi<Block> for Runtime {
+        fn merkle_proof(hash: H256) -> Option<pallet_gear_eth_bridge_rpc_runtime_api::Proof> {
+            match () {
+                #[cfg(not(feature = "dev"))]
+                () => {
+                    let _ = hash;
+                    None
+                },
+                #[cfg(feature = "dev")]
+                () => GearEthBridge::merkle_proof(hash),
+            }
+        }
+    }
+
     impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
         fn create_default_config() -> Vec<u8> {
             create_default_config::<RuntimeGenesisConfig>()
@@ -1569,7 +1695,7 @@ where
 
     fn from_parts(call: &C, params: Self::Params) -> Self {
         Self {
-            call: unsafe { std::mem::transmute(call) },
+            call: unsafe { std::mem::transmute::<&C, &C>(call) },
             transaction_depth: params.0.into(),
             changes: core::cell::RefCell::new(params.1),
             recorder: params.2,

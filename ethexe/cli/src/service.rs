@@ -282,6 +282,9 @@ impl Service {
         // Set block as valid - means state db has all states for the end of the block
         db.set_block_end_state_is_valid(block_hash, true);
 
+        let header = db.block_header(block_hash).expect("must be set; qed");
+        db.set_latest_valid_block_height(header.height);
+
         Ok(transition_outcomes)
     }
 

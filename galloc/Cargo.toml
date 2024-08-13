@@ -7,6 +7,7 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 # add "checks" feature to enable hard checks in allocator

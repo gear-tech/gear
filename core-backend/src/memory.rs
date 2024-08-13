@@ -29,7 +29,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
-use core::{marker::PhantomData, mem, mem::MaybeUninit, slice};
+use core::{marker::PhantomData, mem::MaybeUninit, slice};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     memory::{HostPointer, Memory, MemoryError, MemoryInterval},
@@ -191,7 +191,7 @@ where
     }
 
     pub(crate) fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
-        let size = mem::size_of::<T>() as u32;
+        let size = size_of::<T>() as u32;
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
@@ -223,7 +223,7 @@ where
     }
 
     pub(crate) fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        let size = mem::size_of::<T>() as u32;
+        let size = size_of::<T>() as u32;
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
@@ -289,7 +289,7 @@ where
     ) -> Result<T, MemoryAccessError> {
         let mut buf = MaybeUninit::<T>::uninit();
 
-        let size = mem::size_of::<T>();
+        let size = size_of::<T>();
         if size > 0 {
             // # Safety:
             //
@@ -351,7 +351,7 @@ where
         write: WasmMemoryWriteAs<T>,
         obj: T,
     ) -> Result<(), MemoryAccessError> {
-        let size = mem::size_of::<T>();
+        let size = size_of::<T>();
         if size > 0 {
             // # Safety:
             //
@@ -842,7 +842,7 @@ mod tests {
         assert_eq!(registry.reads.len(), 1);
         assert_eq!(registry.writes.len(), 0);
         assert_eq!(registry.reads[0].offset, 0);
-        assert_eq!(registry.reads[0].size, mem::size_of::<u8>() as u32);
+        assert_eq!(registry.reads[0].size, size_of::<u8>() as u32);
     }
 
     #[test]
@@ -855,7 +855,7 @@ mod tests {
         assert_eq!(registry.reads.len(), 1);
         assert_eq!(registry.writes.len(), 0);
         assert_eq!(registry.reads[0].offset, 0);
-        assert_eq!(registry.reads[0].size, mem::size_of::<u8>() as u32);
+        assert_eq!(registry.reads[0].size, size_of::<u8>() as u32);
     }
 
     #[derive(Debug, PartialEq, Eq, Encode, Decode, MaxEncodedLen)]
@@ -934,7 +934,7 @@ mod tests {
         assert_eq!(registry.reads.len(), 0);
         assert_eq!(registry.writes.len(), 1);
         assert_eq!(registry.writes[0].offset, 0);
-        assert_eq!(registry.writes[0].size, mem::size_of::<u8>() as u32);
+        assert_eq!(registry.writes[0].size, size_of::<u8>() as u32);
     }
 
     #[test]
@@ -947,6 +947,6 @@ mod tests {
         assert_eq!(registry.reads.len(), 0);
         assert_eq!(registry.writes.len(), 1);
         assert_eq!(registry.writes[0].offset, 0);
-        assert_eq!(registry.writes[0].size, mem::size_of::<u8>() as u32);
+        assert_eq!(registry.writes[0].size, size_of::<u8>() as u32);
     }
 }

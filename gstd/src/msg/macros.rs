@@ -64,6 +64,53 @@ macro_rules! impl_futures {
 
                 Ok(self)
             }
+
+            /// Execute a function when the reply is received.
+            ///
+            /// This callback will be executed in reply context and consume reply gas, so
+            /// adequate `reply_deposit` should be supplied in `*_for_reply` call
+            /// that comes before this. Note that the hook will still be executed on reply
+            /// even after original future resolves in timeout.
+            ///
+            /// # Examples
+            ///
+            /// Send message to echo program and wait for reply.
+            ///
+            /// ```
+            /// use gstd::{ActorId, msg, debug};
+            ///
+            /// #[gstd::async_main]
+            /// async fn main() {
+            ///     let dest = ActorId::from(1); // Replace with correct actor id
+            ///
+            ///     msg::send_bytes_for_reply(dest, b"PING", 0, 1_000_000)
+            ///         .expect("Unable to send")
+            ///         .handle_reply(|| {
+            ///             debug!("reply code: {:?}", msg::reply_code());
+            ///
+            ///             if msg::load_bytes().unwrap_or_default() == b"PONG" {
+            ///                debug!("successfully received pong");
+            ///             }
+            ///         })
+            ///         .expect("Error setting reply hook")
+            ///         .await
+            ///         .expect("Received error");
+            /// }
+            /// # fn main() {}
+            /// ```
+            ///
+            /// # Panics
+            ///
+            /// Panics if this is called second time.
+            #[cfg(not(feature = "ethexe"))]
+            pub fn handle_reply<F: FnOnce() + 'static>(self, f: F) -> Result<Self> {
+                if self.reply_deposit == 0 {
+                    return Err(Error::Gstd(crate::errors::UsageError::ZeroReplyDeposit));
+                }
+                async_runtime::reply_hooks().register(self.waiting_reply_to.clone(), f);
+
+                Ok(self)
+            }
         }
     };
 }

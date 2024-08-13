@@ -23,13 +23,15 @@ use crate::{
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
+    GAS_ALLOWANCE, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST, HOST_FUNC_WRITE_COST,
+    INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, LOAD_PAGE_STORAGE_DATA_COST,
+    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
     MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST,
-    RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    RESERVE_FOR, SIGNAL_READ_COST, SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS,
+    WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -45,7 +47,7 @@ use gear_core::{
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
+        SignalMessage, StoredDispatch, StoredMessage,
     },
     pages::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
@@ -864,7 +866,15 @@ impl ExtManager {
                     mem_grow: Default::default(),
                     mem_grow_per_page: Default::default(),
                 },
-                lazy_pages: LazyPagesCosts::default(),
+                lazy_pages: LazyPagesCosts {
+                    host_func_read: HOST_FUNC_READ_COST.into(),
+                    host_func_write: HOST_FUNC_WRITE_COST.into(),
+                    host_func_write_after_read: HOST_FUNC_WRITE_AFTER_READ_COST.into(),
+                    load_page_storage_data: LOAD_PAGE_STORAGE_DATA_COST.into(),
+                    signal_read: SIGNAL_READ_COST.into(),
+                    signal_write: SIGNAL_WRITE_COST.into(),
+                    signal_write_after_read: SIGNAL_WRITE_AFTER_READ_COST.into(),
+                },
                 read: READ_COST.into(),
                 read_per_byte: READ_PER_BYTE_COST.into(),
                 write: WRITE_COST.into(),
@@ -1304,11 +1314,50 @@ impl JournalHandler for ExtManager {
         .expect("no genuine program was found");
     }
 
-    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
+        self.gas_tree
+            .system_reserve(message_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+    }
 
-    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
+    fn system_unreserve_gas(&mut self, message_id: MessageId) {
+        self.gas_tree
+            .system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+    }
 
-    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId, _code: SignalCode) {}
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+        let reserved = self
+            .gas_tree
+            .system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        if reserved != 0 {
+            log::debug!(
+                "Send signal issued by {} to {} with {} supply",
+                message_id,
+                destination,
+                reserved
+            );
+
+            let trap_signal = SignalMessage::new(message_id, code)
+                .into_dispatch(message_id, destination)
+                .into_stored();
+
+            self.gas_tree
+                .split_with_value(
+                    trap_signal.is_reply(),
+                    message_id,
+                    trap_signal.id(),
+                    reserved,
+                )
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            self.dispatches.push_back(trap_signal);
+        } else {
+            log::trace!("Signal wasn't send due to inappropriate supply");
+        }
+    }
 
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         self.gas_tree
