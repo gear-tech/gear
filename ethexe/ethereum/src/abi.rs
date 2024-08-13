@@ -85,7 +85,6 @@ impl From<router::StateTransition> for IRouter::StateTransition {
     fn from(
         router::StateTransition {
             actor_id,
-            prev_state_hash,
             new_state_hash,
             value_to_receive,
             value_claims,
@@ -94,7 +93,6 @@ impl From<router::StateTransition> for IRouter::StateTransition {
     ) -> Self {
         Self {
             actorId: actor_id.to_address_lossy().to_fixed_bytes().into(),
-            prevStateHash: prev_state_hash.to_fixed_bytes().into(),
             newStateHash: new_state_hash.to_fixed_bytes().into(),
             valueToReceive: value_to_receive,
             valueClaims: value_claims.into_iter().map(Into::into).collect(),

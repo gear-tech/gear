@@ -358,23 +358,7 @@ impl Processor {
             }
         }
 
-        let mut current_outcomes = self.run(block_hash, &mut programs)?;
-
-        for outcome in current_outcomes.iter_mut() {
-            if let LocalOutcome::Transition(StateTransition {
-                actor_id: program_id,
-                prev_state_hash,
-                ..
-            }) = outcome
-            {
-                let prev_state = initial_program_states
-                    .get(program_id)
-                    .cloned()
-                    .unwrap_or_default();
-
-                *prev_state_hash = prev_state;
-            }
-        }
+        let current_outcomes = self.run(block_hash, &mut programs)?;
 
         outcomes.extend(current_outcomes);
 

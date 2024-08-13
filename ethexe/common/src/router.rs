@@ -50,7 +50,6 @@ pub struct BlockCommitment {
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct StateTransition {
     pub actor_id: ActorId,
-    pub prev_state_hash: H256,
     pub new_state_hash: H256,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,

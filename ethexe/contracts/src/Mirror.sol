@@ -51,10 +51,8 @@ contract Mirror is IMirror {
 
     /* Router-driven state and funds management */
 
-    function updateState(bytes32 prevStateHash, bytes32 newStateHash) external onlyRouter {
-        require(stateHash == prevStateHash, "invalid transition initial state hash");
-
-        if (prevStateHash != newStateHash) {
+    function updateState(bytes32 newStateHash) external onlyRouter {
+        if (stateHash != newStateHash) {
             stateHash = newStateHash;
 
             emit StateChanged(stateHash);

@@ -112,13 +112,13 @@ async fn run_in_async(
                 };
                 core_processor::handle_journal(journal, &mut handler);
 
-                for (id, (old_hash, new_hash)) in handler.results {
-                    results.insert(id, (old_hash, new_hash, vec![]));
+                for (id, new_hash) in handler.results {
+                    results.insert(id, (new_hash, vec![]));
                 }
 
                 for message in &handler.to_users_messages {
                     let entry = results.get_mut(&message.source()).expect("should be");
-                    entry.2.push(message.clone());
+                    entry.1.push(message.clone());
                 }
 
                 to_users_messages.append(&mut handler.to_users_messages);
@@ -136,11 +136,10 @@ async fn run_in_async(
 
     let outcomes = results
         .into_iter()
-        .map(|(id, (old_hash, new_hash, outgoing_messages))| {
+        .map(|(id, (new_state_hash, outgoing_messages))| {
             LocalOutcome::Transition(StateTransition {
                 actor_id: id,
-                prev_state_hash: old_hash,
-                new_state_hash: new_hash,
+                new_state_hash,
                 value_to_receive: 0,  // TODO (breathx): propose this
                 value_claims: vec![], // TODO (breathx): propose this
                 messages:

@@ -70,7 +70,7 @@ interface IMirror {
     /* Router-driven state and funds management */
     // NOTE: all of these methods will have additional handler (with hooks) for decoder.
 
-    function updateState(bytes32 prevStateHash, bytes32 newStateHash) external;
+    function updateState(bytes32 newStateHash) external;
 
     function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external;
 

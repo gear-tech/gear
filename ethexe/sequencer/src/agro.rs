@@ -68,8 +68,6 @@ impl SeqHash for StateTransition {
         let state_transition_size = // concat of fields:
             // actorId
             size_of::<Address>()
-            // prevStateHash
-            + size_of::<H256>()
             // newStateHash
             + size_of::<H256>()
             // valueToReceive
@@ -82,7 +80,6 @@ impl SeqHash for StateTransition {
         let mut state_transition_bytes = Vec::with_capacity(state_transition_size);
 
         state_transition_bytes.extend_from_slice(self.actor_id.to_address_lossy().as_bytes());
-        state_transition_bytes.extend_from_slice(self.prev_state_hash.as_bytes());
         state_transition_bytes.extend_from_slice(self.new_state_hash.as_bytes());
         state_transition_bytes.extend_from_slice(self.value_to_receive.to_be_bytes().as_slice());
 
