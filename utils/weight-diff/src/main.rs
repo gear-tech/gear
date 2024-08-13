@@ -100,6 +100,11 @@ enum WeightsKind {
 #[derive(Debug, Serialize)]
 struct SerializableDump {
     vara_schedule: Schedule<vara_runtime::Runtime>,
+    read: u64,
+    write: u64,
+    waitlist: u64,
+    dispatch_stash: u64,
+    reservation: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<String>,
 }
@@ -107,6 +112,11 @@ struct SerializableDump {
 #[derive(Debug, Deserialize)]
 struct DeserializableDump {
     vara_schedule: DeserializableSchedule,
+    read: u64,
+    write: u64,
+    waitlist: u64,
+    dispatch_stash: u64,
+    reservation: u64,
     label: Option<String>,
 }
 
@@ -270,10 +280,17 @@ fn main() {
     match command {
         Commands::Dump { output_path, label } => {
             let writer = fs::File::create(output_path).unwrap();
+            let vara_schedule: Schedule<vara_runtime::Runtime> = Default::default();
+            let process_costs = vara_schedule.process_costs();
             serde_json::to_writer_pretty(
                 writer,
                 &SerializableDump {
-                    vara_schedule: Default::default(),
+                    vara_schedule,
+                    waitlist: process_costs.ext.rent.waitlist.cost_for_one(),
+                    dispatch_stash: process_costs.ext.rent.dispatch_stash.cost_for_one(),
+                    read: process_costs.read.cost_for_one(),
+                    write: process_costs.write.cost_for_one(),
+                    reservation: process_costs.ext.rent.reservation.cost_for_one(),
                     label,
                 },
             )
@@ -434,6 +451,37 @@ fn main() {
                 pub struct Weight {
                     pub ref_time: u64,
                     pub proof_size: u64,
+                }
+            });
+
+            /* some extra weights: we do not bother with parsing core-processor files, it's too complicated and dumps too much stuff */
+            declarations.push(quote! {
+                pub struct ExtraWeights {
+                    pub rent_waitlist: u64,
+                    pub rent_dispatch_stash: u64,
+                    pub rent_reservation: u64,
+                    pub read: u64,
+                    pub write: u64,
+                }
+            });
+
+            let waitlist = dump.waitlist;
+            let dispatch_stash = dump.dispatch_stash;
+            let reservation = dump.reservation;
+            let read = dump.read;
+            let write = dump.write;
+
+            declarations.push(quote! {
+                impl Default for ExtraWeights {
+                    fn default() -> Self {
+                        Self {
+                            rent_waitlist: #waitlist,
+                            rent_dispatch_stash: #dispatch_stash,
+                            rent_reservation: #reservation,
+                            read: #read,
+                            write: #write
+                        }
+                    }
                 }
             });
 

@@ -757,3 +757,23 @@ pub struct Weight {
     pub ref_time: u64,
     pub proof_size: u64,
 }
+
+pub struct ExtraWeights {
+    pub rent_waitlist: u64,
+    pub rent_dispatch_stash: u64,
+    pub rent_reservation: u64,
+    pub read: u64,
+    pub write: u64,
+}
+
+impl Default for ExtraWeights {
+    fn default() -> Self {
+        Self {
+            rent_waitlist: 100u64,
+            rent_dispatch_stash: 100u64,
+            rent_reservation: 100u64,
+            read: 25000000u64,
+            write: 100000000u64,
+        }
+    }
+}
