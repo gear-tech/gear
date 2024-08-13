@@ -18,7 +18,7 @@
 
 //! Database for ethexe.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::{CASDatabase, KVDatabase};
 use ethexe_common::{
@@ -55,6 +55,10 @@ enum KeyPrefix {
 }
 
 impl KeyPrefix {
+    fn prefix(self) -> [u8; 32] {
+        H256::from_low_u64_be(self as u64).0
+    }
+
     fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
         [H256::from_low_u64_be(self as u64).as_bytes(), key.as_ref()].concat()
     }
@@ -274,6 +278,26 @@ impl CodesStorage for Database {
             &KeyPrefix::ProgramToCodeId.one(program_id),
             code_id.into_bytes().to_vec(),
         );
+    }
+
+    fn program_ids(&self) -> BTreeSet<ProgramId> {
+        let key_prefix = KeyPrefix::ProgramToCodeId.prefix();
+
+        let mut program_ids = BTreeSet::new();
+
+        for (key, code_id) in self.kv.iter_prefix(&key_prefix) {
+            let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
+            debug_assert_eq!(splitted_key_prefix, key_prefix);
+            let program_id =
+                ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
+
+            program_ids.insert(program_id);
+
+            #[cfg(debug_assertions)]
+            CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
+        }
+
+        program_ids
     }
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
