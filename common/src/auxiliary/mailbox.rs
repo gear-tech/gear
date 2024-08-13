@@ -18,14 +18,11 @@
 
 //! Auxiliary implementation of the mailbox.
 
+use super::AuxiliaryDoubleStorageWrap;
 use crate::{
     auxiliary::{BlockNumber, DoubleBTreeMap},
-    storage::{
-        CountedByKey, DoubleMapStorage, GetSecondPos, Interval, IterableByKeyMap, IteratorWrap,
-        MailboxError, MailboxImpl, MailboxKeyGen,
-    },
+    storage::{Interval, MailboxError, MailboxImpl, MailboxKeyGen},
 };
-use alloc::collections::btree_map::IntoIter;
 use core::cell::RefCell;
 use gear_core::{
     ids::{MessageId, ProgramId},
@@ -54,87 +51,25 @@ std::thread_local! {
 /// `Mailbox` double storage map manager.
 pub struct MailboxStorageWrap;
 
-impl DoubleMapStorage for MailboxStorageWrap {
+impl AuxiliaryDoubleStorageWrap for MailboxStorageWrap {
     type Key1 = ProgramId;
     type Key2 = MessageId;
     type Value = (MailboxedMessage, Interval<BlockNumber>);
 
-    fn contains_keys(key1: &Self::Key1, key2: &Self::Key2) -> bool {
-        MAILBOX_STORAGE.with_borrow(|map| map.contains_keys(key1, key2))
+    fn with_storage<F, R>(f: F) -> R
+    where
+        F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
+    {
+        MAILBOX_STORAGE.with_borrow(f)
     }
 
-    fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {
-        MAILBOX_STORAGE.with_borrow(|map| map.get(key1, key2).cloned())
-    }
-
-    fn insert(key1: Self::Key1, key2: Self::Key2, value: Self::Value) {
-        MAILBOX_STORAGE.with_borrow_mut(|map| map.insert(key1, key2, value));
-    }
-
-    fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(
-        _key1: Self::Key1,
-        _key2: Self::Key2,
-        _f: F,
-    ) -> R {
-        unimplemented!()
-    }
-
-    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(_f: F) {
-        unimplemented!()
-    }
-
-    fn remove(key1: Self::Key1, key2: Self::Key2) {
-        Self::take(key1, key2);
-    }
-
-    fn clear() {
-        MAILBOX_STORAGE.with_borrow_mut(|map| map.clear())
-    }
-
-    fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value> {
-        MAILBOX_STORAGE.with_borrow_mut(|map| map.remove(key1, key2))
-    }
-
-    fn clear_prefix(_first_key: Self::Key1) {
-        unimplemented!()
+    fn with_storage_mut<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
+    {
+        MAILBOX_STORAGE.with_borrow_mut(f)
     }
 }
-
-impl CountedByKey for MailboxStorageWrap {
-    type Key = ProgramId;
-    type Length = usize;
-
-    fn len(key: &Self::Key) -> Self::Length {
-        MAILBOX_STORAGE.with_borrow(|map| map.count_key(key))
-    }
-}
-
-impl IterableByKeyMap<(MailboxedMessage, Interval<BlockNumber>)> for MailboxStorageWrap {
-    type Key = ProgramId;
-
-    type DrainIter = IteratorWrap<
-        IntoIter<MessageId, (MailboxedMessage, Interval<BlockNumber>)>,
-        (MailboxedMessage, Interval<BlockNumber>),
-        GetSecondPos,
-    >;
-
-    type Iter = IteratorWrap<
-        IntoIter<MessageId, (MailboxedMessage, Interval<BlockNumber>)>,
-        (MailboxedMessage, Interval<BlockNumber>),
-        GetSecondPos,
-    >;
-
-    fn drain_key(key: Self::Key) -> Self::DrainIter {
-        MAILBOX_STORAGE
-            .with_borrow_mut(|map| map.drain_key(&key))
-            .into()
-    }
-
-    fn iter_key(key: Self::Key) -> Self::Iter {
-        MAILBOX_STORAGE.with_borrow(|map| map.iter_key(&key)).into()
-    }
-}
-
 /// An implementor of the error returned from calling `Mailbox` trait functions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MailboxErrorImpl {
