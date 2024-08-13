@@ -10,6 +10,9 @@ pub enum Error {
     /// Some errors happens in subxt.
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
+    /// Subxt core error
+    #[error(transparent)]
+    SubxtCore(#[from] subxt::ext::subxt_core::Error),
     /// Failed to setup logger.
     #[error(transparent)]
     EnvLogger(#[from] log::SetLoggerError),
