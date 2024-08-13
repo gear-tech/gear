@@ -56,7 +56,12 @@ where
         // we work with WASM memory which is handled by WASM executor
         // (e.g. it reads and writes, but doesn't execute as native code)
         // that's why the case is impossible
-        8 /* DEP */ => unreachable!("data execution prevention"),
+        8 /* DEP */ => {
+            let err_msg = "exception_handler: data execution prevention.";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        }
         // existence of other values is undocumented and I expect they should be treated as reserved
         _ => None,
     };
