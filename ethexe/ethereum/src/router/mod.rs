@@ -114,15 +114,8 @@ impl Router {
                 Some(b) if b == signatures::CODE_GOT_VALIDATED => {
                     let event = crate::decode_log::<IRouter::CodeGotValidated>(log)?;
 
-                    if event.codeId == code_id {
-                        return Ok(true);
-                    }
-                }
-                Some(b) if b == signatures::CODE_FAILED_VALIDATION => {
-                    let event = crate::decode_log::<IRouter::CodeFailedValidation>(log)?;
-
-                    if event.codeId == code_id {
-                        return Ok(false);
+                    if event.id == code_id {
+                        return Ok(event.valid);
                     }
                 }
                 _ => (),

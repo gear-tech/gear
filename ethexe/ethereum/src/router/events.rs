@@ -27,7 +27,6 @@ pub mod signatures {
 
     pub const BASE_WEIGHT_CHANGED: H256 = H256(IRouter::BaseWeightChanged::SIGNATURE_HASH.0);
     pub const BLOCK_COMMITTED: H256 = H256(IRouter::BlockCommitted::SIGNATURE_HASH.0);
-    pub const CODE_FAILED_VALIDATION: H256 = H256(IRouter::CodeFailedValidation::SIGNATURE_HASH.0);
     pub const CODE_GOT_VALIDATED: H256 = H256(IRouter::CodeGotValidated::SIGNATURE_HASH.0);
     pub const CODE_VALIDATION_REQUESTED: H256 =
         H256(IRouter::CodeValidationRequested::SIGNATURE_HASH.0);
@@ -37,10 +36,9 @@ pub mod signatures {
     pub const VALUE_PER_WEIGHT_CHANGED: H256 =
         H256(IRouter::ValuePerWeightChanged::SIGNATURE_HASH.0);
 
-    pub const ALL: [H256; 9] = [
+    pub const ALL: [H256; 8] = [
         BASE_WEIGHT_CHANGED,
         BLOCK_COMMITTED,
-        CODE_FAILED_VALIDATION,
         CODE_GOT_VALIDATED,
         CODE_VALIDATION_REQUESTED,
         PROGRAM_CREATED,
@@ -62,9 +60,6 @@ pub fn try_extract_event(log: Log) -> Result<Option<router::Event>> {
     let event = match topic0 {
         b if b == BASE_WEIGHT_CHANGED => decode_log::<IRouter::BaseWeightChanged>(log)?.into(),
         b if b == BLOCK_COMMITTED => decode_log::<IRouter::BlockCommitted>(log)?.into(),
-        b if b == CODE_FAILED_VALIDATION => {
-            decode_log::<IRouter::CodeFailedValidation>(log)?.into()
-        }
         b if b == CODE_GOT_VALIDATED => decode_log::<IRouter::CodeGotValidated>(log)?.into(),
         b if b == CODE_VALIDATION_REQUESTED => {
             let tx_hash = log.transaction_hash.ok_or(anyhow!("Tx hash not found"))?;

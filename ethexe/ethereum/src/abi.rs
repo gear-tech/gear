@@ -172,18 +172,11 @@ impl From<IRouter::BlockCommitted> for router::Event {
     }
 }
 
-impl From<IRouter::CodeFailedValidation> for router::Event {
-    fn from(event: IRouter::CodeFailedValidation) -> Self {
-        router::Event::CodeFailedValidation {
-            code_id: (*event.codeId).into(),
-        }
-    }
-}
-
 impl From<IRouter::CodeGotValidated> for router::Event {
     fn from(event: IRouter::CodeGotValidated) -> Self {
         router::Event::CodeGotValidated {
-            code_id: (*event.codeId).into(),
+            id: (*event.id).into(),
+            valid: event.valid,
         }
     }
 }

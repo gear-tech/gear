@@ -238,11 +238,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
                 router.codes[codeId] = CodeState.Validated;
                 router.validatedCodesCount++;
 
-                emit CodeGotValidated(codeId);
+                emit CodeGotValidated(codeId, true);
             } else {
                 delete router.codes[codeId];
 
-                emit CodeFailedValidation(codeId);
+                emit CodeGotValidated(codeId, false);
             }
         }
 

@@ -82,11 +82,9 @@ pub enum Event {
     BlockCommitted {
         block_hash: H256,
     },
-    CodeFailedValidation {
-        code_id: CodeId,
-    },
     CodeGotValidated {
-        code_id: CodeId,
+        id: CodeId,
+        valid: bool,
     },
     CodeValidationRequested {
         code_id: CodeId,

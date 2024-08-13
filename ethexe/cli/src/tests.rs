@@ -362,9 +362,13 @@ async fn ping() {
     log::info!("📗 Waiting for code to get validated");
     listener
         .apply_until_block_event(|event| {
-            if let BlockEvent::Router(RouterEvent::CodeGotValidated { code_id: loaded_id }) = event
+            if let BlockEvent::Router(RouterEvent::CodeGotValidated {
+                id: loaded_id,
+                valid,
+            }) = event
             {
                 assert_eq!(code_id, loaded_id);
+                assert!(valid);
                 Ok(Some(()))
             } else {
                 Ok(None)
@@ -529,9 +533,11 @@ async fn ping_reorg() {
     listener
         .apply_until_block_event(|event| match event {
             BlockEvent::Router(RouterEvent::CodeGotValidated {
-                code_id: validated_code_id,
+                id: validated_code_id,
+                valid,
             }) => {
                 assert_eq!(code_id, validated_code_id);
+                assert!(valid);
                 Ok(Some(()))
             }
             _ => Ok(None),
@@ -785,9 +791,11 @@ async fn ping_deep_sync() {
     listener
         .apply_until_block_event(|event| match event {
             BlockEvent::Router(RouterEvent::CodeGotValidated {
-                code_id: validated_code_id,
+                id: validated_code_id,
+                valid,
             }) => {
                 assert_eq!(code_id, validated_code_id);
+                assert!(valid);
                 Ok(Some(()))
             }
             _ => Ok(None),

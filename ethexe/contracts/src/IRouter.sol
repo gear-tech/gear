@@ -83,14 +83,9 @@ interface IRouter {
     event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
 
     /**
-     * @dev Emitted when a code, previously requested to be validated, gets validated successfully.
+     * @dev Emitted when a code, previously requested to be validated, gets validated.
      */
-    event CodeGotValidated(bytes32 codeId);
-
-    /**
-     * @dev Emitted when a code, previously requested to be validated, fails validation.
-     */
-    event CodeFailedValidation(bytes32 codeId);
+    event CodeGotValidated(bytes32 id, bool indexed valid);
 
     // TODO: consider splitting init message creation.
     /**
