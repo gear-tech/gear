@@ -5,6 +5,12 @@ import {Proxy} from "@openzeppelin/contracts/proxy/Proxy.sol";
 import {IMirrorProxy} from "./IMirrorProxy.sol";
 import {IRouter} from "./IRouter.sol";
 
+/*
+
+    DO NOT CHANGE THIS CONTRACT.
+
+*/
+
 contract MirrorProxy is IMirrorProxy, Proxy {
     address public immutable router;
 
@@ -14,10 +20,5 @@ contract MirrorProxy is IMirrorProxy, Proxy {
 
     function _implementation() internal view virtual override returns (address) {
         return IRouter(router).mirror();
-    }
-
-    // TODO: remove me in favor of proper ether handling everywhere.
-    receive() external payable {
-        payable(router).transfer(msg.value);
     }
 }
