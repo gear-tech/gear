@@ -20,9 +20,9 @@ use crate::{
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
 };
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_db::{CodesStorage, Database};
 use gear_core::ids::ProgramId;
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::H256;
 use libp2p::{
     core::Endpoint,
     futures::FutureExt,
@@ -65,27 +65,13 @@ pub struct RequestId(u64);
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub enum Request {
-    BlockEndProgramStates(H256),
     DataForHashes(BTreeSet<H256>),
-    ProgramCodeIds(BTreeSet<ProgramId>),
+    ProgramIds,
 }
 
 impl Request {
     fn validate_response(&self, resp: &Response) -> Result<(), RequestFailure> {
         match (self, resp) {
-            (
-                Request::BlockEndProgramStates(requested_block_hash),
-                Response::BlockEndProgramStates {
-                    block_hash,
-                    states: _,
-                },
-            ) => {
-                if requested_block_hash == block_hash {
-                    Ok(())
-                } else {
-                    Err(RequestFailure::HashInequality)
-                }
-            }
             (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
                 for (hash, data) in hashes {
                     if !requested_hashes.contains(hash) {
@@ -99,15 +85,7 @@ impl Request {
 
                 Ok(())
             }
-            (Request::ProgramCodeIds(requested_ids), Response::ProgramCodeIds(ids)) => {
-                for pid in ids.keys() {
-                    if !requested_ids.contains(pid) {
-                        return Err(RequestFailure::ExcessiveData);
-                    }
-                }
-
-                Ok(())
-            }
+            (Request::ProgramIds, Response::ProgramIds(_ids)) => Ok(()),
             (_, _) => Err(RequestFailure::TypeMismatch),
         }
     }
@@ -115,10 +93,6 @@ impl Request {
     /// Calculate missing request keys in response and create a new request with these keys
     fn difference(&self, resp: &Response) -> Option<Self> {
         match (self, resp) {
-            (
-                Request::BlockEndProgramStates(_request_block_hash),
-                Response::BlockEndProgramStates { .. },
-            ) => None,
             (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
                 let hashes_keys = hashes.keys().copied().collect();
                 let new_requested_hashes: BTreeSet<H256> =
@@ -129,16 +103,7 @@ impl Request {
                     None
                 }
             }
-            (Request::ProgramCodeIds(requested_ids), Response::ProgramCodeIds(ids)) => {
-                let ids_keys = ids.keys().copied().collect();
-                let new_requested_ids: BTreeSet<ProgramId> =
-                    requested_ids.difference(&ids_keys).copied().collect();
-                if !new_requested_ids.is_empty() {
-                    Some(Request::ProgramCodeIds(new_requested_ids))
-                } else {
-                    None
-                }
-            }
+            (Request::ProgramIds, Response::ProgramIds(_ids)) => None,
             _ => unreachable!("should be checked in `validate_response`"),
         }
     }
@@ -146,40 +111,22 @@ impl Request {
 
 #[derive(Debug, Eq, PartialEq, Encode, Decode)]
 pub enum Response {
-    BlockEndProgramStates {
-        /// Block hash states requested for
-        block_hash: H256,
-        /// Program states for request block
-        states: BTreeMap<ActorId, H256>,
-    },
     /// Key (hash) - value (bytes) data
     DataForHashes(BTreeMap<H256, Vec<u8>>),
-    /// Program IDs and their corresponding code IDs
-    ProgramCodeIds(BTreeMap<ProgramId, CodeId>),
+    /// All existing programs
+    ProgramIds(BTreeSet<ProgramId>),
 }
 
 impl Response {
     fn merge(self, new_response: Response) -> Response {
         match (self, new_response) {
-            (
-                Response::BlockEndProgramStates {
-                    block_hash,
-                    mut states,
-                },
-                Response::BlockEndProgramStates {
-                    states: new_states, ..
-                },
-            ) => {
-                states.extend(new_states);
-                Response::BlockEndProgramStates { block_hash, states }
-            }
             (Response::DataForHashes(mut data), Response::DataForHashes(new_data)) => {
                 data.extend(new_data);
                 Response::DataForHashes(data)
             }
-            (Response::ProgramCodeIds(mut ids), Response::ProgramCodeIds(new_ids)) => {
+            (Response::ProgramIds(mut ids), Response::ProgramIds(new_ids)) => {
                 ids.extend(new_ids);
-                Response::ProgramCodeIds(ids)
+                Response::ProgramIds(ids)
             }
             _ => unreachable!("should be checked in `validate_response`"),
         }
@@ -386,21 +333,13 @@ impl Behaviour {
     fn read_db(&self, request: Request) -> JoinHandle<Response> {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || match request {
-            Request::BlockEndProgramStates(block_hash) => Response::BlockEndProgramStates {
-                block_hash,
-                states: db.block_end_program_states(block_hash).unwrap_or_default(),
-            },
             Request::DataForHashes(hashes) => Response::DataForHashes(
                 hashes
                     .into_iter()
                     .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
                     .collect(),
             ),
-            Request::ProgramCodeIds(ids) => Response::ProgramCodeIds(
-                ids.into_iter()
-                    .filter_map(|program_id| Some((program_id, db.program_code_id(program_id)?)))
-                    .collect(),
-            ),
+            Request::ProgramIds => Response::ProgramIds(db.program_ids()),
         })
     }
 
@@ -650,6 +589,7 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
+    use gprimitives::CodeId;
     use libp2p::Swarm;
     use libp2p_swarm_test::SwarmExt;
 
@@ -680,20 +620,6 @@ mod tests {
             request.validate_response(&response),
             Err(RequestFailure::ExcessiveData)
         );
-
-        let request = Request::ProgramCodeIds([ProgramId::from(1), ProgramId::from(2)].into());
-        let response = Response::ProgramCodeIds(
-            [
-                (ProgramId::from(1), CodeId::default()),
-                (ProgramId::from(2), CodeId::default()),
-                (ProgramId::from(3), CodeId::default()),
-            ]
-            .into(),
-        );
-        assert_eq!(
-            request.validate_response(&response),
-            Err(RequestFailure::ExcessiveData)
-        );
     }
 
     #[test]
@@ -710,21 +636,22 @@ mod tests {
 
     #[tokio::test]
     async fn smoke() {
+        const PID1: ProgramId = ProgramId::new([1; 32]);
+        const PID2: ProgramId = ProgramId::new([2; 32]);
+
         init_logger();
 
         let (mut alice, _alice_db) = new_swarm().await;
         let (mut bob, bob_db) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
-        let hello_hash = bob_db.write(b"hello");
-        let world_hash = bob_db.write(b"world");
+        bob_db.set_program_code_id(PID1, CodeId::zero());
+        bob_db.set_program_code_id(PID2, CodeId::zero());
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let request_id = alice
-            .behaviour_mut()
-            .request(Request::DataForHashes([hello_hash, world_hash].into()));
+        let request_id = alice.behaviour_mut().request(Request::ProgramIds);
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -740,13 +667,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response::DataForHashes(
-                    [
-                        (hello_hash, b"hello".to_vec()),
-                        (world_hash, b"world".to_vec())
-                    ]
-                    .into()
-                )
+                response: Response::ProgramIds([PID1, PID2].into())
             }
         )
     }
@@ -791,7 +712,7 @@ mod tests {
                             assert_eq!(request, Request::DataForHashes([].into()));
                             let _res = bob
                                 .behaviour_mut()
-                                .send_response(channel, Response::ProgramCodeIds([].into()));
+                                .send_response(channel, Response::ProgramIds([].into()));
                         }
                         request_response::Event::ResponseSent { .. } => continue,
                         e => unreachable!("unexpected event: {:?}", e),
