@@ -134,10 +134,10 @@ interface IRouter {
      * @dev Emitted when the tx's base weight is changed.
      *
      * NOTE:    It's event for USERS:
-     *  it informs about new value of commision for each message sending.
+     *  it informs about new value of commission for each message sending.
      *
      * NOTE:    It's event for NODES:
-     *  it requires to update commision in programs execution parameters.
+     *  it requires to update commission in programs execution parameters.
      */
     event BaseWeightChanged(uint64 baseWeight);
 
