@@ -74,42 +74,81 @@ interface IRouter {
 
     /**
      * @dev Emitted when a new state transitions are applied.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about new block outcome committed.
      */
     event BlockCommitted(bytes32 blockHash);
 
     /**
      * @dev Emitted when a new code validation request submitted.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to download and validate code from blob.
      */
     event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
 
     /**
      * @dev Emitted when a code, previously requested to be validated, gets validated.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about validation results of previously requested code.
      */
     event CodeGotValidated(bytes32 id, bool indexed valid);
 
     // TODO (breathx): describe proposal of splitting init in two steps.
     /**
      * @dev Emitted when a new program created.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about new program creation and it's availability on Ethereum.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to create associated gear program in local storage.
      */
     event ProgramCreated(address actorId, bytes32 indexed codeId);
 
     /**
      * @dev Emitted when the validators set is changed.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about validators rotation.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to update authorities that sign outcomes.
      */
     event ValidatorsSetChanged();
 
     /**
      * @dev Emitted when the storage slot is changed.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about router being wiped and all programs and codes deletion.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to clean the local storage.
      */
     event StorageSlotChanged();
 
     /**
      * @dev Emitted when the tx's base weight is changed.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about new value of commision for each message sending.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to update commision in programs execution parameters.
      */
     event BaseWeightChanged(uint64 baseWeight);
 
     /**
      * @dev Emitted when the value per executable weight is changed.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about new conversion rate between weight and it's WVara price.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to update conversion rate in programs execution parameters.
      */
     event ValuePerWeightChanged(uint128 valuePerWeight);
 
