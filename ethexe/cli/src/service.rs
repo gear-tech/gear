@@ -57,9 +57,6 @@ pub struct Service {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
-        let db = ethexe_db::Database::from_one(&rocks_db);
-
         let blob_reader = Arc::new(
             ethexe_observer::ConsensusLayerBlobReader::new(
                 &config.ethereum_rpc,
@@ -70,6 +67,9 @@ impl Service {
         );
 
         let ethereum_router_address = config.ethereum_router_address;
+        let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
+        let db = ethexe_db::Database::from_one(&rocks_db, ethereum_router_address.0);
+
         let observer = ethexe_observer::Observer::new(
             &config.ethereum_rpc,
             ethereum_router_address,
