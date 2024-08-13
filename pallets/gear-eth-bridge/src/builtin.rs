@@ -39,8 +39,6 @@ impl<T: Config> BuiltinActor for Actor<T>
 where
     T::AccountId: Origin,
 {
-    const ID: u64 = 3;
-
     type Error = BuiltinActorError;
 
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
