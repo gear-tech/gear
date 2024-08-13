@@ -21,7 +21,8 @@
 use crate::{config::GearConfig, metadata::Event};
 use anyhow::Result;
 use futures::{Stream, StreamExt};
-use std::{marker::Unpin, pin::Pin, task::Poll};
+use sp_core::H256;
+use std::{marker::Unpin, ops::Deref, pin::Pin, task::Poll};
 use subxt::{backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents, OnlineClient};
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
@@ -47,12 +48,12 @@ impl Stream for Blocks {
 
 impl Blocks {
     /// Wait for the next block from the subscription.
-    pub async fn next_events(&mut self) -> Option<Result<SubxtEvents<GearConfig>>> {
-        if let Some(block) = StreamExt::next(self).await {
-            Some(block.ok()?.events().await.map_err(Into::into))
-        } else {
-            None
-        }
+    pub async fn next_events(&mut self) -> Result<Option<BlockEvents>> {
+        let Some(next) = StreamExt::next(self).await else {
+            return Ok(None);
+        };
+
+        Ok(Some(BlockEvents::new(next?).await?))
     }
 }
 
@@ -67,22 +68,59 @@ pub struct Events(Blocks);
 
 impl Events {
     /// Wait for the next events from the subscription.
-    pub async fn next(&mut self) -> Option<Result<Vec<Event>>> {
-        self.0.next_events().await.map(|r| {
-            r.and_then(|es| {
-                es.iter()
-                    .map(|ev| {
-                        ev.and_then(|e| e.as_root_event::<Event>())
-                            .map_err(Into::into)
-                    })
-                    .collect::<Result<Vec<_>>>()
-            })
-        })
+    pub async fn next(&mut self) -> Result<Vec<Event>> {
+        if let Some(es) = self.0.next_events().await? {
+            es.events()
+        } else {
+            Ok(Default::default())
+        }
     }
 }
 
 impl From<BlockSubscription> for Events {
     fn from(sub: BlockSubscription) -> Self {
         Self(sub.into())
+    }
+}
+
+/// Subxt events wrapper with block info
+pub struct BlockEvents {
+    /// Block hash of the provided events
+    block_hash: H256,
+    /// subxt events
+    events: SubxtEvents<GearConfig>,
+}
+
+impl BlockEvents {
+    /// Wrap subxt events with block info
+    pub async fn new(block: Block<GearConfig, OnlineClient<GearConfig>>) -> Result<Self> {
+        Ok(Self {
+            block_hash: block.hash(),
+            events: block.events().await?,
+        })
+    }
+
+    /// Get the block hash of the holding events
+    pub fn block_hash(&self) -> H256 {
+        self.block_hash
+    }
+
+    /// Get gear events
+    pub fn events(&self) -> Result<Vec<Event>> {
+        self.events
+            .iter()
+            .map(|ev| {
+                ev.and_then(|e| e.as_root_event::<Event>())
+                    .map_err(Into::into)
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+}
+
+impl Deref for BlockEvents {
+    type Target = SubxtEvents<GearConfig>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.events
     }
 }

@@ -20,12 +20,11 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use gsdk::{
-    config::GearConfig,
     ext::sp_core::H256,
     metadata::{gear::Event as GearEvent, Event},
+    subscription::BlockEvents,
     Blocks,
 };
-use subxt::events::Events;
 
 /// Event listener that allows catching and processing events propagated through
 /// the network.
@@ -53,8 +52,8 @@ impl EventProcessor for EventListener {
     }
 
     async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T> + Copy) -> Result<T> {
-        while let Some(events) = self.0.next_events().await {
-            if let Some(res) = self.proc_events_inner(events?, predicate) {
+        while let Some(events) = self.0.next_events().await? {
+            if let Some(res) = self.proc_events_inner(events, predicate) {
                 return Ok(res);
             }
         }
@@ -69,8 +68,8 @@ impl EventProcessor for EventListener {
     ) -> Result<Vec<T>> {
         let mut res = vec![];
 
-        while let Some(events) = self.0.next_events().await {
-            for event in events?.iter() {
+        while let Some(events) = self.0.next_events().await? {
+            for event in events.iter() {
                 if let Some(data) = predicate(event?.as_root_event::<Event>()?) {
                     res.push(data);
                 }
@@ -93,9 +92,8 @@ impl EventListener {
     /// [`QueueNotProcessed`](https://docs.gear.rs/pallet_gear/pallet/enum.Event.html#variant.QueueNotProcessed)
     /// event.
     pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
-        while let Some(events) = self.0.next_events().await {
-            let events = events?;
-            let events_bh = events.block_hash;
+        while let Some(events) = self.0.next_events().await? {
+            let events_bh = events.block_hash();
 
             if let Some(res) = self.proc_events_inner(events, |e| {
                 matches!(e, Event::Gear(GearEvent::QueueNotProcessed)).then_some(events_bh)
@@ -113,8 +111,8 @@ impl EventListener {
         Ok(self
             .0
             .next_events()
-            .await
-            .ok_or(Error::EventNotFound)??
+            .await?
+            .ok_or(Error::EventNotFound)?
             .block_hash())
     }
 
@@ -135,7 +133,7 @@ impl EventListener {
 
     fn proc_events_inner<T>(
         &mut self,
-        events: Events<GearConfig>,
+        events: BlockEvents,
         predicate: impl Fn(Event) -> Option<T>,
     ) -> Option<T> {
         events
