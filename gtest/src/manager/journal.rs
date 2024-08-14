@@ -181,7 +181,6 @@ impl JournalHandler for ExtManager {
             expected_bn
         });
         self.wait_list.insert((dest, id), (dispatch, expected_wake));
-        // wait_list_schedules
     }
 
     fn wake_message(
