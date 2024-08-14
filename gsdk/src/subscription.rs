@@ -84,6 +84,7 @@ impl From<BlockSubscription> for Events {
 }
 
 /// Subxt events wrapper with block info
+#[derive(Clone, Debug)]
 pub struct BlockEvents {
     /// Block hash of the provided events
     block_hash: H256,
