@@ -62,7 +62,7 @@ impl MutexId {
 /// (program C) tries to invoke program A, it will wait until program A receives
 /// the `PONG` reply from program B and unlocks the mutex.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{msg, sync::Mutex, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
@@ -191,7 +191,13 @@ impl<'a, T> MutexGuard<'a, T> {
 
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
-        let is_holder_msg_signal_handler = msg::signal_from() == Ok(self.holder_msg_id);
+        let is_holder_msg_signal_handler = match () {
+            #[cfg(not(feature = "ethexe"))]
+            () => msg::signal_from() == Ok(self.holder_msg_id),
+            #[cfg(feature = "ethexe")]
+            () => false,
+        };
+
         if !is_holder_msg_signal_handler {
             self.ensure_access_by_holder();
         }

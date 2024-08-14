@@ -36,7 +36,11 @@ mod utils;
 static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 
 /// A global flag, determining if `handle_signal` already was generated.
+#[cfg(not(feature = "ethexe"))]
 static mut HANDLE_SIGNAL_FLAG: Flag = Flag(false);
+
+#[cfg(feature = "ethexe")]
+static mut HANDLE_SIGNAL_FLAG: Flag = Flag(true);
 
 fn literal_to_actor_id(literal: syn::LitStr) -> syn::Result<TokenStream> {
     let actor_id: [u8; 32] = ActorId::from_str(&literal.value())
@@ -131,8 +135,16 @@ impl Parse for MainAttrs {
                 "handle_reply" => {
                     attrs.handle_reply = Some(path);
                 }
+                #[cfg(not(feature = "ethexe"))]
                 "handle_signal" => {
                     attrs.handle_signal = Some(path);
+                }
+                #[cfg(feature = "ethexe")]
+                "handle_signal" => {
+                    return Err(syn::Error::new_spanned(
+                        name,
+                        "`handle_signal` is forbidden with `ethexe` feature on",
+                    ));
                 }
                 _ => return Err(syn::Error::new_spanned(name, "unknown parameter")),
             }
@@ -316,7 +328,7 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// handlers. Note that custom reply and signal handlers derive their default
 /// behavior.
 ///
-/// ```
+/// ```ignore
 /// #[gstd::async_init(handle_signal = my_handle_signal)]
 /// async fn init() {
 ///     // ...
@@ -452,10 +464,12 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string(), style);
 
     // Generate arguments.
+    #[cfg_attr(feature = "ethexe", allow(unused_mut))]
     let (mut inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
     // Add `reply_deposit` argument.
+    #[cfg(not(feature = "ethexe"))]
     inputs.push(syn::parse_quote!(reply_deposit: u64));
 
     // Generate generics.
@@ -482,42 +496,70 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! { #ident }
     };
 
-    quote! {
-        #function
+    match () {
+        #[cfg(not(feature = "ethexe"))]
+        () => quote! {
+            #function
 
-        #[doc = #for_reply_docs]
-        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::MessageFuture> {
-            // Function call.
-            let waiting_reply_to = #ident #args ?;
+            #[doc = #for_reply_docs]
+            pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::MessageFuture> {
+                // Function call.
+                let waiting_reply_to = #ident #args ?;
 
-            // Depositing gas for future reply handling if not zero.
-            if reply_deposit != 0 {
-                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
-            }
+                // Depositing gas for future reply handling if not zero.
+                if reply_deposit != 0 {
+                    crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+                }
 
-            // Registering signal.
-            crate::async_runtime::signals().register_signal(waiting_reply_to);
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
 
             Ok(crate::msg::MessageFuture { waiting_reply_to, reply_deposit })
         }
 
-        #[doc = #for_reply_as_docs]
-        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecMessageFuture<D>> {
-            // Function call.
-            let waiting_reply_to = #ident #args ?;
+            #[doc = #for_reply_as_docs]
+            pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecMessageFuture<D>> {
+                // Function call.
+                let waiting_reply_to = #ident #args ?;
 
-            // Depositing gas for future reply handling if not zero.
-            if reply_deposit != 0 {
-                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+                // Depositing gas for future reply handling if not zero.
+                if reply_deposit != 0 {
+                    crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+                }
+
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
+
+                Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, reply_deposit, _marker: Default::default() })
+            }
+        },
+        #[cfg(feature = "ethexe")]
+        () => quote! {
+            #function
+
+            #[doc = #for_reply_docs]
+            pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::MessageFuture> {
+                // Function call.
+                let waiting_reply_to = #ident #args ?;
+
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
+
+                Ok(crate::msg::MessageFuture { waiting_reply_to, reply_deposit: 0 })
             }
 
-            // Registering signal.
-            crate::async_runtime::signals().register_signal(waiting_reply_to);
+            #[doc = #for_reply_as_docs]
+            pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecMessageFuture<D>> {
+                // Function call.
+                let waiting_reply_to = #ident #args ?;
 
-            Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, reply_deposit, _marker: Default::default() })
-        }
-    }
-    .into()
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
+
+                Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, reply_deposit: 0, _marker: Default::default() })
+            }
+        },
+    }.into()
 }
 
 /// Similar to [`macro@wait_for_reply`], but works with functions that create
@@ -557,10 +599,12 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
         utils::wait_for_reply_docs(function_ident.to_string(), style);
 
     // Generate arguments.
+    #[cfg_attr(feature = "ethexe", allow(unused_mut))]
     let (mut inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
     // Add `reply_deposit` argument.
+    #[cfg(not(feature = "ethexe"))]
     inputs.push(syn::parse_quote!(reply_deposit: u64));
 
     // Generate generics.
@@ -575,42 +619,70 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
         ),
     );
 
-    quote! {
-        #function
+    match () {
+        #[cfg(not(feature = "ethexe"))]
+        () => quote! {
+            #function
 
-        #[doc = #for_reply_docs]
-        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::CreateProgramFuture> {
-            // Function call.
-            let (waiting_reply_to, program_id) = #ident #args ?;
+            #[doc = #for_reply_docs]
+            pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::CreateProgramFuture> {
+                // Function call.
+                let (waiting_reply_to, program_id) = #ident #args ?;
 
-            // Depositing gas for future reply handling if not zero.
-            if reply_deposit != 0 {
-                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
-            }
+                // Depositing gas for future reply handling if not zero.
+                if reply_deposit != 0 {
+                    crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+                }
 
-            // Registering signal.
-            crate::async_runtime::signals().register_signal(waiting_reply_to);
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
 
             Ok(crate::msg::CreateProgramFuture { waiting_reply_to, program_id, reply_deposit })
         }
 
-        #[doc = #for_reply_as_docs]
-        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecCreateProgramFuture<D>> {
-            // Function call.
-            let (waiting_reply_to, program_id) = #ident #args ?;
+            #[doc = #for_reply_as_docs]
+            pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecCreateProgramFuture<D>> {
+                // Function call.
+                let (waiting_reply_to, program_id) = #ident #args ?;
 
-            // Depositing gas for future reply handling if not zero.
-            if reply_deposit != 0 {
-                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+                // Depositing gas for future reply handling if not zero.
+                if reply_deposit != 0 {
+                    crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+                }
+
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
+
+                Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, reply_deposit, _marker: Default::default() })
+            }
+        },
+        #[cfg(feature = "ethexe")]
+        () => quote! {
+            #function
+
+            #[doc = #for_reply_docs]
+            pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::CreateProgramFuture> {
+                // Function call.
+                let (waiting_reply_to, program_id) = #ident #args ?;
+
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
+
+                Ok(crate::msg::CreateProgramFuture { waiting_reply_to, program_id, reply_deposit: 0 })
             }
 
-            // Registering signal.
-            crate::async_runtime::signals().register_signal(waiting_reply_to);
+            #[doc = #for_reply_as_docs]
+            pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecCreateProgramFuture<D>> {
+                // Function call.
+                let (waiting_reply_to, program_id) = #ident #args ?;
 
-            Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, reply_deposit, _marker: Default::default() })
-        }
-    }
-    .into()
+                // Registering signal.
+                crate::async_runtime::signals().register_signal(waiting_reply_to);
+
+                Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, reply_deposit: 0, _marker: Default::default() })
+            }
+        },
+    }.into()
 }
 
 #[cfg(test)]
@@ -618,9 +690,18 @@ mod tests {
     #[test]
     fn ui() {
         let t = trybuild::TestCases::new();
-        t.pass("tests/ui/async_init_works.rs");
-        t.pass("tests/ui/async_main_works.rs");
-        t.compile_fail("tests/ui/signal_double_definition_not_work.rs");
-        t.compile_fail("tests/ui/reply_double_definition_not_work.rs");
+
+        #[cfg(not(feature = "ethexe"))]
+        {
+            t.pass("tests/ui/async_init_works.rs");
+            t.pass("tests/ui/async_main_works.rs");
+            t.compile_fail("tests/ui/signal_double_definition_not_work.rs");
+            t.compile_fail("tests/ui/reply_double_definition_not_work.rs");
+        }
+
+        #[cfg(feature = "ethexe")]
+        {
+            t.compile_fail("tests/ui/signal_doesnt_work_with_ethexe.rs");
+        }
     }
 }

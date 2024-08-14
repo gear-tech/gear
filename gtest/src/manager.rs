@@ -19,17 +19,19 @@
 use crate::{
     blocks::BlocksManager,
     gas_tree::GasTreeManager,
-    log::{CoreLog, RunResult},
+    log::{BlockRunResult, CoreLog},
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    GAS_ALLOWANCE, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
+    GAS_ALLOWANCE, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST, HOST_FUNC_WRITE_COST,
+    INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, LOAD_PAGE_STORAGE_DATA_COST,
+    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
     MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST,
-    RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    RESERVE_FOR, SIGNAL_READ_COST, SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS,
+    WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -60,8 +62,9 @@ use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
+    mem,
     rc::Rc,
 };
 
@@ -243,15 +246,14 @@ pub(crate) struct ExtManager {
     pub(crate) gas_tree: GasTreeManager,
     pub(crate) gas_allowance: Gas,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
+    pub(crate) messages_processing_enabled: bool,
 
-    // Last run info
-    pub(crate) origin: ProgramId,
-    pub(crate) msg_id: MessageId,
+    // Last block execution info
+    pub(crate) succeed: BTreeSet<MessageId>,
+    pub(crate) failed: BTreeSet<MessageId>,
+    pub(crate) not_executed: BTreeSet<MessageId>,
+    pub(crate) gas_burned: BTreeMap<MessageId, Gas>,
     pub(crate) log: Vec<StoredMessage>,
-    pub(crate) main_failed: bool,
-    pub(crate) others_failed: bool,
-    pub(crate) main_gas_burned: Gas,
-    pub(crate) others_gas_burned: BTreeMap<u32, Gas>,
 }
 
 impl ExtManager {
@@ -261,6 +263,7 @@ impl ExtManager {
             msg_nonce: 1,
             id_nonce: 1,
             blocks_manager: BlocksManager::new(),
+            messages_processing_enabled: true,
             random_data: (
                 {
                     let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
@@ -312,7 +315,7 @@ impl ExtManager {
     }
 
     /// Insert message into the delayed queue.
-    pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch, bn: u32) {
+    fn send_delayed_dispatch(&mut self, dispatch: Dispatch, bn: u32) {
         self.delayed_dispatches
             .entry(bn)
             .or_default()
@@ -320,46 +323,43 @@ impl ExtManager {
     }
 
     /// Process all delayed dispatches.
-    pub(crate) fn process_delayed_dispatches(&mut self, bn: u32) -> Vec<RunResult> {
-        self.delayed_dispatches
-            .remove(&bn)
-            .map(|dispatches| {
-                dispatches
-                    .into_iter()
-                    .map(|dispatch| self.run_dispatch(dispatch, true))
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub(crate) fn process_delayed_dispatches(&mut self, bn: u32) {
+        let Some(dispatches) = self.delayed_dispatches.remove(&bn) else {
+            return;
+        };
+
+        for dispatch in dispatches {
+            self.route_dispatch_from_task_pool(dispatch);
+        }
     }
 
     /// Process scheduled wait list.
-    pub(crate) fn process_scheduled_wait_list(&mut self, bn: u32) -> Vec<RunResult> {
-        self.wait_list_schedules
-            .remove(&bn)
-            .map(|ids| {
-                ids.into_iter()
-                    .filter_map(|key| {
-                        self.wait_list.remove(&key).map(|dispatch| {
-                            let (kind, message, ..) = dispatch.into_parts();
-                            let message = Message::new(
-                                message.id(),
-                                message.source(),
-                                message.destination(),
-                                message
-                                    .payload_bytes()
-                                    .to_vec()
-                                    .try_into()
-                                    .unwrap_or_default(),
-                                self.gas_tree.get_limit(message.id()).ok(),
-                                message.value(),
-                                message.details(),
-                            );
-                            self.run_dispatch(Dispatch::new(kind, message), true)
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub(crate) fn process_scheduled_wait_list(&mut self, bn: u32) {
+        let Some(wl_schedules) = self.wait_list_schedules.remove(&bn) else {
+            return;
+        };
+
+        for wl_schedule in wl_schedules {
+            let Some(dispatch) = self.wait_list.remove(&wl_schedule) else {
+                continue;
+            };
+
+            let (kind, message, ..) = dispatch.into_parts();
+            let message = Message::new(
+                message.id(),
+                message.source(),
+                message.destination(),
+                message
+                    .payload_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap_or_default(),
+                self.gas_tree.get_limit(message.id()).ok(),
+                message.value(),
+                message.details(),
+            );
+            self.route_dispatch_from_task_pool(Dispatch::new(kind, message));
+        }
     }
 
     /// Check if the current block number should trigger new epoch and reset
@@ -398,9 +398,95 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+    pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
         self.validate_dispatch(&dispatch);
-        self.run_dispatch(dispatch, false)
+        let gas_limit = dispatch
+            .gas_limit()
+            .unwrap_or_else(|| unreachable!("message from program API always has gas"));
+        self.gas_tree
+            .create(dispatch.source(), dispatch.id(), gas_limit)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        self.route_dispatch(dispatch)
+    }
+
+    pub(crate) fn route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
+        let stored_dispatch = dispatch.into_stored();
+        if self.is_user(&stored_dispatch.destination()) {
+            panic!("Program API only sends message to programs.")
+        }
+
+        let message_id = stored_dispatch.id();
+        self.dispatches.push_back(stored_dispatch);
+
+        message_id
+    }
+
+    // TODO #4120 Charge for task pool processing the gas from gas allowance
+    // TODO #4121
+    #[track_caller]
+    pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
+        self.gas_allowance = allowance;
+        self.blocks_manager.next_block();
+        let new_block_bn = self.blocks_manager.get().height;
+
+        self.process_tasks(new_block_bn);
+        let total_processed = self.process_messages();
+
+        BlockRunResult {
+            block_info: self.blocks_manager.get(),
+            gas_allowance_spent: Gas(GAS_ALLOWANCE) - self.gas_allowance,
+            succeed: mem::take(&mut self.succeed),
+            failed: mem::take(&mut self.failed),
+            not_executed: mem::take(&mut self.not_executed),
+            total_processed,
+            log: mem::take(&mut self.log)
+                .into_iter()
+                .map(CoreLog::from)
+                .collect(),
+            gas_burned: mem::take(&mut self.gas_burned),
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn process_tasks(&mut self, bn: u32) {
+        self.process_delayed_dispatches(bn);
+        self.process_scheduled_wait_list(bn);
+    }
+
+    #[track_caller]
+    fn process_messages(&mut self) -> u32 {
+        self.messages_processing_enabled = true;
+
+        let mut total_processed = 0;
+        while self.messages_processing_enabled {
+            let dispatch = match self.dispatches.pop_front() {
+                Some(dispatch) => dispatch,
+                None => break,
+            };
+
+            let mut actors = self.actors.borrow_mut();
+            let (actor, balance) = actors
+                .get_mut(&dispatch.destination())
+                .expect("Somehow message queue contains message for user");
+            let balance = *balance;
+
+            if actor.is_dormant() {
+                drop(actors);
+                self.process_dormant(balance, dispatch);
+            } else if let Some((data, code)) = actor.get_executable_actor_data() {
+                drop(actors);
+                self.process_normal(balance, data, code, dispatch);
+            } else if let Some(mock) = actor.take_mock() {
+                drop(actors);
+                self.process_mock(mock, dispatch);
+            } else {
+                unreachable!();
+            }
+
+            total_processed += 1;
+        }
+
+        total_processed
     }
 
     #[track_caller]
@@ -431,26 +517,8 @@ impl ExtManager {
     }
 
     #[track_caller]
-    pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch, from_task_pool: bool) -> RunResult {
-        self.prepare_for(&dispatch, !from_task_pool);
-
+    pub(crate) fn route_dispatch_from_task_pool(&mut self, dispatch: Dispatch) {
         if self.is_program(&dispatch.destination()) {
-            if !from_task_pool {
-                let gas_limit = matches!(dispatch.kind(), DispatchKind::Signal)
-                    .then(|| {
-                        assert!(
-                            dispatch.gas_limit().is_none(),
-                            "signals must be sent with `None` gas limit"
-                        );
-                        GAS_ALLOWANCE
-                    })
-                    .or_else(|| dispatch.gas_limit())
-                    .unwrap_or_else(|| unreachable!("message from program API has always gas"));
-                self.gas_tree
-                    .create(dispatch.source(), dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-            }
-
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
@@ -464,44 +532,6 @@ impl ExtManager {
             }
 
             self.log.push(message)
-        }
-
-        let mut total_processed = 0;
-        while let Some(dispatch) = self.dispatches.pop_front() {
-            let dest = dispatch.destination();
-
-            let mut actors = self.actors.borrow_mut();
-            let (actor, balance) = actors
-                .get_mut(&dest)
-                .expect("Somehow message queue contains message for user");
-            let balance = *balance;
-
-            if actor.is_dormant() {
-                drop(actors);
-                self.process_dormant(balance, dispatch);
-            } else if let Some((data, code)) = actor.get_executable_actor_data() {
-                drop(actors);
-                self.process_normal(balance, data, code, dispatch);
-            } else if let Some(mock) = actor.take_mock() {
-                drop(actors);
-                self.process_mock(mock, dispatch);
-            } else {
-                unreachable!();
-            }
-
-            total_processed += 1;
-        }
-
-        let log = self.log.clone();
-
-        RunResult {
-            main_failed: self.main_failed,
-            others_failed: self.others_failed,
-            log: log.into_iter().map(CoreLog::from).collect(),
-            message_id: self.msg_id,
-            total_processed,
-            main_gas_burned: self.main_gas_burned,
-            others_gas_burned: self.others_gas_burned.clone(),
         }
     }
 
@@ -671,35 +701,6 @@ impl ExtManager {
     }
 
     #[track_caller]
-    fn prepare_for(&mut self, dispatch: &Dispatch, update_block: bool) {
-        self.msg_id = dispatch.id();
-        self.origin = dispatch.source();
-        self.log.clear();
-        self.main_failed = false;
-        self.others_failed = false;
-        self.main_gas_burned = Gas::zero();
-        self.others_gas_burned = {
-            let mut m = BTreeMap::new();
-            let block_height = self.blocks_manager.get().height;
-            m.insert(block_height, Gas::zero());
-
-            m
-        };
-        self.gas_allowance = Gas(GAS_ALLOWANCE);
-        if update_block {
-            let _ = self.blocks_manager.next_block();
-        }
-    }
-
-    fn mark_failed(&mut self, msg_id: MessageId) {
-        if self.msg_id == msg_id {
-            self.main_failed = true;
-        } else {
-            self.others_failed = true;
-        }
-    }
-
-    #[track_caller]
     fn init_success(&mut self, program_id: ProgramId) {
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
@@ -707,21 +708,16 @@ impl ExtManager {
             .expect("Can't find existing program");
 
         actor.set_initialized();
-
-        drop(actors);
     }
 
     #[track_caller]
-    fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
+    fn init_failure(&mut self, program_id: ProgramId) {
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
         *actor = TestActor::Dormant;
-
-        drop(actors);
-        self.mark_failed(message_id);
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
@@ -870,7 +866,15 @@ impl ExtManager {
                     mem_grow: Default::default(),
                     mem_grow_per_page: Default::default(),
                 },
-                lazy_pages: LazyPagesCosts::default(),
+                lazy_pages: LazyPagesCosts {
+                    host_func_read: HOST_FUNC_READ_COST.into(),
+                    host_func_write: HOST_FUNC_WRITE_COST.into(),
+                    host_func_write_after_read: HOST_FUNC_WRITE_AFTER_READ_COST.into(),
+                    load_page_storage_data: LOAD_PAGE_STORAGE_DATA_COST.into(),
+                    signal_read: SIGNAL_READ_COST.into(),
+                    signal_write: SIGNAL_WRITE_COST.into(),
+                    signal_write_after_read: SIGNAL_WRITE_AFTER_READ_COST.into(),
+                },
                 read: READ_COST.into(),
                 read_per_byte: READ_PER_BYTE_COST.into(),
                 write: WRITE_COST.into(),
@@ -997,14 +1001,23 @@ impl JournalHandler for ExtManager {
         outcome: DispatchOutcome,
     ) {
         match outcome {
-            DispatchOutcome::MessageTrap { .. } => self.mark_failed(message_id),
-            DispatchOutcome::Success
-            | DispatchOutcome::NoExecution
-            | DispatchOutcome::Exit { .. } => {}
-            DispatchOutcome::InitFailure { program_id, .. } => {
-                self.init_failure(message_id, program_id)
+            DispatchOutcome::MessageTrap { .. } => {
+                self.failed.insert(message_id);
             }
-            DispatchOutcome::InitSuccess { program_id, .. } => self.init_success(program_id),
+            DispatchOutcome::NoExecution => {
+                self.not_executed.insert(message_id);
+            }
+            DispatchOutcome::Success | DispatchOutcome::Exit { .. } => {
+                self.succeed.insert(message_id);
+            }
+            DispatchOutcome::InitFailure { program_id, .. } => {
+                self.init_failure(program_id);
+                self.failed.insert(message_id);
+            }
+            DispatchOutcome::InitSuccess { program_id, .. } => {
+                self.init_success(program_id);
+                self.succeed.insert(message_id);
+            }
         }
     }
 
@@ -1014,15 +1027,12 @@ impl JournalHandler for ExtManager {
             .spend(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        if self.msg_id == message_id {
-            self.main_gas_burned = self.main_gas_burned.saturating_add(Gas(amount));
-        } else {
-            self.others_gas_burned
-                .entry(self.blocks_manager.get().height)
-                .and_modify(|others_gas_burned| {
-                    *others_gas_burned = others_gas_burned.saturating_add(Gas(amount))
-                });
-        }
+        self.gas_burned
+            .entry(message_id)
+            .and_modify(|gas| {
+                *gas += Gas(amount);
+            })
+            .or_insert(Gas(amount));
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
@@ -1255,11 +1265,8 @@ impl JournalHandler for ExtManager {
             gas_burned,
         );
 
-        // Update gas allowance and start a new block with the `dispatch` being first in
-        // the queue.
-        self.gas_allowance = Gas(GAS_ALLOWANCE);
+        self.messages_processing_enabled = false;
         self.dispatches.push_front(dispatch);
-        self.blocks_manager.next_block();
     }
 
     fn reserve_gas(
