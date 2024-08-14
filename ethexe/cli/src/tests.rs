@@ -197,6 +197,8 @@ impl TestEnv {
 
         let blob_reader = blob_reader.unwrap_or_else(|| Arc::new(MockBlobReader::new(block_time)));
 
+        let router_address = router.address();
+
         let query = Query::new(
             Arc::new(db.clone()),
             &rpc_url,
