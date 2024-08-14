@@ -78,7 +78,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send(
+        let msg_id = program.send(
             0,
             InitAction::Normal(vec![
                 // orphan reservation; will be removed automatically
@@ -87,6 +87,7 @@ mod tests {
                 (25_000, 5),
             ]),
         );
-        assert!(!res.main_failed());
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
     }
 }
