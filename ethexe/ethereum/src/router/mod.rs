@@ -61,6 +61,15 @@ impl Router {
         LocalAddress(*self.instance.address().0)
     }
 
+    pub fn query(&self) -> RouterQuery {
+        RouterQuery {
+            instance: QueryInstance::new(
+                *self.instance.address(),
+                Arc::new(self.instance.provider().root().clone()),
+            ),
+        }
+    }
+
     pub fn wvara(&self) -> WVara {
         WVara::new(self.wvara_address, self.instance.provider().clone())
     }

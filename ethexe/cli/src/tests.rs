@@ -190,9 +190,9 @@ impl TestEnv {
             Ethereum::deploy(&rpc_url, validators, signer.clone(), sender_address).await?
         };
 
-        let router_address = ethereum.router().address();
+        let router = ethereum.router();
+        let router_query = router.query();
 
-        let router_query = RouterQuery::new(&rpc_url, router_address).await?;
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         let blob_reader = blob_reader.unwrap_or_else(|| Arc::new(MockBlobReader::new(block_time)));
