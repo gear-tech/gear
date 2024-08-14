@@ -27,7 +27,7 @@ use crate::{
     state::HostState,
     BackendExternalities,
 };
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 use codec::{Decode, DecodeAll, MaxEncodedLen};
 use core::{marker::PhantomData, mem::MaybeUninit, slice};
 use gear_core::{
@@ -64,10 +64,14 @@ where
     }
 
     fn size(&self, ctx: &Caller) -> WasmPagesAmount {
-        WasmPagesAmount::try_from(self.inner.size(ctx)).unwrap_or_else(|_| {
-            unreachable!(
-                "Unexpected backend behavior: wasm size is bigger than possible in 32-bits address space"
-            )
+        WasmPagesAmount::try_from(self.inner.size(ctx)).unwrap_or_else(|err| {
+            let err_msg = format!(
+                "BackendMemory::size: wasm size is bigger than possible in 32-bits address space. \
+                Got error - {err:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         })
     }
 
@@ -120,7 +124,15 @@ impl BackendSyscallError for MemoryAccessError {
             MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
                 UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
             }
-            MemoryAccessError::Decode => unreachable!(),
+            e @ MemoryAccessError::Decode => {
+                let err_msg = format!(
+                    "MemoryAccessError::into_termination_reason: failed to decode memory. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
@@ -333,7 +345,14 @@ where
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
-            unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
+            let err_msg = format!(
+                "MemoryAccessIo::write: Backend bug error, buffer size is not equal to registered buffer size. \
+                write.ptr - {}, write.size - {}, buff.len - {}",
+                write.ptr, write.size, buff.len()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         if write.size == 0 {

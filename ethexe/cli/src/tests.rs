@@ -25,9 +25,11 @@ use alloy::{
     rpc::types::anvil::MineOptions,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::{db::CodesStorage, events::BlockEvent};
+use ethexe_common::{
+    db::CodesStorage, mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent,
+};
 use ethexe_db::{Database, MemDb};
-use ethexe_ethereum::{Ethereum, RouterQuery};
+use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
 use ethexe_sequencer::Sequencer;
@@ -35,7 +37,7 @@ use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use futures::StreamExt;
 use gear_core::ids::prelude::*;
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H256};
 use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::{
@@ -160,7 +162,7 @@ impl TestEnv {
             block_time,
         } = config;
 
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::from_one(&MemDb::default(), router_address.unwrap_or_default().0);
 
         let tempdir = tempfile::tempdir()?.into_path();
         let signer = Signer::new(tempdir.join("key"))?;
@@ -306,7 +308,11 @@ impl TestEnv {
         self.blob_reader
             .add_blob_transaction(blob_tx, code.to_vec())
             .await;
-        let tx_hash = self.ethereum.router().upload_code(code_id, blob_tx).await?;
+        let tx_hash = self
+            .ethereum
+            .router()
+            .request_code_validation(code_id, blob_tx)
+            .await?;
 
         Ok((tx_hash, code_id))
     }
@@ -319,7 +325,6 @@ impl Drop for TestEnv {
         }
     }
 }
-
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
@@ -338,23 +343,30 @@ async fn ping() {
 
     log::info!("📗 Waiting for code loaded");
     listener
-        .apply_until(|event| {
-            if let Event::CodeLoaded(loaded) = event {
-                assert_eq!(loaded.code_id, code_id);
-                assert_eq!(loaded.code.as_slice(), demo_ping::WASM_BINARY);
+        .apply_until(|event| match event {
+            Event::CodeLoaded {
+                code_id: loaded_id,
+                code,
+            } => {
+                assert_eq!(code_id, loaded_id);
+                assert_eq!(&code, demo_ping::WASM_BINARY);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
 
-    log::info!("📗 Waiting for code approval");
+    log::info!("📗 Waiting for code to get validated");
     listener
         .apply_until_block_event(|event| {
-            if let BlockEvent::CodeApproved(approved) = event {
-                assert_eq!(approved.code_id, code_id);
+            if let BlockEvent::Router(RouterEvent::CodeGotValidated {
+                id: loaded_id,
+                valid,
+            }) = event
+            {
+                assert_eq!(code_id, loaded_id);
+                assert!(valid);
                 Ok(Some(()))
             } else {
                 Ok(None)
@@ -376,36 +388,53 @@ async fn ping() {
     let _ = env
         .ethereum
         .router()
-        .create_program(code_id, H256::random(), b"PING", 10_000_000_000, 0)
+        .create_program(code_id, H256::random(), b"PING", 0)
         .await
         .unwrap();
 
     log::info!("📗 Waiting for program create, PONG reply and program update");
-    let mut reply_sent = false;
+
     let mut program_id = ActorId::default();
+    let mut init_message_id = MessageId::default();
+    let mut reply_sent = false;
     let mut block_committed = None;
     listener
         .apply_until_block_event(|event| {
             match event {
-                BlockEvent::CreateProgram(create) => {
-                    assert_eq!(create.code_id, code_id);
-                    assert_eq!(create.init_payload, b"PING");
-                    assert_eq!(create.gas_limit, 10_000_000_000);
-                    assert_eq!(create.value, 0);
-                    program_id = create.actor_id;
+                BlockEvent::Router(RouterEvent::ProgramCreated {
+                    actor_id,
+                    code_id: loaded_id,
+                }) => {
+                    assert_eq!(code_id, loaded_id);
+                    program_id = actor_id;
                 }
-                BlockEvent::UserReplySent(reply) => {
-                    assert_eq!(reply.value, 0);
-                    assert_eq!(reply.payload, b"PONG");
-                    reply_sent = true;
+                BlockEvent::Mirror { address, event } => {
+                    if address == program_id {
+                        match event {
+                            MirrorEvent::MessageQueueingRequested {
+                                id, payload, value, ..
+                            } => {
+                                // TODO (breathx): assert source.
+                                assert_eq!(payload, b"PING");
+                                assert_eq!(value, 0);
+                                init_message_id = id;
+                            }
+                            MirrorEvent::Reply {
+                                payload, reply_to, ..
+                            } => {
+                                assert_eq!(payload, b"PONG");
+                                assert_eq!(reply_to, init_message_id);
+                                reply_sent = true;
+                            }
+                            MirrorEvent::StateChanged { .. } => {
+                                assert!(reply_sent);
+                            }
+                            _ => {}
+                        }
+                    }
                 }
-                BlockEvent::UpdatedProgram(updated) => {
-                    assert_eq!(updated.actor_id, program_id);
-                    assert_eq!(updated.old_state_hash, H256::zero());
-                    assert!(reply_sent);
-                }
-                BlockEvent::BlockCommitted(committed) => {
-                    block_committed = Some(committed.block_hash);
+                BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => {
+                    block_committed = Some(block_hash);
                     return Ok(Some(()));
                 }
                 _ => {}
@@ -419,22 +448,32 @@ async fn ping() {
     assert_eq!(block_committed, Some(block_committed_on_router));
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-    let ping_program = env.ethereum.program(program_address);
-    let _tx = ping_program
-        .send_message(b"PING", 10_000_000_000, 0)
-        .await
-        .unwrap();
+
+    let wvara = env.ethereum.wvara();
+
+    log::info!("📗 Approving WVara to mirror");
+    wvara.approve_all(program_address.0.into()).await.unwrap();
+
+    let ping_program = env.ethereum.mirror(program_address);
+
+    log::info!("📗 Sending PING message");
+    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
 
     log::info!("📗 Waiting for PONG reply");
     listener
-        .apply_until_block_event(|event| {
-            if let BlockEvent::UserReplySent(reply) = event {
-                assert_eq!(reply.value, 0);
-                assert_eq!(reply.payload, b"PONG");
-                Ok(Some(()))
-            } else {
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror { address, event } => {
+                if address == program_id {
+                    if let MirrorEvent::Reply { payload, value, .. } = event {
+                        assert_eq!(payload, b"PONG");
+                        assert_eq!(value, 0);
+                        return Ok(Some(()));
+                    }
+                }
+
                 Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -469,27 +508,32 @@ async fn ping_reorg() {
 
     log::info!("📗 Waiting for code loaded");
     listener
-        .apply_until(|event| {
-            if let Event::CodeLoaded(loaded) = event {
-                assert_eq!(loaded.code_id, code_id);
-                assert_eq!(loaded.code.as_slice(), demo_ping::WASM_BINARY);
+        .apply_until(|event| match event {
+            Event::CodeLoaded {
+                code_id: loaded_id,
+                code,
+            } => {
+                assert_eq!(code_id, loaded_id);
+                assert_eq!(&code, demo_ping::WASM_BINARY);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
 
     log::info!("📗 Waiting for code approval");
     listener
-        .apply_until_block_event(|event| {
-            if let BlockEvent::CodeApproved(approved) = event {
-                assert_eq!(approved.code_id, code_id);
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Router(RouterEvent::CodeGotValidated {
+                id: validated_code_id,
+                valid,
+            }) => {
+                assert_eq!(code_id, validated_code_id);
+                assert!(valid);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -500,7 +544,7 @@ async fn ping_reorg() {
     let _ = env
         .ethereum
         .router()
-        .create_program(code_id, H256::random(), b"PING", 10_000_000_000, 0)
+        .create_program(code_id, H256::random(), b"PING", 0)
         .await
         .unwrap();
 
@@ -520,37 +564,59 @@ async fn ping_reorg() {
     provider.evm_mine(None).await.unwrap();
 
     log::info!("📗 Waiting for program creation");
-    let mut reply_sent = false;
     let mut program_id = ActorId::default();
+    let mut init_message_id = MessageId::default();
+    let mut reply_sent = false;
     listener
         .apply_until_block_event(|event| {
             match event {
-                BlockEvent::CreateProgram(create) => {
-                    assert_eq!(create.code_id, code_id);
-                    assert_eq!(create.init_payload, b"PING");
-                    assert_eq!(create.gas_limit, 10_000_000_000);
-                    assert_eq!(create.value, 0);
-                    program_id = create.actor_id;
+                BlockEvent::Router(RouterEvent::ProgramCreated {
+                    actor_id,
+                    code_id: loaded_id,
+                }) => {
+                    assert_eq!(code_id, loaded_id);
+                    program_id = actor_id;
                 }
-                BlockEvent::UserReplySent(reply) => {
-                    assert_eq!(reply.value, 0);
-                    assert_eq!(reply.payload, b"PONG");
-                    reply_sent = true;
+                BlockEvent::Mirror { address, event } => {
+                    if address == program_id {
+                        match event {
+                            MirrorEvent::MessageQueueingRequested {
+                                id, payload, value, ..
+                            } => {
+                                // TODO (breathx): assert source.
+                                assert_eq!(payload, b"PING");
+                                assert_eq!(value, 0);
+                                init_message_id = id;
+                            }
+                            MirrorEvent::Reply {
+                                payload, reply_to, ..
+                            } => {
+                                assert_eq!(payload, b"PONG");
+                                assert_eq!(reply_to, init_message_id);
+                                reply_sent = true;
+                            }
+                            MirrorEvent::StateChanged { .. } => {
+                                assert!(reply_sent);
+                            }
+                            _ => {}
+                        }
+                    }
                 }
-                BlockEvent::UpdatedProgram(updated) => {
-                    assert_eq!(updated.actor_id, program_id);
-                    assert_eq!(updated.old_state_hash, H256::zero());
-                    assert!(reply_sent);
-                }
-                BlockEvent::BlockCommitted(_) => {
-                    return Ok(Some(()));
-                }
+                BlockEvent::Router(RouterEvent::BlockCommitted { .. }) => return Ok(Some(())),
                 _ => {}
-            }
+            };
+
             Ok(None)
         })
         .await
         .unwrap();
+
+    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+
+    let wvara = env.ethereum.wvara();
+
+    log::info!("📗 Approving WVara to mirror");
+    wvara.approve_all(program_address.0.into()).await.unwrap();
 
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
@@ -558,25 +624,26 @@ async fn ping_reorg() {
     );
     let program_created_snapshot_id = provider.anvil_snapshot().await.unwrap();
 
-    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-    let ping_program = env.ethereum.program(program_address);
+    let ping_program = env.ethereum.mirror(program_address);
 
     log::info!("📗 Sending PING message");
-    let _tx = ping_program
-        .send_message(b"PING", 10_000_000_000, 0)
-        .await
-        .unwrap();
+    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
 
     log::info!("📗 Waiting for PONG reply");
     listener
-        .apply_until_block_event(|event| {
-            if let BlockEvent::UserReplySent(reply) = event {
-                assert_eq!(reply.value, 0);
-                assert_eq!(reply.payload, b"PONG");
-                Ok(Some(()))
-            } else {
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror { address, event } => {
+                if address == program_id {
+                    if let MirrorEvent::Reply { payload, value, .. } = event {
+                        assert_eq!(payload, b"PONG");
+                        assert_eq!(value, 0);
+                        return Ok(Some(()));
+                    }
+                }
+
                 Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -593,21 +660,23 @@ async fn ping_reorg() {
         .unwrap();
 
     log::info!("📗 Sending PING message after reorg");
-    let _tx = ping_program
-        .send_message(b"PING", 10_000_000_000, 0)
-        .await
-        .unwrap();
+    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
 
     log::info!("📗 Waiting for PONG reply after reorg");
     listener
-        .apply_until_block_event(|event| {
-            if let BlockEvent::UserReplySent(reply) = event {
-                assert_eq!(reply.value, 0);
-                assert_eq!(reply.payload, b"PONG");
-                Ok(Some(()))
-            } else {
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror { address, event } => {
+                if address == program_id {
+                    if let MirrorEvent::Reply { payload, value, .. } = event {
+                        assert_eq!(payload, b"PONG");
+                        assert_eq!(value, 0);
+                        return Ok(Some(()));
+                    }
+                }
+
                 Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -619,10 +688,7 @@ async fn ping_reorg() {
     drop(env);
 
     log::info!("📗 Sending PING message, db cleanup and service shutting down");
-    let _tx = ping_program
-        .send_message(b"PING", 10_000_000_000, 0)
-        .await
-        .unwrap();
+    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
 
     // Skip some blocks to simulate long time without service
     provider
@@ -649,15 +715,19 @@ async fn ping_reorg() {
 
     log::info!("📗 Waiting for PONG reply service restart on empty db");
     listener
-        .apply_until_block_event(|event| {
-            if let BlockEvent::UserReplySent(reply) = event {
-                assert_eq!(reply.reply_details.to_message_id(), Default::default());
-                assert_eq!(reply.value, 0);
-                assert_eq!(reply.payload, b"PONG");
-                Ok(Some(()))
-            } else {
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror { address, event } => {
+                if address == program_id {
+                    if let MirrorEvent::Reply { payload, value, .. } = event {
+                        assert_eq!(payload, b"PONG");
+                        assert_eq!(value, 0);
+                        return Ok(Some(()));
+                    }
+                }
+
                 Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -691,27 +761,32 @@ async fn ping_deep_sync() {
 
     log::info!("📗 Waiting for code loaded");
     listener
-        .apply_until(|event| {
-            if let Event::CodeLoaded(loaded) = event {
-                assert_eq!(loaded.code_id, code_id);
-                assert_eq!(loaded.code.as_slice(), demo_ping::WASM_BINARY);
+        .apply_until(|event| match event {
+            Event::CodeLoaded {
+                code_id: loaded_id,
+                code,
+            } => {
+                assert_eq!(code_id, loaded_id);
+                assert_eq!(&code, demo_ping::WASM_BINARY);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
 
     log::info!("📗 Waiting for code approval");
     listener
-        .apply_until_block_event(|event| {
-            if let BlockEvent::CodeApproved(approved) = event {
-                assert_eq!(approved.code_id, code_id);
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Router(RouterEvent::CodeGotValidated {
+                id: validated_code_id,
+                valid,
+            }) => {
+                assert_eq!(code_id, validated_code_id);
+                assert!(valid);
                 Ok(Some(()))
-            } else {
-                Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();
@@ -729,36 +804,52 @@ async fn ping_deep_sync() {
     let _ = env
         .ethereum
         .router()
-        .create_program(code_id, H256::random(), b"PING", 10_000_000_000, 0)
+        .create_program(code_id, H256::random(), b"PING", 0)
         .await
         .unwrap();
 
     log::info!("📗 Waiting for program create, PONG reply and program update");
-    let mut reply_sent = false;
     let mut program_id = ActorId::default();
+    let mut init_message_id = MessageId::default();
+    let mut reply_sent = false;
     let mut block_committed = None;
     listener
         .apply_until_block_event(|event| {
             match event {
-                BlockEvent::CreateProgram(create) => {
-                    assert_eq!(create.code_id, code_id);
-                    assert_eq!(create.init_payload, b"PING");
-                    assert_eq!(create.gas_limit, 10_000_000_000);
-                    assert_eq!(create.value, 0);
-                    program_id = create.actor_id;
+                BlockEvent::Router(RouterEvent::ProgramCreated {
+                    actor_id,
+                    code_id: loaded_id,
+                }) => {
+                    assert_eq!(code_id, loaded_id);
+                    program_id = actor_id;
                 }
-                BlockEvent::UserReplySent(reply) => {
-                    assert_eq!(reply.value, 0);
-                    assert_eq!(reply.payload, b"PONG");
-                    reply_sent = true;
+                BlockEvent::Mirror { address, event } => {
+                    if address == program_id {
+                        match event {
+                            MirrorEvent::MessageQueueingRequested {
+                                id, payload, value, ..
+                            } => {
+                                // TODO (breathx): assert source.
+                                assert_eq!(payload, b"PING");
+                                assert_eq!(value, 0);
+                                init_message_id = id;
+                            }
+                            MirrorEvent::Reply {
+                                payload, reply_to, ..
+                            } => {
+                                assert_eq!(payload, b"PONG");
+                                assert_eq!(reply_to, init_message_id);
+                                reply_sent = true;
+                            }
+                            MirrorEvent::StateChanged { .. } => {
+                                assert!(reply_sent);
+                            }
+                            _ => {}
+                        }
+                    }
                 }
-                BlockEvent::UpdatedProgram(updated) => {
-                    assert_eq!(updated.actor_id, program_id);
-                    assert_eq!(updated.old_state_hash, H256::zero());
-                    assert!(reply_sent);
-                }
-                BlockEvent::BlockCommitted(committed) => {
-                    block_committed = Some(committed.block_hash);
+                BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => {
+                    block_committed = Some(block_hash);
                     return Ok(Some(()));
                 }
                 _ => {}
@@ -782,11 +873,16 @@ async fn ping_deep_sync() {
 
     // Send message in between.
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-    let ping_program = env.ethereum.program(program_address);
-    let _tx = ping_program
-        .send_message(b"PING", 10_000_000_000, 0)
-        .await
-        .unwrap();
+
+    let wvara = env.ethereum.wvara();
+
+    log::info!("📗 Approving WVara to mirror");
+    wvara.approve_all(program_address.0.into()).await.unwrap();
+
+    let ping_program = env.ethereum.mirror(program_address);
+
+    log::info!("📗 Sending PING message");
+    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
 
     // Mine some blocks to check deep sync.
     provider
@@ -799,14 +895,19 @@ async fn ping_deep_sync() {
 
     log::info!("📗 Waiting for PONG reply");
     listener
-        .apply_until_block_event(|event| {
-            if let BlockEvent::UserReplySent(reply) = event {
-                assert_eq!(reply.value, 0);
-                assert_eq!(reply.payload, b"PONG");
-                Ok(Some(()))
-            } else {
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror { address, event } => {
+                if address == program_id {
+                    if let MirrorEvent::Reply { payload, value, .. } = event {
+                        assert_eq!(payload, b"PONG");
+                        assert_eq!(value, 0);
+                        return Ok(Some(()));
+                    }
+                }
+
                 Ok(None)
             }
+            _ => Ok(None),
         })
         .await
         .unwrap();

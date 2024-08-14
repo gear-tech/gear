@@ -18,7 +18,7 @@
 
 //! ethexe common db types and traits.
 
-use crate::{events::BlockEvent, StateTransition};
+use crate::{router::StateTransition, BlockEvent};
 use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
@@ -85,6 +85,6 @@ pub trait CodesStorage: Send + Sync {
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 
-    fn code_upload_info(&self, code_id: CodeId) -> Option<CodeUploadInfo>;
-    fn set_code_upload_info(&self, code_id: CodeId, info: CodeUploadInfo);
+    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256>;
+    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256);
 }

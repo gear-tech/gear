@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, bls12_381, BuiltinActor, BuiltinActorError};
+use crate::{self as pallet_gear_builtin, bls12_381, ActorWithId, BuiltinActor, BuiltinActorError};
 use common::{GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
@@ -133,8 +133,6 @@ pub struct SuccessBuiltinActor {}
 impl BuiltinActor for SuccessBuiltinActor {
     type Error = BuiltinActorError;
 
-    const ID: u64 = u64::from_le_bytes(*b"bltn/suc");
-
     fn handle(
         dispatch: &StoredDispatch,
         _gas_limit: u64,
@@ -142,7 +140,7 @@ impl BuiltinActor for SuccessBuiltinActor {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as BuiltinActor>::ID,
+                    destination: SUCCESS_ACTOR_ID,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: true,
@@ -162,8 +160,6 @@ pub struct ErrorBuiltinActor {}
 impl BuiltinActor for ErrorBuiltinActor {
     type Error = BuiltinActorError;
 
-    const ID: u64 = u64::from_le_bytes(*b"bltn/err");
-
     fn handle(
         dispatch: &StoredDispatch,
         _gas_limit: u64,
@@ -171,7 +167,7 @@ impl BuiltinActor for ErrorBuiltinActor {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as BuiltinActor>::ID,
+                    destination: ERROR_ACTOR_ID,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: false,
@@ -187,8 +183,6 @@ pub struct HonestBuiltinActor {}
 impl BuiltinActor for HonestBuiltinActor {
     type Error = BuiltinActorError;
 
-    const ID: u64 = u64::from_le_bytes(*b"bltn/hon");
-
     fn handle(
         dispatch: &StoredDispatch,
         gas_limit: u64,
@@ -198,7 +192,7 @@ impl BuiltinActor for HonestBuiltinActor {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as BuiltinActor>::ID,
+                    destination: HONEST_ACTOR_ID,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: !is_error,
@@ -217,13 +211,17 @@ impl BuiltinActor for HonestBuiltinActor {
     }
 }
 
+const HONEST_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/hon");
+const SUCCESS_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/suc");
+const ERROR_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/err");
+
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (
-        SuccessBuiltinActor,
-        ErrorBuiltinActor,
-        HonestBuiltinActor,
-        bls12_381::Actor<Self>,
+        ActorWithId<SUCCESS_ACTOR_ID, SuccessBuiltinActor>,
+        ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
+        ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
+        ActorWithId<1, bls12_381::Actor<Self>>,
     );
     type WeightInfo = ();
 }

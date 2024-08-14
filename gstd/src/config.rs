@@ -25,6 +25,10 @@ use crate::{
     BlockCount,
 };
 
+/// Constant declaring default `Config::system_reserve()` in case of not
+/// "ethexe" feature.
+pub const SYSTEM_RESERVE: u64 = 1_000_000_000;
+
 /// Wait types.
 #[derive(Clone, Copy, Default)]
 pub(crate) enum WaitType {
@@ -57,6 +61,7 @@ pub struct Config {
     /// Default gas amount reserved for system purposes.
     ///
     /// Initial value: **1_000_000_000**
+    #[cfg(not(feature = "ethexe"))]
     pub system_reserve: u64,
 
     pub(crate) wait_type: WaitType,
@@ -68,7 +73,8 @@ impl Config {
             wait_up_to: 100,
             wait_for: 100,
             mx_lock_duration: 100,
-            system_reserve: 1_000_000_000,
+            #[cfg(not(feature = "ethexe"))]
+            system_reserve: SYSTEM_RESERVE,
             wait_type: WaitType::WaitUpTo,
         }
     }
@@ -93,6 +99,7 @@ impl Config {
     }
 
     /// Get the `system_reserve` gas amount.
+    #[cfg(not(feature = "ethexe"))]
     pub fn system_reserve() -> u64 {
         unsafe { CONFIG.system_reserve }
     }
@@ -150,6 +157,7 @@ impl Config {
     }
 
     /// Set `system_reserve` gas amount.
+    #[cfg(not(feature = "ethexe"))]
     pub fn set_system_reserve(amount: u64) -> Result<()> {
         if amount == 0 {
             return Err(Error::Gstd(UsageError::ZeroSystemReservationAmount));
