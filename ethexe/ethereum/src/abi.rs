@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::sol;
+use alloy::{primitives::Uint, sol};
 use ethexe_common::{mirror, router, wvara};
 use gear_core::message::ReplyDetails;
 use gear_core_errors::ReplyCode;
@@ -52,6 +52,12 @@ sol!(
     IWrappedVara,
     "WrappedVara.json"
 );
+
+pub(crate) fn uint256_to_u128_lossy(value: Uint<256, 4>) -> u128 {
+    let [.., high, low] = value.into_limbs();
+
+    ((high as u128) << 64) | (low as u128)
+}
 
 /* From common types to alloy */
 
@@ -298,13 +304,10 @@ impl From<IMirror::ValueClaimingRequested> for mirror::Event {
 
 impl From<IWrappedVara::Transfer> for wvara::Event {
     fn from(event: IWrappedVara::Transfer) -> Self {
-        let [.., high, low] = event.value.into_limbs();
-        let value = ((high as u128) << 64) | (low as u128);
-
         wvara::Event::Transfer {
             from: (*event.from.into_word()).into(),
             to: (*event.to.into_word()).into(),
-            value,
+            value: uint256_to_u128_lossy(event.value),
         }
     }
 }

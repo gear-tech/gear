@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IWrappedVara, AlloyProvider, AlloyTransport};
+use crate::{
+    abi::{self, IWrappedVara},
+    AlloyProvider, AlloyTransport,
+};
 use alloy::{
     primitives::{Address, Uint},
     providers::{Provider, ProviderBuilder, RootProvider},
@@ -24,7 +27,7 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_signer::Address as LocalAddress;
-use gprimitives::H256;
+use gprimitives::{H256, U256};
 use std::sync::Arc;
 
 pub mod events;
@@ -53,6 +56,28 @@ impl WVara {
         ))
     }
 
+    pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
+        let builder = self.0.transfer(to, Uint::from(value));
+        let tx = builder.send().await?;
+
+        let receipt = tx.get_receipt().await?;
+
+        let tx_hash = (*receipt.transaction_hash).into();
+
+        Ok(tx_hash)
+    }
+
+    pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
+        let builder = self.0.transferFrom(from, to, Uint::from(value));
+        let tx = builder.send().await?;
+
+        let receipt = tx.get_receipt().await?;
+
+        let tx_hash = (*receipt.transaction_hash).into();
+
+        Ok(tx_hash)
+    }
+
     pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {
         self._approve(address, Uint::from(value)).await
     }
@@ -61,7 +86,6 @@ impl WVara {
         self._approve(address, Uint::MAX).await
     }
 
-    // TODO (breathx): handle events.
     async fn _approve(&self, address: Address, value: Uint<256, 4>) -> Result<H256> {
         let builder = self.0.approve(address, value);
         let tx = builder.send().await?;
@@ -84,5 +108,32 @@ impl WVaraQuery {
             Address::new(router_address.0),
             provider,
         )))
+    }
+
+    pub async fn total_supply(&self) -> Result<u128> {
+        self.0
+            .totalSupply()
+            .call()
+            .await
+            .map(|res| abi::uint256_to_u128_lossy(res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn balance_of(&self, address: Address) -> Result<u128> {
+        self.0
+            .balanceOf(address)
+            .call()
+            .await
+            .map(|res| abi::uint256_to_u128_lossy(res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn allowance(&self, owner: Address, spender: Address) -> Result<U256> {
+        self.0
+            .allowance(owner, spender)
+            .call()
+            .await
+            .map(|res| U256(res._0.into_limbs()))
+            .map_err(Into::into)
     }
 }
