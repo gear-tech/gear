@@ -69,7 +69,8 @@ mod tests {
 
         let from = 42;
 
-        let res = program.send_bytes(from, b"init");
+        program.send_bytes(from, b"init");
+        let res = system.run_next_block();
         let log = Log::builder().source(program.id()).dest(from);
         assert!(res.contains(&log));
     }
@@ -83,16 +84,19 @@ mod tests {
 
         let from = 42;
 
-        let _res = program.send_bytes(from, b"init");
+        // Init
+        program.send_bytes(from, b"init");
 
-        let res = program.send(from, Request::Receive(10));
+        program.send(from, Request::Receive(10));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program.send(from, Request::Report);
+        program.send(from, Request::Report);
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program.id())
             .dest(from)
@@ -111,22 +115,24 @@ mod tests {
         let from = 42;
 
         let program_1 = Program::current_with_id(system, program_1_id);
-        let _res = program_1.send_bytes(from, b"init");
+        program_1.send_bytes(from, b"init");
 
         let program_2 = Program::current_with_id(system, program_2_id);
-        let _res = program_2.send_bytes(from, b"init");
+        program_2.send_bytes(from, b"init");
 
         let program_3 = Program::current_with_id(system, program_3_id);
-        let _res = program_3.send_bytes(from, b"init");
+        program_3.send_bytes(from, b"init");
 
-        let res = program_1.send(from, Request::Join(program_2_id.into()));
+        program_1.send(from, Request::Join(program_2_id.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Join(program_3_id.into()));
+        program_1.send(from, Request::Join(program_3_id.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
@@ -143,21 +149,24 @@ mod tests {
 
         let from = 42;
 
-        let res = program_1.send(from, Request::Receive(11));
+        program_1.send(from, Request::Receive(11));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program_2.send(from, Request::Report);
+        program_2.send(from, Request::Report);
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_2.id())
             .dest(from)
             .payload(Reply::Amount(5));
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Report);
+        program_1.send(from, Request::Report);
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
@@ -175,10 +184,13 @@ mod tests {
         let from = 42;
 
         let program_4 = Program::current_with_id(&system, program_4_id);
-        let _res = program_4.send_bytes(from, b"init");
+        program_4.send_bytes(from, b"init");
 
         IntoIterator::into_iter([Request::Receive(11), Request::Join(program_4_id.into())])
-            .map(|request| program_1.send(from, request))
+            .map(|request| {
+                program_1.send(from, request);
+                system.run_next_block()
+            })
             .zip(IntoIterator::into_iter([Reply::Success, Reply::Success]))
             .for_each(|(result, reply)| {
                 let log = Log::builder()
