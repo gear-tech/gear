@@ -5676,7 +5676,6 @@ dependencies = [
  "cfg-if",
  "parity-scale-codec",
  "scale-info",
- "serde",
 ]
 
 [[package]]
@@ -7267,7 +7266,7 @@ name = "gsdk-api-gen"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "frame-metadata 15.1.0",
+ "frame-metadata 16.0.0",
  "gear-runtime-interface",
  "gear-utils",
  "heck 0.5.0",
