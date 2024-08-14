@@ -207,6 +207,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         _retrieveValue(totalValue);
 
+        // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
+        // reverts execution in case of address is already taken.
         address actorId = Clones.cloneDeterministic(router.mirrorProxy, keccak256(abi.encodePacked(codeId, salt)));
 
         router.programs[actorId] = codeId;
