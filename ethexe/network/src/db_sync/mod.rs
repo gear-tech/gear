@@ -16,33 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod ongoing;
+
 use crate::{
+    db_sync::ongoing::{
+        OngoingRequest, OngoingRequestCompletion, OngoingRequests, OngoingResponses,
+    },
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
 };
-use ethexe_db::{CodesStorage, Database};
+use ethexe_db::Database;
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use libp2p::{
     core::Endpoint,
     request_response,
-    request_response::{
-        InboundFailure, Message, OutboundFailure, OutboundRequestId, ProtocolSupport,
-    },
+    request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
     swarm::{
-        behaviour::ConnectionEstablished, CloseConnection, ConnectionClosed, ConnectionDenied,
-        ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent, THandlerOutEvent,
-        ToSwarm,
+        CloseConnection, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler,
+        THandlerInEvent, THandlerOutEvent, ToSwarm,
     },
     StreamProtocol,
 };
 use parity_scale_codec::{Decode, Encode};
-use rand::seq::IteratorRandom;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     task::{Context, Poll},
 };
-use tokio::task::JoinSet;
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
@@ -167,193 +167,6 @@ pub enum Event {
     },
 }
 
-enum OngoingRequestCompletion {
-    Full(Response),
-    Partial(OngoingRequest),
-}
-
-#[derive(Debug)]
-struct OngoingRequest {
-    request_id: RequestId,
-    request: Request,
-    response: Option<Response>,
-    tried_peers: HashSet<PeerId>,
-}
-
-impl OngoingRequest {
-    fn new(request_id: RequestId, request: Request) -> Self {
-        Self {
-            request_id,
-            request,
-            response: None,
-            tried_peers: HashSet::new(),
-        }
-    }
-
-    fn merge_response(&mut self, new_response: Response) -> Response {
-        if let Some(response) = self.response.take() {
-            response.merge(new_response)
-        } else {
-            new_response
-        }
-    }
-
-    /// Try to bring request to the complete state.
-    ///
-    /// Returns error if response validation is failed.
-    fn try_complete(
-        mut self,
-        peer: PeerId,
-        response: Response,
-    ) -> Result<OngoingRequestCompletion, RequestFailure> {
-        self.request.validate_response(&response)?;
-
-        if let Some(new_request) = self.request.difference(&response) {
-            self.request = new_request;
-            self.tried_peers.insert(peer);
-            self.response = Some(self.merge_response(response));
-            Ok(OngoingRequestCompletion::Partial(self))
-        } else {
-            let response = self.merge_response(response);
-            Ok(OngoingRequestCompletion::Full(response))
-        }
-    }
-
-    /// Peer failed to handle request, so we create new ongoing request for the next round.
-    fn peer_failed(mut self, peer: PeerId) -> Self {
-        self.tried_peers.insert(peer);
-        self
-    }
-
-    fn choose_next_peer(
-        &mut self,
-        peers: &HashMap<PeerId, HashSet<ConnectionId>>,
-    ) -> Option<PeerId> {
-        let peers: HashSet<PeerId> = peers.keys().copied().collect();
-        let peer = peers
-            .difference(&self.tried_peers)
-            .choose_stable(&mut rand::thread_rng())
-            .copied();
-        peer
-    }
-}
-
-#[derive(Debug, Default)]
-struct OngoingRequests {
-    inner: HashMap<OutboundRequestId, OngoingRequest>,
-    connections: HashMap<PeerId, HashSet<ConnectionId>>,
-}
-
-impl OngoingRequests {
-    /// Tracks all active connections.
-    fn on_swarm_event(&mut self, event: FromSwarm) {
-        match event {
-            FromSwarm::ConnectionEstablished(ConnectionEstablished {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                self.connections
-                    .entry(peer_id)
-                    .or_default()
-                    .insert(connection_id);
-            }
-            FromSwarm::ConnectionClosed(ConnectionClosed {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                self.connections
-                    .entry(peer_id)
-                    .or_default()
-                    .remove(&connection_id);
-            }
-            _ => {}
-        }
-    }
-
-    fn remove(&mut self, outbound_request_id: OutboundRequestId) -> Option<OngoingRequest> {
-        self.inner.remove(&outbound_request_id)
-    }
-
-    /// Send actual request to behaviour and tracks its state.
-    ///
-    /// On success, returns peer ID we sent request to.
-    ///
-    /// On error, returns request back if no peer connected to the swarm.
-    fn send_request(
-        &mut self,
-        behaviour: &mut InnerBehaviour,
-        mut ongoing_request: OngoingRequest,
-    ) -> Result<PeerId, OngoingRequest> {
-        let peer_id = ongoing_request.choose_next_peer(&self.connections);
-        if let Some(peer_id) = peer_id {
-            let outbound_request_id =
-                behaviour.send_request(&peer_id, ongoing_request.request.clone());
-
-            self.inner.insert(outbound_request_id, ongoing_request);
-
-            Ok(peer_id)
-        } else {
-            Err(ongoing_request)
-        }
-    }
-}
-
-struct OngoingResponses {
-    db: Database,
-    db_readers: JoinSet<(request_response::ResponseChannel<Response>, Response)>,
-}
-
-impl OngoingResponses {
-    fn from_db(db: Database) -> Self {
-        Self {
-            db,
-            db_readers: JoinSet::new(),
-        }
-    }
-
-    fn prepare_response(
-        &mut self,
-        channel: request_response::ResponseChannel<Response>,
-        request: Request,
-    ) {
-        let db = self.db.clone();
-        self.db_readers.spawn_blocking(move || {
-            let response = match request {
-                Request::DataForHashes(hashes) => Response::DataForHashes(
-                    hashes
-                        .into_iter()
-                        .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                        .collect(),
-                ),
-                Request::ProgramIds => Response::ProgramIds(db.program_ids()),
-            };
-            (channel, response)
-        });
-    }
-
-    fn poll_inner_next(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<(request_response::ResponseChannel<Response>, Response)> {
-        match self.db_readers.poll_join_next(cx) {
-            Poll::Ready(Some(res)) => {
-                let values = res.expect("database panicked");
-                Poll::Ready(values)
-            }
-            Poll::Ready(None) => Poll::Pending,
-            Poll::Pending => Poll::Pending,
-        }
-    }
-
-    fn poll_send_response(&mut self, cx: &mut Context<'_>, behaviour: &mut InnerBehaviour) {
-        if let Poll::Ready((channel, response)) = self.poll_inner_next(cx) {
-            let _res = behaviour.send_response(channel, response);
-        }
-    }
-}
-
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
 
 pub(crate) struct Behaviour {
@@ -419,7 +232,7 @@ impl Behaviour {
                     .remove(request_id)
                     .expect("unknown response");
 
-                let request_id = ongoing_request.request_id;
+                let request_id = ongoing_request.request_id();
                 let event = match ongoing_request.try_complete(peer, response) {
                     Ok(OngoingRequestCompletion::Full(response)) => Event::RequestSucceed {
                         request_id,
@@ -438,7 +251,7 @@ impl Behaviour {
                             Err(new_ongoing_request) => Event::RequestSucceed {
                                 request_id,
                                 response: new_ongoing_request
-                                    .response
+                                    .into_response()
                                     .expect("`try_complete` called above"),
                             },
                         }
@@ -471,7 +284,7 @@ impl Behaviour {
                     .remove(request_id)
                     .expect("unknown response");
 
-                let request_id = ongoing_request.request_id;
+                let request_id = ongoing_request.request_id();
 
                 let new_ongoing_request = ongoing_request.peer_failed(peer);
                 let event = match self
@@ -483,18 +296,19 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PeerFailed,
                     },
-                    Err(new_ongoing_request) => match new_ongoing_request.response {
-                        Some(response) => Event::RequestSucceed {
-                            request_id,
-                            response,
-                        },
-                        None => {
-                            // requeue request and wait for new peers
-                            self.pending_requests
-                                .push_back((request_id, new_ongoing_request.request));
-                            return Poll::Pending;
+                    Err(new_ongoing_request) => {
+                        match new_ongoing_request.into_response_or_request() {
+                            Ok(response) => Event::RequestSucceed {
+                                request_id,
+                                response,
+                            },
+                            Err(request) => {
+                                // requeue request and wait for new peers
+                                self.pending_requests.push_back((request_id, request));
+                                return Poll::Pending;
+                            }
                         }
-                    },
+                    }
                 };
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
@@ -607,7 +421,7 @@ impl NetworkBehaviour for Behaviour {
                 }
                 Err(ongoing_request) => {
                     self.pending_requests
-                        .push_back((request_id, ongoing_request.request));
+                        .push_back((request_id, ongoing_request.into_request()));
                 }
             }
         }
@@ -632,7 +446,7 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use ethexe_db::MemDb;
+    use ethexe_db::{CodesStorage, MemDb};
     use gprimitives::CodeId;
     use libp2p::Swarm;
     use libp2p_swarm_test::SwarmExt;
