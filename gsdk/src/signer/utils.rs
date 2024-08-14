@@ -27,7 +27,7 @@ use crate::{
     },
     result::Result,
     signer::SignerRpc,
-    Error, TxInBlock, TxStatus,
+    TxInBlock, TxStatus,
 };
 use anyhow::anyhow;
 use colored::Colorize;
@@ -43,7 +43,7 @@ use subxt::{
 };
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
-pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>), Error>;
+pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 
 impl Inner {
     /// Logging balance spent

@@ -1353,7 +1353,7 @@ impl GearApi {
     /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
     /// extrinsic.
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let events = self
+        let (block_hash, events) = self
             .0
             .calls
             .sudo_unchecked_weight(
@@ -1366,8 +1366,8 @@ impl GearApi {
                 },
             )
             .await?;
-        self.process_set_code(&events.1)?;
-        Ok(events.0)
+        self.process_set_code(&events)?;
+        Ok(block_hash)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1387,7 +1387,7 @@ impl GearApi {
     /// [`pallet_system::set_code_without_checks`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code_without_checks)
     /// extrinsic.
     pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let events = self
+        let (block_hash, events) = self
             .0
             .calls
             .sudo_unchecked_weight(
@@ -1400,8 +1400,8 @@ impl GearApi {
                 },
             )
             .await?;
-        self.process_set_code(&events.1)?;
-        Ok(events.0)
+        self.process_set_code(&events)?;
+        Ok(block_hash)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
