@@ -136,7 +136,12 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
         builder.add_derives_for_type(ty, [parse_quote!(Copy)], true);
     }
 
+    builder.no_docs();
     builder.runtime_types_only();
+    builder.disable_default_derives();
+    builder.set_target_module(parse_quote! {
+        pub mod runtime_types {}
+    });
     builder
         .generate(metadata)
         .expect("Failed to generate runtime types")
@@ -345,6 +350,9 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
                 let export = match pallet_name.as_str() {
                     "staking" => quote! {
                         pub use super::runtime_types::#pallet::pallet::pallet::Event;
+                    },
+                    "referenda" => quote! {
+                        pub use super::runtime_types::#pallet::pallet::Event1 as Event;
                     },
                     "fellowship_referenda" => quote! {
                         pub use super::runtime_types::#pallet::pallet::Event2 as Event;
