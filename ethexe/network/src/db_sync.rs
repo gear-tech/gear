@@ -134,13 +134,25 @@ impl Response {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+pub enum NewRequestRoundReason {
+    /// Request was queued for the first time or re-queued
+    FromQueue,
+    /// We have only part of the data
+    PartialData,
+    /// Peer failed to respond
+    PeerFailed,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub enum Event {
     NewRequestRound {
         /// The ID of request
         request_id: RequestId,
-        /// Peer we are currently requesting to
+        /// Peer we're currently requesting to
         peer_id: PeerId,
+        /// Reason for new request round
+        reason: NewRequestRoundReason,
     },
     RequestSucceed {
         /// The ID of request
@@ -386,6 +398,7 @@ impl Behaviour {
                             Ok(peer_id) => Event::NewRequestRound {
                                 request_id,
                                 peer_id,
+                                reason: NewRequestRoundReason::PartialData,
                             },
                             Err(new_ongoing_request) => Event::RequestSucceed {
                                 request_id,
@@ -433,6 +446,7 @@ impl Behaviour {
                     Ok(peer_id) => Event::NewRequestRound {
                         request_id,
                         peer_id,
+                        reason: NewRequestRoundReason::PeerFailed,
                     },
                     Err(new_ongoing_request) => match new_ongoing_request.response {
                         Some(response) => Event::RequestSucceed {
@@ -553,6 +567,7 @@ impl NetworkBehaviour for Behaviour {
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::NewRequestRound {
                         request_id,
                         peer_id,
+                        reason: NewRequestRoundReason::FromQueue,
                     }));
                 }
                 Err(ongoing_request) => {
@@ -659,6 +674,7 @@ mod tests {
             Event::NewRequestRound {
                 request_id,
                 peer_id: bob_peer_id,
+                reason: NewRequestRoundReason::FromQueue,
             }
         );
 
@@ -695,6 +711,7 @@ mod tests {
             Event::NewRequestRound {
                 request_id,
                 peer_id: *bob.local_peer_id(),
+                reason: NewRequestRoundReason::FromQueue,
             }
         );
 
@@ -755,12 +772,12 @@ mod tests {
         // first round
         let event = alice.next_behaviour_event().await;
         assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, .. } if rid == request_id)
+            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
         );
         // second round
         let event = alice.next_behaviour_event().await;
         assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, .. } if rid == request_id)
+            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id)
         );
 
         let event = alice.next_behaviour_event().await;
