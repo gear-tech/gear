@@ -108,10 +108,10 @@ impl AsDigest for StateTransition {
             + size_of::<H256>()
             // valueToReceive
             + size_of::<u128>()
-            // valueClaimsBytes digest
+            // digest(valueClaimsBytes)
             + size_of::<Digest>()
-            // messagesHashesBytes digest
-            + size_of::<H256>();
+            // digest(messagesHashesBytes)
+            + size_of::<Digest>();
 
         let mut state_transition_bytes = Vec::with_capacity(state_transition_size);
 
@@ -200,7 +200,7 @@ impl AsDigest for BlockCommitment {
             // predBlockHash
             + size_of::<H256>()
             // hash(transitionsHashesBytes)
-            + size_of::<H256>();
+            + size_of::<Digest>();
 
         let mut block_commitment_bytes = Vec::with_capacity(block_commitment_size);
 

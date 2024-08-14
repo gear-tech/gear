@@ -41,8 +41,8 @@ pub struct Config {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
-    pub allowed_pred_block_hash: H256,
-    pub allowed_prev_commitment_hash: H256,
+    pub prev_commitment_hash: H256,
+    pub pred_block_hash: H256,
     pub transitions_digest: Digest,
 }
 
@@ -50,8 +50,8 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
     fn from(commitment: &BlockCommitment) -> Self {
         Self {
             block_hash: commitment.block_hash,
-            allowed_pred_block_hash: commitment.pred_block_hash,
-            allowed_prev_commitment_hash: commitment.prev_commitment_hash,
+            prev_commitment_hash: commitment.prev_commitment_hash,
+            pred_block_hash: commitment.pred_block_hash,
             transitions_digest: commitment.transitions.as_digest(),
         }
     }
@@ -62,8 +62,8 @@ impl AsDigest for BlockCommitmentValidationRequest {
         let mut message = Vec::with_capacity(3 * size_of::<H256>() + size_of::<Digest>());
 
         message.extend_from_slice(self.block_hash.as_bytes());
-        message.extend_from_slice(self.allowed_pred_block_hash.as_bytes());
-        message.extend_from_slice(self.allowed_prev_commitment_hash.as_bytes());
+        message.extend_from_slice(self.prev_commitment_hash.as_bytes());
+        message.extend_from_slice(self.pred_block_hash.as_bytes());
         message.extend_from_slice(self.transitions_digest.as_ref());
 
         message.as_digest()
@@ -154,8 +154,8 @@ impl Validator {
     ) -> Result<()> {
         let BlockCommitmentValidationRequest {
             block_hash,
-            allowed_pred_block_hash,
-            allowed_prev_commitment_hash,
+            pred_block_hash: allowed_pred_block_hash,
+            prev_commitment_hash: allowed_prev_commitment_hash,
             transitions_digest,
         } = request;
 
@@ -249,8 +249,31 @@ impl Validator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethexe_common::router::StateTransition;
     use ethexe_db::BlockHeader;
     use gprimitives::CodeId;
+
+    #[test]
+    fn block_validation_request_digest() {
+        let transition = StateTransition {
+            actor_id: H256::random().0.into(),
+            new_state_hash: H256::random(),
+            value_to_receive: 123,
+            value_claims: vec![],
+            messages: vec![],
+        };
+        let commitment = BlockCommitment {
+            block_hash: H256::random(),
+            prev_commitment_hash: H256::random(),
+            pred_block_hash: H256::random(),
+            transitions: vec![transition.clone(), transition],
+        };
+
+        assert_eq!(
+            commitment.as_digest(),
+            BlockCommitmentValidationRequest::from(&commitment).as_digest()
+        );
+    }
 
     #[test]
     fn test_validate_code_commitments() {
@@ -313,8 +336,8 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                allowed_pred_block_hash: block_hash,
-                allowed_prev_commitment_hash: prev_commitment_hash,
+                pred_block_hash: block_hash,
+                prev_commitment_hash,
                 transitions_digest,
             },
         )
@@ -324,8 +347,8 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                allowed_pred_block_hash: H256::random(),
-                allowed_prev_commitment_hash: prev_commitment_hash,
+                pred_block_hash: H256::random(),
+                prev_commitment_hash,
                 transitions_digest,
             },
         )
@@ -335,8 +358,8 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                allowed_pred_block_hash: block_hash,
-                allowed_prev_commitment_hash: H256::random(),
+                pred_block_hash: block_hash,
+                prev_commitment_hash: H256::random(),
                 transitions_digest,
             },
         )
@@ -346,8 +369,8 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                allowed_pred_block_hash: block_hash,
-                allowed_prev_commitment_hash: prev_commitment_hash,
+                pred_block_hash: block_hash,
+                prev_commitment_hash,
                 transitions_digest: Digest::from([2; 32]),
             },
         )
@@ -357,8 +380,8 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash: H256::random(),
-                allowed_pred_block_hash: block_hash,
-                allowed_prev_commitment_hash: prev_commitment_hash,
+                pred_block_hash: block_hash,
+                prev_commitment_hash,
                 transitions_digest,
             },
         )
