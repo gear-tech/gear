@@ -19,6 +19,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
 
+extern crate alloc;
+
+use alloc::format;
+
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -194,7 +198,17 @@ pub mod pallet {
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
             let dispatch_queue = QueueOf::<T>::iter()
-                .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
+                .map(|v| {
+                    v.unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "DebugInfo::do_snapshot: Message queue corrupted. \
+                            Got error - {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    })
+                })
                 .collect();
 
             let programs = T::ProgramStorage::iter()

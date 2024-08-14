@@ -20,7 +20,7 @@
 
 use crate::blocks::BlocksManager;
 use gear_common::{
-    auxiliary::mailbox::*,
+    auxiliary::{mailbox::*, BlockNumber},
     storage::{GetCallback, Interval, IterableByKeyMap, Mailbox, MailboxCallbacks},
 };
 use gear_core::ids::{MessageId, ProgramId};

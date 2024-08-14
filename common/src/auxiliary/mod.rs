@@ -22,12 +22,16 @@
 
 pub mod gas_provider;
 pub mod mailbox;
+pub mod taskpool;
 
 use crate::storage::{
     Counted, CountedByKey, DoubleMapStorage, GetFirstPos, GetSecondPos, IterableByKeyMap,
     IteratorWrap, KeyIterableByKeyMap, MapStorage,
 };
 use alloc::collections::btree_map::{BTreeMap, Entry, IntoIter};
+
+/// An "auxiliary" block number type.
+pub type BlockNumber = u32;
 
 /// Double key `BTreeMap`.
 ///

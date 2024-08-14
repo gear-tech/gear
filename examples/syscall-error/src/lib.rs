@@ -42,7 +42,8 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send_bytes(0, b"dummy");
-        assert!(!res.main_failed());
+        let msg_id = program.send_bytes(0, b"dummy");
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
     }
 }

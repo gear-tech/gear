@@ -49,6 +49,7 @@ pub use weights::WeightInfo;
 
 use alloc::{
     collections::{btree_map::Entry, BTreeMap},
+    format,
     string::ToString,
 };
 use core::marker::PhantomData;
@@ -155,7 +156,13 @@ impl<E> BuiltinCollection<E> for Tuple {
                 if let Entry::Vacant(e) = registry.entry(actor_id) {
                     e.insert(Box::new(Tuple::Actor::handle));
                 } else {
-                    unreachable!("Duplicate builtin ids");
+                    let err_msg = format!(
+                        "Tuple::for_tuples: Duplicate builtin ids. \
+                        Actor id - {actor_id}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
                 }
             )*
         );
@@ -252,10 +259,19 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         let actor_id = dispatch.destination();
 
         if dispatch.kind() != DispatchKind::Handle {
-            unreachable!("Only handle dispatches can end up here");
+            let err_msg = format!(
+                "BuiltinRegistry::run: Only handle dispatches can end up here. \
+                Dispatch kind - {dispatch_kind:?}",
+                dispatch_kind = dispatch.kind()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         }
         if dispatch.context().is_some() {
-            unreachable!("Builtin actors can't have context from earlier executions");
+            unreachable!(
+                "BuiltinRegistry::run: Builtin actors can't have context from earlier executions"
+            );
         }
 
         // Creating a gas counter to track gas usage (because core processor needs it).
@@ -291,9 +307,9 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     MessageContext::new(dispatch, actor_id, Default::default()).unwrap_or_else(
                         || {
                             unreachable!(
-                                "Builtin actor can't have context stored,
+                                "BuiltinRegistry::run: Builtin actor can't have context stored,
                                  so must be always possible to create a new message context"
-                            )
+                            );
                         },
                     );
                 let packet = ReplyPacket::new(response_payload, 0);
@@ -310,7 +326,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     dispatch_result.generated_dispatches = generated_dispatches;
                     dispatch_result.reply_sent = true;
                 } else {
-                    unreachable!("Failed to send reply from builtin actor");
+                    unreachable!("BuiltinRegistry::run: Failed to send reply from builtin actor");
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
