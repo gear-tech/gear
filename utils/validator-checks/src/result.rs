@@ -4,6 +4,9 @@ use std::result::Result as StdResult;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Any error
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
     /// Some errors happens in gprogram.
     #[error(transparent)]
     GSdk(#[from] gsdk::Error),

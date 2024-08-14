@@ -22,7 +22,7 @@ hex.workspace = true
 #
 # Same version from `/Cargo.lock`
 frame-metadata = "15.1.0"
-subxt-metadata.workspace = true
+# subxt-metadata.workspace = true
 subxt-codegen.workspace = true
 # TODO: inherit from workspace
 #

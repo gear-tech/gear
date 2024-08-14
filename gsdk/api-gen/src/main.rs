@@ -27,8 +27,7 @@ use std::{
     env, fs,
     io::{self, Write},
 };
-use subxt_codegen::{DerivesRegistry, RuntimeGenerator, TypeSubstitutes};
-use subxt_metadata::Metadata;
+use subxt_codegen::{CodegenBuilder, Metadata};
 use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
@@ -120,23 +119,13 @@ fn metadata() -> Vec<u8> {
 }
 
 fn generate_runtime_types(metadata: Metadata) -> TokenStream {
-    let generator = RuntimeGenerator::new(metadata);
-    let runtime_types_mod = parse_quote!(
-        pub mod runtime_types {}
-    );
-
-    let crate_path = Default::default();
-
-    let mut derives = DerivesRegistry::new();
-    derives.extend_for_all(
-        [
-            parse_quote!(Debug),
-            parse_quote!(crate::gp::Encode),
-            parse_quote!(crate::gp::Decode),
-            parse_quote!(crate::gp::DecodeAsType),
-        ],
-        [],
-    );
+    let mut builder = CodegenBuilder::new();
+    builder.set_additional_global_derives(vec![
+        parse_quote!(Debug),
+        parse_quote!(crate::gp::Encode),
+        parse_quote!(crate::gp::Decode),
+        parse_quote!(crate::gp::DecodeAsType),
+    ]);
 
     for ty in [
         parse_quote!(gprimitives::CodeId),
@@ -144,17 +133,12 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
         parse_quote!(gprimitives::ActorId),
         parse_quote!(gprimitives::ReservationId),
     ] {
-        derives.extend_for_type(ty, [parse_quote!(Copy)], []);
+        builder.add_derives_for_type(ty, [parse_quote!(Copy)], true);
     }
 
-    generator
-        .generate_runtime_types(
-            runtime_types_mod,
-            derives,
-            TypeSubstitutes::with_default_substitutes(&crate_path),
-            crate_path,
-            true,
-        )
+    builder.runtime_types_only();
+    builder
+        .generate(metadata)
         .expect("Failed to generate runtime types")
 }
 
