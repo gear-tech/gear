@@ -884,11 +884,47 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{Log, System};
-    use demo_constructor::Scheme;
+
+    use crate::{Log, ProgramIdWrapper, System};
+    use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
+
     use gear_core::ids::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+
+    #[test]
+    fn test_handle_signal() {
+        use demo_constructor::{Calls, Scheme, WASM_BINARY};
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        let message = "Signal handle";
+        let panic_message = "Gotcha!";
+
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            Calls::builder()
+                .system_reserve_gas(1_000_000_000)
+                .panic(panic_message),
+            Calls::builder().noop(),
+            Calls::builder().send(
+                Arg::new(ProgramIdWrapper::from(user_id).0.into_bytes()),
+                Arg::bytes(message),
+            ),
+        );
+
+        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
+
+        let run_result = prog.send(user_id, scheme);
+        assert!(!run_result.main_failed());
+        let run_result = prog.send(user_id, *b"Hello");
+
+        run_result.assert_panicked_with(panic_message);
+        let log = Log::builder().payload_bytes(message);
+        let value = sys.get_mailbox(user_id).claim_value(log);
+        assert!(value.is_ok());
+    }
 
     #[test]
     fn test_handle_messages_to_failing_program() {

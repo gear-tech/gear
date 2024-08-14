@@ -6,6 +6,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 include = ["build.rs", "src/**/*", "Cargo.toml", "README.md"]
 readme = "README.md"
 
@@ -13,7 +14,6 @@ readme = "README.md"
 anyhow.workspace = true
 cargo_metadata.workspace = true
 chrono = "0.4"
-once_cell.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
 thiserror.workspace = true
