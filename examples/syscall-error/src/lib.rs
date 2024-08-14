@@ -41,6 +41,7 @@ mod tests {
         system.init_logger();
 
         let program = Program::current(&system);
+
         let msg_id = program.send_bytes(DEFAULT_USER_ALICE, b"dummy");
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));

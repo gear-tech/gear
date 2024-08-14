@@ -121,7 +121,6 @@ mod tests {
         let from = DEFAULT_USER_ALICE;
 
         program.send(from, InitMessage::BTree);
-
         IntoIterator::into_iter([
             Request::Insert(0, 1),
             Request::Insert(0, 2),

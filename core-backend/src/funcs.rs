@@ -32,7 +32,10 @@ use crate::{
     state::HostState,
     BackendExternalities,
 };
-use alloc::string::{String, ToString};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
@@ -1402,13 +1405,22 @@ where
     pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Caller> {
         RawSyscall::new(move |ctx: &mut CallerWrap<Caller>| {
             // At the instrumentation level, we can only use variants of the `SystemBreakCode`,
-            // so we should never reach `unreachable!("{e}")`.
+            // so we should never reach `unreachable!("{err_msg}")`.
             let termination_reason = SystemBreakCode::try_from(code)
                 .map(|system_break_code| match system_break_code {
                     SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
                     SystemBreakCode::StackLimitExceeded => Self::stack_limit_exceeded(),
                 })
-                .unwrap_or_else(|e| unreachable!("{e}"));
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "system_break: Invalid system break code. \
+                        System break code - {code}. \
+                        Got error - {e}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                });
             ctx.set_termination_reason(termination_reason);
             Err(HostError)
         })

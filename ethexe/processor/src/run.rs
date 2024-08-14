@@ -21,7 +21,7 @@ use crate::{
     LocalOutcome,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{OutgoingMessage, StateTransition};
+use ethexe_common::router::{OutgoingMessage, StateTransition};
 use ethexe_db::CodesStorage;
 use ethexe_runtime_common::Handler;
 use gear_core::{
@@ -112,13 +112,13 @@ async fn run_in_async(
                 };
                 core_processor::handle_journal(journal, &mut handler);
 
-                for (id, (old_hash, new_hash)) in handler.results {
-                    results.insert(id, (old_hash, new_hash, vec![]));
+                for (id, new_hash) in handler.results {
+                    results.insert(id, (new_hash, vec![]));
                 }
 
                 for message in &handler.to_users_messages {
                     let entry = results.get_mut(&message.source()).expect("should be");
-                    entry.2.push(message.clone());
+                    entry.1.push(message.clone());
                 }
 
                 to_users_messages.append(&mut handler.to_users_messages);
@@ -136,35 +136,38 @@ async fn run_in_async(
 
     let outcomes = results
         .into_iter()
-        .map(|(id, (old_hash, new_hash, outgoing_messages))| {
+        .map(|(id, (new_state_hash, outgoing_messages))| {
             LocalOutcome::Transition(StateTransition {
                 actor_id: id,
-                old_state_hash: old_hash,
-                new_state_hash: new_hash,
-                outgoing_messages: outgoing_messages
-                    .into_iter()
-                    .map(|message| {
-                        let (
-                            message_id,
-                            _source,
-                            destination,
-                            payload,
-                            _gas_limit,
-                            value,
-                            message_details,
-                        ) = message.into_parts();
-                        let reply_details =
-                            message_details.and_then(|details| details.to_reply_details());
+                new_state_hash,
+                value_to_receive: 0,  // TODO (breathx): propose this
+                value_claims: vec![], // TODO (breathx): propose this
+                messages:
+                    outgoing_messages
+                        .into_iter()
+                        .map(|message| {
+                            let (
+                                id,
+                                _source,
+                                destination,
+                                payload,
+                                _gas_limit,
+                                value,
+                                message_details,
+                            ) = message.into_parts();
 
-                        OutgoingMessage {
-                            message_id,
-                            destination,
-                            payload,
-                            value,
-                            reply_details,
-                        }
-                    })
-                    .collect(),
+                            let reply_details =
+                                message_details.and_then(|details| details.to_reply_details());
+
+                            OutgoingMessage {
+                                id,
+                                destination,
+                                payload: payload.into_vec(),
+                                value,
+                                reply_details,
+                            }
+                        })
+                        .collect(),
             })
         })
         .collect();

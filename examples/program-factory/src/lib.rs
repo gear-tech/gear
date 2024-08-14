@@ -74,7 +74,7 @@ mod tests {
         let user_id = DEFAULT_USER_ALICE;
         sys.mint_to(user_id, 100 * UNITS);
 
-        // Send `init` msg to factory
+        // Send init msg to factory
         let msg_id = factory.send_bytes_with_value(user_id, "EMPTY", 10 * UNITS);
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
@@ -101,7 +101,7 @@ mod tests {
         sys.init_logger();
         let factory = prepare_factory(&sys);
 
-        // Send `handle` msg to factory to create a new child
+        // Send handle msg to factory to create a new child
         let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, CreateProgram::Default.encode());
         let res = sys.run_next_block();
         let child_id_expected =
@@ -119,7 +119,7 @@ mod tests {
         let salt = 0i32.to_be_bytes();
         let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000_000)]);
 
-        // Send `handle` msg to factory to create a new child
+        // Send handle msg to factory to create a new child
         let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
         let res = sys.run_next_block();
 
@@ -128,7 +128,7 @@ mod tests {
         assert!(res.succeed.contains(&msg_id));
         assert!(sys.is_active_program(child_id_expected));
 
-        // Send `handle` msg to create a duplicate
+        // Send handle msg to create a duplicate
         let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
         let res = sys.run_next_block();
 

@@ -808,16 +808,15 @@ impl ExtManager {
     #[track_caller]
     fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
         let total_value = {
-            let actors = self.actors.borrow_mut();
-            actors.get(&program_id).expect("Can't fail").1.total()
+            let mut actors = self.actors.borrow_mut();
+            let (actor, balance) = actors
+                .get_mut(&program_id)
+                .expect("Can't find existing program");
+            *actor = TestActor::Dormant;
+
+            balance.total()
         };
         Balance::transfer(&mut self.actors, program_id, origin, total_value, false);
-
-        let mut actors = self.actors.borrow_mut();
-        let (actor, _) = actors
-            .get_mut(&program_id)
-            .expect("Can't find existing program");
-        *actor = TestActor::Dormant;
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
