@@ -449,7 +449,7 @@ async fn ping() {
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
@@ -613,7 +613,7 @@ async fn ping_reorg() {
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
@@ -874,7 +874,7 @@ async fn ping_deep_sync() {
     // Send message in between.
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
