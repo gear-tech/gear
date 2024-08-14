@@ -105,7 +105,7 @@ impl OngoingRequest {
 }
 
 pub(crate) enum PeerResponse {
-    ReQueued {
+    NewRound {
         peer_id: PeerId,
         request_id: RequestId,
     },
@@ -201,7 +201,7 @@ impl OngoingRequests {
             Ok(OngoingRequestCompletion::Full(response)) => Ok((request_id, response)),
             Ok(OngoingRequestCompletion::Partial(new_ongoing_request)) => {
                 match self.send_request(behaviour, new_ongoing_request) {
-                    Ok(peer_id) => Err(PeerResponse::ReQueued {
+                    Ok(peer_id) => Err(PeerResponse::NewRound {
                         peer_id,
                         request_id,
                     }),

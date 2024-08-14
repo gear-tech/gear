@@ -220,7 +220,7 @@ impl Behaviour {
                         request_id,
                         response,
                     },
-                    Err(PeerResponse::ReQueued {
+                    Err(PeerResponse::NewRound {
                         peer_id,
                         request_id,
                     }) => Event::NewRequestRound {
