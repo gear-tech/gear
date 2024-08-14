@@ -262,6 +262,7 @@ mod tests {
             value_claims: vec![],
             messages: vec![],
         };
+
         let commitment = BlockCommitment {
             block_hash: H256::random(),
             prev_commitment_hash: H256::random(),

@@ -174,7 +174,7 @@ mod tests {
     use ethexe_signer::PrivateKey;
     use std::str::FromStr;
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MyComm([u8; 2]);
 
     impl AsDigest for MyComm {
@@ -229,5 +229,71 @@ mod tests {
         let recovered = agg.recover(router_address).unwrap();
 
         assert_eq!(recovered, pub_key.to_address());
+    }
+
+    #[test]
+    fn test_multisigned_commitment_digests() {
+        let signer = Signer::tmp();
+
+        let private_key = PrivateKey([1; 32]);
+        let pub_key = signer.add_key(private_key).unwrap();
+
+        let router_address = Address([0x01; 20]);
+        let commitments = [MyComm([1, 2]), MyComm([3, 4])];
+        let digests = commitments.map(|c| c.as_digest());
+
+        let mut multisigned = MultisignedCommitmentDigests::new(digests.into_iter().collect());
+        assert_eq!(multisigned.digests(), digests.as_slice());
+        assert_eq!(multisigned.signatures().len(), 0);
+
+        let commitments_digest = commitments.as_digest();
+        let signature =
+            sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
+
+        multisigned
+            .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
+            .unwrap();
+        assert_eq!(multisigned.digests(), digests.as_slice());
+        assert_eq!(multisigned.signatures().len(), 1);
+    }
+
+    #[test]
+    fn test_multisigned_commitments() {
+        let signer = Signer::tmp();
+
+        let private_key = PrivateKey([1; 32]);
+        let pub_key = signer.add_key(private_key).unwrap();
+
+        let router_address = Address([1; 20]);
+        let commitments = [MyComm([1, 2]), MyComm([3, 4])];
+        let digests = commitments.map(|c| c.as_digest());
+        let mut commitments_map: BTreeMap<_, _> = commitments
+            .into_iter()
+            .map(|c| (c.as_digest(), c))
+            .collect();
+
+        let mut multisigned = MultisignedCommitmentDigests::new(digests.into_iter().collect());
+        let commitments_digest = commitments.as_digest();
+        let signature =
+            sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
+
+        multisigned
+            .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
+            .unwrap();
+
+        let multisigned_commitments =
+            MultisignedCommitments::from_multisigned_digests(multisigned, |d| {
+                commitments_map.remove(&d).unwrap()
+            });
+
+        assert_eq!(multisigned_commitments.commitments(), commitments);
+
+        let parts = multisigned_commitments.into_parts();
+        assert_eq!(parts.0.as_slice(), commitments.as_slice());
+        assert_eq!(parts.1.len(), 1);
+        parts.1.into_iter().for_each(|(k, v)| {
+            assert_eq!(k, pub_key.to_address());
+            assert_eq!(v, signature);
+        });
     }
 }
