@@ -609,7 +609,7 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
 
     async fn new_swarm() -> (Swarm<Behaviour>, Database) {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
         let behaviour = Behaviour::new(request_response::Config::default(), db.clone());
         let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
