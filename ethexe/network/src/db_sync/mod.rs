@@ -46,19 +46,20 @@ const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum RequestFailure {
+pub enum RequestFailure {}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub struct RequestId(u64);
+
+#[derive(Debug, Eq, PartialEq)]
+enum RequestValidationError {
     /// Request kind unequal to response kind
     TypeMismatch,
-    /// Hash field in request unequal to one in response
-    HashInequality,
     /// Response contains more data than requested
     ExcessiveData,
     /// Hashed data unequal to its corresponding hash
     DataHashMismatch,
 }
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct RequestId(u64);
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub enum Request {
@@ -67,23 +68,23 @@ pub enum Request {
 }
 
 impl Request {
-    fn validate_response(&self, resp: &Response) -> Result<(), RequestFailure> {
+    fn validate_response(&self, resp: &Response) -> Result<(), RequestValidationError> {
         match (self, resp) {
             (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
                 for (hash, data) in hashes {
                     if !requested_hashes.contains(hash) {
-                        return Err(RequestFailure::ExcessiveData);
+                        return Err(RequestValidationError::ExcessiveData);
                     }
 
                     if *hash != ethexe_db::hash(data) {
-                        return Err(RequestFailure::DataHashMismatch);
+                        return Err(RequestValidationError::DataHashMismatch);
                     }
                 }
 
                 Ok(())
             }
             (Request::ProgramIds, Response::ProgramIds(_ids)) => Ok(()),
-            (_, _) => Err(RequestFailure::TypeMismatch),
+            (_, _) => Err(RequestValidationError::TypeMismatch),
         }
     }
 
@@ -141,7 +142,6 @@ pub enum NewRequestRoundReason {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-#[allow(clippy::enum_variant_names)]
 pub enum Event {
     NewRequestRound {
         /// The ID of request
@@ -210,7 +210,7 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let event = match self.ongoing_requests.peer_response(
+                let event = match self.ongoing_requests.on_peer_response(
                     &mut self.inner,
                     peer,
                     request_id,
@@ -228,9 +228,6 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PartialData,
                     },
-                    Err(PeerResponse::ValidationFailed { request_id, error }) => {
-                        Event::RequestFailed { request_id, error }
-                    }
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -256,19 +253,12 @@ impl Behaviour {
                 let event =
                     match self
                         .ongoing_requests
-                        .peer_failed(&mut self.inner, peer, request_id)
+                        .on_peer_failed(&mut self.inner, peer, request_id)
                     {
                         Ok((peer_id, request_id)) => Event::NewRequestRound {
                             request_id,
                             peer_id,
                             reason: NewRequestRoundReason::PeerFailed,
-                        },
-                        Err(PeerFailed::PartialResponse {
-                            request_id,
-                            response,
-                        }) => Event::RequestSucceed {
-                            request_id,
-                            response,
                         },
                         Err(PeerFailed::ReQueued) => return Poll::Pending,
                     };
@@ -369,7 +359,7 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Some((peer_id, request_id)) =
-            self.ongoing_requests.send_next_request(&mut self.inner)
+            self.ongoing_requests.send_pending_request(&mut self.inner)
         {
             return Poll::Ready(ToSwarm::GenerateEvent(Event::NewRequestRound {
                 request_id,
@@ -428,7 +418,7 @@ mod tests {
         );
         assert_eq!(
             request.validate_response(&response),
-            Err(RequestFailure::ExcessiveData)
+            Err(RequestValidationError::ExcessiveData)
         );
     }
 
@@ -440,7 +430,7 @@ mod tests {
         let response = Response::DataForHashes([(hash1, b"2".to_vec())].into());
         assert_eq!(
             request.validate_response(&response),
-            Err(RequestFailure::DataHashMismatch)
+            Err(RequestValidationError::DataHashMismatch)
         );
     }
 
@@ -535,7 +525,7 @@ mod tests {
                         event,
                         Event::RequestFailed {
                             request_id,
-                            error: RequestFailure::TypeMismatch
+                            error: unreachable!()
                         }
                     );
                     break;
