@@ -261,6 +261,7 @@
 //! the sender to ensure coverage of the existential deposit and gas costs.
 //!
 //! ```no_run
+//! # use gtest::constants::EXISTENTIAL_DEPOSIT;
 //! # let sys = gtest::System::new();
 //! let user_id = 42;
 //! sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 1000);
