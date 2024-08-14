@@ -107,7 +107,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return router.programsCount;
     }
 
-    function programExists(address program) public view returns (bool) {
+    function programCodeId(address program) public view returns (bytes32) {
         Storage storage router = _getStorage();
         return router.programs[program];
     }
@@ -207,9 +207,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         _retrieveValue(totalValue);
 
+        // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
+        // reverts execution in case of address is already taken.
         address actorId = Clones.cloneDeterministic(router.mirrorProxy, keccak256(abi.encodePacked(codeId, salt)));
 
-        router.programs[actorId] = true;
+        router.programs[actorId] = codeId;
         router.programsCount++;
 
         emit ProgramCreated(actorId, codeId);
@@ -334,7 +336,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function _doStateTransition(StateTransition calldata stateTransition) private returns (bytes32) {
         Storage storage router = _getStorage();
 
-        require(router.programs[stateTransition.actorId], "couldn't perform transition for unknown program");
+        require(router.programs[stateTransition.actorId] != 0, "couldn't perform transition for unknown program");
 
         IWrappedVara wrappedVaraActor = IWrappedVara(router.wrappedVara);
         wrappedVaraActor.transfer(stateTransition.actorId, stateTransition.valueToReceive);
