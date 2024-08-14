@@ -28,9 +28,11 @@ use gear_common::{
     ProgramId,
 };
 
-/// Task pool manager which operates under the hood over [`gear_common::AuxiliaryTaskpool`].
-/// 
-/// Manager is needed mainly to adapt arguments of the task pool methods to the crate.
+/// Task pool manager which operates under the hood over
+/// [`gear_common::AuxiliaryTaskpool`].
+///
+/// Manager is needed mainly to adapt arguments of the task pool methods to the
+/// crate.
 #[derive(Debug, Default)]
 pub(crate) struct TaskPoolManager;
 
@@ -68,7 +70,8 @@ impl TaskPoolManager {
         <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::delete(block_number, task)
     }
 
-    /// Adapted by argument types version of the task pool `drain_prefix_keys` method.
+    /// Adapted by argument types version of the task pool `drain_prefix_keys`
+    /// method.
     pub(crate) fn drain_prefix_keys(
         &self,
         block_number: BlockNumber,

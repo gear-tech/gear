@@ -17,14 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 /// Implementation of the `JournalHandler` trait for the `ExtManager`.
-
 use std::collections::BTreeMap;
 
-use super::{Program, GenuineProgram, TestActor, ExtManager, Gas, MintMode, Balance};
+use super::{Balance, ExtManager, Gas, GenuineProgram, MintMode, Program, TestActor};
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{scheduler::ScheduledTask, Origin};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId}, ids::{CodeId, MessageId, ProgramId, ReservationId}, memory::PageBuf, message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch}, pages::{numerated::{iterators::IntervalIterator, tree::IntervalsTree}, GearPage, WasmPage}, reservation::GasReserver
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::PageBuf,
+    message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
+    pages::{
+        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
+        GearPage, WasmPage,
+    },
+    reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
 use gear_wasm_instrument::gas_metering::Schedule;
@@ -165,16 +172,14 @@ impl JournalHandler for ExtManager {
 
         let dest = dispatch.destination();
         let id = dispatch.id();
-        let expected_wake = duration
-            .map(|d| {
-                let expected_bn = d + self.blocks_manager.get().height;
-                self.task_pool.add(
-                    expected_bn,
-                    ScheduledTask::WakeMessage(dest, id)
-                ).unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
+        let expected_wake = duration.map(|d| {
+            let expected_bn = d + self.blocks_manager.get().height;
+            self.task_pool
+                .add(expected_bn, ScheduledTask::WakeMessage(dest, id))
+                .unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
 
-                expected_bn
-            });
+            expected_bn
+        });
         self.wait_list.insert((dest, id), (dispatch, expected_wake));
         // wait_list_schedules
     }
@@ -191,12 +196,15 @@ impl JournalHandler for ExtManager {
         if let Some((msg, expected_bn)) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
 
-            let Some(expected_bn) = expected_bn else { return; };
-            self
-                .task_pool
-                .delete(expected_bn, ScheduledTask::WakeMessage(program_id, awakening_id))
+            let Some(expected_bn) = expected_bn else {
+                return;
+            };
+            self.task_pool
+                .delete(
+                    expected_bn,
+                    ScheduledTask::WakeMessage(program_id, awakening_id),
+                )
                 .unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
-            
         }
     }
 

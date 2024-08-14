@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 /// Implementation of the `TaskHandler` trait for the `ExtManager`.
-
 use super::ExtManager;
-use gear_core::ids::{ProgramId, MessageId, CodeId, ReservationId};
 use gear_common::{scheduler::TaskHandler, Gas as GearCommonGas};
+use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
 
 impl TaskHandler<ProgramId> for ExtManager {
     fn pause_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
@@ -33,11 +32,19 @@ impl TaskHandler<ProgramId> for ExtManager {
         todo!("#646")
     }
 
-    fn remove_from_mailbox(&mut self, _user_id: ProgramId, _message_id: MessageId) -> GearCommonGas {
+    fn remove_from_mailbox(
+        &mut self,
+        _user_id: ProgramId,
+        _message_id: MessageId,
+    ) -> GearCommonGas {
         todo!()
     }
 
-    fn remove_from_waitlist(&mut self, _program_id: ProgramId, _message_id: MessageId) -> GearCommonGas {
+    fn remove_from_waitlist(
+        &mut self,
+        _program_id: ProgramId,
+        _message_id: MessageId,
+    ) -> GearCommonGas {
         todo!()
     }
 
@@ -46,7 +53,9 @@ impl TaskHandler<ProgramId> for ExtManager {
     }
 
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> GearCommonGas {
-        let (dispatch, _) = self.wait_list.remove(&(program_id, message_id))
+        let (dispatch, _) = self
+            .wait_list
+            .remove(&(program_id, message_id))
             .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
         self.dispatches.push_back(dispatch);
 
@@ -54,7 +63,9 @@ impl TaskHandler<ProgramId> for ExtManager {
     }
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> GearCommonGas {
-        let dispatch = self.dispatches_stash.remove(&stashed_message_id)
+        let dispatch = self
+            .dispatches_stash
+            .remove(&stashed_message_id)
             .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
 
         self.dispatches.push_back(dispatch.into_stored());
@@ -62,15 +73,20 @@ impl TaskHandler<ProgramId> for ExtManager {
         GearCommonGas::MIN
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId, _to_mailbox: bool) -> GearCommonGas {
-        let dispatch = self.dispatches_stash.remove(&stashed_message_id)
+    fn send_user_message(
+        &mut self,
+        stashed_message_id: MessageId,
+        _to_mailbox: bool,
+    ) -> GearCommonGas {
+        let dispatch = self
+            .dispatches_stash
+            .remove(&stashed_message_id)
             .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
         let stored_message = dispatch.into_parts().1.into_stored();
-        let mailbox_message = stored_message
-            .clone()
-            .try_into()
-            .unwrap_or_else(|e| unreachable!("invalid message: can't be converted to user message {e:?}"));
-        
+        let mailbox_message = stored_message.clone().try_into().unwrap_or_else(|e| {
+            unreachable!("invalid message: can't be converted to user message {e:?}")
+        });
+
         self.mailbox
             .insert(mailbox_message)
             .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));

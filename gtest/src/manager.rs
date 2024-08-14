@@ -20,7 +20,22 @@ mod journal;
 mod task;
 
 use crate::{
-    blocks::BlocksManager, gas_tree::GasTreeManager, log::{BlockRunResult, CoreLog}, mailbox::MailboxManager, program::{Gas, WasmProgram}, task_pool::TaskPoolManager, Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST, HOST_FUNC_WRITE_COST, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, LOAD_PAGE_STORAGE_DATA_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, SIGNAL_READ_COST, SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST
+    blocks::BlocksManager,
+    gas_tree::GasTreeManager,
+    log::{BlockRunResult, CoreLog},
+    mailbox::MailboxManager,
+    program::{Gas, WasmProgram},
+    task_pool::TaskPoolManager,
+    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    GAS_ALLOWANCE, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST, HOST_FUNC_WRITE_COST,
+    INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, LOAD_PAGE_STORAGE_DATA_COST,
+    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST,
+    RESERVE_FOR, SIGNAL_READ_COST, SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS,
+    WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -29,19 +44,16 @@ use core_processor::{
     },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
-use gear_common::{auxiliary::{mailbox::MailboxErrorImpl, BlockNumber}, scheduler::ScheduledTask};
+use gear_common::{
+    auxiliary::{mailbox::MailboxErrorImpl, BlockNumber},
+    scheduler::ScheduledTask,
+};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{
-        Dispatch, DispatchKind, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
-    },
-    pages::{
-        numerated::tree::IntervalsTree,
-        GearPage, WasmPage,
-    },
+    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReservationMap,
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
@@ -49,7 +61,11 @@ use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
-    cell::{Ref, RefCell, RefMut}, collections::{BTreeMap, BTreeSet, HashMap, VecDeque}, convert::TryInto, mem, rc::Rc
+    cell::{Ref, RefCell, RefMut},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryInto,
+    mem,
+    rc::Rc,
 };
 
 const OUTGOING_LIMIT: u32 = 1024;
@@ -305,7 +321,10 @@ impl ExtManager {
             ScheduledTask::SendDispatch(message_id)
         } else {
             // TODO #4122, `to_mailbox` must be counted from provided gas
-            ScheduledTask::SendUserMessage { message_id, to_mailbox: true }
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox: true,
+            }
         };
 
         let expected_bn = self.blocks_manager.get().height + delay;
