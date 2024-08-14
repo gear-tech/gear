@@ -25,7 +25,6 @@ use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use libp2p::{
     core::Endpoint,
-    futures::FutureExt,
     request_response,
     request_response::{
         InboundFailure, Message, OutboundFailure, OutboundRequestId, ProtocolSupport,
@@ -43,7 +42,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     task::{Context, Poll},
 };
-use tokio::task::JoinHandle;
+use tokio::task::JoinSet;
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
@@ -301,6 +300,60 @@ impl OngoingRequests {
     }
 }
 
+struct OngoingResponses {
+    db: Database,
+    db_readers: JoinSet<(request_response::ResponseChannel<Response>, Response)>,
+}
+
+impl OngoingResponses {
+    fn from_db(db: Database) -> Self {
+        Self {
+            db,
+            db_readers: JoinSet::new(),
+        }
+    }
+
+    fn prepare_response(
+        &mut self,
+        channel: request_response::ResponseChannel<Response>,
+        request: Request,
+    ) {
+        let db = self.db.clone();
+        self.db_readers.spawn_blocking(move || {
+            let response = match request {
+                Request::DataForHashes(hashes) => Response::DataForHashes(
+                    hashes
+                        .into_iter()
+                        .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                        .collect(),
+                ),
+                Request::ProgramIds => Response::ProgramIds(db.program_ids()),
+            };
+            (channel, response)
+        });
+    }
+
+    fn poll_inner_next(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<(request_response::ResponseChannel<Response>, Response)> {
+        match self.db_readers.poll_join_next(cx) {
+            Poll::Ready(Some(res)) => {
+                let values = res.expect("database panicked");
+                Poll::Ready(values)
+            }
+            Poll::Ready(None) => Poll::Pending,
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn poll_send_response(&mut self, cx: &mut Context<'_>, behaviour: &mut InnerBehaviour) {
+        if let Poll::Ready((channel, response)) = self.poll_inner_next(cx) {
+            let _res = behaviour.send_response(channel, response);
+        }
+    }
+}
+
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
 
 pub(crate) struct Behaviour {
@@ -310,11 +363,7 @@ pub(crate) struct Behaviour {
     pending_requests: VecDeque<(RequestId, Request)>,
     ongoing_requests: OngoingRequests,
     // responses
-    db: Database,
-    ongoing_response: Option<(
-        request_response::ResponseChannel<Response>,
-        JoinHandle<Response>,
-    )>,
+    ongoing_responses: OngoingResponses,
 }
 
 impl Behaviour {
@@ -326,8 +375,7 @@ impl Behaviour {
             pending_requests: VecDeque::new(),
             ongoing_requests: OngoingRequests::default(),
             //
-            db,
-            ongoing_response: None,
+            ongoing_responses: OngoingResponses::from_db(db),
         }
     }
 
@@ -340,19 +388,6 @@ impl Behaviour {
         let request_id = self.next_request_id();
         self.pending_requests.push_back((request_id, request));
         request_id
-    }
-
-    fn read_db(&self, request: Request) -> JoinHandle<Response> {
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || match request {
-            Request::DataForHashes(hashes) => Response::DataForHashes(
-                hashes
-                    .into_iter()
-                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                    .collect(),
-            ),
-            Request::ProgramIds => Response::ProgramIds(db.program_ids()),
-        })
     }
 
     fn handle_inner_event(
@@ -369,7 +404,7 @@ impl Behaviour {
                         channel,
                     },
             } => {
-                self.ongoing_response = Some((channel, self.read_db(request)));
+                self.ongoing_responses.prepare_response(channel, request);
             }
             request_response::Event::Message {
                 peer,
@@ -577,14 +612,8 @@ impl NetworkBehaviour for Behaviour {
             }
         }
 
-        if let Some((channel, mut db_reader)) = self.ongoing_response.take() {
-            if let Poll::Ready(data) = db_reader.poll_unpin(cx) {
-                let resp = data.expect("database panicked");
-                let _res = self.inner.send_response(channel, resp);
-            } else {
-                self.ongoing_response = Some((channel, db_reader));
-            }
-        }
+        self.ongoing_responses
+            .poll_send_response(cx, &mut self.inner);
 
         if let Poll::Ready(to_swarm) = self.inner.poll(cx) {
             return match to_swarm {
