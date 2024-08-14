@@ -24,11 +24,13 @@ use gear_common::{scheduler::TaskHandler, Gas as GearCommonGas};
 
 impl TaskHandler<ProgramId> for ExtManager {
     fn pause_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
-        todo!()
+        log::debug!("Program rent logic is disabled.");
+
+        0
     }
 
     fn remove_code(&mut self, _code_id: CodeId) -> GearCommonGas {
-        todo!()
+        todo!("#646")
     }
 
     fn remove_from_mailbox(&mut self, _user_id: ProgramId, _message_id: MessageId) -> GearCommonGas {
@@ -40,7 +42,7 @@ impl TaskHandler<ProgramId> for ExtManager {
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
-        todo!()
+        todo!("#646")
     }
 
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> GearCommonGas {
@@ -86,6 +88,7 @@ impl TaskHandler<ProgramId> for ExtManager {
     }
 
     fn remove_resume_session(&mut self, _session_id: u32) -> GearCommonGas {
-        todo!()
+        log::debug!("Program rent logic is disabled");
+        0
     }
 }

@@ -20,7 +20,7 @@
 
 use gear_common::{
     auxiliary::{
-        taskpool::{AuxiliaryTaskpool, TaskPoolErrorImpl, TaskPoolStorageWrap},
+        task_pool::{AuxiliaryTaskpool, TaskPoolErrorImpl, TaskPoolStorageWrap},
         BlockNumber,
     },
     scheduler::{ScheduledTask, TaskPool, TaskPoolCallbacks},
