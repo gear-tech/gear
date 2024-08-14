@@ -28,7 +28,7 @@ use libp2p::{
 };
 use rand::seq::IteratorRandom;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     task::{Context, Poll},
 };
 use tokio::task::JoinSet;
@@ -54,21 +54,6 @@ impl OngoingRequest {
             response: None,
             tried_peers: HashSet::new(),
         }
-    }
-
-    pub(crate) fn request_id(&self) -> RequestId {
-        self.request_id
-    }
-
-    pub(crate) fn into_request(self) -> Request {
-        self.request
-    }
-    pub(crate) fn into_response(self) -> Option<Response> {
-        self.response
-    }
-
-    pub(crate) fn into_response_or_request(self) -> Result<Response, Request> {
-        self.response.ok_or(self.request)
     }
 
     fn merge_response(&mut self, new_response: Response) -> Response {
@@ -119,10 +104,31 @@ impl OngoingRequest {
     }
 }
 
+pub(crate) enum PeerResponse {
+    ReQueued {
+        peer_id: PeerId,
+        request_id: RequestId,
+    },
+    ValidationFailed {
+        request_id: RequestId,
+        error: RequestFailure,
+    },
+}
+
+pub(crate) enum PeerFailed {
+    PartialResponse {
+        request_id: RequestId,
+        response: Response,
+    },
+    ReQueued,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct OngoingRequests {
     inner: HashMap<OutboundRequestId, OngoingRequest>,
     connections: HashMap<PeerId, HashSet<ConnectionId>>,
+    request_id_counter: u64,
+    pending_requests: VecDeque<(RequestId, Request)>,
 }
 
 impl OngoingRequests {
@@ -153,11 +159,90 @@ impl OngoingRequests {
         }
     }
 
-    pub(crate) fn remove(
+    fn next_request_id(&mut self) -> RequestId {
+        self.request_id_counter += 1;
+        RequestId(self.request_id_counter)
+    }
+
+    pub(crate) fn push_pending_request(&mut self, request: Request) -> RequestId {
+        let request_id = self.next_request_id();
+        self.pending_requests.push_back((request_id, request));
+        request_id
+    }
+
+    pub(crate) fn send_next_request(
         &mut self,
-        outbound_request_id: OutboundRequestId,
-    ) -> Option<OngoingRequest> {
-        self.inner.remove(&outbound_request_id)
+        behaviour: &mut InnerBehaviour,
+    ) -> Option<(PeerId, RequestId)> {
+        let (request_id, request) = self.pending_requests.pop_back()?;
+
+        let ongoing_request = OngoingRequest::new(request_id, request);
+
+        match self.send_request(behaviour, ongoing_request) {
+            Ok(peer_id) => Some((peer_id, request_id)),
+            Err(ongoing_request) => {
+                self.pending_requests
+                    .push_back((request_id, ongoing_request.request));
+                None
+            }
+        }
+    }
+
+    pub(crate) fn peer_response(
+        &mut self,
+        behaviour: &mut InnerBehaviour,
+        peer: PeerId,
+        request_id: OutboundRequestId,
+        response: Response,
+    ) -> Result<(RequestId, Response), PeerResponse> {
+        let ongoing_request = self.inner.remove(&request_id).expect("unknown response");
+        let request_id = ongoing_request.request_id;
+        match ongoing_request.try_complete(peer, response) {
+            Ok(OngoingRequestCompletion::Full(response)) => Ok((request_id, response)),
+            Ok(OngoingRequestCompletion::Partial(new_ongoing_request)) => {
+                match self.send_request(behaviour, new_ongoing_request) {
+                    Ok(peer_id) => Err(PeerResponse::ReQueued {
+                        peer_id,
+                        request_id,
+                    }),
+                    Err(new_ongoing_request) => Ok((
+                        request_id,
+                        new_ongoing_request
+                            .response
+                            .expect("`try_complete` called above"),
+                    )),
+                }
+            }
+            Err(error) => Err(PeerResponse::ValidationFailed { request_id, error }),
+        }
+    }
+
+    pub(crate) fn peer_failed(
+        &mut self,
+        behaviour: &mut InnerBehaviour,
+        peer: PeerId,
+        request_id: OutboundRequestId,
+    ) -> Result<(PeerId, RequestId), PeerFailed> {
+        let ongoing_request = self.inner.remove(&request_id).expect("unknown response");
+        let request_id = ongoing_request.request_id;
+        let new_ongoing_request = ongoing_request.peer_failed(peer);
+        match self.send_request(behaviour, new_ongoing_request) {
+            Ok(peer_id) => Ok((peer_id, request_id)),
+            Err(mut new_ongoing_request) => {
+                match new_ongoing_request.response.take() {
+                    Some(response) => Err(PeerFailed::PartialResponse {
+                        request_id,
+                        response,
+                    }),
+                    None => {
+                        // requeue request and wait for new peers
+                        self.pending_requests
+                            .push_back((request_id, new_ongoing_request.request));
+                        Err(PeerFailed::ReQueued)
+                    }
+                }
+            }
+        }
     }
 
     /// Send actual request to behaviour and tracks its state.
@@ -165,7 +250,7 @@ impl OngoingRequests {
     /// On success, returns peer ID we sent request to.
     ///
     /// On error, returns request back if no peer connected to the swarm.
-    pub(crate) fn send_request(
+    fn send_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
         mut ongoing_request: OngoingRequest,

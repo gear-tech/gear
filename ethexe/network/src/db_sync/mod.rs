@@ -19,9 +19,7 @@
 mod ongoing;
 
 use crate::{
-    db_sync::ongoing::{
-        OngoingRequest, OngoingRequestCompletion, OngoingRequests, OngoingResponses,
-    },
+    db_sync::ongoing::{OngoingRequests, OngoingResponses, PeerFailed, PeerResponse},
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
 };
@@ -40,7 +38,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     task::{Context, Poll},
 };
 
@@ -171,11 +169,7 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    // requests
-    request_id_counter: u64,
-    pending_requests: VecDeque<(RequestId, Request)>,
     ongoing_requests: OngoingRequests,
-    // responses
     ongoing_responses: OngoingResponses,
 }
 
@@ -183,24 +177,13 @@ impl Behaviour {
     pub fn new(cfg: request_response::Config, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], cfg),
-            //
-            request_id_counter: 0,
-            pending_requests: VecDeque::new(),
             ongoing_requests: OngoingRequests::default(),
-            //
             ongoing_responses: OngoingResponses::from_db(db),
         }
     }
 
-    fn next_request_id(&mut self) -> RequestId {
-        self.request_id_counter += 1;
-        RequestId(self.request_id_counter)
-    }
-
     pub fn request(&mut self, request: Request) -> RequestId {
-        let request_id = self.next_request_id();
-        self.pending_requests.push_back((request_id, request));
-        request_id
+        self.ongoing_requests.push_pending_request(request)
     }
 
     fn handle_inner_event(
@@ -227,36 +210,27 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let ongoing_request = self
-                    .ongoing_requests
-                    .remove(request_id)
-                    .expect("unknown response");
-
-                let request_id = ongoing_request.request_id();
-                let event = match ongoing_request.try_complete(peer, response) {
-                    Ok(OngoingRequestCompletion::Full(response)) => Event::RequestSucceed {
+                let event = match self.ongoing_requests.peer_response(
+                    &mut self.inner,
+                    peer,
+                    request_id,
+                    response,
+                ) {
+                    Ok((request_id, response)) => Event::RequestSucceed {
                         request_id,
                         response,
                     },
-                    Ok(OngoingRequestCompletion::Partial(new_ongoing_request)) => {
-                        match self
-                            .ongoing_requests
-                            .send_request(&mut self.inner, new_ongoing_request)
-                        {
-                            Ok(peer_id) => Event::NewRequestRound {
-                                request_id,
-                                peer_id,
-                                reason: NewRequestRoundReason::PartialData,
-                            },
-                            Err(new_ongoing_request) => Event::RequestSucceed {
-                                request_id,
-                                response: new_ongoing_request
-                                    .into_response()
-                                    .expect("`try_complete` called above"),
-                            },
-                        }
+                    Err(PeerResponse::ReQueued {
+                        peer_id,
+                        request_id,
+                    }) => Event::NewRequestRound {
+                        request_id,
+                        peer_id,
+                        reason: NewRequestRoundReason::PartialData,
+                    },
+                    Err(PeerResponse::ValidationFailed { request_id, error }) => {
+                        Event::RequestFailed { request_id, error }
                     }
-                    Err(error) => Event::RequestFailed { request_id, error },
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -279,37 +253,26 @@ impl Behaviour {
             } => {
                 log::trace!("outbound failure for request {request_id} to {peer}: {error}");
 
-                let ongoing_request = self
-                    .ongoing_requests
-                    .remove(request_id)
-                    .expect("unknown response");
+                let event =
+                    match self
+                        .ongoing_requests
+                        .peer_failed(&mut self.inner, peer, request_id)
+                    {
+                        Ok((peer_id, request_id)) => Event::NewRequestRound {
+                            request_id,
+                            peer_id,
+                            reason: NewRequestRoundReason::PeerFailed,
+                        },
+                        Err(PeerFailed::PartialResponse {
+                            request_id,
+                            response,
+                        }) => Event::RequestSucceed {
+                            request_id,
+                            response,
+                        },
+                        Err(PeerFailed::ReQueued) => return Poll::Pending,
+                    };
 
-                let request_id = ongoing_request.request_id();
-
-                let new_ongoing_request = ongoing_request.peer_failed(peer);
-                let event = match self
-                    .ongoing_requests
-                    .send_request(&mut self.inner, new_ongoing_request)
-                {
-                    Ok(peer_id) => Event::NewRequestRound {
-                        request_id,
-                        peer_id,
-                        reason: NewRequestRoundReason::PeerFailed,
-                    },
-                    Err(new_ongoing_request) => {
-                        match new_ongoing_request.into_response_or_request() {
-                            Ok(response) => Event::RequestSucceed {
-                                request_id,
-                                response,
-                            },
-                            Err(request) => {
-                                // requeue request and wait for new peers
-                                self.pending_requests.push_back((request_id, request));
-                                return Poll::Pending;
-                            }
-                        }
-                    }
-                };
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
             request_response::Event::InboundFailure {
@@ -405,25 +368,14 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some((request_id, request)) = self.pending_requests.pop_back() {
-            let ongoing_request = OngoingRequest::new(request_id, request);
-
-            match self
-                .ongoing_requests
-                .send_request(&mut self.inner, ongoing_request)
-            {
-                Ok(peer_id) => {
-                    return Poll::Ready(ToSwarm::GenerateEvent(Event::NewRequestRound {
-                        request_id,
-                        peer_id,
-                        reason: NewRequestRoundReason::FromQueue,
-                    }));
-                }
-                Err(ongoing_request) => {
-                    self.pending_requests
-                        .push_back((request_id, ongoing_request.into_request()));
-                }
-            }
+        if let Some((peer_id, request_id)) =
+            self.ongoing_requests.send_next_request(&mut self.inner)
+        {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::NewRequestRound {
+                request_id,
+                peer_id,
+                reason: NewRequestRoundReason::FromQueue,
+            }));
         }
 
         self.ongoing_responses
