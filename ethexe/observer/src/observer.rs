@@ -16,7 +16,7 @@ use ethexe_signer::Address;
 use futures::{future, stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{CodeId, H256};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::watch;
 
 /// Max number of blocks to query in alloy.
@@ -259,20 +259,19 @@ pub(crate) async fn read_block_events(
 }
 
 // TODO (breathx): simplify code between two query funcs.
-// TODO (breathx): return HashMap.
 pub(crate) async fn read_block_events_batch(
     from_block: u32,
     to_block: u32,
     provider: &ObserverProvider,
     router_address: AlloyAddress,
-) -> Result<BTreeMap<H256, Vec<BlockEvent>>> {
+) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     // TODO (breathx): discuss should we check validity of wvara address for router on some block.
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
     let wvara_address = router_query.wvara_address().await?;
 
-    let mut events_map: BTreeMap<H256, Vec<BlockEvent>> = BTreeMap::new();
-    let mut start_block = from_block;
+    let mut events_map: HashMap<_, Vec<_>> = HashMap::new();
 
+    let mut start_block = from_block;
     while start_block <= to_block {
         let end_block = std::cmp::min(start_block + MAX_QUERY_BLOCK_RANGE - 1, to_block);
         let router_events_filter = Filter::new()
