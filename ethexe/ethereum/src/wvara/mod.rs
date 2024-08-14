@@ -27,6 +27,8 @@ use ethexe_signer::Address as LocalAddress;
 use gprimitives::H256;
 use std::sync::Arc;
 
+pub mod events;
+
 type InstanceProvider = Arc<AlloyProvider>;
 type Instance = IWrappedVara::IWrappedVaraInstance<AlloyTransport, InstanceProvider>;
 
@@ -52,13 +54,11 @@ impl WVara {
     }
 
     pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {
-        let value = Uint::<256, 4>::from(value);
-
-        self._approve(address, value).await
+        self._approve(address, Uint::from(value)).await
     }
 
     pub async fn approve_all(&self, address: Address) -> Result<H256> {
-        self._approve(address, Uint::<256, 4>::MAX).await
+        self._approve(address, Uint::MAX).await
     }
 
     // TODO (breathx): handle events.
