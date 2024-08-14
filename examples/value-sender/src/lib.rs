@@ -9,7 +9,7 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 pub fn system_reserve() -> u64 {
-    gstd::Config::system_reserve()
+    gstd::SYSTEM_RESERVE
 }
 
 pub fn reply_duration() -> u32 {

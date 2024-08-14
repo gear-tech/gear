@@ -16,17 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::ops::Not;
-
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
-    BlockCommitment, CodeCommitment,
+    router::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use std::ops::Not;
 
 pub struct Validator {
     pub_key: PublicKey,
@@ -51,8 +50,8 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
     fn from(commitment: &BlockCommitment) -> Self {
         Self {
             block_hash: commitment.block_hash,
-            allowed_pred_block_hash: commitment.allowed_pred_block_hash,
-            allowed_prev_commitment_hash: commitment.allowed_prev_commitment_hash,
+            allowed_pred_block_hash: commitment.pred_block_hash,
+            allowed_prev_commitment_hash: commitment.prev_commitment_hash,
             transitions_digest: commitment.transitions.as_digest(),
         }
     }
@@ -138,11 +137,11 @@ impl Validator {
     }
 
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {
-        let CodeCommitment { code_id, approved } = request;
+        let CodeCommitment { id: code_id, valid } = request;
         if db
             .code_approved(code_id)
             .ok_or(anyhow!("Code {code_id} is not processed by this node"))?
-            .ne(&approved)
+            .ne(&valid)
         {
             return Err(anyhow!("Requested and local code approval mismatch"));
         }
@@ -255,15 +254,15 @@ mod tests {
 
     #[test]
     fn test_validate_code_commitments() {
-        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default());
+        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let code_id = CodeId::from(H256::random());
 
         Validator::validate_code_commitment(
             &db,
             CodeCommitment {
-                code_id,
-                approved: true,
+                id: code_id,
+                valid: true,
             },
         )
         .expect_err("Code is not in db");
@@ -272,8 +271,8 @@ mod tests {
         Validator::validate_code_commitment(
             &db,
             CodeCommitment {
-                code_id,
-                approved: false,
+                id: code_id,
+                valid: false,
             },
         )
         .expect_err("Approval mismatch");
@@ -281,8 +280,8 @@ mod tests {
         Validator::validate_code_commitment(
             &db,
             CodeCommitment {
-                code_id,
-                approved: true,
+                id: code_id,
+                valid: true,
             },
         )
         .unwrap();
@@ -290,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_validate_block_commitment() {
-        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default());
+        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let block_hash = H256::random();
         let pred_block_hash = H256::random();
@@ -368,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_verify_is_predecessor() {
-        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default());
+        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let blocks = [H256::random(), H256::random(), H256::random()];
         db.set_block_header(

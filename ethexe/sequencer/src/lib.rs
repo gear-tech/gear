@@ -22,7 +22,7 @@ pub mod agro;
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
 use anyhow::{anyhow, Result};
-use ethexe_common::{BlockCommitment, CodeCommitment};
+use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::Event;
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
@@ -95,14 +95,10 @@ impl Sequencer {
     }
 
     // This function should never block.
-    pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
-        if let Event::Block(data) = event {
-            log::debug!("Receive block {:?}", data.block_hash);
-
-            self.update_status(|status| {
-                *status = SequencerStatus::default();
-            });
-        }
+    pub fn process_observer_event(&mut self, _event: &Event) -> Result<()> {
+        self.update_status(|status| {
+            *status = SequencerStatus::default();
+        });
 
         // Presently, sequencer resets candidates for each observer event,
         // because each observer event resets ethexe service rounds.

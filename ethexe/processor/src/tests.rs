@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
-use ethexe_common::events::{BlockEvent, CreateProgram, SendMessage};
+use ethexe_common::{mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
@@ -59,8 +59,8 @@ fn process_observer_event() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor =
-        Processor::new(Database::from_one(&db)).expect("failed to create processor");
+    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
+        .expect("failed to create processor");
 
     let ch0 = init_new_block_from_parent(&mut processor, Default::default());
 
@@ -75,33 +75,50 @@ fn process_observer_event() {
 
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
-    let create_program_event = BlockEvent::CreateProgram(CreateProgram {
-        origin: H256::random().0.into(),
-        actor_id: ActorId::from(42),
-        code_id,
-        init_payload: b"PING".to_vec(),
-        gas_limit: 1_000_000_000,
-        value: 0,
-    });
+    let actor_id = ActorId::from(42);
+
+    let create_program_events = vec![
+        BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
+        // TODO (breathx): think of constant.
+        BlockEvent::mirror(
+            actor_id,
+            MirrorEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        ),
+        BlockEvent::mirror(
+            actor_id,
+            MirrorEvent::MessageQueueingRequested {
+                id: H256::random().0.into(),
+                source: H256::random().0.into(),
+                payload: b"PING".to_vec(),
+                value: 0,
+            },
+        ),
+    ];
 
     let outcomes = processor
-        .process_block_events(ch1, &[create_program_event])
+        .process_block_events(ch1, create_program_events.as_slice())
         .expect("failed to process create program");
+
     log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
 
     let ch2 = init_new_block_from_parent(&mut processor, ch1);
 
-    let send_message_event = BlockEvent::SendMessage(SendMessage {
-        origin: H256::random().0.into(),
-        destination: ActorId::from(42),
-        payload: b"PING".to_vec(),
-        gas_limit: 1_000_000_000,
-        value: 0,
-    });
+    let send_message_event = BlockEvent::mirror(
+        actor_id,
+        MirrorEvent::MessageQueueingRequested {
+            id: H256::random().0.into(),
+            source: H256::random().0.into(),
+            payload: b"PING".to_vec(),
+            value: 0,
+        },
+    );
 
     let outcomes = processor
         .process_block_events(ch2, &[send_message_event])
         .expect("failed to process send message");
+
     log::debug!("\n\nSend message outcomes: {outcomes:?}\n\n");
 }
 
@@ -110,8 +127,8 @@ fn handle_new_code_valid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor =
-        Processor::new(Database::from_one(&db)).expect("failed to create processor");
+    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
+        .expect("failed to create processor");
 
     init_new_block(&mut processor, Default::default());
 
@@ -154,8 +171,8 @@ fn handle_new_code_invalid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor =
-        Processor::new(Database::from_one(&db)).expect("failed to create processor");
+    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
+        .expect("failed to create processor");
 
     init_new_block(&mut processor, Default::default());
 
@@ -184,7 +201,7 @@ fn host_ping_pong() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
     init_new_block(&mut processor, Default::default());
 
@@ -211,7 +228,7 @@ fn ping_pong() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
     init_new_block(&mut processor, Default::default());
 
@@ -267,7 +284,6 @@ fn create_message_full(
         kind,
         source,
         payload: payload.as_ref().to_vec(),
-        gas_limit: 1_000_000_000,
         value: 0,
     }
 }
@@ -284,7 +300,7 @@ fn async_and_ping() {
     let user_id = ActorId::from(10);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
     init_new_block(&mut processor, Default::default());
 
@@ -312,7 +328,6 @@ fn async_and_ping() {
                 kind: DispatchKind::Init,
                 source: user_id,
                 payload: b"PING".to_vec(),
-                gas_limit: 10_000_000_000,
                 value: 0,
             }],
         )
@@ -329,7 +344,6 @@ fn async_and_ping() {
                 kind: DispatchKind::Init,
                 source: user_id,
                 payload: ping_id.encode(),
-                gas_limit: 10_000_000_000,
                 value: 0,
             }],
         )
@@ -344,7 +358,6 @@ fn async_and_ping() {
                 kind: DispatchKind::Handle,
                 source: user_id,
                 payload: demo_async::Command::Common.encode(),
-                gas_limit: 10_000_000_000,
                 value: 0,
             }],
         )
@@ -404,7 +417,7 @@ fn many_waits() {
     let (_, code) = wat_to_wasm(wat);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
     init_new_block(&mut processor, Default::default());
 

@@ -78,7 +78,7 @@ where
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{
 ///     msg::{self, CodecMessageFuture},
 ///     prelude::*,
@@ -106,6 +106,7 @@ pub struct CodecMessageFuture<T> {
     pub waiting_reply_to: MessageId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg_attr(feature = "ethexe", allow(unused))]
     pub(crate) reply_deposit: u64,
     /// Marker
     ///
@@ -138,7 +139,7 @@ impl_futures!(
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{msg::CodecCreateProgramFuture, prelude::*, prog, ActorId};
 /// # use gstd::CodeId;
 ///
@@ -166,6 +167,7 @@ pub struct CodecCreateProgramFuture<T> {
     pub program_id: ActorId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg_attr(feature = "ethexe", allow(unused))]
     pub(crate) reply_deposit: u64,
     /// Marker
     ///
@@ -206,7 +208,7 @@ impl_futures!(
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::msg::{self, MessageFuture};
 /// # use gstd::ActorId;
 ///
@@ -227,6 +229,7 @@ pub struct MessageFuture {
     pub waiting_reply_to: MessageId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg_attr(feature = "ethexe", allow(unused))]
     pub(crate) reply_deposit: u64,
 }
 
@@ -256,7 +259,7 @@ impl_futures!(
 /// purposes only. Usually, annotating them is unnecessary because
 /// they can be inferred automatically.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{msg::CreateProgramFuture, prog, ActorId};
 /// # use gstd::CodeId;
 ///
@@ -277,6 +280,7 @@ pub struct CreateProgramFuture {
     pub program_id: ActorId,
     /// Reply deposit that was allocated for this message. Checked in
     /// handle_reply.
+    #[cfg_attr(feature = "ethexe", allow(unused))]
     pub(crate) reply_deposit: u64,
 }
 

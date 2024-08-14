@@ -23,46 +23,32 @@
 extern crate alloc;
 
 pub mod db;
-pub mod events;
-
-use alloc::vec::Vec;
-use gear_core::{
-    ids::{ActorId, CodeId},
-    message::{Payload, ReplyDetails},
-};
-use gprimitives::{MessageId, H256};
-use parity_scale_codec::{Decode, Encode};
+pub mod mirror;
+pub mod router;
 
 pub use gear_core;
 pub use gprimitives;
 
-#[derive(Debug, Clone, Default, Encode, Decode)]
-pub struct CodeCommitment {
-    pub code_id: CodeId,
-    pub approved: bool,
+use gprimitives::ActorId;
+use parity_scale_codec::{Decode, Encode};
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub enum BlockEvent {
+    Router(router::Event),
+    Mirror {
+        address: ActorId,
+        event: mirror::Event,
+    },
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct StateTransition {
-    pub actor_id: ActorId,
-    pub old_state_hash: H256,
-    pub new_state_hash: H256,
-    pub outgoing_messages: Vec<OutgoingMessage>,
+impl BlockEvent {
+    pub fn mirror(address: ActorId, event: mirror::Event) -> Self {
+        Self::Mirror { address, event }
+    }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct OutgoingMessage {
-    pub message_id: MessageId,
-    pub destination: ActorId,
-    pub payload: Payload,
-    pub value: u128,
-    pub reply_details: Option<ReplyDetails>,
-}
-
-#[derive(Debug, Clone, Default, Encode, Decode)]
-pub struct BlockCommitment {
-    pub block_hash: H256,
-    pub allowed_pred_block_hash: H256,
-    pub allowed_prev_commitment_hash: H256,
-    pub transitions: Vec<StateTransition>,
+impl From<router::Event> for BlockEvent {
+    fn from(value: router::Event) -> Self {
+        Self::Router(value)
+    }
 }
