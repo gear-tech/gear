@@ -21,8 +21,8 @@
 use crate::GAS_MULTIPLIER;
 use gear_common::{
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
-    gas_provider::{ConsumeResultOf, GasNodeId, Provider, ReservableTree, Tree},
-    Gas, Origin,
+    gas_provider::{ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree},
+    Gas, LockId, Origin,
 };
 use gear_core::ids::{MessageId, ProgramId, ReservationId};
 
@@ -111,7 +111,7 @@ impl GasTreeManager {
     /// Adapted by argument types version of the gas tree `cut` method.
     pub(crate) fn cut(
         &self,
-        original_node: MessageId,
+        original_node: impl Origin,
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
@@ -123,7 +123,7 @@ impl GasTreeManager {
     }
 
     /// Adapted by argument types version of the gas tree `get_limit` method.
-    pub(crate) fn get_limit(&self, mid: MessageId) -> Result<Gas, GasTreeError> {
+    pub(crate) fn get_limit(&self, mid: impl Origin) -> Result<Gas, GasTreeError> {
         GasTree::get_limit(GasNodeId::from(mid.cast::<PlainNodeId>()))
     }
 
@@ -159,6 +159,10 @@ impl GasTreeManager {
         GasTree::exists(GasNodeId::from(node_id.cast::<PlainNodeId>()))
     }
 
+    pub(crate) fn exists_and_deposit(&self, node_id: impl Origin) -> bool {
+        GasTree::exists_and_deposit(GasNodeId::from(node_id.cast::<PlainNodeId>()))
+    }
+
     /// Adapted by argument types version of the gas tree `reset` method.
     ///
     /// *Note* Call with caution as it completely resets the storage.
@@ -178,5 +182,26 @@ impl GasTreeManager {
     /// Used in gas reservation for system signal.
     pub(crate) fn system_reserve(&self, key: MessageId, amount: Gas) -> Result<(), GasTreeError> {
         GasTree::system_reserve(GasNodeId::from(key.cast::<PlainNodeId>()), amount)
+    }
+
+    pub(crate) fn get_lock(&self, key: MessageId, id: LockId) -> Result<Gas, GasTreeError> {
+        GasTree::get_lock(GasNodeId::from(key.cast::<PlainNodeId>()), id)
+    }
+
+    pub(crate) fn unlock(
+        &self,
+        key: MessageId,
+        id: LockId,
+        amount: Gas,
+    ) -> Result<(), GasTreeError> {
+        GasTree::unlock(GasNodeId::from(key.cast::<PlainNodeId>()), id, amount)
+    }
+
+    pub fn lock(&self, key: MessageId, id: LockId, amount: Gas) -> Result<(), GasTreeError> {
+        GasTree::lock(GasNodeId::from(key.cast::<PlainNodeId>()), id, amount)
+    }
+
+    pub(crate) fn unlock_all(&self, key: impl Origin, id: LockId) -> Result<Gas, GasTreeError> {
+        GasTree::unlock_all(GasNodeId::from(key.cast::<PlainNodeId>()), id)
     }
 }

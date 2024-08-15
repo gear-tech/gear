@@ -45,25 +45,34 @@ use core_processor::{
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_common::{
-    auxiliary::{mailbox::MailboxErrorImpl, BlockNumber},
-    scheduler::ScheduledTask,
+    auxiliary::{gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, BlockNumber},
+    gas_provider::Imbalance,
+    scheduler::{ScheduledTask, StorageType},
+    storage::Interval,
+    LockId, Origin,
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
-    reservation::GasReservationMap,
+    message::{
+        Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDelayedDispatch, StoredDispatch,
+        StoredMessage,
+    },
+    pages::{num_traits::Zero, numerated::tree::IntervalsTree, GearPage, WasmPage},
+    reservation::{GasReservationMap, GasReservationSlot},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
+use gear_wasm_instrument::gas_metering::Schedule;
+use gsys::BlockNumberWithHash;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
+    fmt::Debug,
     mem,
     rc::Rc,
 };
@@ -245,7 +254,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), (StoredDispatch, Option<BlockNumber>)>,
     pub(crate) gas_tree: GasTreeManager,
     pub(crate) gas_allowance: Gas,
-    pub(crate) dispatches_stash: HashMap<MessageId, Dispatch>,
+    pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
     pub(crate) messages_processing_enabled: bool,
 
     // Last block execution info
@@ -254,6 +263,21 @@ pub(crate) struct ExtManager {
     pub(crate) not_executed: BTreeSet<MessageId>,
     pub(crate) gas_burned: BTreeMap<MessageId, Gas>,
     pub(crate) log: Vec<StoredMessage>,
+
+    // Weights
+    // Store here to not always construct Schedule
+    pub(crate) weights: Weights,
+}
+
+#[derive(Default)]
+struct Weights {
+    schedule: Schedule,
+}
+
+impl std::fmt::Debug for Weights {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Weights")
+    }
 }
 
 impl ExtManager {
@@ -314,25 +338,362 @@ impl ExtManager {
         self.id_nonce
     }
 
-    /// Insert message into the delayed queue.
-    fn send_delayed_dispatch(&mut self, dispatch: Dispatch, delay: u32) {
-        let message_id = dispatch.id();
-        let task = if self.is_program(&dispatch.destination()) {
-            ScheduledTask::SendDispatch(message_id)
-        } else {
-            // TODO #4122, `to_mailbox` must be counted from provided gas
-            ScheduledTask::SendUserMessage {
-                message_id,
-                to_mailbox: true,
-            }
+    pub(crate) fn remove_gas_reservation_impl(
+        &mut self,
+        program_id: ProgramId,
+        reservation: ReservationId,
+    ) -> GasReservationSlot {
+        let slot = self.update_genuine_program(program_id, |p| {
+            p.gas_reservation_map
+                .remove(&reservation)
+                .unwrap_or_else(|| {
+                    let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
+                    Reservation {reservation} doesn't exist.");
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                })
+        }).unwrap_or_else(|| {
+            unreachable!("failed to update program {program_id}")
+        });
+
+        self.remove_gas_reservation_slot(reservation, slot)
+    }
+
+    pub(crate) fn remove_gas_reservation_with_task(
+        &mut self,
+        program_id: ProgramId,
+        reservation: ReservationId,
+    ) {
+        let slot = self.remove_gas_reservation_impl(program_id, reservation);
+
+        let _ = self.task_pool.delete(
+            slot.finish,
+            ScheduledTask::RemoveGasReservation(program_id, reservation),
+        );
+    }
+
+    pub(crate) fn remove_gas_reservation_slot(
+        &mut self,
+        reservation: ReservationId,
+        slot: GasReservationSlot,
+    ) -> GasReservationSlot {
+        let interval = Interval {
+            start: slot.start,
+            finish: slot.finish,
         };
 
-        let expected_bn = self.blocks_manager.get().height + delay;
-        self.task_pool
-            .add(expected_bn, task)
-            .unwrap_or_else(|e| unreachable!("TaskPool corrupted! {e:?}"));
-        if self.dispatches_stash.insert(message_id, dispatch).is_some() {
-            unreachable!("Delayed sending logic invalidated: stash contains same message");
+        self.charge_for_hold(reservation, interval, StorageType::Reservation);
+        self.consume_and_retrieve(reservation);
+
+        slot
+    }
+
+    pub(crate) fn consume_and_retrieve(&mut self, id: impl Origin) {
+        let outcome = self.gas_tree.consume(id).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "consume_and_retrieve: failed consuming the rest of gas. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
+
+        if let Some((imbalance, multiplier, exteernal)) = outcome {
+            let gas_left = imbalance.peek();
+
+            if !gas_left.is_zero() {
+                // TODO: withdraw from bank
+            }
+        }
+    }
+
+    /// Insert message into the delayed queue.
+    fn send_delayed_dispatch(
+        &mut self,
+        origin_msg: MessageId,
+        dispatch: Dispatch,
+        delay: u32,
+        to_user: bool,
+        reservation: Option<ReservationId>,
+    ) {
+        if delay.is_zero() {
+            let err_msg = "send_delayed_dispatch: delayed sending with zero delay appeared";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        }
+
+        let message_id = dispatch.id();
+
+        if self.dispatches_stash.contains_key(&message_id) {
+            let err_msg = format!(
+                "send_delayed_dispatch: stash already has the message id - {id}",
+                id = dispatch.id()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        }
+
+        // Validating dispatch wasn't sent from system with delay.
+        if dispatch.is_error_reply() || matches!(dispatch.kind(), DispatchKind::Signal) {
+            let err_msg = format!(
+                "send_delayed_dispatch: message of an invalid kind is sent: {kind:?}",
+                kind = dispatch.kind()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        }
+
+        let mut to_mailbox = false;
+
+        let sender_node = reservation
+            .map(|id| id.cast::<PlainNodeId>())
+            .unwrap_or_else(|| origin_msg.cast::<PlainNodeId>())
+            .cast::<MessageId>();
+
+        let from = dispatch.source();
+        let _value = dispatch.value().try_into().unwrap_or(u64::MAX);
+
+        let hold_builder = HoldBoundBuilder::new(StorageType::DispatchStash);
+
+        let delay_hold = hold_builder.duration(self, delay.try_into().unwrap_or(u32::MAX));
+        let gas_for_delay = delay_hold.lock_amount(self);
+
+        let interval_finish = if to_user {
+            let threshold = MAILBOX_THRESHOLD;
+
+            let gas_limit = dispatch
+                .gas_limit()
+                .or_else(|| {
+                    let gas_limit = self.gas_tree.get_limit(sender_node).unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "send_delayed_dispatch: failed getting message gas limit. \
+                                Lock sponsor id - {sender_node:?}. Got error - {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}");
+                    });
+
+                    (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
+                })
+                .unwrap_or_default();
+
+            to_mailbox = !dispatch.is_reply() && gas_limit >= threshold;
+
+            let gas_amount = if to_mailbox {
+                gas_for_delay.saturating_add(gas_limit)
+            } else {
+                gas_for_delay
+            };
+
+            self.gas_tree
+                .cut(sender_node, message_id, gas_amount)
+                .unwrap_or_else(|e| {
+                    let sender_node = sender_node.cast::<PlainNodeId>();
+                    let err_msg = format!(
+                        "send_delayed_dispatch: failed creating cut node. \
+                        Origin node - {sender_node:?}, cut node id - {id}, amount - {gas_amount}. \
+                        Got error - {e:?}",
+                        id = dispatch.id()
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
+
+            if !to_mailbox {
+                self.gas_tree
+                    .split_with_value(
+                        true,
+                        origin_msg,
+                        MessageId::generate_reply(dispatch.id()),
+                        0,
+                    )
+                    .expect("failed to split with value gas node");
+            }
+
+            if let Some(reservation_id) = reservation {
+                self.remove_gas_reservation_with_task(dispatch.source(), reservation_id)
+            }
+
+            // Locking funds for holding.
+            let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
+                // Dispatch stash storage is guaranteed to have an associated lock id
+                let err_msg =
+                    "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            self.gas_tree.lock(dispatch.id(), lock_id, delay_hold.lock_amount(self))
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_delayed_dispatch: failed locking gas for the user message stash hold. \
+                        Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
+                        message_id = dispatch.id(),
+                        lock = delay_hold.lock_amount(self));
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}");
+                });
+
+            if delay_hold.expected_duration(self).is_zero() {
+                let err_msg = format!(
+                    "send_delayed_dispatch: user message got zero duration hold bound for dispatch stash. \
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
+                    cost = Self::cost_by_storage_type(StorageType::DispatchStash)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            }
+
+            delay_hold.expected()
+        } else {
+            match (dispatch.gas_limit(), reservation) {
+                (Some(gas_limit), None) => self.split_with_value(
+                    sender_node,
+                    dispatch.id(),
+                    gas_limit.saturating_add(gas_for_delay),
+                    dispatch.is_reply(),
+                ),
+
+                (None, None) => self.split(sender_node, dispatch.id(), dispatch.is_reply()),
+                (Some(gas_limit), Some(reservation_id)) => {
+                    let err_msg = format!(
+                        "send_delayed_dispatch: sending dispatch with gas from reservation isn't implemented. \
+                        Message - {message_id}, sender - {sender}, gas limit - {gas_limit}, reservation - {reservation_id}",
+                        message_id = dispatch.id(),
+                        sender = dispatch.source(),
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                }
+
+                (None, Some(reservation_id)) => {
+                    self.split(reservation_id.cast(), dispatch.id(), dispatch.is_reply());
+                    self.remove_gas_reservation_with_task(dispatch.source(), reservation_id);
+                }
+            }
+
+            let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
+                // Dispatch stash storage is guaranteed to have an associated lock id
+                let err_msg =
+                    "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            self.gas_tree
+                .lock(dispatch.id(), lock_id, delay_hold.lock_amount(self))
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                    "send_delayed_dispatch: failed locking gas for the program message stash hold. \
+                    Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
+                    message_id = dispatch.id(),
+                    lock = delay_hold.lock_amount(self)
+                );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
+
+            if delay_hold.expected_duration(self).is_zero() {
+                let err_msg = format!(
+                    "send_delayed_dispatch: program message got zero duration hold bound for dispatch stash. \
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
+                    cost = Self::cost_by_storage_type(StorageType::DispatchStash)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            }
+
+            delay_hold.expected()
+        };
+
+        if !dispatch.value().is_zero() {
+            // TODO: gear bank deposit
+        }
+
+        let messaeg_id = dispatch.id();
+
+        let start_bn = self.blocks_manager.get().height;
+        let delay_interval = Interval {
+            start: start_bn,
+            finish: interval_finish,
+        };
+
+        self.dispatches_stash
+            .insert(messaeg_id, (dispatch.into_stored_delayed(), delay_interval));
+
+        let task = if to_user {
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox,
+            }
+        } else {
+            ScheduledTask::SendDispatch(message_id)
+        };
+
+        let task_bn = self.blocks_manager.get().height.saturating_add(delay);
+
+        self.task_pool.add(task_bn, task).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "send_delayed_dispatch: failed adding task for delayed message sending. \
+                    Message to user - {to_user}, message id - {message_id}. Got error - {e:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
+    }
+
+    fn split_with_value(
+        &mut self,
+        key: MessageId,
+        new_key: MessageId,
+        amount: u64,
+        is_reply: bool,
+    ) {
+        if !is_reply || !self.gas_tree.exists_and_deposit(new_key.clone()) {
+            self.gas_tree.split_with_value(is_reply, key.clone(), new_key.clone(), amount)
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "split_with_value: failed to split with value gas node. Original message id - {key}, \
+                        new message id - {new_key}. amount - {amount}, is_reply - {is_reply}. \
+                        Got error - {e:?}",
+                        key = key,
+                        new_key = new_key,
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
+        }
+    }
+
+    fn split(&mut self, key: MessageId, new_key: MessageId, is_reply: bool) {
+        if !is_reply || !self.gas_tree.exists_and_deposit(new_key.clone()) {
+            self.gas_tree.split(is_reply, key.clone(), new_key.clone())
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "split_with_value: failed to split with value gas node. Original message id - {key}, \
+                        new message id - {new_key}. is_reply - {is_reply}. \
+                        Got error - {e:?}",
+                        key = key,
+                        new_key = new_key,
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
         }
     }
 
@@ -948,5 +1309,151 @@ impl ExtManager {
         actors
             .get_mut(&id)
             .and_then(|(actor, _)| actor.genuine_program_mut().map(op))
+    }
+
+    fn cost_by_storage_type(storage_type: StorageType) -> u64 {
+        // Cost per block based on the storage used for holding
+        let cost = match storage_type {
+            StorageType::Code => todo!("#646"),
+            StorageType::Waitlist => WAITLIST_COST,
+            StorageType::Mailbox => MAILBOX_THRESHOLD,
+            StorageType::DispatchStash => DISPATCH_HOLD_COST,
+            StorageType::Program => todo!("#646"),
+            StorageType::Reservation => RESERVATION_COST,
+        };
+        cost
+    }
+
+    pub(crate) fn charge_for_hold(
+        &mut self,
+        id: impl Origin,
+        hold_interval: Interval<BlockNumber>,
+        storage_type: StorageType,
+    ) {
+        let current = self.blocks_manager.get().height;
+
+        // Deadline of the task.
+        let deadline = hold_interval.finish.saturating_add(RESERVE_FOR);
+
+        // The block number, which was the last paid for hold.
+        //
+        // Outdated tasks can end up being store for free - this case has to be
+        // controlled by a correct selection of the `ReserveFor` constant.
+        let paid_until = current.min(deadline);
+
+        // holding duration
+        let duration: u64 = paid_until
+            .saturating_sub(hold_interval.start)
+            .try_into()
+            .unwrap_or(u64::MAX);
+
+        // Cost per block based on the storage used for holding
+        let cost = match storage_type {
+            StorageType::Code => todo!("#646"),
+            StorageType::Waitlist => WAITLIST_COST,
+            StorageType::Mailbox => MAILBOX_THRESHOLD,
+            StorageType::DispatchStash => DISPATCH_HOLD_COST,
+            StorageType::Program => todo!("#646"),
+            StorageType::Reservation => RESERVATION_COST,
+        };
+
+        let amount = storage_type.try_into().map_or_else(
+            |_| duration.saturating_mul(cost),
+            |lock_id| {
+                let prepaid = self.gas_tree.unlock_all(id, lock_id).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "charge_for_hold: failed unlocking locked gas.
+                        Got error - {e:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
+
+                prepaid.min(duration.saturating_mul(cost))
+            },
+        );
+
+        if !amount.is_zero() {
+            // TODO
+        }
+    }
+}
+
+/// Hold bound, specifying cost of storage, expected block number for task to
+/// create on it, deadlines and durations of holding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HoldBound {
+    cost: u64,
+    expected: BlockNumber,
+    lock_id: Option<LockId>,
+}
+
+impl HoldBound {
+    pub fn cost(&self) -> u64 {
+        self.cost
+    }
+
+    pub fn expected(&self) -> BlockNumber {
+        self.expected
+    }
+
+    pub fn lock_id(&self) -> Option<LockId> {
+        self.lock_id
+    }
+
+    pub fn expected_duration(&self, manager: &ExtManager) -> BlockNumber {
+        self.expected
+            .saturating_sub(manager.blocks_manager.get().height)
+    }
+
+    pub fn deadline(&self) -> BlockNumber {
+        self.expected.saturating_add(RESERVE_FOR)
+    }
+
+    pub fn deadline_duration(&self, manager: &ExtManager) -> BlockNumber {
+        self.deadline()
+            .saturating_sub(manager.blocks_manager.get().height)
+    }
+
+    pub fn lock_amount(&self, manager: &ExtManager) -> u64 {
+        self.deadline_duration(manager)
+            .try_into()
+            .unwrap_or(u64::MAX)
+            .saturating_mul(self.cost())
+    }
+}
+
+pub struct HoldBoundBuilder {
+    storage_type: StorageType,
+    cost: u64,
+}
+
+impl HoldBoundBuilder {
+    pub fn new(storage_type: StorageType) -> Self {
+        Self {
+            storage_type,
+            cost: ExtManager::cost_by_storage_type(storage_type),
+        }
+    }
+
+    pub fn at(self, expected: BlockNumber) -> HoldBound {
+        HoldBound {
+            cost: self.cost,
+            expected,
+            lock_id: self.storage_type.try_into().ok(),
+        }
+    }
+
+    pub fn deadline(self, deadline: BlockNumber) -> HoldBound {
+        let expected = deadline.saturating_sub(RESERVE_FOR);
+
+        self.at(expected)
+    }
+
+    pub fn duration(self, manager: &ExtManager, duration: BlockNumber) -> HoldBound {
+        let expected = manager.blocks_manager.get().height.saturating_add(duration);
+
+        self.at(expected)
     }
 }

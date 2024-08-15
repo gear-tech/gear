@@ -18,7 +18,10 @@
 
 /// Implementation of the `TaskHandler` trait for the `ExtManager`.
 use super::ExtManager;
-use gear_common::{scheduler::TaskHandler, Gas as GearCommonGas};
+use gear_common::{
+    scheduler::{StorageType, TaskHandler},
+    Gas as GearCommonGas,
+};
 use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
 
 impl TaskHandler<ProgramId> for ExtManager {
@@ -63,13 +66,14 @@ impl TaskHandler<ProgramId> for ExtManager {
     }
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> GearCommonGas {
-        let dispatch = self
+        let (dispatch, hold_interval) = self
             .dispatches_stash
             .remove(&stashed_message_id)
-            .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
+            .unwrap_or_else(|| unreachable!("TaskPool corrupted"));
 
-        self.dispatches.push_back(dispatch.into_stored());
+        self.charge_for_hold(dispatch.id(), hold_interval, StorageType::DispatchStash);
 
+        self.dispatches.push_back(dispatch.into());
         GearCommonGas::MIN
     }
 
@@ -78,19 +82,22 @@ impl TaskHandler<ProgramId> for ExtManager {
         stashed_message_id: MessageId,
         _to_mailbox: bool,
     ) -> GearCommonGas {
-        let dispatch = self
+        let (message, hold_interval) = self
             .dispatches_stash
             .remove(&stashed_message_id)
+            .map(|(dispatch, interval)| (dispatch.into_parts().1, interval))
             .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
-        let stored_message = dispatch.into_parts().1.into_stored();
-        let mailbox_message = stored_message.clone().try_into().unwrap_or_else(|e| {
+
+        self.charge_for_hold(message.id(), hold_interval, StorageType::DispatchStash);
+
+        let mailbox_message = message.clone().try_into().unwrap_or_else(|e| {
             unreachable!("invalid message: can't be converted to user message {e:?}")
         });
 
         self.mailbox
             .insert(mailbox_message)
             .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-        self.log.push(stored_message);
+        self.log.push(message);
 
         GearCommonGas::MIN
     }

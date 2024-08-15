@@ -97,10 +97,11 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
+        let to_user = self.is_user(&dispatch.destination());
         if delay > 0 {
             log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
 
-            self.send_delayed_dispatch(dispatch, delay);
+            self.send_delayed_dispatch(message_id, dispatch, delay, to_user, reservation);
             return;
         }
 
