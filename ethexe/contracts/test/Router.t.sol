@@ -101,6 +101,7 @@ contract RouterTest is Test {
         commitBlocks(blockCommitmentsArray);
 
         assertEq(deployedProgram.stateHash(), bytes32(uint256(1)));
+        assertEq(deployedProgram.nonce(), 1);
     }
 
     /* helper functions */
