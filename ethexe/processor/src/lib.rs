@@ -20,7 +20,11 @@
 
 use anyhow::Result;
 use core_processor::common::JournalNote;
-use ethexe_common::{events::BlockEvent, StateTransition};
+use ethexe_common::{
+    mirror::Event as MirrorEvent,
+    router::{Event as RouterEvent, StateTransition},
+    BlockEvent,
+};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::{
     self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
@@ -41,13 +45,11 @@ mod run;
 #[cfg(test)]
 mod tests;
 
-#[allow(unused)]
 pub struct UserMessage {
     id: MessageId,
     kind: DispatchKind,
     source: ActorId,
     payload: Vec<u8>,
-    gas_limit: u64,
     value: u128,
 }
 
@@ -56,6 +58,7 @@ pub struct Processor {
     creator: InstanceCreator,
 }
 
+// TODO (breathx): rename outcomes accordingly to events.
 /// Local changes that can be committed to the network or local signer.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum LocalOutcome {
@@ -130,12 +133,11 @@ impl Processor {
 
         self.db.set_program_code_id(program_id, code_id);
 
-        // TODO: state here is non-zero (?!).
+        // TODO (breathx): state here is non-zero (?!).
 
         let active_program = ActiveProgram {
             allocations_hash: MaybeHash::Empty,
             pages_hash: MaybeHash::Empty,
-            gas_reservation_map_hash: MaybeHash::Empty,
             memory_infix: MemoryInfix::new(0),
             initialized: false,
         };
@@ -145,12 +147,28 @@ impl Processor {
             state: state::Program::Active(active_program),
             queue_hash: MaybeHash::Empty,
             waitlist_hash: MaybeHash::Empty,
-            // TODO: remove program balance from here.
             balance: 0,
+            executable_balance: 10_000_000_000_000, // TODO: remove this minting
         };
 
         // TODO: not write zero state, but just register it (or support default on get)
         Ok(self.db.write_state(program_state))
+    }
+
+    pub fn handle_executable_balance_top_up(
+        &mut self,
+        state_hash: H256,
+        value: u128,
+    ) -> Result<H256> {
+        let mut state = self
+            .db
+            .read_state(state_hash)
+            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+
+        // TODO (breathx): mutate exec balance after #4067.
+        state.balance += value;
+
+        Ok(self.db.write_state(state))
     }
 
     pub fn handle_user_message(
@@ -179,7 +197,6 @@ impl Processor {
                 kind: message.kind,
                 source: message.source,
                 payload_hash,
-                gas_limit: message.gas_limit,
                 value: message.value,
                 // TODO: handle replies.
                 details: None,
@@ -265,6 +282,7 @@ impl Processor {
     pub fn process_block_events(
         &mut self,
         block_hash: H256,
+        // TODO (breathx): accept not ref?
         events: &[BlockEvent],
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:?}");
@@ -280,67 +298,69 @@ impl Processor {
 
         for event in events {
             match event {
-                BlockEvent::CreateProgram(create_program_info) => {
-                    // TODO: set this zero like start of the block data.
-                    let state_hash = self.handle_new_program(
-                        create_program_info.actor_id,
-                        create_program_info.code_id,
-                    )?;
-                    let state_hash = self.handle_user_message(
-                        state_hash,
-                        vec![UserMessage {
-                            // TODO: handle mid.
-                            id: MessageId::zero(),
-                            kind: DispatchKind::Init,
-                            source: create_program_info.origin,
-                            payload: create_program_info.init_payload.clone(),
-                            gas_limit: create_program_info.gas_limit,
-                            value: create_program_info.value,
-                        }],
-                    )?;
+                BlockEvent::Router(event) => match event.clone() {
+                    RouterEvent::ProgramCreated { actor_id, code_id } => {
+                        // TODO (breathx): set this zero like start of the block data.
+                        let state_hash = self.handle_new_program(actor_id, code_id)?;
 
-                    programs.insert(create_program_info.actor_id, state_hash);
+                        programs.insert(actor_id, state_hash);
+                    }
+                    _ => {
+                        log::debug!(
+                            "Handling for router event {event:?} is not yet implemented; noop"
+                        );
+                        continue;
+                    }
+                },
+                BlockEvent::Mirror { address, event } => {
+                    // TODO (breathx): handle if not (program from another router / incorrect event order ).
+                    let state_hash = *programs.get(address).expect("should exist");
+
+                    let state_hash = match event.clone() {
+                        MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
+                            self.handle_executable_balance_top_up(state_hash, value)?
+                        }
+                        MirrorEvent::MessageQueueingRequested {
+                            id,
+                            source,
+                            payload,
+                            value,
+                        } => {
+                            // TODO (breathx): replace with state_hash.is_zero();
+                            let kind = if !initial_program_states.contains_key(address) {
+                                DispatchKind::Init
+                            } else {
+                                DispatchKind::Handle
+                            };
+
+                            self.handle_user_message(
+                                state_hash,
+                                vec![UserMessage {
+                                    id,
+                                    kind,
+                                    source,
+                                    payload,
+                                    // TODO (breathx): mutate exec balance after #4067.
+                                    value,
+                                }],
+                            )?
+                        }
+                        _ => {
+                            log::debug!(
+                                "Handling for mirror event {event:?} is not yet implemented; noop"
+                            );
+                            continue;
+                        }
+                    };
+
+                    programs.insert(*address, state_hash);
                 }
-                BlockEvent::SendMessage(send_message_info) => {
-                    // TODO: review if observer got lost.
-                    let state_hash = programs
-                        .get(&send_message_info.destination)
-                        .expect("should exist");
-                    let state_hash = self.handle_user_message(
-                        *state_hash,
-                        vec![UserMessage {
-                            id: MessageId::zero(),
-                            kind: DispatchKind::Handle,
-                            source: send_message_info.origin,
-                            payload: send_message_info.payload.clone(),
-                            gas_limit: send_message_info.gas_limit,
-                            value: send_message_info.value,
-                        }],
-                    )?;
-                    programs.insert(send_message_info.destination, state_hash);
-                }
-                event => log::debug!("Handling for {event:?} is not yet implemented; noop"),
             }
-
-            let mut current_outcomes = self.run(block_hash, &mut programs)?;
-
-            for outcome in current_outcomes.iter_mut() {
-                if let LocalOutcome::Transition(StateTransition {
-                    actor_id: program_id,
-                    old_state_hash,
-                    ..
-                }) = outcome
-                {
-                    let old_state = initial_program_states
-                        .get(program_id)
-                        .cloned()
-                        .unwrap_or_default();
-                    *old_state_hash = old_state;
-                }
-            }
-
-            outcomes.extend(current_outcomes);
         }
+
+        let current_outcomes = self.run(block_hash, &mut programs)?;
+
+        outcomes.extend(current_outcomes);
 
         self.db.set_block_end_program_states(block_hash, programs);
 

@@ -29,10 +29,9 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 15] = [
+pub const SAFE_DEPENDENCIES: [&str; 13] = [
     "actor-system-error",
     "galloc",
-    "gprimitives",
     "gear-ss58",
     "gear-stack-buffer",
     "gear-core-errors",
@@ -42,7 +41,6 @@ pub const SAFE_DEPENDENCIES: [&str; 15] = [
     "gear-wasm-instrument",
     "gmeta-codegen",
     "gsdk-codegen",
-    "gstd-codegen",
     "gsys",
     "numerated",
 ];
@@ -52,7 +50,9 @@ pub const SAFE_DEPENDENCIES: [&str; 15] = [
 /// NOTE: Each package in this array could possibly depend
 /// on the previous one, please be cautious about changing
 /// the order.
-pub const STACKED_DEPENDENCIES: [&str; 13] = [
+pub const STACKED_DEPENDENCIES: [&str; 15] = [
+    "gprimitives",
+    "gstd-codegen",
     "gcore",
     "gmeta",
     "gear-core",
@@ -73,13 +73,14 @@ pub const STACKED_DEPENDENCIES: [&str; 13] = [
 /// NOTE: Each package in this array could possibly depend
 /// on the previous one, please be cautious about changing
 /// the order.
-pub const PACKAGES: [&str; 10] = [
+pub const PACKAGES: [&str; 11] = [
     "gring",
+    "gear-wasm-optimizer",
     "gear-wasm-builder",
     "gear-node-wrapper",
+    "gtest",
     "cargo-gbuild",
     "gstd",
-    "gtest",
     "gsdk",
     "gclient",
     "gcli",

@@ -14,19 +14,16 @@ readme = "README.md"
 anyhow.workspace = true
 cargo_metadata.workspace = true
 chrono = "0.4"
+thiserror.workspace = true
+regex.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
-thiserror.workspace = true
 log.workspace = true
 pathdiff.workspace = true
-which.workspace = true
-colored.workspace = true
 gmeta.workspace = true
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true
-wasm-opt = { workspace = true, optional = true }
-wasmparser.workspace = true
-regex.workspace = true
+gear-wasm-optimizer.workspace = true
 rustc_version.workspace = true
 
 [dev-dependencies]
@@ -36,3 +33,4 @@ parity-wasm.workspace = true
 
 [features]
 metawasm = ["gmeta/codegen"]
+wasm-opt = ["gear-wasm-optimizer/wasm-opt"]
