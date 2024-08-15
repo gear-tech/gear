@@ -347,27 +347,13 @@ impl OngoingResponses {
         });
     }
 
-    // TODO: inline
-    fn poll_inner_next(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<(request_response::ResponseChannel<Response>, Response)> {
-        match self.db_readers.poll_join_next(cx) {
-            Poll::Ready(Some(res)) => {
-                let values = res.expect("database panicked");
-                Poll::Ready(values)
-            }
-            Poll::Ready(None) => Poll::Pending,
-            Poll::Pending => Poll::Pending,
-        }
-    }
-
     pub(crate) fn poll_send_response(
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
     ) {
-        if let Poll::Ready((channel, response)) = self.poll_inner_next(cx) {
+        if let Poll::Ready(Some(res)) = self.db_readers.poll_join_next(cx) {
+            let (channel, response) = res.expect("database panicked");
             let _res = behaviour.send_response(channel, response);
         }
     }
