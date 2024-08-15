@@ -17,10 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     default_users_list,
-    manager::{ExtManager, GenuineProgram, Program as InnerProgram, TestActor, Value},
+    manager::ExtManager,
     system::System,
-    Result, GAS_ALLOWANCE,
+    Result, Value, GAS_ALLOWANCE,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
@@ -583,17 +584,16 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let mut actors = system.actors.borrow_mut();
-        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
+        let kind = Actors::modify(self.id, |actor| {
+            let actor = actor.expect("Can't fail");
+            if let TestActor::Uninitialized(id @ None, _) = actor {
+                *id = Some(message.id());
+                DispatchKind::Init
+            } else {
+                DispatchKind::Handle
+            }
+        });
 
-        let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
-            *id = Some(message.id());
-            DispatchKind::Init
-        } else {
-            DispatchKind::Handle
-        };
-
-        drop(actors);
         system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
 
@@ -861,7 +861,7 @@ mod tests {
     use super::Program;
 
     use crate::{
-        manager::Value, Log, ProgramIdWrapper, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT,
+        Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT,
         GAS_MULTIPLIER,
     };
     use demo_constructor::{Arg, Scheme};
@@ -1425,7 +1425,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Failed to increase balance: the sum 999850000000 of the total balance 994000000000 \
+        expected = "Failed to increase balance: the sum 5850000000 of the total balance 0 \
         and the value 5850000000 cannot be lower than the existential deposit"
     )]
     fn fails_transfer_when_user_balance_lower_than_ed() {

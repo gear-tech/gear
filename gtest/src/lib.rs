@@ -487,7 +487,9 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-pub mod balance;
+mod accounts;
+mod actors;
+mod bank;
 mod blocks;
 mod error;
 mod gas_tree;
@@ -508,6 +510,7 @@ pub use program::{
 };
 pub use system::System;
 
+pub use constants::Value;
 pub(crate) use constants::*;
 
 /// Module containing constants of Gear protocol.

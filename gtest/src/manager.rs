@@ -17,24 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    balance::Bank,
+    accounts::Accounts,
+    actors::{Actors, GenuineProgram, Program, TestActor},
+    bank::Bank,
     blocks::BlocksManager,
-    default_users_list,
+    constants::Value,
     gas_tree::GasTreeManager,
     log::{BlockRunResult, CoreLog},
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
-    Result, TestError, DEFAULT_USERS_INITIAL_BALANCE, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS,
-    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, HOST_FUNC_READ_COST,
-    HOST_FUNC_WRITE_AFTER_READ_COST, HOST_FUNC_WRITE_COST, INITIAL_RANDOM_SEED,
-    LOAD_ALLOCATIONS_PER_INTERVAL, LOAD_PAGE_STORAGE_DATA_COST, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST, MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_COST, MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST,
-    RESERVE_FOR, SIGNAL_READ_COST, SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS,
-    WAITLIST_COST, WRITE_COST,
+    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    GAS_ALLOWANCE, GAS_MULTIPLIER, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST,
+    HOST_FUNC_WRITE_COST, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL,
+    LOAD_PAGE_STORAGE_DATA_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
+    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST,
+    READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, SIGNAL_READ_COST,
+    SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -56,7 +57,7 @@ use gear_core::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage,
     },
-    reservation::{GasReservationMap, GasReserver},
+    reservation::GasReserver,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
@@ -64,205 +65,13 @@ use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
-    cell::{Ref, RefCell, RefMut},
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
     mem,
-    rc::Rc,
 };
-
-pub use crate::balance::Balance;
 
 const OUTGOING_LIMIT: u32 = 1024;
 const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
-
-pub(crate) type Value = u128;
-
-#[derive(Debug)]
-pub(crate) enum TestActor {
-    Initialized(Program),
-    // Contract: program is always `Some`, option is used to take ownership
-    Uninitialized(Option<MessageId>, Option<Program>),
-    Dormant,
-    User,
-}
-
-impl TestActor {
-    fn new(init_message_id: Option<MessageId>, program: Program) -> Self {
-        TestActor::Uninitialized(init_message_id, Some(program))
-    }
-
-    // # Panics
-    // If actor is initialized or dormant
-    #[track_caller]
-    fn set_initialized(&mut self) {
-        assert!(
-            self.is_uninitialized(),
-            "can't transmute actor, which isn't uninitialized"
-        );
-
-        if let TestActor::Uninitialized(_, maybe_prog) = self {
-            *self = TestActor::Initialized(
-                maybe_prog
-                    .take()
-                    .expect("actor storage contains only `Some` values by contract"),
-            );
-        }
-    }
-
-    fn is_dormant(&self) -> bool {
-        matches!(self, TestActor::Dormant)
-    }
-
-    fn is_uninitialized(&self) -> bool {
-        matches!(self, TestActor::Uninitialized(..))
-    }
-
-    pub(crate) fn genuine_program(&self) -> Option<&GenuineProgram> {
-        match self {
-            TestActor::Initialized(Program::Genuine(program))
-            | TestActor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program),
-            _ => None,
-        }
-    }
-
-    fn genuine_program_mut(&mut self) -> Option<&mut GenuineProgram> {
-        match self {
-            TestActor::Initialized(Program::Genuine(program))
-            | TestActor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program),
-            _ => None,
-        }
-    }
-
-    pub fn get_pages_data(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
-        self.genuine_program().map(|program| &program.pages_data)
-    }
-
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
-        self.genuine_program_mut()
-            .map(|program| &mut program.pages_data)
-    }
-
-    // Takes ownership over mock program, putting `None` value instead of it.
-    fn take_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
-        match self {
-            TestActor::Initialized(Program::Mock(mock))
-            | TestActor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
-            _ => None,
-        }
-    }
-
-    // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, InstrumentedCode)> {
-        self.genuine_program().map(|program| {
-            (
-                ExecutableActorData {
-                    allocations: program.allocations.clone(),
-                    code_id: program.code_id,
-                    code_exports: program.code.exports().clone(),
-                    static_pages: program.code.static_pages(),
-                    gas_reservation_map: program.gas_reservation_map.clone(),
-                    memory_infix: Default::default(),
-                },
-                program.code.clone(),
-            )
-        })
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct GenuineProgram {
-    pub code_id: CodeId,
-    pub code: InstrumentedCode,
-    pub allocations: IntervalsTree<WasmPage>,
-    pub pages_data: BTreeMap<GearPage, PageBuf>,
-    pub gas_reservation_map: GasReservationMap,
-}
-
-#[derive(Debug)]
-pub(crate) enum Program {
-    Genuine(GenuineProgram),
-    // Contract: is always `Some`, option is used to take ownership
-    Mock(Option<Box<dyn WasmProgram>>),
-}
-
-impl Program {
-    pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
-        Program::Mock(Some(Box::new(mock)))
-    }
-}
-
-#[derive(Default, Debug, Clone)]
-pub(crate) struct Actors(Rc<RefCell<BTreeMap<ProgramId, (TestActor, Balance)>>>);
-
-impl Actors {
-    pub fn new() -> Self {
-        let mut actors = Actors::default();
-
-        // Add default users
-        for &default_user_id in default_users_list() {
-            actors.insert(
-                default_user_id.into(),
-                (TestActor::User, Balance::new(DEFAULT_USERS_INITIAL_BALANCE)),
-            );
-        }
-
-        actors
-    }
-
-    pub fn borrow(&self) -> Ref<'_, BTreeMap<ProgramId, (TestActor, Balance)>> {
-        self.0.borrow()
-    }
-
-    pub fn borrow_mut(&mut self) -> RefMut<'_, BTreeMap<ProgramId, (TestActor, Balance)>> {
-        self.0.borrow_mut()
-    }
-
-    fn insert(
-        &mut self,
-        program_id: ProgramId,
-        actor_and_balance: (TestActor, Balance),
-    ) -> Option<(TestActor, Balance)> {
-        self.0.borrow_mut().insert(program_id, actor_and_balance)
-    }
-
-    pub fn contains_key(&self, program_id: &ProgramId) -> bool {
-        self.0.borrow().contains_key(program_id)
-    }
-
-    pub fn total_balance(&self, program_id: &ProgramId) -> Value {
-        self.balance(program_id, true)
-    }
-
-    #[track_caller]
-    pub fn set_balance_lock(&mut self, program_id: &ProgramId, value: Value) {
-        let mut actors = self.0.borrow_mut();
-        let balance = &mut actors
-            .get_mut(program_id)
-            .expect("Can't find existing program")
-            .1;
-
-        balance.set_lock(value);
-    }
-
-    fn balance(&self, program_id: &ProgramId, total: bool) -> Value {
-        let actors = self.0.borrow();
-
-        let Some((_, balance)) = &actors.get(program_id) else {
-            return 0;
-        };
-
-        if total {
-            balance.total()
-        } else {
-            balance.available()
-        }
-    }
-
-    fn remove(&mut self, program_id: &ProgramId) -> Option<(TestActor, Balance)> {
-        self.0.borrow_mut().remove(program_id)
-    }
-}
 
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
@@ -275,7 +84,6 @@ pub(crate) struct ExtManager {
     pub(crate) id_nonce: u64,
 
     // State
-    pub(crate) actors: Actors,
     pub(crate) bank: Bank,
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
@@ -302,7 +110,6 @@ impl ExtManager {
         Self {
             msg_nonce: 1,
             id_nonce: 1,
-            actors: Actors::new(),
             blocks_manager: BlocksManager::new(),
             messages_processing_enabled: true,
             random_data: (
@@ -324,14 +131,11 @@ impl ExtManager {
         program_id: ProgramId,
         program: Program,
         init_message_id: Option<MessageId>,
-    ) -> Option<(TestActor, Balance)> {
+    ) -> Option<TestActor> {
         if let Program::Genuine(GenuineProgram { code, .. }) = &program {
             self.store_new_code(code.code().to_vec());
         }
-        self.actors.insert(
-            program_id,
-            (TestActor::new(init_message_id, program), Balance::default()),
-        )
+        Actors::insert(program_id, TestActor::new(init_message_id, program))
     }
 
     pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
@@ -351,7 +155,7 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while self.actors.contains_key(&self.id_nonce.into()) {
+        while Actors::contains_key(self.id_nonce.into()) {
             self.id_nonce += 1;
         }
         self.id_nonce
@@ -426,19 +230,16 @@ impl ExtManager {
         program_id: &ProgramId,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
-        let mut actors = self.actors.borrow_mut();
-        let program = &mut actors
-            .get_mut(program_id)
-            .unwrap_or_else(|| panic!("Actor {program_id} not found"))
-            .0;
+        Actors::modify(*program_id, |actor| {
+            let pages_data = actor
+                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+                .get_pages_data_mut()
+                .expect("No pages data found for program");
 
-        let pages_data = program
-            .get_pages_data_mut()
-            .expect("No pages data found for program");
-
-        for (page, buf) in memory_pages {
-            pages_data.insert(page, buf);
-        }
+            for (page, buf) in memory_pages {
+                pages_data.insert(page, buf);
+            }
+        });
     }
 
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -454,7 +255,7 @@ impl ExtManager {
 
     pub(crate) fn route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
         let stored_dispatch = dispatch.into_stored();
-        if self.is_user(&stored_dispatch.destination()) {
+        if Actors::is_user(stored_dispatch.destination()) {
             panic!("Program API only sends message to programs.")
         }
 
@@ -507,23 +308,33 @@ impl ExtManager {
                 None => break,
             };
 
-            let mut actors = self.actors.borrow_mut();
-            let (actor, balance) = actors
-                .get_mut(&dispatch.destination())
-                .expect("Somehow message queue contains message for user");
-            let balance = balance.available();
+            enum DispatchCase {
+                Dormant,
+                ExecutableData(ExecutableActorData, InstrumentedCode),
+                Mock(Box<dyn WasmProgram>),
+            }
 
-            if actor.is_dormant() {
-                drop(actors);
-                self.process_dormant(balance, dispatch);
-            } else if let Some((data, code)) = actor.get_executable_actor_data() {
-                drop(actors);
-                self.process_normal(balance, data, code, dispatch);
-            } else if let Some(mock) = actor.take_mock() {
-                drop(actors);
-                self.process_mock(mock, dispatch);
-            } else {
-                unreachable!();
+            let dispatch_case = Actors::modify(dispatch.destination(), |actor| {
+                let actor = actor
+                    .unwrap_or_else(|| panic!("Somehow message queue contains message for user"));
+                if actor.is_dormant() {
+                    DispatchCase::Dormant
+                } else if let Some((data, code)) = actor.get_executable_actor_data() {
+                    DispatchCase::ExecutableData(data, code)
+                } else if let Some(mock) = actor.take_mock() {
+                    DispatchCase::Mock(mock)
+                } else {
+                    unreachable!();
+                }
+            });
+            let balance = Accounts::reducible_balance(dispatch.destination());
+
+            match dispatch_case {
+                DispatchCase::Dormant => self.process_dormant(balance, dispatch),
+                DispatchCase::ExecutableData(data, code) => {
+                    self.process_normal(balance, data, code, dispatch)
+                }
+                DispatchCase::Mock(mock) => self.process_mock(mock, dispatch),
             }
 
             total_processed += 1;
@@ -537,19 +348,19 @@ impl ExtManager {
         let source = dispatch.source();
         let destination = dispatch.destination();
 
-        if self.is_program(&source) {
+        if Actors::is_program(source) {
             panic!("Sending messages allowed only from users id");
         }
 
         // User must exist
-        if !self.actors.contains_key(&source) {
+        if !Accounts::is_exist(source) {
             panic!("User {source} doesn't exist; mint value to it first.");
         }
 
         let is_init_msg = dispatch.kind().is_init();
         // We charge ED only for init messages
         let maybe_ed = if is_init_msg { EXISTENTIAL_DEPOSIT } else { 0 };
-        let total_balance = self.actors.total_balance(&source);
+        let balance = Accounts::balance(source);
 
         let gas_limit = dispatch
             .gas_limit()
@@ -557,7 +368,7 @@ impl ExtManager {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas_limit);
 
         // Check sender has enough balance to cover dispatch costs
-        if total_balance < { dispatch.value() + gas_value + maybe_ed } {
+        if balance < { dispatch.value() + gas_value + maybe_ed } {
             panic!(
                 "Insufficient balance: user ({}) tries to send \
                 ({}) value, ({}) gas and ED {}, while his balance ({:?})",
@@ -565,46 +376,31 @@ impl ExtManager {
                 dispatch.value(),
                 gas_value,
                 maybe_ed,
-                total_balance,
+                balance,
             );
         }
 
         // Charge for program ED upon creation
         if is_init_msg {
-            Balance::transfer(
-                &mut self.actors,
-                source,
-                destination,
-                EXISTENTIAL_DEPOSIT,
-                false,
-            );
-
-            // Set ED lock
-            self.actors
-                .set_balance_lock(&destination, EXISTENTIAL_DEPOSIT);
+            Accounts::transfer(source, destination, EXISTENTIAL_DEPOSIT, false);
         }
 
-        let mut actors = self.actors.borrow_mut();
-        let source_balance = &mut actors.get_mut(&source).expect("Can't fail").1;
-
         // Deposit message value
-        self.bank
-            .deposit_value(source_balance, source, dispatch.value(), false);
+        self.bank.deposit_value(source, dispatch.value(), false);
 
         // Deposit gas
-        self.bank
-            .deposit_gas(source_balance, source, gas_limit, false);
+        self.bank.deposit_gas(source, gas_limit, false);
     }
 
     #[track_caller]
     pub(crate) fn route_dispatch_from_task_pool(&mut self, dispatch: Dispatch) {
-        if self.is_program(&dispatch.destination()) {
+        if Actors::is_program(dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
             if let (Ok(mailbox_msg), true) = (
                 message.clone().try_into(),
-                self.is_program(&message.source()),
+                Actors::is_program(message.source()),
             ) {
                 self.mailbox
                     .insert(mailbox_msg)
@@ -622,14 +418,15 @@ impl ExtManager {
         payload: Vec<u8>,
         program_id: &ProgramId,
     ) -> Result<Vec<u8>> {
-        let mut actors = self.actors.borrow_mut();
-        let (actor, _balance) = actors
-            .get_mut(program_id)
-            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
+        let executable_actor_data = Actors::modify(*program_id, |actor| {
+            if let Some(actor) = actor {
+                Ok(actor.get_executable_actor_data())
+            } else {
+                Err(TestError::ActorNotFound(*program_id))
+            }
+        })?;
 
-        if let Some((data, code)) = actor.get_executable_actor_data() {
-            drop(actors);
-
+        if let Some((data, code)) = executable_actor_data {
             core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
                 String::from("state"),
                 code,
@@ -640,7 +437,9 @@ impl ExtManager {
                 self.blocks_manager.get(),
             )
             .map_err(TestError::ReadStateError)
-        } else if let Some(mut program_mock) = actor.take_mock() {
+        } else if let Some(mut program_mock) =
+            Actors::modify(*program_id, |actor| actor.unwrap().take_mock())
+        {
             program_mock
                 .state()
                 .map_err(|err| TestError::ReadStateError(err.into()))
@@ -683,29 +482,6 @@ impl ExtManager {
         .map_err(TestError::ReadStateError)
     }
 
-    pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
-        matches!(
-            self.actors.borrow().get(id),
-            Some((TestActor::User, _)) | None
-        )
-    }
-
-    pub(crate) fn is_active_program(&self, id: &ProgramId) -> bool {
-        matches!(
-            self.actors.borrow().get(id),
-            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
-        )
-    }
-
-    pub(crate) fn is_program(&self, id: &ProgramId) -> bool {
-        matches!(
-            self.actors.borrow().get(id),
-            Some((TestActor::Initialized(_), _))
-                | Some((TestActor::Uninitialized(_, _), _))
-                | Some((TestActor::Dormant, _))
-        )
-    }
-
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Value) {
         if value < crate::EXISTENTIAL_DEPOSIT {
             panic!(
@@ -715,30 +491,11 @@ impl ExtManager {
             );
         }
 
-        let mut actors = self.actors.borrow_mut();
-        let (_, balance) = actors
-            .entry(*id)
-            .or_insert((TestActor::User, Balance::default()));
-        balance.increase(value);
-    }
-
-    pub(crate) fn transfer(
-        &mut self,
-        from: &ProgramId,
-        to: &ProgramId,
-        value: Value,
-        keep_alive: bool,
-    ) {
-        Balance::transfer(&mut self.actors, *from, *to, value, keep_alive);
+        Accounts::increase(*id, value);
     }
 
     pub(crate) fn balance_of(&self, id: &ProgramId) -> Value {
-        self.actors
-            .borrow()
-            .get(id)
-            .map(|(_, balance)| balance.clone())
-            .unwrap_or_default()
-            .total()
+        Accounts::balance(*id)
     }
 
     pub(crate) fn claim_value_from_mailbox(
@@ -759,64 +516,52 @@ impl ExtManager {
     }
 
     #[track_caller]
-    pub(crate) fn override_balance(&mut self, id: &ProgramId, balance: Value) {
-        if self.is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
+    pub(crate) fn override_balance(&mut self, &id: &ProgramId, balance: Value) {
+        if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({})",
                 balance,
                 crate::EXISTENTIAL_DEPOSIT
             );
         }
-
-        let mut actors = self.actors.borrow_mut();
-        let (_, actor_balance) = actors
-            .entry(*id)
-            .or_insert((TestActor::User, Balance::default()));
-        *actor_balance = Balance::new(balance);
+        Accounts::override_balance(id, balance);
     }
 
     #[track_caller]
     pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> BTreeMap<GearPage, PageBuf> {
-        let actors = self.actors.borrow();
-        let program = &actors
-            .get(program_id)
-            .unwrap_or_else(|| panic!("Actor {program_id} not found"))
-            .0;
+        Actors::access(*program_id, |actor| {
+            let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+            {
+                TestActor::Initialized(program) => program,
+                TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
+                TestActor::Dormant => panic!("Actor {program_id} isn't dormant"),
+            };
 
-        let program = match program {
-            TestActor::Initialized(program) => program,
-            TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
-            TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
-        };
-
-        match program {
-            Program::Genuine(program) => program.pages_data.clone(),
-            Program::Mock(_) => panic!("Can't read memory of mock program"),
-        }
+            match program {
+                Program::Genuine(program) => program.pages_data.clone(),
+                Program::Mock(_) => panic!("Can't read memory of mock program"),
+            }
+        })
     }
 
     #[track_caller]
     fn init_success(&mut self, program_id: ProgramId) {
-        let mut actors = self.actors.borrow_mut();
-        let (actor, _) = actors
-            .get_mut(&program_id)
-            .expect("Can't find existing program");
-
-        actor.set_initialized();
+        Actors::modify(program_id, |actor| {
+            actor
+                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+                .set_initialized()
+        });
     }
 
     #[track_caller]
     fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
-        let total_value = {
-            let mut actors = self.actors.borrow_mut();
-            let (actor, balance) = actors
-                .get_mut(&program_id)
-                .expect("Can't find existing program");
-            *actor = TestActor::Dormant;
+        Actors::modify(program_id, |actor| {
+            let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));
+            *actor = TestActor::Dormant
+        });
 
-            balance.total()
-        };
-        Balance::transfer(&mut self.actors, program_id, origin, total_value, false);
+        let value = Accounts::balance(program_id);
+        Accounts::transfer(program_id, origin, value, false);
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
@@ -912,14 +657,11 @@ impl ExtManager {
 
         // After run either `init_success` is called or `init_failed`.
         // So only active (init success) program can be modified
-        self.actors
-            .borrow_mut()
-            .entry(program_id)
-            .and_modify(|(actor, _)| {
-                if let TestActor::Initialized(old_mock) = actor {
-                    *old_mock = Program::Mock(Some(mock));
-                }
-            });
+        Actors::modify(program_id, |actor| {
+            if let Some(TestActor::Initialized(old_mock)) = actor {
+                *old_mock = Program::Mock(Some(mock));
+            }
+        })
     }
 
     fn process_normal(
@@ -1085,10 +827,9 @@ impl ExtManager {
         id: ProgramId,
         op: F,
     ) -> Option<R> {
-        let mut actors = self.actors.borrow_mut();
-        actors
-            .get_mut(&id)
-            .and_then(|(actor, _)| actor.genuine_program_mut().map(op))
+        Actors::modify(id, |actor| {
+            actor.and_then(|actor| actor.genuine_program_mut().map(op))
+        })
     }
 }
 
@@ -1126,7 +867,7 @@ impl JournalHandler for ExtManager {
         self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
         self.gas_tree
             .spend(message_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
 
         self.gas_burned
             .entry(message_id)
@@ -1138,43 +879,38 @@ impl JournalHandler for ExtManager {
         let (external, multiplier, _) = self
             .gas_tree
             .get_origin_node(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
 
         let id: ProgramId = external.into_origin().into();
         self.bank.spend_gas(id, amount, multiplier);
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        let total_value = self.actors.total_balance(&id_exited);
-        Balance::transfer(
-            &mut self.actors,
-            id_exited,
-            value_destination,
-            total_value,
-            false,
-        );
+        Actors::modify(id_exited, |actor| {
+            let actor =
+                actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
+            *actor = TestActor::Dormant
+        });
 
-        self.actors.remove(&id_exited);
+        let value = Accounts::balance(id_exited);
+        Accounts::transfer(id_exited, value_destination, value, false);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
         let outcome = self
             .gas_tree
             .consume(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
 
         // Retrieve gas
         if let Some((imbalance, multiplier, external)) = outcome {
             // Peeking numeric value from negative imbalance.
             let gas_left = imbalance.peek();
-
             let id: ProgramId = external.into_origin().into();
-            let mut actors = self.actors.borrow_mut();
-            let (_, to) = actors.get_mut(&id).expect("Can't fail");
 
             // Unreserving funds, if left non-zero amount of gas.
             if gas_left != 0 {
-                self.bank.withdraw_gas(id, to, gas_left, multiplier);
+                self.bank.withdraw_gas(id, id, gas_left, multiplier);
             }
         }
     }
@@ -1196,20 +932,16 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = self.is_program(&dispatch.destination());
+        let is_program = Actors::is_program(dispatch.destination());
 
-        let mut deposit_value = |actors: &mut Actors| {
+        let mut deposit_value = || {
             if dispatch.value() != 0 {
-                let mut actors = actors.borrow_mut();
-                let (_, balance) = actors.get_mut(&source).expect("Can't fail");
-
-                self.bank
-                    .deposit_value(balance, source, dispatch.value(), false);
+                self.bank.deposit_value(source, dispatch.value(), false);
             }
         };
 
         if is_program {
-            deposit_value(&mut self.actors);
+            deposit_value();
 
             match (dispatch.gas_limit(), reservation) {
                 (Some(gas_limit), None) => self
@@ -1233,7 +965,7 @@ impl JournalHandler for ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            deposit_value(&mut self.actors);
+            deposit_value();
 
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
@@ -1332,9 +1064,6 @@ impl JournalHandler for ExtManager {
         }
 
         let to = to.unwrap_or(from);
-        let mut actors = self.actors.borrow_mut();
-        let (_, to) = actors.get_mut(&to).expect("Can't fail");
-
         self.bank.transfer_value(from, to, value);
     }
 
@@ -1347,7 +1076,7 @@ impl JournalHandler for ExtManager {
     ) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
-                if !self.actors.contains_key(&candidate_id) {
+                if !Actors::contains_key(candidate_id) {
                     let schedule = Schedule::default();
                     let code = Code::try_new(
                         code.clone(),
@@ -1376,17 +1105,7 @@ impl JournalHandler for ExtManager {
                     );
 
                     // Transfer the ED from the program-creator to the new program
-                    Balance::transfer(
-                        &mut self.actors,
-                        program_id,
-                        candidate_id,
-                        EXISTENTIAL_DEPOSIT,
-                        true,
-                    );
-
-                    // Set ED lock
-                    self.actors
-                        .set_balance_lock(&candidate_id, EXISTENTIAL_DEPOSIT);
+                    Accounts::transfer(program_id, candidate_id, EXISTENTIAL_DEPOSIT, true);
                 } else {
                     log::debug!("Program with id {candidate_id:?} already exists");
                 }
@@ -1394,8 +1113,7 @@ impl JournalHandler for ExtManager {
         } else {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
-                self.actors
-                    .insert(invalid_candidate_id, (TestActor::Dormant, Balance::empty()));
+                Actors::insert(invalid_candidate_id, TestActor::Dormant);
             }
         }
     }
