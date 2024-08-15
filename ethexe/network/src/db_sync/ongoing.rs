@@ -36,78 +36,6 @@ use std::{
 };
 use tokio::{task::JoinSet, time, time::Sleep};
 
-#[derive(Debug)]
-pub(crate) struct OngoingRequest {
-    request_id: RequestId,
-    request: Request,
-    response: Option<Response>,
-    tried_peers: HashSet<PeerId>,
-    rounds: u32, // TODO: remove fields and use `tried_peers.len()` instead
-    timeout: Pin<Box<Sleep>>,
-}
-
-impl OngoingRequest {
-    pub(crate) fn new(request_id: RequestId, request: Request, timeout: Duration) -> Self {
-        Self {
-            request_id,
-            request,
-            response: None,
-            tried_peers: HashSet::new(),
-            rounds: 0,
-            timeout: Box::pin(time::sleep(timeout)),
-        }
-    }
-
-    fn merge_response(&mut self, new_response: Response) -> Response {
-        if let Some(response) = self.response.take() {
-            response.merge(new_response)
-        } else {
-            new_response
-        }
-    }
-
-    /// Try to bring request to the complete state.
-    ///
-    /// Returns error if response validation is failed.
-    fn try_complete(mut self, peer: PeerId, response: Response) -> Result<Response, Self> {
-        if let Err(error) = self.request.validate_response(&response) {
-            let request_id = self.request_id;
-            log::trace!(
-                "response validation failed for request {request_id:?} from {peer}: {error:?}",
-            );
-            return Err(self);
-        }
-
-        if let Some(new_request) = self.request.difference(&response) {
-            self.request = new_request;
-            self.tried_peers.insert(peer);
-            self.response = Some(self.merge_response(response));
-            Err(self)
-        } else {
-            let response = self.merge_response(response);
-            Ok(response)
-        }
-    }
-
-    /// Peer failed to handle request, so we create new ongoing request for the next round.
-    fn peer_failed(mut self, peer: PeerId) -> Self {
-        self.tried_peers.insert(peer);
-        self
-    }
-
-    fn choose_next_peer(
-        &mut self,
-        peers: &HashMap<PeerId, HashSet<ConnectionId>>,
-    ) -> Option<PeerId> {
-        let peers: HashSet<PeerId> = peers.keys().copied().collect();
-        let peer = peers
-            .difference(&self.tried_peers)
-            .choose_stable(&mut rand::thread_rng())
-            .copied();
-        peer
-    }
-}
-
 enum SendRequest {
     SentTo(PeerId),
     NoPeers(OngoingRequest),
@@ -134,6 +62,85 @@ pub(crate) enum PeerFailed {
     PendingAgain,
     #[from]
     SendRequest(SendRequestError),
+}
+
+#[derive(Debug)]
+pub(crate) struct OngoingRequest {
+    request_id: RequestId,
+    request: Request,
+    response: Option<Response>,
+    tried_peers: HashSet<PeerId>,
+    timeout: Pin<Box<Sleep>>,
+}
+
+impl OngoingRequest {
+    pub(crate) fn new(request_id: RequestId, request: Request, timeout: Duration) -> Self {
+        Self {
+            request_id,
+            request,
+            response: None,
+            tried_peers: HashSet::new(),
+            timeout: Box::pin(time::sleep(timeout)),
+        }
+    }
+
+    fn merge_response(&mut self, new_response: Response) -> Response {
+        if let Some(response) = self.response.take() {
+            response.merge(new_response)
+        } else {
+            new_response
+        }
+    }
+
+    /// Try to bring the request to the complete state.
+    ///
+    /// Returns error if response validation is failed or response is incomplete.
+    fn try_complete(mut self, peer: PeerId, response: Response) -> Result<Response, Self> {
+        self.tried_peers.insert(peer);
+
+        if let Err(error) = self.request.validate_response(&response) {
+            let request_id = self.request_id;
+            log::trace!(
+                "response validation failed for request {request_id:?} from {peer}: {error:?}",
+            );
+            return Err(self);
+        }
+
+        if let Some(new_request) = self.request.difference(&response) {
+            self.request = new_request;
+            self.response = Some(self.merge_response(response));
+            Err(self)
+        } else {
+            let response = self.merge_response(response);
+            Ok(response)
+        }
+    }
+
+    /// Peer failed to handle the request, so we create a new ongoing request for the next round.
+    fn peer_failed(mut self, peer: PeerId) -> Self {
+        self.tried_peers.insert(peer);
+        self
+    }
+
+    fn choose_next_peer(
+        &mut self,
+        peers: &HashMap<PeerId, HashSet<ConnectionId>>,
+        max_rounds_per_request: u32,
+    ) -> Result<Option<PeerId>, SendRequestError> {
+        if self.tried_peers.len() >= max_rounds_per_request as usize {
+            return Err(SendRequestError {
+                request_id: self.request_id,
+                error: RequestFailure::OutOfRounds,
+            });
+        }
+
+        let peers: HashSet<PeerId> = peers.keys().copied().collect();
+        let peer = peers
+            .difference(&self.tried_peers)
+            .choose_stable(&mut rand::thread_rng())
+            .copied();
+        Ok(peer)
+    }
 }
 
 #[derive(Debug)]
@@ -222,18 +229,9 @@ impl OngoingRequests {
         behaviour: &mut InnerBehaviour,
         mut ongoing_request: OngoingRequest,
     ) -> Result<SendRequest, SendRequestError> {
-        let peer_id = ongoing_request.choose_next_peer(&self.connections);
+        let peer_id =
+            ongoing_request.choose_next_peer(&self.connections, self.max_rounds_per_request)?;
         if let Some(peer_id) = peer_id {
-            let request_id = ongoing_request.request_id;
-
-            ongoing_request.rounds += 1;
-            if ongoing_request.rounds > self.max_rounds_per_request {
-                return Err(SendRequestError {
-                    request_id,
-                    error: RequestFailure::OutOfRounds,
-                });
-            }
-
             let outbound_request_id =
                 behaviour.send_request(&peer_id, ongoing_request.request.clone());
 
