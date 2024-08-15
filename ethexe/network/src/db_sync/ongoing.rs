@@ -184,7 +184,7 @@ impl OngoingRequests {
 
     pub(crate) fn push_pending_request(&mut self, request: Request) -> RequestId {
         let request_id = self.next_request_id();
-        self.pending_requests.push_back((request_id, request));
+        self.pending_requests.push_front((request_id, request));
         request_id
     }
 
