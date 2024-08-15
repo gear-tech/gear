@@ -28,8 +28,8 @@ use ethexe_common::{
     BlockEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
-use ethexe_network::NetworkReceiverEvent;
 use ethexe_ethereum::router::RouterQuery;
+use ethexe_network::NetworkReceiverEvent;
 use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_signer::{PublicKey, Signer};
