@@ -19,7 +19,9 @@
 mod ongoing;
 
 use crate::{
-    db_sync::ongoing::{OngoingRequests, OngoingResponses, OutOfRounds, PeerFailed, PeerResponse},
+    db_sync::ongoing::{
+        OngoingRequests, OngoingResponses, PeerFailed, PeerResponse, SendRequestError,
+    },
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
 };
@@ -40,6 +42,7 @@ use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
     task::{Context, Poll},
+    time::Duration,
 };
 
 const STREAM_PROTOCOL: StreamProtocol =
@@ -141,6 +144,7 @@ pub enum NewRequestRoundReason {
 #[derive(Debug, Eq, PartialEq)]
 pub enum RequestFailure {
     OutOfRounds,
+    Timeout,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -167,15 +171,23 @@ pub enum Event {
     },
 }
 
+impl From<SendRequestError> for Event {
+    fn from(SendRequestError { request_id, error }: SendRequestError) -> Self {
+        Self::RequestFailed { request_id, error }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     max_rounds_per_request: u32,
+    request_timeout: Duration,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             max_rounds_per_request: 10,
+            request_timeout: Duration::from_secs(100),
         }
     }
 }
@@ -183,6 +195,11 @@ impl Default for Config {
 impl Config {
     pub fn with_max_rounds_per_request(mut self, max_rounds_per_request: u32) -> Self {
         self.max_rounds_per_request = max_rounds_per_request;
+        self
+    }
+
+    pub fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
+        self.request_timeout = request_timeout;
         self
     }
 }
@@ -253,12 +270,7 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PartialData,
                     },
-                    Err(PeerResponse::OutOfRounds(OutOfRounds { request_id })) => {
-                        Event::RequestFailed {
-                            request_id,
-                            error: RequestFailure::OutOfRounds,
-                        }
-                    }
+                    Err(PeerResponse::SendRequest(error)) => Event::from(error),
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -292,12 +304,7 @@ impl Behaviour {
                             reason: NewRequestRoundReason::PeerFailed,
                         },
                         Err(PeerFailed::PendingAgain) => return Poll::Pending,
-                        Err(PeerFailed::OutOfRounds(OutOfRounds { request_id })) => {
-                            Event::RequestFailed {
-                                request_id,
-                                error: RequestFailure::OutOfRounds,
-                            }
-                        }
+                        Err(PeerFailed::SendRequest(error)) => Event::from(error),
                     };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -395,6 +402,13 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
+        if let Some(request_id) = self.ongoing_requests.remove_if_timeout(cx) {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestFailed {
+                request_id,
+                error: RequestFailure::Timeout,
+            }));
+        }
+
         let event = match self.ongoing_requests.send_pending_request(&mut self.inner) {
             Ok(Some((peer_id, request_id))) => Some(Event::NewRequestRound {
                 request_id,
@@ -402,10 +416,7 @@ impl NetworkBehaviour for Behaviour {
                 reason: NewRequestRoundReason::FromQueue,
             }),
             Ok(None) => None,
-            Err(OutOfRounds { request_id }) => Some(Event::RequestFailed {
-                request_id,
-                error: RequestFailure::OutOfRounds,
-            }),
+            Err(error) => Some(Event::from(error)),
         };
         if let Some(event) = event {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -433,8 +444,9 @@ mod tests {
     use crate::utils::tests::init_logger;
     use ethexe_db::{CodesStorage, MemDb};
     use gprimitives::CodeId;
-    use libp2p::Swarm;
+    use libp2p::{futures::StreamExt, Swarm};
     use libp2p_swarm_test::SwarmExt;
+    use std::mem;
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default(), [0; 20]);
@@ -549,38 +561,88 @@ mod tests {
             }
         );
 
-        loop {
-            tokio::select! {
-                event = bob.next_behaviour_event() => {
-                    match event {
-                        request_response::Event::Message {
-                            message:
-                                Message::Request {
-                                    channel, request, ..
-                                },
-                            ..
-                        } => {
-                            assert_eq!(request, Request::DataForHashes([].into()));
-                            let _res = bob
-                                .behaviour_mut()
-                                .send_response(channel, Response::ProgramIds([].into()));
-                        }
-                        request_response::Event::ResponseSent { .. } => continue,
-                        e => unreachable!("unexpected event: {:?}", e),
-                    }
-                }
-                event = alice.next_behaviour_event() => {
-                    assert_eq!(
-                        event,
-                        Event::RequestFailed {
-                            request_id,
-                            error: RequestFailure::OutOfRounds,
-                        }
-                    );
-                    break;
+        tokio::spawn(async move {
+            while let Some(event) = bob.next().await {
+                if let Ok(request_response::Event::Message {
+                    message:
+                        Message::Request {
+                            channel, request, ..
+                        },
+                    ..
+                }) = event.try_into_behaviour_event()
+                {
+                    assert_eq!(request, Request::DataForHashes([].into()));
+                    let _res = bob
+                        .behaviour_mut()
+                        .send_response(channel, Response::ProgramIds([].into()));
                 }
             }
-        }
+        });
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestFailed {
+                request_id,
+                error: RequestFailure::OutOfRounds,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn timeout() {
+        init_logger();
+
+        let alice_config = Config::default().with_request_timeout(Duration::from_secs(2));
+        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+
+        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+            InnerBehaviour::new(
+                [(STREAM_PROTOCOL, ProtocolSupport::Full)],
+                request_response::Config::default(),
+            )
+        });
+        bob.connect(&mut alice).await;
+
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::DataForHashes([].into()));
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: *bob.local_peer_id(),
+                reason: NewRequestRoundReason::FromQueue,
+            }
+        );
+
+        tokio::spawn(async move {
+            while let Some(event) = bob.next().await {
+                if let Ok(request_response::Event::Message {
+                    message:
+                        Message::Request {
+                            channel, request, ..
+                        },
+                    ..
+                }) = event.try_into_behaviour_event()
+                {
+                    assert_eq!(request, Request::DataForHashes([].into()));
+                    // just ignore request
+                    mem::forget(channel);
+                }
+            }
+        });
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestFailed {
+                request_id,
+                error: RequestFailure::Timeout,
+            }
+        );
     }
 
     #[tokio::test]

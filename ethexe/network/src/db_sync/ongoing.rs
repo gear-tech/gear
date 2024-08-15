@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    db_sync::{Config, InnerBehaviour, Request, RequestId, Response},
+    db_sync::{Config, InnerBehaviour, Request, RequestFailure, RequestId, Response},
     export::PeerId,
 };
 use ethexe_db::{CodesStorage, Database};
@@ -29,9 +29,12 @@ use libp2p::{
 use rand::seq::IteratorRandom;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    future::Future,
+    pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
-use tokio::task::JoinSet;
+use tokio::{task::JoinSet, time, time::Sleep};
 
 #[derive(Debug)]
 pub(crate) struct OngoingRequest {
@@ -39,17 +42,19 @@ pub(crate) struct OngoingRequest {
     request: Request,
     response: Option<Response>,
     tried_peers: HashSet<PeerId>,
-    rounds: u32,
+    rounds: u32, // TODO: remove fields and use `tried_peers.len()` instead
+    timeout: Pin<Box<Sleep>>,
 }
 
 impl OngoingRequest {
-    pub(crate) fn new(request_id: RequestId, request: Request) -> Self {
+    pub(crate) fn new(request_id: RequestId, request: Request, timeout: Duration) -> Self {
         Self {
             request_id,
             request,
             response: None,
             tried_peers: HashSet::new(),
             rounds: 0,
+            timeout: Box::pin(time::sleep(timeout)),
         }
     }
 
@@ -103,14 +108,15 @@ impl OngoingRequest {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct OutOfRounds {
-    pub(crate) request_id: RequestId,
-}
-
 enum SendRequest {
     SentTo(PeerId),
     NoPeers(OngoingRequest),
+}
+
+#[derive(Debug)]
+pub(crate) struct SendRequestError {
+    pub(crate) request_id: RequestId,
+    pub(crate) error: RequestFailure,
 }
 
 #[derive(Debug, derive_more::From)]
@@ -120,33 +126,35 @@ pub(crate) enum PeerResponse {
         request_id: RequestId,
     },
     #[from]
-    OutOfRounds(OutOfRounds),
+    SendRequest(SendRequestError),
 }
 
 #[derive(Debug, derive_more::From)]
 pub(crate) enum PeerFailed {
     PendingAgain,
     #[from]
-    OutOfRounds(OutOfRounds),
+    SendRequest(SendRequestError),
 }
 
 #[derive(Debug)]
 pub(crate) struct OngoingRequests {
-    inner: HashMap<OutboundRequestId, OngoingRequest>,
     connections: HashMap<PeerId, HashSet<ConnectionId>>,
     request_id_counter: u64,
-    pending_requests: VecDeque<(RequestId, Request)>,
+    pending_requests: VecDeque<OngoingRequest>,
+    active_requests: HashMap<OutboundRequestId, OngoingRequest>,
     max_rounds_per_request: u32,
+    request_timeout: Duration,
 }
 
 impl OngoingRequests {
     pub(crate) fn from_config(config: &Config) -> Self {
         Self {
-            inner: Default::default(),
             connections: Default::default(),
             request_id_counter: 0,
             pending_requests: Default::default(),
+            active_requests: Default::default(),
             max_rounds_per_request: config.max_rounds_per_request,
+            request_timeout: config.request_timeout,
         }
     }
 
@@ -184,8 +192,28 @@ impl OngoingRequests {
 
     pub(crate) fn push_pending_request(&mut self, request: Request) -> RequestId {
         let request_id = self.next_request_id();
-        self.pending_requests.push_front((request_id, request));
+        let ongoing_request = OngoingRequest::new(request_id, request, self.request_timeout);
+        self.pending_requests.push_front(ongoing_request);
         request_id
+    }
+
+    pub(crate) fn remove_if_timeout(&mut self, cx: &mut Context<'_>) -> Option<RequestId> {
+        let outbound_request_id =
+            self.active_requests
+                .iter_mut()
+                .find_map(|(&request_id, active_request)| {
+                    if active_request.timeout.as_mut().poll(cx).is_ready() {
+                        Some(request_id)
+                    } else {
+                        None
+                    }
+                })?;
+
+        let outgoing_request = self
+            .active_requests
+            .remove(&outbound_request_id)
+            .expect("infallible");
+        Some(outgoing_request.request_id)
     }
 
     /// Send actual request to behaviour and tracks its state.
@@ -193,20 +221,24 @@ impl OngoingRequests {
         &mut self,
         behaviour: &mut InnerBehaviour,
         mut ongoing_request: OngoingRequest,
-    ) -> Result<SendRequest, OutOfRounds> {
+    ) -> Result<SendRequest, SendRequestError> {
         let peer_id = ongoing_request.choose_next_peer(&self.connections);
         if let Some(peer_id) = peer_id {
+            let request_id = ongoing_request.request_id;
+
             ongoing_request.rounds += 1;
             if ongoing_request.rounds > self.max_rounds_per_request {
-                return Err(OutOfRounds {
-                    request_id: ongoing_request.request_id,
+                return Err(SendRequestError {
+                    request_id,
+                    error: RequestFailure::OutOfRounds,
                 });
             }
 
             let outbound_request_id =
                 behaviour.send_request(&peer_id, ongoing_request.request.clone());
 
-            self.inner.insert(outbound_request_id, ongoing_request);
+            self.active_requests
+                .insert(outbound_request_id, ongoing_request);
 
             Ok(SendRequest::SentTo(peer_id))
         } else {
@@ -217,18 +249,17 @@ impl OngoingRequests {
     pub(crate) fn send_pending_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
-    ) -> Result<Option<(PeerId, RequestId)>, OutOfRounds> {
-        let Some((request_id, request)) = self.pending_requests.pop_back() else {
+    ) -> Result<Option<(PeerId, RequestId)>, SendRequestError> {
+        let Some(ongoing_request) = self.pending_requests.pop_back() else {
             return Ok(None);
         };
 
-        let ongoing_request = OngoingRequest::new(request_id, request);
+        let request_id = ongoing_request.request_id;
 
         match self.send_request(behaviour, ongoing_request)? {
             SendRequest::SentTo(peer_id) => Ok(Some((peer_id, request_id))),
             SendRequest::NoPeers(ongoing_request) => {
-                self.pending_requests
-                    .push_back((request_id, ongoing_request.request));
+                self.pending_requests.push_back(ongoing_request);
                 Ok(None)
             }
         }
@@ -241,7 +272,10 @@ impl OngoingRequests {
         request_id: OutboundRequestId,
         response: Response,
     ) -> Result<(RequestId, Response), PeerResponse> {
-        let ongoing_request = self.inner.remove(&request_id).expect("unknown response");
+        let ongoing_request = self
+            .active_requests
+            .remove(&request_id)
+            .expect("unknown response");
         let request_id = ongoing_request.request_id;
         match ongoing_request.try_complete(peer, response) {
             Ok(response) => Ok((request_id, response)),
@@ -266,14 +300,16 @@ impl OngoingRequests {
         peer: PeerId,
         request_id: OutboundRequestId,
     ) -> Result<(PeerId, RequestId), PeerFailed> {
-        let ongoing_request = self.inner.remove(&request_id).expect("unknown response");
+        let ongoing_request = self
+            .active_requests
+            .remove(&request_id)
+            .expect("unknown response");
         let request_id = ongoing_request.request_id;
         let new_ongoing_request = ongoing_request.peer_failed(peer);
         match self.send_request(behaviour, new_ongoing_request)? {
             SendRequest::SentTo(peer_id) => Ok((peer_id, request_id)),
             SendRequest::NoPeers(new_ongoing_request) => {
-                self.pending_requests
-                    .push_back((request_id, new_ongoing_request.request));
+                self.pending_requests.push_back(new_ongoing_request);
                 Err(PeerFailed::PendingAgain)
             }
         }
@@ -313,6 +349,7 @@ impl OngoingResponses {
         });
     }
 
+    // TODO: inline
     fn poll_inner_next(
         &mut self,
         cx: &mut Context<'_>,
