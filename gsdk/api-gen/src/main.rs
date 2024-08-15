@@ -136,7 +136,6 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
         builder.add_derives_for_type(ty, [parse_quote!(Copy)], true);
     }
 
-    builder.no_docs();
     builder.runtime_types_only();
     builder.disable_default_derives();
     builder.set_target_module(parse_quote! {
