@@ -63,10 +63,13 @@ macro_rules! wrap_syscall {
 fn store_host_state_mut<Ext>(
     store: &mut Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
 ) -> &mut State<Ext, BackendMemory<ExecutorMemory>> {
-    store
-        .data_mut()
-        .as_mut()
-        .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
+    store.data_mut().as_mut().unwrap_or_else(|| {
+        let err_msg =
+            "store_host_state_mut: State is not set, but it must be set in `Environment::new`";
+
+        log::error!("{err_msg}");
+        unreachable!("{err_msg}")
+    })
 }
 
 pub type EnvironmentExecutionResult<Ext> = Result<BackendReport<Ext>, EnvironmentError>;
@@ -399,7 +402,13 @@ where
                     .as_any_mut()
                     .downcast_mut::<GlobalsAccessProvider<EnvExt>>()
                     // Provider is `GlobalsAccessProvider`, so panic is impossible.
-                    .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
+                    .unwrap_or_else(|| {
+                        let err_msg =
+                            "Environment::execute: Provider must be `GlobalsAccessProvider`";
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    })
                     .store;
 
                 store_option.replace(store);
@@ -407,7 +416,12 @@ where
                 let store_ref = store_option
                     .as_mut()
                     // We set store above, so panic is impossible.
-                    .unwrap_or_else(|| unreachable!("Store must be set before"));
+                    .unwrap_or_else(|| {
+                        let err_msg = "Environment::execute: Store must be set before";
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    });
 
                 let res = instance.invoke(store_ref, entry_point.as_entry(), &[]);
 
@@ -430,10 +444,12 @@ where
             .and_then(i64::try_from_value)
             .ok_or(System(WrongInjectedGas))? as u64;
 
-        let state = store
-            .data_mut()
-            .take()
-            .unwrap_or_else(|| unreachable!("State must be set; qed"));
+        let state = store.data_mut().take().unwrap_or_else(|| {
+            let err_msg = "Environment::execute: State must be set";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         let (ext, termination_reason) = state.terminate(res, gas);
 

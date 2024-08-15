@@ -8,6 +8,7 @@ edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -21,7 +22,7 @@ serde_json.workspace = true
 toml.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-gear-wasm-builder.workspace = true
+gear-wasm-optimizer.workspace = true
 glob.workspace = true
 
 [dev-dependencies]
