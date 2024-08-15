@@ -13,6 +13,8 @@ ignored_warnings_from = [
     # Warning (3628): This contract has a payable fallback function, but no receive ether function
     "src/MirrorProxy.sol",
 ]
+# Enable new EVM codegen
+via_ir = true
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
