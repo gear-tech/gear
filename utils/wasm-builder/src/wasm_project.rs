@@ -16,14 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    code_validator::CodeValidator,
-    crate_info::CrateInfo,
-    optimize::{self, OptType, Optimizer},
-    smart_fs,
-};
+use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
 use anyhow::{Context, Result};
 use chrono::offset::Local as ChronoLocal;
+use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
