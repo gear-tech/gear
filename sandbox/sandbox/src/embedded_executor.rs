@@ -25,7 +25,7 @@ use crate::{
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_core::RuntimeDebug;
-use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, mem, prelude::*};
+use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 use sp_wasm_interface_common::HostPointer;
 use wasmi::{
     core::{Pages, Trap, UntypedValue},
@@ -48,7 +48,7 @@ impl<T> Store<T> {
 
 impl<T> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let register_len = mem::size_of::<UntypedValue>();
+        let register_len = size_of::<UntypedValue>();
 
         const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
         const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
@@ -346,9 +346,15 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
                                     *ret = val;
                                 }
-                                _ => unreachable!(
-                                    "embedded executor doesn't support multi-value return"
-                                ),
+                                _results => {
+                                    let err_msg = format!(
+                                        "Instance::new: embedded executor doesn't support multi-value return. \
+                                        Function name - {key:?}, params - {params:?}, results - {_results:?}"
+                                    );
+
+                                    log::error!("{err_msg}");
+                                    unreachable!("{err_msg}")
+                                }
                             }
 
                             gas.set(&mut caller.0, RuntimeValue::I64(val.gas))
@@ -412,7 +418,15 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                 let val = to_interface(val.clone()).ok_or(Error::Execution)?;
                 Ok(ReturnValue::Value(val))
             }
-            _ => unreachable!(),
+            _results => {
+                let err_msg = format!(
+                    "Instance::invoke: embedded executor doesn't support multi-value return. \
+                    Function name - {name:?}, params - {args:?}, results - {_results:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
@@ -439,7 +453,10 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
     }
 
     fn get_instance_ptr(&self) -> HostPointer {
-        unreachable!("Must not be called for embedded executor")
+        let err_msg = "Must not be called for embedded executor";
+
+        log::error!("{err_msg}");
+        unreachable!("{err_msg}")
     }
 }
 

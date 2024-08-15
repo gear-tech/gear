@@ -26,7 +26,7 @@ use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Address;
-use gprimitives::{ActorId, CodeId};
+use gprimitives::CodeId;
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
 
@@ -102,7 +102,7 @@ pub struct Args {
 
     #[allow(missing_docs)]
     #[clap(flatten)]
-    pub network_params: NetworkParams,
+    pub network_params: Option<NetworkParams>,
 
     #[allow(missing_docs)]
     #[clap(flatten)]
@@ -122,13 +122,19 @@ pub struct ArgsOnConfig {
 
 #[derive(Clone, Debug, Subcommand, Deserialize)]
 pub enum ExtraCommands {
-    GenerateKey,
+    GenerateKey {
+        /// Print only secp256k1 public key
+        #[arg(long, conflicts_with = "ethereum")]
+        secp256k1: bool,
+        /// Print only Ethereum address
+        #[arg(long, conflicts_with = "secp256k1")]
+        ethereum: bool,
+    },
     ListKeys,
     ClearKeys,
     InsertKey(InsertKeyArgs),
     Sign(SigningArgs),
-    AddValidators(AddValidatorsArgs),
-    RemoveValidators(RemoveValidatorsArgs),
+    UpdateValidators(UpdateValidatorsArgs),
     UploadCode(UploadCodeArgs),
     CreateProgram(CreateProgramArgs),
 }
@@ -144,12 +150,7 @@ pub struct InsertKeyArgs {
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
-pub struct AddValidatorsArgs {
-    validators: Vec<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Parser)]
-pub struct RemoveValidatorsArgs {
+pub struct UpdateValidatorsArgs {
     validators: Vec<String>,
 }
 
@@ -162,7 +163,6 @@ pub struct UploadCodeArgs {
 pub struct CreateProgramArgs {
     code_id: String,
     init_payload: String,
-    gas_limit: u64,
     value: u128,
 }
 
@@ -178,7 +178,7 @@ impl ExtraCommands {
         let maybe_ethereum = if let Some(sender_address) = maybe_sender_address {
             Ethereum::new(
                 &config.ethereum_rpc,
-                config.ethereum_router_address.parse()?,
+                config.ethereum_router_address,
                 signer.clone(),
                 sender_address,
             )
@@ -189,11 +189,20 @@ impl ExtraCommands {
         };
 
         match self {
-            ExtraCommands::GenerateKey => {
+            ExtraCommands::GenerateKey {
+                secp256k1,
+                ethereum,
+            } => {
                 let new_pub = signer.generate_key()?;
 
-                println!("New public key stored: {}", new_pub);
-                println!("Ethereum address: {}", new_pub.to_address());
+                if *secp256k1 {
+                    println!("{new_pub}");
+                } else if *ethereum {
+                    println!("{}", new_pub.to_address())
+                } else {
+                    println!("New public key stored: {}", new_pub);
+                    println!("Ethereum address: {}", new_pub.to_address());
+                }
             }
 
             ExtraCommands::ClearKeys => {
@@ -238,8 +247,8 @@ impl ExtraCommands {
                 println!("Ethereum address: {}", pub_key.to_address());
             }
 
-            ExtraCommands::AddValidators(ref add_validators_args) => {
-                let validator_addresses = add_validators_args
+            ExtraCommands::UpdateValidators(ref update_validators_args) => {
+                let validator_addresses = update_validators_args
                     .validators
                     .iter()
                     .map(|validator| validator.parse::<Address>())
@@ -247,11 +256,7 @@ impl ExtraCommands {
 
                 let validators = validator_addresses
                     .into_iter()
-                    .map(|validator| {
-                        let mut actor_id = [0; 32];
-                        actor_id[12..].copy_from_slice(&validator.0);
-                        ActorId::new(actor_id)
-                    })
+                    .map(|address| address.0.into())
                     .collect();
 
                 let Some((sender_address, ethexe_ethereum)) =
@@ -260,39 +265,11 @@ impl ExtraCommands {
                     bail!("please provide signer address");
                 };
 
-                println!("Adding validators for Router from {sender_address}...");
-
-                let tx = ethexe_ethereum.router().add_validators(validators).await?;
-                println!("Completed in transaction {tx:?}");
-            }
-
-            ExtraCommands::RemoveValidators(ref remove_validators_args) => {
-                let validator_addresses = remove_validators_args
-                    .validators
-                    .iter()
-                    .map(|validator| validator.parse::<Address>())
-                    .collect::<Result<Vec<_>>>()?;
-
-                let validators = validator_addresses
-                    .into_iter()
-                    .map(|validator| {
-                        let mut actor_id = [0; 32];
-                        actor_id[12..].copy_from_slice(&validator.0);
-                        ActorId::new(actor_id)
-                    })
-                    .collect();
-
-                let Some((sender_address, ethexe_ethereum)) =
-                    maybe_sender_address.zip(maybe_ethereum)
-                else {
-                    bail!("please provide signer address");
-                };
-
-                println!("Removing validators for Router from {sender_address}...");
+                println!("Updating validators for Router from {sender_address}...");
 
                 let tx = ethexe_ethereum
                     .router()
-                    .remove_validators(validators)
+                    .update_validators(validators)
                     .await?;
                 println!("Completed in transaction {tx:?}");
             }
@@ -314,13 +291,18 @@ impl ExtraCommands {
                 let router = ethexe_ethereum.router();
 
                 let code = fs::read(path)?;
-                let (tx, code_id) = router.upload_code_with_sidecar(&code).await?;
+                let (tx, code_id) = router.request_code_validation_with_sidecar(&code).await?;
 
                 println!("Completed in transaction {tx:?}");
                 println!("Waiting for approval of code id {code_id}...");
 
-                router.wait_for_code_approval(code_id).await?;
-                println!("Now you can create program from code id {code_id}!");
+                let valid = router.wait_code_validation(code_id).await?;
+
+                if valid {
+                    println!("Now you can create program from code id {code_id}!");
+                } else {
+                    bail!("Given code is invalid and failed validation");
+                }
             }
 
             ExtraCommands::CreateProgram(ref create_program_args) => {
@@ -336,7 +318,6 @@ impl ExtraCommands {
                 } else {
                     create_program_args.init_payload.clone().into_bytes()
                 };
-                let gas_limit = create_program_args.gas_limit;
                 let value = create_program_args.value;
 
                 let Some((sender_address, ethexe_ethereum)) =
@@ -350,16 +331,14 @@ impl ExtraCommands {
                 let router = ethexe_ethereum.router();
 
                 let (tx, actor_id) = router
-                    .create_program(code_id, salt, init_payload, gas_limit, value)
+                    .create_program(code_id, salt, init_payload, value)
                     .await?;
 
-                let mut program_address = Address([0; 20]);
-                program_address
-                    .0
-                    .copy_from_slice(&actor_id.into_bytes()[12..]);
-
                 println!("Completed in transaction {tx:?}");
-                println!("Waiting for state update of program {program_address}...");
+                println!(
+                    "Waiting for state update of program {}...",
+                    actor_id.to_address_lossy()
+                );
 
                 // TODO: handle events from commitTransitions
             }

@@ -31,13 +31,13 @@ use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 use crate::{
     error::{self, Error},
     sandbox::{
-        BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
-        InstantiationError, Memory, SandboxContext, SandboxInstance,
+        BackendInstanceBundle, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
+        InstantiationError, Memory, SandboxInstance, SupervisorContext,
     },
     util::MemoryTransfer,
 };
 
-environmental::environmental!(SandboxContextStore: trait SandboxContext);
+environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
 #[derive(Debug)]
 struct CustomHostError(String);
@@ -210,7 +210,7 @@ impl<'a> sandbox_wasmi::Externals for GuestExternals<'a> {
         index: usize,
         args: RuntimeArgs,
     ) -> std::result::Result<Option<RuntimeValue>, Trap> {
-        SandboxContextStore::with(|sandbox_context| {
+        SupervisorContextStore::with(|supervisor_context| {
 			// Make `index` typesafe again.
 			let index = GuestFuncIndex(index);
 
@@ -237,34 +237,34 @@ impl<'a> sandbox_wasmi::Externals for GuestExternals<'a> {
 			// Move serialized arguments inside the memory, invoke dispatch thunk and
 			// then free allocated memory.
 			let invoke_args_len = invoke_args_data.len() as WordSize;
-			let invoke_args_ptr = sandbox_context
+			let invoke_args_ptr = supervisor_context
 				.allocate_memory(invoke_args_len)
 				.map_err(|_| trap("Can't allocate memory in supervisor for the arguments"))?;
 
-			let deallocate = |sandbox_context: &mut dyn SandboxContext, ptr, fail_msg| {
-				sandbox_context.deallocate_memory(ptr).map_err(|_| trap(fail_msg))
+			let deallocate = |supervisor_context: &mut dyn SupervisorContext, ptr, fail_msg| {
+				supervisor_context.deallocate_memory(ptr).map_err(|_| trap(fail_msg))
 			};
 
-			if sandbox_context
+			if supervisor_context
 				.write_memory(invoke_args_ptr, &invoke_args_data)
 				.is_err()
 			{
 				deallocate(
-					sandbox_context,
+					supervisor_context,
 					invoke_args_ptr,
 					"Failed deallocation after failed write of invoke arguments",
 				)?;
 				return Err(trap("Can't write invoke args into memory"))
 			}
 
-			let result = sandbox_context.invoke(
+			let result = supervisor_context.invoke(
 				invoke_args_ptr,
 				invoke_args_len,
 				func_idx,
 			);
 
 			deallocate(
-				sandbox_context,
+				supervisor_context,
 				invoke_args_ptr,
 				"Can't deallocate memory for dispatch thunk's invoke arguments",
 			)?;
@@ -280,12 +280,12 @@ impl<'a> sandbox_wasmi::Externals for GuestExternals<'a> {
 				(Pointer::new(ptr), len)
 			};
 
-			let serialized_result_val = sandbox_context
+			let serialized_result_val = supervisor_context
 				.read_memory(serialized_result_val_ptr, serialized_result_val_len)
 				.map_err(|_| trap("Can't read the serialized result from dispatch thunk"));
 
 			deallocate(
-				sandbox_context,
+				supervisor_context,
 				serialized_result_val_ptr,
 				"Can't deallocate memory for dispatch thunk's result",
 			)
@@ -317,7 +317,7 @@ where
 pub fn instantiate(
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    sandbox_context: &mut dyn SandboxContext,
+    supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     let wasmi_module = Module::from_buffer(wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
     let wasmi_instance = ModuleInstance::new(&wasmi_module, &guest_env.imports)
@@ -327,12 +327,14 @@ pub fn instantiate(
         // In general, it's not a very good idea to use `.not_started_instance()` for
         // anything but for extracting memory and tables. But in this particular case, we
         // are extracting for the purpose of running `start` function which should be ok.
-        backend_instance: BackendInstance::Wasmi(wasmi_instance.not_started_instance().clone()),
+        backend_instance: BackendInstanceBundle::Wasmi(
+            wasmi_instance.not_started_instance().clone(),
+        ),
         guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
     };
 
     with_guest_externals(&sandbox_instance, |guest_externals| {
-        SandboxContextStore::using(sandbox_context, || {
+        SupervisorContextStore::using(supervisor_context, || {
             wasmi_instance
                 .run_start(guest_externals)
                 .map_err(|_| InstantiationError::StartTrapped)
@@ -348,10 +350,10 @@ pub fn invoke(
     module: &sandbox_wasmi::ModuleRef,
     export_name: &str,
     args: &[Value],
-    sandbox_context: &mut dyn SandboxContext,
+    supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<Option<Value>, error::Error> {
     with_guest_externals(instance, |guest_externals| {
-        SandboxContextStore::using(sandbox_context, || {
+        SupervisorContextStore::using(supervisor_context, || {
             let args = args.iter().cloned().map(From::from).collect::<Vec<_>>();
 
             module
@@ -364,7 +366,13 @@ pub fn invoke(
                         // in node binaries forever. If this panic occur, then we must increase stack memory size,
                         // or tune stack limit injection.
                         // see also https://github.com/wasmerio/wasmer/issues/4181
-                        unreachable!("Suppose that this can not happen, because we have a stack limit instrumentation in programs");
+                        let err_msg = format!(
+                            "invoke: Suppose that this can not happen, because we have a stack limit instrumentation in programs. \
+                            Export name - {export_name}, args - {args:?}",
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
                     }
                     error::Error::Sandbox(error.to_string())
                 })

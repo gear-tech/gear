@@ -71,8 +71,9 @@ mod tests {
         let from = 42;
 
         let program = Program::current(&system);
-        let res = program.send(from, Request::IsReady);
-        assert!(res.main_failed());
+        let msg_id = program.send(from, Request::IsReady);
+        let res = system.run_next_block();
+        assert!(res.failed.contains(&msg_id));
     }
 
     #[test]
@@ -83,9 +84,10 @@ mod tests {
         let from = 42;
 
         let program = Program::current(&system);
-        let res = program.send(from, Initialization { status: 5 });
+        let msg_id = program.send(from, Initialization { status: 5 });
         let log = Log::builder().source(program.id()).dest(from);
-        assert!(!res.main_failed());
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
     }
 
@@ -97,23 +99,26 @@ mod tests {
         let from = 42;
 
         let program = Program::current(&system);
-        let _res = program.send(from, Initialization { status: 5 });
+        program.send(from, Initialization { status: 5 });
 
-        let res = program.send(from, Request::IsReady);
+        program.send(from, Request::IsReady);
         let log = Log::builder()
             .source(program.id())
             .dest(from)
             .payload(Reply::Yes);
+        let res = system.run_next_block();
         assert!(res.contains(&log));
 
-        let res = program.send(from, Request::Begin(Operation { to_status: 7 }));
+        program.send(from, Request::Begin(Operation { to_status: 7 }));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program.send(from, Request::Commit);
+        program.send(from, Request::Commit);
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program.id())
             .dest(from)
@@ -133,36 +138,40 @@ mod tests {
         let program_3_id = 3;
 
         let program_1 = Program::current_with_id(&system, program_1_id);
-        let _res = program_1.send(from, Initialization { status: 5 });
+        program_1.send(from, Initialization { status: 5 });
 
         let program_2 = Program::current_with_id(&system, program_2_id);
-        let _res = program_2.send(from, Initialization { status: 5 });
+        program_2.send(from, Initialization { status: 5 });
 
         let program_3 = Program::current_with_id(&system, program_3_id);
-        let _res = program_3.send(from, Initialization { status: 9 });
+        program_3.send(from, Initialization { status: 9 });
 
-        let res = program_1.send(from, Request::Add(program_2_id.into()));
+        program_1.send(from, Request::Add(program_2_id.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Add(program_3_id.into()));
+        program_1.send(from, Request::Add(program_3_id.into()));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Begin(Operation { to_status: 7 }));
+        program_1.send(from, Request::Begin(Operation { to_status: 7 }));
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Commit);
+        program_1.send(from, Request::Commit);
+        let res = system.run_next_block();
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)

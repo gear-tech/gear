@@ -18,6 +18,7 @@
 
 //! Module for memory pages.
 
+use alloc::format;
 use core::cmp::Ordering;
 use num_traits::bounds::{LowerBounded, UpperBounded};
 use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated};
@@ -119,7 +120,15 @@ impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
         match self.cmp(&Self::UPPER) {
             Ordering::Greater => {
                 // This panic is impossible because of `PagesAmount` constructors implementation.
-                unreachable!("PageBound must be always less or equal than UPPER")
+                let err_msg = format!(
+                    "PagesAmount::unbound: PageBound must be always less or equal than UPPER. \
+                    Page bound - {:?}, UPPER - {:?}",
+                    self,
+                    Self::UPPER
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
             }
             Ordering::Equal => None,
             Ordering::Less => Some(Page(self.0)),
@@ -304,28 +313,28 @@ pub type GearPagesAmount = PagesAmount<GEAR_PAGE_SIZE>;
 
 impl From<u16> for WasmPagesAmount {
     fn from(value: u16) -> Self {
-        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
+        const { assert!(WASM_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }
 
 impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
-        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
+        const { assert!(WASM_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }
 
 impl From<u16> for GearPagesAmount {
     fn from(value: u16) -> Self {
-        const _: () = assert!(GEAR_PAGE_SIZE <= 0x10_000);
+        const { assert!(GEAR_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }
 
 impl From<u16> for GearPage {
     fn from(value: u16) -> Self {
-        const _: () = assert!(GEAR_PAGE_SIZE <= 0x10_000);
+        const { assert!(GEAR_PAGE_SIZE <= 0x10_000) };
         Self(value as u32)
     }
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use ethexe_common::{BlockCommitment, CodeCommitment};
+use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_network::NetworkSender;
 use ethexe_sequencer::AggregatedCommitments;
 use ethexe_signer::{Address, PublicKey, Signer};
@@ -82,11 +82,7 @@ impl Validator {
         )
     }
 
-    pub fn push_commitments(
-        &mut self,
-        sender: NetworkSender,
-        commitments: Vec<Commitment>,
-    ) -> Result<()> {
+    pub fn push_commitments(&mut self, commitments: Vec<Commitment>) -> Result<()> {
         for commitment in commitments {
             match commitment {
                 Commitment::Code(code_commitment) => self.current_codes.push(code_commitment),
@@ -94,6 +90,10 @@ impl Validator {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn publish_commitments(&mut self, sender: &mut NetworkSender) -> Result<()> {
         let origin = self.pub_key.to_address();
 
         // broadcast (aggregated_code_commitments, aggregated_transitions_commitments) to the network peers

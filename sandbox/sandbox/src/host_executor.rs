@@ -1,5 +1,3 @@
-// This file is part of Gear.
-
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
@@ -23,7 +21,7 @@ use codec::{Decode, Encode};
 use crate::{
     env, AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value,
 };
-use alloc::string::String;
+use alloc::{format, string::String};
 use gear_sandbox_env::WasmReturnValue;
 use gear_sandbox_interface::sandbox;
 use sp_core::RuntimeDebug;
@@ -48,9 +46,8 @@ mod ffi {
         // We need to ensure that sizes of a callable function pointer and host function index is
         // indeed equal.
         // We can't use `static_assertions` create because it makes compiler panic, fallback to
-        // runtime assert. const_assert!(mem::size_of::<HostFuncIndex>() ==
-        // mem::size_of::<HostFuncType<T>>());
-        assert!(mem::size_of::<HostFuncIndex>() == mem::size_of::<HostFuncType<T>>());
+        // runtime assert. const_assert!(size_of::<HostFuncIndex>() == size_of::<HostFuncType<T>>());
+        assert!(size_of::<HostFuncIndex>() == size_of::<HostFuncType<T>>());
         mem::transmute::<HostFuncIndex, HostFuncType<T>>(idx)
     }
 }
@@ -135,7 +132,12 @@ impl<T> super::SandboxMemory<T> for Memory {
         match result {
             env::ERR_OK => Ok(()),
             env::ERR_OUT_OF_BOUNDS => Err(Error::OutOfBounds),
-            _ => unreachable!(),
+            err => {
+                let err_msg = format!("Memory::read: unexpected error. Got error - {err}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
@@ -152,7 +154,12 @@ impl<T> super::SandboxMemory<T> for Memory {
         match result {
             env::ERR_OK => Ok(()),
             env::ERR_OUT_OF_BOUNDS => Err(Error::OutOfBounds),
-            _ => unreachable!(),
+            err => {
+                let err_msg = format!("Memory::write: unexpected error. Got error - {err}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 
@@ -364,7 +371,12 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
                 Ok(return_val)
             }
             env::ERR_EXECUTION => Err(Error::Execution),
-            _ => unreachable!(),
+            err => {
+                let err_msg = format!("Memory::invoke: unexpected error. Got error - {err}");
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         }
     }
 

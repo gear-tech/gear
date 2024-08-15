@@ -19,53 +19,44 @@
 //! Main service in ethexe node.
 
 use crate::{
-    config::{Config, PrometheusConfig, SequencerConfig, ValidatorConfig},
+    config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
 use anyhow::{anyhow, Ok, Result};
-use ethexe_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
-use ethexe_observer::{BlockData, CodeLoadedData};
+use ethexe_common::{
+    router::{BlockCommitment, CodeCommitment, Event as RouterEvent, StateTransition},
+    BlockEvent,
+};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
+use ethexe_ethereum::router::RouterQuery;
+use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
+use ethexe_signer::{PublicKey, Signer};
 use ethexe_validator::Commitment;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::Decode;
-use std::{sync::Arc, time::Duration};
-use tokio::time;
+use std::{future::Future, sync::Arc, time::Duration};
 
 /// ethexe service.
 pub struct Service {
     db: Database,
-    network: (
-        ethexe_network::NetworkSender,
-        ethexe_network::GossipsubMessageStream,
-        ethexe_network::NetworkEventLoop,
-    ),
     observer: ethexe_observer::Observer,
     query: ethexe_observer::Query,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
+    block_time: Duration,
+
+    // Optional services
+    network: Option<ethexe_network::NetworkService>,
     sequencer: Option<ethexe_sequencer::Sequencer>,
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
-    rpc: ethexe_rpc::RpcService,
-    block_time: Duration,
-}
-
-async fn maybe_sleep(maybe_timer: &mut Option<time::Sleep>) {
-    if let Some(timer) = maybe_timer.take() {
-        timer.await
-    } else {
-        future::pending().await
-    }
+    rpc: Option<ethexe_rpc::RpcService>,
 }
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
-        let db = ethexe_db::Database::from_one(&rocks_db);
-
         let blob_reader = Arc::new(
             ethexe_observer::ConsensusLayerBlobReader::new(
                 &config.ethereum_rpc,
@@ -75,7 +66,10 @@ impl Service {
             .await?,
         );
 
-        let ethereum_router_address = config.ethereum_router_address.parse()?;
+        let ethereum_router_address = config.ethereum_router_address;
+        let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
+        let db = ethexe_db::Database::from_one(&rocks_db, ethereum_router_address.0);
+
         let observer = ethexe_observer::Observer::new(
             &config.ethereum_rpc,
             ethereum_router_address,
@@ -83,14 +77,12 @@ impl Service {
         )
         .await?;
 
-        let router_query =
-            ethexe_ethereum::RouterQuery::new(&config.ethereum_rpc, ethereum_router_address)
-                .await?;
+        let router_query = RouterQuery::new(&config.ethereum_rpc, ethereum_router_address).await?;
         let genesis_block_hash = router_query.genesis_block_hash().await?;
         log::info!("👶 Genesis block hash: {genesis_block_hash}");
 
         let query = ethexe_observer::Query::new(
-            Box::new(db.clone()),
+            Arc::new(db.clone()),
             &config.ethereum_rpc,
             ethereum_router_address,
             genesis_block_hash,
@@ -100,22 +92,34 @@ impl Service {
         .await?;
 
         let processor = ethexe_processor::Processor::new(db.clone())?;
+
         let signer = ethexe_signer::Signer::new(config.key_path.clone())?;
 
-        let sequencer = match config.sequencer {
-            SequencerConfig::Enabled(ref sign_tx_public) => Some(
+        let sequencer = if let Some(key) = Self::get_config_public_key(config.sequencer, &signer)? {
+            Some(
                 ethexe_sequencer::Sequencer::new(
                     &ethexe_sequencer::Config {
                         ethereum_rpc: config.ethereum_rpc.clone(),
-                        sign_tx_public: *sign_tx_public,
-                        router_address: config.ethereum_router_address.parse()?,
+                        sign_tx_public: key,
+                        router_address: config.ethereum_router_address,
                     },
                     signer.clone(),
                 )
                 .await?,
-            ),
-            SequencerConfig::Disabled => None,
+            )
+        } else {
+            None
         };
+
+        let validator = Self::get_config_public_key(config.validator, &signer)?.map(|key| {
+            ethexe_validator::Validator::new(
+                &ethexe_validator::Config {
+                    pub_key: key,
+                    router_address: config.ethereum_router_address,
+                },
+                signer.clone(),
+            )
+        });
 
         // Prometheus metrics.
         let metrics_service =
@@ -129,20 +133,17 @@ impl Service {
                 None
             };
 
-        let validator = match config.validator {
-            ValidatorConfig::Enabled(sign_tx_public) => Some(ethexe_validator::Validator::new(
-                &ethexe_validator::Config {
-                    pub_key: sign_tx_public,
-                    router_address: config.ethereum_router_address.parse()?,
-                },
-                signer.clone(),
-            )),
-            ValidatorConfig::Disabled => None,
-        };
+        let network = config
+            .net_config
+            .as_ref()
+            .map(|config| -> Result<_> {
+                ethexe_network::NetworkService::new(config.clone(), &signer)
+            })
+            .transpose()?;
 
-        let network = ethexe_network::NetworkEventLoop::new(config.net_config.clone(), &signer)?;
-
-        let rpc = ethexe_rpc::RpcService::new(config.rpc_port, db.clone());
+        let rpc = config
+            .rpc_port
+            .map(|port| ethexe_rpc::RpcService::new(port, db.clone()));
 
         Ok(Self {
             db,
@@ -159,37 +160,41 @@ impl Service {
         })
     }
 
+    fn get_config_public_key(key: ConfigPublicKey, signer: &Signer) -> Result<Option<PublicKey>> {
+        match key {
+            ConfigPublicKey::Enabled(key) => Ok(Some(key)),
+            ConfigPublicKey::Random => Ok(Some(signer.generate_key()?)),
+            ConfigPublicKey::Disabled => Ok(None),
+        }
+    }
+
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         db: Database,
-        network: (
-            ethexe_network::NetworkSender,
-            ethexe_network::GossipsubMessageStream,
-            ethexe_network::NetworkEventLoop,
-        ),
         observer: ethexe_observer::Observer,
         query: ethexe_observer::Query,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
+        block_time: Duration,
+        network: Option<ethexe_network::NetworkService>,
         sequencer: Option<ethexe_sequencer::Sequencer>,
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
-        rpc: ethexe_rpc::RpcService,
-        block_time: Duration,
+        rpc: Option<ethexe_rpc::RpcService>,
     ) -> Self {
         Self {
             db,
-            network,
             observer,
             query,
             processor,
             signer,
+            block_time,
+            network,
             sequencer,
             validator,
             metrics_service,
             rpc,
-            block_time,
         }
     }
 
@@ -205,26 +210,25 @@ impl Service {
 
         for event in events {
             match event {
-                BlockEvent::UploadCode(event) => {
-                    db.set_code_upload_info(
-                        event.code_id,
-                        CodeUploadInfo {
-                            origin: event.origin,
-                            tx_hash: event.blob_tx(),
-                        },
-                    );
+                BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    blob_tx_hash,
+                }) => {
+                    db.set_code_blob_tx(code_id, blob_tx_hash);
                 }
-                BlockEvent::CreateProgram(event) => {
-                    let code_id = event.code_id;
+                BlockEvent::Router(RouterEvent::ProgramCreated { code_id, .. }) => {
                     if db.original_code(code_id).is_some() {
                         continue;
                     }
 
                     log::debug!("📥 downloading absent code: {code_id}");
-                    let CodeUploadInfo { origin, tx_hash } = db
-                        .code_upload_info(code_id)
-                        .ok_or(anyhow!("Origin and tx hash not found"))?;
-                    let code = query.download_code(code_id, origin, tx_hash).await?;
+
+                    let blob_tx_hash = db
+                        .code_blob_tx(code_id)
+                        .ok_or(anyhow!("Blob tx hash not found"))?;
+
+                    let code = query.download_code(code_id, blob_tx_hash).await?;
+
                     processor.process_upload_code(code_id, code.as_slice())?;
                 }
                 _ => continue,
@@ -279,6 +283,9 @@ impl Service {
         // Set block as valid - means state db has all states for the end of the block
         db.set_block_end_state_is_valid(block_hash, true);
 
+        let header = db.block_header(block_hash).expect("must be set; qed");
+        db.set_latest_valid_block_height(header.height);
+
         Ok(transition_outcomes)
     }
 
@@ -312,8 +319,8 @@ impl Service {
 
             commitments.push(BlockCommitment {
                 block_hash,
-                allowed_pred_block_hash: block_data.block_hash,
-                allowed_prev_commitment_hash: db
+                pred_block_hash: block_data.block_hash,
+                prev_commitment_hash: db
                     .block_prev_commitment(block_hash)
                     .ok_or(anyhow!("Prev commitment not found"))?,
                 transitions,
@@ -335,29 +342,32 @@ impl Service {
         }
 
         let commitments = match observer_event {
-            ethexe_observer::Event::Block(block_data) => {
+            ObserverEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
                     block_data.block_number,
                     block_data.block_hash,
                     block_data.parent_hash
                 );
+
                 let commitments =
                     Self::process_block_event(db, query, processor, block_data).await?;
+
                 commitments.into_iter().map(Commitment::Block).collect()
             }
-            ethexe_observer::Event::CodeLoaded(CodeLoadedData { code_id, code, .. }) => {
+            ethexe_observer::Event::CodeLoaded { code_id, code } => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
+
                 outcomes
                     .into_iter()
                     .map(|outcome| match outcome {
                         LocalOutcome::CodeApproved(code_id) => Commitment::Code(CodeCommitment {
-                            code_id,
-                            approved: true,
+                            id: code_id,
+                            valid: true,
                         }),
                         LocalOutcome::CodeRejected(code_id) => Commitment::Code(CodeCommitment {
-                            code_id,
-                            approved: false,
+                            id: code_id,
+                            valid: false,
                         }),
                         _ => unreachable!("Only code outcomes are expected here"),
                     })
@@ -368,7 +378,7 @@ impl Service {
         Ok(commitments)
     }
 
-    pub async fn run(self) -> Result<()> {
+    async fn run_inner(self) -> Result<()> {
         let Service {
             db,
             network,
@@ -383,8 +393,6 @@ impl Service {
             block_time,
         } = self;
 
-        let (network_sender, mut gossipsub_stream, network) = network;
-
         if let Some(metrics_service) = metrics_service {
             tokio::spawn(metrics_service.run(
                 observer.get_status_receiver(),
@@ -395,14 +403,24 @@ impl Service {
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
-        let network_run = network.run();
+        let (mut network_sender, mut gossipsub_stream, mut network_handle) =
+            if let Some(network) = network {
+                (
+                    Some(network.sender),
+                    Some(network.gossip_stream),
+                    Some(tokio::spawn(network.event_loop.run())),
+                )
+            } else {
+                (None, None, None)
+            };
 
-        // spawn network future
-        let mut network_handle = tokio::spawn(network_run);
-
-        let (rpc_run, rpc_port) = rpc.run_server().await?;
-        let mut rpc_handle = tokio::spawn(rpc_run.stopped());
-        log::info!("🌐 Rpc server started at: {}", rpc_port);
+        let mut rpc_handle = if let Some(rpc) = rpc {
+            let (rpc_run, rpc_port) = rpc.run_server().await?;
+            log::info!("🌐 Rpc server started at: {}", rpc_port);
+            Some(tokio::spawn(rpc_run.stopped()))
+        } else {
+            None
+        };
 
         let mut delay: Option<_> = None;
 
@@ -410,11 +428,9 @@ impl Service {
         if let Some(seq) = sequencer.as_ref() {
             roles.push_str(&format!(", Sequencer ({})", seq.address()));
         }
-
         if let Some(val) = validator.as_ref() {
             roles.push_str(&format!(", Validator ({})", val.address()));
         }
-
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
 
         loop {
@@ -435,7 +451,13 @@ impl Service {
 
                     if let Some(ref mut validator) = validator {
                         log::debug!("Pushing commitments to local validator...");
-                        validator.push_commitments(network_sender.clone(), commitments)?;
+                        validator.push_commitments(commitments)?;
+
+                        if let Some(ref mut network_sender) = network_sender {
+                            log::debug!("Publishing commitments to network...");
+                            validator.publish_commitments(network_sender)?;
+                        }
+
                         if let Some(ref mut sequencer) = sequencer {
                             let origin = validator.pub_key().to_address();
                             if validator.has_codes_commit() {
@@ -453,21 +475,10 @@ impl Service {
                         }
                     }
 
+                    log::trace!("Sending timeout after observer event...");
                     delay = Some(tokio::time::sleep(block_time / 4));
                 }
-                message = gossipsub_stream.next() => {
-                    if let Some(message) = message {
-                        if let Some(sequencer) = sequencer.as_mut() {
-                            log::debug!("Received p2p commitments from: {:?}", message.source);
-
-                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut message.data.as_slice())?;
-
-                            sequencer.receive_codes_commitment(origin, codes_aggregated_commitment)?;
-                            sequencer.receive_block_commitment(origin, transitions_aggregated_commitment)?;
-                        }
-                    }
-                }
-                _ = maybe_sleep(&mut delay) => {
+                _ = maybe_await(delay.take()) => {
                     log::debug!("Sending timeout after block event...");
 
                     if let Some(sequencer) = sequencer.as_mut() {
@@ -479,19 +490,45 @@ impl Service {
                         validator.clear();
                     };
                 }
-                _ = &mut network_handle => {
+                message = maybe_await(gossipsub_stream.as_mut().map(|stream| stream.next())) => {
+                    if let Some(message) = message {
+                        if let Some(sequencer) = sequencer.as_mut() {
+                            log::debug!("Received p2p commitments from: {:?}", message.source);
+
+                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut message.data.as_slice())?;
+
+                            sequencer.receive_codes_commitment(origin, codes_aggregated_commitment)?;
+                            sequencer.receive_block_commitment(origin, transitions_aggregated_commitment)?;
+                        }
+                    }
+                }
+                _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
                     break;
                 }
-                _ = &mut rpc_handle => {
+                _ = maybe_await(rpc_handle.as_mut()) => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     break;
                 }
-
             }
         }
 
         Ok(())
+    }
+
+    pub async fn run(self) -> Result<()> {
+        self.run_inner().await.map_err(|err| {
+            log::error!("Service finished work with error: {:?}", err);
+            err
+        })
+    }
+}
+
+pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
+    if let Some(f) = f {
+        f.await
+    } else {
+        future::pending().await
     }
 }
 
@@ -515,22 +552,46 @@ mod tests {
 
         Service::new(&Config {
             node_name: "test".to_string(),
-            database_path: tmp_dir.join("db"),
-            ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
+            ethereum_rpc: "ws://54.67.75.1:8546".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A".into(),
+            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
+                .parse()
+                .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
-            net_config,
+            sequencer: Default::default(),
+            validator: Default::default(),
+            sender_address: Default::default(),
+            net_config: Some(net_config),
             prometheus_config: Some(PrometheusConfig::new_with_default_registry(
                 SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
                 "dev".to_string(),
             )),
+            rpc_port: Some(9090),
+        })
+        .await
+        .unwrap();
+
+        // Disable all optional services
+        Service::new(&Config {
+            node_name: "test".to_string(),
+            ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
+            ethereum_beacon_rpc: "http://localhost:5052".into(),
+            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
+                .parse()
+                .expect("infallible"),
+            max_commitment_depth: 1000,
+            block_time: Duration::from_secs(1),
+            database_path: tmp_dir.join("db"),
+            key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
             validator: Default::default(),
             sender_address: Default::default(),
-            rpc_port: 9090,
+            net_config: None,
+            prometheus_config: None,
+            rpc_port: None,
         })
         .await
         .unwrap();

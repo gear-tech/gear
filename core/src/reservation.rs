@@ -22,7 +22,7 @@ use crate::{
     ids::{prelude::*, MessageId, ReservationId},
     message::IncomingDispatch,
 };
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
 use scale_info::{
     scale::{Decode, Encode},
@@ -50,7 +50,7 @@ impl From<&InnerNonce> for ReservationNonce {
 
 /// A changeable wrapper over u64 value, which is required
 /// to be used as an "active" reservations nonce in a gas reserver.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 struct InnerNonce(u64);
 
 impl InnerNonce {
@@ -73,7 +73,7 @@ impl From<ReservationNonce> for InnerNonce {
 /// Gas reserver.
 ///
 /// Controls gas reservations states.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct GasReserver {
     /// Message id within which reservations are created
     /// by the current instance of [`GasReserver`].
@@ -124,6 +124,11 @@ impl GasReserver {
             },
             max_reservations,
         }
+    }
+
+    /// Returns bool defining if gas reserver is empty.
+    pub fn is_empty(&self) -> bool {
+        self.states.is_empty()
     }
 
     /// Checks that the number of existing and newly created reservations
@@ -184,10 +189,15 @@ impl GasReserver {
         );
 
         if maybe_reservation.is_some() {
-            unreachable!(
-                "Duplicate reservation was created with message id {} and nonce {}",
-                self.message_id, self.nonce.0,
+            let err_msg = format!(
+                "GasReserver::reserve: created a duplicate reservation. \
+                Message id  - {message_id}, nonce - {nonce}",
+                message_id = self.message_id,
+                nonce = self.nonce.0
             );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
         }
 
         Ok(id)
@@ -226,7 +236,13 @@ impl GasReserver {
                 amount
             }
             GasReservationState::Created { amount, .. } => amount,
-            GasReservationState::Removed { .. } => unreachable!("Checked above"),
+            GasReservationState::Removed { .. } => {
+                let err_msg =
+                    "GasReserver::unreserve: `Removed` variant is unreachable, checked above";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
         };
 
         Ok(amount)

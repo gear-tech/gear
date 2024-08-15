@@ -51,7 +51,7 @@ futures-timer.workspace = true
 
 static_init = "1.0.3"
 
-#[dev-dependencies]
+[dev-dependencies]
 alloy = { workspace = true, features = [
     "consensus",
     "eips",

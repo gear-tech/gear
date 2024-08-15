@@ -98,8 +98,16 @@ impl Debug for MemoryInterval {
     }
 }
 
+/// Error in attempt to make wrong size page buffer.
+#[derive(Debug, Default, PartialEq, Eq, Clone, TypeInfo, derive_more::Display)]
+#[display(
+    fmt = "Trying to make wrong size page buffer, must be {:#x}",
+    GearPage::SIZE
+)]
+pub struct IntoPageBufError;
+
 /// Alias for inner type of page buffer.
-pub type PageBufInner = LimitedVec<u8, (), { GearPage::SIZE as usize }>;
+pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
 #[derive(Clone, PartialEq, Eq, TypeInfo)]
@@ -178,7 +186,7 @@ impl PageBuf {
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;
 
-const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
+const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
 /// Core memory error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
@@ -410,14 +418,21 @@ impl AllocationsContext {
         // TODO: store `heap` as field in `Self` instead of `static_pages` and `max_pages` #3932
         let heap = match Interval::try_from(self.static_pages..self.max_pages) {
             Ok(interval) => interval,
-            Err(TryFromRangeError::IncorrectRange) => unreachable!(
-                "Must be self.static_pages <= self.max_pages. This is guaranteed by `Self::try_new`."
-            ),
+            Err(TryFromRangeError::IncorrectRange) => {
+                let err_msg = format!(
+                    "AllocationContext:alloc: Must be self.static_pages <= self.max_pages. This is guaranteed by `Code::try_new`. \
+                    Static pages - {:?}, max pages - {:?}",
+                    self.static_pages, self.max_pages
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
             Err(TryFromRangeError::EmptyRange) => {
                 // If all memory is static, then no pages can be allocated.
                 // NOTE: returns an error even if `pages` == 0.
-                return Err(AllocError::ProgramAllocOutOfBounds)
-            },
+                return Err(AllocError::ProgramAllocOutOfBounds);
+            }
         };
 
         // If trying to allocate zero pages, then returns heap start page (legacy).
@@ -438,8 +453,15 @@ impl AllocationsContext {
         if let Ok(grow) = Interval::<WasmPage>::try_from(mem.size(ctx)..interval.end().inc()) {
             charge_gas_for_grow(grow.len())?;
             let grow_handler = G::before_grow_action(ctx, mem);
-            mem.grow(ctx, grow.len())
-                .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
+            mem.grow(ctx, grow.len()).unwrap_or_else(|err| {
+                let err_msg = format!(
+                    "AllocationContext:alloc: Failed to grow memory. \
+                        Got error - {err:?}",
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
             grow_handler.after_grow_action(ctx, mem);
         }
 

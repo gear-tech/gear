@@ -12,8 +12,8 @@ gpu-contracts-pre-commit:
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
 	@ echo " > Copying Router arfitact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-	@ echo " > Copying Program arfitact" && cp ./ethexe/contracts/out/Program.sol/Program.json ./ethexe/ethereum
-	@ echo " > Copying MinimalProgram arfitact" && cp ./ethexe/contracts/out/MinimalProgram.sol/MinimalProgram.json ./ethexe/ethereum
+	@ echo " > Copying Mirror arfitact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
+	@ echo " > Copying MirrorProxy arfitact" && cp ./ethexe/contracts/out/MirrorProxy.sol/MirrorProxy.json ./ethexe/ethereum
 	@ echo " > Copying WrappedVara arfitact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
 	@ echo " > Copying TransparentUpgradeableProxy arfitact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
 

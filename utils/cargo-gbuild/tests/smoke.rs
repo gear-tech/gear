@@ -27,13 +27,15 @@ fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     let program = Program::from_file(sys, prog);
 
     // Init program
-    let res = program.send_bytes(user, b"PING");
-    assert!(!res.main_failed());
+    let msg_id = program.send_bytes(user, b"PING");
+    let res = sys.run_next_block();
+    assert!(res.succeed.contains(&msg_id));
     assert!(res.contains(&(user, b"INIT_PONG")));
 
     // Handle program
-    let res = program.send_bytes(user, b"PING");
-    assert!(!res.main_failed());
+    let msg_id = program.send_bytes(user, b"PING");
+    let res = sys.run_next_block();
+    assert!(res.succeed.contains(&msg_id));
     assert!(res.contains(&(user, b"HANDLE_PONG")));
 
     program
@@ -52,12 +54,12 @@ fn test_compile() -> Result<()> {
 
     // 1. Test single package build.
     let mut gbuild = GBuild::default().manifest_path(root);
-    let artifacts = gbuild.run()?;
+    let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_program.wasm"));
 
     // 2. Test workspace build.
     gbuild = gbuild.workspace();
-    let artifacts = gbuild.run()?;
+    let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
     let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
 

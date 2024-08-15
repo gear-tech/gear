@@ -56,13 +56,13 @@ $ forge script script/Deployment.s.sol:DeploymentScript --rpc-url $HOLESKY_RPC_U
 ### Upgrade
 
 > [!WARNING]  
-> Before you run upgrade scripts, edit them depending on how you want to perform upgrade!
+> Before you run upgrade scripts, edit `reinitialize` method depending on how you want to perform upgrade!
 
 ```shell
 $ source .env
 
-$ forge script upgrades/Program.s.sol:ProgramScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
-$ forge script upgrades/Program.s.sol:ProgramScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/Mirror.s.sol:MirrorScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/Mirror.s.sol:MirrorScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 
 $ forge script upgrades/Router.s.sol:RouterScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
 $ forge script upgrades/Router.s.sol:RouterScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv

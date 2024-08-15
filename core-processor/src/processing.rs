@@ -19,8 +19,7 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, PrechargedDispatch, SystemExecutionError,
-        WasmExecutionContext,
+        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -29,6 +28,7 @@ use crate::{
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{
+    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -91,6 +91,8 @@ where
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
     let program_id = execution_context.program.id;
+    let initial_reservations_amount = execution_context.gas_reserver.states().len();
+
     let execution_context = WasmExecutionContext {
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
@@ -139,25 +141,52 @@ where
     });
 
     match exec_result {
-        Ok(res) => Ok(match res.kind {
-            DispatchResultKind::Trap(reason) => process_execution_error(
-                res.dispatch,
-                program_id,
-                res.gas_amount.burned(),
-                res.system_reservation_context,
-                ActorExecutionErrorReplyReason::Trap(reason),
-            ),
-            DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait(duration, ref waited_type) => {
-                process_success(Wait(duration, waited_type.clone()), res)
+        Ok(res) => {
+            match res.kind {
+                DispatchResultKind::Success
+                | DispatchResultKind::Wait(_, _)
+                | DispatchResultKind::Exit(_) => {
+                    // assert that after processing the initial reservation is less or equal to the current one.
+                    // during execution reservation amount might increase due to `system_reserve_gas` calls
+                    // thus making initial reservation less than current one.
+                    debug_assert!(
+                        res.context_store.system_reservation()
+                            >= system_reservation_ctx.previous_reservation
+                    );
+                    debug_assert!(
+                        system_reservation_ctx.previous_reservation
+                            == res.system_reservation_context.previous_reservation
+                    );
+                    debug_assert!(res
+                        .gas_reserver
+                        .as_ref()
+                        .map(|reserver| initial_reservations_amount <= reserver.states().len())
+                        .unwrap_or(true));
+                }
+                // reservation does not change in case of failure
+                _ => (),
             }
-            DispatchResultKind::Exit(value_destination) => {
-                process_success(Exit(value_destination), res)
-            }
-            DispatchResultKind::GasAllowanceExceed => {
-                process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
-            }
-        }),
+            Ok(match res.kind {
+                DispatchResultKind::Trap(reason) => process_execution_error(
+                    res.dispatch,
+                    program_id,
+                    res.gas_amount.burned(),
+                    res.system_reservation_context,
+                    ActorExecutionErrorReplyReason::Trap(reason),
+                ),
+
+                DispatchResultKind::Success => process_success(Success, res),
+                DispatchResultKind::Wait(duration, ref waited_type) => {
+                    process_success(Wait(duration, waited_type.clone()), res)
+                }
+                DispatchResultKind::Exit(value_destination) => {
+                    process_success(Exit(value_destination), res)
+                }
+                DispatchResultKind::GasAllowanceExceed => {
+                    process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
+                }
+            })
+        }
         Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
             dispatch,
             program_id,
@@ -256,10 +285,15 @@ fn process_error(
         let (err, err_payload) = case.to_reason_and_payload();
 
         // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload
-            .into_bytes()
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("Error message is too large"));
+        let err_payload = err_payload.into_bytes().try_into().unwrap_or_else(|_| {
+            let (_, err_payload) = case.to_reason_and_payload();
+            let err_msg =
+                format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         // # Safety
         //
@@ -345,11 +379,14 @@ pub fn process_reinstrumentation_error(
 }
 
 /// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(
-    context: PrechargedDispatch,
-    destination_id: ProgramId,
-) -> Vec<JournalNote> {
-    let (dispatch, gas_counter, _) = context.into_parts();
+pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(

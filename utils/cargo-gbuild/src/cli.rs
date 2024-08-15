@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{artifact::Artifacts, metadata::Metadata, Artifact};
+use crate::{artifact::Artifacts, metadata::Metadata, utils, Artifact, Command};
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
 use colored::Colorize;
-use gear_wasm_builder::CargoCommand;
+use gear_wasm_optimizer::CargoCommand;
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -30,10 +30,15 @@ use std::{
 const DEV_PROFILE: &str = "dev";
 const DEBUG_ARTIFACT: &str = "debug";
 const RELEASE_PROFILE: &str = "release";
+const ARTIFACT_DIR: &str = "gbuild";
 
 /// Command `gbuild` as cargo extension.
 #[derive(Parser, Default)]
 pub struct GBuild {
+    /// `cargo-gbuild` command
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
     /// Space or comma separated list of features to activate
     #[clap(short = 'F', long)]
     pub features: Vec<String>,
@@ -46,7 +51,7 @@ pub struct GBuild {
     #[clap(long)]
     pub profile: Option<String>,
 
-    /// If enables the release profile.
+    /// If enables the release profile
     #[clap(short, long)]
     pub release: bool,
 
@@ -75,8 +80,17 @@ impl GBuild {
         self
     }
 
-    /// Run the gbuild command
-    pub fn run(&self) -> Result<Artifacts> {
+    /// Run `cargo-gbuild`
+    pub fn run(self) -> Result<()> {
+        if let Some(command) = self.command {
+            command.run()
+        } else {
+            self.build().map(|_| ())
+        }
+    }
+
+    /// Build gear program
+    pub fn build(&self) -> Result<Artifacts> {
         let manifest_path = self
             .manifest_path
             .clone()
@@ -100,7 +114,7 @@ impl GBuild {
 
         // 2. setup gbuild artifacts.
         let artifacts = Artifacts::new(
-            target_dir.join("gbuild"),
+            target_dir.join(ARTIFACT_DIR),
             target_dir.join("wasm32-unknown-unknown").join(artifact),
             metadata,
             kargo,
@@ -117,14 +131,11 @@ impl GBuild {
 
         if let Some(p) = &self.profile {
             if self.release {
-                eprintln!(
-                    "{}: conflicting usage of --profile={} and --release
+                utils::error(
+                    b"conflicting usage of --profile={} and --release
 The `--release` flag is the same as `--profile=release`.
 Remove one flag or the other to continue.",
-                    "error".red().bold(),
-                    p
                 );
-                std::process::exit(1);
             }
 
             profile = Some(p.to_string());

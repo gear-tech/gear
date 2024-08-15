@@ -11,7 +11,7 @@ extra_output = ["storageLayout"]
 # Some warnings should be omitted
 ignored_warnings_from = [
     # Warning (3628): This contract has a payable fallback function, but no receive ether function
-    "src/MinimalProgram.sol",
+    "src/MirrorProxy.sol",
 ]
 
 [rpc_endpoints]

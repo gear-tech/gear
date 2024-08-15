@@ -19,7 +19,7 @@
 //! Module for pages which size can be different for different runtime versions.
 
 use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated, OptionBound};
-use std::{cmp::Ordering, marker::PhantomData, mem, num::NonZeroU32};
+use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32};
 
 /// Size number for dyn-size pages.
 pub trait SizeNumber: Copy + Ord + Eq {
@@ -73,7 +73,16 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         Page::<S>::max_value(ctx)
             .raw
             .checked_add(1)
-            .unwrap_or_else(|| unreachable!("Page size == 1 byte is restricted"))
+            .unwrap_or_else(|| {
+                let err_msg = format!(
+                    "Bound::upper: Page size == 1 byte is restricted. \
+                    Page max value - {}",
+                    Page::<S>::max_value(ctx).raw
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            })
     }
     fn new<M: SizeManager>(ctx: &M, raw: u32) -> Option<Self> {
         let page = match raw.cmp(&Self::upper(ctx)) {
@@ -84,12 +93,19 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         Some(page.into())
     }
     fn offset<M: SizeManager>(&self, ctx: &M) -> usize {
-        const _: () = assert!(mem::size_of::<usize>() > mem::size_of::<u32>());
+        const { assert!(size_of::<usize>() > size_of::<u32>()) };
         let raw = self.unbound().map(|p| p.raw).unwrap_or(Self::upper(ctx));
         (raw as usize)
             .checked_mul(Page::<S>::size(ctx) as usize)
             .unwrap_or_else(|| {
-                unreachable!("changing page size during program execution is restricted")
+                let err_msg = format!(
+                    "Bound::offset: changing page size during program execution is restricted. \
+                    Page number - {raw}, page size - {}",
+                    Page::<S>::size(ctx)
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
             })
     }
     fn convert<M: SizeManager, S1: SizeNumber>(self, ctx: &M) -> PagesAmount<S1> {
@@ -143,9 +159,17 @@ impl<S: SizeNumber> Page<S> {
 
     /// Returns offset of page.
     pub fn offset<M: SizeManager>(&self, ctx: &M) -> u32 {
-        self.raw
-            .checked_mul(Self::size(ctx))
-            .unwrap_or_else(|| unreachable!("`self` page size has been changed - it's restricted"))
+        self.raw.checked_mul(Self::size(ctx)).unwrap_or_else(|| {
+            let err_msg = format!(
+                "Bound::offset: `self` page size has been changed - it's restricted. \
+                    Page number - {}, page size - {}",
+                self.raw,
+                Self::size(ctx)
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        })
     }
 
     /// Returns offset of end of page.
@@ -154,7 +178,16 @@ impl<S: SizeNumber> Page<S> {
         self.raw
             .checked_mul(size)
             .and_then(|offset| offset.checked_add(size - 1))
-            .unwrap_or_else(|| unreachable!("`self` page size has been changed - it's restricted"))
+            .unwrap_or_else(|| {
+                let err_msg = format!(
+                    "Bound::end_offset: `self` page size has been changed - it's restricted. \
+                    Page number - {}, page size - {size}",
+                    self.raw,
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            })
     }
 
     /// Creates page from offset.

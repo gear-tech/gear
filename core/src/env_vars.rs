@@ -18,7 +18,7 @@
 
 //! Execution settings
 
-use core::{mem, slice};
+use core::slice;
 pub use gsys::EnvVars as EnvVarsV1;
 
 /// All supported versions of execution settings
@@ -36,7 +36,7 @@ impl EnvVars {
         match self {
             EnvVars::V1(v1) => {
                 let ptr = v1 as *const EnvVarsV1 as *const u8;
-                unsafe { slice::from_raw_parts(ptr, mem::size_of::<EnvVarsV1>()) }
+                unsafe { slice::from_raw_parts(ptr, size_of::<EnvVarsV1>()) }
             }
         }
     }

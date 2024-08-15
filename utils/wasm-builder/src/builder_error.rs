@@ -28,19 +28,6 @@ pub enum BuilderError {
     #[error("please add \"rlib\" to [lib.crate-type]")]
     CrateTypeInvalid,
 
-    #[error("cargo command run failed: {0}")]
-    CargoRunFailed(String),
-
     #[error("unable to find the root package in cargo metadata")]
     RootPackageNotFound,
-
-    #[error("cargo toolchain is invalid `{0}`")]
-    CargoToolchainInvalid(String),
-
-    #[error(
-        "recommended toolchain `{0}` not found, install it using the command:\n\
-        rustup toolchain install {0} --component llvm-tools --target wasm32-unknown-unknown\n\n\
-        after installation, do not forget to set `channel = \"{0}\"` in `rust-toolchain.toml` file"
-    )]
-    RecommendedToolchainNotFound(String),
 }

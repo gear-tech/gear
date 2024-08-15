@@ -75,12 +75,14 @@ mod tests {
         const MAX_ACTIONS_AMOUNT: usize = 1000;
         const MAX_NUMBER: u8 = 255;
 
-        // Check that check sum is less than u32::MAX
-        const _: () = assert!(
-            MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize
-        );
-        // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
-        const _: () = assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+        const {
+            // Check that check sum is less than u32::MAX
+            assert!(
+                MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize
+            );
+            // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
+            assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+        }
 
         let from = 42;
         let system = System::new();
@@ -101,20 +103,21 @@ mod tests {
             }
 
             // Init program
-            if program.send(from, InitConfig { actions }).main_failed() {
-                panic!("Init failed");
-            }
+            let msg_id = program.send(from, InitConfig { actions });
+            let res = system.run_next_block();
+            assert!(res.succeed.contains(&msg_id));
 
             let number: u8 = rng.gen_range(0..=MAX_NUMBER);
             let expected_check_sum = actions_amount * number as usize * HANDLE_DATA_SIZE;
 
             // Send data to handle
-            let res = program.send(
+            program.send(
                 from,
                 HandleData {
                     data: [number; HANDLE_DATA_SIZE],
                 },
             );
+            let res = system.run_next_block();
 
             assert_eq!(
                 expected_check_sum as u32,

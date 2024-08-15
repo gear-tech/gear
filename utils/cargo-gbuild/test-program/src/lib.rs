@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn test_init() {
-        gtest::ensure_gbuild();
+        gtest::ensure_gbuild(false);
 
         // Initialize system environment
         let system = System::new();
@@ -55,13 +55,15 @@ mod tests {
         let program = Program::current(&system);
 
         // Init program
-        let res = program.send_bytes(user, b"PING");
-        assert!(!res.main_failed());
+        let msg_id = program.send_bytes(user, b"PING");
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&(user, b"INIT_PONG")));
 
         // Handle program
-        let res = program.send_bytes(user, b"PING");
-        assert!(!res.main_failed());
+        let msg_id = program.send_bytes(user, b"PING");
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&(user, b"HANDLE_PONG")));
     }
 }

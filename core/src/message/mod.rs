@@ -32,6 +32,7 @@ pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails}
 pub use context::{
     ContextOutcome, ContextOutcomeDrain, ContextSettings, ContextStore, MessageContext,
 };
+pub use gear_core_errors::ReplyCode;
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
@@ -43,7 +44,6 @@ pub use user::{UserMessage, UserStoredMessage};
 use super::buffer::LimitedVec;
 use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use core::fmt::Display;
-use gear_core_errors::ReplyCode;
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
     scale::{Decode, Encode},
@@ -229,6 +229,9 @@ pub trait Packet {
 
     /// Packet value.
     fn value(&self) -> Value;
+
+    /// A dispatch kind the will be generated from the packet.
+    fn kind() -> DispatchKind;
 }
 
 /// The struct contains results of read only send message RPC call.

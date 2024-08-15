@@ -22,6 +22,7 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    format,
     vec::Vec,
 };
 use core::marker::PhantomData;
@@ -38,8 +39,8 @@ use gear_core::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
-        MessageContext, Packet, ReplyPacket,
+        ContextOutcomeDrain, ContextStore, Dispatch, DispatchKind, GasLimit, HandlePacket,
+        InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
         numerated::{interval::Interval, tree::IntervalsTree},
@@ -327,7 +328,14 @@ impl<Context, LP: LazyPagesInterface> GrowHandler<Context> for LazyGrowHandler<L
         // Add new allocations to lazy pages.
         // Protect all lazy pages including new allocations.
         let new_mem_addr = mem.get_buffer_host_addr(ctx).unwrap_or_else(|| {
-            unreachable!("Memory size cannot be zero after grow is applied for memory")
+            let err_msg = format!(
+                "LazyGrowHandler::after_grow_action: Memory size cannot be zero after grow is applied for memory. \
+                Old memory address - {:?}, old memory size - {:?}",
+                self.old_mem_addr, self.old_mem_size
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         });
         LP::update_lazy_pages_and_protect_again(
             ctx,
@@ -422,66 +430,6 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
         Ok(())
     }
 
-    // It's temporary fn, used to solve `core-audit/issue#22`.
-    fn safe_gasfull_sends<T: Packet>(
-        &mut self,
-        packet: &T,
-        delay: u32,
-    ) -> Result<(), FallibleExtError> {
-        // In case of delayed sending from origin message we keep some gas
-        // for it while processing outgoing sending notes so gas for
-        // previously gasless sends should appear to prevent their
-        // invasion for gas for storing delayed message.
-        match (packet.gas_limit(), delay != 0) {
-            // Zero gasfull instant.
-            //
-            // In this case there is nothing to do.
-            (Some(0), false) => Ok(()),
-
-            // Any non-zero gasfull or zero gasfull with delay.
-            //
-            // In case of zero gasfull with delay it's pretty similar to
-            // gasless with delay case.
-            //
-            // In case of any non-zero gasfull we prevent stealing for any
-            // previous gasless-es's thresholds from gas supposed to be
-            // sent with this `packet`.
-            (Some(_), _) => {
-                let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.ext.context.mailbox_threshold);
-                self.reduce_gas(prev_gasless_fee)?;
-                self.outgoing_gasless = 0;
-                Ok(())
-            }
-
-            // Gasless with delay.
-            //
-            // In this case we must give threshold for each uncovered gasless-es
-            // sent, otherwise they will steal gas from this `packet` that was
-            // supposed to pay for delay.
-            //
-            // It doesn't guarantee threshold for itself.
-            (None, true) => {
-                let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.ext.context.mailbox_threshold);
-                self.reduce_gas(prev_gasless_fee)?;
-                self.outgoing_gasless = 1;
-                Ok(())
-            }
-
-            // Gasless instant.
-            //
-            // In this case there is no need to give any thresholds for previous
-            // gasless-es: only counter should be increased.
-            (None, false) => {
-                self.outgoing_gasless = self.outgoing_gasless.saturating_add(1);
-                Ok(())
-            }
-        }
-    }
-
     fn mark_reservation_used(
         &mut self,
         reservation_id: ReservationId,
@@ -506,19 +454,45 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
         Ok(())
     }
 
-    fn charge_expiring_resources<T: Packet>(
-        &mut self,
-        packet: &T,
-        check_gas_limit: bool,
-    ) -> Result<(), FallibleExtError> {
-        let gas_limit = if check_gas_limit {
-            self.check_gas_limit(packet.gas_limit())?
-        } else {
-            packet.gas_limit().unwrap_or(0)
-        };
+    fn charge_expiring_resources<T: Packet>(&mut self, packet: &T) -> Result<(), FallibleExtError> {
+        let reducing_gas_limit = self.get_reducing_gas_limit(packet)?;
 
-        self.reduce_gas(gas_limit)?;
+        self.reduce_gas(reducing_gas_limit)?;
         self.charge_message_value(packet.value())
+    }
+
+    fn get_reducing_gas_limit<T: Packet>(&self, packet: &T) -> Result<u64, FallibleExtError> {
+        match T::kind() {
+            DispatchKind::Handle => {
+                // Any "handle" gasless and gasful *non zero* message must
+                // cover mailbox threshold. That's because destination
+                // of the message is unknown, so it could be a user,
+                // and if gasless message is sent, there must be a
+                // guaranteed gas to cover mailbox.
+                let mailbox_threshold = self.context.mailbox_threshold;
+                let gas_limit = packet.gas_limit().unwrap_or(mailbox_threshold);
+
+                // Zero gasful message is a special case.
+                if gas_limit != 0 && gas_limit < mailbox_threshold {
+                    return Err(MessageError::InsufficientGasLimit.into());
+                }
+
+                Ok(gas_limit)
+            }
+            DispatchKind::Init | DispatchKind::Reply => {
+                // Init and reply messages never go to mailbox.
+                //
+                // For init case, even if there's no code with a provided
+                // code id, the init message still goes to queue and then is handled as non
+                // executable, as there is no code for the destination actor.
+                //
+                // Also no reply to user messages go to mailbox, they all are emitted
+                // within events.
+
+                Ok(packet.gas_limit().unwrap_or(0))
+            }
+            DispatchKind::Signal => unreachable!("Signals can't be sent as a syscall"),
+        }
     }
 
     fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
@@ -720,18 +694,6 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         Ok(result)
     }
 
-    fn check_gas_limit(&self, gas_limit: Option<GasLimit>) -> Result<GasLimit, FallibleExtError> {
-        let mailbox_threshold = self.context.mailbox_threshold;
-        let gas_limit = gas_limit.unwrap_or(0);
-
-        // Sending gas should apply the range {0} ∪ [mailbox_threshold; +inf)
-        if gas_limit < mailbox_threshold && gas_limit != 0 {
-            Err(MessageError::InsufficientGasLimit.into())
-        } else {
-            Ok(gas_limit)
-        }
-    }
-
     /// Checking that reservation could be charged for
     /// dispatch stash with given delay.
     fn check_reservation_gas_limit_for_delayed_sending(
@@ -753,7 +715,11 @@ impl<LP: LazyPagesInterface> Ext<LP> {
                 .dispatch_stash
                 .cost_for(self.context.reserve_for.saturating_add(delay).into());
 
-            if limit < waiting_reserve {
+            // Gas reservation is known for covering mailbox threshold, as reservation
+            // is created after passing a check for that.
+            // By this check we guarantee that reservation is enough both for delay
+            // and for mailbox threshold.
+            if limit < waiting_reserve.saturating_add(self.context.mailbox_threshold) {
                 return Err(MessageError::InsufficientGasForDelayedSending.into());
             }
         }
@@ -841,14 +807,38 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             CounterType::GasLimit => gas.checked_sub(amount),
             CounterType::GasAllowance => allowance.checked_sub(amount),
         }
-        .unwrap_or_else(|| unreachable!("Checked above"));
+        .unwrap_or_else(|| {
+            let err_msg = format!(
+                "CounterOwner::decrease_current_counter_to: Checked sub operation overflowed. \
+                Message id - {message_id}, program id - {program_id}, current counter type - {current_counter_type:?}, \
+                gas - {gas}, allowance - {allowance}, amount - {amount}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, current_counter_type = self.current_counter_type()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
         if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
-            unreachable!("Tried to set gas limit left bigger than before")
+            let err_msg = format!(
+                "CounterOwner::decrease_current_counter_to: Tried to set gas limit left bigger than before. \
+                Message id - {message_id}, program id - {program_id}, gas counter - {gas_counter:?}, diff - {diff}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_counter = self.context.gas_counter
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         }
 
         if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
-            unreachable!("Tried to set gas allowance left bigger than before")
+            let err_msg = format!(
+                "CounterOwner::decrease_current_counter_to: Tried to set gas allowance left bigger than before. \
+                Message id - {message_id}, program id - {program_id}, gas allowance counter - {gas_allowance_counter:?}, diff - {diff}",
+                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_allowance_counter = self.context.gas_allowance_counter,
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         }
     }
 
@@ -978,8 +968,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     ) -> Result<MessageId, Self::FallibleError> {
         self.with_changes(|mutator| {
             mutator.check_forbidden_destination(msg.destination())?;
-            mutator.safe_gasfull_sends(&msg, delay)?;
-            mutator.charge_expiring_resources(&msg, true)?;
+            mutator.charge_expiring_resources(&msg)?;
             mutator.charge_sending_fee(delay)?;
             mutator.charge_for_dispatch_stash_hold(delay)?;
 
@@ -1029,8 +1018,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         self.with_changes(|mutator| {
             mutator
                 .check_forbidden_destination(mutator.context.message_context.reply_destination())?;
-            mutator.safe_gasfull_sends(&msg, 0)?;
-            mutator.charge_expiring_resources(&msg, false)?;
+            mutator.charge_expiring_resources(&msg)?;
             mutator.charge_sending_fee(0)?;
 
             mutator
@@ -1360,9 +1348,10 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
         let ed = self.context.existential_deposit;
         self.with_changes(|mutator| {
-            // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
-            mutator.safe_gasfull_sends(&packet, delay)?;
-            mutator.charge_expiring_resources(&packet, true)?;
+            // We don't check for forbidden destination here, since dest is always unique
+            // and almost impossible to match SYSTEM_ID
+
+            mutator.charge_expiring_resources(&packet)?;
             mutator.charge_sending_fee(delay)?;
             mutator.charge_for_dispatch_stash_hold(delay)?;
 
@@ -1497,12 +1486,6 @@ mod tests {
 
         fn with_allocation_context(mut self, ctx: AllocationsContext) -> Self {
             self.0.allocations_context = ctx;
-
-            self
-        }
-
-        fn with_mailbox_threshold(mut self, mailbox_threshold: u64) -> Self {
-            self.0.mailbox_threshold = mailbox_threshold;
 
             self
         }
@@ -2107,73 +2090,6 @@ mod tests {
                 used: true
             })
         ));
-    }
-
-    #[test]
-    fn test_gasful_after_gasless() {
-        let gas = 1_000_000_000;
-        let mut ext = Ext::new(
-            ProcessorContextBuilder::new()
-                .with_message_context(
-                    MessageContextBuilder::new()
-                        .with_outgoing_limit(u32::MAX)
-                        .build(),
-                )
-                .with_gas(GasCounter::new(gas))
-                .with_allowance(GasAllowanceCounter::new(gas))
-                .with_mailbox_threshold(1000)
-                .build(),
-        );
-
-        // Sending some gasless messages
-        let gasless_packet = HandlePacket::new(ProgramId::zero(), Default::default(), 0);
-        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 1);
-        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 2);
-        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 3);
-
-        // Sending fee is zero
-        assert_eq!(ext.current_counter_value(), gas);
-
-        // Now sending gasful message
-        let msg_gas = 1000;
-        let gasful_packet =
-            HandlePacket::new_with_gas(ProgramId::zero(), Default::default(), msg_gas, 0);
-        assert!(ext.send(gasful_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 0);
-        assert_eq!(
-            ext.current_counter_value(),
-            // reducing gas for the sent message and for mailbox threshold for each gasless
-            gas - msg_gas - 3 * ext.context.mailbox_threshold
-        );
-
-        // Sending another gasful
-        let gas = ext.current_counter_value();
-        assert!(ext.send(gasful_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 0);
-        assert_eq!(
-            ext.current_counter_value(),
-            // reducing gas the sent message only
-            gas - msg_gas
-        );
-
-        // Sending some more gasless
-        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 1);
-        assert!(ext.send(gasless_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 2);
-
-        // And another gasful
-        let gas = ext.current_counter_value();
-        assert!(ext.send(gasful_packet.clone(), 0).is_ok());
-        assert_eq!(ext.outgoing_gasless, 0);
-        assert_eq!(
-            ext.current_counter_value(),
-            // reducing gas for the sent message and for mailbox threshold for each gasless
-            gas - msg_gas - 2 * ext.context.mailbox_threshold
-        );
     }
 
     #[test]

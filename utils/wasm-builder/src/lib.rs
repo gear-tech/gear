@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-pub use cargo_command::CargoCommand;
+pub use gear_wasm_optimizer::{self as optimize, CargoCommand};
 pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 use crate::wasm_project::WasmProject;
@@ -31,13 +30,9 @@ use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
 
 mod builder_error;
-mod cargo_command;
-mod cargo_toolchain;
 pub mod code_validator;
 mod crate_info;
-pub mod optimize;
 mod smart_fs;
-mod stack_end;
 mod wasm_project;
 
 pub const TARGET: &str = env!("TARGET");
