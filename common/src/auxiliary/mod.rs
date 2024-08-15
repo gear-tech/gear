@@ -22,7 +22,7 @@
 
 pub mod gas_provider;
 pub mod mailbox;
-pub mod taskpool;
+pub mod task_pool;
 
 use crate::storage::{
     Counted, CountedByKey, DoubleMapStorage, GetFirstPos, GetSecondPos, IterableByKeyMap,

@@ -498,7 +498,7 @@ mod mailbox;
 mod manager;
 mod program;
 mod system;
-mod taskpool;
+mod task_pool;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
