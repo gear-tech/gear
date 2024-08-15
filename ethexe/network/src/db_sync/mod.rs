@@ -19,7 +19,7 @@
 mod ongoing;
 
 use crate::{
-    db_sync::ongoing::{OngoingRequests, OngoingResponses, PeerFailed, PeerResponse},
+    db_sync::ongoing::{OngoingRequests, OngoingResponses, OutOfRounds, PeerFailed, PeerResponse},
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
 };
@@ -44,9 +44,6 @@ use std::{
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum RequestFailure {}
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct RequestId(u64);
@@ -142,6 +139,11 @@ pub enum NewRequestRoundReason {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+pub enum RequestFailure {
+    OutOfRounds,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub enum Event {
     NewRequestRound {
         /// The ID of request
@@ -165,6 +167,26 @@ pub enum Event {
     },
 }
 
+#[derive(Debug, Clone)]
+pub struct Config {
+    max_rounds_per_request: u32,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            max_rounds_per_request: 10,
+        }
+    }
+}
+
+impl Config {
+    pub fn with_max_rounds_per_request(mut self, max_rounds_per_request: u32) -> Self {
+        self.max_rounds_per_request = max_rounds_per_request;
+        self
+    }
+}
+
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
 
 pub(crate) struct Behaviour {
@@ -174,10 +196,13 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    pub fn new(cfg: request_response::Config, db: Database) -> Self {
+    pub fn new(config: Config, db: Database) -> Self {
         Self {
-            inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], cfg),
-            ongoing_requests: OngoingRequests::default(),
+            inner: InnerBehaviour::new(
+                [(STREAM_PROTOCOL, ProtocolSupport::Full)],
+                request_response::Config::default(),
+            ),
+            ongoing_requests: OngoingRequests::from_config(&config),
             ongoing_responses: OngoingResponses::from_db(db),
         }
     }
@@ -228,6 +253,12 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PartialData,
                     },
+                    Err(PeerResponse::OutOfRounds(OutOfRounds { request_id })) => {
+                        Event::RequestFailed {
+                            request_id,
+                            error: RequestFailure::OutOfRounds,
+                        }
+                    }
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -260,7 +291,13 @@ impl Behaviour {
                             peer_id,
                             reason: NewRequestRoundReason::PeerFailed,
                         },
-                        Err(PeerFailed::ReQueued) => return Poll::Pending,
+                        Err(PeerFailed::PendingAgain) => return Poll::Pending,
+                        Err(PeerFailed::OutOfRounds(OutOfRounds { request_id })) => {
+                            Event::RequestFailed {
+                                request_id,
+                                error: RequestFailure::OutOfRounds,
+                            }
+                        }
                     };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -358,14 +395,20 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some((peer_id, request_id)) =
-            self.ongoing_requests.send_pending_request(&mut self.inner)
-        {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::NewRequestRound {
+        let event = match self.ongoing_requests.send_pending_request(&mut self.inner) {
+            Ok(Some((peer_id, request_id))) => Some(Event::NewRequestRound {
                 request_id,
                 peer_id,
                 reason: NewRequestRoundReason::FromQueue,
-            }));
+            }),
+            Ok(None) => None,
+            Err(OutOfRounds { request_id }) => Some(Event::RequestFailed {
+                request_id,
+                error: RequestFailure::OutOfRounds,
+            }),
+        };
+        if let Some(event) = event {
+            return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
         self.ongoing_responses
@@ -393,12 +436,16 @@ mod tests {
     use libp2p::Swarm;
     use libp2p_swarm_test::SwarmExt;
 
-    async fn new_swarm() -> (Swarm<Behaviour>, Database) {
+    async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let behaviour = Behaviour::new(request_response::Config::default(), db.clone());
+        let behaviour = Behaviour::new(config, db.clone());
         let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
         (swarm, db)
+    }
+
+    async fn new_swarm() -> (Swarm<Behaviour>, Database) {
+        new_swarm_with_config(Config::default()).await
     }
 
     #[test]
@@ -474,10 +521,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn request_response_type_mismatch() {
+    async fn out_of_rounds() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
+        let alice_config = Config::default().with_max_rounds_per_request(1);
+        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+
         let mut bob = Swarm::new_ephemeral(move |_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
@@ -525,7 +574,7 @@ mod tests {
                         event,
                         Event::RequestFailed {
                             request_id,
-                            error: unreachable!()
+                            error: RequestFailure::OutOfRounds,
                         }
                     );
                     break;

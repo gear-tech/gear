@@ -32,7 +32,7 @@ use libp2p::{
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
-    ping, request_response,
+    ping,
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
         NetworkBehaviour, SwarmEvent,
@@ -466,7 +466,7 @@ impl Behaviour {
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 
-        let db_sync = db_sync::Behaviour::new(request_response::Config::default(), db);
+        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), db);
 
         Ok(Self {
             custom_connection_limits,

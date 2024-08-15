@@ -4998,6 +4998,7 @@ version = "1.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "derive_more",
  "env_logger",
  "ethexe-db",
  "ethexe-signer",

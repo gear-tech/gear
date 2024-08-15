@@ -22,6 +22,7 @@ log.workspace = true
 parity-scale-codec.workspace = true
 async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
+derive_more.workspace = true
 void = "1.0.2"
 
 [dependencies.libp2p]
