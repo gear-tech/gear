@@ -62,14 +62,14 @@ impl Bank {
     #[track_caller]
     pub(crate) fn spend_gas(
         &mut self,
-        from: ProgramId,
+        id: ProgramId,
         gas: Gas,
         multiplier: GasMultiplier<Value, Gas>,
     ) {
         let gas_value = multiplier.gas_to_value(gas);
         self.accounts
-            .get_mut(&from)
-            .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {from:?} not found in bank"))
+            .get_mut(&id)
+            .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {id:?} not found in bank"))
             .gas -= gas_value;
     }
 
@@ -77,18 +77,17 @@ impl Bank {
     #[track_caller]
     pub(crate) fn withdraw_gas(
         &mut self,
-        from: ProgramId,
-        to: ProgramId,
+        id: ProgramId,
         gas_left: Gas,
         multiplier: GasMultiplier<Value, Gas>,
     ) {
         let gas_left_value = multiplier.gas_to_value(gas_left);
         self.accounts
-            .get_mut(&from)
-            .unwrap_or_else(|| panic!("Bank::withdraw_gas: actor id {from:?} not found in bank"))
+            .get_mut(&id)
+            .unwrap_or_else(|| panic!("Bank::withdraw_gas: actor id {id:?} not found in bank"))
             .gas -= gas_left_value;
         let value = multiplier.gas_to_value(gas_left);
-        Accounts::increase(to, value);
+        Accounts::increase(id, value);
     }
 
     // Transfer value.

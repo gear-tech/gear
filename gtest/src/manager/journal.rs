@@ -115,7 +115,7 @@ impl JournalHandler for ExtManager {
 
             // Unreserving funds, if left non-zero amount of gas.
             if gas_left != 0 {
-                self.bank.withdraw_gas(id, id, gas_left, multiplier);
+                self.bank.withdraw_gas(id, gas_left, multiplier);
             }
         }
     }
