@@ -269,8 +269,7 @@ impl NetworkEventLoop {
                     .authenticate(libp2p::plaintext::Config::new(&keypair))
                     .multiplex(libp2p::yamux::Config::default())
                     .boxed();
-                let behaivour =
-                    Behaviour::new(&keypair, db).map_err(|err| anyhow::anyhow!(err))?;
+                let behaivour = Behaviour::new(&keypair, db).map_err(|err| anyhow::anyhow!(err))?;
                 let config = SwarmConfig::with_tokio_executor()
                     .with_substream_upgrade_protocol_override(upgrade::Version::V1);
 
@@ -538,6 +537,7 @@ fn gpu_commitments_topic() -> gossipsub::IdentTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethexe_db::MemDb;
     use tokio::time::{timeout, Duration};
 
     #[tokio::test]
@@ -547,7 +547,8 @@ mod tests {
         let tmp_dir1 = tempfile::tempdir().unwrap();
         let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
         let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
-        let service1 = NetworkService::new(config.clone(), &signer1).unwrap();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
 
         let peer_id = service1.event_loop.local_peer_id().to_string();
 
@@ -561,10 +562,11 @@ mod tests {
         let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
         let mut config2 =
             NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/2");
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
 
         config2.bootstrap_addresses = [multiaddr].into();
 
-        let service2 = NetworkService::new(config2.clone(), &signer2).unwrap();
+        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
 
         tokio::spawn(service2.event_loop.run());
 
@@ -576,13 +578,15 @@ mod tests {
 
         sender.publish_commitments(commitment_data.clone());
 
-        let mut gossip_stream = service2.gossip_stream;
+        let mut receiver = service2.receiver;
 
         // Wait for the commitment to be received by service2
         let received_commitment = timeout(Duration::from_secs(5), async {
-            while let Some(message) = gossip_stream.next().await {
-                if message.data == commitment_data {
-                    return Some(message);
+            while let Some(NetworkReceiverEvent::Commitments { source: _, data }) =
+                receiver.recv().await
+            {
+                if data == commitment_data {
+                    return Some(data);
                 }
             }
 
