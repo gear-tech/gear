@@ -30,8 +30,6 @@ const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
 pub struct Actor<T: Config>(PhantomData<T>);
 
 impl<T: Config> BuiltinActor for Actor<T> {
-    const ID: u64 = 1;
-
     type Error = BuiltinActorError;
 
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
@@ -57,10 +55,15 @@ impl<T: Config> BuiltinActor for Actor<T> {
 
         (
             result.map(|response| {
-                response
-                    .encode()
-                    .try_into()
-                    .unwrap_or_else(|_| unreachable!("Response message is too large"))
+                response.encode().try_into().unwrap_or_else(|err| {
+                    let err_msg = format!(
+                        "Actor::handle: Response message is too large. \
+                        Response - {response:X?}. Got error - {err:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                })
             }),
             gas_spent,
         )

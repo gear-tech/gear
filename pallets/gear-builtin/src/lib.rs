@@ -49,8 +49,10 @@ pub use weights::WeightInfo;
 
 use alloc::{
     collections::{btree_map::Entry, BTreeMap},
+    format,
     string::ToString,
 };
+use core::marker::PhantomData;
 use core_processor::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
     process_execution_error, process_success, SuccessfulDispatchResultKind,
@@ -109,11 +111,26 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
 pub trait BuiltinActor {
     type Error;
 
-    /// The global unique ID of the trait implementer type.
-    const ID: u64;
-
     /// Handles a message and returns a result and the actual gas spent.
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64);
+}
+
+/// A marker struct to associate a builtin actor with its unique ID.
+pub struct ActorWithId<const ID: u64, A: BuiltinActor>(PhantomData<A>);
+
+/// Glue trait to implement `BuiltinCollection` for a tuple of `ActorWithId`.
+trait BuiltinActorWithId {
+    const ID: u64;
+
+    type Error;
+    type Actor: BuiltinActor<Error = Self::Error>;
+}
+
+impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
+    const ID: u64 = ID;
+
+    type Error = A::Error;
+    type Actor = A;
 }
 
 /// A trait defining a method to convert a tuple of `BuiltinActor` types into
@@ -127,7 +144,7 @@ pub trait BuiltinCollection<E> {
 
 // Assuming as many as 16 builtin actors for the meantime
 #[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(BuiltinActor<Error = E> + 'static)]
+#[tuple_types_custom_trait_bound(BuiltinActorWithId<Error = E> + 'static)]
 impl<E> BuiltinCollection<E> for Tuple {
     fn collect(
         registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
@@ -137,9 +154,15 @@ impl<E> BuiltinCollection<E> for Tuple {
             #(
                 let actor_id = id_converter(Tuple::ID);
                 if let Entry::Vacant(e) = registry.entry(actor_id) {
-                    e.insert(Box::new(Tuple::handle));
+                    e.insert(Box::new(Tuple::Actor::handle));
                 } else {
-                    unreachable!("Duplicate builtin ids");
+                    let err_msg = format!(
+                        "Tuple::for_tuples: Duplicate builtin ids. \
+                        Actor id - {actor_id}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
                 }
             )*
         );
@@ -236,10 +259,19 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         let actor_id = dispatch.destination();
 
         if dispatch.kind() != DispatchKind::Handle {
-            unreachable!("Only handle dispatches can end up here");
+            let err_msg = format!(
+                "BuiltinRegistry::run: Only handle dispatches can end up here. \
+                Dispatch kind - {dispatch_kind:?}",
+                dispatch_kind = dispatch.kind()
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
         }
         if dispatch.context().is_some() {
-            unreachable!("Builtin actors can't have context from earlier executions");
+            unreachable!(
+                "BuiltinRegistry::run: Builtin actors can't have context from earlier executions"
+            );
         }
 
         // Creating a gas counter to track gas usage (because core processor needs it).
@@ -275,9 +307,9 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     MessageContext::new(dispatch, actor_id, Default::default()).unwrap_or_else(
                         || {
                             unreachable!(
-                                "Builtin actor can't have context stored,
+                                "BuiltinRegistry::run: Builtin actor can't have context stored,
                                  so must be always possible to create a new message context"
-                            )
+                            );
                         },
                     );
                 let packet = ReplyPacket::new(response_payload, 0);
@@ -294,7 +326,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     dispatch_result.generated_dispatches = generated_dispatches;
                     dispatch_result.reply_sent = true;
                 } else {
-                    unreachable!("Failed to send reply from builtin actor");
+                    unreachable!("BuiltinRegistry::run: Failed to send reply from builtin actor");
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
