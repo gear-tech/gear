@@ -21,6 +21,7 @@ mod ongoing;
 use crate::{
     db_sync::ongoing::{
         OngoingRequests, OngoingResponses, PeerFailed, PeerResponse, SendRequestError,
+        SendRequestErrorKind,
     },
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
@@ -171,12 +172,6 @@ pub enum Event {
     },
 }
 
-impl From<SendRequestError> for Event {
-    fn from(SendRequestError { request_id, error }: SendRequestError) -> Self {
-        Self::RequestFailed { request_id, error }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Config {
     max_rounds_per_request: u32,
@@ -270,7 +265,17 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PartialData,
                     },
-                    Err(PeerResponse::SendRequest(error)) => Event::from(error),
+                    Err(PeerResponse::SendRequest(SendRequestError {
+                        request_id,
+                        kind: SendRequestErrorKind::OutOfRounds,
+                    })) => Event::RequestFailed {
+                        request_id,
+                        error: RequestFailure::OutOfRounds,
+                    },
+                    Err(PeerResponse::SendRequest(SendRequestError {
+                        request_id: _,
+                        kind: SendRequestErrorKind::Pending,
+                    })) => return Poll::Pending,
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -303,8 +308,17 @@ impl Behaviour {
                             peer_id,
                             reason: NewRequestRoundReason::PeerFailed,
                         },
-                        Err(PeerFailed::PendingAgain) => return Poll::Pending,
-                        Err(PeerFailed::SendRequest(error)) => Event::from(error),
+                        Err(PeerFailed::SendRequest(SendRequestError {
+                            request_id,
+                            kind: SendRequestErrorKind::OutOfRounds,
+                        })) => Event::RequestFailed {
+                            request_id,
+                            error: RequestFailure::OutOfRounds,
+                        },
+                        Err(PeerFailed::SendRequest(SendRequestError {
+                            request_id: _,
+                            kind: SendRequestErrorKind::Pending,
+                        })) => return Poll::Pending,
                     };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -416,7 +430,17 @@ impl NetworkBehaviour for Behaviour {
                 reason: NewRequestRoundReason::FromQueue,
             }),
             Ok(None) => None,
-            Err(error) => Some(Event::from(error)),
+            Err(SendRequestError {
+                request_id,
+                kind: SendRequestErrorKind::OutOfRounds,
+            }) => Some(Event::RequestFailed {
+                request_id,
+                error: RequestFailure::OutOfRounds,
+            }),
+            Err(SendRequestError {
+                request_id: _,
+                kind: SendRequestErrorKind::Pending,
+            }) => None,
         };
         if let Some(event) = event {
             return Poll::Ready(ToSwarm::GenerateEvent(event));

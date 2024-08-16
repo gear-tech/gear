@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    db_sync::{Config, InnerBehaviour, Request, RequestFailure, RequestId, Response},
+    db_sync::{Config, InnerBehaviour, Request, RequestId, Response},
     export::PeerId,
 };
 use ethexe_db::{CodesStorage, Database};
@@ -36,15 +36,16 @@ use std::{
 };
 use tokio::{task::JoinSet, time, time::Sleep};
 
-enum SendRequest {
-    SentTo(PeerId),
-    NoPeers(OngoingRequest),
-}
-
 #[derive(Debug)]
 pub(crate) struct SendRequestError {
     pub(crate) request_id: RequestId,
-    pub(crate) error: RequestFailure,
+    pub(crate) kind: SendRequestErrorKind,
+}
+
+#[derive(Debug)]
+pub(crate) enum SendRequestErrorKind {
+    OutOfRounds,
+    Pending,
 }
 
 #[derive(Debug, derive_more::From)]
@@ -59,7 +60,6 @@ pub(crate) enum PeerResponse {
 
 #[derive(Debug, derive_more::From)]
 pub(crate) enum PeerFailed {
-    PendingAgain,
     #[from]
     SendRequest(SendRequestError),
 }
@@ -103,10 +103,8 @@ impl OngoingRequest {
             log::trace!(
                 "response validation failed for request {request_id:?} from {peer}: {error:?}",
             );
-            return Err(self);
-        }
-
-        if let Some(new_request) = self.request.difference(&response) {
+            Err(self)
+        } else if let Some(new_request) = self.request.difference(&response) {
             self.request = new_request;
             self.response = Some(self.merge_response(response));
             Err(self)
@@ -130,7 +128,7 @@ impl OngoingRequest {
         if self.tried_peers.len() >= max_rounds_per_request as usize {
             return Err(SendRequestError {
                 request_id: self.request_id,
-                error: RequestFailure::OutOfRounds,
+                kind: SendRequestErrorKind::OutOfRounds,
             });
         }
 
@@ -223,12 +221,11 @@ impl OngoingRequests {
         Some(outgoing_request.request_id)
     }
 
-    /// Send actual request to behaviour and tracks its state.
     fn send_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
         mut ongoing_request: OngoingRequest,
-    ) -> Result<SendRequest, SendRequestError> {
+    ) -> Result<PeerId, SendRequestError> {
         let peer_id =
             ongoing_request.choose_next_peer(&self.connections, self.max_rounds_per_request)?;
         if let Some(peer_id) = peer_id {
@@ -238,9 +235,14 @@ impl OngoingRequests {
             self.active_requests
                 .insert(outbound_request_id, ongoing_request);
 
-            Ok(SendRequest::SentTo(peer_id))
+            Ok(peer_id)
         } else {
-            Ok(SendRequest::NoPeers(ongoing_request))
+            let request_id = ongoing_request.request_id;
+            self.pending_requests.push_back(ongoing_request);
+            Err(SendRequestError {
+                request_id,
+                kind: SendRequestErrorKind::Pending,
+            })
         }
     }
 
@@ -253,14 +255,8 @@ impl OngoingRequests {
         };
 
         let request_id = ongoing_request.request_id;
-
-        match self.send_request(behaviour, ongoing_request)? {
-            SendRequest::SentTo(peer_id) => Ok(Some((peer_id, request_id))),
-            SendRequest::NoPeers(ongoing_request) => {
-                self.pending_requests.push_back(ongoing_request);
-                Ok(None)
-            }
-        }
+        let peer_id = self.send_request(behaviour, ongoing_request)?;
+        Ok(Some((peer_id, request_id)))
     }
 
     pub(crate) fn on_peer_response(
@@ -275,21 +271,17 @@ impl OngoingRequests {
             .remove(&request_id)
             .expect("unknown response");
         let request_id = ongoing_request.request_id;
-        match ongoing_request.try_complete(peer, response) {
-            Ok(response) => Ok((request_id, response)),
-            Err(new_ongoing_request) => match self.send_request(behaviour, new_ongoing_request)? {
-                SendRequest::SentTo(peer_id) => Err(PeerResponse::NewRound {
-                    peer_id,
-                    request_id,
-                }),
-                SendRequest::NoPeers(new_ongoing_request) => Ok((
-                    request_id,
-                    new_ongoing_request
-                        .response
-                        .expect("`try_complete` called above"),
-                )),
-            },
-        }
+
+        let new_ongoing_request = match ongoing_request.try_complete(peer, response) {
+            Ok(response) => return Ok((request_id, response)),
+            Err(new_ongoing_request) => new_ongoing_request,
+        };
+
+        let peer_id = self.send_request(behaviour, new_ongoing_request)?;
+        Err(PeerResponse::NewRound {
+            peer_id,
+            request_id,
+        })
     }
 
     pub(crate) fn on_peer_failed(
@@ -304,13 +296,8 @@ impl OngoingRequests {
             .expect("unknown response");
         let request_id = ongoing_request.request_id;
         let new_ongoing_request = ongoing_request.peer_failed(peer);
-        match self.send_request(behaviour, new_ongoing_request)? {
-            SendRequest::SentTo(peer_id) => Ok((peer_id, request_id)),
-            SendRequest::NoPeers(new_ongoing_request) => {
-                self.pending_requests.push_back(new_ongoing_request);
-                Err(PeerFailed::PendingAgain)
-            }
-        }
+        let peer_id = self.send_request(behaviour, new_ongoing_request)?;
+        Ok((peer_id, request_id))
     }
 }
 
