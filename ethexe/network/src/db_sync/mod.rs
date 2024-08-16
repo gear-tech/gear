@@ -137,22 +137,25 @@ impl Response {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum NewRequestRoundReason {
-    /// Request was queued for the first time or re-queued
+    /// Request was queued for the first time or re-queued because of there are no available peers
     FromQueue,
     /// We have only part of the data
     PartialData,
-    /// Peer failed to respond
+    /// Peer failed to respond or response validation failed
     PeerFailed,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum RequestFailure {
+    /// Request exceeded its round limit
     OutOfRounds,
+    /// Request had been processing for too long
     Timeout,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Event {
+    /// Request is processing new round
     NewRequestRound {
         /// The ID of request
         request_id: RequestId,
@@ -161,28 +164,33 @@ pub enum Event {
         /// Reason for new request round
         reason: NewRequestRoundReason,
     },
+    /// Request is in pending state because of lack of available peers
     PendingStateRequest {
         //// The ID of request
         request_id: RequestId,
     },
+    /// Request completion done
     RequestSucceed {
         /// The ID of request
         request_id: RequestId,
         /// Response to the request itself
         response: Response,
     },
+    /// Request failed
     RequestFailed {
         /// The ID of request
         request_id: RequestId,
         /// Reason of request failure
         error: RequestFailure,
     },
+    /// Incoming request
     IncomingRequest {
         /// The ID of in-progress response
         response_id: ResponseId,
         /// Peer who requested
         peer_id: PeerId,
     },
+    /// Response sent to incoming request
     ResponseSent {
         /// The ID of completed response
         response_id: ResponseId,
