@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod custom_connection_limits;
-mod db_sync;
+pub mod db_sync;
 mod utils;
 
 pub mod export {

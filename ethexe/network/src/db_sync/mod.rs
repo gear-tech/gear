@@ -200,7 +200,7 @@ pub enum Event {
 }
 
 #[derive(Debug, Clone)]
-pub struct Config {
+pub(crate) struct Config {
     max_rounds_per_request: u32,
     request_timeout: Duration,
 }
@@ -214,13 +214,14 @@ impl Default for Config {
     }
 }
 
+#[cfg(test)] // used only in tests yet
 impl Config {
-    pub fn with_max_rounds_per_request(mut self, max_rounds_per_request: u32) -> Self {
+    pub(crate) fn with_max_rounds_per_request(mut self, max_rounds_per_request: u32) -> Self {
         self.max_rounds_per_request = max_rounds_per_request;
         self
     }
 
-    pub fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
+    pub(crate) fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
         self.request_timeout = request_timeout;
         self
     }
@@ -235,7 +236,7 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    pub fn new(config: Config, db: Database) -> Self {
+    pub(crate) fn new(config: Config, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
@@ -246,7 +247,7 @@ impl Behaviour {
         }
     }
 
-    pub fn request(&mut self, request: Request) -> RequestId {
+    pub(crate) fn request(&mut self, request: Request) -> RequestId {
         self.ongoing_requests.push_pending_request(request)
     }
 
