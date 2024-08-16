@@ -28,8 +28,6 @@ use std::path::PathBuf;
 enum Command {
     /// Build manifests for packages that to be published.
     Build,
-    /// Check packages that to be published.
-    Check,
     /// Publish packages.
     Publish {
         /// The version to publish.
@@ -59,12 +57,6 @@ async fn main() -> Result<()> {
     let Opt { command } = Opt::parse();
 
     match command {
-        Command::Check => {
-            let publisher = Publisher::new()?.build(false, None)?;
-            let result = publisher.check();
-            publisher.restore()?;
-            result
-        }
         Command::Publish {
             version,
             simulate,

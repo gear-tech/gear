@@ -68,11 +68,6 @@ impl Publisher {
                 continue;
             };
 
-            // TODO: remove this check
-            /*if !["gear-ss58", "gprimitives"].contains(name) {
-                continue;
-            }*/
-
             if verify && crate::verify(name, &version, self.simulator.as_ref())? {
                 println!("Package {name}@{version} already published!");
                 continue;
