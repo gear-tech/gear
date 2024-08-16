@@ -6821,6 +6821,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gear-wasm-optimizer",
  "gmeta",
+ "itertools 0.13.0",
  "log",
  "parity-wasm",
  "pathdiff",
