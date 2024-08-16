@@ -139,11 +139,11 @@ impl Validator {
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {
         let CodeCommitment { id: code_id, valid } = request;
         if db
-            .code_approved(code_id)
-            .ok_or(anyhow!("Code {code_id} is not processed by this node"))?
+            .code_valid(code_id)
+            .ok_or(anyhow!("Code {code_id} is not validated by this node"))?
             .ne(&valid)
         {
-            return Err(anyhow!("Requested and local code approval mismatch"));
+            return Err(anyhow!("Requested and local code validation results mismatch"));
         }
         Ok(())
     }
@@ -291,7 +291,7 @@ mod tests {
         )
         .expect_err("Code is not in db");
 
-        db.set_code_approved(code_id, true);
+        db.set_code_valid(code_id, true);
         Validator::validate_code_commitment(
             &db,
             CodeCommitment {
@@ -299,7 +299,7 @@ mod tests {
                 valid: false,
             },
         )
-        .expect_err("Approval mismatch");
+        .expect_err("Code validation result mismatch");
 
         Validator::validate_code_commitment(
             &db,

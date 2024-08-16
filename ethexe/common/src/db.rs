@@ -88,6 +88,6 @@ pub trait CodesStorage: Send + Sync {
     fn code_blob_tx(&self, code_id: CodeId) -> Option<H256>;
     fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256);
 
-    fn code_approved(&self, code_id: CodeId) -> Option<bool>;
-    fn set_code_approved(&self, code_id: CodeId, approved: bool);
+    fn code_valid(&self, code_id: CodeId) -> Option<bool>;
+    fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
