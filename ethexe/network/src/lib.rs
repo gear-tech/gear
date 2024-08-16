@@ -388,9 +388,9 @@ impl NetworkEventLoop {
                     },
                 ..
             }) if gpu_commitments_topic().hash() == topic => {
-                self.tx
-                    .send(NetworkReceiverEvent::Commitments { source, data })
-                    .expect("channel dropped unexpectedly");
+                let _res = self
+                    .tx
+                    .send(NetworkReceiverEvent::Commitments { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
