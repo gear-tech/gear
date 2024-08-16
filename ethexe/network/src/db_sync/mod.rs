@@ -161,10 +161,14 @@ pub enum Event {
         /// Reason for new request round
         reason: NewRequestRoundReason,
     },
+    PendingStateRequest {
+        //// The ID of request
+        request_id: RequestId,
+    },
     RequestSucceed {
         /// The ID of request
         request_id: RequestId,
-        /// Response itself
+        /// Response to the request itself
         response: Response,
     },
     RequestFailed {
@@ -296,9 +300,9 @@ impl Behaviour {
                         error: RequestFailure::OutOfRounds,
                     },
                     Err(PeerResponse::SendRequest(SendRequestError {
-                        request_id: _,
+                        request_id,
                         kind: SendRequestErrorKind::Pending,
-                    })) => return Poll::Pending,
+                    })) => Event::PendingStateRequest { request_id },
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -339,9 +343,9 @@ impl Behaviour {
                             error: RequestFailure::OutOfRounds,
                         },
                         Err(PeerFailed::SendRequest(SendRequestError {
-                            request_id: _,
+                            request_id,
                             kind: SendRequestErrorKind::Pending,
-                        })) => return Poll::Pending,
+                        })) => Event::PendingStateRequest { request_id },
                     };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -771,5 +775,60 @@ mod tests {
                 )
             }
         );
+    }
+
+    #[tokio::test]
+    async fn request_completed_after_new_peer() {
+        init_logger();
+
+        let (mut alice, _alice_db) = new_swarm().await;
+        let (mut bob, bob_db) = new_swarm().await;
+        let (charlie, charlie_db) = new_swarm().await;
+        let charlie_addr = charlie.external_addresses().next().cloned().unwrap();
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let hello_hash = bob_db.write(b"hello");
+        let world_hash = charlie_db.write(b"world");
+
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::DataForHashes([hello_hash, world_hash].into()));
+
+        // first round
+        let event = alice.next_behaviour_event().await;
+        assert!(
+            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert!(
+            matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id)
+        );
+
+        tokio::spawn(charlie.loop_on_next());
+        alice.dial_and_wait(charlie_addr).await;
+
+        // second round
+        let event = alice.next_behaviour_event().await;
+        assert!(
+            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestSucceed {
+                request_id,
+                response: Response::DataForHashes(
+                    [
+                        (hello_hash, b"hello".to_vec()),
+                        (world_hash, b"world".to_vec())
+                    ]
+                    .into()
+                )
+            }
+        )
     }
 }
