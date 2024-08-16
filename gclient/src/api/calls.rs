@@ -1507,6 +1507,28 @@ impl GearApi {
         Err(Error::EventNotFound)
     }
 
+    /// Same as [`send_message_bytes_with_voucher`](Self::send_message_bytes_with_voucher), but sends a
+    /// message with encoded `payload`.
+    pub async fn send_message_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        destination: ProgramId,
+        payload: impl Encode,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, H256)> {
+        self.send_message_bytes_with_voucher(
+            voucher_id,
+            destination,
+            payload.encode(),
+            gas_limit,
+            value,
+            keep_alive,
+        )
+        .await
+    }
+
     /// Same as [`send_reply_bytes`](Self::send_reply_bytes), but sends a reply
     /// using voucher.
     pub async fn send_reply_bytes_with_voucher(
@@ -1551,5 +1573,27 @@ impl GearApi {
         }
 
         Err(Error::EventNotFound)
+    }
+
+    /// Same as [`send_reply_bytes_with_voucher`](Self::send_reply_bytes_with_voucher), but sends a reply
+    /// with encoded `payload`.
+    pub async fn send_reply_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        reply_to_id: MessageId,
+        payload: impl Encode,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, u128, H256)> {
+        self.send_reply_bytes_with_voucher(
+            voucher_id,
+            reply_to_id,
+            payload.encode(),
+            gas_limit,
+            value,
+            keep_alive,
+        )
+        .await
     }
 }
