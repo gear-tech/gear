@@ -18,7 +18,7 @@
 
 //! Integration tests.
 
-use crate::{config::SyncMode, service::Service};
+use crate::service::Service;
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
@@ -279,7 +279,6 @@ impl TestEnv {
             Some(validator),
             None,
             None,
-            SyncMode::Full,
         );
 
         let handle = task::spawn(service.run());

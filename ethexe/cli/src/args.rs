@@ -20,7 +20,7 @@
 
 use crate::{
     config,
-    params::{NetworkParams, PrometheusParams, SyncModeParams},
+    params::{NetworkParams, PrometheusParams},
 };
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
@@ -88,9 +88,6 @@ pub struct Args {
     /// Ethexe uses it to estimate inner timeouts.
     #[arg(long, default_value = "12")]
     pub block_time: u64,
-
-    #[arg(long = "sync-mode", default_value_t)]
-    pub sync_mode: SyncModeParams,
 
     /// Run a temporary node.
     ///

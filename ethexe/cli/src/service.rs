@@ -19,7 +19,7 @@
 //! Main service in ethexe node.
 
 use crate::{
-    config::{Config, ConfigPublicKey, PrometheusConfig, SyncMode},
+    config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
 use anyhow::{anyhow, Ok, Result};
@@ -47,7 +47,6 @@ pub struct Service {
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
-    _sync_mode: SyncMode,
 
     // Optional services
     network: Option<ethexe_network::NetworkService>,
@@ -159,7 +158,6 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.block_time,
-            _sync_mode: config.sync_mode,
         })
     }
 
@@ -185,7 +183,6 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        sync_mode: SyncMode,
     ) -> Self {
         Self {
             db,
@@ -199,7 +196,6 @@ impl Service {
             validator,
             metrics_service,
             rpc,
-            _sync_mode: sync_mode,
         }
     }
 
@@ -396,7 +392,6 @@ impl Service {
             metrics_service,
             rpc,
             block_time,
-            _sync_mode,
         } = self;
 
         if let Some(metrics_service) = metrics_service {
@@ -541,7 +536,7 @@ pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
 #[cfg(test)]
 mod tests {
     use super::Service;
-    use crate::config::{Config, PrometheusConfig, SyncMode};
+    use crate::config::{Config, PrometheusConfig};
     use std::{
         net::{Ipv4Addr, SocketAddr},
         time::Duration,
@@ -576,7 +571,6 @@ mod tests {
                 "dev".to_string(),
             )),
             rpc_port: Some(9090),
-            sync_mode: SyncMode::Full,
         })
         .await
         .unwrap();
@@ -599,7 +593,6 @@ mod tests {
             net_config: None,
             prometheus_config: None,
             rpc_port: None,
-            sync_mode: SyncMode::Full,
         })
         .await
         .unwrap();
