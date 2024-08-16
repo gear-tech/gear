@@ -396,6 +396,7 @@ impl Drop for System {
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
         self.0.borrow().gas_tree.reset();
         self.0.borrow().mailbox.reset();
+        self.0.borrow().task_pool.clear();
     }
 }
 

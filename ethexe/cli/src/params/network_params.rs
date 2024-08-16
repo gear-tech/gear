@@ -101,6 +101,7 @@ impl NetworkParams {
             external_addresses,
             bootstrap_addresses,
             listen_addresses,
+            transport_type: Default::default(),
         })
     }
 }

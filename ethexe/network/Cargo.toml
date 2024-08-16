@@ -28,7 +28,7 @@ void = "1.0.2"
 [dependencies.libp2p]
 git = "https://github.com/gear-tech/rust-libp2p"
 branch = "al/tokio-swarm-test"
-features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tokio", "macros"]
+features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tokio", "macros", "plaintext", "yamux"]
 
 [dev-dependencies]
 # newer versions are not supported on crates.io
