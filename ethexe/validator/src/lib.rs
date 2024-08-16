@@ -143,7 +143,9 @@ impl Validator {
             .ok_or(anyhow!("Code {code_id} is not validated by this node"))?
             .ne(&valid)
         {
-            return Err(anyhow!("Requested and local code validation results mismatch"));
+            return Err(anyhow!(
+                "Requested and local code validation results mismatch"
+            ));
         }
         Ok(())
     }

@@ -328,11 +328,9 @@ impl CodesStorage for Database {
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
-        self.kv
-            .get(&KeyPrefix::CodeValid.one(code_id))
-            .map(|data| {
-                bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
-            })
+        self.kv.get(&KeyPrefix::CodeValid.one(code_id)).map(|data| {
+            bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
+        })
     }
 
     fn set_code_valid(&self, code_id: CodeId, approved: bool) {
