@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    db_sync::{Config, InnerBehaviour, Request, RequestId, Response},
+    db_sync::{Config, InnerBehaviour, Request, RequestId, Response, ResponseId},
     export::PeerId,
 };
 use ethexe_db::{CodesStorage, Database};
@@ -301,24 +301,41 @@ impl OngoingRequests {
     }
 }
 
+struct OngoingResponse {
+    response_id: ResponseId,
+    peer_id: PeerId,
+    channel: request_response::ResponseChannel<Response>,
+    response: Response,
+}
+
 pub(crate) struct OngoingResponses {
+    response_id_counter: u64,
     db: Database,
-    db_readers: JoinSet<(request_response::ResponseChannel<Response>, Response)>,
+    db_readers: JoinSet<OngoingResponse>,
 }
 
 impl OngoingResponses {
     pub(crate) fn from_db(db: Database) -> Self {
         Self {
+            response_id_counter: 0,
             db,
             db_readers: JoinSet::new(),
         }
     }
 
+    fn next_response_id(&mut self) -> ResponseId {
+        self.response_id_counter += 1;
+        ResponseId(self.response_id_counter)
+    }
+
     pub(crate) fn prepare_response(
         &mut self,
+        peer_id: PeerId,
         channel: request_response::ResponseChannel<Response>,
         request: Request,
-    ) {
+    ) -> ResponseId {
+        let response_id = self.next_response_id();
+
         let db = self.db.clone();
         self.db_readers.spawn_blocking(move || {
             let response = match request {
@@ -330,18 +347,34 @@ impl OngoingResponses {
                 ),
                 Request::ProgramIds => Response::ProgramIds(db.program_ids()),
             };
-            (channel, response)
+
+            OngoingResponse {
+                response_id,
+                peer_id,
+                channel,
+                response,
+            }
         });
+
+        response_id
     }
 
     pub(crate) fn poll_send_response(
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
-    ) {
+    ) -> Poll<(PeerId, ResponseId)> {
         if let Poll::Ready(Some(res)) = self.db_readers.poll_join_next(cx) {
-            let (channel, response) = res.expect("database panicked");
+            let OngoingResponse {
+                response_id,
+                peer_id,
+                channel,
+                response,
+            } = res.expect("database panicked");
             let _res = behaviour.send_response(channel, response);
+            Poll::Ready((peer_id, response_id))
+        } else {
+            Poll::Pending
         }
     }
 }

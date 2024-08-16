@@ -52,6 +52,9 @@ const STREAM_PROTOCOL: StreamProtocol =
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct RequestId(u64);
 
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub struct ResponseId(u64);
+
 #[derive(Debug, Eq, PartialEq)]
 enum RequestValidationError {
     /// Request kind unequal to response kind
@@ -170,6 +173,18 @@ pub enum Event {
         /// Reason of request failure
         error: RequestFailure,
     },
+    IncomingRequest {
+        /// The ID of in-progress response
+        response_id: ResponseId,
+        /// Peer who requested
+        peer_id: PeerId,
+    },
+    ResponseSent {
+        /// The ID of completed response
+        response_id: ResponseId,
+        /// Peer who should receive response
+        peer_id: PeerId,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -229,7 +244,7 @@ impl Behaviour {
     ) -> Poll<ToSwarm<Event, THandlerInEvent<Self>>> {
         match event {
             request_response::Event::Message {
-                peer: _,
+                peer,
                 message:
                     Message::Request {
                         request_id: _,
@@ -237,7 +252,15 @@ impl Behaviour {
                         channel,
                     },
             } => {
-                self.ongoing_responses.prepare_response(channel, request);
+                let response_id = self
+                    .ongoing_responses
+                    .prepare_response(peer, channel, request);
+                let event = Event::IncomingRequest {
+                    response_id,
+                    peer_id: peer,
+                };
+
+                return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
             request_response::Event::Message {
                 peer,
@@ -446,8 +469,15 @@ impl NetworkBehaviour for Behaviour {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
-        self.ongoing_responses
-            .poll_send_response(cx, &mut self.inner);
+        if let Poll::Ready((peer_id, response_id)) = self
+            .ongoing_responses
+            .poll_send_response(cx, &mut self.inner)
+        {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::ResponseSent {
+                response_id,
+                peer_id,
+            }));
+        }
 
         if let Poll::Ready(to_swarm) = self.inner.poll(cx) {
             return match to_swarm {
@@ -532,7 +562,34 @@ mod tests {
         bob_db.set_program_code_id(PID2, CodeId::zero());
 
         alice.connect(&mut bob).await;
-        tokio::spawn(bob.loop_on_next());
+        tokio::spawn(async move {
+            let mut values = None;
+
+            while let Some(event) = bob.next().await {
+                let Ok(event) = event.try_into_behaviour_event() else {
+                    continue;
+                };
+
+                match event {
+                    Event::IncomingRequest {
+                        response_id,
+                        peer_id,
+                    } => {
+                        values = Some((response_id, peer_id));
+                    }
+                    Event::ResponseSent {
+                        response_id,
+                        peer_id,
+                    } => {
+                        let (initial_response_id, initial_peer_id) =
+                            values.expect("IncomingRequest must be first");
+                        assert_eq!(initial_response_id, response_id);
+                        assert_eq!(initial_peer_id, peer_id);
+                    }
+                    _ => {}
+                }
+            }
+        });
 
         let request_id = alice.behaviour_mut().request(Request::ProgramIds);
 
