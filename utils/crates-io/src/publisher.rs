@@ -23,7 +23,7 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use cargo_metadata::{Metadata, MetadataCommand};
-use std::{iter, path::PathBuf};
+use std::path::PathBuf;
 
 /// crates-io packages publisher.
 pub struct Publisher {
@@ -87,10 +87,12 @@ impl Publisher {
 
     /// Restore local files
     pub fn restore(&self) -> Result<()> {
-        if let Some(manifests) = self.manifests() {
-            manifests
-                .map(|manifest| manifest.restore())
-                .collect::<Result<Vec<_>>>()?;
+        self.manifests()
+            .map(|manifest| manifest.restore())
+            .collect::<Result<Vec<_>>>()?;
+
+        if let Some(workspace) = self.workspace.as_ref() {
+            workspace.lock_file().restore()?;
         }
 
         if let Some(simulator) = self.simulator.as_ref() {
@@ -102,11 +104,9 @@ impl Publisher {
 
     /// Patch local files
     fn patch(&self) -> Result<()> {
-        if let Some(manifests) = self.manifests() {
-            manifests
-                .map(|manifest| manifest.patch())
-                .collect::<Result<Vec<_>>>()?;
-        }
+        self.manifests()
+            .map(|manifest| manifest.patch())
+            .collect::<Result<Vec<_>>>()?;
 
         if let Some(simulator) = self.simulator.as_ref() {
             simulator.patch()?;
@@ -116,12 +116,8 @@ impl Publisher {
     }
 
     /// Returns an iterator of manifests that have been potentially patched
-    fn manifests(&self) -> Option<impl Iterator<Item = &Manifest>> {
-        Some(
-            self.graph
-                .iter()
-                .chain(iter::once(self.workspace.as_deref()?)),
-        )
+    fn manifests(&self) -> impl Iterator<Item = &Manifest> {
+        self.graph.iter().chain(self.workspace.as_deref())
     }
 
     /// Check the to-be-published packages

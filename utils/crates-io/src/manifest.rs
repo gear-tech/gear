@@ -31,7 +31,10 @@ use toml_edit::{DocumentMut, Item};
 const WORKSPACE_NAME: &str = "__gear_workspace";
 
 /// Workspace instance, which is a wrapper of [`Manifest`].
-pub struct Workspace(Manifest);
+pub struct Workspace {
+    manifest: Manifest,
+    lock_file: LockFile,
+}
 
 impl Workspace {
     /// Get the workspace manifest with version overridden.
@@ -40,13 +43,21 @@ impl Workspace {
         let original_manifest: DocumentMut = fs::read_to_string(&path)?.parse()?;
         let mutable_manifest = original_manifest.clone();
 
-        let mut workspace: Self = Manifest {
-            name: WORKSPACE_NAME.to_string(),
-            original_manifest,
-            mutable_manifest,
-            path,
-        }
-        .into();
+        let lock_file_path = Self::resolve_path("Cargo.lock")?;
+        let content = fs::read_to_string(&lock_file_path)?;
+
+        let mut workspace = Self {
+            manifest: Manifest {
+                name: WORKSPACE_NAME.to_string(),
+                original_manifest,
+                mutable_manifest,
+                path,
+            },
+            lock_file: LockFile {
+                content,
+                path: lock_file_path,
+            },
+        };
 
         // NOTE: renaming version here is required because it could
         // be easy to publish incorrect version to crates.io by mistake
@@ -82,7 +93,7 @@ impl Workspace {
     pub fn complete(&mut self, mut index: Vec<&str>, simulate: bool) -> Result<()> {
         handler::patch_alias(&mut index);
 
-        let version = self.0.mutable_manifest["workspace"]["package"]["version"]
+        let version = self.mutable_manifest["workspace"]["package"]["version"]
             .clone()
             .as_str()
             .ok_or_else(|| anyhow!("Could not find version in workspace manifest"))?
@@ -143,11 +154,10 @@ impl Workspace {
 
         Ok(())
     }
-}
 
-impl From<Manifest> for Workspace {
-    fn from(manifest: Manifest) -> Self {
-        Self(manifest)
+    /// Returns Cargo lock file
+    pub fn lock_file(&self) -> &LockFile {
+        &self.lock_file
     }
 }
 
@@ -155,13 +165,13 @@ impl Deref for Workspace {
     type Target = Manifest;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.manifest
     }
 }
 
 impl DerefMut for Workspace {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.manifest
     }
 }
 
@@ -206,5 +216,19 @@ impl Manifest {
     /// Patch manifest
     pub fn patch(&self) -> Result<()> {
         fs::write(&self.path, self.mutable_manifest.to_string()).map_err(Into::into)
+    }
+}
+
+/// Cargo lock file with path
+#[derive(Debug, Clone)]
+pub struct LockFile {
+    content: String,
+    path: PathBuf,
+}
+
+impl LockFile {
+    /// Restore lock file
+    pub fn restore(&self) -> Result<()> {
+        fs::write(&self.path, &self.content).map_err(Into::into)
     }
 }

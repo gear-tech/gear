@@ -26,7 +26,7 @@ mod simulator;
 mod version;
 
 pub use self::{
-    manifest::{Manifest, Workspace},
+    manifest::{LockFile, Manifest, Workspace},
     publisher::Publisher,
     simulator::Simulator,
     version::verify,
