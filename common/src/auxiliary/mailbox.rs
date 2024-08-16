@@ -37,7 +37,6 @@ pub type AuxiliaryMailbox<MailboxCallbacks> = MailboxImpl<
     MailboxCallbacks,
     MailboxKeyGen<ProgramId>,
 >;
-
 /// Type represents message stored in the mailbox.
 pub type MailboxedMessage = UserStoredMessage;
 
@@ -68,6 +67,7 @@ impl AuxiliaryDoubleStorageWrap for MailboxStorageWrap {
         MAILBOX_STORAGE.with_borrow_mut(f)
     }
 }
+
 /// An implementor of the error returned from calling `Mailbox` trait functions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MailboxErrorImpl {
