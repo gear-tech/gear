@@ -60,7 +60,7 @@ impl KeyPrefix {
     }
 
     fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
-        [H256::from_low_u64_be(self as u64).as_bytes(), key.as_ref()].concat()
+        [self.prefix().as_ref(), key.as_ref()].concat()
     }
 
     fn two(self, key1: impl AsRef<[u8]>, key2: impl AsRef<[u8]>) -> Vec<u8> {
