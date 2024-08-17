@@ -1,12 +1,12 @@
-# Temporary section for eGPU.
-.PHONY: gpu-pre-commit
-gpu-pre-commit:
-	@ echo " > Formatting eGPU" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
-	@ echo " >> Clippy checking eGPU" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
+# Ethexe section
+.PHONY: ethexe-pre-commit
+ethexe-pre-commit: ethexe-contracts-pre-commit
+	@ echo " > Formatting ethexe" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
+	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
 
-# Building contracts
-.PHONY: gpu-contracts-pre-commit
-gpu-contracts-pre-commit:
+# Building ethexe contracts
+.PHONY: ethexe-contracts-pre-commit
+ethexe-contracts-pre-commit:
 	@ echo " > Cleaning contracts" && forge clean --root ethexe/contracts
 	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
