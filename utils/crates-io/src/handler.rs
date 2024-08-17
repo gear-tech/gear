@@ -40,7 +40,7 @@ pub fn crates_io_name(pkg: &str) -> &str {
 /// Patch specified manifest by provided name.
 pub fn patch(pkg: &Package) -> Result<Manifest> {
     let mut manifest = Manifest::new(pkg)?;
-    let doc = &mut manifest.manifest;
+    let doc = &mut manifest.mutable_manifest;
 
     match manifest.name.as_str() {
         "gear-core-processor" => core_processor::patch(doc),
