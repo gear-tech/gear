@@ -2149,8 +2149,9 @@ dependencies = [
 
 [[package]]
 name = "cargo-http-registry"
-version = "0.1.5"
-source = "git+https://github.com/d-e-s-o/cargo-http-registry.git#a4ce5f366c308c20c95567f1f0ce030499bf2fb0"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7af9bc973d36c91202e71827f8644c6cd976eda51ad6d7cd2fcb5b9b049bfd02"
 dependencies = [
  "anyhow",
  "git2",
