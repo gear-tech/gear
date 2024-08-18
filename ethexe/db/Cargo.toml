@@ -16,7 +16,7 @@ gear-core.workspace = true
 gprimitives.workspace = true
 
 anyhow.workspace = true
-dashmap = "5.5.3"
+dashmap = "6.0.1"
 parity-scale-codec.workspace = true
 log = { workspace = true, features = ["std"] }
 # TODO: jemalloc is not stable for OpenBSD and MSVC.
@@ -24,5 +24,5 @@ rocksdb = { version = "0.21", features = ["snappy", "jemalloc"] }
 
 #[dev-dependencies]
 scopeguard.workspace = true
-tempfile = "3.3.0"
+tempfile = "3.12.0"
 serde.workspace = true
