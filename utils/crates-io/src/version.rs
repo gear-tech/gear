@@ -18,11 +18,10 @@
 
 //! Crate verifier
 
+use crate::{handler, Simulator};
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::process::Command;
-
-use crate::handler;
 
 #[derive(Debug, Deserialize)]
 struct Resp {
@@ -35,14 +34,27 @@ struct Version {
 }
 
 /// Verify if the package has already been published.
-pub fn verify(name: &str, version: &str) -> Result<bool> {
-    println!("Verifying {}@{} ...", &name, &version);
+pub fn verify(name: &str, version: &str, simulator: Option<&Simulator>) -> Result<bool> {
+    println!("Verifying {name}@{version} ...");
 
     let client = reqwest::blocking::Client::builder()
         .user_agent("gear-crates-io-manager")
         .build()?;
 
-    if let Ok(resp) = client
+    if let Some(simulator) = simulator {
+        if client
+            .get(format!(
+                "http://{}/api/v1/crates/{}/{version}/download",
+                simulator.addr(),
+                handler::crates_io_name(name)
+            ))
+            .send()?
+            .error_for_status()
+            .is_ok()
+        {
+            return Ok(true);
+        }
+    } else if let Ok(resp) = client
         .get(format!(
             "https://crates.io/api/v1/crates/{}/versions",
             handler::crates_io_name(name)

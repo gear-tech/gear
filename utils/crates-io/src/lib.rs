@@ -22,14 +22,20 @@
 mod handler;
 mod manifest;
 mod publisher;
+mod simulator;
 mod version;
 
-pub use self::{manifest::Manifest, publisher::Publisher, version::verify};
+pub use self::{
+    manifest::{LockFile, Manifest, Workspace},
+    publisher::Publisher,
+    simulator::Simulator,
+    version::verify,
+};
 use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 13] = [
+pub const SAFE_DEPENDENCIES: &[&str] = &[
     "actor-system-error",
     "galloc",
     "gear-ss58",
@@ -50,7 +56,7 @@ pub const SAFE_DEPENDENCIES: [&str; 13] = [
 /// NOTE: Each package in this array could possibly depend
 /// on the previous one, please be cautious about changing
 /// the order.
-pub const STACKED_DEPENDENCIES: [&str; 15] = [
+pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gprimitives",
     "gstd-codegen",
     "gcore",
@@ -73,7 +79,7 @@ pub const STACKED_DEPENDENCIES: [&str; 15] = [
 /// NOTE: Each package in this array could possibly depend
 /// on the previous one, please be cautious about changing
 /// the order.
-pub const PACKAGES: [&str; 11] = [
+pub const PACKAGES: &[&str] = &[
     "gring",
     "gear-wasm-optimizer",
     "gear-wasm-builder",
@@ -92,6 +98,9 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
     ("gear-core-processor", "core-processor"),
     ("gear-runtime-primitives", "runtime-primitives"),
 ];
+
+/// Name for temporary cargo registry.
+pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";
 
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
