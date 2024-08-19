@@ -16,12 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod journal;
+mod task;
+
 use crate::{
     blocks::BlocksManager,
     gas_tree::GasTreeManager,
     log::{BlockRunResult, CoreLog},
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
+    task_pool::TaskPoolManager,
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     GAS_ALLOWANCE, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST, HOST_FUNC_WRITE_COST,
     INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL, LOAD_PAGE_STORAGE_DATA_COST,
@@ -40,25 +44,21 @@ use core_processor::{
     },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
-use gear_common::{auxiliary::mailbox::MailboxErrorImpl, Origin};
+use gear_common::{
+    auxiliary::{mailbox::MailboxErrorImpl, BlockNumber},
+    scheduler::ScheduledTask,
+};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{
-        Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
-        SignalMessage, StoredDispatch, StoredMessage,
-    },
-    pages::{
-        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
-        GearPage, WasmPage,
-    },
-    reservation::{GasReservationMap, GasReserver},
+    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    reservation::GasReservationMap,
 };
-use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
+use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
-use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -241,11 +241,11 @@ pub(crate) struct ExtManager {
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
-    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
-    pub(crate) wait_list_schedules: BTreeMap<u32, Vec<(ProgramId, MessageId)>>,
+    pub(crate) task_pool: TaskPoolManager,
+    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), (StoredDispatch, Option<BlockNumber>)>,
     pub(crate) gas_tree: GasTreeManager,
     pub(crate) gas_allowance: Gas,
-    pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
+    pub(crate) dispatches_stash: HashMap<MessageId, Dispatch>,
     pub(crate) messages_processing_enabled: bool,
 
     // Last block execution info
@@ -315,50 +315,24 @@ impl ExtManager {
     }
 
     /// Insert message into the delayed queue.
-    fn send_delayed_dispatch(&mut self, dispatch: Dispatch, bn: u32) {
-        self.delayed_dispatches
-            .entry(bn)
-            .or_default()
-            .push(dispatch)
-    }
-
-    /// Process all delayed dispatches.
-    pub(crate) fn process_delayed_dispatches(&mut self, bn: u32) {
-        let Some(dispatches) = self.delayed_dispatches.remove(&bn) else {
-            return;
+    fn send_delayed_dispatch(&mut self, dispatch: Dispatch, delay: u32) {
+        let message_id = dispatch.id();
+        let task = if self.is_program(&dispatch.destination()) {
+            ScheduledTask::SendDispatch(message_id)
+        } else {
+            // TODO #4122, `to_mailbox` must be counted from provided gas
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox: true,
+            }
         };
 
-        for dispatch in dispatches {
-            self.route_dispatch_from_task_pool(dispatch);
-        }
-    }
-
-    /// Process scheduled wait list.
-    pub(crate) fn process_scheduled_wait_list(&mut self, bn: u32) {
-        let Some(wl_schedules) = self.wait_list_schedules.remove(&bn) else {
-            return;
-        };
-
-        for wl_schedule in wl_schedules {
-            let Some(dispatch) = self.wait_list.remove(&wl_schedule) else {
-                continue;
-            };
-
-            let (kind, message, ..) = dispatch.into_parts();
-            let message = Message::new(
-                message.id(),
-                message.source(),
-                message.destination(),
-                message
-                    .payload_bytes()
-                    .to_vec()
-                    .try_into()
-                    .unwrap_or_default(),
-                self.gas_tree.get_limit(message.id()).ok(),
-                message.value(),
-                message.details(),
-            );
-            self.route_dispatch_from_task_pool(Dispatch::new(kind, message));
+        let expected_bn = self.blocks_manager.get().height + delay;
+        self.task_pool
+            .add(expected_bn, task)
+            .unwrap_or_else(|e| unreachable!("TaskPool corrupted! {e:?}"));
+        if self.dispatches_stash.insert(message_id, dispatch).is_some() {
+            unreachable!("Delayed sending logic invalidated: stash contains same message");
         }
     }
 
@@ -449,8 +423,9 @@ impl ExtManager {
 
     #[track_caller]
     pub(crate) fn process_tasks(&mut self, bn: u32) {
-        self.process_delayed_dispatches(bn);
-        self.process_scheduled_wait_list(bn);
+        for task in self.task_pool.drain_prefix_keys(bn) {
+            task.process_with(self);
+        }
     }
 
     #[track_caller]
@@ -513,25 +488,6 @@ impl ExtManager {
             if *balance < crate::EXISTENTIAL_DEPOSIT {
                 *balance = 0;
             }
-        }
-    }
-
-    #[track_caller]
-    pub(crate) fn route_dispatch_from_task_pool(&mut self, dispatch: Dispatch) {
-        if self.is_program(&dispatch.destination()) {
-            self.dispatches.push_back(dispatch.into_stored());
-        } else {
-            let message = dispatch.into_parts().1.into_stored();
-            if let (Ok(mailbox_msg), true) = (
-                message.clone().try_into(),
-                self.is_program(&message.source()),
-            ) {
-                self.mailbox
-                    .insert(mailbox_msg)
-                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-            }
-
-            self.log.push(message)
         }
     }
 
@@ -750,7 +706,8 @@ impl ExtManager {
                 };
 
                 if let Some(reply_message) = maybe_reply_message {
-                    self.send_dispatch(
+                    <Self as JournalHandler>::send_dispatch(
+                        self,
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
@@ -801,7 +758,8 @@ impl ExtManager {
 
                     let reply_message = ReplyMessage::system(message_id, err_payload, err);
 
-                    self.send_dispatch(
+                    <Self as JournalHandler>::send_dispatch(
+                        self,
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
@@ -990,378 +948,5 @@ impl ExtManager {
         actors
             .get_mut(&id)
             .and_then(|(actor, _)| actor.genuine_program_mut().map(op))
-    }
-}
-
-impl JournalHandler for ExtManager {
-    fn message_dispatched(
-        &mut self,
-        message_id: MessageId,
-        _source: ProgramId,
-        outcome: DispatchOutcome,
-    ) {
-        match outcome {
-            DispatchOutcome::MessageTrap { .. } => {
-                self.failed.insert(message_id);
-            }
-            DispatchOutcome::NoExecution => {
-                self.not_executed.insert(message_id);
-            }
-            DispatchOutcome::Success | DispatchOutcome::Exit { .. } => {
-                self.succeed.insert(message_id);
-            }
-            DispatchOutcome::InitFailure { program_id, .. } => {
-                self.init_failure(program_id);
-                self.failed.insert(message_id);
-            }
-            DispatchOutcome::InitSuccess { program_id, .. } => {
-                self.init_success(program_id);
-                self.succeed.insert(message_id);
-            }
-        }
-    }
-
-    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
-        self.gas_tree
-            .spend(message_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        self.gas_burned
-            .entry(message_id)
-            .and_modify(|gas| {
-                *gas += Gas(amount);
-            })
-            .or_insert(Gas(amount));
-    }
-
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        if let Some((_, balance)) = self.actors.remove(&id_exited) {
-            self.mint_to(&value_destination, balance, MintMode::AllowDeath);
-        }
-    }
-
-    fn message_consumed(&mut self, message_id: MessageId) {
-        self.gas_tree
-            .consume(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-    }
-
-    fn send_dispatch(
-        &mut self,
-        message_id: MessageId,
-        dispatch: Dispatch,
-        bn: u32,
-        reservation: Option<ReservationId>,
-    ) {
-        if bn > 0 {
-            log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
-
-            self.send_delayed_dispatch(dispatch, self.blocks_manager.get().height + bn);
-            return;
-        }
-
-        log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
-
-        let source = dispatch.source();
-
-        if self.is_program(&dispatch.destination()) {
-            match (dispatch.gas_limit(), reservation) {
-                (Some(gas_limit), None) => self
-                    .gas_tree
-                    .split_with_value(false, message_id, dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
-                (None, None) => self
-                    .gas_tree
-                    .split(false, message_id, dispatch.id())
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
-                (None, Some(reservation)) => {
-                    self.gas_tree
-                        .split(false, reservation, dispatch.id())
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-                }
-                (Some(_), Some(_)) => unreachable!(
-                    "Sending dispatch with gas limit from reservation \
-                    is currently unimplemented and there is no way to send such dispatch"
-                ),
-            }
-
-            self.dispatches.push_back(dispatch.into_stored());
-        } else {
-            let gas_limit = dispatch.gas_limit().unwrap_or_default();
-            let stored_message = dispatch.into_stored().into_parts().1;
-
-            if let Ok(mailbox_msg) = stored_message.clone().try_into() {
-                let origin_node = reservation
-                    .map(|r| r.into_origin().cast())
-                    .unwrap_or(message_id);
-                self.gas_tree
-                    .cut(origin_node, stored_message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                self.mailbox
-                    .insert(mailbox_msg)
-                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-            } else {
-                log::debug!("A reply message is sent to user: {stored_message:?}");
-            };
-
-            self.log.push(stored_message);
-        }
-
-        if let Some(reservation) = reservation {
-            let has_removed_reservation = self
-                .remove_reservation(source, reservation)
-                .expect("failed to find genuine_program");
-            if !has_removed_reservation {
-                unreachable!("Failed to remove reservation {reservation} from {source}");
-            }
-        }
-    }
-
-    fn wait_dispatch(
-        &mut self,
-        dispatch: StoredDispatch,
-        duration: Option<u32>,
-        _: MessageWaitedType,
-    ) {
-        log::debug!("[{}] wait", dispatch.id());
-
-        let dest = dispatch.destination();
-        let id = dispatch.id();
-        self.wait_list.insert((dest, id), dispatch);
-        if let Some(duration) = duration {
-            self.wait_list_schedules
-                .entry(self.blocks_manager.get().height + duration)
-                .or_default()
-                .push((dest, id));
-        }
-    }
-
-    fn wake_message(
-        &mut self,
-        message_id: MessageId,
-        program_id: ProgramId,
-        awakening_id: MessageId,
-        _delay: u32,
-    ) {
-        log::debug!("[{message_id}] waked message#{awakening_id}");
-
-        if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
-            self.dispatches.push_back(msg);
-        }
-    }
-
-    #[track_caller]
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-    ) {
-        self.update_storage_pages(&program_id, pages_data);
-    }
-
-    #[track_caller]
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        self.update_genuine_program(program_id, |program| {
-            program
-                .allocations
-                .difference(&allocations)
-                .flat_map(IntervalIterator::from)
-                .flat_map(|page| page.to_iter())
-                .for_each(|ref page| {
-                    program.pages_data.remove(page);
-                });
-            program.allocations = allocations;
-        })
-        .expect("no genuine program was found");
-    }
-
-    #[track_caller]
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
-        if value == 0 {
-            // Nothing to do
-            return;
-        }
-        if let Some(ref to) = to {
-            if self.is_program(&from) {
-                let mut actors = self.actors.borrow_mut();
-                let (_, balance) = actors.get_mut(&from).expect("Can't fail");
-
-                if *balance < value {
-                    unreachable!("Actor {:?} balance is less then sent value", from);
-                }
-
-                *balance -= value;
-
-                if *balance < crate::EXISTENTIAL_DEPOSIT {
-                    *balance = 0;
-                }
-            }
-
-            self.mint_to(to, value, MintMode::KeepAlive);
-        } else {
-            self.mint_to(&from, value, MintMode::KeepAlive);
-        }
-    }
-
-    #[track_caller]
-    fn store_new_programs(
-        &mut self,
-        program_id: ProgramId,
-        code_id: CodeId,
-        candidates: Vec<(MessageId, ProgramId)>,
-    ) {
-        if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
-            for (init_message_id, candidate_id) in candidates {
-                if !self.actors.contains_key(&candidate_id) {
-                    let schedule = Schedule::default();
-                    let code = Code::try_new(
-                        code.clone(),
-                        schedule.instruction_weights.version,
-                        |module| schedule.rules(module),
-                        schedule.limits.stack_height,
-                        schedule.limits.data_segments_amount.into(),
-                        schedule.limits.table_number.into(),
-                    )
-                    .expect("Program can't be constructed with provided code");
-
-                    let code_and_id: InstrumentedCodeAndId =
-                        CodeAndId::from_parts_unchecked(code, code_id).into();
-                    let (code, code_id) = code_and_id.into_parts();
-
-                    self.store_new_actor(
-                        candidate_id,
-                        Program::Genuine(GenuineProgram {
-                            code,
-                            code_id,
-                            allocations: Default::default(),
-                            pages_data: Default::default(),
-                            gas_reservation_map: Default::default(),
-                        }),
-                        Some(init_message_id),
-                    );
-                    // Transfer the ED from the program-creator to the new program
-                    self.send_value(program_id, Some(candidate_id), crate::EXISTENTIAL_DEPOSIT);
-                } else {
-                    log::debug!("Program with id {candidate_id:?} already exists");
-                }
-            }
-        } else {
-            log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
-            for (_, invalid_candidate_id) in candidates {
-                self.actors
-                    .insert(invalid_candidate_id, (TestActor::Dormant, 0));
-            }
-        }
-    }
-
-    #[track_caller]
-    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
-        log::debug!(
-            "Not enough gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
-            dispatch.id(),
-            self.gas_allowance,
-            gas_burned,
-        );
-
-        self.messages_processing_enabled = false;
-        self.dispatches.push_front(dispatch);
-    }
-
-    fn reserve_gas(
-        &mut self,
-        message_id: MessageId,
-        reservation_id: ReservationId,
-        _program_id: ProgramId,
-        amount: u64,
-        duration: u32,
-    ) {
-        log::debug!(
-            "Reserved: {:?} from {:?} with {:?} for {} blocks",
-            amount,
-            message_id,
-            reservation_id,
-            duration
-        );
-
-        self.gas_tree
-            .reserve_gas(message_id, reservation_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
-    }
-
-    fn unreserve_gas(
-        &mut self,
-        reservation_id: ReservationId,
-        program_id: ProgramId,
-        _expiration: u32,
-    ) {
-        let has_removed_reservation = self
-            .remove_reservation(program_id, reservation_id)
-            .expect("failed to find genuine_program");
-        if !has_removed_reservation {
-            unreachable!("Failed to remove reservation {reservation_id} from {program_id}");
-        }
-    }
-
-    #[track_caller]
-    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        let block_height = self.blocks_manager.get().height;
-        self.update_genuine_program(program_id, |program| {
-            program.gas_reservation_map =
-                reserver.into_map(block_height, |duration| block_height + duration);
-        })
-        .expect("no genuine program was found");
-    }
-
-    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        self.gas_tree
-            .system_reserve(message_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
-    }
-
-    fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        self.gas_tree
-            .system_unreserve(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
-    }
-
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
-        let reserved = self
-            .gas_tree
-            .system_unreserve(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        if reserved != 0 {
-            log::debug!(
-                "Send signal issued by {} to {} with {} supply",
-                message_id,
-                destination,
-                reserved
-            );
-
-            let trap_signal = SignalMessage::new(message_id, code)
-                .into_dispatch(message_id, destination)
-                .into_stored();
-
-            self.gas_tree
-                .split_with_value(
-                    trap_signal.is_reply(),
-                    message_id,
-                    trap_signal.id(),
-                    reserved,
-                )
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-            self.dispatches.push_back(trap_signal);
-        } else {
-            log::trace!("Signal wasn't send due to inappropriate supply");
-        }
-    }
-
-    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
-        self.gas_tree
-            .create_deposit(message_id, future_reply_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
     }
 }

@@ -19,7 +19,7 @@ interface IRouter {
         address[] validatorsKeys;
         mapping(bytes32 => CodeState) codes;
         uint256 validatedCodesCount;
-        mapping(address => bool) programs;
+        mapping(address => bytes32) programs;
         uint256 programsCount;
     }
 
@@ -180,7 +180,10 @@ interface IRouter {
 
     function programsCount() external view returns (uint256);
 
-    function programExists(address program) external view returns (bool);
+    /**
+     * @dev Returns bytes32(0) in case of inexistent program.
+     */
+    function programCodeId(address program) external view returns (bytes32);
 
     /* Validators' set related functions */
 

@@ -19,40 +19,37 @@
 //! Packages publisher
 
 use crate::{
-    handler, manifest::Workspace, Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES,
+    handler, Manifest, Simulator, Workspace, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES,
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use cargo_metadata::{Metadata, MetadataCommand};
-use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
 
 /// crates-io packages publisher.
 pub struct Publisher {
     metadata: Metadata,
-    graph: BTreeMap<Option<usize>, Manifest>,
-    index: HashMap<String, usize>,
+    graph: Vec<Manifest>,
+    index: Vec<&'static str>,
+    workspace: Option<Workspace>,
+    simulator: Option<Simulator>,
 }
 
 impl Publisher {
     /// Create a new publisher.
     pub fn new() -> Result<Self> {
-        let metadata = MetadataCommand::new().no_deps().exec()?;
-        let graph = BTreeMap::new();
-        let index = HashMap::<String, usize>::from_iter(
-            [
-                SAFE_DEPENDENCIES.to_vec(),
-                STACKED_DEPENDENCIES.into(),
-                PACKAGES.into(),
-            ]
-            .concat()
-            .into_iter()
-            .enumerate()
-            .map(|(i, p)| (p.into(), i)),
-        );
+        Self::with_simulation(false, None)
+    }
 
+    /// Create a new publisher with simulation.
+    pub fn with_simulation(simulate: bool, registry_path: Option<PathBuf>) -> Result<Self> {
         Ok(Self {
-            metadata,
-            graph,
-            index,
+            metadata: MetadataCommand::new().no_deps().exec()?,
+            graph: vec![],
+            index: [SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, PACKAGES].concat(),
+            workspace: None,
+            simulator: simulate
+                .then(|| Simulator::new(registry_path))
+                .transpose()?,
         })
     }
 
@@ -62,44 +59,65 @@ impl Publisher {
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
     pub fn build(mut self, verify: bool, version: Option<String>) -> Result<Self> {
-        let mut index = self
-            .index
-            .iter()
-            .map(|(k, &v)| (k.clone(), v))
-            .collect::<Vec<_>>();
-
-        index.sort_by_key(|(_, v)| *v);
-
         let mut workspace = Workspace::lookup(version)?;
         let version = workspace.version()?;
 
-        for (name, _) in &index {
+        for name in self.index.iter() {
             let Some(pkg) = self.metadata.packages.iter().find(|pkg| pkg.name == *name) else {
+                println!("Package {name}@{version} not found in cargo metadata!");
                 continue;
             };
 
-            if verify && crate::verify(name, &version)? {
-                println!("Package {}@{} already published .", &name, &version);
+            if verify && crate::verify(name, &version, self.simulator.as_ref())? {
+                println!("Package {name}@{version} already published!");
                 continue;
             }
 
-            self.graph
-                .insert(self.index.get(name).cloned(), handler::patch(pkg)?);
+            self.graph.push(handler::patch(pkg)?);
         }
 
-        let index = index.iter().map(|(k, _)| k.as_ref()).collect();
+        workspace.complete(self.index.clone(), self.simulator.is_some())?;
 
-        workspace.complete(index)?;
+        self.workspace = Some(workspace);
 
-        // write manifests to disk.
-        let manifest = workspace.into();
-        let manifests = [self.graph.values().collect::<Vec<_>>(), vec![&manifest]].concat();
-        manifests
-            .iter()
-            .map(|m| m.write())
-            .collect::<Result<Vec<_>>>()?;
+        self.patch()?;
 
         Ok(self)
+    }
+
+    /// Restore local files
+    pub fn restore(&self) -> Result<()> {
+        self.manifests()
+            .map(|manifest| manifest.restore())
+            .collect::<Result<Vec<_>>>()?;
+
+        if let Some(workspace) = self.workspace.as_ref() {
+            workspace.lock_file().restore()?;
+        }
+
+        if let Some(simulator) = self.simulator.as_ref() {
+            simulator.restore()?;
+        }
+
+        Ok(())
+    }
+
+    /// Patch local files
+    fn patch(&self) -> Result<()> {
+        self.manifests()
+            .map(|manifest| manifest.patch())
+            .collect::<Result<Vec<_>>>()?;
+
+        if let Some(simulator) = self.simulator.as_ref() {
+            simulator.patch()?;
+        }
+
+        Ok(())
+    }
+
+    /// Returns an iterator of manifests that have been potentially patched
+    fn manifests(&self) -> impl Iterator<Item = &Manifest> {
+        self.graph.iter().chain(self.workspace.as_deref())
     }
 
     /// Check the to-be-published packages
@@ -107,7 +125,7 @@ impl Publisher {
     /// TODO: Complete the check process (#3565)
     pub fn check(&self) -> Result<()> {
         let mut failed = Vec::new();
-        for Manifest { path, name, .. } in self.graph.values() {
+        for Manifest { path, name, .. } in self.graph.iter() {
             if !PACKAGES.contains(&name.as_str()) {
                 continue;
             }
@@ -120,7 +138,7 @@ impl Publisher {
         }
 
         if !failed.is_empty() {
-            panic!("Packages {failed:?} failed to pass the check ...");
+            bail!("Packages {failed:?} failed to pass the check ...");
         }
 
         // Post tests for gtest and gclient
@@ -129,7 +147,7 @@ impl Publisher {
             ("gsdk", "timeout"),
         ] {
             if !crate::test(pkg, test)?.success() {
-                panic!("{pkg}:{test} failed to pass the test ...");
+                bail!("{pkg}:{test} failed to pass the test ...");
             }
         }
 
@@ -138,11 +156,11 @@ impl Publisher {
 
     /// Publish packages
     pub fn publish(&self) -> Result<()> {
-        for Manifest { path, .. } in self.graph.values() {
+        for Manifest { path, .. } in self.graph.iter() {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
-                panic!("Failed to publish package {path:?} ...");
+                bail!("Failed to publish package {path:?} ...");
             }
         }
 
