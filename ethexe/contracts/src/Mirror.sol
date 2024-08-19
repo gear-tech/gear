@@ -10,7 +10,7 @@ import {IWrappedVara} from "./IWrappedVara.sol";
 contract Mirror is IMirror {
     bytes32 public stateHash;
     // NOTE: Nonce 0 is used for init message in current implementation
-    uint256 public nonce = 1;
+    uint256 public nonce; /* = 1*/
 
     /* Operational functions */
 
@@ -88,7 +88,7 @@ contract Mirror is IMirror {
         onlyRouter
     {
         // @dev: charging at this point already made on router side.
-        uint256 initNonce = 0;
+        uint256 initNonce = nonce++;
         bytes32 id = keccak256(abi.encodePacked(address(this), initNonce));
 
         emit ExecutableBalanceTopUpRequested(executableBalance);
