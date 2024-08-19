@@ -42,7 +42,7 @@ mod tests {
     extern crate std;
 
     use super::Request;
-    use gtest::{Log, Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
@@ -51,7 +51,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         program.send_bytes(from, b"init");
         let res = system.run_next_block();
@@ -64,7 +64,7 @@ mod tests {
         let system = System::new();
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program = Program::current(&system);
         program.send_bytes(from, b"init");
@@ -102,7 +102,7 @@ mod tests {
         let system = System::new();
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program_1 = Program::current(&system);
         program_1.send_bytes(from, b"init");
