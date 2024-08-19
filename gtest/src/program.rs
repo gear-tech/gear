@@ -731,11 +731,6 @@ impl<'a> Program<'a> {
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
-    /// Mint balance to the account.
-    pub fn mint(&mut self, value: Value) {
-        self.manager.borrow_mut().mint_to(&self.id(), value)
-    }
-
     /// Returns the balance of the account.
     pub fn balance(&self) -> Value {
         self.manager.borrow().balance_of(&self.id())
@@ -939,12 +934,13 @@ mod tests {
 
         let user_id = 42;
         let mut user_spent_balance = 0;
-        sys.mint_to(user_id, 10 * EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user_id), 10 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(user_id, 12 * EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 12 * EXISTENTIAL_DEPOSIT);
 
-        let mut prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
+        let program_id = 137;
+        let prog = Program::from_binary_with_id(&sys, program_id, demo_ping::WASM_BINARY);
 
-        prog.mint(2 * EXISTENTIAL_DEPOSIT);
+        sys.transfer(user_id, program_id, 2 * EXISTENTIAL_DEPOSIT, true);
         assert_eq!(prog.balance(), 2 * EXISTENTIAL_DEPOSIT);
 
         prog.send_with_value(user_id, "init".to_string(), EXISTENTIAL_DEPOSIT);
@@ -1430,7 +1426,8 @@ mod tests {
         prog.send_bytes_with_gas(user, b"init", 1_000_000_000, 0);
         sys.run_next_block();
 
-        // Unspent gas is not returned to the user's balance when the sum of these is lower than ED
+        // Unspent gas is not returned to the user's balance when the sum of these is
+        // lower than ED
         assert_eq!(sys.balance_of(user), 0)
     }
 }

@@ -113,9 +113,9 @@
 //! mod tests {
 //!     use gtest::{Log, Program, System};
 //!
-//!     // Alternatively, you can use the default users:
-//!     // [`DEFAULT_USER_ALICE`], [`DEFAULT_USER_BOB`], [`DEFAULT_USER_CHARLIE`], [`DEFAULT_USER_EVE`].
-//!     // The full list of default users can be obtained with [`default_users_list`].
+//!     // Alternatively, you can use the default users from `gtest::constants`:
+//!     // `DEFAULT_USER_ALICE`, `DEFAULT_USER_BOB`, `DEFAULT_USER_CHARLIE`, `DEFAULT_USER_EVE`.
+//!     // The full list of default users can be obtained with `gtest::constants::default_users_list`.
 //!     const USER_ID: u64 = 100001;
 //!
 //!     #[test]
@@ -422,9 +422,8 @@
 //! message's gas costs.
 //!
 //! The [`System::mint_to`] method can be utilized to allocate a balance to the
-//! user, while the [`Program::mint`] method serves to allocate a balance to the
-//! program. The [`System::balance_of`] method may be used to verify the current
-//! balance.
+//! user or the program. The [`System::balance_of`] method may be used to verify
+//! the current balance.
 //!
 //! ```no_run
 //! # use gtest::Program;
@@ -434,9 +433,9 @@
 //! sys.mint_to(user_id, 5000);
 //! assert_eq!(sys.balance_of(user_id), 5000);
 //!
-//! // To give the balance to the program you should use `mint` method:
+//! // To give the balance to the program you should use [`System::transfer`] method:
 //! let mut prog = Program::current(&sys);
-//! prog.mint(1000);
+//! prog.transfer(user_id, prog.id(), 1000);
 //! assert_eq!(prog.balance(), 1000);
 //! ```
 //!
