@@ -435,7 +435,7 @@
 //!
 //! // To give the balance to the program you should use [`System::transfer`] method:
 //! let mut prog = Program::current(&sys);
-//! sys.transfer(user_id, prog.id(), 1000);
+//! sys.transfer(user_id, prog.id(), 1000, true);
 //! assert_eq!(prog.balance(), 1000);
 //! ```
 //!
