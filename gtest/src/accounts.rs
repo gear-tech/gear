@@ -77,7 +77,7 @@ pub(crate) struct Accounts;
 
 impl Accounts {
     // Checks if account by program id exists.
-    pub(crate) fn exist(id: ProgramId) -> bool {
+    pub(crate) fn exists(id: ProgramId) -> bool {
         Self::balance(id) != 0
     }
 

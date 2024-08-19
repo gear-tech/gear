@@ -327,7 +327,7 @@ impl ExtManager {
         }
 
         // User must exist
-        if !Accounts::exist(source) {
+        if !Accounts::exists(source) {
             panic!("User's {source} balance is zero; mint value to it first.");
         }
 
