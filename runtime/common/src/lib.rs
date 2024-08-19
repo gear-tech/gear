@@ -41,7 +41,7 @@ use sp_runtime::Perbill;
 /// Mostly we don't produce any calculations in `on_initialize` hook,
 /// so it's safe to reduce from default 10 to custom 3 percents.
 pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(3);
-pub const NORMAL_DISPATCH_RATIO_NUM: u8 = 25;
+pub const NORMAL_DISPATCH_RATIO_NUM: u8 = 30;
 pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_RATIO_NUM;
 
 // Extrinsics with DispatchClass::Normal only account for user messages
