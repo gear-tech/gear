@@ -83,6 +83,8 @@ enum Commands {
         #[arg(ignore_case = true, value_enum)]
         runtime: Runtime,
     },
+    /// Creates code to initialize scheduler with weights from lightweight scheduler
+    GtestCodegen,
 }
 
 #[derive(Debug, Copy, Clone, ValueEnum)]
@@ -446,6 +448,99 @@ fn main() {
                 pub struct Weight {
                     pub ref_time: u64,
                     pub proof_size: u64,
+                }
+            });
+
+            let output = declarations
+                .into_iter()
+                .map(|stream| stream.to_string())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let formatted =
+                format_with_rustfmt(format!("{}{output}", LICENSE.trim_start()).as_bytes());
+            println!("{formatted}");
+        }
+
+        Commands::GtestCodegen => {
+            let mut declarations = vec![quote! {
+                //! This is auto-generated module that contains costs constructors
+                //! `pallets/gear/src/schedule.rs`.
+                //!
+                //! See `./scripts/weight-dump.sh` if you want to update it.
+
+                use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
+                use gear_lazy_pages_common::LazyPagesCosts;
+                use gear_wasm_instrument::gas_metering::{InstantiationWeights, MemoryWeights, Schedule};
+
+            }];
+
+            // LazyPagesCosts
+            declarations.push(quote! {
+                pub fn lazy_pages_costs(val: &MemoryWeights) -> LazyPagesCosts {
+                    LazyPagesCosts {
+                        host_func_read: val.lazy_pages_host_func_read.ref_time.into(),
+                        host_func_write: val.lazy_pages_host_func_write.ref_time.into(),
+                        host_func_write_after_read: val.lazy_pages_host_func_write_after_read.ref_time.into(),
+                        load_page_storage_data: val.load_page_data.ref_time.into(),
+                        signal_read: val.lazy_pages_signal_read.ref_time.into(),
+                        signal_write: val.lazy_pages_signal_write.ref_time.into(),
+                        signal_write_after_read: val.lazy_pages_signal_write_after_read.ref_time.into()
+                    }
+                }
+            });
+
+            //InstantiationCosts
+            declarations.push(quote! {
+                pub fn instantiation_costs(val: &InstantiationWeights) -> InstantiationCosts {
+                    InstantiationCosts {
+                        code_section_per_byte: val.code_section_per_byte.ref_time.into(),
+                        data_section_per_byte: val.data_section_per_byte.ref_time.into(),
+                        global_section_per_byte: val.global_section_per_byte.ref_time.into(),
+                        table_section_per_byte: val.table_section_per_byte.ref_time.into(),
+                        element_section_per_byte: val.element_section_per_byte.ref_time.into(),
+                        type_section_per_byte: val.type_section_per_byte.ref_time.into()
+                    }
+                }
+
+            });
+
+            // process_costs and block_config()
+            let vara_schedule: Schedule<vara_runtime::Runtime> = Default::default();
+
+            let process_costs = vara_schedule.process_costs();
+
+            let waitlist = process_costs.ext.rent.waitlist.cost_for_one();
+            let dispatch_stash = process_costs.ext.rent.dispatch_stash.cost_for_one();
+            let reservation = process_costs.ext.rent.reservation.cost_for_one();
+            let db_read = process_costs.read.cost_for_one();
+            let db_write = process_costs.write.cost_for_one();
+            let read_per_byte = process_costs.read_per_byte.cost_for_one();
+            let instrumentation = process_costs.instrumentation.cost_for_one();
+            let instrumentation_per_byte = process_costs.instrumentation_per_byte.cost_for_one();
+            let load_allocations_per_interval =
+                process_costs.load_allocations_per_interval.cost_for_one();
+            declarations.push(quote! {
+                pub fn process_costs(schedule: &Schedule) -> ProcessCosts {
+                    ProcessCosts {
+                        ext: ExtCosts {
+                            rent: RentCosts {
+                                waitlist: #waitlist.into(),
+                                dispatch_stash: #dispatch_stash.into(),
+                                reservation: #reservation.into()
+                            },
+                            syscalls: Default::default(),
+                            mem_grow: schedule.memory_weights.mem_grow.ref_time.into(),
+                            mem_grow_per_page: schedule.memory_weights.mem_grow_per_page.ref_time.into(),
+                        },
+                        lazy_pages: lazy_pages_costs(&schedule.memory_weights),
+                        read: #db_read.into(),
+                        write: #db_write.into(),
+                        read_per_byte: #read_per_byte.into(),
+                        instrumentation: #instrumentation.into(),
+                        instrumentation_per_byte: #instrumentation_per_byte.into(),
+                        instantiation_costs: instantiation_costs(&schedule.instantiation_weights),
+                        load_allocations_per_interval: #load_allocations_per_interval.into()
+                    }
                 }
             });
 

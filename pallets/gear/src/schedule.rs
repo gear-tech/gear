@@ -135,11 +135,6 @@ pub struct Schedule<T: Config> {
     /// Single db read per byte cost.
     pub db_read_per_byte: Weight,
 
-    /// Single db read cost.
-    pub db_read: Weight,
-    /// Single db write cost.
-    pub db_write: Weight,
-
     /// WASM code instrumentation base cost.
     pub code_instrumentation_cost: Weight,
 
@@ -680,6 +675,19 @@ impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
     }
 }
 
+impl From<InstantiationWeights> for InstantiationCosts {
+    fn from(val: InstantiationWeights) -> Self {
+        Self {
+            code_section_per_byte: val.code_section_per_byte.ref_time().into(),
+            data_section_per_byte: val.data_section_per_byte.ref_time().into(),
+            element_section_per_byte: val.element_section_per_byte.ref_time().into(),
+            global_section_per_byte: val.global_section_per_byte.ref_time().into(),
+            table_section_per_byte: val.table_section_per_byte.ref_time().into(),
+            type_section_per_byte: val.type_section_per_byte.ref_time().into(),
+        }
+    }
+}
+
 /// Describes the weight for instantiation of the module.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -762,8 +770,6 @@ impl<T: Config> Default for Schedule<T> {
             instruction_weights: Default::default(),
             syscall_weights: Default::default(),
             memory_weights: Default::default(),
-            db_read: cost(W::<T>::db_read_per_kb),
-            db_write: cost(W::<T>::db_write_per_kb),
             db_write_per_byte: cost_byte(W::<T>::db_write_per_kb),
             db_read_per_byte: cost_byte(W::<T>::db_read_per_kb),
             instantiation_weights: InstantiationWeights {
@@ -1208,38 +1214,7 @@ impl<T: Config> Schedule<T> {
             write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
-            instantiation_costs: InstantiationCosts {
-                code_section_per_byte: self
-                    .instantiation_weights
-                    .code_section_per_byte
-                    .ref_time()
-                    .into(),
-                data_section_per_byte: self
-                    .instantiation_weights
-                    .data_section_per_byte
-                    .ref_time()
-                    .into(),
-                global_section_per_byte: self
-                    .instantiation_weights
-                    .global_section_per_byte
-                    .ref_time()
-                    .into(),
-                table_section_per_byte: self
-                    .instantiation_weights
-                    .table_section_per_byte
-                    .ref_time()
-                    .into(),
-                element_section_per_byte: self
-                    .instantiation_weights
-                    .element_section_per_byte
-                    .ref_time()
-                    .into(),
-                type_section_per_byte: self
-                    .instantiation_weights
-                    .type_section_per_byte
-                    .ref_time()
-                    .into(),
-            },
+            instantiation_costs: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
         }
     }

@@ -29,8 +29,6 @@ pub struct Schedule {
     pub instantiation_weights: InstantiationWeights,
     pub db_write_per_byte: Weight,
     pub db_read_per_byte: Weight,
-    pub db_read: Weight,
-    pub db_write: Weight,
     pub code_instrumentation_cost: Weight,
     pub code_instrumentation_byte_cost: Weight,
     pub load_allocations_weight: Weight,
@@ -53,14 +51,6 @@ impl Default for Schedule {
             },
             db_read_per_byte: Weight {
                 ref_time: 569,
-                proof_size: 0,
-            },
-            db_read: Weight {
-                ref_time: 583390,
-                proof_size: 0,
-            },
-            db_write: Weight {
-                ref_time: 239667,
                 proof_size: 0,
             },
             code_instrumentation_cost: Weight {

@@ -421,6 +421,7 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 mod blocks;
+mod costs;
 mod error;
 mod gas_tree;
 mod log;

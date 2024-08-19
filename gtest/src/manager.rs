@@ -27,15 +27,12 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{
-        BlockConfig, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER,
-    },
+    configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_common::{auxiliary::mailbox::MailboxErrorImpl, Origin};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
-    costs::CostOf,
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -49,7 +46,6 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
-use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
@@ -856,97 +852,7 @@ impl ExtManager {
             forbidden_funcs: Default::default(),
             reserve_for: RESERVE_FOR,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
-            costs: ProcessCosts {
-                ext: ExtCosts {
-                    syscalls: Default::default(),
-                    rent: RentCosts {
-                        waitlist: CostOf::new(schedule.waitlist_cost.ref_time),
-                        dispatch_stash: CostOf::new(schedule.dispatch_stash_cost.ref_time),
-                        reservation: CostOf::new(schedule.reservation_cost.ref_time),
-                    },
-                    mem_grow: CostOf::new(schedule.memory_weights.mem_grow.ref_time),
-                    mem_grow_per_page: CostOf::new(
-                        schedule.memory_weights.mem_grow_per_page.ref_time,
-                    ),
-                },
-                lazy_pages: LazyPagesCosts {
-                    host_func_read: CostOf::new(
-                        schedule.memory_weights.lazy_pages_host_func_read.ref_time,
-                    ),
-                    host_func_write: CostOf::new(
-                        schedule.memory_weights.lazy_pages_host_func_write.ref_time,
-                    ),
-                    host_func_write_after_read: CostOf::new(
-                        schedule
-                            .memory_weights
-                            .lazy_pages_host_func_write_after_read
-                            .ref_time,
-                    ),
-                    load_page_storage_data: CostOf::new(
-                        schedule.memory_weights.load_page_data.ref_time,
-                    ),
-                    signal_read: CostOf::new(
-                        schedule.memory_weights.lazy_pages_signal_read.ref_time,
-                    ),
-                    signal_write: CostOf::new(
-                        schedule.memory_weights.lazy_pages_signal_write.ref_time,
-                    ),
-                    signal_write_after_read: CostOf::new(
-                        schedule
-                            .memory_weights
-                            .lazy_pages_signal_write_after_read
-                            .ref_time,
-                    ),
-                },
-                read: CostOf::new(schedule.db_read.ref_time),
-                read_per_byte: CostOf::new(schedule.db_read_per_byte.ref_time),
-                write: CostOf::new(schedule.db_write.ref_time),
-                instrumentation: CostOf::new(schedule.code_instrumentation_cost.ref_time),
-                instrumentation_per_byte: CostOf::new(
-                    schedule.code_instrumentation_byte_cost.ref_time,
-                ),
-                instantiation_costs: InstantiationCosts {
-                    code_section_per_byte: CostOf::new(
-                        schedule
-                            .instantiation_weights
-                            .code_section_per_byte
-                            .ref_time,
-                    ),
-                    data_section_per_byte: CostOf::new(
-                        schedule
-                            .instantiation_weights
-                            .data_section_per_byte
-                            .ref_time,
-                    ),
-                    global_section_per_byte: CostOf::new(
-                        schedule
-                            .instantiation_weights
-                            .global_section_per_byte
-                            .ref_time,
-                    ),
-                    table_section_per_byte: CostOf::new(
-                        schedule
-                            .instantiation_weights
-                            .table_section_per_byte
-                            .ref_time,
-                    ),
-                    element_section_per_byte: CostOf::new(
-                        schedule
-                            .instantiation_weights
-                            .element_section_per_byte
-                            .ref_time,
-                    ),
-                    type_section_per_byte: CostOf::new(
-                        schedule
-                            .instantiation_weights
-                            .type_section_per_byte
-                            .ref_time,
-                    ),
-                },
-                load_allocations_per_interval: CostOf::new(
-                    schedule.load_allocations_weight.ref_time,
-                ),
-            },
+            costs: super::costs::process_costs(&schedule),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
             max_reservations: MAX_RESERVATIONS,
