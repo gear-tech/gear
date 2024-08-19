@@ -21,7 +21,7 @@ use crate::{
     AlloyProvider, AlloyTransport,
 };
 use alloy::{
-    primitives::{Address, Uint},
+    primitives::{Address, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
@@ -57,7 +57,7 @@ impl WVara {
     }
 
     pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
-        let builder = self.0.transfer(to, Uint::from(value));
+        let builder = self.0.transfer(to, AlloyU256::from(value));
         let tx = builder.send().await?;
 
         let receipt = tx.get_receipt().await?;
@@ -68,7 +68,7 @@ impl WVara {
     }
 
     pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
-        let builder = self.0.transferFrom(from, to, Uint::from(value));
+        let builder = self.0.transferFrom(from, to, AlloyU256::from(value));
         let tx = builder.send().await?;
 
         let receipt = tx.get_receipt().await?;
@@ -79,14 +79,14 @@ impl WVara {
     }
 
     pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {
-        self._approve(address, Uint::from(value)).await
+        self._approve(address, AlloyU256::from(value)).await
     }
 
     pub async fn approve_all(&self, address: Address) -> Result<H256> {
-        self._approve(address, Uint::MAX).await
+        self._approve(address, AlloyU256::MAX).await
     }
 
-    async fn _approve(&self, address: Address, value: Uint<256, 4>) -> Result<H256> {
+    async fn _approve(&self, address: Address, value: AlloyU256) -> Result<H256> {
         let builder = self.0.approve(address, value);
         let tx = builder.send().await?;
 

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::{primitives::Uint, sol};
+use alloy::{primitives::U256 as AlloyU256, sol};
 use ethexe_common::{mirror, router, wvara};
 use gear_core::message::ReplyDetails;
 use gear_core_errors::ReplyCode;
@@ -53,7 +53,7 @@ sol!(
     "WrappedVara.json"
 );
 
-pub(crate) fn uint256_to_u128_lossy(value: Uint<256, 4>) -> u128 {
+pub(crate) fn uint256_to_u128_lossy(value: AlloyU256) -> u128 {
     let [.., high, low] = value.into_limbs();
 
     ((high as u128) << 64) | (low as u128)
