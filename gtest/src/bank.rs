@@ -86,8 +86,14 @@ impl Bank {
             .get_mut(&id)
             .unwrap_or_else(|| panic!("Bank::withdraw_gas: actor id {id:?} not found in bank"))
             .gas -= gas_left_value;
-        let value = multiplier.gas_to_value(gas_left);
-        Accounts::increase(id, value);
+
+        if !Accounts::can_deposit(id, gas_left_value) {
+            // Unable to deposit value to account.
+            // In this case unused value will be lost.
+            return;
+        }
+
+        Accounts::increase(id, gas_left_value);
     }
 
     // Transfer value.
@@ -97,6 +103,13 @@ impl Bank {
             .get_mut(&from)
             .unwrap_or_else(|| panic!("Bank::transfer_value: actor id {from:?} not found in bank"))
             .value -= value;
+
+        if !Accounts::can_deposit(to, value) {
+            // Unable to deposit value to account.
+            // In this case unused value will be lost.
+            return;
+        }
+
         Accounts::increase(to, value);
     }
 }

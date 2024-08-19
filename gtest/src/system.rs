@@ -373,14 +373,21 @@ impl System {
 
     /// Mint balance to user with given `id` and `value`.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
-        let actor_id = id.into().0;
-        self.0.borrow_mut().mint_to(&actor_id, value);
+        let id = id.into().0;
+
+        if Actors::is_program(id) {
+            panic!(
+                "Attempt to mint value to a program {id:?}, please use `System::transfer` instead"
+            );
+        }
+
+        self.0.borrow_mut().mint_to(&id, value);
     }
 
     /// Transfer balance from user with given `from` id to user with given `to`
     /// id.
     pub fn transfer(
-        &mut self,
+        &self,
         from: impl Into<ProgramIdWrapper>,
         to: impl Into<ProgramIdWrapper>,
         value: Value,
@@ -410,6 +417,10 @@ impl Drop for System {
         self.0.borrow().gas_tree.reset();
         self.0.borrow().mailbox.reset();
         self.0.borrow().task_pool.clear();
+
+        // Clear actors and accounts storages
+        Actors::clear();
+        Accounts::clear();
     }
 }
 

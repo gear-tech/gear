@@ -113,7 +113,9 @@
 //! mod tests {
 //!     use gtest::{Log, Program, System};
 //!
-//!     // Or you can use the default users from the `gtest::constants`.
+//!     // Alternatively, you can use the default users:
+//!     // [`DEFAULT_USER_ALICE`], [`DEFAULT_USER_BOB`], [`DEFAULT_USER_CHARLIE`], [`DEFAULT_USER_EVE`].
+//!     // The full list of default users can be obtained with [`default_users_list`].
 //!     const USER_ID: u64 = 100001;
 //!
 //!     #[test]
@@ -414,11 +416,15 @@
 //!
 //! As previously mentioned [here](#Pre-requisites-for-Sending-a-Message),
 //! a balance for the user must be minted before sending a message. This balance
-//! should be sufficient to cover both the existential deposit and gas costs.
+//! should be sufficient to cover the following: the user's existential deposit,
+//! the existential deposit of the initialized program (the first message to the
+//! program charges the program's existential deposit from the sender), and the
+//! message's gas costs.
 //!
-//! The `mint_to` method can be utilized to allocate a balance to the user,
-//! while the `mint` method serves to allocate a balance to the program. The
-//! `balance_of` method may be used to verify the current balance.
+//! The [`System::mint_to`] method can be utilized to allocate a balance to the
+//! user, while the [`Program::mint`] method serves to allocate a balance to the
+//! program. The [`System::balance_of`] method may be used to verify the current
+//! balance.
 //!
 //! ```no_run
 //! # use gtest::Program;

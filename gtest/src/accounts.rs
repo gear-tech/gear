@@ -44,7 +44,15 @@ struct Balance {
 }
 
 impl Balance {
+    #[track_caller]
     fn new(amount: Value) -> Self {
+        if amount < EXISTENTIAL_DEPOSIT {
+            panic!(
+                "Failed to create balance: the amount {} cannot be lower than the existential deposit",
+                amount
+            );
+        }
+
         Self { amount }
     }
 
@@ -69,7 +77,7 @@ pub(crate) struct Accounts;
 
 impl Accounts {
     // Checks if account by program id exists.
-    pub(crate) fn is_exist(id: ProgramId) -> bool {
+    pub(crate) fn exist(id: ProgramId) -> bool {
         Self::balance(id) != 0
     }
 
@@ -118,6 +126,8 @@ impl Accounts {
                     );
                     storage.remove(&id);
                 }
+            } else {
+                panic!("Failed to decrease balance for account {id:?}, balance is zero");
             }
         });
     }
@@ -125,19 +135,22 @@ impl Accounts {
     // Increases account balance.
     pub(crate) fn increase(id: ProgramId, amount: Value) {
         ACCOUNT_STORAGE.with_borrow_mut(|storage| {
-            let balance = storage.entry(id).or_insert(Balance::new(0));
+            let balance = storage.get(&id).map(Balance::balance).unwrap_or_default();
 
-            if balance.balance() + amount < EXISTENTIAL_DEPOSIT {
+            if balance + amount < EXISTENTIAL_DEPOSIT {
                 panic!(
-                    "Failed to increase balance: the sum {} of the total balance {} \
-                    and the value {} cannot be lower than the existential deposit",
-                    balance.balance() + amount,
-                    balance.balance(),
+                    "Failed to increase balance: the sum ({}) of the total balance ({}) \
+                    and the value ({}) cannot be lower than the existential deposit ({EXISTENTIAL_DEPOSIT})",
+                    balance + amount,
+                    balance,
                     amount
                 );
             }
 
-            balance.increase(amount);
+            storage
+                .entry(id)
+                .and_modify(|balance| balance.increase(amount))
+                .or_insert_with(|| Balance::new(amount));
         });
     }
 
@@ -158,6 +171,19 @@ impl Accounts {
 
         ACCOUNT_STORAGE.with_borrow_mut(|storage| {
             storage.insert(id, Balance::new(amount));
+        });
+    }
+
+    // Checks if value can be deposited to account.
+    pub(crate) fn can_deposit(id: ProgramId, amount: Value) -> bool {
+        Accounts::balance(id) + amount >= EXISTENTIAL_DEPOSIT
+    }
+
+    // Clears accounts storage.
+    pub(crate) fn clear() {
+        ACCOUNT_STORAGE.with_borrow_mut(|storage| {
+            storage.clear();
+            init_default_accounts(storage);
         });
     }
 }

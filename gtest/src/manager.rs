@@ -284,7 +284,7 @@ impl ExtManager {
 
             enum DispatchCase {
                 Dormant,
-                ExecutableData(ExecutableActorData, InstrumentedCode),
+                Normal(ExecutableActorData, InstrumentedCode),
                 Mock(Box<dyn WasmProgram>),
             }
 
@@ -294,7 +294,7 @@ impl ExtManager {
                 if actor.is_dormant() {
                     DispatchCase::Dormant
                 } else if let Some((data, code)) = actor.get_executable_actor_data() {
-                    DispatchCase::ExecutableData(data, code)
+                    DispatchCase::Normal(data, code)
                 } else if let Some(mock) = actor.take_mock() {
                     DispatchCase::Mock(mock)
                 } else {
@@ -305,7 +305,7 @@ impl ExtManager {
 
             match dispatch_case {
                 DispatchCase::Dormant => self.process_dormant(balance, dispatch),
-                DispatchCase::ExecutableData(data, code) => {
+                DispatchCase::Normal(data, code) => {
                     self.process_normal(balance, data, code, dispatch)
                 }
                 DispatchCase::Mock(mock) => self.process_mock(mock, dispatch),
@@ -327,8 +327,8 @@ impl ExtManager {
         }
 
         // User must exist
-        if !Accounts::is_exist(source) {
-            panic!("User {source} doesn't exist; mint value to it first.");
+        if !Accounts::exist(source) {
+            panic!("User's {source} balance is zero; mint value to it first.");
         }
 
         let is_init_msg = dispatch.kind().is_init();
@@ -345,7 +345,7 @@ impl ExtManager {
         if balance < { dispatch.value() + gas_value + maybe_ed } {
             panic!(
                 "Insufficient balance: user ({}) tries to send \
-                ({}) value, ({}) gas and ED {}, while his balance ({:?})",
+                ({}) value, ({}) gas and ED ({}), while his balance ({:?})",
                 source,
                 dispatch.value(),
                 gas_value,
@@ -359,8 +359,10 @@ impl ExtManager {
             Accounts::transfer(source, destination, EXISTENTIAL_DEPOSIT, false);
         }
 
-        // Deposit message value
-        self.bank.deposit_value(source, dispatch.value(), false);
+        if dispatch.value() != 0 {
+            // Deposit message value
+            self.bank.deposit_value(source, dispatch.value(), false);
+        }
 
         // Deposit gas
         self.bank.deposit_gas(source, gas_limit, false);
@@ -392,9 +394,9 @@ impl ExtManager {
                 self.blocks_manager.get(),
             )
             .map_err(TestError::ReadStateError)
-        } else if let Some(mut program_mock) =
-            Actors::modify(*program_id, |actor| actor.unwrap().take_mock())
-        {
+        } else if let Some(mut program_mock) = Actors::modify(*program_id, |actor| {
+            actor.expect("Checked before").take_mock()
+        }) {
             program_mock
                 .state()
                 .map_err(|err| TestError::ReadStateError(err.into()))
@@ -438,14 +440,6 @@ impl ExtManager {
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Value) {
-        if value < crate::EXISTENTIAL_DEPOSIT {
-            panic!(
-                "An attempt to mint value ({}) less than existential deposit ({})",
-                value,
-                crate::EXISTENTIAL_DEPOSIT
-            );
-        }
-
         Accounts::increase(*id, value);
     }
 
@@ -516,7 +510,9 @@ impl ExtManager {
         });
 
         let value = Accounts::balance(program_id);
-        Accounts::transfer(program_id, origin, value, false);
+        if value != 0 {
+            Accounts::transfer(program_id, origin, value, false);
+        }
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {

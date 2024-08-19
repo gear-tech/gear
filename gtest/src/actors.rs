@@ -91,6 +91,11 @@ impl Actors {
     pub(crate) fn program_ids() -> Vec<ProgramId> {
         ACTORS_STORAGE.with_borrow(|storage| storage.keys().copied().collect())
     }
+
+    // Clears actors storage.
+    pub(crate) fn clear() {
+        ACTORS_STORAGE.with_borrow_mut(|storage| storage.clear())
+    }
 }
 
 impl fmt::Debug for Actors {

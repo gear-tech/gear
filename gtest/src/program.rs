@@ -860,10 +860,7 @@ pub mod gbuild {
 mod tests {
     use super::Program;
 
-    use crate::{
-        Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT,
-        GAS_MULTIPLIER,
-    };
+    use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
 
@@ -1059,7 +1056,8 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "An attempt to mint value (1) less than existential deposit (1000000000000)"
+        expected = "Failed to increase balance: the sum (1) of the total balance (0) and the value (1) \
+        cannot be lower than the existential deposit (1000000000000)"
     )]
     fn mint_less_than_deposit() {
         System::new().mint_to(1, 1);
@@ -1068,7 +1066,7 @@ mod tests {
     #[test]
     #[should_panic(
         expected = "Insufficient balance: user (0x0500000000000000000000000000000000000000000000000000000000000000) \
-    tries to send (1000000000001) value, (4500000000000) gas and ED 1000000000000, while his balance (1000000000000)"
+    tries to send (1000000000001) value, (4500000000000) gas and ED (1000000000000), while his balance (1000000000000)"
     )]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
@@ -1297,10 +1295,7 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
         let user_id = ActorId::zero();
-        sys.mint_to(
-            user_id,
-            EXISTENTIAL_DEPOSIT + GAS_MULTIPLIER.gas_to_value(1),
-        );
+        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 2);
 
         // set insufficient gas for execution
         let msg_id = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
@@ -1424,11 +1419,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Failed to increase balance: the sum 5850000000 of the total balance 0 \
-        and the value 5850000000 cannot be lower than the existential deposit"
-    )]
-    fn fails_transfer_when_user_balance_lower_than_ed() {
+    fn tests_unused_gas_value_not_transferred() {
         let sys = System::new();
         sys.init_verbose_logger();
 
@@ -1438,5 +1429,8 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 69, demo_piggy_bank::WASM_BINARY);
         prog.send_bytes_with_gas(user, b"init", 1_000_000_000, 0);
         sys.run_next_block();
+
+        // Unspent gas is not returned to the user's balance when the sum of these is lower than ED
+        assert_eq!(sys.balance_of(user), 0)
     }
 }

@@ -98,7 +98,9 @@ impl JournalHandler for ExtManager {
         });
 
         let value = Accounts::balance(id_exited);
-        Accounts::transfer(id_exited, value_destination, value, false);
+        if value != 0 {
+            Accounts::transfer(id_exited, value_destination, value, false);
+        }
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
