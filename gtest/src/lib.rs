@@ -255,7 +255,7 @@
 //! RUST_LOG="target_1=logging_level,target_2=logging_level" cargo test
 //! ```
 //!
-//! ## Pre-requisites for Sending a Message
+//! ## Pre-requisites for sending a message
 //!
 //! Prior to sending a message, it is necessary to mint sufficient balance for
 //! the sender to ensure coverage of the existential deposit and gas costs.
