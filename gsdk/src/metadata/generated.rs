@@ -259,22 +259,28 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::remark`]."]
                     remark {
                         remark: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::set_heap_pages`]."]
                     set_heap_pages { pages: ::core::primitive::u64 },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::set_code`]."]
                     set_code {
                         code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::set_code_without_checks`]."]
                     set_code_without_checks {
                         code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::set_storage`]."]
                     set_storage {
                         items: ::subxt::ext::subxt_core::alloc::vec::Vec<(
                             ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
@@ -282,58 +288,79 @@ pub mod runtime_types {
                         )>,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::kill_storage`]."]
                     kill_storage {
                         keys: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         >,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::kill_prefix`]."]
                     kill_prefix {
                         prefix: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         subkeys: ::core::primitive::u32,
                     },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::remark_with_event`]."]
                     remark_with_event {
                         remark: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Error for the System pallet"]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The name of specification does not match between the current runtime"]
+                    #[doc = "and the new runtime."]
                     InvalidSpecName,
                     #[codec(index = 1)]
+                    #[doc = "The specification version is not allowed to decrease between the current runtime"]
+                    #[doc = "and the new runtime."]
                     SpecVersionNeedsToIncrease,
                     #[codec(index = 2)]
+                    #[doc = "Failed to extract the runtime version from the new runtime."]
+                    #[doc = ""]
+                    #[doc = "Either calling `Core_version` or decoding `RuntimeVersion` failed."]
                     FailedToExtractRuntimeVersion,
                     #[codec(index = 3)]
+                    #[doc = "Suicide called when the account has non-default composite data."]
                     NonDefaultComposite,
                     #[codec(index = 4)]
+                    #[doc = "There is a non-zero reference count preventing the account from being purged."]
                     NonZeroRefCount,
                     #[codec(index = 5)]
+                    #[doc = "The origin filter prevent the call to be dispatched."]
                     CallFiltered,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Event for the System pallet."]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "An extrinsic completed successfully."]
                     ExtrinsicSuccess {
                         dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
                     },
                     #[codec(index = 1)]
+                    #[doc = "An extrinsic failed."]
                     ExtrinsicFailed {
                         dispatch_error: runtime_types::sp_runtime::DispatchError,
                         dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
                     },
                     #[codec(index = 2)]
+                    #[doc = "`:code` was updated."]
                     CodeUpdated,
                     #[codec(index = 3)]
+                    #[doc = "A new account was created."]
                     NewAccount {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 4)]
+                    #[doc = "An account was reaped."]
                     KilledAccount {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "On on-chain remark happened."]
                     Remarked {
                         sender: ::subxt::ext::subxt_core::utils::AccountId32,
                         hash: ::subxt::ext::subxt_core::utils::H256,
@@ -1021,8 +1048,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::report_equivocation`]."]
                     report_equivocation {
                         equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_slots::EquivocationProof<
@@ -1035,6 +1064,7 @@ pub mod runtime_types {
                         key_owner_proof: runtime_types::sp_session::MembershipProof,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::report_equivocation_unsigned`]."]
                     report_equivocation_unsigned {
                         equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_slots::EquivocationProof<
@@ -1047,19 +1077,25 @@ pub mod runtime_types {
                         key_owner_proof: runtime_types::sp_session::MembershipProof,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::plan_config_change`]."]
                     plan_config_change {
                         config: runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "An equivocation proof provided as part of an equivocation report is invalid."]
                     InvalidEquivocationProof,
                     #[codec(index = 1)]
+                    #[doc = "A key ownership proof provided as part of an equivocation report is invalid."]
                     InvalidKeyOwnershipProof,
                     #[codec(index = 2)]
+                    #[doc = "A given equivocation report is valid but already previously reported."]
                     DuplicateOffenceReport,
                     #[codec(index = 3)]
+                    #[doc = "Submitted configuration is invalid."]
                     InvalidConfiguration,
                 }
             }
@@ -1096,8 +1132,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::rebag`]."]
                     rebag {
                         dislocated: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1105,6 +1143,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::put_in_front_of`]."]
                     put_in_front_of {
                         lighter: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1112,6 +1151,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::put_in_front_of_other`]."]
                     put_in_front_of_other {
                         heavier: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1124,19 +1164,24 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "A error in the list interface implementation."]
                     List(runtime_types::pallet_bags_list::list::ListError),
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "Moved an account from one bag to another."]
                     Rebagged {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         from: ::core::primitive::u64,
                         to: ::core::primitive::u64,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Updated the score of some account to the given amount."]
                     ScoreUpdated {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         new_score: ::core::primitive::u64,
@@ -1149,8 +1194,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::transfer_allow_death`]."]
                     transfer_allow_death {
                         dest: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1160,6 +1207,7 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::force_transfer`]."]
                     force_transfer {
                         source: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1173,6 +1221,7 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::transfer_keep_alive`]."]
                     transfer_keep_alive {
                         dest: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1182,6 +1231,7 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::transfer_all`]."]
                     transfer_all {
                         dest: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1190,6 +1240,7 @@ pub mod runtime_types {
                         keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::force_unreserve`]."]
                     force_unreserve {
                         who: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1198,12 +1249,14 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::upgrade_accounts`]."]
                     upgrade_accounts {
                         who: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             ::subxt::ext::subxt_core::utils::AccountId32,
                         >,
                     },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::force_set_balance`]."]
                     force_set_balance {
                         who: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1214,62 +1267,83 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Vesting balance too high to send value."]
                     VestingBalance,
                     #[codec(index = 1)]
+                    #[doc = "Account liquidity restrictions prevent withdrawal."]
                     LiquidityRestrictions,
                     #[codec(index = 2)]
+                    #[doc = "Balance too low to send value."]
                     InsufficientBalance,
                     #[codec(index = 3)]
+                    #[doc = "Value too low to create account due to existential deposit."]
                     ExistentialDeposit,
                     #[codec(index = 4)]
+                    #[doc = "Transfer/payment would kill account."]
                     Expendability,
                     #[codec(index = 5)]
+                    #[doc = "A vesting schedule already exists for this account."]
                     ExistingVestingSchedule,
                     #[codec(index = 6)]
+                    #[doc = "Beneficiary account must pre-exist."]
                     DeadAccount,
                     #[codec(index = 7)]
+                    #[doc = "Number of named reserves exceed `MaxReserves`."]
                     TooManyReserves,
                     #[codec(index = 8)]
+                    #[doc = "Number of holds exceed `MaxHolds`."]
                     TooManyHolds,
                     #[codec(index = 9)]
+                    #[doc = "Number of freezes exceed `MaxFreezes`."]
                     TooManyFreezes,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "An account was created with some free balance."]
                     Endowed {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                         free_balance: ::core::primitive::u128,
                     },
                     #[codec(index = 1)]
+                    #[doc = "An account was removed whose balance was non-zero but below ExistentialDeposit,"]
+                    #[doc = "resulting in an outright loss."]
                     DustLost {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "Transfer succeeded."]
                     Transfer {
                         from: ::subxt::ext::subxt_core::utils::AccountId32,
                         to: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A balance was set by root."]
                     BalanceSet {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         free: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
+                    #[doc = "Some balance was reserved (moved from free to reserved)."]
                     Reserved {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 5)]
+                    #[doc = "Some balance was unreserved (moved from reserved to free)."]
                     Unreserved {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 6)]
+                    #[doc = "Some balance was moved from the reserve of the first account to the second account."]
+                    #[doc = "Final argument indicates the destination balance type."]
                     ReserveRepatriated {
                         from: ::subxt::ext::subxt_core::utils::AccountId32,
                         to: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1278,64 +1352,78 @@ pub mod runtime_types {
                             runtime_types::frame_support::traits::tokens::misc::BalanceStatus,
                     },
                     #[codec(index = 7)]
+                    #[doc = "Some amount was deposited (e.g. for transaction fees)."]
                     Deposit {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 8)]
+                    #[doc = "Some amount was withdrawn from the account (e.g. for transaction fees)."]
                     Withdraw {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 9)]
+                    #[doc = "Some amount was removed from the account (e.g. for misbehavior)."]
                     Slashed {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 10)]
+                    #[doc = "Some amount was minted into an account."]
                     Minted {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 11)]
+                    #[doc = "Some amount was burned from an account."]
                     Burned {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 12)]
+                    #[doc = "Some amount was suspended from an account (it can be restored later)."]
                     Suspended {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 13)]
+                    #[doc = "Some amount was restored into an account."]
                     Restored {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 14)]
+                    #[doc = "An account was upgraded."]
                     Upgraded {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 15)]
+                    #[doc = "Total issuance was increased by `amount`, creating a credit to be balanced."]
                     Issued { amount: ::core::primitive::u128 },
                     #[codec(index = 16)]
+                    #[doc = "Total issuance was decreased by `amount`, creating a debt to be balanced."]
                     Rescinded { amount: ::core::primitive::u128 },
                     #[codec(index = 17)]
+                    #[doc = "Some balance was locked."]
                     Locked {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 18)]
+                    #[doc = "Some balance was unlocked."]
                     Unlocked {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 19)]
+                    #[doc = "Some balance was frozen."]
                     Frozen {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 20)]
+                    #[doc = "Some balance was thawed."]
                     Thawed {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
@@ -1391,8 +1479,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::propose_bounty`]."]
                     propose_bounty {
                         #[codec(compact)]
                         value: ::core::primitive::u128,
@@ -1400,11 +1490,13 @@ pub mod runtime_types {
                             ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::approve_bounty`]."]
                     approve_bounty {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::propose_curator`]."]
                     propose_curator {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
@@ -1416,16 +1508,19 @@ pub mod runtime_types {
                         fee: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::unassign_curator`]."]
                     unassign_curator {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::accept_curator`]."]
                     accept_curator {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::award_bounty`]."]
                     award_bounty {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
@@ -1435,16 +1530,19 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::claim_bounty`]."]
                     claim_bounty {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::close_bounty`]."]
                     close_bounty {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::extend_bounty_expiry`]."]
                     extend_bounty_expiry {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
@@ -1452,66 +1550,91 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Proposer's balance is too low."]
                     InsufficientProposersBalance,
                     #[codec(index = 1)]
+                    #[doc = "No proposal or bounty at that index."]
                     InvalidIndex,
                     #[codec(index = 2)]
+                    #[doc = "The reason given is just too big."]
                     ReasonTooBig,
                     #[codec(index = 3)]
+                    #[doc = "The bounty status is unexpected."]
                     UnexpectedStatus,
                     #[codec(index = 4)]
+                    #[doc = "Require bounty curator."]
                     RequireCurator,
                     #[codec(index = 5)]
+                    #[doc = "Invalid bounty value."]
                     InvalidValue,
                     #[codec(index = 6)]
+                    #[doc = "Invalid bounty fee."]
                     InvalidFee,
                     #[codec(index = 7)]
+                    #[doc = "A bounty payout is pending."]
+                    #[doc = "To cancel the bounty, you must unassign and slash the curator."]
                     PendingPayout,
                     #[codec(index = 8)]
+                    #[doc = "The bounties cannot be claimed/closed because it's still in the countdown period."]
                     Premature,
                     #[codec(index = 9)]
+                    #[doc = "The bounty cannot be closed because it has active child bounties."]
                     HasActiveChildBounty,
                     #[codec(index = 10)]
+                    #[doc = "Too many approvals are already queued."]
                     TooManyQueued,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "New bounty proposal."]
                     BountyProposed { index: ::core::primitive::u32 },
                     #[codec(index = 1)]
+                    #[doc = "A bounty proposal was rejected; funds were slashed."]
                     BountyRejected {
                         index: ::core::primitive::u32,
                         bond: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "A bounty proposal is funded and became active."]
                     BountyBecameActive { index: ::core::primitive::u32 },
                     #[codec(index = 3)]
+                    #[doc = "A bounty is awarded to a beneficiary."]
                     BountyAwarded {
                         index: ::core::primitive::u32,
                         beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 4)]
+                    #[doc = "A bounty is claimed by beneficiary."]
                     BountyClaimed {
                         index: ::core::primitive::u32,
                         payout: ::core::primitive::u128,
                         beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "A bounty is cancelled."]
                     BountyCanceled { index: ::core::primitive::u32 },
                     #[codec(index = 6)]
+                    #[doc = "A bounty expiry is extended."]
                     BountyExtended { index: ::core::primitive::u32 },
                     #[codec(index = 7)]
+                    #[doc = "A bounty is approved."]
                     BountyApproved { index: ::core::primitive::u32 },
                     #[codec(index = 8)]
+                    #[doc = "A bounty curator is proposed."]
                     CuratorProposed {
                         bounty_id: ::core::primitive::u32,
                         curator: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 9)]
+                    #[doc = "A bounty curator is unassigned."]
                     CuratorUnassigned { bounty_id: ::core::primitive::u32 },
                     #[codec(index = 10)]
+                    #[doc = "A bounty curator is accepted."]
                     CuratorAccepted {
                         bounty_id: ::core::primitive::u32,
                         curator: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1552,8 +1675,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::add_child_bounty`]."]
                     add_child_bounty {
                         #[codec(compact)]
                         parent_bounty_id: ::core::primitive::u32,
@@ -1563,6 +1688,7 @@ pub mod runtime_types {
                             ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::propose_curator`]."]
                     propose_curator {
                         #[codec(compact)]
                         parent_bounty_id: ::core::primitive::u32,
@@ -1576,6 +1702,7 @@ pub mod runtime_types {
                         fee: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::accept_curator`]."]
                     accept_curator {
                         #[codec(compact)]
                         parent_bounty_id: ::core::primitive::u32,
@@ -1583,6 +1710,7 @@ pub mod runtime_types {
                         child_bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::unassign_curator`]."]
                     unassign_curator {
                         #[codec(compact)]
                         parent_bounty_id: ::core::primitive::u32,
@@ -1590,6 +1718,7 @@ pub mod runtime_types {
                         child_bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::award_child_bounty`]."]
                     award_child_bounty {
                         #[codec(compact)]
                         parent_bounty_id: ::core::primitive::u32,
@@ -1601,6 +1730,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::claim_child_bounty`]."]
                     claim_child_bounty {
                         #[codec(compact)]
                         parent_bounty_id: ::core::primitive::u32,
@@ -1608,6 +1738,7 @@ pub mod runtime_types {
                         child_bounty_id: ::core::primitive::u32,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::close_child_bounty`]."]
                     close_child_bounty {
                         #[codec(compact)]
                         parent_bounty_id: ::core::primitive::u32,
@@ -1616,28 +1747,36 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The parent bounty is not in active state."]
                     ParentBountyNotActive,
                     #[codec(index = 1)]
+                    #[doc = "The bounty balance is not enough to add new child-bounty."]
                     InsufficientBountyBalance,
                     #[codec(index = 2)]
+                    #[doc = "Number of child bounties exceeds limit `MaxActiveChildBountyCount`."]
                     TooManyChildBounties,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A child-bounty is added."]
                     Added {
                         index: ::core::primitive::u32,
                         child_index: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "A child-bounty is awarded to a beneficiary."]
                     Awarded {
                         index: ::core::primitive::u32,
                         child_index: ::core::primitive::u32,
                         beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "A child-bounty is claimed by beneficiary."]
                     Claimed {
                         index: ::core::primitive::u32,
                         child_index: ::core::primitive::u32,
@@ -1645,6 +1784,7 @@ pub mod runtime_types {
                         beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A child-bounty is cancelled."]
                     Canceled {
                         index: ::core::primitive::u32,
                         child_index: ::core::primitive::u32,
@@ -1700,8 +1840,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::vote`]."]
                     vote {
                         #[codec(compact)]
                         poll_index: ::core::primitive::u32,
@@ -1710,6 +1852,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::delegate`]."]
                     delegate {
                         class: ::core::primitive::u16,
                         to: ::subxt::ext::subxt_core::utils::MultiAddress<
@@ -1720,8 +1863,10 @@ pub mod runtime_types {
                         balance: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::undelegate`]."]
                     undelegate { class: ::core::primitive::u16 },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::unlock`]."]
                     unlock {
                         class: ::core::primitive::u16,
                         target: ::subxt::ext::subxt_core::utils::MultiAddress<
@@ -1730,11 +1875,13 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::remove_vote`]."]
                     remove_vote {
                         class: ::core::option::Option<::core::primitive::u16>,
                         index: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::remove_other_vote`]."]
                     remove_other_vote {
                         target: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -1745,40 +1892,57 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Poll is not ongoing."]
                     NotOngoing,
                     #[codec(index = 1)]
+                    #[doc = "The given account did not vote on the poll."]
                     NotVoter,
                     #[codec(index = 2)]
+                    #[doc = "The actor has no permission to conduct the action."]
                     NoPermission,
                     #[codec(index = 3)]
+                    #[doc = "The actor has no permission to conduct the action right now but will do in the future."]
                     NoPermissionYet,
                     #[codec(index = 4)]
+                    #[doc = "The account is already delegating."]
                     AlreadyDelegating,
                     #[codec(index = 5)]
+                    #[doc = "The account currently has votes attached to it and the operation cannot succeed until"]
+                    #[doc = "these are removed, either through `unvote` or `reap_vote`."]
                     AlreadyVoting,
                     #[codec(index = 6)]
+                    #[doc = "Too high a balance was provided that the account cannot afford."]
                     InsufficientFunds,
                     #[codec(index = 7)]
+                    #[doc = "The account is not currently delegating."]
                     NotDelegating,
                     #[codec(index = 8)]
+                    #[doc = "Delegation to oneself makes no sense."]
                     Nonsense,
                     #[codec(index = 9)]
+                    #[doc = "Maximum number of votes reached."]
                     MaxVotesReached,
                     #[codec(index = 10)]
+                    #[doc = "The class must be supplied since it is not easily determinable from the state."]
                     ClassNeeded,
                     #[codec(index = 11)]
+                    #[doc = "The class ID supplied is invalid."]
                     BadClass,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "An account has delegated their vote to another account. \\[who, target\\]"]
                     Delegated(
                         ::subxt::ext::subxt_core::utils::AccountId32,
                         ::subxt::ext::subxt_core::utils::AccountId32,
                     ),
                     #[codec(index = 1)]
+                    #[doc = "An \\[account\\] has cancelled a previous delegation operation."]
                     Undelegated(::subxt::ext::subxt_core::utils::AccountId32),
                 }
             }
@@ -1858,42 +2022,66 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
-                    # [codec (index = 0)] submit_unsigned { raw_solution : ::subxt::ext ::subxt_core::alloc::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , witness : runtime_types::pallet_election_provider_multi_phase::SolutionOrSnapshotSize , } , # [codec (index = 1)] set_minimum_untrusted_score { maybe_next_score: ::core::option::Option < runtime_types::sp_npos_elections::ElectionScore > , } , # [codec (index = 2)] set_emergency_election_result { supports : ::subxt::ext ::subxt_core::alloc::vec::Vec < (::subxt::ext ::subxt_core::utils::AccountId32 , runtime_types::sp_npos_elections::Support < ::subxt::ext ::subxt_core::utils::AccountId32 > ,) > , } , # [codec (index = 3)] submit { raw_solution : ::subxt::ext ::subxt_core::alloc::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , } , # [codec (index = 4)] governance_fallback { maybe_max_voters: ::core::option::Option <::core::primitive::u32 > , maybe_max_targets: ::core::option::Option <::core::primitive::u32 > , } , }
+                    # [codec (index = 0)] # [doc = "See [`Pallet::submit_unsigned`]."] submit_unsigned { raw_solution : ::subxt::ext ::subxt_core::alloc::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , witness : runtime_types::pallet_election_provider_multi_phase::SolutionOrSnapshotSize , } , # [codec (index = 1)] # [doc = "See [`Pallet::set_minimum_untrusted_score`]."] set_minimum_untrusted_score { maybe_next_score: ::core::option::Option < runtime_types::sp_npos_elections::ElectionScore > , } , # [codec (index = 2)] # [doc = "See [`Pallet::set_emergency_election_result`]."] set_emergency_election_result { supports : ::subxt::ext ::subxt_core::alloc::vec::Vec < (::subxt::ext ::subxt_core::utils::AccountId32 , runtime_types::sp_npos_elections::Support < ::subxt::ext ::subxt_core::utils::AccountId32 > ,) > , } , # [codec (index = 3)] # [doc = "See [`Pallet::submit`]."] submit { raw_solution : ::subxt::ext ::subxt_core::alloc::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , } , # [codec (index = 4)] # [doc = "See [`Pallet::governance_fallback`]."] governance_fallback { maybe_max_voters: ::core::option::Option <::core::primitive::u32 > , maybe_max_targets: ::core::option::Option <::core::primitive::u32 > , } , }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Error of the pallet that can be returned in response to dispatches."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Submission was too early."]
                     PreDispatchEarlySubmission,
                     #[codec(index = 1)]
+                    #[doc = "Wrong number of winners presented."]
                     PreDispatchWrongWinnerCount,
                     #[codec(index = 2)]
+                    #[doc = "Submission was too weak, score-wise."]
                     PreDispatchWeakSubmission,
                     #[codec(index = 3)]
+                    #[doc = "The queue was full, and the solution was not better than any of the existing ones."]
                     SignedQueueFull,
                     #[codec(index = 4)]
+                    #[doc = "The origin failed to pay the deposit."]
                     SignedCannotPayDeposit,
                     #[codec(index = 5)]
+                    #[doc = "Witness data to dispatchable is invalid."]
                     SignedInvalidWitness,
                     #[codec(index = 6)]
+                    #[doc = "The signed submission consumes too much weight"]
                     SignedTooMuchWeight,
                     #[codec(index = 7)]
+                    #[doc = "OCW submitted solution for wrong round"]
                     OcwCallWrongEra,
                     #[codec(index = 8)]
+                    #[doc = "Snapshot metadata should exist but didn't."]
                     MissingSnapshotMetadata,
                     #[codec(index = 9)]
+                    #[doc = "`Self::insert_submission` returned an invalid index."]
                     InvalidSubmissionIndex,
                     #[codec(index = 10)]
+                    #[doc = "The call is not allowed at this point."]
                     CallNotAllowed,
                     #[codec(index = 11)]
+                    #[doc = "The fallback failed"]
                     FallbackFailed,
                     #[codec(index = 12)]
+                    #[doc = "Some bound not met"]
                     BoundNotMet,
                     #[codec(index = 13)]
+                    #[doc = "Submitted solution has too many winners"]
                     TooManyWinners,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A solution was stored with the given compute."]
+                    #[doc = ""]
+                    #[doc = "The `origin` indicates the origin of the solution. If `origin` is `Some(AccountId)`,"]
+                    #[doc = "the stored solution was submited in the signed phase by a miner with the `AccountId`."]
+                    #[doc = "Otherwise, the solution was stored either during the unsigned phase or by"]
+                    #[doc = "`T::ForceOrigin`. The `bool` is `true` when a previous solution was ejected to make"]
+                    #[doc = "room for this one."]
                     SolutionStored {
                         compute:
                             runtime_types::pallet_election_provider_multi_phase::ElectionCompute,
@@ -1902,24 +2090,31 @@ pub mod runtime_types {
                         prev_ejected: ::core::primitive::bool,
                     },
                     #[codec(index = 1)]
+                    #[doc = "The election has been finalized, with the given computation and score."]
                     ElectionFinalized {
                         compute:
                             runtime_types::pallet_election_provider_multi_phase::ElectionCompute,
                         score: runtime_types::sp_npos_elections::ElectionScore,
                     },
                     #[codec(index = 2)]
+                    #[doc = "An election failed."]
+                    #[doc = ""]
+                    #[doc = "Not much can be said about which computes failed in the process."]
                     ElectionFailed,
                     #[codec(index = 3)]
+                    #[doc = "An account has been rewarded for their signed submission being finalized."]
                     Rewarded {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
+                    #[doc = "An account has been slashed for submitting an invalid signed submission."]
                     Slashed {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 5)]
+                    #[doc = "There was a phase transition in a given round."]
                     PhaseTransitioned {
                         from: runtime_types::pallet_election_provider_multi_phase::Phase<
                             ::core::primitive::u32,
@@ -2001,12 +2196,15 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::upload_code`]."]
                     upload_code {
                         code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::upload_program`]."]
                     upload_program {
                         code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         salt: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
@@ -2017,6 +2215,7 @@ pub mod runtime_types {
                         keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::create_program`]."]
                     create_program {
                         code_id: runtime_types::gprimitives::CodeId,
                         salt: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
@@ -2027,6 +2226,7 @@ pub mod runtime_types {
                         keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::send_message`]."]
                     send_message {
                         destination: runtime_types::gprimitives::ActorId,
                         payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
@@ -2035,6 +2235,7 @@ pub mod runtime_types {
                         keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::send_reply`]."]
                     send_reply {
                         reply_to_id: runtime_types::gprimitives::MessageId,
                         payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
@@ -2043,59 +2244,98 @@ pub mod runtime_types {
                         keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::claim_value`]."]
                     claim_value {
                         message_id: runtime_types::gprimitives::MessageId,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::run`]."]
                     run {
                         max_gas: ::core::option::Option<::core::primitive::u64>,
                     },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::set_execute_inherent`]."]
                     set_execute_inherent { value: ::core::primitive::bool },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::claim_value_to_inheritor`]."]
                     claim_value_to_inheritor {
                         program_id: runtime_types::gprimitives::ActorId,
                         depth: ::core::num::NonZeroU32,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Message wasn't found in the mailbox."]
                     MessageNotFound,
                     #[codec(index = 1)]
+                    #[doc = "Not enough balance to execute an action."]
+                    #[doc = ""]
+                    #[doc = "Usually occurs when the gas_limit specified is such that the origin account can't afford the message."]
                     InsufficientBalance,
                     #[codec(index = 2)]
+                    #[doc = "Gas limit too high."]
+                    #[doc = ""]
+                    #[doc = "Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit."]
                     GasLimitTooHigh,
                     #[codec(index = 3)]
+                    #[doc = "Program already exists."]
+                    #[doc = ""]
+                    #[doc = "Occurs if a program with some specific program id already exists in program storage."]
                     ProgramAlreadyExists,
                     #[codec(index = 4)]
+                    #[doc = "Program is terminated."]
+                    #[doc = ""]
+                    #[doc = "Program init failed, so such message destination is no longer unavailable."]
                     InactiveProgram,
                     #[codec(index = 5)]
+                    #[doc = "Message gas tree is not found."]
+                    #[doc = ""]
+                    #[doc = "When a message claimed from the mailbox has a corrupted or non-extant gas tree associated."]
                     NoMessageTree,
                     #[codec(index = 6)]
+                    #[doc = "Code already exists."]
+                    #[doc = ""]
+                    #[doc = "Occurs when trying to save to storage a program code that has been saved there."]
                     CodeAlreadyExists,
                     #[codec(index = 7)]
+                    #[doc = "Code does not exist."]
+                    #[doc = ""]
+                    #[doc = "Occurs when trying to get a program code from storage, that doesn't exist."]
                     CodeDoesntExist,
                     #[codec(index = 8)]
+                    #[doc = "The code supplied to `upload_code` or `upload_program` exceeds the limit specified in the"]
+                    #[doc = "current schedule."]
                     CodeTooLarge,
                     #[codec(index = 9)]
+                    #[doc = "Failed to create a program."]
                     ProgramConstructionFailed,
                     #[codec(index = 10)]
+                    #[doc = "Message queue processing is disabled."]
                     MessageQueueProcessingDisabled,
                     #[codec(index = 11)]
+                    #[doc = "Block count doesn't cover MinimalResumePeriod."]
                     ResumePeriodLessThanMinimal,
                     #[codec(index = 12)]
+                    #[doc = "Program with the specified id is not found."]
                     ProgramNotFound,
                     #[codec(index = 13)]
+                    #[doc = "Gear::run() already included in current block."]
                     GearRunAlreadyInBlock,
                     #[codec(index = 14)]
+                    #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
                     #[codec(index = 15)]
+                    #[doc = "Program is active."]
                     ActiveProgram,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "User sends message to program, which was successfully"]
+                    #[doc = "added to the Gear message queue."]
                     MessageQueued {
                         id: runtime_types::gprimitives::MessageId,
                         source: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -2103,11 +2343,15 @@ pub mod runtime_types {
                         entry: runtime_types::gear_common::event::MessageEntry,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Somebody sent a message to the user."]
                     UserMessageSent {
                         message: runtime_types::gear_core::message::user::UserMessage,
                         expiration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 2)]
+                    #[doc = "Message marked as \"read\" and removes it from `Mailbox`."]
+                    #[doc = "This event only affects messages that were"]
+                    #[doc = "already inserted in `Mailbox`."]
                     UserMessageRead {
                         id: runtime_types::gprimitives::MessageId,
                         reason: runtime_types::gear_common::event::Reason<
@@ -2116,6 +2360,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 3)]
+                    #[doc = "The result of processing the messages within the block."]
                     MessagesDispatched {
                         total: ::core::primitive::u32,
                         statuses: ::subxt::ext::subxt_core::utils::KeyedVec<
@@ -2127,6 +2372,8 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 4)]
+                    #[doc = "Messages execution delayed (waited) and successfully"]
+                    #[doc = "added to gear waitlist."]
                     MessageWaited {
                         id: runtime_types::gprimitives::MessageId,
                         origin: ::core::option::Option<
@@ -2142,6 +2389,8 @@ pub mod runtime_types {
                         expiration: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "Message is ready to continue its execution"]
+                    #[doc = "and was removed from `Waitlist`."]
                     MessageWoken {
                         id: runtime_types::gprimitives::MessageId,
                         reason: runtime_types::gear_common::event::Reason<
@@ -2150,6 +2399,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 6)]
+                    #[doc = "Any data related to program codes changed."]
                     CodeChanged {
                         id: runtime_types::gprimitives::CodeId,
                         change: runtime_types::gear_common::event::CodeChangeKind<
@@ -2157,6 +2407,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 7)]
+                    #[doc = "Any data related to programs changed."]
                     ProgramChanged {
                         id: runtime_types::gprimitives::ActorId,
                         change: runtime_types::gear_common::event::ProgramChangeKind<
@@ -2164,6 +2415,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 8)]
+                    #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
                     QueueNotProcessed,
                 }
             }
@@ -2406,18 +2658,28 @@ pub mod runtime_types {
                     pub value: _0,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Insufficient user balance."]
                     InsufficientBalance,
                     #[codec(index = 1)]
+                    #[doc = "Insufficient user's bank account gas balance."]
                     InsufficientGasBalance,
                     #[codec(index = 2)]
+                    #[doc = "Insufficient user's bank account gas balance."]
                     InsufficientValueBalance,
                     #[codec(index = 3)]
+                    #[doc = "Insufficient bank account balance."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
                     InsufficientBankBalance,
                     #[codec(index = 4)]
+                    #[doc = "Deposit of funds that will not keep bank account alive."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
                     InsufficientDeposit,
                     #[codec(index = 5)]
+                    #[doc = "Overflow during funds transfer."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
                     Overflow,
                 }
             }
@@ -2427,12 +2689,15 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::enable_debug_mode`]."]
                     enable_debug_mode {
                         debug_mode_on: ::core::primitive::bool,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::exhaust_block_resources`]."]
                     exhaust_block_resources {
                         fraction: runtime_types::sp_arithmetic::per_things::Percent,
                     },
@@ -2447,12 +2712,15 @@ pub mod runtime_types {
                     >,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {}
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
                     DebugMode(::core::primitive::bool),
                     #[codec(index = 1)]
+                    #[doc = "A snapshot of the debug data: programs and message queue ('debug mode' only)"]
                     DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2493,48 +2761,72 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::pause`]."]
                     pause,
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::unpause`]."]
                     unpause,
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::send_eth_message`]."]
                     send_eth_message {
                         destination: ::subxt::ext::subxt_core::utils::H160,
                         payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Pallet Gear Eth Bridge's error."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The error happens when bridge got called before"]
+                    #[doc = "proper initialization after deployment."]
                     BridgeIsNotYetInitialized,
                     #[codec(index = 1)]
+                    #[doc = "The error happens when bridge got called when paused."]
                     BridgeIsPaused,
                     #[codec(index = 2)]
+                    #[doc = "The error happens when bridging message sent with too big payload."]
                     MaxPayloadSizeExceeded,
                     #[codec(index = 3)]
+                    #[doc = "The error happens when bridging queue capacity exceeded,"]
+                    #[doc = "so message couldn't be sent."]
                     QueueCapacityExceeded,
                     #[codec(index = 4)]
+                    #[doc = "The error happens when bridging thorough builtin and message value"]
+                    #[doc = "is inapplicable to operation or insufficient."]
                     IncorrectValueApplied,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Pallet Gear Eth Bridge's event."]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "Grandpa validator's keys set was hashed and set in storage at"]
+                    #[doc = "first block of the last session in the era."]
                     AuthoritySetHashChanged(::subxt::ext::subxt_core::utils::H256),
                     #[codec(index = 1)]
+                    #[doc = "Bridge got cleared on initialization of the second block in a new era."]
                     BridgeCleared,
                     #[codec(index = 2)]
+                    #[doc = "Optimistically, single-time called event defining that pallet"]
+                    #[doc = "got initialized and started processing session changes,"]
+                    #[doc = "as well as putting initial zeroed queue merkle root."]
                     BridgeInitialized,
                     #[codec(index = 3)]
+                    #[doc = "Bridge was paused and temporary doesn't process any incoming requests."]
                     BridgePaused,
                     #[codec(index = 4)]
+                    #[doc = "Bridge was unpaused and from now on processes any incoming requests."]
                     BridgeUnpaused,
                     #[codec(index = 5)]
+                    #[doc = "A new message was queued for bridging."]
                     MessageQueued {
                         message: runtime_types::pallet_gear_eth_bridge::internal::EthMessage,
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 6)]
+                    #[doc = "Merkle root of the queue changed: new messages queued within the block."]
                     QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
                 }
             }
@@ -2544,6 +2836,7 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
                     Forbidden,
@@ -2556,26 +2849,42 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     NodeWasConsumed,
                     #[codec(index = 5)]
+                    #[doc = "Errors stating that gas tree has been invalidated"]
                     ParentIsLost,
                     #[codec(index = 6)]
                     ParentHasNoChildren,
                     #[codec(index = 7)]
+                    #[doc = "Output of `Tree::consume` procedure that wasn't expected."]
+                    #[doc = ""]
+                    #[doc = "Outputs of consumption procedure are determined. The error is returned"]
+                    #[doc = "when unexpected one occurred. That signals, that algorithm works wrong"]
+                    #[doc = "and expected invariants are not correct."]
                     UnexpectedConsumeOutput,
                     #[codec(index = 8)]
+                    #[doc = "Node type that can't occur if algorithm work well"]
                     UnexpectedNodeType,
                     #[codec(index = 9)]
+                    #[doc = "Value must have been caught, but was missed or blocked (for more info see `ValueNode::catch_value`)."]
                     ValueIsNotCaught,
                     #[codec(index = 10)]
+                    #[doc = "Value must have been caught or moved upstream, but was blocked (for more info see `ValueNode::catch_value`)."]
                     ValueIsBlocked,
                     #[codec(index = 11)]
+                    #[doc = "Value must have been blocked, but was either moved or caught (for more info see `ValueNode::catch_value`)."]
                     ValueIsNotBlocked,
                     #[codec(index = 12)]
+                    #[doc = "`GasTree::consume` called on node, which has some balance locked."]
                     ConsumedWithLock,
                     #[codec(index = 13)]
+                    #[doc = "`GasTree::consume` called on node, which has some system reservation."]
                     ConsumedWithSystemReservation,
                     #[codec(index = 14)]
+                    #[doc = "`GasTree::create` called with some value amount leading to"]
+                    #[doc = "the total value overflow."]
                     TotalValueIsOverflowed,
                     #[codec(index = 15)]
+                    #[doc = "Either `GasTree::consume` or `GasTree::spent` called on a node creating"]
+                    #[doc = "negative imbalance which leads to the total value drop below 0."]
                     TotalValueIsUnderflowed,
                 }
             }
@@ -2585,30 +2894,49 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Occurs when given key already exists in queue."]
                     QueueDuplicateKey,
                     #[codec(index = 1)]
+                    #[doc = "Occurs when queue's element wasn't found in storage."]
                     QueueElementNotFound,
                     #[codec(index = 2)]
+                    #[doc = "Occurs when queue's head should contain value,"]
+                    #[doc = "but it's empty for some reason."]
                     QueueHeadShouldBeSet,
                     #[codec(index = 3)]
+                    #[doc = "Occurs when queue's head should be empty,"]
+                    #[doc = "but it contains value for some reason."]
                     QueueHeadShouldNotBeSet,
                     #[codec(index = 4)]
+                    #[doc = "Occurs when queue's tail element contains link"]
+                    #[doc = "to the next element."]
                     QueueTailHasNextKey,
                     #[codec(index = 5)]
+                    #[doc = "Occurs when while searching queue's pre-tail,"]
+                    #[doc = "element wasn't found."]
                     QueueTailParentNotFound,
                     #[codec(index = 6)]
+                    #[doc = "Occurs when queue's tail should contain value,"]
+                    #[doc = "but it's empty for some reason."]
                     QueueTailShouldBeSet,
                     #[codec(index = 7)]
+                    #[doc = "Occurs when queue's tail should be empty,"]
+                    #[doc = "but it contains value for some reason."]
                     QueueTailShouldNotBeSet,
                     #[codec(index = 8)]
+                    #[doc = "Occurs when given value already exists in mailbox."]
                     MailboxDuplicateKey,
                     #[codec(index = 9)]
+                    #[doc = "Occurs when mailbox's element wasn't found in storage."]
                     MailboxElementNotFound,
                     #[codec(index = 10)]
+                    #[doc = "Occurs when given value already exists in waitlist."]
                     WaitlistDuplicateKey,
                     #[codec(index = 11)]
+                    #[doc = "Occurs when waitlist's element wasn't found in storage."]
                     WaitlistElementNotFound,
                 }
             }
@@ -2626,6 +2954,7 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
                     DuplicateItem,
@@ -2645,10 +2974,13 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Occurs when given task already exists in task pool."]
                     DuplicateTask,
                     #[codec(index = 1)]
+                    #[doc = "Occurs when task wasn't found in storage."]
                     TaskNotFound,
                 }
             }
@@ -2663,10 +2995,13 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::refill`]."]
                     refill { value: ::core::primitive::u128 },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::force_refill`]."]
                     force_refill {
                         from: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -2675,6 +3010,7 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::withdraw`]."]
                     withdraw {
                         to: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -2683,24 +3019,33 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::align_supply`]."]
                     align_supply { target: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Error for the staking rewards pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Pool not replenished due to error."]
                     FailureToRefillPool,
                     #[codec(index = 1)]
+                    #[doc = "Failure to withdraw funds from the rewards pool."]
                     FailureToWithdrawFromPool,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "Deposited to the pool."]
                     Deposited { amount: ::core::primitive::u128 },
                     #[codec(index = 1)]
+                    #[doc = "Transferred from the pool to an external account."]
                     Withdrawn { amount: ::core::primitive::u128 },
                     #[codec(index = 2)]
+                    #[doc = "Burned from the pool."]
                     Burned { amount: ::core::primitive::u128 },
                     #[codec(index = 3)]
+                    #[doc = "Minted to the pool."]
                     Minted { amount: ::core::primitive::u128 },
                 }
             }
@@ -2751,8 +3096,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::issue`]."]
                     issue {
                         spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         balance: ::core::primitive::u128,
@@ -2765,6 +3112,7 @@ pub mod runtime_types {
                         duration: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::call`]."]
                     call {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                         call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
@@ -2772,11 +3120,13 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::revoke`]."]
                     revoke {
                         spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::update`]."]
                     update {
                         spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
@@ -2794,55 +3144,75 @@ pub mod runtime_types {
                         prolong_duration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::call_deprecated`]."]
                     call_deprecated {
                         call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
                             ::core::primitive::u128,
                         >,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::decline`]."]
                     decline {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The origin is not eligible to execute call."]
                     BadOrigin,
                     #[codec(index = 1)]
+                    #[doc = "Error trying transfer balance to/from voucher account."]
                     BalanceTransfer,
                     #[codec(index = 2)]
+                    #[doc = "Destination program is not in whitelisted set for voucher."]
                     InappropriateDestination,
                     #[codec(index = 3)]
+                    #[doc = "Voucher with given identifier doesn't exist for given spender id."]
                     InexistentVoucher,
                     #[codec(index = 4)]
+                    #[doc = "Voucher still valid and couldn't be revoked."]
                     IrrevocableYet,
                     #[codec(index = 5)]
+                    #[doc = "Try to whitelist more programs than allowed."]
                     MaxProgramsLimitExceeded,
                     #[codec(index = 6)]
+                    #[doc = "Failed to query destination of the prepaid call."]
                     UnknownDestination,
                     #[codec(index = 7)]
+                    #[doc = "Voucher has expired and couldn't be used."]
                     VoucherExpired,
                     #[codec(index = 8)]
+                    #[doc = "Voucher issue/prolongation duration out of [min; max] constants."]
                     DurationOutOfBounds,
                     #[codec(index = 9)]
+                    #[doc = "Voucher update function tries to cut voucher ability of code upload."]
                     CodeUploadingEnabled,
                     #[codec(index = 10)]
+                    #[doc = "Voucher is disabled for code uploading, but requested."]
                     CodeUploadingDisabled,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Pallet Gear Voucher event."]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "Voucher has been issued."]
                     VoucherIssued {
                         owner: ::subxt::ext::subxt_core::utils::AccountId32,
                         spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Voucher has been revoked by owner."]
+                    #[doc = ""]
+                    #[doc = "NOTE: currently means only \"refunded\"."]
                     VoucherRevoked {
                         spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 2)]
+                    #[doc = "Voucher has been updated."]
                     VoucherUpdated {
                         spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
@@ -2850,6 +3220,7 @@ pub mod runtime_types {
                             ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                     },
                     #[codec(index = 3)]
+                    #[doc = "Voucher has been declined (set to expired state)."]
                     VoucherDeclined {
                         spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
@@ -2862,8 +3233,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::report_equivocation`]."]
                     report_equivocation {
                         equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_grandpa::EquivocationProof<
@@ -2874,6 +3247,7 @@ pub mod runtime_types {
                         key_owner_proof: runtime_types::sp_session::MembershipProof,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::report_equivocation_unsigned`]."]
                     report_equivocation_unsigned {
                         equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_grandpa::EquivocationProof<
@@ -2884,31 +3258,44 @@ pub mod runtime_types {
                         key_owner_proof: runtime_types::sp_session::MembershipProof,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::note_stalled`]."]
                     note_stalled {
                         delay: ::core::primitive::u32,
                         best_finalized_block_number: ::core::primitive::u32,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Attempt to signal GRANDPA pause when the authority set isn't live"]
+                    #[doc = "(either paused or already pending pause)."]
                     PauseFailed,
                     #[codec(index = 1)]
+                    #[doc = "Attempt to signal GRANDPA resume when the authority set isn't paused"]
+                    #[doc = "(either live or already pending resume)."]
                     ResumeFailed,
                     #[codec(index = 2)]
+                    #[doc = "Attempt to signal GRANDPA change with one already pending."]
                     ChangePending,
                     #[codec(index = 3)]
+                    #[doc = "Cannot signal forced change so soon after last."]
                     TooSoon,
                     #[codec(index = 4)]
+                    #[doc = "A key ownership proof provided as part of an equivocation report is invalid."]
                     InvalidKeyOwnershipProof,
                     #[codec(index = 5)]
+                    #[doc = "An equivocation proof provided as part of an equivocation report is invalid."]
                     InvalidEquivocationProof,
                     #[codec(index = 6)]
+                    #[doc = "A given equivocation report is valid but already previously reported."]
                     DuplicateOffenceReport,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "New authority set has been applied."]
                     NewAuthorities {
                         authority_set: ::subxt::ext::subxt_core::alloc::vec::Vec<(
                             runtime_types::sp_consensus_grandpa::app::Public,
@@ -2916,8 +3303,10 @@ pub mod runtime_types {
                         )>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Current authority set has been paused."]
                     Paused,
                     #[codec(index = 2)]
+                    #[doc = "Current authority set has been resumed."]
                     Resumed,
                 }
             }
@@ -2967,8 +3356,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Identity pallet declaration."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::add_registrar`]."]
                     add_registrar {
                         account: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -2976,12 +3367,14 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::set_identity`]."]
                     set_identity {
                         info: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::pallet_identity::legacy::IdentityInfo,
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::set_subs`]."]
                     set_subs {
                         subs: ::subxt::ext::subxt_core::alloc::vec::Vec<(
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -2989,8 +3382,10 @@ pub mod runtime_types {
                         )>,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::clear_identity`]."]
                     clear_identity,
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::request_judgement`]."]
                     request_judgement {
                         #[codec(compact)]
                         reg_index: ::core::primitive::u32,
@@ -2998,8 +3393,10 @@ pub mod runtime_types {
                         max_fee: ::core::primitive::u128,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::cancel_request`]."]
                     cancel_request { reg_index: ::core::primitive::u32 },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::set_fee`]."]
                     set_fee {
                         #[codec(compact)]
                         index: ::core::primitive::u32,
@@ -3007,6 +3404,7 @@ pub mod runtime_types {
                         fee: ::core::primitive::u128,
                     },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::set_account_id`]."]
                     set_account_id {
                         #[codec(compact)]
                         index: ::core::primitive::u32,
@@ -3016,12 +3414,14 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::set_fields`]."]
                     set_fields {
                         #[codec(compact)]
                         index: ::core::primitive::u32,
                         fields: ::core::primitive::u64,
                     },
                     #[codec(index = 9)]
+                    #[doc = "See [`Pallet::provide_judgement`]."]
                     provide_judgement {
                         #[codec(compact)]
                         reg_index: ::core::primitive::u32,
@@ -3035,6 +3435,7 @@ pub mod runtime_types {
                         identity: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 10)]
+                    #[doc = "See [`Pallet::kill_identity`]."]
                     kill_identity {
                         target: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3042,6 +3443,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 11)]
+                    #[doc = "See [`Pallet::add_sub`]."]
                     add_sub {
                         sub: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3050,6 +3452,7 @@ pub mod runtime_types {
                         data: runtime_types::pallet_identity::types::Data,
                     },
                     #[codec(index = 12)]
+                    #[doc = "See [`Pallet::rename_sub`]."]
                     rename_sub {
                         sub: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3058,6 +3461,7 @@ pub mod runtime_types {
                         data: runtime_types::pallet_identity::types::Data,
                     },
                     #[codec(index = 13)]
+                    #[doc = "See [`Pallet::remove_sub`]."]
                     remove_sub {
                         sub: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3065,93 +3469,124 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 14)]
+                    #[doc = "See [`Pallet::quit_sub`]."]
                     quit_sub,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Too many subs-accounts."]
                     TooManySubAccounts,
                     #[codec(index = 1)]
+                    #[doc = "Account isn't found."]
                     NotFound,
                     #[codec(index = 2)]
+                    #[doc = "Account isn't named."]
                     NotNamed,
                     #[codec(index = 3)]
+                    #[doc = "Empty index."]
                     EmptyIndex,
                     #[codec(index = 4)]
+                    #[doc = "Fee is changed."]
                     FeeChanged,
                     #[codec(index = 5)]
+                    #[doc = "No identity found."]
                     NoIdentity,
                     #[codec(index = 6)]
+                    #[doc = "Sticky judgement."]
                     StickyJudgement,
                     #[codec(index = 7)]
+                    #[doc = "Judgement given."]
                     JudgementGiven,
                     #[codec(index = 8)]
+                    #[doc = "Invalid judgement."]
                     InvalidJudgement,
                     #[codec(index = 9)]
+                    #[doc = "The index is invalid."]
                     InvalidIndex,
                     #[codec(index = 10)]
+                    #[doc = "The target is invalid."]
                     InvalidTarget,
                     #[codec(index = 11)]
+                    #[doc = "Maximum amount of registrars reached. Cannot add any more."]
                     TooManyRegistrars,
                     #[codec(index = 12)]
+                    #[doc = "Account ID is already named."]
                     AlreadyClaimed,
                     #[codec(index = 13)]
+                    #[doc = "Sender is not a sub-account."]
                     NotSub,
                     #[codec(index = 14)]
+                    #[doc = "Sub-account isn't owned by sender."]
                     NotOwned,
                     #[codec(index = 15)]
+                    #[doc = "The provided judgement was for a different identity."]
                     JudgementForDifferentIdentity,
                     #[codec(index = 16)]
+                    #[doc = "Error that occurs when there is an issue paying for judgement."]
                     JudgementPaymentFailed,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A name was set or reset (which will remove all judgements)."]
                     IdentitySet {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "A name was cleared, and the given balance returned."]
                     IdentityCleared {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "A name was removed and the given balance slashed."]
                     IdentityKilled {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A judgement was asked from a registrar."]
                     JudgementRequested {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         registrar_index: ::core::primitive::u32,
                     },
                     #[codec(index = 4)]
+                    #[doc = "A judgement request was retracted."]
                     JudgementUnrequested {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         registrar_index: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "A judgement was given by a registrar."]
                     JudgementGiven {
                         target: ::subxt::ext::subxt_core::utils::AccountId32,
                         registrar_index: ::core::primitive::u32,
                     },
                     #[codec(index = 6)]
+                    #[doc = "A registrar was added."]
                     RegistrarAdded {
                         registrar_index: ::core::primitive::u32,
                     },
                     #[codec(index = 7)]
+                    #[doc = "A sub-identity was added to an identity and the deposit paid."]
                     SubIdentityAdded {
                         sub: ::subxt::ext::subxt_core::utils::AccountId32,
                         main: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 8)]
+                    #[doc = "A sub-identity was removed from an identity and the deposit freed."]
                     SubIdentityRemoved {
                         sub: ::subxt::ext::subxt_core::utils::AccountId32,
                         main: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 9)]
+                    #[doc = "A sub-identity was cleared, and the given deposit repatriated from the"]
+                    #[doc = "main identity account to the sub-identity account."]
                     SubIdentityRevoked {
                         sub: ::subxt::ext::subxt_core::utils::AccountId32,
                         main: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3279,8 +3714,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::heartbeat`]."]
                     heartbeat {
                         heartbeat:
                             runtime_types::pallet_im_online::Heartbeat<::core::primitive::u32>,
@@ -3288,21 +3725,28 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Non existent public key."]
                     InvalidKey,
                     #[codec(index = 1)]
+                    #[doc = "Duplicated heartbeat."]
                     DuplicatedHeartbeat,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A new heartbeat was received from `AuthorityId`."]
                     HeartbeatReceived {
                         authority_id: runtime_types::pallet_im_online::sr25519::app_sr25519::Public,
                     },
                     #[codec(index = 1)]
+                    #[doc = "At the end of the session, no offence was committed."]
                     AllGood,
                     #[codec(index = 2)]
+                    #[doc = "At the end of the session, at least one validator was found to be offline."]
                     SomeOffline {
                         offline: ::subxt::ext::subxt_core::alloc::vec::Vec<(
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3341,8 +3785,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::as_multi_threshold_1`]."]
                     as_multi_threshold_1 {
                         other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3352,6 +3798,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::as_multi`]."]
                     as_multi {
                         threshold: ::core::primitive::u16,
                         other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
@@ -3366,6 +3813,7 @@ pub mod runtime_types {
                         max_weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::approve_as_multi`]."]
                     approve_as_multi {
                         threshold: ::core::primitive::u16,
                         other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
@@ -3378,6 +3826,7 @@ pub mod runtime_types {
                         max_weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::cancel_as_multi`]."]
                     cancel_as_multi {
                         threshold: ::core::primitive::u16,
                         other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
@@ -3389,45 +3838,63 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Threshold must be 2 or greater."]
                     MinimumThreshold,
                     #[codec(index = 1)]
+                    #[doc = "Call is already approved by this signatory."]
                     AlreadyApproved,
                     #[codec(index = 2)]
+                    #[doc = "Call doesn't need any (more) approvals."]
                     NoApprovalsNeeded,
                     #[codec(index = 3)]
+                    #[doc = "There are too few signatories in the list."]
                     TooFewSignatories,
                     #[codec(index = 4)]
+                    #[doc = "There are too many signatories in the list."]
                     TooManySignatories,
                     #[codec(index = 5)]
+                    #[doc = "The signatories were provided out of order; they should be ordered."]
                     SignatoriesOutOfOrder,
                     #[codec(index = 6)]
+                    #[doc = "The sender was contained in the other signatories; it shouldn't be."]
                     SenderInSignatories,
                     #[codec(index = 7)]
+                    #[doc = "Multisig operation not found when attempting to cancel."]
                     NotFound,
                     #[codec(index = 8)]
+                    #[doc = "Only the account that originally created the multisig is able to cancel it."]
                     NotOwner,
                     #[codec(index = 9)]
+                    #[doc = "No timepoint was given, yet the multisig operation is already underway."]
                     NoTimepoint,
                     #[codec(index = 10)]
+                    #[doc = "A different timepoint was given to the multisig operation that is underway."]
                     WrongTimepoint,
                     #[codec(index = 11)]
+                    #[doc = "A timepoint was given, yet no multisig operation is underway."]
                     UnexpectedTimepoint,
                     #[codec(index = 12)]
+                    #[doc = "The maximum weight information provided was too low."]
                     MaxWeightTooLow,
                     #[codec(index = 13)]
+                    #[doc = "The data to be stored is already stored."]
                     AlreadyStored,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A new multisig operation has begun."]
                     NewMultisig {
                         approving: ::subxt::ext::subxt_core::utils::AccountId32,
                         multisig: ::subxt::ext::subxt_core::utils::AccountId32,
                         call_hash: [::core::primitive::u8; 32usize],
                     },
                     #[codec(index = 1)]
+                    #[doc = "A multisig operation has been approved by someone."]
                     MultisigApproval {
                         approving: ::subxt::ext::subxt_core::utils::AccountId32,
                         timepoint:
@@ -3436,6 +3903,7 @@ pub mod runtime_types {
                         call_hash: [::core::primitive::u8; 32usize],
                     },
                     #[codec(index = 2)]
+                    #[doc = "A multisig operation has been executed."]
                     MultisigExecuted {
                         approving: ::subxt::ext::subxt_core::utils::AccountId32,
                         timepoint:
@@ -3446,6 +3914,7 @@ pub mod runtime_types {
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A multisig operation has been cancelled."]
                     MultisigCancelled {
                         cancelling: ::subxt::ext::subxt_core::utils::AccountId32,
                         timepoint:
@@ -3473,22 +3942,27 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::join`]."]
                     join {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
                         pool_id: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::bond_extra`]."]
                     bond_extra {
                         extra: runtime_types::pallet_nomination_pools::BondExtra<
                             ::core::primitive::u128,
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::claim_payout`]."]
                     claim_payout,
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::unbond`]."]
                     unbond {
                         member_account: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3498,11 +3972,13 @@ pub mod runtime_types {
                         unbonding_points: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::pool_withdraw_unbonded`]."]
                     pool_withdraw_unbonded {
                         pool_id: ::core::primitive::u32,
                         num_slashing_spans: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::withdraw_unbonded`]."]
                     withdraw_unbonded {
                         member_account: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3511,6 +3987,7 @@ pub mod runtime_types {
                         num_slashing_spans: ::core::primitive::u32,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::create`]."]
                     create {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
@@ -3528,6 +4005,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::create_with_pool_id`]."]
                     create_with_pool_id {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
@@ -3546,6 +4024,7 @@ pub mod runtime_types {
                         pool_id: ::core::primitive::u32,
                     },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::nominate`]."]
                     nominate {
                         pool_id: ::core::primitive::u32,
                         validators: ::subxt::ext::subxt_core::alloc::vec::Vec<
@@ -3553,16 +4032,19 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 9)]
+                    #[doc = "See [`Pallet::set_state`]."]
                     set_state {
                         pool_id: ::core::primitive::u32,
                         state: runtime_types::pallet_nomination_pools::PoolState,
                     },
                     #[codec(index = 10)]
+                    #[doc = "See [`Pallet::set_metadata`]."]
                     set_metadata {
                         pool_id: ::core::primitive::u32,
                         metadata: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 11)]
+                    #[doc = "See [`Pallet::set_configs`]."]
                     set_configs {
                         min_join_bond: runtime_types::pallet_nomination_pools::ConfigOp<
                             ::core::primitive::u128,
@@ -3584,6 +4066,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 12)]
+                    #[doc = "See [`Pallet::update_roles`]."]
                     update_roles {
                         pool_id: ::core::primitive::u32,
                         new_root: runtime_types::pallet_nomination_pools::ConfigOp<
@@ -3597,8 +4080,10 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 13)]
+                    #[doc = "See [`Pallet::chill`]."]
                     chill { pool_id: ::core::primitive::u32 },
                     #[codec(index = 14)]
+                    #[doc = "See [`Pallet::bond_extra_other`]."]
                     bond_extra_other {
                         member: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -3609,14 +4094,17 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 15)]
+                    #[doc = "See [`Pallet::set_claim_permission`]."]
                     set_claim_permission {
                         permission: runtime_types::pallet_nomination_pools::ClaimPermission,
                     },
                     #[codec(index = 16)]
+                    #[doc = "See [`Pallet::claim_payout_other`]."]
                     claim_payout_other {
                         other: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 17)]
+                    #[doc = "See [`Pallet::set_commission`]."]
                     set_commission {
                         pool_id: ::core::primitive::u32,
                         new_commission: ::core::option::Option<(
@@ -3625,11 +4113,13 @@ pub mod runtime_types {
                         )>,
                     },
                     #[codec(index = 18)]
+                    #[doc = "See [`Pallet::set_commission_max`]."]
                     set_commission_max {
                         pool_id: ::core::primitive::u32,
                         max_commission: runtime_types::sp_arithmetic::per_things::Perbill,
                     },
                     #[codec(index = 19)]
+                    #[doc = "See [`Pallet::set_commission_change_rate`]."]
                     set_commission_change_rate {
                         pool_id: ::core::primitive::u32,
                         change_rate: runtime_types::pallet_nomination_pools::CommissionChangeRate<
@@ -3637,8 +4127,10 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 20)]
+                    #[doc = "See [`Pallet::claim_commission`]."]
                     claim_commission { pool_id: ::core::primitive::u32 },
                     #[codec(index = 21)]
+                    #[doc = "See [`Pallet::adjust_pool_deposit`]."]
                     adjust_pool_deposit { pool_id: ::core::primitive::u32 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3655,80 +4147,124 @@ pub mod runtime_types {
                     BondedStashKilledPrematurely,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "A (bonded) pool id does not exist."]
                     PoolNotFound,
                     #[codec(index = 1)]
+                    #[doc = "An account is not a member."]
                     PoolMemberNotFound,
                     #[codec(index = 2)]
+                    #[doc = "A reward pool does not exist. In all cases this is a system logic error."]
                     RewardPoolNotFound,
                     #[codec(index = 3)]
+                    #[doc = "A sub pool does not exist."]
                     SubPoolsNotFound,
                     #[codec(index = 4)]
+                    #[doc = "An account is already delegating in another pool. An account may only belong to one"]
+                    #[doc = "pool at a time."]
                     AccountBelongsToOtherPool,
                     #[codec(index = 5)]
+                    #[doc = "The member is fully unbonded (and thus cannot access the bonded and reward pool"]
+                    #[doc = "anymore to, for example, collect rewards)."]
                     FullyUnbonding,
                     #[codec(index = 6)]
+                    #[doc = "The member cannot unbond further chunks due to reaching the limit."]
                     MaxUnbondingLimit,
                     #[codec(index = 7)]
+                    #[doc = "None of the funds can be withdrawn yet because the bonding duration has not passed."]
                     CannotWithdrawAny,
                     #[codec(index = 8)]
+                    #[doc = "The amount does not meet the minimum bond to either join or create a pool."]
+                    #[doc = ""]
+                    #[doc = "The depositor can never unbond to a value less than `Pallet::depositor_min_bond`. The"]
+                    #[doc = "caller does not have nominating permissions for the pool. Members can never unbond to a"]
+                    #[doc = "value below `MinJoinBond`."]
                     MinimumBondNotMet,
                     #[codec(index = 9)]
+                    #[doc = "The transaction could not be executed due to overflow risk for the pool."]
                     OverflowRisk,
                     #[codec(index = 10)]
+                    #[doc = "A pool must be in [`PoolState::Destroying`] in order for the depositor to unbond or for"]
+                    #[doc = "other members to be permissionlessly unbonded."]
                     NotDestroying,
                     #[codec(index = 11)]
+                    #[doc = "The caller does not have nominating permissions for the pool."]
                     NotNominator,
                     #[codec(index = 12)]
+                    #[doc = "Either a) the caller cannot make a valid kick or b) the pool is not destroying."]
                     NotKickerOrDestroying,
                     #[codec(index = 13)]
+                    #[doc = "The pool is not open to join"]
                     NotOpen,
                     #[codec(index = 14)]
+                    #[doc = "The system is maxed out on pools."]
                     MaxPools,
                     #[codec(index = 15)]
+                    #[doc = "Too many members in the pool or system."]
                     MaxPoolMembers,
                     #[codec(index = 16)]
+                    #[doc = "The pools state cannot be changed."]
                     CanNotChangeState,
                     #[codec(index = 17)]
+                    #[doc = "The caller does not have adequate permissions."]
                     DoesNotHavePermission,
                     #[codec(index = 18)]
+                    #[doc = "Metadata exceeds [`Config::MaxMetadataLen`]"]
                     MetadataExceedsMaxLen,
                     #[codec(index = 19)]
+                    #[doc = "Some error occurred that should never happen. This should be reported to the"]
+                    #[doc = "maintainers."]
                     Defensive(runtime_types::pallet_nomination_pools::pallet::DefensiveError),
                     #[codec(index = 20)]
+                    #[doc = "Partial unbonding now allowed permissionlessly."]
                     PartialUnbondNotAllowedPermissionlessly,
                     #[codec(index = 21)]
+                    #[doc = "The pool's max commission cannot be set higher than the existing value."]
                     MaxCommissionRestricted,
                     #[codec(index = 22)]
+                    #[doc = "The supplied commission exceeds the max allowed commission."]
                     CommissionExceedsMaximum,
                     #[codec(index = 23)]
+                    #[doc = "The supplied commission exceeds global maximum commission."]
                     CommissionExceedsGlobalMaximum,
                     #[codec(index = 24)]
+                    #[doc = "Not enough blocks have surpassed since the last commission update."]
                     CommissionChangeThrottled,
                     #[codec(index = 25)]
+                    #[doc = "The submitted changes to commission change rate are not allowed."]
                     CommissionChangeRateNotAllowed,
                     #[codec(index = 26)]
+                    #[doc = "There is no pending commission to claim."]
                     NoPendingCommission,
                     #[codec(index = 27)]
+                    #[doc = "No commission current has been set."]
                     NoCommissionCurrentSet,
                     #[codec(index = 28)]
+                    #[doc = "Pool id currently in use."]
                     PoolIdInUse,
                     #[codec(index = 29)]
+                    #[doc = "Pool id provided is not correct/usable."]
                     InvalidPoolId,
                     #[codec(index = 30)]
+                    #[doc = "Bonding extra is restricted to the exact pending reward amount."]
                     BondExtraRestricted,
                     #[codec(index = 31)]
+                    #[doc = "No imbalance in the ED deposit for the pool."]
                     NothingToAdjust,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Events of this pallet."]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A pool has been created."]
                     Created {
                         depositor: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "A member has became bonded in a pool."]
                     Bonded {
                         member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
@@ -3736,12 +4272,24 @@ pub mod runtime_types {
                         joined: ::core::primitive::bool,
                     },
                     #[codec(index = 2)]
+                    #[doc = "A payout has been made to a member."]
                     PaidOut {
                         member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
                         payout: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A member has unbonded from their pool."]
+                    #[doc = ""]
+                    #[doc = "- `balance` is the corresponding balance of the number of points that has been"]
+                    #[doc = "  requested to be unbonded (the argument of the `unbond` transaction) from the bonded"]
+                    #[doc = "  pool."]
+                    #[doc = "- `points` is the number of points that are issued as a result of `balance` being"]
+                    #[doc = "dissolved into the corresponding unbonding pool."]
+                    #[doc = "- `era` is the era in which the balance will be unbonded."]
+                    #[doc = "In the absence of slashing, these values will match. In the presence of slashing, the"]
+                    #[doc = "number of points that are issued in the unbonding pool will be less than the amount"]
+                    #[doc = "requested to be unbonded."]
                     Unbonded {
                         member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
@@ -3750,6 +4298,12 @@ pub mod runtime_types {
                         era: ::core::primitive::u32,
                     },
                     #[codec(index = 4)]
+                    #[doc = "A member has withdrawn from their pool."]
+                    #[doc = ""]
+                    #[doc = "The given number of `points` have been dissolved in return of `balance`."]
+                    #[doc = ""]
+                    #[doc = "Similar to `Unbonded` event, in the absence of slashing, the ratio of point to balance"]
+                    #[doc = "will be 1."]
                     Withdrawn {
                         member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
@@ -3757,18 +4311,25 @@ pub mod runtime_types {
                         points: ::core::primitive::u128,
                     },
                     #[codec(index = 5)]
+                    #[doc = "A pool has been destroyed."]
                     Destroyed { pool_id: ::core::primitive::u32 },
                     #[codec(index = 6)]
+                    #[doc = "The state of a pool has changed"]
                     StateChanged {
                         pool_id: ::core::primitive::u32,
                         new_state: runtime_types::pallet_nomination_pools::PoolState,
                     },
                     #[codec(index = 7)]
+                    #[doc = "A member has been removed from a pool."]
+                    #[doc = ""]
+                    #[doc = "The removal can be voluntary (withdrawn all unbonded funds) or involuntary (kicked)."]
                     MemberRemoved {
                         pool_id: ::core::primitive::u32,
                         member: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 8)]
+                    #[doc = "The roles of a pool have been updated to the given new roles. Note that the depositor"]
+                    #[doc = "can never change."]
                     RolesUpdated {
                         root: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                         bouncer:
@@ -3777,17 +4338,20 @@ pub mod runtime_types {
                             ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                     },
                     #[codec(index = 9)]
+                    #[doc = "The active balance of pool `pool_id` has been slashed to `balance`."]
                     PoolSlashed {
                         pool_id: ::core::primitive::u32,
                         balance: ::core::primitive::u128,
                     },
                     #[codec(index = 10)]
+                    #[doc = "The unbond pool at `era` of pool `pool_id` has been slashed to `balance`."]
                     UnbondingPoolSlashed {
                         pool_id: ::core::primitive::u32,
                         era: ::core::primitive::u32,
                         balance: ::core::primitive::u128,
                     },
                     #[codec(index = 11)]
+                    #[doc = "A pool's commission setting has been changed."]
                     PoolCommissionUpdated {
                         pool_id: ::core::primitive::u32,
                         current: ::core::option::Option<(
@@ -3796,11 +4360,13 @@ pub mod runtime_types {
                         )>,
                     },
                     #[codec(index = 12)]
+                    #[doc = "A pool's maximum commission setting has been changed."]
                     PoolMaxCommissionUpdated {
                         pool_id: ::core::primitive::u32,
                         max_commission: runtime_types::sp_arithmetic::per_things::Perbill,
                     },
                     #[codec(index = 13)]
+                    #[doc = "A pool's commission `change_rate` has been changed."]
                     PoolCommissionChangeRateUpdated {
                         pool_id: ::core::primitive::u32,
                         change_rate: runtime_types::pallet_nomination_pools::CommissionChangeRate<
@@ -3808,16 +4374,19 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 14)]
+                    #[doc = "Pool commission has been claimed."]
                     PoolCommissionClaimed {
                         pool_id: ::core::primitive::u32,
                         commission: ::core::primitive::u128,
                     },
                     #[codec(index = 15)]
+                    #[doc = "Topped up deficit in frozen ED of the reward pool."]
                     MinBalanceDeficitAdjusted {
                         pool_id: ::core::primitive::u32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 16)]
+                    #[doc = "Claimed excess frozen ED of af the reward pool."]
                     MinBalanceExcessAdjusted {
                         pool_id: ::core::primitive::u32,
                         amount: ::core::primitive::u128,
@@ -3942,8 +4511,12 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Events type."]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "There is an offence reported of the given `kind` happened at the `session_index` and"]
+                    #[doc = "(kind-specific) time slot. This event is not deposited for duplicate slashes."]
+                    #[doc = "\\[kind, timeslot\\]."]
                     Offence {
                         kind: [::core::primitive::u8; 16usize],
                         timeslot: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
@@ -3956,24 +4529,30 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::note_preimage`]."]
                     note_preimage {
                         bytes: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::unnote_preimage`]."]
                     unnote_preimage {
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::request_preimage`]."]
                     request_preimage {
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::unrequest_preimage`]."]
                     unrequest_preimage {
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::ensure_updated`]."]
                     ensure_updated {
                         hashes: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             ::subxt::ext::subxt_core::utils::H256,
@@ -3981,35 +4560,48 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Preimage is too large to store on-chain."]
                     TooBig,
                     #[codec(index = 1)]
+                    #[doc = "Preimage has already been noted on-chain."]
                     AlreadyNoted,
                     #[codec(index = 2)]
+                    #[doc = "The user is not authorized to perform this action."]
                     NotAuthorized,
                     #[codec(index = 3)]
+                    #[doc = "The preimage cannot be removed since it has not yet been noted."]
                     NotNoted,
                     #[codec(index = 4)]
+                    #[doc = "A preimage may not be removed when there are outstanding requests."]
                     Requested,
                     #[codec(index = 5)]
+                    #[doc = "The preimage request cannot be removed since no outstanding requests exist."]
                     NotRequested,
                     #[codec(index = 6)]
+                    #[doc = "More than `MAX_HASH_UPGRADE_BULK_COUNT` hashes were requested to be upgraded at once."]
                     TooMany,
                     #[codec(index = 7)]
+                    #[doc = "Too few hashes were requested to be upgraded (i.e. zero)."]
                     TooFew,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A preimage has been noted."]
                     Noted {
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 1)]
+                    #[doc = "A preimage has been requested."]
                     Requested {
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 2)]
+                    #[doc = "A preimage has ben cleared."]
                     Cleared {
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
@@ -4054,8 +4646,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::proxy`]."]
                     proxy {
                         real: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4068,6 +4662,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::add_proxy`]."]
                     add_proxy {
                         delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4077,6 +4672,7 @@ pub mod runtime_types {
                         delay: ::core::primitive::u32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::remove_proxy`]."]
                     remove_proxy {
                         delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4086,14 +4682,17 @@ pub mod runtime_types {
                         delay: ::core::primitive::u32,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::remove_proxies`]."]
                     remove_proxies,
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::create_pure`]."]
                     create_pure {
                         proxy_type: runtime_types::vara_runtime::ProxyType,
                         delay: ::core::primitive::u32,
                         index: ::core::primitive::u16,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::kill_pure`]."]
                     kill_pure {
                         spawner: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4107,6 +4706,7 @@ pub mod runtime_types {
                         ext_index: ::core::primitive::u32,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::announce`]."]
                     announce {
                         real: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4115,6 +4715,7 @@ pub mod runtime_types {
                         call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::remove_announcement`]."]
                     remove_announcement {
                         real: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4123,6 +4724,7 @@ pub mod runtime_types {
                         call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::reject_announcement`]."]
                     reject_announcement {
                         delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4131,6 +4733,7 @@ pub mod runtime_types {
                         call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 9)]
+                    #[doc = "See [`Pallet::proxy_announced`]."]
                     proxy_announced {
                         delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4148,32 +4751,45 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "There are too many proxies registered or too many announcements pending."]
                     TooMany,
                     #[codec(index = 1)]
+                    #[doc = "Proxy registration not found."]
                     NotFound,
                     #[codec(index = 2)]
+                    #[doc = "Sender is not a proxy of the account to be proxied."]
                     NotProxy,
                     #[codec(index = 3)]
+                    #[doc = "A call which is incompatible with the proxy type's filter was attempted."]
                     Unproxyable,
                     #[codec(index = 4)]
+                    #[doc = "Account is already a proxy."]
                     Duplicate,
                     #[codec(index = 5)]
+                    #[doc = "Call may not be made by proxy because it may escalate its privileges."]
                     NoPermission,
                     #[codec(index = 6)]
+                    #[doc = "Announcement, if made at all, was made too recently."]
                     Unannounced,
                     #[codec(index = 7)]
+                    #[doc = "Cannot add self as proxy."]
                     NoSelfProxy,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A proxy was executed correctly, with the given."]
                     ProxyExecuted {
                         result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "A pure account has been created by new proxy with given"]
+                    #[doc = "disambiguation index and proxy type."]
                     PureCreated {
                         pure: ::subxt::ext::subxt_core::utils::AccountId32,
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4181,12 +4797,14 @@ pub mod runtime_types {
                         disambiguation_index: ::core::primitive::u16,
                     },
                     #[codec(index = 2)]
+                    #[doc = "An announcement was placed to make a call in the future."]
                     Announced {
                         real: ::subxt::ext::subxt_core::utils::AccountId32,
                         proxy: ::subxt::ext::subxt_core::utils::AccountId32,
                         call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A proxy was added."]
                     ProxyAdded {
                         delegator: ::subxt::ext::subxt_core::utils::AccountId32,
                         delegatee: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4194,6 +4812,7 @@ pub mod runtime_types {
                         delay: ::core::primitive::u32,
                     },
                     #[codec(index = 4)]
+                    #[doc = "A proxy was removed."]
                     ProxyRemoved {
                         delegator: ::subxt::ext::subxt_core::utils::AccountId32,
                         delegatee: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4220,8 +4839,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::add_member`]."]
                     add_member {
                         who: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4229,6 +4850,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::promote_member`]."]
                     promote_member {
                         who: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4236,6 +4858,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::demote_member`]."]
                     demote_member {
                         who: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4243,6 +4866,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::remove_member`]."]
                     remove_member {
                         who: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4251,54 +4875,72 @@ pub mod runtime_types {
                         min_rank: ::core::primitive::u16,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::vote`]."]
                     vote {
                         poll: ::core::primitive::u32,
                         aye: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::cleanup_poll`]."]
                     cleanup_poll {
                         poll_index: ::core::primitive::u32,
                         max: ::core::primitive::u32,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Account is already a member."]
                     AlreadyMember,
                     #[codec(index = 1)]
+                    #[doc = "Account is not a member."]
                     NotMember,
                     #[codec(index = 2)]
+                    #[doc = "The given poll index is unknown or has closed."]
                     NotPolling,
                     #[codec(index = 3)]
+                    #[doc = "The given poll is still ongoing."]
                     Ongoing,
                     #[codec(index = 4)]
+                    #[doc = "There are no further records to be removed."]
                     NoneRemaining,
                     #[codec(index = 5)]
+                    #[doc = "Unexpected error in state."]
                     Corruption,
                     #[codec(index = 6)]
+                    #[doc = "The member's rank is too low to vote."]
                     RankTooLow,
                     #[codec(index = 7)]
+                    #[doc = "The information provided is incorrect."]
                     InvalidWitness,
                     #[codec(index = 8)]
+                    #[doc = "The origin is not sufficiently privileged to do the operation."]
                     NoPermission,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A member `who` has been added."]
                     MemberAdded {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "The member `who`se rank has been changed to the given `rank`."]
                     RankChanged {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         rank: ::core::primitive::u16,
                     },
                     #[codec(index = 2)]
+                    #[doc = "The member `who` of given `rank` has been removed from the collective."]
                     MemberRemoved {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         rank: ::core::primitive::u16,
                     },
                     #[codec(index = 3)]
+                    #[doc = "The member `who` has voted for the `poll` with the given `vote` leading to an updated"]
+                    #[doc = "`tally`."]
                     Voted {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         poll: ::core::primitive::u32,
@@ -4336,8 +4978,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::submit`]."]
                     submit {
                         proposal_origin: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::vara_runtime::OriginCaller,
@@ -4352,57 +4996,81 @@ pub mod runtime_types {
                             >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::place_decision_deposit`]."]
                     place_decision_deposit { index: ::core::primitive::u32 },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::refund_decision_deposit`]."]
                     refund_decision_deposit { index: ::core::primitive::u32 },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::cancel`]."]
                     cancel { index: ::core::primitive::u32 },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::kill`]."]
                     kill { index: ::core::primitive::u32 },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::nudge_referendum`]."]
                     nudge_referendum { index: ::core::primitive::u32 },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::one_fewer_deciding`]."]
                     one_fewer_deciding { track: ::core::primitive::u16 },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::refund_submission_deposit`]."]
                     refund_submission_deposit { index: ::core::primitive::u32 },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::set_metadata`]."]
                     set_metadata {
                         index: ::core::primitive::u32,
                         maybe_hash: ::core::option::Option<::subxt::ext::subxt_core::utils::H256>,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Referendum is not ongoing."]
                     NotOngoing,
                     #[codec(index = 1)]
+                    #[doc = "Referendum's decision deposit is already paid."]
                     HasDeposit,
                     #[codec(index = 2)]
+                    #[doc = "The track identifier given was invalid."]
                     BadTrack,
                     #[codec(index = 3)]
+                    #[doc = "There are already a full complement of referenda in progress for this track."]
                     Full,
                     #[codec(index = 4)]
+                    #[doc = "The queue of the track is empty."]
                     QueueEmpty,
                     #[codec(index = 5)]
+                    #[doc = "The referendum index provided is invalid in this context."]
                     BadReferendum,
                     #[codec(index = 6)]
+                    #[doc = "There was nothing to do in the advancement."]
                     NothingToDo,
                     #[codec(index = 7)]
+                    #[doc = "No track exists for the proposal origin."]
                     NoTrack,
                     #[codec(index = 8)]
+                    #[doc = "Any deposit cannot be refunded until after the decision is over."]
                     Unfinished,
                     #[codec(index = 9)]
+                    #[doc = "The deposit refunder is not the depositor."]
                     NoPermission,
                     #[codec(index = 10)]
+                    #[doc = "The deposit cannot be refunded since none was made."]
                     NoDeposit,
                     #[codec(index = 11)]
+                    #[doc = "The referendum status is invalid for this operation."]
                     BadStatus,
                     #[codec(index = 12)]
+                    #[doc = "The preimage does not exist."]
                     PreimageNotExist,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event1 {
                     #[codec(index = 0)]
+                    #[doc = "A referendum has been submitted."]
                     Submitted {
                         index: ::core::primitive::u32,
                         track: ::core::primitive::u16,
@@ -4412,23 +5080,27 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "The decision deposit has been placed."]
                     DecisionDepositPlaced {
                         index: ::core::primitive::u32,
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "The decision deposit has been refunded."]
                     DecisionDepositRefunded {
                         index: ::core::primitive::u32,
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A deposit has been slashed."]
                     DepositSlashed {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
+                    #[doc = "A referendum has moved into the deciding phase."]
                     DecisionStarted {
                         index: ::core::primitive::u32,
                         track: ::core::primitive::u16,
@@ -4445,6 +5117,7 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     ConfirmAborted { index: ::core::primitive::u32 },
                     #[codec(index = 7)]
+                    #[doc = "A referendum has ended its confirmation phase and is ready for approval."]
                     Confirmed {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_conviction_voting::types::Tally<
@@ -4452,8 +5125,10 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 8)]
+                    #[doc = "A referendum has been approved and its proposal has been scheduled."]
                     Approved { index: ::core::primitive::u32 },
                     #[codec(index = 9)]
+                    #[doc = "A proposal has been rejected by referendum."]
                     Rejected {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_conviction_voting::types::Tally<
@@ -4461,6 +5136,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 10)]
+                    #[doc = "A referendum has been timed out without being decided."]
                     TimedOut {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_conviction_voting::types::Tally<
@@ -4468,6 +5144,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 11)]
+                    #[doc = "A referendum has been cancelled."]
                     Cancelled {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_conviction_voting::types::Tally<
@@ -4475,6 +5152,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 12)]
+                    #[doc = "A referendum has been killed."]
                     Killed {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_conviction_voting::types::Tally<
@@ -4482,25 +5160,30 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 13)]
+                    #[doc = "The submission deposit has been refunded."]
                     SubmissionDepositRefunded {
                         index: ::core::primitive::u32,
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 14)]
+                    #[doc = "Metadata for a referendum has been set."]
                     MetadataSet {
                         index: ::core::primitive::u32,
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 15)]
+                    #[doc = "Metadata for a referendum has been cleared."]
                     MetadataCleared {
                         index: ::core::primitive::u32,
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event2 {
                     #[codec(index = 0)]
+                    #[doc = "A referendum has been submitted."]
                     Submitted {
                         index: ::core::primitive::u32,
                         track: ::core::primitive::u16,
@@ -4510,23 +5193,27 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "The decision deposit has been placed."]
                     DecisionDepositPlaced {
                         index: ::core::primitive::u32,
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "The decision deposit has been refunded."]
                     DecisionDepositRefunded {
                         index: ::core::primitive::u32,
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A deposit has been slashed."]
                     DepositSlashed {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
+                    #[doc = "A referendum has moved into the deciding phase."]
                     DecisionStarted {
                         index: ::core::primitive::u32,
                         track: ::core::primitive::u16,
@@ -4541,44 +5228,53 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     ConfirmAborted { index: ::core::primitive::u32 },
                     #[codec(index = 7)]
+                    #[doc = "A referendum has ended its confirmation phase and is ready for approval."]
                     Confirmed {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_ranked_collective::Tally,
                     },
                     #[codec(index = 8)]
+                    #[doc = "A referendum has been approved and its proposal has been scheduled."]
                     Approved { index: ::core::primitive::u32 },
                     #[codec(index = 9)]
+                    #[doc = "A proposal has been rejected by referendum."]
                     Rejected {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_ranked_collective::Tally,
                     },
                     #[codec(index = 10)]
+                    #[doc = "A referendum has been timed out without being decided."]
                     TimedOut {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_ranked_collective::Tally,
                     },
                     #[codec(index = 11)]
+                    #[doc = "A referendum has been cancelled."]
                     Cancelled {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_ranked_collective::Tally,
                     },
                     #[codec(index = 12)]
+                    #[doc = "A referendum has been killed."]
                     Killed {
                         index: ::core::primitive::u32,
                         tally: runtime_types::pallet_ranked_collective::Tally,
                     },
                     #[codec(index = 13)]
+                    #[doc = "The submission deposit has been refunded."]
                     SubmissionDepositRefunded {
                         index: ::core::primitive::u32,
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 14)]
+                    #[doc = "Metadata for a referendum has been set."]
                     MetadataSet {
                         index: ::core::primitive::u32,
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 15)]
+                    #[doc = "Metadata for a referendum has been cleared."]
                     MetadataCleared {
                         index: ::core::primitive::u32,
                         hash: ::subxt::ext::subxt_core::utils::H256,
@@ -4714,8 +5410,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::schedule`]."]
                     schedule {
                         when: ::core::primitive::u32,
                         maybe_periodic: ::core::option::Option<(
@@ -4728,11 +5426,13 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::cancel`]."]
                     cancel {
                         when: ::core::primitive::u32,
                         index: ::core::primitive::u32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::schedule_named`]."]
                     schedule_named {
                         id: [::core::primitive::u8; 32usize],
                         when: ::core::primitive::u32,
@@ -4746,10 +5446,12 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::cancel_named`]."]
                     cancel_named {
                         id: [::core::primitive::u8; 32usize],
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::schedule_after`]."]
                     schedule_after {
                         after: ::core::primitive::u32,
                         maybe_periodic: ::core::option::Option<(
@@ -4762,6 +5464,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::schedule_named_after`]."]
                     schedule_named_after {
                         id: [::core::primitive::u8; 32usize],
                         after: ::core::primitive::u32,
@@ -4776,31 +5479,41 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Failed to schedule a call"]
                     FailedToSchedule,
                     #[codec(index = 1)]
+                    #[doc = "Cannot find the scheduled call."]
                     NotFound,
                     #[codec(index = 2)]
+                    #[doc = "Given target block number is in the past."]
                     TargetBlockNumberInPast,
                     #[codec(index = 3)]
+                    #[doc = "Reschedule failed because it does not change scheduled time."]
                     RescheduleNoChange,
                     #[codec(index = 4)]
+                    #[doc = "Attempt to use a non-named function on a named task."]
                     Named,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Events type."]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "Scheduled some task."]
                     Scheduled {
                         when: ::core::primitive::u32,
                         index: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Canceled some task."]
                     Canceled {
                         when: ::core::primitive::u32,
                         index: ::core::primitive::u32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "Dispatched some task."]
                     Dispatched {
                         task: (::core::primitive::u32, ::core::primitive::u32),
                         id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
@@ -4808,16 +5521,19 @@ pub mod runtime_types {
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                     },
                     #[codec(index = 3)]
+                    #[doc = "The call for the provided hash was not found so the task has been aborted."]
                     CallUnavailable {
                         task: (::core::primitive::u32, ::core::primitive::u32),
                         id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
                     },
                     #[codec(index = 4)]
+                    #[doc = "The given task was unable to be renewed since the agenda is full at that block."]
                     PeriodicFailed {
                         task: (::core::primitive::u32, ::core::primitive::u32),
                         id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
                     },
                     #[codec(index = 5)]
+                    #[doc = "The given task can never be executed since it is overweight."]
                     PermanentlyOverweight {
                         task: (::core::primitive::u32, ::core::primitive::u32),
                         id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
@@ -4840,31 +5556,43 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::set_keys`]."]
                     set_keys {
                         keys: runtime_types::vara_runtime::SessionKeys,
                         proof: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::purge_keys`]."]
                     purge_keys,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Error for the session pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Invalid ownership proof."]
                     InvalidProof,
                     #[codec(index = 1)]
+                    #[doc = "No associated validator ID for account."]
                     NoAssociatedValidatorId,
                     #[codec(index = 2)]
+                    #[doc = "Registered duplicate key."]
                     DuplicatedKey,
                     #[codec(index = 3)]
+                    #[doc = "No keys are associated with this account."]
                     NoKeys,
                     #[codec(index = 4)]
+                    #[doc = "Key setting account is not live, so it's impossible to associate keys."]
                     NoAccount,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "New session has happened. Note that the argument is the session index, not the"]
+                    #[doc = "block number as the type might suggest."]
                     NewSession {
                         session_index: ::core::primitive::u32,
                     },
@@ -4880,8 +5608,10 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
+                    #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                     pub enum Call {
                         #[codec(index = 0)]
+                        #[doc = "See [`Pallet::bond`]."]
                         bond {
                             #[codec(compact)]
                             value: ::core::primitive::u128,
@@ -4890,24 +5620,29 @@ pub mod runtime_types {
                             >,
                         },
                         #[codec(index = 1)]
+                        #[doc = "See [`Pallet::bond_extra`]."]
                         bond_extra {
                             #[codec(compact)]
                             max_additional: ::core::primitive::u128,
                         },
                         #[codec(index = 2)]
+                        #[doc = "See [`Pallet::unbond`]."]
                         unbond {
                             #[codec(compact)]
                             value: ::core::primitive::u128,
                         },
                         #[codec(index = 3)]
+                        #[doc = "See [`Pallet::withdraw_unbonded`]."]
                         withdraw_unbonded {
                             num_slashing_spans: ::core::primitive::u32,
                         },
                         #[codec(index = 4)]
+                        #[doc = "See [`Pallet::validate`]."]
                         validate {
                             prefs: runtime_types::pallet_staking::ValidatorPrefs,
                         },
                         #[codec(index = 5)]
+                        #[doc = "See [`Pallet::nominate`]."]
                         nominate {
                             targets: ::subxt::ext::subxt_core::alloc::vec::Vec<
                                 ::subxt::ext::subxt_core::utils::MultiAddress<
@@ -4917,68 +5652,84 @@ pub mod runtime_types {
                             >,
                         },
                         #[codec(index = 6)]
+                        #[doc = "See [`Pallet::chill`]."]
                         chill,
                         #[codec(index = 7)]
+                        #[doc = "See [`Pallet::set_payee`]."]
                         set_payee {
                             payee: runtime_types::pallet_staking::RewardDestination<
                                 ::subxt::ext::subxt_core::utils::AccountId32,
                             >,
                         },
                         #[codec(index = 8)]
+                        #[doc = "See [`Pallet::set_controller`]."]
                         set_controller,
                         #[codec(index = 9)]
+                        #[doc = "See [`Pallet::set_validator_count`]."]
                         set_validator_count {
                             #[codec(compact)]
                             new: ::core::primitive::u32,
                         },
                         #[codec(index = 10)]
+                        #[doc = "See [`Pallet::increase_validator_count`]."]
                         increase_validator_count {
                             #[codec(compact)]
                             additional: ::core::primitive::u32,
                         },
                         #[codec(index = 11)]
+                        #[doc = "See [`Pallet::scale_validator_count`]."]
                         scale_validator_count {
                             factor: runtime_types::sp_arithmetic::per_things::Percent,
                         },
                         #[codec(index = 12)]
+                        #[doc = "See [`Pallet::force_no_eras`]."]
                         force_no_eras,
                         #[codec(index = 13)]
+                        #[doc = "See [`Pallet::force_new_era`]."]
                         force_new_era,
                         #[codec(index = 14)]
+                        #[doc = "See [`Pallet::set_invulnerables`]."]
                         set_invulnerables {
                             invulnerables: ::subxt::ext::subxt_core::alloc::vec::Vec<
                                 ::subxt::ext::subxt_core::utils::AccountId32,
                             >,
                         },
                         #[codec(index = 15)]
+                        #[doc = "See [`Pallet::force_unstake`]."]
                         force_unstake {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             num_slashing_spans: ::core::primitive::u32,
                         },
                         #[codec(index = 16)]
+                        #[doc = "See [`Pallet::force_new_era_always`]."]
                         force_new_era_always,
                         #[codec(index = 17)]
+                        #[doc = "See [`Pallet::cancel_deferred_slash`]."]
                         cancel_deferred_slash {
                             era: ::core::primitive::u32,
                             slash_indices:
                                 ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u32>,
                         },
                         #[codec(index = 18)]
+                        #[doc = "See [`Pallet::payout_stakers`]."]
                         payout_stakers {
                             validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             era: ::core::primitive::u32,
                         },
                         #[codec(index = 19)]
+                        #[doc = "See [`Pallet::rebond`]."]
                         rebond {
                             #[codec(compact)]
                             value: ::core::primitive::u128,
                         },
                         #[codec(index = 20)]
+                        #[doc = "See [`Pallet::reap_stash`]."]
                         reap_stash {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             num_slashing_spans: ::core::primitive::u32,
                         },
                         #[codec(index = 21)]
+                        #[doc = "See [`Pallet::kick`]."]
                         kick {
                             who: ::subxt::ext::subxt_core::alloc::vec::Vec<
                                 ::subxt::ext::subxt_core::utils::MultiAddress<
@@ -4988,6 +5739,7 @@ pub mod runtime_types {
                             >,
                         },
                         #[codec(index = 22)]
+                        #[doc = "See [`Pallet::set_staking_configs`]."]
                         set_staking_configs {
                             min_nominator_bond:
                                 runtime_types::pallet_staking::pallet::pallet::ConfigOp<
@@ -5014,18 +5766,22 @@ pub mod runtime_types {
                             >,
                         },
                         #[codec(index = 23)]
+                        #[doc = "See [`Pallet::chill_other`]."]
                         chill_other {
                             controller: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 24)]
+                        #[doc = "See [`Pallet::force_apply_min_commission`]."]
                         force_apply_min_commission {
                             validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 25)]
+                        #[doc = "See [`Pallet::set_min_commission`]."]
                         set_min_commission {
                             new: runtime_types::sp_arithmetic::per_things::Perbill,
                         },
                         #[codec(index = 26)]
+                        #[doc = "See [`Pallet::payout_stakers_by_page`]."]
                         payout_stakers_by_page {
                             validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             era: ::core::primitive::u32,
@@ -5046,71 +5802,106 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
+                    #[doc = "The `Error` enum of this pallet."]
                     pub enum Error {
                         #[codec(index = 0)]
+                        #[doc = "Not a controller account."]
                         NotController,
                         #[codec(index = 1)]
+                        #[doc = "Not a stash account."]
                         NotStash,
                         #[codec(index = 2)]
+                        #[doc = "Stash is already bonded."]
                         AlreadyBonded,
                         #[codec(index = 3)]
+                        #[doc = "Controller is already paired."]
                         AlreadyPaired,
                         #[codec(index = 4)]
+                        #[doc = "Targets cannot be empty."]
                         EmptyTargets,
                         #[codec(index = 5)]
+                        #[doc = "Duplicate index."]
                         DuplicateIndex,
                         #[codec(index = 6)]
+                        #[doc = "Slash record index out of bounds."]
                         InvalidSlashIndex,
                         #[codec(index = 7)]
+                        #[doc = "Cannot have a validator or nominator role, with value less than the minimum defined by"]
+                        #[doc = "governance (see `MinValidatorBond` and `MinNominatorBond`). If unbonding is the"]
+                        #[doc = "intention, `chill` first to remove one's role as validator/nominator."]
                         InsufficientBond,
                         #[codec(index = 8)]
+                        #[doc = "Can not schedule more unlock chunks."]
                         NoMoreChunks,
                         #[codec(index = 9)]
+                        #[doc = "Can not rebond without unlocking chunks."]
                         NoUnlockChunk,
                         #[codec(index = 10)]
+                        #[doc = "Attempting to target a stash that still has funds."]
                         FundedTarget,
                         #[codec(index = 11)]
+                        #[doc = "Invalid era to reward."]
                         InvalidEraToReward,
                         #[codec(index = 12)]
+                        #[doc = "Invalid number of nominations."]
                         InvalidNumberOfNominations,
                         #[codec(index = 13)]
+                        #[doc = "Items are not sorted and unique."]
                         NotSortedAndUnique,
                         #[codec(index = 14)]
+                        #[doc = "Rewards for this era have already been claimed for this validator."]
                         AlreadyClaimed,
                         #[codec(index = 15)]
+                        #[doc = "No nominators exist on this page."]
                         InvalidPage,
                         #[codec(index = 16)]
+                        #[doc = "Incorrect previous history depth input provided."]
                         IncorrectHistoryDepth,
                         #[codec(index = 17)]
+                        #[doc = "Incorrect number of slashing spans provided."]
                         IncorrectSlashingSpans,
                         #[codec(index = 18)]
+                        #[doc = "Internal state has become somehow corrupted and the operation cannot continue."]
                         BadState,
                         #[codec(index = 19)]
+                        #[doc = "Too many nomination targets supplied."]
                         TooManyTargets,
                         #[codec(index = 20)]
+                        #[doc = "A nomination target was supplied that was blocked or otherwise not a validator."]
                         BadTarget,
                         #[codec(index = 21)]
+                        #[doc = "The user has enough bond and thus cannot be chilled forcefully by an external person."]
                         CannotChillOther,
                         #[codec(index = 22)]
+                        #[doc = "There are too many nominators in the system. Governance needs to adjust the staking"]
+                        #[doc = "settings to keep things safe for the runtime."]
                         TooManyNominators,
                         #[codec(index = 23)]
+                        #[doc = "There are too many validator candidates in the system. Governance needs to adjust the"]
+                        #[doc = "staking settings to keep things safe for the runtime."]
                         TooManyValidators,
                         #[codec(index = 24)]
+                        #[doc = "Commission is too low. Must be at least `MinCommission`."]
                         CommissionTooLow,
                         #[codec(index = 25)]
+                        #[doc = "Some bound is not met."]
                         BoundNotMet,
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
+                    #[doc = "The `Event` enum of this pallet"]
                     pub enum Event {
                         #[codec(index = 0)]
+                        #[doc = "The era payout has been set; the first balance is the validator-payout; the second is"]
+                        #[doc = "the remainder from the maximum amount of reward."]
                         EraPaid {
                             era_index: ::core::primitive::u32,
                             validator_payout: ::core::primitive::u128,
                             remainder: ::core::primitive::u128,
                         },
                         #[codec(index = 1)]
+                        #[doc = "The nominator has been rewarded by this amount to this destination."]
                         Rewarded {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             dest: runtime_types::pallet_staking::RewardDestination<
@@ -5119,63 +5910,84 @@ pub mod runtime_types {
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 2)]
+                        #[doc = "A staker (validator or nominator) has been slashed by the given amount."]
                         Slashed {
                             staker: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 3)]
+                        #[doc = "A slash for the given validator, for the given percentage of their stake, at the given"]
+                        #[doc = "era as been reported."]
                         SlashReported {
                             validator: ::subxt::ext::subxt_core::utils::AccountId32,
                             fraction: runtime_types::sp_arithmetic::per_things::Perbill,
                             slash_era: ::core::primitive::u32,
                         },
                         #[codec(index = 4)]
+                        #[doc = "An old slashing report from a prior era was discarded because it could"]
+                        #[doc = "not be processed."]
                         OldSlashingReportDiscarded {
                             session_index: ::core::primitive::u32,
                         },
                         #[codec(index = 5)]
+                        #[doc = "A new set of stakers was elected."]
                         StakersElected,
                         #[codec(index = 6)]
+                        #[doc = "An account has bonded this amount. \\[stash, amount\\]"]
+                        #[doc = ""]
+                        #[doc = "NOTE: This event is only emitted when funds are bonded via a dispatchable. Notably,"]
+                        #[doc = "it will not be emitted for staking rewards when they are added to stake."]
                         Bonded {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 7)]
+                        #[doc = "An account has unbonded this amount."]
                         Unbonded {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 8)]
+                        #[doc = "An account has called `withdraw_unbonded` and removed unbonding chunks worth `Balance`"]
+                        #[doc = "from the unlocking queue."]
                         Withdrawn {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 9)]
+                        #[doc = "A nominator has been kicked from a validator."]
                         Kicked {
                             nominator: ::subxt::ext::subxt_core::utils::AccountId32,
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 10)]
+                        #[doc = "The election failed. No new era is planned."]
                         StakingElectionFailed,
                         #[codec(index = 11)]
+                        #[doc = "An account has stopped participating as either a validator or nominator."]
                         Chilled {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 12)]
+                        #[doc = "The stakers' rewards are getting paid."]
                         PayoutStarted {
                             era_index: ::core::primitive::u32,
                             validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 13)]
+                        #[doc = "A validator has set their preferences."]
                         ValidatorPrefsSet {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             prefs: runtime_types::pallet_staking::ValidatorPrefs,
                         },
                         #[codec(index = 14)]
+                        #[doc = "Voters size limit reached."]
                         SnapshotVotersSizeExceeded { size: ::core::primitive::u32 },
                         #[codec(index = 15)]
+                        #[doc = "Targets size limit reached."]
                         SnapshotTargetsSizeExceeded { size: ::core::primitive::u32 },
                         #[codec(index = 16)]
+                        #[doc = "A new force era mode was set."]
                         ForceEra {
                             mode: runtime_types::pallet_staking::Forcing,
                         },
@@ -5282,14 +6094,17 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::sudo`]."]
                     sudo {
                         call: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::vara_runtime::RuntimeCall,
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::sudo_unchecked_weight`]."]
                     sudo_unchecked_weight {
                         call: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::vara_runtime::RuntimeCall,
@@ -5297,6 +6112,7 @@ pub mod runtime_types {
                         weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::set_key`]."]
                     set_key {
                         new: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -5304,6 +6120,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::sudo_as`]."]
                     sudo_as {
                         who: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -5314,28 +6131,36 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::remove_key`]."]
                     remove_key,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Error for the Sudo pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Sender must be the Sudo account."]
                     RequireSudo,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A sudo call just took place."]
                     Sudid {
                         sudo_result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                     },
                     #[codec(index = 1)]
+                    #[doc = "The sudo key has been updated."]
                     KeyChanged {
                         old: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                         new: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "The key was permanently removed."]
                     KeyRemoved,
                     #[codec(index = 3)]
+                    #[doc = "A [sudo_as](Pallet::sudo_as) call just took place."]
                     SudoAsDone {
                         sudo_result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
@@ -5348,8 +6173,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::set`]."]
                     set {
                         #[codec(compact)]
                         now: ::core::primitive::u64,
@@ -5362,8 +6189,11 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "A transaction fee `actual_fee`, of which `tip` was added to the minimum inclusion fee,"]
+                    #[doc = "has been paid by `who`."]
                     TransactionFeePaid {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
                         actual_fee: ::core::primitive::u128,
@@ -5386,8 +6216,10 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::propose_spend`]."]
                     propose_spend {
                         #[codec(compact)]
                         value: ::core::primitive::u128,
@@ -5397,16 +6229,19 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::reject_proposal`]."]
                     reject_proposal {
                         #[codec(compact)]
                         proposal_id: ::core::primitive::u32,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::approve_proposal`]."]
                     approve_proposal {
                         #[codec(compact)]
                         proposal_id: ::core::primitive::u32,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::spend_local`]."]
                     spend_local {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
@@ -5416,11 +6251,13 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::remove_approval`]."]
                     remove_approval {
                         #[codec(compact)]
                         proposal_id: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::spend`]."]
                     spend {
                         asset_kind: ::subxt::ext::subxt_core::alloc::boxed::Box<()>,
                         #[codec(compact)]
@@ -5431,82 +6268,110 @@ pub mod runtime_types {
                         valid_from: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 6)]
+                    #[doc = "See [`Pallet::payout`]."]
                     payout { index: ::core::primitive::u32 },
                     #[codec(index = 7)]
+                    #[doc = "See [`Pallet::check_status`]."]
                     check_status { index: ::core::primitive::u32 },
                     #[codec(index = 8)]
+                    #[doc = "See [`Pallet::void_spend`]."]
                     void_spend { index: ::core::primitive::u32 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Error for the treasury pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Proposer's balance is too low."]
                     InsufficientProposersBalance,
                     #[codec(index = 1)]
+                    #[doc = "No proposal, bounty or spend at that index."]
                     InvalidIndex,
                     #[codec(index = 2)]
+                    #[doc = "Too many approvals in the queue."]
                     TooManyApprovals,
                     #[codec(index = 3)]
+                    #[doc = "The spend origin is valid but the amount it is allowed to spend is lower than the"]
+                    #[doc = "amount to be spent."]
                     InsufficientPermission,
                     #[codec(index = 4)]
+                    #[doc = "Proposal has not been approved."]
                     ProposalNotApproved,
                     #[codec(index = 5)]
+                    #[doc = "The balance of the asset kind is not convertible to the balance of the native asset."]
                     FailedToConvertBalance,
                     #[codec(index = 6)]
+                    #[doc = "The spend has expired and cannot be claimed."]
                     SpendExpired,
                     #[codec(index = 7)]
+                    #[doc = "The spend is not yet eligible for payout."]
                     EarlyPayout,
                     #[codec(index = 8)]
+                    #[doc = "The payment has already been attempted."]
                     AlreadyAttempted,
                     #[codec(index = 9)]
+                    #[doc = "There was some issue with the mechanism of payment."]
                     PayoutError,
                     #[codec(index = 10)]
+                    #[doc = "The payout was not yet attempted/claimed."]
                     NotAttempted,
                     #[codec(index = 11)]
+                    #[doc = "The payment has neither failed nor succeeded yet."]
                     Inconclusive,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "New proposal."]
                     Proposed {
                         proposal_index: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "We have ended a spend period and will now allocate funds."]
                     Spending {
                         budget_remaining: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "Some funds have been allocated."]
                     Awarded {
                         proposal_index: ::core::primitive::u32,
                         award: ::core::primitive::u128,
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 3)]
+                    #[doc = "A proposal was rejected; funds were slashed."]
                     Rejected {
                         proposal_index: ::core::primitive::u32,
                         slashed: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
+                    #[doc = "Some of our funds have been burnt."]
                     Burnt {
                         burnt_funds: ::core::primitive::u128,
                     },
                     #[codec(index = 5)]
+                    #[doc = "Spending has finished; this is the amount that rolls over until next spend."]
                     Rollover {
                         rollover_balance: ::core::primitive::u128,
                     },
                     #[codec(index = 6)]
+                    #[doc = "Some funds have been deposited."]
                     Deposit { value: ::core::primitive::u128 },
                     #[codec(index = 7)]
+                    #[doc = "A new spend proposal has been approved."]
                     SpendApproved {
                         proposal_index: ::core::primitive::u32,
                         amount: ::core::primitive::u128,
                         beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 8)]
+                    #[doc = "The inactive funds of the pallet have been updated."]
                     UpdatedInactive {
                         reactivated: ::core::primitive::u128,
                         deactivated: ::core::primitive::u128,
                     },
                     #[codec(index = 9)]
+                    #[doc = "A new asset spend proposal has been approved."]
                     AssetSpendApproved {
                         index: ::core::primitive::u32,
                         asset_kind: (),
@@ -5516,18 +6381,23 @@ pub mod runtime_types {
                         expire_at: ::core::primitive::u32,
                     },
                     #[codec(index = 10)]
+                    #[doc = "An approved spend was voided."]
                     AssetSpendVoided { index: ::core::primitive::u32 },
                     #[codec(index = 11)]
+                    #[doc = "A payment happened."]
                     Paid {
                         index: ::core::primitive::u32,
                         payment_id: (),
                     },
                     #[codec(index = 12)]
+                    #[doc = "A payment failed and can be retried."]
                     PaymentFailed {
                         index: ::core::primitive::u32,
                         payment_id: (),
                     },
                     #[codec(index = 13)]
+                    #[doc = "A spend was processed and removed from the storage. It might have been successfully"]
+                    #[doc = "paid or it may have expired."]
                     SpendProcessed { index: ::core::primitive::u32 },
                 }
             }
@@ -5564,14 +6434,17 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::batch`]."]
                     batch {
                         calls: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::vara_runtime::RuntimeCall,
                         >,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::as_derivative`]."]
                     as_derivative {
                         index: ::core::primitive::u16,
                         call: ::subxt::ext::subxt_core::alloc::boxed::Box<
@@ -5579,12 +6452,14 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::batch_all`]."]
                     batch_all {
                         calls: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::vara_runtime::RuntimeCall,
                         >,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::dispatch_as`]."]
                     dispatch_as {
                         as_origin: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::vara_runtime::OriginCaller,
@@ -5594,12 +6469,14 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::force_batch`]."]
                     force_batch {
                         calls: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::vara_runtime::RuntimeCall,
                         >,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::with_weight`]."]
                     with_weight {
                         call: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::vara_runtime::RuntimeCall,
@@ -5608,28 +6485,38 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Too many calls batched."]
                     TooManyCalls,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "Batch of dispatches did not complete fully. Index of first failing dispatch given, as"]
+                    #[doc = "well as the error."]
                     BatchInterrupted {
                         index: ::core::primitive::u32,
                         error: runtime_types::sp_runtime::DispatchError,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Batch of dispatches completed fully with no error."]
                     BatchCompleted,
                     #[codec(index = 2)]
+                    #[doc = "Batch of dispatches completed but has errors."]
                     BatchCompletedWithErrors,
                     #[codec(index = 3)]
+                    #[doc = "A single item within a Batch of dispatches has completed with no error."]
                     ItemCompleted,
                     #[codec(index = 4)]
+                    #[doc = "A single item within a Batch of dispatches has completed with error."]
                     ItemFailed {
                         error: runtime_types::sp_runtime::DispatchError,
                     },
                     #[codec(index = 5)]
+                    #[doc = "A call was dispatched."]
                     DispatchedAs {
                         result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
@@ -5642,10 +6529,13 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::vest`]."]
                     vest,
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::vest_other`]."]
                     vest_other {
                         target: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -5653,6 +6543,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::vested_transfer`]."]
                     vested_transfer {
                         target: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -5664,6 +6555,7 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::force_vested_transfer`]."]
                     force_vested_transfer {
                         source: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -5679,11 +6571,13 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 4)]
+                    #[doc = "See [`Pallet::merge_schedules`]."]
                     merge_schedules {
                         schedule1_index: ::core::primitive::u32,
                         schedule2_index: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
+                    #[doc = "See [`Pallet::force_remove_vesting_schedule`]."]
                     force_remove_vesting_schedule {
                         target: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -5693,26 +6587,37 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Error for the vesting pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The account given is not vesting."]
                     NotVesting,
                     #[codec(index = 1)]
+                    #[doc = "The account already has `MaxVestingSchedules` count of schedules and thus"]
+                    #[doc = "cannot add another one. Consider merging existing schedules in order to add another."]
                     AtMaxVestingSchedules,
                     #[codec(index = 2)]
+                    #[doc = "Amount being transferred is too low to create a vesting schedule."]
                     AmountLow,
                     #[codec(index = 3)]
+                    #[doc = "An index was out of bounds of the vesting schedules."]
                     ScheduleIndexOutOfBounds,
                     #[codec(index = 4)]
+                    #[doc = "Failed to create a new schedule because some parameter was invalid."]
                     InvalidScheduleParams,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
+                    #[doc = "The amount vested has been updated. This could indicate a change in funds available."]
+                    #[doc = "The balance given is the amount which is left unvested (and thus locked)."]
                     VestingUpdated {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                         unvested: ::core::primitive::u128,
                     },
                     #[codec(index = 1)]
+                    #[doc = "An \\[account\\] has become fully vested."]
                     VestingCompleted {
                         account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
@@ -5740,22 +6645,27 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "See [`Pallet::whitelist_call`]."]
                     whitelist_call {
                         call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 1)]
+                    #[doc = "See [`Pallet::remove_whitelisted_call`]."]
                     remove_whitelisted_call {
                         call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 2)]
+                    #[doc = "See [`Pallet::dispatch_whitelisted_call`]."]
                     dispatch_whitelisted_call {
                         call_hash: ::subxt::ext::subxt_core::utils::H256,
                         call_encoded_len: ::core::primitive::u32,
                         call_weight_witness: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 3)]
+                    #[doc = "See [`Pallet::dispatch_whitelisted_call_with_preimage`]."]
                     dispatch_whitelisted_call_with_preimage {
                         call: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::vara_runtime::RuntimeCall,
@@ -5763,19 +6673,26 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The preimage of the call hash could not be loaded."]
                     UnavailablePreImage,
                     #[codec(index = 1)]
+                    #[doc = "The call could not be decoded."]
                     UndecodableCall,
                     #[codec(index = 2)]
+                    #[doc = "The weight of the decoded call was higher than the witness."]
                     InvalidCallWeightWitness,
                     #[codec(index = 3)]
+                    #[doc = "The call was not whitelisted."]
                     CallIsNotWhitelisted,
                     #[codec(index = 4)]
+                    #[doc = "The call was already whitelisted; No-Op."]
                     CallAlreadyWhitelisted,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
                     CallWhitelisted {
