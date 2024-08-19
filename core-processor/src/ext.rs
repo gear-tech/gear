@@ -1199,15 +1199,37 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
-        let amount = self.context.gas_reserver.unreserve(id)?;
+        let (amount, reimburse) = self.context.gas_reserver.unreserve(id)?;
 
-        // This statement is like an op that increases "left" counter, but do not affect "burned" counter,
-        // because we don't actually refund, we just rise "left" counter during unreserve
-        // and it won't affect gas allowance counter because we don't make any actual calculations
-        // TODO: uncomment when unreserving in current message features is discussed
-        /*if !self.context.gas_counter.increase(amount) {
-            return Err(some_charge_error.into());
-        }*/
+        if let Some(reimburse) = reimburse {
+            let current_gas_amount = self.gas_amount();
+
+            // Basically amount of the reseravtion and the cost for the hold duration.
+            let reimburse_amount = self
+                .context
+                .costs
+                .rent
+                .reservation
+                .cost_for(
+                    self.context
+                        .reserve_for
+                        .saturating_add(reimburse.duration())
+                        .into(),
+                )
+                .saturating_add(amount);
+            self.context
+                .gas_counter
+                .increase(reimburse_amount, reimburse)
+                .then_some(())
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "Ext::unreserve_gas: failed to reimburse unreserved gas to left counter. \
+                    Current gas amount - {}, reimburse amount - {}",
+                        current_gas_amount.left(),
+                        amount,
+                    )
+                });
+        }
 
         Ok(amount)
     }
@@ -1409,11 +1431,12 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::configs::RentCosts;
     use alloc::vec;
     use gear_core::{
-        costs::SyscallCosts,
+        costs::{CostOf, SyscallCosts},
         message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
-        reservation::GasReservationState,
+        reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
     struct MessageContextBuilder {
@@ -1498,6 +1521,12 @@ mod tests {
 
         fn with_value(mut self, value: u128) -> Self {
             self.0.value_counter = ValueCounter::new(value);
+
+            self
+        }
+
+        fn with_reservations_map(mut self, map: GasReservationMap) -> Self {
+            self.0.gas_reserver = GasReserver::new(&Default::default(), map, 256);
 
             self
         }
@@ -2181,5 +2210,95 @@ mod tests {
         let msg = ext.send_commit(handle, data, 0);
         // Sending value below ED is also fine
         assert!(msg.is_ok());
+    }
+
+    #[test]
+    fn test_unreserve_no_reimbursement() {
+        let costs = ExtCosts {
+            rent: RentCosts {
+                reservation: CostOf::new(10),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Create "pre-reservation".
+        let (id, gas_reservation_map) = {
+            let mut m = BTreeMap::new();
+            let id = ReservationId::generate(MessageId::new([5; 32]), 10);
+
+            m.insert(
+                id,
+                GasReservationSlot {
+                    amount: 1_000_000,
+                    start: 0,
+                    finish: 10,
+                },
+            );
+
+            (id, m)
+        };
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_existential_deposit(500)
+                .with_reservations_map(gas_reservation_map)
+                .with_costs(costs.clone())
+                .build(),
+        );
+
+        // Check all the reseravations are in "existing" state.
+        assert!(ext
+            .context
+            .gas_reserver
+            .states()
+            .iter()
+            .all(|(_, state)| matches!(state, GasReservationState::Exists { .. })));
+
+        // Unreserving existing and checking no gas reimbursed.
+        let gas_before = ext.gas_amount();
+        assert!(ext.unreserve_gas(id).is_ok());
+        let gas_after = ext.gas_amount();
+
+        assert_eq!(gas_after.left(), gas_before.left());
+    }
+
+    #[test]
+    fn test_unreserve_with_reimbursement() {
+        let costs = ExtCosts {
+            rent: RentCosts {
+                reservation: CostOf::new(10),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_existential_deposit(500)
+                .with_costs(costs.clone())
+                .build(),
+        );
+
+        // Reserving and unreserving immediately
+        let reservation_amount = 1_000_000;
+        let duration = 10;
+        let duration_cost = costs
+            .rent
+            .reservation
+            .cost_for(ext.context.reserve_for.saturating_add(duration).into());
+        let id = ext
+            .reserve_gas(reservation_amount, duration)
+            .expect("internal error: failed reservation");
+        let gas_before = ext.gas_amount();
+        assert!(ext.unreserve_gas(id).is_ok());
+        let gas_after = ext.gas_amount();
+
+        assert_eq!(
+            gas_after.left(),
+            gas_before.left() + reservation_amount + duration_cost
+        );
     }
 }
