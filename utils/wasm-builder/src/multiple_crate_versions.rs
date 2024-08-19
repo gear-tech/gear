@@ -12,11 +12,7 @@ fn denied_duplicate_crates() -> HashSet<&'static str> {
     )
 }
 
-pub(crate) fn check(
-    metadata: &Metadata,
-    root_id: &PackageId,
-    // denied_duplicate_crates: &HashSet<String>,
-) -> Result<()> {
+pub(crate) fn check(metadata: &Metadata, root_id: &PackageId) -> Result<()> {
     let denied_duplicate_crates = denied_duplicate_crates();
     let mut packages = metadata.packages.clone();
     packages.sort_by(|a, b| a.name.cmp(&b.name));
