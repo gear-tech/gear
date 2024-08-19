@@ -18,7 +18,7 @@
 
 //! Gas module.
 
-use crate::{costs::CostToken, reservation::ReimburseUnreserved};
+use crate::{costs::CostToken, reservation::UnreservedReimbursement};
 use enum_iterator::Sequence;
 use scale_info::{
     scale::{Decode, Encode},
@@ -103,7 +103,7 @@ impl GasCounter {
     ///
     /// Called when gas unreservation is occurred.
     /// We don't decrease `burn` counter because `GasTree` manipulation is handled by separated function
-    pub fn increase(&mut self, amount: u64, _token: ReimburseUnreserved) -> bool {
+    pub fn increase(&mut self, amount: u64, _token: UnreservedReimbursement) -> bool {
         match self.left.checked_add(amount) {
             None => false,
             Some(new_left) => {

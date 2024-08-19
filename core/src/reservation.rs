@@ -211,7 +211,7 @@ impl GasReserver {
     pub fn unreserve(
         &mut self,
         id: ReservationId,
-    ) -> Result<(u64, Option<ReimburseUnreserved>), ReservationError> {
+    ) -> Result<(u64, Option<UnreservedReimbursement>), ReservationError> {
         // Docs error case #1.
         let state = self
             .states
@@ -239,7 +239,7 @@ impl GasReserver {
             }
             GasReservationState::Created {
                 amount, duration, ..
-            } => (amount, Some(ReimburseUnreserved(duration))),
+            } => (amount, Some(UnreservedReimbursement(duration))),
             GasReservationState::Removed { .. } => {
                 let err_msg =
                     "GasReserver::unreserve: `Removed` variant is unreachable, checked above";
@@ -337,9 +337,9 @@ impl GasReserver {
 ///
 /// Wraps duration for the newly created reservation.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ReimburseUnreserved(u32);
+pub struct UnreservedReimbursement(u32);
 
-impl ReimburseUnreserved {
+impl UnreservedReimbursement {
     /// Returns duration for the newly created unreserved reservation.
     pub fn duration(&self) -> u32 {
         self.0

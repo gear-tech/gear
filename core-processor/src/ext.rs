@@ -1201,11 +1201,11 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
         let (amount, reimburse) = self.context.gas_reserver.unreserve(id)?;
 
-        if let Some(reimburse) = reimburse {
+        if let Some(reimbursement) = reimburse {
             let current_gas_amount = self.gas_amount();
 
             // Basically amount of the reseravtion and the cost for the hold duration.
-            let reimburse_amount = self
+            let reimbursement_amount = self
                 .context
                 .costs
                 .rent
@@ -1213,13 +1213,13 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                 .cost_for(
                     self.context
                         .reserve_for
-                        .saturating_add(reimburse.duration())
+                        .saturating_add(reimbursement.duration())
                         .into(),
                 )
                 .saturating_add(amount);
             self.context
                 .gas_counter
-                .increase(reimburse_amount, reimburse)
+                .increase(reimbursement_amount, reimbursement)
                 .then_some(())
                 .unwrap_or_else(|| {
                     unreachable!(
