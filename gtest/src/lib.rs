@@ -576,29 +576,6 @@ pub mod constants {
     /// Initial random seed for testing environment.
     pub const INITIAL_RANDOM_SEED: u64 = 42;
 
-    /* Memory-related constants */
-    /// Memory grow cost.
-    pub const MEM_GROW_COST: usize = 810343;
-    /// Memory grow per page cost.
-    pub const MEM_GROW_PER_PAGE_COST: usize = 0;
-    /* Lazy pages related constants */
-
-    /// First read page access cost.
-    pub const SIGNAL_READ_COST: Gas = 28385632;
-    /// First write page access cost.
-    pub const SIGNAL_WRITE_COST: Gas = 137635397;
-    /// First read page access cost for page, which has been already read
-    /// accessed.
-    pub const SIGNAL_WRITE_AFTER_READ_COST: Gas = 112552575;
-    /// First read page access cost from host function call.
-    pub const HOST_FUNC_READ_COST: Gas = 31201248;
-    /// First write page access cost from host function call.
-    pub const HOST_FUNC_WRITE_COST: Gas = 141387608;
-    /// First write page access cost from host function call.
-    pub const HOST_FUNC_WRITE_AFTER_READ_COST: Gas = 115129057;
-    /// Loading page data from storage cost.
-    pub const LOAD_PAGE_STORAGE_DATA_COST: Gas = 10630903;
-
     /* Default users constants with initial balance */
 
     /// Default user id for Alice.

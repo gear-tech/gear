@@ -26,15 +26,13 @@ pub struct Schedule {
     pub instruction_weights: InstructionWeights,
     pub syscall_weights: SyscallWeights,
     pub memory_weights: MemoryWeights,
+    pub rent_weights: RentWeights,
     pub instantiation_weights: InstantiationWeights,
     pub db_write_per_byte: Weight,
     pub db_read_per_byte: Weight,
     pub code_instrumentation_cost: Weight,
     pub code_instrumentation_byte_cost: Weight,
     pub load_allocations_weight: Weight,
-    pub waitlist_cost: Weight,
-    pub dispatch_stash_cost: Weight,
-    pub reservation_cost: Weight,
 }
 
 impl Default for Schedule {
@@ -44,6 +42,7 @@ impl Default for Schedule {
             instruction_weights: InstructionWeights::default(),
             syscall_weights: SyscallWeights::default(),
             memory_weights: MemoryWeights::default(),
+            rent_weights: RentWeights::default(),
             instantiation_weights: InstantiationWeights::default(),
             db_write_per_byte: Weight {
                 ref_time: 234,
@@ -63,18 +62,6 @@ impl Default for Schedule {
             },
             load_allocations_weight: Weight {
                 ref_time: 20729,
-                proof_size: 0,
-            },
-            waitlist_cost: Weight {
-                ref_time: 100,
-                proof_size: 0,
-            },
-            dispatch_stash_cost: Weight {
-                ref_time: 100,
-                proof_size: 0,
-            },
-            reservation_cost: Weight {
-                ref_time: 100,
                 proof_size: 0,
             },
         }
@@ -762,6 +749,31 @@ impl Default for InstantiationWeights {
             },
             type_section_per_byte: Weight {
                 ref_time: 15225,
+                proof_size: 0,
+            },
+        }
+    }
+}
+
+pub struct RentWeights {
+    pub dispatch_stash: Weight,
+    pub waitlist: Weight,
+    pub reservation: Weight,
+}
+
+impl Default for RentWeights {
+    fn default() -> Self {
+        Self {
+            dispatch_stash: Weight {
+                ref_time: 100,
+                proof_size: 0,
+            },
+            waitlist: Weight {
+                ref_time: 100,
+                proof_size: 0,
+            },
+            reservation: Weight {
+                ref_time: 100,
                 proof_size: 0,
             },
         }

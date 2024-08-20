@@ -102,11 +102,6 @@ enum WeightsKind {
 #[derive(Debug, Serialize)]
 struct SerializableDump {
     vara_schedule: Schedule<vara_runtime::Runtime>,
-    read: u64,
-    write: u64,
-    waitlist: u64,
-    dispatch_stash: u64,
-    reservation: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<String>,
 }
@@ -123,6 +118,7 @@ struct DeserializableSchedule {
     instruction_weights: IndexMap<String, Value>,
     syscall_weights: IndexMap<String, Weight>,
     memory_weights: IndexMap<String, Weight>,
+    rent_weights: IndexMap<String, Weight>,
     instantiation_weights: IndexMap<String, Weight>,
     #[serde(flatten)]
     other_fields: IndexMap<String, Weight>,
@@ -226,6 +222,7 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 | "SyscallWeights"
                 | "MemoryWeights"
                 | "InstantiationWeights"
+                | "RentWeights"
         ) {
             return;
         }
@@ -277,17 +274,10 @@ fn main() {
     match command {
         Commands::Dump { output_path, label } => {
             let writer = fs::File::create(output_path).unwrap();
-            let vara_schedule: Schedule<vara_runtime::Runtime> = Default::default();
-            let process_costs = vara_schedule.process_costs();
             serde_json::to_writer_pretty(
                 writer,
                 &SerializableDump {
-                    vara_schedule,
-                    waitlist: process_costs.ext.rent.waitlist.cost_for_one(),
-                    dispatch_stash: process_costs.ext.rent.dispatch_stash.cost_for_one(),
-                    read: process_costs.read.cost_for_one(),
-                    write: process_costs.write.cost_for_one(),
-                    reservation: process_costs.ext.rent.reservation.cost_for_one(),
+                    vara_schedule: Default::default(),
                     label,
                 },
             )
@@ -400,6 +390,7 @@ fn main() {
                         "InstantiationWeights" => {
                             &raw_schedule["instantiation_weights"][field_name]
                         }
+                        "RentWeights" => &raw_schedule["rent_weights"][field_name],
                         _ => &raw_schedule,
                     };
 
@@ -469,8 +460,9 @@ fn main() {
                 //! See `./scripts/weight-dump.sh` if you want to update it.
 
                 use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
+                use gear_core::costs::SyscallCosts;
                 use gear_lazy_pages_common::LazyPagesCosts;
-                use gear_wasm_instrument::gas_metering::{InstantiationWeights, MemoryWeights, Schedule};
+                use gear_wasm_instrument::gas_metering::{InstantiationWeights, MemoryWeights, SyscallWeights, Schedule};
 
             }];
 
@@ -479,12 +471,22 @@ fn main() {
                 pub fn lazy_pages_costs(val: &MemoryWeights) -> LazyPagesCosts {
                     LazyPagesCosts {
                         host_func_read: val.lazy_pages_host_func_read.ref_time.into(),
-                        host_func_write: val.lazy_pages_host_func_write.ref_time.into(),
-                        host_func_write_after_read: val.lazy_pages_host_func_write_after_read.ref_time.into(),
-                        load_page_storage_data: val.load_page_data.ref_time.into(),
+                        host_func_write: val.lazy_pages_host_func_write.ref_time
+                            .saturating_add(val.upload_page_data.ref_time)
+                            .into(),
+                        host_func_write_after_read: val.lazy_pages_host_func_write_after_read.ref_time
+                            .saturating_add(val.upload_page_data.ref_time)
+                            .into(),
+                        load_page_storage_data: val.load_page_data.ref_time
+                            .saturating_add(val.parachain_read_heuristic.ref_time)
+                            .into(),
                         signal_read: val.lazy_pages_signal_read.ref_time.into(),
-                        signal_write: val.lazy_pages_signal_write.ref_time.into(),
-                        signal_write_after_read: val.lazy_pages_signal_write_after_read.ref_time.into()
+                        signal_write: val.lazy_pages_signal_write.ref_time
+                            .saturating_add(val.upload_page_data.ref_time)
+                            .into(),
+                        signal_write_after_read: val.lazy_pages_signal_write_after_read.ref_time
+                            .saturating_add(val.upload_page_data.ref_time)
+                            .into(),
                     }
                 }
             });
@@ -504,14 +506,89 @@ fn main() {
 
             });
 
+            // SyscallCosts
+            declarations.push(quote! {
+                pub fn syscall_costs(val: &SyscallWeights) -> SyscallCosts {
+                    SyscallCosts {
+                        alloc: val.alloc.ref_time.into(),
+                        free: val.free.ref_time.into(),
+                        free_range: val.free_range.ref_time.into(),
+                        free_range_per_page: val.free_range_per_page.ref_time.into(),
+                        gr_reserve_gas: val.gr_reserve_gas.ref_time.into(),
+                        gr_unreserve_gas: val.gr_unreserve_gas.ref_time.into(),
+                        gr_system_reserve_gas: val.gr_system_reserve_gas.ref_time.into(),
+                        gr_gas_available: val.gr_gas_available.ref_time.into(),
+                        gr_message_id: val.gr_message_id.ref_time.into(),
+                        gr_program_id: val.gr_program_id.ref_time.into(),
+                        gr_source: val.gr_source.ref_time.into(),
+                        gr_value: val.gr_value.ref_time.into(),
+                        gr_value_available: val.gr_value_available.ref_time.into(),
+                        gr_size: val.gr_size.ref_time.into(),
+                        gr_read: val.gr_read.ref_time.into(),
+                        gr_read_per_byte: val.gr_read_per_byte.ref_time.into(),
+                        gr_env_vars: val.gr_env_vars.ref_time.into(),
+                        gr_block_height: val.gr_block_height.ref_time.into(),
+                        gr_block_timestamp: val.gr_block_timestamp.ref_time.into(),
+                        gr_random: val.gr_random.ref_time.into(),
+                        gr_reply_deposit: val.gr_reply_deposit.ref_time.into(),
+                        gr_send: val.gr_send.ref_time.into(),
+                        gr_send_per_byte: val.gr_send_per_byte.ref_time.into(),
+                        gr_send_wgas: val.gr_send_wgas.ref_time.into(),
+                        gr_send_wgas_per_byte: val.gr_send_wgas_per_byte.ref_time.into(),
+                        gr_send_init: val.gr_send_init.ref_time.into(),
+                        gr_send_push: val.gr_send_push.ref_time.into(),
+                        gr_send_push_per_byte: val.gr_send_push_per_byte.ref_time.into(),
+                        gr_send_commit: val.gr_send_commit.ref_time.into(),
+                        gr_send_commit_wgas: val.gr_send_commit_wgas.ref_time.into(),
+                        gr_reservation_send: val.gr_reservation_send.ref_time.into(),
+                        gr_reservation_send_per_byte: val.gr_reservation_send_per_byte.ref_time.into(),
+                        gr_reservation_send_commit: val.gr_reservation_send_commit.ref_time.into(),
+                        gr_reply_commit: val.gr_reply_commit.ref_time.into(),
+                        gr_reply_commit_wgas: val.gr_reply_commit_wgas.ref_time.into(),
+                        gr_reservation_reply: val.gr_reservation_reply.ref_time.into(),
+                        gr_reservation_reply_per_byte: val.gr_reservation_reply_per_byte.ref_time.into(),
+                        gr_reservation_reply_commit: val.gr_reservation_reply_commit.ref_time.into(),
+                        gr_reply_push: val.gr_reply_push.ref_time.into(),
+                        gr_reply: val.gr_reply.ref_time.into(),
+                        gr_reply_per_byte: val.gr_reply_per_byte.ref_time.into(),
+                        gr_reply_wgas: val.gr_reply_wgas.ref_time.into(),
+                        gr_reply_wgas_per_byte: val.gr_reply_wgas_per_byte.ref_time.into(),
+                        gr_reply_push_per_byte: val.gr_reply_push_per_byte.ref_time.into(),
+                        gr_reply_to: val.gr_reply_to.ref_time.into(),
+                        gr_signal_code: val.gr_signal_code.ref_time.into(),
+                        gr_signal_from: val.gr_signal_from.ref_time.into(),
+                        gr_reply_input: val.gr_reply_input.ref_time.into(),
+                        gr_reply_input_wgas: val.gr_reply_input_wgas.ref_time.into(),
+                        gr_reply_push_input: val.gr_reply_push_input.ref_time.into(),
+                        gr_reply_push_input_per_byte: val.gr_reply_push_input_per_byte.ref_time.into(),
+                        gr_send_input: val.gr_send_input.ref_time.into(),
+                        gr_send_input_wgas: val.gr_send_input_wgas.ref_time.into(),
+                        gr_send_push_input: val.gr_send_push_input.ref_time.into(),
+                        gr_send_push_input_per_byte: val.gr_send_push_input_per_byte.ref_time.into(),
+                        gr_debug: val.gr_debug.ref_time.into(),
+                        gr_debug_per_byte: val.gr_debug_per_byte.ref_time.into(),
+                        gr_reply_code: val.gr_reply_code.ref_time.into(),
+                        gr_exit: val.gr_exit.ref_time.into(),
+                        gr_leave: val.gr_leave.ref_time.into(),
+                        gr_wait: val.gr_wait.ref_time.into(),
+                        gr_wait_for: val.gr_wait_for.ref_time.into(),
+                        gr_wait_up_to: val.gr_wait_up_to.ref_time.into(),
+                        gr_wake: val.gr_wake.ref_time.into(),
+                        gr_create_program: val.gr_create_program.ref_time.into(),
+                        gr_create_program_payload_per_byte: val.gr_create_program_payload_per_byte.ref_time.into(),
+                        gr_create_program_salt_per_byte: val.gr_create_program_salt_per_byte.ref_time.into(),
+                        gr_create_program_wgas: val.gr_create_program_wgas.ref_time.into(),
+                        gr_create_program_wgas_payload_per_byte: val.gr_create_program_wgas_payload_per_byte.ref_time.into(),
+                        gr_create_program_wgas_salt_per_byte: val.gr_create_program_wgas_salt_per_byte.ref_time.into(),
+                    }
+                }
+            });
+
             // process_costs and block_config()
             let vara_schedule: Schedule<vara_runtime::Runtime> = Default::default();
 
             let process_costs = vara_schedule.process_costs();
 
-            let waitlist = process_costs.ext.rent.waitlist.cost_for_one();
-            let dispatch_stash = process_costs.ext.rent.dispatch_stash.cost_for_one();
-            let reservation = process_costs.ext.rent.reservation.cost_for_one();
             let db_read = process_costs.read.cost_for_one();
             let db_write = process_costs.write.cost_for_one();
             let read_per_byte = process_costs.read_per_byte.cost_for_one();
@@ -524,11 +601,11 @@ fn main() {
                     ProcessCosts {
                         ext: ExtCosts {
                             rent: RentCosts {
-                                waitlist: #waitlist.into(),
-                                dispatch_stash: #dispatch_stash.into(),
-                                reservation: #reservation.into()
+                                waitlist: schedule.rent_weights.waitlist.ref_time.into(),
+                                dispatch_stash: schedule.rent_weights.dispatch_stash.ref_time.into(),
+                                reservation: schedule.rent_weights.reservation.ref_time.into()
                             },
-                            syscalls: Default::default(),
+                            syscalls: syscall_costs(&schedule.syscall_weights),
                             mem_grow: schedule.memory_weights.mem_grow.ref_time.into(),
                             mem_grow_per_page: schedule.memory_weights.mem_grow_per_page.ref_time.into(),
                         },

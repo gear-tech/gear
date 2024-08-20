@@ -29,8 +29,10 @@ use crate::{
     log::{BlockRunResult, CoreLog},
     mailbox::MailboxManager,
     program::{Gas, WasmProgram},
+    task_pool::TaskPoolManager,
     Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, RESERVE_FOR,
+    VALUE_PER_GAS,
 };
 use core_processor::{
     common::*,
@@ -49,8 +51,8 @@ use gear_core::{
     pages::GearPage,
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
-use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
+use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},

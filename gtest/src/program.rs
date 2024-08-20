@@ -896,7 +896,7 @@ mod tests {
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
-        assert!(value.is_ok());
+        assert!(value.is_ok(), "not okay: {:?}", value);
     }
 
     #[test]

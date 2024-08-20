@@ -126,6 +126,9 @@ pub struct Schedule<T: Config> {
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
 
+    /// Holding in storages rent costs.
+    pub rent_weights: RentWeights<T>,
+
     /// The weights for instantiation of the module.
     pub instantiation_weights: InstantiationWeights,
 
@@ -143,14 +146,6 @@ pub struct Schedule<T: Config> {
 
     /// Load allocations weight.
     pub load_allocations_weight: Weight,
-
-    /// Holding message in waitlist cost per block.
-    pub waitlist_cost: Weight,
-
-    /// Holding message in dispatch stash cost per block.
-    pub dispatch_stash_cost: Weight,
-    /// Holding reservation cost per block
-    pub reservation_cost: Weight,
 }
 
 /// Describes the upper limits on various metrics.
@@ -711,6 +706,41 @@ pub struct InstantiationWeights {
     pub type_section_per_byte: Weight,
 }
 
+/// Describes the weight for renting.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct RentWeights<T: Config> {
+    pub dispatch_stash: Weight,
+    pub waitlist: Weight,
+    pub reservation: Weight,
+    /// The type parameter is used in the default implementation.
+    #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
+    pub _phantom: PhantomData<T>,
+}
+
+impl<T: Config> Default for RentWeights<T> {
+    fn default() -> Self {
+        Self {
+            waitlist: Weight::from_parts(CostsPerBlockOf::<T>::waitlist(), 0),
+            dispatch_stash: Weight::from_parts(CostsPerBlockOf::<T>::dispatch_stash(), 0),
+            reservation: Weight::from_parts(CostsPerBlockOf::<T>::reservation(), 0),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> From<RentWeights<T>> for RentCosts {
+    fn from(val: RentWeights<T>) -> Self {
+        Self {
+            waitlist: val.waitlist.ref_time().into(),
+            dispatch_stash: val.dispatch_stash.ref_time().into(),
+            reservation: val.reservation.ref_time().into(),
+        }
+    }
+}
+
 #[inline]
 fn cost(w: fn(u32) -> Weight) -> Weight {
     Weight::from_parts(w(1).saturating_sub(w(0)).ref_time(), 0)
@@ -770,6 +800,7 @@ impl<T: Config> Default for Schedule<T> {
             instruction_weights: Default::default(),
             syscall_weights: Default::default(),
             memory_weights: Default::default(),
+            rent_weights: Default::default(),
             db_write_per_byte: cost_byte(W::<T>::db_write_per_kb),
             db_read_per_byte: cost_byte(W::<T>::db_read_per_kb),
             instantiation_weights: InstantiationWeights {
@@ -787,9 +818,6 @@ impl<T: Config> Default for Schedule<T> {
             code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
             code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
             load_allocations_weight: cost(W::<T>::load_allocations_per_interval),
-            dispatch_stash_cost: Weight::from_parts(CostsPerBlockOf::<T>::dispatch_stash(), 0),
-            reservation_cost: Weight::from_parts(CostsPerBlockOf::<T>::reservation(), 0),
-            waitlist_cost: Weight::from_parts(CostsPerBlockOf::<T>::waitlist(), 0),
         }
     }
 }
@@ -1200,11 +1228,7 @@ impl<T: Config> Schedule<T> {
         ProcessCosts {
             ext: ExtCosts {
                 syscalls: self.syscall_weights.clone().into(),
-                rent: RentCosts {
-                    waitlist: CostsPerBlockOf::<T>::waitlist().into(),
-                    dispatch_stash: CostsPerBlockOf::<T>::dispatch_stash().into(),
-                    reservation: CostsPerBlockOf::<T>::reservation().into(),
-                },
+                rent: self.rent_weights.clone().into(),
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
