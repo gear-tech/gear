@@ -456,6 +456,7 @@ pub mod pallet {
             append_programs: Option<Option<BTreeSet<ProgramId>>>,
             code_uploading: Option<bool>,
             prolong_duration: Option<BlockNumberFor<T>>,
+            append_code_ids: Option<Option<BTreeSet<CodeId>>>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
@@ -555,6 +556,31 @@ pub mod pallet {
 
                 voucher.expiry = expiry;
                 updated = true;
+            }
+
+            // Optionally extends whitelisted code_ids.
+            match append_code_ids {
+                // Adding given destination set to voucher,
+                // if it has destinations limit.
+                Some(Some(mut extra_code_ids)) if voucher.code_ids.is_some() => {
+                    let code_ids = voucher.code_ids.as_mut().expect("Infallible; qed");
+                    let initial_len = code_ids.len();
+
+                    code_ids.append(&mut extra_code_ids);
+
+                    ensure!(
+                        code_ids.len() <= T::MaxCodeIdsAmount::get().into(),
+                        Error::<T>::MaxCodeIdsLimitExceeded
+                    );
+
+                    updated |= code_ids.len() != initial_len;
+                }
+
+                // Extending vouchers to any CodeId.
+                Some(None) => updated |= voucher.code_ids.take().is_some(),
+
+                // Noop.
+                _ => (),
             }
 
             // Check for Noop.

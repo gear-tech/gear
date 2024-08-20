@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::BTreeSet;
+
 use super::*;
 use crate::mock::*;
 use common::Origin;
@@ -31,9 +33,15 @@ fn voucher_issue_works() {
 
         let initial_balance = Balances::free_balance(ALICE);
 
-        let voucher_id =
-            utils::issue_w_balance_and_uploading(ALICE, BOB, DEFAULT_BALANCE, program_id, false)
-                .expect("Failed to issue voucher");
+        let voucher_id = utils::issue_w_balance_and_uploading(
+            ALICE,
+            BOB,
+            DEFAULT_BALANCE,
+            program_id,
+            false,
+            None,
+        )
+        .expect("Failed to issue voucher");
 
         assert_eq!(
             initial_balance,
@@ -41,9 +49,15 @@ fn voucher_issue_works() {
                 + Balances::free_balance(ALICE)
         );
 
-        let voucher_id_2 =
-            utils::issue_w_balance_and_uploading(ALICE, BOB, DEFAULT_BALANCE, program_id, true)
-                .expect("Failed to issue voucher");
+        let voucher_id_2 = utils::issue_w_balance_and_uploading(
+            ALICE,
+            BOB,
+            DEFAULT_BALANCE,
+            program_id,
+            true,
+            None,
+        )
+        .expect("Failed to issue voucher");
 
         assert_ne!(voucher_id, voucher_id_2);
 
@@ -86,7 +100,14 @@ fn voucher_issue_err_cases() {
 
         // Not enough balance.
         assert_noop!(
-            utils::issue_w_balance_and_uploading(ALICE, BOB, 1_000_000_000_000, program_id, false),
+            utils::issue_w_balance_and_uploading(
+                ALICE,
+                BOB,
+                1_000_000_000_000,
+                program_id,
+                false,
+                None
+            ),
             Error::<Test>::BalanceTransfer
         );
 
@@ -117,7 +138,8 @@ fn voucher_call_works() {
     new_test_ext().execute_with(|| {
         let program_id = MAILBOXED_PROGRAM;
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id =
+            utils::issue(ALICE, BOB, program_id, None).expect("Failed to issue voucher");
 
         assert_ok!(Voucher::call(
             RuntimeOrigin::signed(BOB),
@@ -199,6 +221,19 @@ fn voucher_call_works() {
             voucher_id_code,
             PrepaidCall::UploadCode { code: vec![] },
         ));
+
+        assert_ok!(Voucher::call(
+            RuntimeOrigin::signed(BOB),
+            voucher_id_any,
+            PrepaidCall::CreateProgram {
+                code_id: CodeId::zero(),
+                salt: vec![],
+                payload: vec![],
+                gas_limit: 0,
+                value: 0,
+                keep_alive: true
+            },
+        ));
     })
 }
 
@@ -206,6 +241,7 @@ fn voucher_call_works() {
 fn voucher_call_err_cases() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
+        let code_id: CodeId = H256::random().cast();
 
         // Voucher doesn't exist at all.
         assert_noop!(
@@ -223,7 +259,8 @@ fn voucher_call_err_cases() {
             Error::<Test>::InexistentVoucher
         );
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id =
+            utils::issue(ALICE, BOB, program_id, Some(code_id)).expect("Failed to issue voucher");
 
         // Voucher doesn't exist for the user.
         assert_noop!(
@@ -298,6 +335,23 @@ fn voucher_call_err_cases() {
             Error::<Test>::CodeUploadingDisabled
         );
 
+        // Voucher doesn't allow crate program with invalid code_id
+        assert_noop!(
+            Voucher::call(
+                RuntimeOrigin::signed(BOB),
+                voucher_id,
+                PrepaidCall::CreateProgram {
+                    code_id: CodeId::zero(),
+                    salt: vec![],
+                    payload: vec![],
+                    gas_limit: 0,
+                    value: 0,
+                    keep_alive: true
+                },
+            ),
+            Error::<Test>::InappropriateCodeId
+        );
+
         // Voucher is out of date.
         System::set_block_number(System::block_number() + DEFAULT_VALIDITY + 1);
 
@@ -323,7 +377,8 @@ fn voucher_revoke_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id =
+            utils::issue(ALICE, BOB, program_id, None).expect("Failed to issue voucher");
         let voucher_id_acc = voucher_id.cast::<AccountIdOf<Test>>();
 
         System::set_block_number(System::block_number() + DEFAULT_VALIDITY + 1);
@@ -368,7 +423,8 @@ fn voucher_revoke_err_cases() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id =
+            utils::issue(ALICE, BOB, program_id, None).expect("Failed to issue voucher");
 
         // Voucher doesn't exist
         assert_noop!(
@@ -400,14 +456,17 @@ fn voucher_revoke_err_cases() {
 fn voucher_update_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
+        let code_id: CodeId = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id =
+            utils::issue(ALICE, BOB, program_id, Some(code_id)).expect("Failed to issue voucher");
         let voucher_id_acc = voucher_id.cast::<AccountIdOf<Test>>();
 
         let alice_balance = Balances::free_balance(ALICE);
         let voucher_balance = Balances::free_balance(voucher_id_acc);
 
         let new_program_id = H256::random().cast();
+        let new_code_id: CodeId = H256::random().cast();
         let duration_prolong = 10;
         let balance_top_up = 1_000;
 
@@ -425,6 +484,8 @@ fn voucher_update_works() {
             Some(false),
             // prolong duration
             Some(0),
+            // extra code_id
+            Some(Some([code_id].into()))
         )));
 
         assert_ok!(Voucher::update(
@@ -441,6 +502,8 @@ fn voucher_update_works() {
             Some(true),
             // prolong duration
             Some(duration_prolong),
+            // extra code_id
+            Some(Some([new_code_id].into()))
         ));
 
         System::assert_has_event(
@@ -464,6 +527,7 @@ fn voucher_update_works() {
         );
         assert_eq!(voucher.owner, BOB);
         assert_eq!(voucher.programs, Some([program_id, new_program_id].into()));
+        assert_eq!(voucher.code_ids, Some([code_id, new_code_id].into()));
         assert!(voucher.code_uploading);
         assert_eq!(
             voucher.expiry,
@@ -486,6 +550,8 @@ fn voucher_update_works() {
             None,
             // prolong duration
             None,
+            // extra code_id
+            Some(None)
         ));
 
         System::assert_has_event(
@@ -502,6 +568,7 @@ fn voucher_update_works() {
         assert_eq!(Balances::free_balance(voucher_id_acc), voucher_balance);
         assert_eq!(voucher.owner, BOB);
         assert_eq!(voucher.programs, None);
+        assert_eq!(voucher.code_ids, None);
         assert_eq!(
             voucher.expiry,
             System::block_number() + DEFAULT_VALIDITY + 1 + duration_prolong
@@ -521,6 +588,8 @@ fn voucher_update_works() {
             Some(true),
             // prolong duration
             None,
+            // extra code_id
+            Some(Some([code_id].into())),
         )));
 
         let huge_block = 10_000_000_000;
@@ -541,6 +610,8 @@ fn voucher_update_works() {
             None,
             // prolong duration
             Some(duration_prolong),
+            // extra code_id
+            None
         ));
 
         let voucher = Vouchers::<Test>::get(BOB, voucher_id).expect("Failed to get voucher");
@@ -569,6 +640,8 @@ fn voucher_update_works() {
                 None,
                 // prolong duration
                 Some(valid_prolong + 1),
+                // extra code_id
+                None
             ),
             Error::<Test>::DurationOutOfBounds
         );
@@ -587,6 +660,8 @@ fn voucher_update_works() {
             None,
             // prolong duration
             Some(valid_prolong),
+            // extra code_id
+            None
         ),);
     });
 }
@@ -595,10 +670,17 @@ fn voucher_update_works() {
 fn voucher_update_err_cases() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
+        let code_id: CodeId = H256::random().cast();
 
-        let voucher_id =
-            utils::issue_w_balance_and_uploading(ALICE, BOB, DEFAULT_BALANCE, program_id, true)
-                .expect("Failed to issue voucher");
+        let voucher_id = utils::issue_w_balance_and_uploading(
+            ALICE,
+            BOB,
+            DEFAULT_BALANCE,
+            program_id,
+            true,
+            Some(code_id),
+        )
+        .expect("Failed to issue voucher");
 
         // Inexistent voucher.
         assert_noop!(
@@ -616,6 +698,8 @@ fn voucher_update_err_cases() {
                 None,
                 // prolong duration
                 None,
+                // extra code_id
+                None
             ),
             Error::<Test>::InexistentVoucher
         );
@@ -636,6 +720,8 @@ fn voucher_update_err_cases() {
                 None,
                 // prolong duration
                 None,
+                // extra code_id
+                None
             ),
             Error::<Test>::BadOrigin
         );
@@ -656,6 +742,8 @@ fn voucher_update_err_cases() {
                 None,
                 // prolong duration
                 None,
+                // extra code_id
+                None
             ),
             Error::<Test>::BalanceTransfer
         );
@@ -680,6 +768,8 @@ fn voucher_update_err_cases() {
                 None,
                 // prolong duration
                 None,
+                // extra code_id
+                None
             ),
             Error::<Test>::MaxProgramsLimitExceeded
         );
@@ -700,6 +790,8 @@ fn voucher_update_err_cases() {
                 Some(false),
                 // prolong duration
                 None,
+                // extra code_id
+                None
             ),
             Error::<Test>::CodeUploadingEnabled
         );
@@ -720,8 +812,36 @@ fn voucher_update_err_cases() {
                 None,
                 // prolong duration
                 Some(MaxVoucherDuration::get().saturating_sub(DEFAULT_VALIDITY)),
+                // extra code_id
+                None
             ),
             Error::<Test>::DurationOutOfBounds
+        );
+
+        // Programs limit exceed.
+        let set: BTreeSet<CodeId> = (0..=<<Test as Config>::MaxCodeIdsAmount as Get<u8>>::get())
+            .map(|_| H256::random().cast())
+            .collect();
+
+        assert_noop!(
+            Voucher::update(
+                RuntimeOrigin::signed(ALICE),
+                BOB,
+                voucher_id,
+                // move ownership
+                None,
+                // balance top up
+                None,
+                // extra programs
+                None,
+                // code uploading
+                None,
+                // prolong duration
+                None,
+                // extra code_id
+                Some(Some(set)),
+            ),
+            Error::<Test>::MaxCodeIdsLimitExceeded
         );
     });
 }
@@ -803,8 +923,9 @@ mod utils {
         from: AccountIdOf<Test>,
         to: AccountIdOf<Test>,
         program: ProgramId,
+        code_id: Option<CodeId>,
     ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
-        issue_w_balance_and_uploading(from, to, DEFAULT_BALANCE, program, false)
+        issue_w_balance_and_uploading(from, to, DEFAULT_BALANCE, program, false, code_id)
     }
 
     #[track_caller]
@@ -814,6 +935,7 @@ mod utils {
         balance: BalanceOf<Test>,
         program: ProgramId,
         code_uploading: bool,
+        code_id: Option<CodeId>,
     ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
         Voucher::issue(
             RuntimeOrigin::signed(from),
@@ -822,7 +944,7 @@ mod utils {
             Some([program].into()),
             code_uploading,
             DEFAULT_VALIDITY,
-            None,
+            code_id.map(|id| [id].into()),
         )
         .map(|_| get_last_voucher_id())
     }
