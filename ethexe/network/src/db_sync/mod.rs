@@ -41,7 +41,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     task::{Context, Poll},
     time::Duration,
 };
@@ -231,6 +231,7 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
+    pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<Self>>>,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
 }
@@ -243,6 +244,7 @@ impl Behaviour {
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
             ),
+            pending_events: VecDeque::new(),
             ongoing_requests: OngoingRequests::from_config(&config),
             ongoing_responses: OngoingResponses::from_db(db),
         }
@@ -319,21 +321,20 @@ impl Behaviour {
             }
             request_response::Event::OutboundFailure {
                 peer,
-                request_id: _,
-                error: OutboundFailure::UnsupportedProtocols,
-            } => {
-                log::debug!("Request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol. Disconnecting...");
-                return Poll::Ready(ToSwarm::CloseConnection {
-                    peer_id: peer,
-                    connection: CloseConnection::All,
-                });
-            }
-            request_response::Event::OutboundFailure {
-                peer,
                 request_id,
                 error,
             } => {
                 log::trace!("outbound failure for request {request_id} to {peer}: {error}");
+
+                if let OutboundFailure::UnsupportedProtocols = error {
+                    log::debug!("request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol. Disconnecting...");
+
+                    // TODO: remove queue when peer scoring system is introduced
+                    self.pending_events.push_front(ToSwarm::CloseConnection {
+                        peer_id: peer,
+                        connection: CloseConnection::All,
+                    });
+                }
 
                 let event =
                     match self
@@ -453,6 +454,10 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
+        if let Some(event) = self.pending_events.pop_back() {
+            return Poll::Ready(event);
+        }
+
         if let Some(request_id) = self.ongoing_requests.remove_if_timeout(cx) {
             return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestFailed {
                 request_id,
@@ -512,7 +517,7 @@ mod tests {
     use crate::utils::tests::init_logger;
     use ethexe_db::{CodesStorage, MemDb};
     use gprimitives::CodeId;
-    use libp2p::{futures::StreamExt, Swarm};
+    use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
     use std::mem;
 
@@ -840,5 +845,40 @@ mod tests {
                 )
             }
         )
+    }
+
+    #[tokio::test]
+    async fn unsupported_protocol_handled() {
+        init_logger();
+
+        let alice_config = Config::default().with_request_timeout(Duration::from_secs(2));
+        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+
+        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+            InnerBehaviour::new([], request_response::Config::default())
+        });
+        let bob_peer_id = *bob.local_peer_id();
+        bob.connect(&mut alice).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let request_id = alice.behaviour_mut().request(Request::ProgramIds);
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: bob_peer_id,
+                reason: NewRequestRoundReason::FromQueue
+            }
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::PendingStateRequest { request_id });
+
+        let event = alice.next_swarm_event().await;
+        assert!(
+            matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id)
+        );
     }
 }
