@@ -17,23 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    log::RunResult,
+    accounts::Accounts,
+    actors::Actors,
+    log::{BlockRunResult, CoreLog},
     mailbox::ActorMailbox,
-    manager::{Actors, Balance, ExtManager, MintMode},
+    manager::ExtManager,
     program::{Program, ProgramIdWrapper},
+    Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{
     ids::{CodeId, ProgramId},
-    message::Dispatch,
     pages::GearPage,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, mem, path::Path, thread};
 
 thread_local! {
     /// `System` is a singleton with a one instance and no copies returned.
@@ -53,33 +55,36 @@ struct PageKey {
 }
 
 #[derive(Debug)]
-struct PagesStorage {
-    actors: Actors,
-}
+struct PagesStorage;
 
 impl LazyPagesStorage for PagesStorage {
     fn page_exists(&self, mut key: &[u8]) -> bool {
         let PageKey {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
-        self.actors
-            .borrow()
-            .get(&program_id)
-            .and_then(|(actor, _)| actor.get_pages_data())
-            .map(|pages_data| pages_data.contains_key(&page))
-            .unwrap_or(false)
+
+        Actors::access(program_id, |actor| {
+            actor
+                .and_then(|actor| actor.get_pages_data())
+                .map(|pages_data| pages_data.contains_key(&page))
+                .unwrap_or(false)
+        })
     }
 
     fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
         let PageKey {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
-        let actors = self.actors.borrow();
-        let (actor, _balance) = actors.get(&program_id)?;
-        let pages_data = actor.get_pages_data()?;
-        let page_buf = pages_data.get(&page)?;
-        buffer.copy_from_slice(page_buf);
-        Some(page_buf.len() as u32)
+
+        Actors::access(program_id, |actor| {
+            actor
+                .and_then(|actor| actor.get_pages_data())
+                .and_then(|pages_data| pages_data.get(&page))
+                .map(|page_buf| {
+                    buffer.copy_from_slice(page_buf);
+                    page_buf.len() as u32
+                })
+        })
     }
 }
 
@@ -115,13 +120,10 @@ impl System {
             }
 
             let ext_manager = ExtManager::new();
-
-            let actors = ext_manager.actors.clone();
-            let pages_storage = PagesStorage { actors };
             gear_lazy_pages::init(
                 LazyPagesVersion::Version1,
                 LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
-                pages_storage,
+                PagesStorage,
             )
             .expect("Failed to init lazy-pages");
 
@@ -174,13 +176,69 @@ impl System {
             .try_init();
     }
 
-    /// Send raw message dispatch.
-    pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
-        self.0.borrow_mut().validate_and_run_dispatch(dispatch)
+    /// Run next block.
+    ///
+    /// Block execution model is the following:
+    /// - increase the block number, update the timestamp
+    /// - process tasks from the task pool
+    /// - process messages in the queue.
+    ///
+    /// The system is always initialized with a 0 block number. Current block
+    /// number in the system is the number of the already executed block,
+    /// therefore block execution starts with a block info update (block
+    /// number increase, timestamp update). For example, if current block
+    /// number is 2, it means that messages and tasks on 2 were executed, so
+    /// the method goes to block number 3 and executes tasks and messages for
+    /// the updated block number.
+    ///
+    /// Task processing basically tries to execute the scheduled to the specific
+    /// block tasks:
+    /// - delayed sending
+    /// - waking message
+    /// - removing from the mailbox
+    /// - removing reservations
+    /// - removing stalled wait message.
+    ///
+    /// Messages processing executes messages until either queue becomes empty
+    /// or block gas allowance is fully consumed.
+    pub fn run_next_block(&self) -> BlockRunResult {
+        self.run_next_block_with_allowance(Gas(GAS_ALLOWANCE))
     }
 
-    /// Spend blocks and return all results.
-    pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
+    /// Runs blocks same as [`Self::run_next_block`], but with limited
+    /// allowance.
+    pub fn run_next_block_with_allowance(&self, allowance: Gas) -> BlockRunResult {
+        if allowance > Gas(GAS_ALLOWANCE) {
+            panic!("Provided allowance more than allowed limit of {GAS_ALLOWANCE}.");
+        }
+
+        self.0.borrow_mut().run_new_block(allowance)
+    }
+
+    /// Runs blocks same as [`Self::run_next_block`], but executes blocks to
+    /// block number `bn` including it.
+    pub fn run_to_block(&self, bn: u32) -> Vec<BlockRunResult> {
+        let mut manager = self.0.borrow_mut();
+
+        let mut current_block = manager.blocks_manager.get().height;
+        if current_block > bn {
+            panic!("Can't run blocks until bn {bn}, as current bn is {current_block}");
+        }
+
+        let mut ret = Vec::with_capacity((bn - current_block) as usize);
+        while current_block != bn {
+            let res = manager.run_new_block(Gas(GAS_ALLOWANCE));
+            ret.push(res);
+
+            current_block = manager.blocks_manager.get().height;
+        }
+
+        ret
+    }
+
+    /// Runs `amount` of blocks only with processing task pool, without
+    /// processing the message queue.
+    pub fn run_scheduled_tasks(&self, amount: u32) -> Vec<BlockRunResult> {
         let mut manager = self.0.borrow_mut();
         let block_height = manager.blocks_manager.get().height;
 
@@ -190,12 +248,20 @@ impl System {
 
                 let block_info = manager.blocks_manager.next_block();
                 let next_block_number = block_info.height;
-                let mut results = manager.process_delayed_dispatches(next_block_number);
-                results.extend(manager.process_scheduled_wait_list(next_block_number));
-                results
+                manager.process_tasks(next_block_number);
+
+                let log = mem::take(&mut manager.log)
+                    .into_iter()
+                    .map(CoreLog::from)
+                    .collect();
+                BlockRunResult {
+                    block_info,
+                    gas_allowance_spent: Gas(GAS_ALLOWANCE) - manager.gas_allowance,
+                    log,
+                    ..Default::default()
+                }
             })
-            .collect::<Vec<Vec<_>>>()
-            .concat()
+            .collect()
     }
 
     /// Return the current block height of the testing environment.
@@ -211,9 +277,7 @@ impl System {
     /// Returns a [`Program`] by `id`.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
         let id = id.into().0;
-        let manager = self.0.borrow();
-
-        if manager.is_program(&id) {
+        if Actors::is_program(id) {
             Some(Program {
                 id,
                 manager: &self.0,
@@ -230,12 +294,8 @@ impl System {
 
     /// Returns a list of programs.
     pub fn programs(&self) -> Vec<Program> {
-        let manager = self.0.borrow();
-        let actors = manager.actors.borrow();
-        actors
-            .keys()
-            .copied()
-            .filter(|id| manager.is_program(id))
+        Actors::program_ids()
+            .into_iter()
             .map(|id| Program {
                 id,
                 manager: &self.0,
@@ -250,7 +310,7 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        self.0.borrow().is_active_program(&program_id)
+        Actors::is_active_program(program_id)
     }
 
     /// Saves code to the storage and returns its code hash
@@ -305,22 +365,46 @@ impl System {
     #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
         let program_id = id.into().0;
-        if !self.0.borrow().is_user(&program_id) {
+        if !Actors::is_user(program_id) {
             panic!("Mailbox available only for users");
         }
         ActorMailbox::new(program_id, &self.0)
     }
 
     /// Mint balance to user with given `id` and `value`.
-    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
-        let actor_id = id.into().0;
-        self.0
-            .borrow_mut()
-            .mint_to(&actor_id, value, MintMode::KeepAlive);
+    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
+        let id = id.into().0;
+
+        if Actors::is_program(id) {
+            panic!(
+                "Attempt to mint value to a program {id:?}, please use `System::transfer` instead"
+            );
+        }
+
+        self.0.borrow_mut().mint_to(&id, value);
+    }
+
+    /// Transfer balance from user with given `from` id to user with given `to`
+    /// id.
+    pub fn transfer(
+        &self,
+        from: impl Into<ProgramIdWrapper>,
+        to: impl Into<ProgramIdWrapper>,
+        value: Value,
+        keep_alive: bool,
+    ) {
+        let from = from.into().0;
+        let to = to.into().0;
+
+        if Actors::is_program(from) {
+            panic!("Attempt to transfer from a program {from:?}");
+        }
+
+        Accounts::transfer(from, to, value, keep_alive);
     }
 
     /// Returns balance of user with given `id`.
-    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
+    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
         self.0.borrow().balance_of(&actor_id)
     }
@@ -332,6 +416,11 @@ impl Drop for System {
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
         self.0.borrow().gas_tree.reset();
         self.0.borrow().mailbox.reset();
+        self.0.borrow().task_pool.clear();
+
+        // Clear actors and accounts storages
+        Actors::clear();
+        Accounts::clear();
     }
 }
 
@@ -350,17 +439,61 @@ mod tests {
     #[test]
     fn test_multithread_copy_singleton() {
         let first_instance = System::new();
-        first_instance.spend_blocks(5);
+        first_instance.run_scheduled_tasks(5);
 
         assert_eq!(first_instance.block_height(), 5);
 
         let h = std::thread::spawn(|| {
             let second_instance = System::new();
 
-            second_instance.spend_blocks(10);
+            second_instance.run_scheduled_tasks(10);
             assert_eq!(second_instance.block_height(), 10);
         });
 
         h.join().expect("internal error failed joining thread");
+    }
+
+    #[test]
+    fn test_bn_adjustments() {
+        let sys = System::new();
+        assert_eq!(sys.block_height(), 0);
+
+        // ### Check block info after run to next block ###
+        let res = sys.run_next_block();
+        let block_info = res.block_info;
+        assert_eq!(block_info.height, sys.block_height());
+        assert_eq!(block_info.height, 1);
+
+        // ### Check block info after run to block ###
+        let current_height = block_info.height;
+        let until_height = 5;
+        let results = sys.run_to_block(until_height);
+        assert_eq!(results.len(), (until_height - current_height) as usize);
+
+        // Check first block executed is always the next block
+        let first_run = results.first().expect("checked above");
+        assert_eq!(first_run.block_info.height, current_height + 1);
+
+        // Check the last block executed number
+        let last_run = results.last().expect("checked above");
+        assert_eq!(last_run.block_info.height, until_height);
+        assert_eq!(last_run.block_info.height, sys.block_height());
+
+        // ### Check block info after running the task pool ###
+        let current_height = last_run.block_info.height;
+        let amount_of_blocks = 10;
+        let results = sys.run_scheduled_tasks(amount_of_blocks);
+        assert_eq!(results.len(), amount_of_blocks as usize);
+
+        let first_run = results.first().expect("checked above");
+        assert_eq!(first_run.block_info.height, current_height + 1);
+
+        let last_run = results.last().expect("checked above");
+        assert_eq!(
+            last_run.block_info.height,
+            current_height + amount_of_blocks
+        );
+
+        assert_eq!(last_run.block_info.height, 15);
     }
 }

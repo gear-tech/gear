@@ -18,22 +18,24 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{state_args, Program, System};
+use gtest::{constants::DEFAULT_USER_ALICE, state_args, Program, System};
 use std::{fs, path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
-    let user = 0;
+    let user = DEFAULT_USER_ALICE;
     let program = Program::from_file(sys, prog);
 
     // Init program
-    let res = program.send_bytes(user, b"PING");
-    assert!(!res.main_failed());
+    let msg_id = program.send_bytes(user, b"PING");
+    let res = sys.run_next_block();
+    assert!(res.succeed.contains(&msg_id));
     assert!(res.contains(&(user, b"INIT_PONG")));
 
     // Handle program
-    let res = program.send_bytes(user, b"PING");
-    assert!(!res.main_failed());
+    let msg_id = program.send_bytes(user, b"PING");
+    let res = sys.run_next_block();
+    assert!(res.succeed.contains(&msg_id));
     assert!(res.contains(&(user, b"HANDLE_PONG")));
 
     program

@@ -1,19 +1,19 @@
-# Temporary section for eGPU.
-.PHONY: gpu-pre-commit
-gpu-pre-commit:
-	@ echo " > Formatting eGPU" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
-	@ echo " >> Clippy checking eGPU" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
+# Ethexe section
+.PHONY: ethexe-pre-commit
+ethexe-pre-commit: ethexe-contracts-pre-commit
+	@ echo " > Formatting ethexe" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
+	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
 
-# Building contracts
-.PHONY: gpu-contracts-pre-commit
-gpu-contracts-pre-commit:
+# Building ethexe contracts
+.PHONY: ethexe-contracts-pre-commit
+ethexe-contracts-pre-commit:
 	@ echo " > Cleaning contracts" && forge clean --root ethexe/contracts
 	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
 	@ echo " > Copying Router arfitact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-	@ echo " > Copying Program arfitact" && cp ./ethexe/contracts/out/Program.sol/Program.json ./ethexe/ethereum
-	@ echo " > Copying MinimalProgram arfitact" && cp ./ethexe/contracts/out/MinimalProgram.sol/MinimalProgram.json ./ethexe/ethereum
+	@ echo " > Copying Mirror arfitact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
+	@ echo " > Copying MirrorProxy arfitact" && cp ./ethexe/contracts/out/MirrorProxy.sol/MirrorProxy.json ./ethexe/ethereum
 	@ echo " > Copying WrappedVara arfitact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
 	@ echo " > Copying TransparentUpgradeableProxy arfitact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
 

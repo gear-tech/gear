@@ -64,7 +64,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtest::{Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
 
@@ -84,7 +84,7 @@ mod tests {
             assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
         }
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
         let system = System::new();
         system.init_logger();
 
@@ -103,20 +103,21 @@ mod tests {
             }
 
             // Init program
-            if program.send(from, InitConfig { actions }).main_failed() {
-                panic!("Init failed");
-            }
+            let msg_id = program.send(from, InitConfig { actions });
+            let res = system.run_next_block();
+            assert!(res.succeed.contains(&msg_id));
 
             let number: u8 = rng.gen_range(0..=MAX_NUMBER);
             let expected_check_sum = actions_amount * number as usize * HANDLE_DATA_SIZE;
 
             // Send data to handle
-            let res = program.send(
+            program.send(
                 from,
                 HandleData {
                     data: [number; HANDLE_DATA_SIZE],
                 },
             );
+            let res = system.run_next_block();
 
             assert_eq!(
                 expected_check_sum as u32,

@@ -16,14 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::program::{Gas, ProgramIdWrapper};
+use crate::{
+    program::{Gas, ProgramIdWrapper},
+    Value, GAS_MULTIPLIER,
+};
 use codec::{Codec, Encode};
+use core_processor::configs::BlockInfo;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Payload, StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
-use std::{collections::BTreeMap, convert::TryInto, fmt::Debug};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::TryInto,
+    fmt::Debug,
+};
 
 /// A log that emitted by a program, for user defined logs,
 /// see [`Log`].
@@ -372,20 +380,35 @@ impl PartialEq<Log> for CoreLog {
     }
 }
 
-/// The result of a message run.
-#[derive(Debug, Clone)]
-pub struct RunResult {
-    pub(crate) log: Vec<CoreLog>,
-    pub(crate) main_failed: bool,
-    pub(crate) others_failed: bool,
-    pub(crate) message_id: MessageId,
-    pub(crate) total_processed: u32,
-    pub(crate) main_gas_burned: Gas,
-    pub(crate) others_gas_burned: BTreeMap<u32, Gas>,
+/// Result of running the block.
+#[derive(Debug, Default)]
+pub struct BlockRunResult {
+    /// Executed block info.
+    pub block_info: BlockInfo,
+    /// Gas allowance spent during the execution.
+    pub gas_allowance_spent: Gas,
+    /// Set of successfully executed messages
+    /// during the current block execution.
+    pub succeed: BTreeSet<MessageId>,
+    /// Set of failed messages during the current
+    /// block execution.
+    pub failed: BTreeSet<MessageId>,
+    /// Set of not executed messages
+    /// during the current block execution.
+    pub not_executed: BTreeSet<MessageId>,
+    /// Total messages processed during the current
+    /// execution.
+    pub total_processed: u32,
+    // TODO #4122
+    /// Logs created during the current execution.
+    pub log: Vec<CoreLog>,
+    /// Mapping gas burned for each message during
+    /// the current block execution.
+    pub gas_burned: BTreeMap<MessageId, Gas>,
 }
 
-impl RunResult {
-    /// If the result contains a specific log.
+impl BlockRunResult {
+    /// Check, if the result contains a specific log.
     pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
         let log = log.clone().into();
 
@@ -397,36 +420,6 @@ impl RunResult {
         &self.log
     }
 
-    /// If main message failed.
-    pub fn main_failed(&self) -> bool {
-        self.main_failed
-    }
-
-    /// If any other messages failed.
-    pub fn others_failed(&self) -> bool {
-        self.others_failed
-    }
-
-    /// Get the message id.
-    pub fn sent_message_id(&self) -> MessageId {
-        self.message_id
-    }
-
-    /// Get the total number of processed messages.
-    pub fn total_processed(&self) -> u32 {
-        self.total_processed
-    }
-
-    /// Get the total gas burned by the main message.
-    pub fn main_gas_burned(&self) -> Gas {
-        self.main_gas_burned
-    }
-
-    /// Get the total gas burned by the other messages.
-    pub fn others_gas_burned(&self) -> &BTreeMap<u32, Gas> {
-        &self.others_gas_burned
-    }
-
     /// Returns decoded logs.
     pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {
         self.log
@@ -436,16 +429,11 @@ impl RunResult {
             .collect()
     }
 
-    /// If the main message panicked.
-    pub fn main_panicked(&self) -> bool {
-        self.main_panic_log().is_some()
-    }
-
-    /// Asserts that the main message panicked and that the panic contained a
+    /// Asserts that the message panicked and that the panic contained a
     /// given message.
     #[track_caller]
-    pub fn assert_panicked_with(&self, msg: impl Into<String>) {
-        let panic_log = self.main_panic_log();
+    pub fn assert_panicked_with(&self, message_id: MessageId, msg: impl Into<String>) {
+        let panic_log = self.message_panic_log(message_id);
         assert!(panic_log.is_some(), "Program did not panic");
         let msg = msg.into();
         let payload = String::from_utf8(
@@ -462,19 +450,29 @@ impl RunResult {
         );
     }
 
+    /// Calculate the total spent value.
+    pub fn spent_value(&self) -> Value {
+        let spent_gas = self
+            .gas_burned
+            .values()
+            .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
+
+        GAS_MULTIPLIER.gas_to_value(spent_gas.0)
+    }
+
     /// Trying to get the panic log.
-    fn main_panic_log(&self) -> Option<&CoreLog> {
-        let main_log = self
+    fn message_panic_log(&self, message_id: MessageId) -> Option<&CoreLog> {
+        let msg_log = self
             .log
             .iter()
-            .find(|log| log.reply_to == Some(self.message_id))?;
+            .find(|log| log.reply_to == Some(message_id))?;
         let is_panic = matches!(
-            main_log.reply_code(),
+            msg_log.reply_code(),
             Some(ReplyCode::Error(ErrorReplyReason::Execution(
                 SimpleExecutionError::UserspacePanic
             )))
         );
-        is_panic.then_some(main_log)
+        is_panic.then_some(msg_log)
     }
 }
 

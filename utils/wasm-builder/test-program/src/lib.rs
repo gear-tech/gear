@@ -36,10 +36,12 @@ mod gtest_tests {
 
         let this_program = Program::current(&system);
 
-        let res = this_program.send_bytes(123, "INIT");
+        this_program.send_bytes(123, "INIT");
+        let res = system.run_next_block();
         assert!(res.contains(&Log::builder().source(1).dest(123).payload_bytes([])));
 
-        let res = this_program.send_bytes(123, "Hi");
+        this_program.send_bytes(123, "Hi");
+        let res = system.run_next_block();
         assert!(res.contains(
             &Log::builder()
                 .source(1)

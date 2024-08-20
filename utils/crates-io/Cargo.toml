@@ -5,8 +5,11 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+cargo-http-registry.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
 reqwest = { workspace = true, features = ["blocking", "json", "default-tls"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 toml_edit.workspace = true

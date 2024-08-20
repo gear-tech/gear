@@ -40,7 +40,7 @@ extern "C" fn handle() {
 
 #[cfg(test)]
 mod tests {
-    use gtest::{Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn test_init() {
@@ -51,17 +51,19 @@ mod tests {
         system.init_logger();
 
         // Get program from artifact
-        let user = 0;
+        let user = DEFAULT_USER_ALICE;
         let program = Program::current(&system);
 
         // Init program
-        let res = program.send_bytes(user, b"PING");
-        assert!(!res.main_failed());
+        let msg_id = program.send_bytes(user, b"PING");
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&(user, b"INIT_PONG")));
 
         // Handle program
-        let res = program.send_bytes(user, b"PING");
-        assert!(!res.main_failed());
+        let msg_id = program.send_bytes(user, b"PING");
+        let res = system.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&(user, b"HANDLE_PONG")));
     }
 }
