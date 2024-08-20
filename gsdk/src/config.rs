@@ -36,6 +36,7 @@ pub type Header = SubstrateHeader<u32, BlakeTwo256>;
 pub struct GearConfig;
 
 impl Config for GearConfig {
+    type AssetId = ();
     type Hash = sp_core::H256;
     type Hasher = BlakeTwo256;
     type AccountId = sp_runtime::AccountId32;
