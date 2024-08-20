@@ -236,6 +236,7 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
+    /// TODO: use database via traits
     pub(crate) fn new(config: Config, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new(
