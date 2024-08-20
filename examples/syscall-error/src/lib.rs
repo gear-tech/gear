@@ -33,7 +33,7 @@ mod wasm;
 mod tests {
     extern crate std;
 
-    use gtest::{Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
@@ -42,7 +42,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let msg_id = program.send_bytes(0, b"dummy");
+        let msg_id = program.send_bytes(DEFAULT_USER_ALICE, b"dummy");
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
     }

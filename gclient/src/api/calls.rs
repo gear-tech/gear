@@ -42,6 +42,7 @@ use gsdk::{
             pallet_balances::{pallet::Call as BalancesCall, types::AccountData},
             pallet_gear::pallet::Call as GearCall,
             pallet_gear_bank::pallet::BankAccount,
+            pallet_gear_voucher::internal::VoucherId,
             sp_weights::weight_v2::Weight,
         },
         system::Event as SystemEvent,
@@ -1440,5 +1441,161 @@ impl GearApi {
             )
             .await?;
         Ok(events.0)
+    }
+
+    /// Same as [`upload_code`](Self::upload_code), but upload code
+    /// using voucher.
+    pub async fn upload_code_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        code: impl AsRef<[u8]>,
+    ) -> Result<(CodeId, H256)> {
+        let tx = self
+            .0
+            .calls
+            .upload_code_with_voucher(voucher_id, code.as_ref().to_vec())
+            .await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::CodeChanged {
+                id,
+                change: CodeChangeKind::Active { .. },
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), tx.block_hash()));
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Same as [`send_message_bytes`](Self::send_message_bytes), but sends a
+    /// message using voucher.
+    pub async fn send_message_bytes_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        destination: ProgramId,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, H256)> {
+        let payload = payload.as_ref().to_vec();
+
+        let tx = self
+            .0
+            .calls
+            .send_message_with_voucher(
+                voucher_id,
+                destination,
+                payload,
+                gas_limit,
+                value,
+                keep_alive,
+            )
+            .await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::MessageQueued {
+                id,
+                entry: MessageEntry::Handle,
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), tx.block_hash()));
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Same as [`send_message_bytes_with_voucher`](Self::send_message_bytes_with_voucher), but sends a
+    /// message with encoded `payload`.
+    pub async fn send_message_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        destination: ProgramId,
+        payload: impl Encode,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, H256)> {
+        self.send_message_bytes_with_voucher(
+            voucher_id,
+            destination,
+            payload.encode(),
+            gas_limit,
+            value,
+            keep_alive,
+        )
+        .await
+    }
+
+    /// Same as [`send_reply_bytes`](Self::send_reply_bytes), but sends a reply
+    /// using voucher.
+    pub async fn send_reply_bytes_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        reply_to_id: MessageId,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, u128, H256)> {
+        let payload = payload.as_ref().to_vec();
+
+        let data = self.get_mailbox_message(reply_to_id).await?;
+
+        let tx = self
+            .0
+            .calls
+            .send_reply_with_voucher(
+                voucher_id,
+                reply_to_id,
+                payload,
+                gas_limit,
+                value,
+                keep_alive,
+            )
+            .await?;
+
+        let events = tx.wait_for_success().await?;
+
+        let (message, _interval) = data.expect("Data appearance guaranteed above");
+
+        for event in events.iter() {
+            if let Event::Gear(GearEvent::MessageQueued {
+                id,
+                entry: MessageEntry::Reply(_),
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), message.value(), tx.block_hash()));
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Same as [`send_reply_bytes_with_voucher`](Self::send_reply_bytes_with_voucher), but sends a reply
+    /// with encoded `payload`.
+    pub async fn send_reply_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        reply_to_id: MessageId,
+        payload: impl Encode,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, u128, H256)> {
+        self.send_reply_bytes_with_voucher(
+            voucher_id,
+            reply_to_id,
+            payload.encode(),
+            gas_limit,
+            value,
+            keep_alive,
+        )
+        .await
     }
 }

@@ -58,7 +58,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::{Reply, Request};
-    use gtest::{Log, Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
@@ -67,7 +67,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         program.send_bytes(from, b"init");
         let res = system.run_next_block();
@@ -82,7 +82,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         // Init
         program.send_bytes(from, b"init");
@@ -112,7 +112,7 @@ mod tests {
     ) -> (Program, Program, Program) {
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program_1 = Program::current_with_id(system, program_1_id);
         program_1.send_bytes(from, b"init");
@@ -147,7 +147,7 @@ mod tests {
         let system = System::new();
         let (program_1, program_2, _program_3) = multi_program_setup(&system, 1, 2, 3);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         program_1.send(from, Request::Receive(11));
         let res = system.run_next_block();
@@ -181,7 +181,7 @@ mod tests {
         let (program_1, _program_2, _program_3) = multi_program_setup(&system, 1, 2, 3);
 
         let program_4_id = 4;
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program_4 = Program::current_with_id(&system, program_4_id);
         program_4.send_bytes(from, b"init");

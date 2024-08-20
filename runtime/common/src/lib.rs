@@ -41,12 +41,18 @@ use sp_runtime::Perbill;
 /// Mostly we don't produce any calculations in `on_initialize` hook,
 /// so it's safe to reduce from default 10 to custom 3 percents.
 pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(3);
-pub const NORMAL_DISPATCH_RATIO_NUM: u8 = 25;
-pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_RATIO_NUM;
+
+pub const NORMAL_DISPATCH_LENGTH_RATIO_NUM: u8 = 50;
+pub const NORMAL_DISPATCH_LENGTH_RATIO: Perbill =
+    Perbill::from_percent(NORMAL_DISPATCH_LENGTH_RATIO_NUM as u32);
+
+pub const NORMAL_DISPATCH_WEIGHT_RATIO_NUM: u8 = 25;
+pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_WEIGHT_RATIO_NUM;
 
 // Extrinsics with DispatchClass::Normal only account for user messages
 // TODO: consider making the normal extrinsics share adjustable in runtime
-pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(NORMAL_DISPATCH_RATIO_NUM as u32);
+pub const NORMAL_DISPATCH_WEIGHT_RATIO: Perbill =
+    Perbill::from_percent(NORMAL_DISPATCH_WEIGHT_RATIO_NUM as u32);
 
 /// Returns common for gear protocol `BlockWeights` depend on given max block weight.
 pub fn block_weights_for(maximum_block_weight: Weight) -> BlockWeights {
@@ -56,14 +62,14 @@ pub fn block_weights_for(maximum_block_weight: Weight) -> BlockWeights {
             weights.base_extrinsic = ExtrinsicBaseWeight::get();
         })
         .for_class(DispatchClass::Normal, |weights| {
-            weights.max_total = Some(NORMAL_DISPATCH_RATIO * maximum_block_weight);
+            weights.max_total = Some(NORMAL_DISPATCH_WEIGHT_RATIO * maximum_block_weight);
         })
         .for_class(DispatchClass::Operational, |weights| {
             weights.max_total = Some(maximum_block_weight);
             // Operational transactions have some extra reserved space, so that they
             // are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
             weights.reserved =
-                Some(maximum_block_weight - NORMAL_DISPATCH_RATIO * maximum_block_weight);
+                Some(maximum_block_weight - NORMAL_DISPATCH_WEIGHT_RATIO * maximum_block_weight);
         })
         .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
         .build_or_panic()
