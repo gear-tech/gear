@@ -312,14 +312,16 @@ pub(crate) struct OngoingResponses {
     response_id_counter: u64,
     db: Database,
     db_readers: JoinSet<OngoingResponse>,
+    max_simultaneous_responses: u32,
 }
 
 impl OngoingResponses {
-    pub(crate) fn from_db(db: Database) -> Self {
+    pub(crate) fn new(db: Database, config: &Config) -> Self {
         Self {
             response_id_counter: 0,
             db,
             db_readers: JoinSet::new(),
+            max_simultaneous_responses: config.max_simultaneous_responses,
         }
     }
 
@@ -333,7 +335,11 @@ impl OngoingResponses {
         peer_id: PeerId,
         channel: request_response::ResponseChannel<Response>,
         request: Request,
-    ) -> ResponseId {
+    ) -> Option<ResponseId> {
+        if self.db_readers.len() >= self.max_simultaneous_responses as usize {
+            return None;
+        }
+
         let response_id = self.next_response_id();
 
         let db = self.db.clone();
@@ -356,7 +362,7 @@ impl OngoingResponses {
             }
         });
 
-        response_id
+        Some(response_id)
     }
 
     pub(crate) fn poll_send_response(

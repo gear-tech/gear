@@ -190,6 +190,11 @@ pub enum Event {
         /// Peer who requested
         peer_id: PeerId,
     },
+    /// Request dropped because simultaneous limit exceeded
+    IncomingRequestDropped {
+        /// Peer who should have received the response
+        peer_id: PeerId,
+    },
     /// Response sent to incoming request
     ResponseSent {
         /// The ID of completed response
@@ -203,6 +208,7 @@ pub enum Event {
 pub(crate) struct Config {
     max_rounds_per_request: u32,
     request_timeout: Duration,
+    max_simultaneous_responses: u32,
 }
 
 impl Default for Config {
@@ -210,6 +216,7 @@ impl Default for Config {
         Self {
             max_rounds_per_request: 10,
             request_timeout: Duration::from_secs(100),
+            max_simultaneous_responses: 10,
         }
     }
 }
@@ -223,6 +230,14 @@ impl Config {
 
     pub(crate) fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
         self.request_timeout = request_timeout;
+        self
+    }
+
+    pub(crate) fn with_max_simultaneous_responses(
+        mut self,
+        max_simultaneous_responses: u32,
+    ) -> Self {
+        self.max_simultaneous_responses = max_simultaneous_responses;
         self
     }
 }
@@ -246,7 +261,7 @@ impl Behaviour {
             ),
             pending_events: VecDeque::new(),
             ongoing_requests: OngoingRequests::from_config(&config),
-            ongoing_responses: OngoingResponses::from_db(db),
+            ongoing_responses: OngoingResponses::new(db, &config),
         }
     }
 
@@ -271,9 +286,14 @@ impl Behaviour {
                 let response_id = self
                     .ongoing_responses
                     .prepare_response(peer, channel, request);
-                let event = Event::IncomingRequest {
-                    response_id,
-                    peer_id: peer,
+
+                let event = if let Some(response_id) = response_id {
+                    Event::IncomingRequest {
+                        response_id,
+                        peer_id: peer,
+                    }
+                } else {
+                    Event::IncomingRequestDropped { peer_id: peer }
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -879,6 +899,33 @@ mod tests {
         let event = alice.next_swarm_event().await;
         assert!(
             matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id)
+        );
+    }
+
+    #[tokio::test]
+    async fn simultaneous_responses_limit() {
+        init_logger();
+
+        let alice_config = Config::default().with_max_simultaneous_responses(2);
+        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut bob, _bob_db) = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
+        alice.connect(&mut bob).await;
+
+        bob.behaviour_mut().request(Request::ProgramIds);
+        bob.behaviour_mut().request(Request::ProgramIds);
+        bob.behaviour_mut().request(Request::ProgramIds);
+        tokio::spawn(bob.loop_on_next());
+
+        let event = alice.next_behaviour_event().await;
+        assert!(matches!(event, Event::IncomingRequest { peer_id, .. } if peer_id == bob_peer_id));
+
+        let event = alice.next_behaviour_event().await;
+        assert!(matches!(event, Event::IncomingRequest { peer_id, .. } if peer_id == bob_peer_id));
+
+        let event = alice.next_behaviour_event().await;
+        assert!(
+            matches!(event, Event::IncomingRequestDropped { peer_id, .. } if peer_id == bob_peer_id)
         );
     }
 }
