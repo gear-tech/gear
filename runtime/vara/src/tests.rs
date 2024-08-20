@@ -72,6 +72,20 @@ fn bridge_session_timer_is_correct() {
 }
 
 #[test]
+fn normal_dispatch_length_suits_minimal() {
+    const MB: u32 = 1024 * 1024;
+
+    let block_length = <Runtime as frame_system::Config>::BlockLength::get();
+
+    // Normal dispatch class is bigger than 2 MB.
+    assert!(*block_length.max.get(DispatchClass::Normal) > 2 * MB);
+
+    // Others are on maximum.
+    assert_eq!(*block_length.max.get(DispatchClass::Operational), 5 * MB);
+    assert_eq!(*block_length.max.get(DispatchClass::Mandatory), 5 * MB);
+}
+
+#[test]
 fn instruction_weights_heuristics_test() {
     let weights = InstructionWeights::<Runtime>::default();
 
