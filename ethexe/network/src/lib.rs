@@ -108,8 +108,8 @@ impl NetworkService {
             receiver: network_receiver,
             event_loop: NetworkEventLoop {
                 swarm,
-                rx: sender_rx,
-                tx: receiver_tx,
+                external_rx: sender_rx,
+                external_tx: receiver_tx,
             },
         })
     }
@@ -211,8 +211,10 @@ impl NetworkEventLoopConfig {
 
 pub struct NetworkEventLoop {
     swarm: Swarm<Behaviour>,
-    rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
-    tx: mpsc::UnboundedSender<NetworkReceiverEvent>,
+    // event receiver from service
+    external_rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
+    // event sender to service
+    external_tx: mpsc::UnboundedSender<NetworkReceiverEvent>,
 }
 
 impl NetworkEventLoop {
@@ -287,7 +289,7 @@ impl NetworkEventLoop {
         loop {
             select! {
                 event = self.swarm.select_next_some() => self.handle_swarm_event(event),
-                event = self.rx.recv() => match event {
+                event = self.external_rx.recv() => match event {
                     Some(event) => {
                         self.handle_network_rx_event(event);
                     }
@@ -389,7 +391,7 @@ impl NetworkEventLoop {
                 ..
             }) if gpu_commitments_topic().hash() == topic => {
                 let _res = self
-                    .tx
+                    .external_tx
                     .send(NetworkReceiverEvent::Commitments { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
@@ -402,13 +404,17 @@ impl NetworkEventLoop {
                 request_id: _,
                 response,
             }) => {
-                let _res = self.tx.send(NetworkReceiverEvent::DbResponse(Ok(response)));
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::DbResponse(Ok(response)));
             }
             BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
                 request_id: _,
                 error,
             }) => {
-                let _res = self.tx.send(NetworkReceiverEvent::DbResponse(Err(error)));
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::DbResponse(Err(error)));
             }
             BehaviourEvent::DbSync(_) => {}
         }
