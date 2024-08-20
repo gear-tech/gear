@@ -875,7 +875,7 @@ mod tests {
         let scheme = Scheme::predefined(
             Calls::builder().noop(),
             Calls::builder()
-                .system_reserve_gas(1_000_000_000)
+                .system_reserve_gas(2_000_000_000)
                 .panic(panic_message),
             Calls::builder().noop(),
             Calls::builder().send(
