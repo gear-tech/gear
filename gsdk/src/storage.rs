@@ -37,7 +37,7 @@ use crate::{
         vara_runtime::RuntimeEvent,
     },
     result::{Error, Result},
-    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
+    utils, Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
@@ -372,7 +372,8 @@ impl Api {
                 ],
             );
 
-            let lookup_bytes = addr.to_root_bytes();
+            let metadata = self.metadata();
+            let lookup_bytes = utils::storage_address_bytes(&addr, &metadata)?;
             let encoded_page = self
                 .get_storage(block_hash)
                 .await?

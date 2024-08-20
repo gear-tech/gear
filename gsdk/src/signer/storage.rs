@@ -31,6 +31,7 @@ use crate::{
         vara_runtime::RuntimeCall,
     },
     signer::{utils::EventsResult, Inner},
+    utils::storage_address_bytes,
     Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
 };
 use gear_core::{
@@ -59,8 +60,7 @@ impl SignerStorage {
         let metadata = self.0.api().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
-            let mut item_key = Vec::new();
-            item.0.append_entry_bytes(&metadata, &mut item_key)?;
+            let item_key = storage_address_bytes(&item.0, &metadata)?;
             let mut item_value_bytes = Vec::new();
             let item_value_type_id = crate::storage::storage_type_id(&metadata, &item.0)?;
             Static(&item.1).encode_with_metadata(
