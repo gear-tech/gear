@@ -110,21 +110,6 @@ pub(crate) struct ExtManager {
     pub(crate) not_executed: BTreeSet<MessageId>,
     pub(crate) gas_burned: BTreeMap<MessageId, Gas>,
     pub(crate) log: Vec<StoredMessage>,
-
-    // Weights
-    // Store here to not always construct Schedule
-    pub(crate) weights: Weights,
-}
-
-#[derive(Default)]
-struct Weights {
-    schedule: Schedule,
-}
-
-impl std::fmt::Debug for Weights {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Weights")
-    }
 }
 
 impl ExtManager {
@@ -532,13 +517,13 @@ impl ExtManager {
                 (gas_limit >= threshold).then_some(threshold)
             })
             .unwrap_or_default();
-        println!("gas limit = {}", gas_limit);
+
         let message_id = message.id();
         let from = message.source();
         let to = message.destination();
 
-        let message = message.into_stored();
-        let message: UserMessage = message.try_into().unwrap_or_else(|_| {
+        let stored_message = message.into_stored();
+        let message: UserMessage = stored_message.clone().try_into().unwrap_or_else(|_| {
             let err_msg = format!(
                 "send_user_message: failed conversion from stored into user message. \
                     Message id - {message_id}, program id - {from}, destination - {to}",
@@ -551,9 +536,9 @@ impl ExtManager {
         let from = message.source().cast();
         let to = message.destination().cast::<ProgramId>();
         let value = message.value().try_into().unwrap_or(u128::MAX);
-
-        self.bank.deposit_value(from, value, false);
-
+        if Accounts::balance(from) != 0 {
+            self.bank.deposit_value(from, value, false);
+        }
         let _ = if message.details().is_none() && gas_limit >= threshold {
             let hold = HoldBoundBuilder::new(StorageType::Mailbox).maximum_for(self, gas_limit);
 
@@ -659,6 +644,7 @@ impl ExtManager {
 
             None
         };
+        self.log.push(stored_message);
 
         if let Some(reservation_id) = reservation {
             self.remove_gas_reservation_with_task(message.source(), reservation_id);
@@ -1093,17 +1079,25 @@ impl ExtManager {
         &mut self,
         to: ProgramId,
         from_mid: MessageId,
-    ) -> Result<(), MailboxErrorImpl> {
-        let (message, _) = self.mailbox.remove(to, from_mid)?;
+    ) -> Result<UserStoredMessage, MailboxErrorImpl> {
+        let (message, hold_interval) = self.mailbox.remove(to, from_mid)?;
 
-        self.send_value(
-            message.source(),
-            Some(message.destination()),
-            message.value(),
+        let expected = hold_interval.finish;
+
+        let user_id = message.destination();
+        let from = message.source();
+
+        self.charge_for_hold(message.id(), hold_interval, StorageType::Mailbox);
+        self.consume_and_retrieve(message.id());
+
+        self.send_value(from, Some(user_id), message.value());
+
+        let _ = self.task_pool.delete(
+            expected,
+            ScheduledTask::RemoveFromMailbox(user_id, message.id()),
         );
-        self.message_consumed(message.id());
 
-        Ok(())
+        Ok(message)
     }
 
     #[track_caller]
@@ -1432,7 +1426,7 @@ impl ExtManager {
         let cost = match storage_type {
             StorageType::Code => todo!("#646"),
             StorageType::Waitlist => WAITLIST_COST,
-            StorageType::Mailbox => MAILBOX_THRESHOLD,
+            StorageType::Mailbox => 100,
             StorageType::DispatchStash => DISPATCH_HOLD_COST,
             StorageType::Program => todo!("#646"),
             StorageType::Reservation => RESERVATION_COST,
@@ -1447,7 +1441,6 @@ impl ExtManager {
         storage_type: StorageType,
     ) {
         let id: MessageId = id.cast();
-
         let current = self.blocks_manager.get().height;
 
         // Deadline of the task.
@@ -1469,7 +1462,7 @@ impl ExtManager {
         let cost = match storage_type {
             StorageType::Code => todo!("#646"),
             StorageType::Waitlist => WAITLIST_COST,
-            StorageType::Mailbox => MAILBOX_THRESHOLD,
+            StorageType::Mailbox => 100,
             StorageType::DispatchStash => DISPATCH_HOLD_COST,
             StorageType::Program => todo!("#646"),
             StorageType::Reservation => RESERVATION_COST,
@@ -1551,11 +1544,6 @@ impl HoldBound {
     }
 
     pub fn expected_duration(&self, manager: &ExtManager) -> BlockNumber {
-        println!(
-            "expected {} - {} height",
-            self.expected,
-            manager.blocks_manager.get().height
-        );
         self.expected
             .saturating_sub(manager.blocks_manager.get().height)
     }
@@ -1591,10 +1579,6 @@ impl HoldBoundBuilder {
     }
 
     pub fn at(self, expected: BlockNumber) -> HoldBound {
-        println!(
-            "holdbound with {} cost and {} expected duration",
-            self.cost, expected
-        );
         HoldBound {
             cost: self.cost,
             expected,

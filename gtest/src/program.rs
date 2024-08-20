@@ -883,16 +883,12 @@ mod tests {
                 Arg::bytes(message),
             ),
         );
-        sys.mint_to(DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT * 2);
         let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
-        sys.transfer(DEFAULT_USER_ALICE, 137, EXISTENTIAL_DEPOSIT * 2, true);
         let msg_id = prog.send(user_id, scheme);
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
-
         let msg_id = prog.send(user_id, *b"Hello");
         let res = sys.run_next_block();
-
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);

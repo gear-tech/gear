@@ -22,7 +22,10 @@ use gear_common::{
     scheduler::{StorageType, TaskHandler},
     Gas as GearCommonGas,
 };
-use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    message::ReplyMessage,
+};
 
 impl TaskHandler<ProgramId> for ExtManager {
     fn pause_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
@@ -35,12 +38,28 @@ impl TaskHandler<ProgramId> for ExtManager {
         todo!("#646")
     }
 
-    fn remove_from_mailbox(
-        &mut self,
-        _user_id: ProgramId,
-        _message_id: MessageId,
-    ) -> GearCommonGas {
-        todo!()
+    fn remove_from_mailbox(&mut self, user_id: ProgramId, message_id: MessageId) -> GearCommonGas {
+        let message = ReplyMessage::auto(message_id);
+
+        if !self.gas_tree.exists_and_deposit(message.id()) {
+            self.gas_tree
+                .create(user_id, message.id(), 0)
+                .expect("failed to create gas tree node");
+        }
+
+        let mailboxed = self
+            .claim_value_from_mailbox(user_id, message_id)
+            .expect("failed to claim value from mailbox");
+
+        let dispatch = message.into_stored_dispatch(
+            mailboxed.destination(),
+            mailboxed.source(),
+            mailboxed.id(),
+        );
+
+        self.dispatches.push_back(dispatch);
+
+        GearCommonGas::MIN
     }
 
     fn remove_from_waitlist(
