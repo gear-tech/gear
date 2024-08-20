@@ -34,6 +34,8 @@ contract WrappedVara is
         _mint(initialOwner, TOKEN_INITIAL_SUPPLY * 10 ** decimals());
     }
 
+    function reinitialize() public onlyOwner reinitializer(2) {}
+
     function mint(address to, uint256 amount) public onlyOwner {
         _mint(to, amount);
     }

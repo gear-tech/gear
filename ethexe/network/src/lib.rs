@@ -271,13 +271,13 @@ impl NetworkEventLoop {
                     .authenticate(libp2p::plaintext::Config::new(&keypair))
                     .multiplex(libp2p::yamux::Config::default())
                     .boxed();
-                let behaivour = Behaviour::new(&keypair, db).map_err(|err| anyhow::anyhow!(err))?;
+                let behaviour = Behaviour::new(&keypair, db).map_err(|err| anyhow::anyhow!(err))?;
                 let config = SwarmConfig::with_tokio_executor()
                     .with_substream_upgrade_protocol_override(upgrade::Version::V1);
 
                 Ok(Swarm::new(
                     transport,
-                    behaivour,
+                    behaviour,
                     keypair.public().to_peer_id(),
                     config,
                 ))

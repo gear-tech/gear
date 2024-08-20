@@ -66,14 +66,14 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use crate::HandleAction;
-    use gtest::{Log, Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn signal_can_be_sent() {
         let system = System::new();
         system.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
         let program = Program::current(&system);
 
         // Initialize program
