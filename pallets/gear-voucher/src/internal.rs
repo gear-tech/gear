@@ -22,7 +22,7 @@ use common::{
     Origin,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::ids;
+use gear_core::ids::{self, CodeId, MessageId, ProgramId};
 use sp_std::collections::btree_set::BTreeSet;
 
 impl<T: Config> crate::Call<T>
@@ -98,6 +98,11 @@ impl<T: Config> Pallet<T> {
                     );
                 }
             }
+            PrepaidCall::CreateProgram { code_id, .. } => {
+                if let Some(code_ids) = voucher.code_ids {
+                    ensure!(code_ids.contains(code_id), Error::<T>::InappropriateCodeId);
+                }
+            }
         }
 
         Ok(())
@@ -113,7 +118,9 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
-            PrepaidCall::UploadCode { .. } | PrepaidCall::DeclineVoucher => None,
+            PrepaidCall::UploadCode { .. }
+            | PrepaidCall::DeclineVoucher
+            | PrepaidCall::CreateProgram { .. } => None,
         }
     }
 }
@@ -191,6 +198,9 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// The block number at and after which voucher couldn't be used and
     /// can be revoked by owner.
     pub expiry: BlockNumber,
+    /// Set of CodeId this voucher could be used to create program.
+    /// In case of [`None`] means any uploaded code.
+    pub code_ids: Option<BTreeSet<CodeId>>,
 }
 
 impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
@@ -222,4 +232,12 @@ pub enum PrepaidCall<Balance> {
         code: Vec<u8>,
     },
     DeclineVoucher,
+    CreateProgram {
+        code_id: CodeId,
+        salt: Vec<u8>,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: Balance,
+        keep_alive: bool,
+    },
 }

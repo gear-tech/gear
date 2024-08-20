@@ -529,6 +529,7 @@ fn fee_payer_replacement_works() {
             Some([program_id].into()),
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
 
@@ -617,6 +618,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             Some([program_id].into()),
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
 
@@ -702,6 +704,7 @@ fn voucher_call_send_payer_ok() {
             Some([program_id].into()),
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -816,6 +819,7 @@ fn voucher_call_send_payer_wrong_program_err() {
             Some([voucher_program_id].into()),
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -874,6 +878,7 @@ fn voucher_call_send_payer_expiry_err() {
             Some([program_id].into()),
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -949,6 +954,7 @@ fn voucher_call_reply_payer_ok() {
             Some([program_id].into()),
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1028,6 +1034,7 @@ fn voucher_call_upload_payer_ok() {
             None,
             true,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1106,6 +1113,7 @@ fn voucher_call_upload_payer_forbidden_err() {
             None,
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1164,6 +1172,7 @@ fn voucher_call_decline_payer_ok() {
             None,
             true,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1245,6 +1254,7 @@ fn voucher_call_decline_payer_expired_err() {
             None,
             false,
             100,
+            None,
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();

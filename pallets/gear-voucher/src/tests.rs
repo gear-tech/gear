@@ -78,7 +78,8 @@ fn voucher_issue_err_cases() {
                 1_000,
                 Some(set),
                 false,
-                100
+                100,
+                None
             ),
             Error::<Test>::MaxProgramsLimitExceeded,
         );
@@ -99,6 +100,7 @@ fn voucher_issue_err_cases() {
                     Some([program_id].into()),
                     false,
                     duration,
+                    None
                 ),
                 Error::<Test>::DurationOutOfBounds,
             );
@@ -149,6 +151,7 @@ fn voucher_call_works() {
             None,
             false,
             DEFAULT_VALIDITY,
+            None
         ));
         let voucher_id_any = utils::get_last_voucher_id();
 
@@ -184,6 +187,7 @@ fn voucher_call_works() {
             Some(Default::default()),
             true,
             DEFAULT_VALIDITY,
+            None
         ));
         let voucher_id_code = utils::get_last_voucher_id();
 
@@ -732,6 +736,7 @@ fn voucher_decline_works() {
             None,
             false,
             DEFAULT_VALIDITY,
+            None
         ));
 
         let voucher_id = utils::get_last_voucher_id();
@@ -771,6 +776,7 @@ fn voucher_decline_err_cases() {
             None,
             false,
             DEFAULT_VALIDITY,
+            None
         ));
 
         let voucher_id = utils::get_last_voucher_id();
@@ -816,6 +822,7 @@ mod utils {
             Some([program].into()),
             code_uploading,
             DEFAULT_VALIDITY,
+            None,
         )
         .map(|_| get_last_voucher_id())
     }

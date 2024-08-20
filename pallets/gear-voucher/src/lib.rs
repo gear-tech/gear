@@ -55,7 +55,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
     PalletId,
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 pub use primitive_types::H256;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
@@ -120,6 +120,10 @@ pub mod pallet {
         /// Maximal duration in blocks voucher could be issued/prolonged for.
         #[pallet::constant]
         type MaxDuration: Get<BlockNumberFor<Self>>;
+
+        /// Maximal amount of programs to be specified to interact with.
+        #[pallet::constant]
+        type MaxCodeIdsAmount: Get<u8>;
     }
 
     #[pallet::pallet]
@@ -195,6 +199,10 @@ pub mod pallet {
         CodeUploadingEnabled,
         /// Voucher is disabled for code uploading, but requested.
         CodeUploadingDisabled,
+        /// CodeId is not in whitelisted set for voucher.
+        InappropriateCodeId,
+        /// Try to whitelist more CodeId than allowed.
+        MaxCodeIdsLimitExceeded,
     }
 
     /// Storage containing amount of the total vouchers issued.
@@ -252,6 +260,7 @@ pub mod pallet {
             programs: Option<BTreeSet<ProgramId>>,
             code_uploading: bool,
             duration: BlockNumberFor<T>,
+            code_ids: Option<BTreeSet<CodeId>>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let owner = ensure_signed(origin)?;
@@ -267,6 +276,14 @@ pub mod pallet {
                 ensure!(
                     programs.len() <= T::MaxProgramsAmount::get().saturated_into(),
                     Error::<T>::MaxProgramsLimitExceeded
+                )
+            }
+
+            // Asserting amount of code_ids.
+            if let Some(ref code_ids) = code_ids {
+                ensure!(
+                    code_ids.len() <= T::MaxCodeIdsAmount::get().saturated_into(),
+                    Error::<T>::MaxCodeIdsLimitExceeded
                 )
             }
 
@@ -293,6 +310,7 @@ pub mod pallet {
                 programs,
                 code_uploading,
                 expiry,
+                code_ids,
             };
 
             // Inserting voucher data into storage, associated with spender and voucher ids.

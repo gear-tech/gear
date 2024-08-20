@@ -14118,6 +14118,7 @@ fn send_gasless_message_works() {
             Some([program_id].into()),
             false,
             100,
+            None,
         ));
 
         // Balances check
@@ -14220,6 +14221,7 @@ fn send_gasless_reply_works() {
             Some([prog_id].into()),
             false,
             100,
+            None,
         ));
         let voucher_id = utils::get_last_voucher_id();
 

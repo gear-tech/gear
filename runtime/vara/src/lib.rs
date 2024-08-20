@@ -1248,6 +1248,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type MaxProgramsAmount = ConstU8<32>;
     type MaxDuration = MaxVoucherDuration;
     type MinDuration = MinVoucherDuration;
+    type MaxCodeIdsAmount = ConstU8<32>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
