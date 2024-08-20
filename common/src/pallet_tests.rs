@@ -65,13 +65,13 @@ macro_rules! impl_pallet_balances_inner {
     };
 }
 
-pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+pub const NORMAL_DISPATCH_WEIGHT_RATIO: Perbill = Perbill::from_percent(75);
 pub const MAX_BLOCK: u64 = 250_000_000_000;
 
 frame_support::parameter_types! {
     pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
         Weight::from_parts(MAX_BLOCK, u64::MAX),
-        NORMAL_DISPATCH_RATIO,
+        NORMAL_DISPATCH_WEIGHT_RATIO,
     );
     pub const SS58Prefix: u8 = 42;
     pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1_110, write: 2_300 };

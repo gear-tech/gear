@@ -83,7 +83,8 @@ pub use runtime_common::{
         RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
-    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
+    VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
@@ -210,7 +211,7 @@ parameter_types! {
     pub const SS58Prefix: u8 = VARA_SS58_PREFIX;
     pub RuntimeBlockWeights: BlockWeights = runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
     pub RuntimeBlockLength: BlockLength =
-        BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+        BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_LENGTH_RATIO);
 }
 
 // Configure FRAME pallets to include in runtime.

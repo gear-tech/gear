@@ -89,7 +89,7 @@ pub const DEFAULT_DEADLINE_SLIPPAGE: DurationMultiplier = DurationMultiplier(0.1
 
 /// Default extrinsics application deadline fraction used by [`Proposer`].
 ///
-/// Equivalent to the `NORMAL_DISPATCH_RATIO` in `Runtime`
+/// Equivalent to the `NORMAL_DISPATCH_WEIGHT_RATIO` in `Runtime`
 /// Can be overwritten by [`ProposerFactory::set_deadline`].
 pub const DEFAULT_DISPATCH_RATIO: DurationMultiplier = DurationMultiplier(0.25);
 
