@@ -113,6 +113,9 @@
 //! mod tests {
 //!     use gtest::{Log, Program, System};
 //!
+//!     // Alternatively, you can use the default users from `gtest::constants`:
+//!     // `DEFAULT_USER_ALICE`, `DEFAULT_USER_BOB`, `DEFAULT_USER_CHARLIE`, `DEFAULT_USER_EVE`.
+//!     // The full list of default users can be obtained with `gtest::constants::default_users_list`.
 //!     const USER_ID: u64 = 100001;
 //!
 //!     #[test]
@@ -122,6 +125,9 @@
 //!
 //!         // Initialization of the current program structure.
 //!         let prog = Program::current(&sys);
+//!
+//!         // Provide user with some balance.
+//!         sys.min_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
 //!
 //!         // Send an init message to the program.
 //!         let init_message_id = prog.send_bytes(USER_ID, b"Doesn't matter");
@@ -251,6 +257,30 @@
 //! RUST_LOG="target_1=logging_level,target_2=logging_level" cargo test
 //! ```
 //!
+//! ## Pre-requisites for sending a message
+//!
+//! Prior to sending a message, it is necessary to mint sufficient balance for
+//! the sender to ensure coverage of the existential deposit and gas costs.
+//!
+//! ```no_run
+//! # use gtest::constants::EXISTENTIAL_DEPOSIT;
+//! # let sys = gtest::System::new();
+//! let user_id = 42;
+//! sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 1000);
+//! ```
+//!
+//! Alternatively, you can use the default users from `gtest::constants`, which
+//! have a preallocated balance, as the message sender.
+//!
+//! ```no_run
+//! # use gtest::constants::DEFAULT_USERS_INITIAL_BALANCE;
+//! # let sys = gtest::System::new();
+//! assert_eq!(
+//!     sys.balance_of(gtest::constants::DEFAULT_USER_ALICE),
+//!     DEFAULT_USERS_INITIAL_BALANCE
+//! );
+//! ```
+//!
 //! ## Sending messages
 //!
 //! To send message to the program need to call one of two program's functions:
@@ -375,7 +405,25 @@
 //! changes the timestamp. If you write time dependent logic, you should spend
 //! blocks manually.
 //!
-//! ## Balance:
+//! ## Balance
+//!
+//! There are certain invariants in `gtest` regarding user and program balances:
+//!
+//! * For a user to successfully send a message to the program, they must have
+//!   sufficient balance to cover the existential deposit and gas costs.
+//! * The program charges the existential deposit from the user upon receiving
+//!   the initial message.
+//!
+//! As previously mentioned [here](#Pre-requisites-for-Sending-a-Message),
+//! a balance for the user must be minted before sending a message. This balance
+//! should be sufficient to cover the following: the user's existential deposit,
+//! the existential deposit of the initialized program (the first message to the
+//! program charges the program's existential deposit from the sender), and the
+//! message's gas costs.
+//!
+//! The [`System::mint_to`] method can be utilized to allocate a balance to the
+//! user or the program. The [`System::balance_of`] method may be used to verify
+//! the current balance.
 //!
 //! ```no_run
 //! # use gtest::Program;
@@ -385,9 +433,9 @@
 //! sys.mint_to(user_id, 5000);
 //! assert_eq!(sys.balance_of(user_id), 5000);
 //!
-//! // To give the balance to the program you should use `mint` method:
+//! // To give the balance to the program you should use [`System::transfer`] method:
 //! let mut prog = Program::current(&sys);
-//! prog.mint(1000);
+//! sys.transfer(user_id, prog.id(), 1000, true);
 //! assert_eq!(prog.balance(), 1000);
 //! ```
 //!
@@ -444,6 +492,9 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+mod accounts;
+mod actors;
+mod bank;
 mod blocks;
 mod error;
 mod gas_tree;
@@ -464,6 +515,7 @@ pub use program::{
 };
 pub use system::System;
 
+pub use constants::Value;
 pub(crate) use constants::*;
 
 /// Module containing constants of Gear protocol.
@@ -583,4 +635,28 @@ pub mod constants {
     pub const HOST_FUNC_WRITE_AFTER_READ_COST: Gas = 115129057;
     /// Loading page data from storage cost.
     pub const LOAD_PAGE_STORAGE_DATA_COST: Gas = 10630903;
+
+    /* Default users constants with initial balance */
+
+    /// Default user id for Alice.
+    pub const DEFAULT_USER_ALICE: u64 = u64::MAX - 1;
+    /// Default user id for Bob.
+    pub const DEFAULT_USER_BOB: u64 = u64::MAX - 2;
+    /// Default user id for Charlie.
+    pub const DEFAULT_USER_CHARLIE: u64 = u64::MAX - 3;
+    /// Default user id for Eve.
+    pub const DEFAULT_USER_EVE: u64 = u64::MAX - 4;
+
+    /// Default list of users.
+    pub const fn default_users_list() -> &'static [u64] {
+        &[
+            DEFAULT_USER_ALICE,
+            DEFAULT_USER_BOB,
+            DEFAULT_USER_CHARLIE,
+            DEFAULT_USER_EVE,
+        ]
+    }
+
+    /// Default initial balance for users.
+    pub const DEFAULT_USERS_INITIAL_BALANCE: Value = EXISTENTIAL_DEPOSIT * 100_000;
 }

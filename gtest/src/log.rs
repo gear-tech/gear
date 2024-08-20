@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::program::{Gas, ProgramIdWrapper};
+use crate::{
+    program::{Gas, ProgramIdWrapper},
+    Value, GAS_MULTIPLIER,
+};
 use codec::{Codec, Encode};
 use core_processor::configs::BlockInfo;
 use gear_core::{
@@ -445,6 +448,16 @@ impl BlockRunResult {
             payload.starts_with(&format!("Panic occurred: panicked with '{msg}'")),
             "expected panic message that contains `{msg}`, but the actual panic message is `{payload}`"
         );
+    }
+
+    /// Calculate the total spent value.
+    pub fn spent_value(&self) -> Value {
+        let spent_gas = self
+            .gas_burned
+            .values()
+            .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
+
+        GAS_MULTIPLIER.gas_to_value(spent_gas.0)
     }
 
     /// Trying to get the panic log.

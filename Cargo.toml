@@ -12,7 +12,7 @@ resolver = "2"
 
 default-members = ["node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker"]
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
     "common",
@@ -252,6 +252,7 @@ gear-stack-buffer = { path = "stack-buffer" }
 gear-ss58 = { path = "utils/ss58", default-features = false }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
+gear-wasm-optimizer = { path = "utils/wasm-optimizer", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
@@ -497,6 +498,7 @@ demo-wat = { path = "examples/wat" }
 # TODO: remove these dependencies (from this file?) or add more docs.
 
 cfg-if = "1.0.0"                                             # gear-lazy-pages
+cargo-http-registry = "0.1.6"                                # crates-io
 errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 indexmap = "2.2.6"                                           # utils/weight-diff

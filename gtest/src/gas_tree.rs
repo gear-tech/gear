@@ -22,12 +22,17 @@ use crate::GAS_MULTIPLIER;
 use gear_common::{
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
     gas_provider::{ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree},
-    Gas, LockId, Origin,
+    Gas, GasMultiplier, LockId, Origin,
 };
 use gear_core::ids::{MessageId, ProgramId, ReservationId};
 
 pub(crate) type PositiveImbalance = <GasTree as Tree>::PositiveImbalance;
 pub(crate) type NegativeImbalance = <GasTree as Tree>::NegativeImbalance;
+pub type OriginNodeDataOf = (
+    <GasTree as Tree>::ExternalOrigin,
+    GasMultiplier<<GasTree as Tree>::Funds, <GasTree as Tree>::Balance>,
+    <GasTree as Tree>::NodeId,
+);
 type GasTree = <AuxiliaryGasProvider as Provider>::GasTree;
 
 /// Gas tree manager which operates under the hood over
@@ -203,5 +208,14 @@ impl GasTreeManager {
 
     pub(crate) fn unlock_all(&self, key: impl Origin, id: LockId) -> Result<Gas, GasTreeError> {
         GasTree::unlock_all(GasNodeId::from(key.cast::<PlainNodeId>()), id)
+    }
+
+    /// The id of node, external origin and funds multiplier for a key.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
+    /// node identified by the `key` belongs to a subtree originating at
+    /// such "orphan" node, or in case of inexistent key.
+    pub(crate) fn get_origin_node(&self, key: MessageId) -> Result<OriginNodeDataOf, GasTreeError> {
+        GasTree::get_origin_node(GasNodeId::from(key.cast::<PlainNodeId>()))
     }
 }

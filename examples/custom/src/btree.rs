@@ -94,7 +94,7 @@ mod tests {
     use super::{Reply, Request};
     use crate::InitMessage;
     use alloc::vec;
-    use gtest::{Log, Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
@@ -103,7 +103,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         program.send(from, InitMessage::BTree);
         let res = system.run_next_block();
@@ -118,7 +118,7 @@ mod tests {
 
         let program = Program::current_opt(&system);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         program.send(from, InitMessage::BTree);
         IntoIterator::into_iter([

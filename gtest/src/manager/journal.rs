@@ -19,9 +19,11 @@
 /// Implementation of the `JournalHandler` trait for the `ExtManager`.
 use std::collections::BTreeMap;
 
-use super::{Balance, ExtManager, Gas, GenuineProgram, MintMode, Program, TestActor};
+use crate::{accounts::Accounts, actors::Actors, Value, EXISTENTIAL_DEPOSIT};
+
+use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use core_processor::common::{DispatchOutcome, JournalHandler};
-use gear_common::{scheduler::ScheduledTask, Origin};
+use gear_common::{gas_provider::Imbalance as _, scheduler::ScheduledTask, Origin};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -53,8 +55,10 @@ impl JournalHandler for ExtManager {
             DispatchOutcome::Success | DispatchOutcome::Exit { .. } => {
                 self.succeed.insert(message_id);
             }
-            DispatchOutcome::InitFailure { program_id, .. } => {
-                self.init_failure(program_id);
+            DispatchOutcome::InitFailure {
+                program_id, origin, ..
+            } => {
+                self.init_failure(program_id, origin);
                 self.failed.insert(message_id);
             }
             DispatchOutcome::InitSuccess { program_id, .. } => {
@@ -68,7 +72,7 @@ impl JournalHandler for ExtManager {
         self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
         self.gas_tree
             .spend(message_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
 
         self.gas_burned
             .entry(message_id)
@@ -76,18 +80,46 @@ impl JournalHandler for ExtManager {
                 *gas += Gas(amount);
             })
             .or_insert(Gas(amount));
+
+        let (external, multiplier, _) = self
+            .gas_tree
+            .get_origin_node(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
+
+        let id: ProgramId = external.into_origin().into();
+        self.bank.spend_gas(id, amount, multiplier);
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        if let Some((_, balance)) = self.actors.remove(&id_exited) {
-            self.mint_to(&value_destination, balance, MintMode::AllowDeath);
+        Actors::modify(id_exited, |actor| {
+            let actor =
+                actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
+            *actor = TestActor::Dormant
+        });
+
+        let value = Accounts::balance(id_exited);
+        if value != 0 {
+            Accounts::transfer(id_exited, value_destination, value, false);
         }
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        self.gas_tree
+        let outcome = self
+            .gas_tree
             .consume(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
+
+        // Retrieve gas
+        if let Some((imbalance, multiplier, external)) = outcome {
+            // Peeking numeric value from negative imbalance.
+            let gas_left = imbalance.peek();
+            let id: ProgramId = external.into_origin().into();
+
+            // Unreserving funds, if left non-zero amount of gas.
+            if gas_left != 0 {
+                self.bank.withdraw_gas(id, gas_left, multiplier);
+            }
+        }
     }
 
     fn send_dispatch(
@@ -108,8 +140,17 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
+        let is_program = Actors::is_program(dispatch.destination());
 
-        if self.is_program(&dispatch.destination()) {
+        let mut deposit_value = || {
+            if dispatch.value() != 0 {
+                self.bank.deposit_value(source, dispatch.value(), false);
+            }
+        };
+
+        if is_program {
+            deposit_value();
+
             match (dispatch.gas_limit(), reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
@@ -132,6 +173,8 @@ impl JournalHandler for ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
+            deposit_value();
+
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
 
@@ -234,31 +277,14 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
         if value == 0 {
             // Nothing to do
             return;
         }
-        if let Some(ref to) = to {
-            if self.is_program(&from) {
-                let mut actors = self.actors.borrow_mut();
-                let (_, balance) = actors.get_mut(&from).expect("Can't fail");
 
-                if *balance < value {
-                    unreachable!("Actor {:?} balance is less then sent value", from);
-                }
-
-                *balance -= value;
-
-                if *balance < crate::EXISTENTIAL_DEPOSIT {
-                    *balance = 0;
-                }
-            }
-
-            self.mint_to(to, value, MintMode::KeepAlive);
-        } else {
-            self.mint_to(&from, value, MintMode::KeepAlive);
-        }
+        let to = to.unwrap_or(from);
+        self.bank.transfer_value(from, to, value);
     }
 
     #[track_caller]
@@ -270,7 +296,7 @@ impl JournalHandler for ExtManager {
     ) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
-                if !self.actors.contains_key(&candidate_id) {
+                if !Actors::contains_key(candidate_id) {
                     let schedule = Schedule::default();
                     let code = Code::try_new(
                         code.clone(),
@@ -297,8 +323,9 @@ impl JournalHandler for ExtManager {
                         }),
                         Some(init_message_id),
                     );
+
                     // Transfer the ED from the program-creator to the new program
-                    self.send_value(program_id, Some(candidate_id), crate::EXISTENTIAL_DEPOSIT);
+                    Accounts::transfer(program_id, candidate_id, EXISTENTIAL_DEPOSIT, true);
                 } else {
                     log::debug!("Program with id {candidate_id:?} already exists");
                 }
@@ -306,8 +333,7 @@ impl JournalHandler for ExtManager {
         } else {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
-                self.actors
-                    .insert(invalid_candidate_id, (TestActor::Dormant, 0));
+                Actors::insert(invalid_candidate_id, TestActor::Dormant);
             }
         }
     }

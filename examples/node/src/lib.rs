@@ -61,14 +61,14 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::{Initialization, Operation, Reply, Request};
-    use gtest::{Log, Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn test_message_send_to_failed_program() {
         let system = System::new();
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program = Program::current(&system);
         let msg_id = program.send(from, Request::IsReady);
@@ -81,7 +81,7 @@ mod tests {
         let system = System::new();
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program = Program::current(&system);
         let msg_id = program.send(from, Initialization { status: 5 });
@@ -96,7 +96,7 @@ mod tests {
         let system = System::new();
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program = Program::current(&system);
         program.send(from, Initialization { status: 5 });
@@ -131,7 +131,7 @@ mod tests {
         let system = System::new();
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program_1_id = 1;
         let program_2_id = 2;
