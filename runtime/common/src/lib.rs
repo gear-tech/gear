@@ -42,6 +42,10 @@ use sp_runtime::Perbill;
 /// so it's safe to reduce from default 10 to custom 3 percents.
 pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(3);
 
+pub const NORMAL_DISPATCH_LENGTH_RATIO_NUM: u8 = 50;
+pub const NORMAL_DISPATCH_LENGTH_RATIO: Perbill =
+    Perbill::from_percent(NORMAL_DISPATCH_LENGTH_RATIO_NUM as u32);
+
 pub const NORMAL_DISPATCH_WEIGHT_RATIO_NUM: u8 = 25;
 pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_WEIGHT_RATIO_NUM;
 
