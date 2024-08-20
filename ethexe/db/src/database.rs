@@ -296,21 +296,20 @@ impl CodesStorage for Database {
     fn program_ids(&self) -> BTreeSet<ProgramId> {
         let key_prefix = KeyPrefix::ProgramToCodeId.prefix();
 
-        let mut program_ids = BTreeSet::new();
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, code_id)| {
+                let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(splitted_key_prefix, key_prefix);
+                let program_id =
+                    ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
 
-        for (key, code_id) in self.kv.iter_prefix(&key_prefix) {
-            let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
-            debug_assert_eq!(splitted_key_prefix, key_prefix);
-            let program_id =
-                ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
+                #[cfg(debug_assertions)]
+                CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
 
-            program_ids.insert(program_id);
-
-            #[cfg(debug_assertions)]
-            CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
-        }
-
-        program_ids
+                program_id
+            })
+            .collect()
     }
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
