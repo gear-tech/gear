@@ -2484,12 +2484,19 @@ pub mod runtime_types {
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct RentWeights {
+                    pub dispatch_stash: runtime_types::sp_weights::weight_v2::Weight,
+                    pub waitlist: runtime_types::sp_weights::weight_v2::Weight,
+                    pub reservation: runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Schedule {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
                         runtime_types::pallet_gear::schedule::InstructionWeights,
                     pub syscall_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
+                    pub rent_weights: runtime_types::pallet_gear::schedule::RentWeights,
                     pub instantiation_weights:
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
@@ -2498,9 +2505,6 @@ pub mod runtime_types {
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
-                    pub waitlist_cost: runtime_types::sp_weights::weight_v2::Weight,
-                    pub dispatch_stash_cost: runtime_types::sp_weights::weight_v2::Weight,
-                    pub reservation_cost: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
