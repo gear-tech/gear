@@ -143,7 +143,7 @@ impl NetworkSender {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum NetworkReceiverEvent {
     Commitments {
         source: Option<PeerId>,
@@ -543,12 +543,13 @@ fn gpu_commitments_topic() -> gossipsub::IdentTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
     use tokio::time::{timeout, Duration};
 
     #[tokio::test]
     async fn test_memory_transport() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        init_logger();
 
         let tmp_dir1 = tempfile::tempdir().unwrap();
         let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
@@ -556,9 +557,8 @@ mod tests {
         let db = Database::from_one(&MemDb::default(), [0; 20]);
         let service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
 
-        let peer_id = service1.event_loop.local_peer_id().to_string();
-
-        let multiaddr: Multiaddr = format!("/memory/1/p2p/{}", peer_id).parse().unwrap();
+        let peer_id = service1.event_loop.local_peer_id();
+        let multiaddr: Multiaddr = format!("/memory/1/p2p/{peer_id}").parse().unwrap();
 
         let (sender, mut _service1_handle) =
             (service1.sender, tokio::spawn(service1.event_loop.run()));
@@ -602,5 +602,54 @@ mod tests {
         .expect("Timeout while waiting for commitment");
 
         assert!(received_commitment.is_some(), "Commitment was not received");
+    }
+
+    #[tokio::test]
+    async fn request_db_data() {
+        init_logger();
+
+        let tmp_dir1 = tempfile::tempdir().unwrap();
+        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/3");
+        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
+
+        let peer_id = service1.event_loop.local_peer_id();
+        let multiaddr: Multiaddr = format!("/memory/3/p2p/{peer_id}").parse().unwrap();
+
+        tokio::spawn(service1.event_loop.run());
+
+        // second service
+        let tmp_dir2 = tempfile::tempdir().unwrap();
+        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
+        let mut config2 =
+            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/4");
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+
+        config2.bootstrap_addresses = [multiaddr].into();
+
+        let hello = db.write(b"hello");
+        let world = db.write(b"world");
+
+        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
+        tokio::spawn(service2.event_loop.run());
+
+        // Wait for the connection to be established
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        service1
+            .sender
+            .request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+
+        let event = timeout(Duration::from_secs(5), service1.receiver.recv())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        assert_eq!(
+            event,
+            NetworkReceiverEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
+                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+            )))
+        );
     }
 }
