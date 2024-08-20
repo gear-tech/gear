@@ -875,7 +875,7 @@ mod tests {
         let scheme = Scheme::predefined(
             Calls::builder().noop(),
             Calls::builder()
-                .system_reserve_gas(1_000_000_000)
+                .system_reserve_gas(4_000_000_000)
                 .panic(panic_message),
             Calls::builder().noop(),
             Calls::builder().send(
@@ -883,9 +883,9 @@ mod tests {
                 Arg::bytes(message),
             ),
         );
-
+        sys.mint_to(DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT * 2);
         let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
-
+        sys.transfer(DEFAULT_USER_ALICE, 137, EXISTENTIAL_DEPOSIT * 2, true);
         let msg_id = prog.send(user_id, scheme);
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));

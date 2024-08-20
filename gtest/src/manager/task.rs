@@ -80,7 +80,7 @@ impl TaskHandler<ProgramId> for ExtManager {
     fn send_user_message(
         &mut self,
         stashed_message_id: MessageId,
-        _to_mailbox: bool,
+        to_mailbox: bool,
     ) -> GearCommonGas {
         let (message, hold_interval) = self
             .dispatches_stash
@@ -94,9 +94,7 @@ impl TaskHandler<ProgramId> for ExtManager {
             unreachable!("invalid message: can't be converted to user message {e:?}")
         });
 
-        self.mailbox
-            .insert(mailbox_message)
-            .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+        self.send_user_message_after_delay(mailbox_message, to_mailbox);
         self.log.push(message);
 
         GearCommonGas::MIN

@@ -129,7 +129,7 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        let to_user = self.is_user(&dispatch.destination());
+        let to_user = Actors::is_user(dispatch.destination());
         if delay > 0 {
             log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
 
@@ -142,15 +142,10 @@ impl JournalHandler for ExtManager {
         let source = dispatch.source();
         let is_program = Actors::is_program(dispatch.destination());
 
-        let mut deposit_value = || {
+        if is_program {
             if dispatch.value() != 0 {
                 self.bank.deposit_value(source, dispatch.value(), false);
             }
-        };
-
-        if is_program {
-            deposit_value();
-
             match (dispatch.gas_limit(), reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
@@ -164,6 +159,7 @@ impl JournalHandler for ExtManager {
                     self.gas_tree
                         .split(false, reservation, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                    self.remove_gas_reservation_with_task(dispatch.source(), reservation);
                 }
                 (Some(_), Some(_)) => unreachable!(
                     "Sending dispatch with gas limit from reservation \
@@ -173,36 +169,7 @@ impl JournalHandler for ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            deposit_value();
-
-            let gas_limit = dispatch.gas_limit().unwrap_or_default();
-            let stored_message = dispatch.into_stored().into_parts().1;
-
-            if let Ok(mailbox_msg) = stored_message.clone().try_into() {
-                let origin_node = reservation
-                    .map(|r| r.into_origin().cast())
-                    .unwrap_or(message_id);
-                self.gas_tree
-                    .cut(origin_node, stored_message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                self.mailbox
-                    .insert(mailbox_msg)
-                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-            } else {
-                log::debug!("A reply message is sent to user: {stored_message:?}");
-            };
-
-            self.log.push(stored_message);
-        }
-
-        if let Some(reservation) = reservation {
-            let has_removed_reservation = self
-                .remove_reservation(source, reservation)
-                .expect("failed to find genuine_program");
-            if !has_removed_reservation {
-                unreachable!("Failed to remove reservation {reservation} from {source}");
-            }
+            self.send_user_message(message_id, dispatch.into_parts().1, reservation);
         }
     }
 

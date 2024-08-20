@@ -32,8 +32,12 @@ pub(crate) struct MailboxManager;
 
 impl MailboxManager {
     /// Insert user message into mailbox.
-    pub(crate) fn insert(&self, message: MailboxedMessage) -> Result<(), MailboxErrorImpl> {
-        <AuxiliaryMailbox<MailboxCallbacksImpl> as Mailbox>::insert(message, u32::MAX)
+    pub(crate) fn insert(
+        &self,
+        message: MailboxedMessage,
+        expected: BlockNumber,
+    ) -> Result<(), MailboxErrorImpl> {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as Mailbox>::insert(message, expected)
     }
 
     /// Remove user message from mailbox.
