@@ -127,7 +127,7 @@ impl Sequencer {
             Self::code_commitments_candidate(&self.code_commitments, self.threshold);
 
         self.blocks_candidate =
-            Self::block_commitments_candidate(&self.block_commitments, from_block, self.threshold)?;
+            Self::block_commitments_candidate(&self.block_commitments, from_block, self.threshold);
 
         Ok(())
     }
@@ -264,7 +264,7 @@ impl Sequencer {
         commitments: &CommitmentsMap<BlockCommitment>,
         from_block: H256,
         threshold: u64,
-    ) -> Result<Option<MultisignedCommitmentDigests>> {
+    ) -> Option<MultisignedCommitmentDigests> {
         let suitable_commitments: BTreeMap<_, _> = commitments
             .iter()
             .filter_map(|(digest, c)| {
@@ -286,7 +286,7 @@ impl Sequencer {
         }
 
         if candidate.is_empty() {
-            return Ok(None);
+            return None;
         }
 
         let candidate = MultisignedCommitmentDigests::new(candidate.into_iter().collect())
@@ -296,7 +296,7 @@ impl Sequencer {
                 );
             });
 
-        Ok(Some(candidate))
+        Some(candidate)
     }
 
     fn code_commitments_candidate(
@@ -663,6 +663,91 @@ mod tests {
             .origins
             .insert(validator2);
         assert_eq!(expected_commitments_storage, commitments_storage);
+    }
+
+    #[test]
+    fn test_block_commitments_candidate() {
+        let threshold = 2;
+
+        let mut commitments = BTreeMap::new();
+
+        let commitment1 = BlockCommitment {
+            block_hash: H256::random(),
+            prev_commitment_hash: H256::random(),
+            pred_block_hash: H256::random(),
+            transitions: Default::default(),
+        };
+        let commitment2 = BlockCommitment {
+            block_hash: H256::random(),
+            prev_commitment_hash: commitment1.block_hash,
+            pred_block_hash: H256::random(),
+            transitions: Default::default(),
+        };
+        let commitment3 = BlockCommitment {
+            block_hash: H256::random(),
+            prev_commitment_hash: commitment1.block_hash,
+            pred_block_hash: H256::random(),
+            transitions: Default::default(),
+        };
+
+        let candidate =
+            Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, threshold);
+        assert!(candidate.is_none());
+
+        commitments.insert(
+            commitment1.as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment1.clone(),
+                origins: Default::default(),
+            },
+        );
+        let candidate =
+            Sequencer::block_commitments_candidate(&commitments, H256::random(), threshold);
+        assert!(candidate.is_none());
+
+        let candidate =
+            Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, 0)
+                .expect("Must have candidate");
+        assert_eq!(candidate.digests(), [commitment1.as_digest()].as_slice());
+
+        commitments
+            .get_mut(&commitment1.as_digest())
+            .unwrap()
+            .origins
+            .extend([Address([1; 20]), Address([2; 20])]);
+        commitments.insert(
+            commitment2.as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment2.clone(),
+                origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
+            },
+        );
+        commitments.insert(
+            commitment3.as_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment3.clone(),
+                origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
+            },
+        );
+
+        let candidate =
+            Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, threshold)
+                .expect("Must have candidate");
+        assert_eq!(candidate.digests(), [commitment1.as_digest()].as_slice());
+
+        let candidate =
+            Sequencer::block_commitments_candidate(&commitments, commitment2.block_hash, threshold)
+                .expect("Must have candidate");
+        let mut expected_digests = [commitment1.as_digest(), commitment2.as_digest()];
+        expected_digests.sort();
+        assert_eq!(candidate.digests(), expected_digests.as_slice());
+
+        let candidate =
+            Sequencer::block_commitments_candidate(&commitments, commitment3.block_hash, threshold)
+                .expect("Must have candidate");
+        let mut expected_digests = [commitment1.as_digest(), commitment3.as_digest()];
+        expected_digests.sort();
+        assert_eq!(candidate.digests(), expected_digests.as_slice());
     }
 
     #[test]
