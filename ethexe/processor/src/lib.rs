@@ -23,6 +23,7 @@ use core_processor::common::JournalNote;
 use ethexe_common::{
     mirror::Event as MirrorEvent,
     router::{Event as RouterEvent, StateTransition},
+    wvara::Event as WVaraEvent,
     BlockEvent,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
@@ -263,89 +264,109 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:?}");
 
-        let mut outcomes = vec![];
-
-        let initial_program_states = self
+        let mut states = self
             .db
             .block_start_program_states(block_hash)
             .unwrap_or_default();
 
-        let mut programs = initial_program_states.clone();
-
         for event in events {
             match event {
-                BlockEvent::Router(event) => match event.clone() {
-                    RouterEvent::ProgramCreated { actor_id, code_id } => {
-                        self.handle_new_program(actor_id, code_id)?;
-
-                        programs.insert(actor_id, H256::zero());
-                    }
-                    _ => {
-                        log::debug!(
-                            "Handling for router event {event:?} is not yet implemented; noop"
-                        );
-                        continue;
-                    }
-                },
+                BlockEvent::Router(event) => {
+                    self.process_router_event(&mut states, event.clone())?;
+                }
                 BlockEvent::Mirror { address, event } => {
-                    let Some(&state_hash) = programs.get(address) else {
-                        log::debug!("Received mirror event from unrecognized program ({address}): {event:?}");
-
-                        continue;
-                    };
-
-                    let new_state_hash = match event.clone() {
-                        MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
-                            self.handle_executable_balance_top_up(state_hash, value)
-                        }
-                        MirrorEvent::MessageQueueingRequested {
-                            id,
-                            source,
-                            payload,
-                            value,
-                        } => {
-                            let kind = if state_hash.is_zero() {
-                                DispatchKind::Init
-                            } else {
-                                DispatchKind::Handle
-                            };
-
-                            self.handle_user_message(
-                                state_hash,
-                                vec![UserMessage {
-                                    id,
-                                    kind,
-                                    source,
-                                    payload,
-                                    value,
-                                }],
-                            )
-                        }
-                        _ => {
-                            log::debug!(
-                                "Handling for mirror event {event:?} is not yet implemented; noop"
-                            );
-
-                            continue;
-                        }
-                    };
-
-                    programs.insert(*address, new_state_hash?);
+                    self.process_mirror_event(&mut states, *address, event.clone())?;
                 }
                 BlockEvent::WVara(event) => {
-                    log::debug!("Handling for wvara event {event:?} is not yet implemented; noop");
-
-                    continue;
+                    self.process_wvara_event(&mut states, event.clone())?;
                 }
             }
         }
 
-        let current_outcomes = self.run(block_hash, &mut programs)?;
+        let outcomes = self.run(block_hash, &mut states)?;
 
-        outcomes.extend(current_outcomes);
-
-        self.db.set_block_end_program_states(block_hash, programs);
+        self.db.set_block_end_program_states(block_hash, states);
 
         Ok(outcomes)
+    }
+
+    fn process_router_event(
+        &mut self,
+        states: &mut BTreeMap<ProgramId, H256>,
+        event: RouterEvent,
+    ) -> Result<()> {
+        match event {
+            RouterEvent::ProgramCreated { actor_id, code_id } => {
+                self.handle_new_program(actor_id, code_id)?;
+
+                states.insert(actor_id, H256::zero());
+            }
+            _ => {
+                log::debug!("Handling for router event {event:?} is not yet implemented; noop");
+            }
+        };
+
+        Ok(())
+    }
+
+    fn process_mirror_event(
+        &mut self,
+        states: &mut BTreeMap<ProgramId, H256>,
+        actor_id: ProgramId,
+        event: MirrorEvent,
+    ) -> Result<()> {
+        let Some(&state_hash) = states.get(&actor_id) else {
+            log::debug!("Received event from unrecognized mirror ({actor_id}): {event:?}");
+
+            return Ok(());
+        };
+
+        let new_state_hash = match event {
+            MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
+                self.handle_executable_balance_top_up(state_hash, value)?
+            }
+            MirrorEvent::MessageQueueingRequested {
+                id,
+                source,
+                payload,
+                value,
+            } => {
+                let kind = if state_hash.is_zero() {
+                    DispatchKind::Init
+                } else {
+                    DispatchKind::Handle
+                };
+
+                self.handle_user_message(
+                    state_hash,
+                    vec![UserMessage {
+                        id,
+                        kind,
+                        source,
+                        payload,
+                        value,
+                    }],
+                )?
+            }
+            _ => {
+                log::debug!("Handler for this event isn't yet implemented: {event:?}");
+
+                return Ok(());
+            }
+        };
+
+        states.insert(actor_id, new_state_hash);
+
+        Ok(())
+    }
+
+    fn process_wvara_event(
+        &mut self,
+        _states: &mut BTreeMap<ProgramId, H256>,
+        event: WVaraEvent,
+    ) -> Result<()> {
+        log::debug!("Handler for this event isn't yet implemented: {event:?}");
+
+        Ok(())
     }
 }
