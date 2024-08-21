@@ -18,11 +18,10 @@
 
 //! Abstract commitment aggregator.
 
-use std::collections::{BTreeMap, BTreeSet};
-
 use anyhow::Result;
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
 use parity_scale_codec::{Decode, Encode};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedCommitments<D: AsDigest> {
@@ -70,13 +69,22 @@ pub(crate) struct MultisignedCommitmentDigests {
 }
 
 impl MultisignedCommitmentDigests {
-    pub fn new(digests: BTreeSet<Digest>) -> Self {
-        let digests: Vec<_> = digests.into_iter().collect();
-        Self {
+    pub fn new(mut digests: Vec<Digest>) -> Result<Self> {
+        let len = digests.len();
+        if len == 0 {
+            return Err(anyhow::anyhow!("Empty commitments digests"));
+        }
+
+        digests.dedup();
+        if digests.len() != len {
+            return Err(anyhow::anyhow!("Duplicate commitments digests"));
+        }
+
+        Ok(Self {
             digest: digests.as_digest(),
             digests,
             signatures: BTreeMap::new(),
-        }
+        })
     }
 
     pub fn append_signature_with_check(
@@ -242,7 +250,8 @@ mod tests {
         let commitments = [MyComm([1, 2]), MyComm([3, 4])];
         let digests = commitments.map(|c| c.as_digest());
 
-        let mut multisigned = MultisignedCommitmentDigests::new(digests.into_iter().collect());
+        let mut multisigned =
+            MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
         assert_eq!(multisigned.digests(), digests.as_slice());
         assert_eq!(multisigned.signatures().len(), 0);
 
@@ -272,7 +281,8 @@ mod tests {
             .map(|c| (c.as_digest(), c))
             .collect();
 
-        let mut multisigned = MultisignedCommitmentDigests::new(digests.into_iter().collect());
+        let mut multisigned =
+            MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
         let commitments_digest = commitments.as_digest();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();

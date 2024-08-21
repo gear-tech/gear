@@ -38,7 +38,13 @@ use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{future::Future, ops::Not, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    ops::Not,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use utils::*;
 
 /// ethexe service.
 pub struct Service {
@@ -123,6 +129,7 @@ impl Service {
                         validators: config.validators.clone(),
                     },
                     signer.clone(),
+                    Box::new(db.clone()),
                 )
                 .await?,
             )
@@ -439,9 +446,6 @@ impl Service {
             None
         };
 
-        let mut collection_round_timer: Option<_> = None;
-        let mut validation_round_timer: Option<_> = None;
-
         let mut roles = "Observer".to_string();
         if let Some(seq) = sequencer.as_ref() {
             roles.push_str(&format!(", Sequencer ({})", seq.address()));
@@ -451,6 +455,9 @@ impl Service {
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
 
+        let mut collection_round_timer = RoundTimer::new(block_time / 4);
+        let mut validation_round_timer = RoundTimer::new(block_time / 4);
+
         loop {
             tokio::select! {
                 observer_event = observer_events.next() => {
@@ -458,6 +465,8 @@ impl Service {
                         log::info!("Observer stream ended, shutting down...");
                         break;
                     };
+
+                    let is_block_event = matches!(observer_event, ObserverEvent::Block(_));
 
                     let (code_commitments, block_commitments) = Self::process_observer_event(
                         &db,
@@ -475,9 +484,12 @@ impl Service {
                         network_sender.as_mut(),
                     ).await?;
 
-                    collection_round_timer = Some(tokio::time::sleep(block_time / 4));
+                    if is_block_event {
+                        collection_round_timer.start();
+                        validation_round_timer.stop();
+                    }
                 }
-                _ = maybe_await(collection_round_timer.take()) => {
+                _ = collection_round_timer.wait() => {
                     log::debug!("Collection round timeout, process collected commitments...");
 
                     Self::process_collected_commitments(
@@ -487,12 +499,15 @@ impl Service {
                         network_sender.as_mut()
                     )?;
 
-                    validation_round_timer = Some(tokio::time::sleep(block_time / 4));
+                    collection_round_timer.stop();
+                    validation_round_timer.start();
                 }
-                _ = maybe_await(validation_round_timer.take()) => {
+                _ = validation_round_timer.wait() => {
                     log::debug!("Validation round timeout, process validated commitments...");
 
                     Self::process_approved_commitments(sequencer.as_mut()).await?;
+
+                    validation_round_timer.stop();
                 }
                 message = maybe_await(gossipsub_stream.as_mut().map(|stream| stream.next())) => {
                     let Some(message) = message else {
@@ -508,7 +523,7 @@ impl Service {
                     );
 
                     if let Err(err) = result {
-                        log::warn!("Failed to process network message: {:?}", err);
+                        log::warn!("Failed to process network message: {err}");
                     }
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
@@ -603,7 +618,10 @@ impl Service {
             return Ok(());
         };
 
-        sequencer.process_collected_commitments()?;
+        if let Err(err) = sequencer.process_collected_commitments() {
+            log::warn!("Sequencer failed to process collected commitments: {err}");
+            return Ok(());
+        }
 
         if maybe_validator.is_none() && maybe_network_sender.is_none() {
             return Ok(());
@@ -631,21 +649,38 @@ impl Service {
 
         if let Some(validator) = maybe_validator {
             log::debug!(
-                "Validate local ({}) code commitments and ({}) block commitments...",
+                "Validate collected ({}) code commitments and ({}) block commitments...",
                 code_requests.len(),
                 block_requests.len()
             );
 
+            // Because sequencer can collect commitments from different sources,
+            // it's possible that some of collected commitments validation will fail
+            // on local validator. So we just print warning in this case.
+
             if code_requests.is_empty().not() {
                 let digest = code_requests.as_digest();
-                let signature = validator.validate_code_commitments(db, code_requests)?;
-                sequencer.receive_codes_signature(digest, signature)?;
+
+                match validator.validate_code_commitments(db, code_requests) {
+                    Result::Ok(signature) => {
+                        sequencer.receive_codes_signature(digest, signature)?
+                    }
+                    Result::Err(err) => {
+                        log::warn!("Collected code commitments validation failed: {err}")
+                    }
+                }
             }
 
             if block_requests.is_empty().not() {
                 let digest = block_requests.as_digest();
-                let signature = validator.validate_block_commitments(db, block_requests)?;
-                sequencer.receive_blocks_signature(digest, signature)?;
+                match validator.validate_block_commitments(db, block_requests) {
+                    Result::Ok(signature) => {
+                        sequencer.receive_blocks_signature(digest, signature)?
+                    }
+                    Result::Err(err) => {
+                        log::warn!("Collected block commitments validation failed: {err}")
+                    }
+                }
             }
         }
 
@@ -735,11 +770,52 @@ impl Service {
     }
 }
 
-pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
-    if let Some(f) = f {
-        f.await
-    } else {
-        future::pending().await
+mod utils {
+    use super::*;
+
+    pub(crate) struct RoundTimer {
+        round_duration: Duration,
+        started: Option<Instant>,
+    }
+
+    impl RoundTimer {
+        pub fn new(round_duration: Duration) -> Self {
+            Self {
+                round_duration,
+                started: None,
+            }
+        }
+
+        pub fn start(&mut self) {
+            self.started = Some(Instant::now());
+        }
+
+        pub fn stop(&mut self) {
+            self.started = None;
+        }
+
+        pub async fn wait(&self) {
+            maybe_await(self.remaining().map(|rem| tokio::time::sleep(rem))).await;
+        }
+
+        fn remaining(&self) -> Option<Duration> {
+            self.started.map(|started| {
+                let elapsed = started.elapsed();
+                if elapsed < self.round_duration {
+                    self.round_duration - elapsed
+                } else {
+                    Duration::ZERO
+                }
+            })
+        }
+    }
+
+    pub(crate) async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
+        if let Some(f) = f {
+            f.await
+        } else {
+            future::pending().await
+        }
     }
 }
 
