@@ -473,9 +473,7 @@ fn main() {
             }];
 
             declarations.push(quote! {
-                use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
-                use gear_core::costs::SyscallCosts;
-                use gear_lazy_pages_common::LazyPagesCosts;
+                use gear_core::costs::{SyscallCosts, LazyPagesCosts, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
                 use gear_wasm_instrument::gas_metering::{InstantiationWeights, MemoryWeights, SyscallWeights, Schedule};
             });
 

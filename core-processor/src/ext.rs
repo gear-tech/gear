@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    configs::{BlockInfo, ExtCosts},
-    context::SystemReservationContext,
-};
+use crate::{configs::BlockInfo, context::SystemReservationContext};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     format,
@@ -27,7 +24,7 @@ use alloc::{
 };
 use core::marker::PhantomData;
 use gear_core::{
-    costs::CostToken,
+    costs::{CostToken, ExtCosts, LazyPagesCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{
@@ -61,9 +58,7 @@ use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ReplyCode, ReservationError, SignalCode,
 };
-use gear_lazy_pages_common::{
-    GlobalsAccessConfig, LazyPagesCosts, LazyPagesInterface, ProcessAccessError, Status,
-};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInterface, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Processor context.

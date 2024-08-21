@@ -19,14 +19,13 @@
 //! Lazy pages support for native.
 
 use gear_core::{
+    costs::LazyPagesCosts,
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
 };
-use gear_lazy_pages_common::{
-    GlobalsAccessConfig, LazyPagesCosts, LazyPagesInterface, ProcessAccessError, Status,
-};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInterface, ProcessAccessError, Status};
 
 pub struct LazyPagesNative;
 

@@ -21,15 +21,13 @@
 
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
-use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
-    costs::SyscallCosts,
+    costs::{ExtCosts, InstantiationCosts, LazyPagesCosts, ProcessCosts, RentCosts, SyscallCosts},
     message,
     pages::{GearPage, WasmPage},
 };
-use gear_lazy_pages_common::LazyPagesCosts;
 use gear_wasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
     parity_wasm::elements::{Instruction, Module, SignExtInstruction, Type},
