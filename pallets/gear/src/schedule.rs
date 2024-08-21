@@ -1404,10 +1404,10 @@ impl<T: Config> Schedule<T> {
 mod test {
     use super::*;
     use crate::mock::Test;
-    use gear_wasm_instrument::{
-        gas_metering::{CustomConstantCostRules, Rules, Schedule as WasmInstrumentSchedule},
-        parity_wasm::elements,
+    use gear_core::gas_metering::{
+        CustomConstantCostRules, Rules, Schedule as WasmInstrumentSchedule,
     };
+    use gear_wasm_instrument::parity_wasm::elements;
 
     fn all_measured_instructions() -> Vec<Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};

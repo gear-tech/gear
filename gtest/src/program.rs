@@ -26,11 +26,11 @@ use crate::{
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
+    gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
-use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,

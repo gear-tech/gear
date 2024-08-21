@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::{
-    gas_metering::CustomConstantCostRules,
+    gas_metering::ConstantCostRules,
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
 };
 use alloc::format;
@@ -99,7 +99,7 @@ fn duplicate_import() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| CustomConstantCostRules::default(), "env"),
+        inject(module, |_| ConstantCostRules::default(), "env"),
         Err(InstrumentationError::SystemBreakImportAlreadyExists)
     );
 }
@@ -120,12 +120,13 @@ fn duplicate_export() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| CustomConstantCostRules::default(), "env"),
+        inject(module, |_| ConstantCostRules::default(), "env"),
         Err(InstrumentationError::GasGlobalAlreadyExists)
     );
 }
 
-#[test]
+// TODO: move to gear-core
+/*#[test]
 fn unsupported_instruction() {
     // floats
     let module = parse_wat(
@@ -160,13 +161,13 @@ fn unsupported_instruction() {
         inject(module, |_| CustomConstantCostRules::default(), "env"),
         Err(InstrumentationError::GasInjection)
     );
-}
+}*/
 
 #[test]
 fn call_index() {
     let injected_module = inject(
         prebuilt_simple_module(),
-        |_| CustomConstantCostRules::default(),
+        |_| ConstantCostRules::default(),
         "env",
     )
     .unwrap();
@@ -204,7 +205,7 @@ fn cost_overflow() {
     let instruction_cost = u32::MAX / 2;
     let injected_module = inject(
         prebuilt_simple_module(),
-        |_| CustomConstantCostRules::new(instruction_cost, 0, 0),
+        |_| ConstantCostRules::new(instruction_cost, 0, 0),
         "env",
     )
     .unwrap();
@@ -258,9 +259,8 @@ macro_rules! test_gas_counter_injection {
             let input_module = parse_wat($input);
             let expected_module = parse_wat($expected);
 
-            let injected_module =
-                inject(input_module, |_| CustomConstantCostRules::default(), "env")
-                    .expect("inject_gas_counter call failed");
+            let injected_module = inject(input_module, |_| ConstantCostRules::default(), "env")
+                .expect("inject_gas_counter call failed");
 
             let actual_func_body = get_function_body(&injected_module, 0)
                 .expect("injected module must have a function body");

@@ -18,6 +18,8 @@
 
 //! This module is used to instrument a Wasm module with gas metering code.
 
+#![allow(missing_docs)]
+
 pub use gwasm_instrument::gas_metering::*;
 pub use rules::*;
 pub use schedule::*;

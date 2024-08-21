@@ -21,6 +21,7 @@ parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"
 scale-info = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 log.workspace = true
+gwasm-instrument = { workspace = true, features = ["sign_ext"] }
 gear-wasm-instrument.workspace = true
 wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }

@@ -21,11 +21,9 @@
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
 
-use gear_core::costs::{
-    ExtCosts, InstantiationCosts, LazyPagesCosts, ProcessCosts, RentCosts, SyscallCosts,
-};
-use gear_wasm_instrument::gas_metering::{
-    InstantiationWeights, MemoryWeights, Schedule, SyscallWeights,
+use gear_core::{
+    costs::{ExtCosts, InstantiationCosts, LazyPagesCosts, ProcessCosts, RentCosts, SyscallCosts},
+    gas_metering::{InstantiationWeights, MemoryWeights, Schedule, SyscallWeights},
 };
 
 pub fn lazy_pages_costs(val: &MemoryWeights) -> LazyPagesCosts {

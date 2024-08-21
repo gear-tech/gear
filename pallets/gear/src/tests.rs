@@ -49,6 +49,7 @@ use gear_core::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
+    gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -64,7 +65,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},

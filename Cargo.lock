@@ -6441,6 +6441,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gprimitives",
  "gsys",
+ "gwasm-instrument",
  "hashbrown 0.14.5",
  "hex",
  "log",

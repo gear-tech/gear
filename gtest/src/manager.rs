@@ -45,6 +45,7 @@ use gear_common::{
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
@@ -52,7 +53,6 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_native_interface::LazyPagesNative;
-use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
