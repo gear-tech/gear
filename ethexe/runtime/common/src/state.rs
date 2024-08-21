@@ -69,6 +69,10 @@ impl From<H256> for MaybeHash {
 }
 
 impl MaybeHash {
+    pub fn is_empty(&self) -> bool {
+        matches!(self, MaybeHash::Empty)
+    }
+
     pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(H256) -> T) -> T {
         match &self {
             Self::Hash(HashAndLen { hash, .. }) => f(*hash),
@@ -135,6 +139,20 @@ impl ProgramState {
 
     pub fn is_zero(&self) -> bool {
         *self == Self::zero()
+    }
+
+    pub fn requires_init_message(&self) -> bool {
+        if !matches!(
+            self.program,
+            Program::Active(ActiveProgram {
+                initialized: false,
+                ..
+            })
+        ) {
+            return false;
+        }
+
+        self.queue_hash.is_empty() && self.waitlist_hash.is_empty()
     }
 }
 

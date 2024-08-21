@@ -229,7 +229,7 @@ impl Processor {
         // TODO (breathx): accept not ref?
         events: &[BlockEvent],
     ) -> Result<Vec<LocalOutcome>> {
-        log::debug!("Processing events for {block_hash:?}: {events:?}");
+        log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
         let mut states = self
             .db
@@ -309,7 +309,12 @@ impl Processor {
             } => {
                 let payload_hash = self.handle_payload(payload)?;
 
-                let kind = if state_hash.is_zero() {
+                let state = self
+                    .db
+                    .read_state(state_hash)
+                    .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+
+                let kind = if state.requires_init_message() {
                     DispatchKind::Init
                 } else {
                     DispatchKind::Handle

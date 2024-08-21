@@ -329,6 +329,7 @@ impl Drop for TestEnv {
         }
     }
 }
+
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
