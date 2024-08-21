@@ -355,6 +355,10 @@ impl Processor {
 
                     programs.insert(*address, state_hash);
                 }
+                BlockEvent::WVara(event) => {
+                    log::debug!("Handling for wvara event {event:?} is not yet implemented; noop");
+                    continue;
+                }
             }
         }
 

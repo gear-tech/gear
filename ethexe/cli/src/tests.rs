@@ -190,12 +190,14 @@ impl TestEnv {
             Ethereum::deploy(&rpc_url, validators, signer.clone(), sender_address).await?
         };
 
-        let router_address = ethereum.router().address();
+        let router = ethereum.router();
+        let router_query = router.query();
 
-        let router_query = RouterQuery::new(&rpc_url, router_address).await?;
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         let blob_reader = blob_reader.unwrap_or_else(|| Arc::new(MockBlobReader::new(block_time)));
+
+        let router_address = router.address();
 
         let query = Query::new(
             Arc::new(db.clone()),
@@ -449,7 +451,7 @@ async fn ping() {
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
@@ -613,7 +615,7 @@ async fn ping_reorg() {
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
@@ -874,7 +876,7 @@ async fn ping_deep_sync() {
     // Send message in between.
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
