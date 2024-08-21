@@ -47,15 +47,14 @@ pub struct Processor {
     creator: InstanceCreator,
 }
 
-// TODO (breathx): rename outcomes accordingly to events.
 /// Local changes that can be committed to the network or local signer.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum LocalOutcome {
-    /// Produced when code with specific id is recorded and available in database.
-    CodeApproved(CodeId),
-
-    // TODO: add docs
-    CodeRejected(CodeId),
+    /// Produced when code with specific id is recorded and validated.
+    CodeValidated {
+        id: CodeId,
+        valid: bool,
+    },
 
     Transition(StateTransition),
 }
@@ -219,11 +218,9 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing upload code {code_id:?}");
 
-        if code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
-            Ok(vec![LocalOutcome::CodeRejected(code_id)])
-        } else {
-            Ok(vec![LocalOutcome::CodeApproved(code_id)])
-        }
+        let valid = !(code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none());
+
+        Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
     }
 
     pub fn process_block_events(

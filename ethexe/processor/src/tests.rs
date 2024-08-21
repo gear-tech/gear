@@ -71,7 +71,13 @@ fn process_observer_event() {
         .process_upload_code(code_id, &code)
         .expect("failed to upload code");
     log::debug!("\n\nUpload code outcomes: {outcomes:?}\n\n");
-    assert_eq!(outcomes, vec![LocalOutcome::CodeApproved(code_id)]);
+    assert_eq!(
+        outcomes,
+        vec![LocalOutcome::CodeValidated {
+            id: code_id,
+            valid: true
+        }]
+    );
 
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
