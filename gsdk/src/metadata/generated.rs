@@ -31,17 +31,19 @@ pub mod runtime_types {
             pub mod bounded_btree_map {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct BoundedBTreeMap<_0, _1>(pub ::subxt::utils::KeyedVec<_0, _1>);
+                pub struct BoundedBTreeMap<_0, _1>(
+                    pub ::subxt::ext::subxt_core::utils::KeyedVec<_0, _1>,
+                );
             }
             pub mod bounded_vec {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct BoundedVec<_0>(pub ::std::vec::Vec<_0>);
+                pub struct BoundedVec<_0>(pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>);
             }
             pub mod weak_bounded_vec {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct WeakBoundedVec<_0>(pub ::std::vec::Vec<_0>);
+                pub struct WeakBoundedVec<_0>(pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>);
             }
         }
         pub mod finality_grandpa {
@@ -122,7 +124,7 @@ pub mod runtime_types {
                     pub enum Bounded<_0, _1> {
                         #[codec(index = 0)]
                         Legacy {
-                            hash: ::subxt::utils::H256,
+                            hash: ::subxt::ext::subxt_core::utils::H256,
                         },
                         #[codec(index = 1)]
                         Inline(
@@ -132,7 +134,7 @@ pub mod runtime_types {
                         ),
                         #[codec(index = 2)]
                         Lookup {
-                            hash: ::subxt::utils::H256,
+                            hash: ::subxt::ext::subxt_core::utils::H256,
                             len: ::core::primitive::u32,
                         },
                         __Ignore(::core::marker::PhantomData<(_0, _1)>),
@@ -155,7 +157,7 @@ pub mod runtime_types {
                     pub mod fungible {
                         use super::runtime_types;
                         #[derive(
-                            ::subxt::ext::codec::CompactAs,
+                            ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                             Debug,
                             crate::gp::Decode,
                             crate::gp::DecodeAsType,
@@ -262,7 +264,7 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::remark`]."]
                     remark {
-                        remark: ::std::vec::Vec<::core::primitive::u8>,
+                        remark: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::set_heap_pages`]."]
@@ -270,36 +272,38 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::set_code`]."]
                     set_code {
-                        code: ::std::vec::Vec<::core::primitive::u8>,
+                        code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::set_code_without_checks`]."]
                     set_code_without_checks {
-                        code: ::std::vec::Vec<::core::primitive::u8>,
+                        code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::set_storage`]."]
                     set_storage {
-                        items: ::std::vec::Vec<(
-                            ::std::vec::Vec<::core::primitive::u8>,
-                            ::std::vec::Vec<::core::primitive::u8>,
+                        items: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         )>,
                     },
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::kill_storage`]."]
                     kill_storage {
-                        keys: ::std::vec::Vec<::std::vec::Vec<::core::primitive::u8>>,
+                        keys: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        >,
                     },
                     #[codec(index = 6)]
                     #[doc = "See [`Pallet::kill_prefix`]."]
                     kill_prefix {
-                        prefix: ::std::vec::Vec<::core::primitive::u8>,
+                        prefix: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         subkeys: ::core::primitive::u32,
                     },
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::remark_with_event`]."]
                     remark_with_event {
-                        remark: ::std::vec::Vec<::core::primitive::u8>,
+                        remark: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -348,18 +352,18 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "A new account was created."]
                     NewAccount {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 4)]
                     #[doc = "An account was reaped."]
                     KilledAccount {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 5)]
                     #[doc = "On on-chain remark happened."]
                     Remarked {
-                        sender: ::subxt::utils::AccountId32,
-                        hash: ::subxt::utils::H256,
+                        sender: ::subxt::ext::subxt_core::utils::AccountId32,
+                        hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                 }
             }
@@ -375,13 +379,13 @@ pub mod runtime_types {
             pub struct EventRecord<_0, _1> {
                 pub phase: runtime_types::frame_system::Phase,
                 pub event: _0,
-                pub topics: ::std::vec::Vec<_1>,
+                pub topics: ::subxt::ext::subxt_core::alloc::vec::Vec<_1>,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct LastRuntimeUpgradeInfo {
                 #[codec(compact)]
                 pub spec_version: ::core::primitive::u32,
-                pub spec_name: ::std::string::String,
+                pub spec_name: ::subxt::ext::subxt_core::alloc::string::String,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum Phase {
@@ -636,7 +640,7 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct CodeMetadata {
-                pub author: ::subxt::utils::H256,
+                pub author: ::subxt::ext::subxt_core::utils::H256,
                 #[codec(compact)]
                 pub block_number: ::core::primitive::u32,
             }
@@ -654,7 +658,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct LimitedVec<_0, _1>(
-                    pub ::std::vec::Vec<_0>,
+                    pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
                     #[codec(skip)] pub ::core::marker::PhantomData<_1>,
                 );
             }
@@ -677,13 +681,14 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct InstrumentedCode {
-                        pub code: ::std::vec::Vec<::core::primitive::u8>,
+                        pub code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         pub original_code_len: ::core::primitive::u32,
-                        pub exports:
-                            ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
+                        pub exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::gear_core::message::DispatchKind,
+                        >,
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
-                            ::core::option::Option<runtime_types::gear_core::pages::Page2>,
+                            ::core::option::Option<runtime_types::gear_core::pages::Page>,
                         pub instantiated_section_sizes:
                             runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
                         pub version: ::core::primitive::u32,
@@ -736,7 +741,7 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct ContextStore {
-                        pub outgoing: ::subxt::utils::KeyedVec<
+                        pub outgoing: ::subxt::ext::subxt_core::utils::KeyedVec<
                             ::core::primitive::u32,
                             ::core::option::Option<
                                 runtime_types::gear_core::buffer::LimitedVec<
@@ -751,7 +756,9 @@ pub mod runtime_types {
                                 runtime_types::gear_core::message::PayloadSizeError,
                             >,
                         >,
-                        pub initialized: ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
+                        pub initialized: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::gprimitives::ActorId,
+                        >,
                         pub reservation_nonce:
                             runtime_types::gear_core::reservation::ReservationNonce,
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,
@@ -845,7 +852,7 @@ pub mod runtime_types {
             pub mod pages {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -853,15 +860,7 @@ pub mod runtime_types {
                 )]
                 pub struct Page(pub ::core::primitive::u32);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
-                    Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
-                )]
-                pub struct Page2(pub ::core::primitive::u32);
-                #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -872,7 +871,7 @@ pub mod runtime_types {
             pub mod percent {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -886,19 +885,20 @@ pub mod runtime_types {
                 pub struct ActiveProgram<_0> {
                     pub allocations_tree_len: ::core::primitive::u32,
                     pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
-                    pub gas_reservation_map: ::subxt::utils::KeyedVec<
+                    pub gas_reservation_map: ::subxt::ext::subxt_core::utils::KeyedVec<
                         runtime_types::gprimitives::ReservationId,
                         runtime_types::gear_core::reservation::GasReservationSlot,
                     >,
-                    pub code_hash: ::subxt::utils::H256,
-                    pub code_exports:
-                        ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
+                    pub code_hash: ::subxt::ext::subxt_core::utils::H256,
+                    pub code_exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                        runtime_types::gear_core::message::DispatchKind,
+                    >,
                     pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                     pub state: runtime_types::gear_core::program::ProgramState,
                     pub expiration_block: _0,
                 }
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -933,7 +933,7 @@ pub mod runtime_types {
                     pub finish: ::core::primitive::u32,
                 }
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -1039,7 +1039,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct IntervalsTree<_0> {
-                    pub inner: ::subxt::utils::KeyedVec<_0, _0>,
+                    pub inner: ::subxt::ext::subxt_core::utils::KeyedVec<_0, _0>,
                 }
             }
         }
@@ -1053,7 +1053,7 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::report_equivocation`]."]
                     report_equivocation {
-                        equivocation_proof: ::std::boxed::Box<
+                        equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_slots::EquivocationProof<
                                 runtime_types::sp_runtime::generic::header::Header<
                                     ::core::primitive::u32,
@@ -1066,7 +1066,7 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::report_equivocation_unsigned`]."]
                     report_equivocation_unsigned {
-                        equivocation_proof: ::std::boxed::Box<
+                        equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_slots::EquivocationProof<
                                 runtime_types::sp_runtime::generic::header::Header<
                                     ::core::primitive::u32,
@@ -1106,8 +1106,8 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Bag {
-                    pub head: ::core::option::Option<::subxt::utils::AccountId32>,
-                    pub tail: ::core::option::Option<::subxt::utils::AccountId32>,
+                    pub head: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
+                    pub tail: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ListError {
@@ -1122,9 +1122,9 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Node {
-                    pub id: ::subxt::utils::AccountId32,
-                    pub prev: ::core::option::Option<::subxt::utils::AccountId32>,
-                    pub next: ::core::option::Option<::subxt::utils::AccountId32>,
+                    pub id: ::subxt::ext::subxt_core::utils::AccountId32,
+                    pub prev: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
+                    pub next: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                     pub bag_upper: ::core::primitive::u64,
                     pub score: ::core::primitive::u64,
                 }
@@ -1137,18 +1137,30 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::rebag`]."]
                     rebag {
-                        dislocated: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        dislocated: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::put_in_front_of`]."]
                     put_in_front_of {
-                        lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        lighter: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::put_in_front_of_other`]."]
                     put_in_front_of_other {
-                        heavier: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        heavier: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        lighter: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -1164,14 +1176,14 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "Moved an account from one bag to another."]
                     Rebagged {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         from: ::core::primitive::u64,
                         to: ::core::primitive::u64,
                     },
                     #[codec(index = 1)]
                     #[doc = "Updated the score of some account to the given amount."]
                     ScoreUpdated {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         new_score: ::core::primitive::u64,
                     },
                 }
@@ -1187,46 +1199,69 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::transfer_allow_death`]."]
                     transfer_allow_death {
-                        dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        dest: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         #[codec(compact)]
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::force_transfer`]."]
                     force_transfer {
-                        source: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        source: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        dest: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         #[codec(compact)]
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::transfer_keep_alive`]."]
                     transfer_keep_alive {
-                        dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        dest: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         #[codec(compact)]
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::transfer_all`]."]
                     transfer_all {
-                        dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        dest: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::force_unreserve`]."]
                     force_unreserve {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        who: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 6)]
                     #[doc = "See [`Pallet::upgrade_accounts`]."]
                     upgrade_accounts {
-                        who: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                        who: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                        >,
                     },
                     #[codec(index = 8)]
                     #[doc = "See [`Pallet::force_set_balance`]."]
                     force_set_balance {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        who: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         #[codec(compact)]
                         new_free: ::core::primitive::u128,
                     },
@@ -1271,47 +1306,47 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "An account was created with some free balance."]
                     Endowed {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                         free_balance: ::core::primitive::u128,
                     },
                     #[codec(index = 1)]
                     #[doc = "An account was removed whose balance was non-zero but below ExistentialDeposit,"]
                     #[doc = "resulting in an outright loss."]
                     DustLost {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
                     #[doc = "Transfer succeeded."]
                     Transfer {
-                        from: ::subxt::utils::AccountId32,
-                        to: ::subxt::utils::AccountId32,
+                        from: ::subxt::ext::subxt_core::utils::AccountId32,
+                        to: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
                     #[doc = "A balance was set by root."]
                     BalanceSet {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         free: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
                     #[doc = "Some balance was reserved (moved from free to reserved)."]
                     Reserved {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 5)]
                     #[doc = "Some balance was unreserved (moved from reserved to free)."]
                     Unreserved {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 6)]
                     #[doc = "Some balance was moved from the reserve of the first account to the second account."]
                     #[doc = "Final argument indicates the destination balance type."]
                     ReserveRepatriated {
-                        from: ::subxt::utils::AccountId32,
-                        to: ::subxt::utils::AccountId32,
+                        from: ::subxt::ext::subxt_core::utils::AccountId32,
+                        to: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                         destination_status:
                             runtime_types::frame_support::traits::tokens::misc::BalanceStatus,
@@ -1319,48 +1354,50 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "Some amount was deposited (e.g. for transaction fees)."]
                     Deposit {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 8)]
                     #[doc = "Some amount was withdrawn from the account (e.g. for transaction fees)."]
                     Withdraw {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 9)]
                     #[doc = "Some amount was removed from the account (e.g. for misbehavior)."]
                     Slashed {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 10)]
                     #[doc = "Some amount was minted into an account."]
                     Minted {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 11)]
                     #[doc = "Some amount was burned from an account."]
                     Burned {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 12)]
                     #[doc = "Some amount was suspended from an account (it can be restored later)."]
                     Suspended {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 13)]
                     #[doc = "Some amount was restored into an account."]
                     Restored {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 14)]
                     #[doc = "An account was upgraded."]
-                    Upgraded { who: ::subxt::utils::AccountId32 },
+                    Upgraded {
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
+                    },
                     #[codec(index = 15)]
                     #[doc = "Total issuance was increased by `amount`, creating a credit to be balanced."]
                     Issued { amount: ::core::primitive::u128 },
@@ -1370,25 +1407,25 @@ pub mod runtime_types {
                     #[codec(index = 17)]
                     #[doc = "Some balance was locked."]
                     Locked {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 18)]
                     #[doc = "Some balance was unlocked."]
                     Unlocked {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 19)]
                     #[doc = "Some balance was frozen."]
                     Frozen {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 20)]
                     #[doc = "Some balance was thawed."]
                     Thawed {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                 }
@@ -1409,7 +1446,7 @@ pub mod runtime_types {
                     pub reasons: runtime_types::pallet_balances::types::Reasons,
                 }
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -1449,7 +1486,8 @@ pub mod runtime_types {
                     propose_bounty {
                         #[codec(compact)]
                         value: ::core::primitive::u128,
-                        description: ::std::vec::Vec<::core::primitive::u8>,
+                        description:
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::approve_bounty`]."]
@@ -1462,7 +1500,10 @@ pub mod runtime_types {
                     propose_curator {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
-                        curator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        curator: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         #[codec(compact)]
                         fee: ::core::primitive::u128,
                     },
@@ -1483,7 +1524,10 @@ pub mod runtime_types {
                     award_bounty {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
-                        beneficiary: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        beneficiary: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 6)]
                     #[doc = "See [`Pallet::claim_bounty`]."]
@@ -1502,7 +1546,7 @@ pub mod runtime_types {
                     extend_bounty_expiry {
                         #[codec(compact)]
                         bounty_id: ::core::primitive::u32,
-                        remark: ::std::vec::Vec<::core::primitive::u8>,
+                        remark: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -1562,14 +1606,14 @@ pub mod runtime_types {
                     #[doc = "A bounty is awarded to a beneficiary."]
                     BountyAwarded {
                         index: ::core::primitive::u32,
-                        beneficiary: ::subxt::utils::AccountId32,
+                        beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 4)]
                     #[doc = "A bounty is claimed by beneficiary."]
                     BountyClaimed {
                         index: ::core::primitive::u32,
                         payout: ::core::primitive::u128,
-                        beneficiary: ::subxt::utils::AccountId32,
+                        beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 5)]
                     #[doc = "A bounty is cancelled."]
@@ -1584,7 +1628,7 @@ pub mod runtime_types {
                     #[doc = "A bounty curator is proposed."]
                     CuratorProposed {
                         bounty_id: ::core::primitive::u32,
-                        curator: ::subxt::utils::AccountId32,
+                        curator: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 9)]
                     #[doc = "A bounty curator is unassigned."]
@@ -1593,7 +1637,7 @@ pub mod runtime_types {
                     #[doc = "A bounty curator is accepted."]
                     CuratorAccepted {
                         bounty_id: ::core::primitive::u32,
-                        curator: ::subxt::utils::AccountId32,
+                        curator: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                 }
             }
@@ -1640,7 +1684,8 @@ pub mod runtime_types {
                         parent_bounty_id: ::core::primitive::u32,
                         #[codec(compact)]
                         value: ::core::primitive::u128,
-                        description: ::std::vec::Vec<::core::primitive::u8>,
+                        description:
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::propose_curator`]."]
@@ -1649,7 +1694,10 @@ pub mod runtime_types {
                         parent_bounty_id: ::core::primitive::u32,
                         #[codec(compact)]
                         child_bounty_id: ::core::primitive::u32,
-                        curator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        curator: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         #[codec(compact)]
                         fee: ::core::primitive::u128,
                     },
@@ -1676,7 +1724,10 @@ pub mod runtime_types {
                         parent_bounty_id: ::core::primitive::u32,
                         #[codec(compact)]
                         child_bounty_id: ::core::primitive::u32,
-                        beneficiary: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        beneficiary: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::claim_child_bounty`]."]
@@ -1722,7 +1773,7 @@ pub mod runtime_types {
                     Awarded {
                         index: ::core::primitive::u32,
                         child_index: ::core::primitive::u32,
-                        beneficiary: ::subxt::utils::AccountId32,
+                        beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 2)]
                     #[doc = "A child-bounty is claimed by beneficiary."]
@@ -1730,7 +1781,7 @@ pub mod runtime_types {
                         index: ::core::primitive::u32,
                         child_index: ::core::primitive::u32,
                         payout: ::core::primitive::u128,
-                        beneficiary: ::subxt::utils::AccountId32,
+                        beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 3)]
                     #[doc = "A child-bounty is cancelled."]
@@ -1804,7 +1855,10 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::delegate`]."]
                     delegate {
                         class: ::core::primitive::u16,
-                        to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        to: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         conviction: runtime_types::pallet_conviction_voting::conviction::Conviction,
                         balance: ::core::primitive::u128,
                     },
@@ -1815,7 +1869,10 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::unlock`]."]
                     unlock {
                         class: ::core::primitive::u16,
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::remove_vote`]."]
@@ -1826,7 +1883,10 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::remove_other_vote`]."]
                     remove_other_vote {
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         class: ::core::primitive::u16,
                         index: ::core::primitive::u32,
                     },
@@ -1877,10 +1937,13 @@ pub mod runtime_types {
                 pub enum Event {
                     #[codec(index = 0)]
                     #[doc = "An account has delegated their vote to another account. \\[who, target\\]"]
-                    Delegated(::subxt::utils::AccountId32, ::subxt::utils::AccountId32),
+                    Delegated(
+                        ::subxt::ext::subxt_core::utils::AccountId32,
+                        ::subxt::ext::subxt_core::utils::AccountId32,
+                    ),
                     #[codec(index = 1)]
                     #[doc = "An \\[account\\] has cancelled a previous delegation operation."]
-                    Undelegated(::subxt::utils::AccountId32),
+                    Undelegated(::subxt::ext::subxt_core::utils::AccountId32),
                 }
             }
             pub mod types {
@@ -1921,7 +1984,7 @@ pub mod runtime_types {
                         runtime_types::pallet_conviction_voting::types::Delegations<_0>,
                     pub prior: runtime_types::pallet_conviction_voting::vote::PriorLock<_1, _0>,
                     #[codec(skip)]
-                    pub __subxt_unused_type_params: ::core::marker::PhantomData<_2>,
+                    pub __ignore: ::core::marker::PhantomData<_2>,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Delegating<_0, _1, _2> {
@@ -1935,7 +1998,7 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PriorLock<_0, _1>(pub _0, pub _1);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -1961,7 +2024,7 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
-                    # [codec (index = 0)] # [doc = "See [`Pallet::submit_unsigned`]."] submit_unsigned { raw_solution: ::std::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , witness : runtime_types::pallet_election_provider_multi_phase::SolutionOrSnapshotSize , } , # [codec (index = 1)] # [doc = "See [`Pallet::set_minimum_untrusted_score`]."] set_minimum_untrusted_score { maybe_next_score: ::core::option::Option < runtime_types::sp_npos_elections::ElectionScore > , } , # [codec (index = 2)] # [doc = "See [`Pallet::set_emergency_election_result`]."] set_emergency_election_result { supports: ::std::vec::Vec < (::subxt::utils::AccountId32 , runtime_types::sp_npos_elections::Support < ::subxt::utils::AccountId32 > ,) > , } , # [codec (index = 3)] # [doc = "See [`Pallet::submit`]."] submit { raw_solution: ::std::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , } , # [codec (index = 4)] # [doc = "See [`Pallet::governance_fallback`]."] governance_fallback { maybe_max_voters: ::core::option::Option <::core::primitive::u32 > , maybe_max_targets: ::core::option::Option <::core::primitive::u32 > , } , }
+                    # [codec (index = 0)] # [doc = "See [`Pallet::submit_unsigned`]."] submit_unsigned { raw_solution : ::subxt::ext ::subxt_core::alloc::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , witness : runtime_types::pallet_election_provider_multi_phase::SolutionOrSnapshotSize , } , # [codec (index = 1)] # [doc = "See [`Pallet::set_minimum_untrusted_score`]."] set_minimum_untrusted_score { maybe_next_score: ::core::option::Option < runtime_types::sp_npos_elections::ElectionScore > , } , # [codec (index = 2)] # [doc = "See [`Pallet::set_emergency_election_result`]."] set_emergency_election_result { supports : ::subxt::ext ::subxt_core::alloc::vec::Vec < (::subxt::ext ::subxt_core::utils::AccountId32 , runtime_types::sp_npos_elections::Support < ::subxt::ext ::subxt_core::utils::AccountId32 > ,) > , } , # [codec (index = 3)] # [doc = "See [`Pallet::submit`]."] submit { raw_solution : ::subxt::ext ::subxt_core::alloc::boxed::Box < runtime_types::pallet_election_provider_multi_phase::RawSolution < runtime_types::vara_runtime::NposSolution16 > > , } , # [codec (index = 4)] # [doc = "See [`Pallet::governance_fallback`]."] governance_fallback { maybe_max_voters: ::core::option::Option <::core::primitive::u32 > , maybe_max_targets: ::core::option::Option <::core::primitive::u32 > , } , }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Error of the pallet that can be returned in response to dispatches."]
                 pub enum Error {
@@ -2022,7 +2085,8 @@ pub mod runtime_types {
                     SolutionStored {
                         compute:
                             runtime_types::pallet_election_provider_multi_phase::ElectionCompute,
-                        origin: ::core::option::Option<::subxt::utils::AccountId32>,
+                        origin:
+                            ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                         prev_ejected: ::core::primitive::bool,
                     },
                     #[codec(index = 1)]
@@ -2040,13 +2104,13 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "An account has been rewarded for their signed submission being finalized."]
                     Rewarded {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
                     #[doc = "An account has been slashed for submitting an invalid signed submission."]
                     Slashed {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 5)]
@@ -2106,16 +2170,18 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ReadySolution {
                 pub supports: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
-                    ::subxt::utils::AccountId32,
-                    runtime_types::sp_npos_elections::Support<::subxt::utils::AccountId32>,
+                    ::subxt::ext::subxt_core::utils::AccountId32,
+                    runtime_types::sp_npos_elections::Support<
+                        ::subxt::ext::subxt_core::utils::AccountId32,
+                    >,
                 )>,
                 pub score: runtime_types::sp_npos_elections::ElectionScore,
                 pub compute: runtime_types::pallet_election_provider_multi_phase::ElectionCompute,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct RoundSnapshot<_0, _1> {
-                pub voters: ::std::vec::Vec<_1>,
-                pub targets: ::std::vec::Vec<_0>,
+                pub voters: ::subxt::ext::subxt_core::alloc::vec::Vec<_1>,
+                pub targets: ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct SolutionOrSnapshotSize {
@@ -2135,14 +2201,15 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::upload_code`]."]
                     upload_code {
-                        code: ::std::vec::Vec<::core::primitive::u8>,
+                        code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::upload_program`]."]
                     upload_program {
-                        code: ::std::vec::Vec<::core::primitive::u8>,
-                        salt: ::std::vec::Vec<::core::primitive::u8>,
-                        init_payload: ::std::vec::Vec<::core::primitive::u8>,
+                        code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        salt: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        init_payload:
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
                         keep_alive: ::core::primitive::bool,
@@ -2151,8 +2218,9 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::create_program`]."]
                     create_program {
                         code_id: runtime_types::gprimitives::CodeId,
-                        salt: ::std::vec::Vec<::core::primitive::u8>,
-                        init_payload: ::std::vec::Vec<::core::primitive::u8>,
+                        salt: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        init_payload:
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
                         keep_alive: ::core::primitive::bool,
@@ -2161,7 +2229,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::send_message`]."]
                     send_message {
                         destination: runtime_types::gprimitives::ActorId,
-                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
                         keep_alive: ::core::primitive::bool,
@@ -2170,7 +2238,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::send_reply`]."]
                     send_reply {
                         reply_to_id: runtime_types::gprimitives::MessageId,
-                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
                         keep_alive: ::core::primitive::bool,
@@ -2270,7 +2338,7 @@ pub mod runtime_types {
                     #[doc = "added to the Gear message queue."]
                     MessageQueued {
                         id: runtime_types::gprimitives::MessageId,
-                        source: ::subxt::utils::AccountId32,
+                        source: ::subxt::ext::subxt_core::utils::AccountId32,
                         destination: runtime_types::gprimitives::ActorId,
                         entry: runtime_types::gear_common::event::MessageEntry,
                     },
@@ -2295,11 +2363,13 @@ pub mod runtime_types {
                     #[doc = "The result of processing the messages within the block."]
                     MessagesDispatched {
                         total: ::core::primitive::u32,
-                        statuses: ::subxt::utils::KeyedVec<
+                        statuses: ::subxt::ext::subxt_core::utils::KeyedVec<
                             runtime_types::gprimitives::MessageId,
                             runtime_types::gear_common::event::DispatchStatus,
                         >,
-                        state_changes: ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
+                        state_changes: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::gprimitives::ActorId,
+                        >,
                     },
                     #[codec(index = 4)]
                     #[doc = "Messages execution delayed (waited) and successfully"]
@@ -2634,10 +2704,12 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct DebugData {
-                    pub dispatch_queue:
-                        ::std::vec::Vec<runtime_types::gear_core::message::stored::StoredDispatch>,
-                    pub programs:
-                        ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
+                    pub dispatch_queue: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                        runtime_types::gear_core::message::stored::StoredDispatch,
+                    >,
+                    pub programs: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                        runtime_types::pallet_gear_debug::pallet::ProgramDetails,
+                    >,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -2659,11 +2731,11 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ProgramInfo {
                     pub static_pages: runtime_types::gear_core::pages::PagesAmount,
-                    pub persistent_pages: ::subxt::utils::KeyedVec<
+                    pub persistent_pages: ::subxt::ext::subxt_core::utils::KeyedVec<
                         runtime_types::gear_core::pages::Page,
                         runtime_types::gear_core::memory::PageBuf,
                     >,
-                    pub code_hash: ::subxt::utils::H256,
+                    pub code_hash: ::subxt::ext::subxt_core::utils::H256,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ProgramState {
@@ -2681,9 +2753,9 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct EthMessage {
                     pub nonce: runtime_types::primitive_types::U256,
-                    pub source: ::subxt::utils::H256,
-                    pub destination: ::subxt::utils::H160,
-                    pub payload: ::std::vec::Vec<::core::primitive::u8>,
+                    pub source: ::subxt::ext::subxt_core::utils::H256,
+                    pub destination: ::subxt::ext::subxt_core::utils::H160,
+                    pub payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                 }
             }
             pub mod pallet {
@@ -2700,8 +2772,8 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::send_eth_message`]."]
                     send_eth_message {
-                        destination: ::subxt::utils::H160,
-                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        destination: ::subxt::ext::subxt_core::utils::H160,
+                        payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2732,7 +2804,7 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "Grandpa validator's keys set was hashed and set in storage at"]
                     #[doc = "first block of the last session in the era."]
-                    AuthoritySetHashChanged(::subxt::utils::H256),
+                    AuthoritySetHashChanged(::subxt::ext::subxt_core::utils::H256),
                     #[codec(index = 1)]
                     #[doc = "Bridge got cleared on initialization of the second block in a new era."]
                     BridgeCleared,
@@ -2751,11 +2823,11 @@ pub mod runtime_types {
                     #[doc = "A new message was queued for bridging."]
                     MessageQueued {
                         message: runtime_types::pallet_gear_eth_bridge::internal::EthMessage,
-                        hash: ::subxt::utils::H256,
+                        hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 6)]
                     #[doc = "Merkle root of the queue changed: new messages queued within the block."]
-                    QueueMerkleRootChanged(::subxt::utils::H256),
+                    QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
                 }
             }
         }
@@ -2931,13 +3003,19 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::force_refill`]."]
                     force_refill {
-                        from: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        from: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::withdraw`]."]
                     withdraw {
-                        to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        to: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
@@ -2981,7 +3059,7 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     SendMessage {
                         destination: runtime_types::gprimitives::ActorId,
-                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: _0,
                         keep_alive: ::core::primitive::bool,
@@ -2989,14 +3067,14 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     SendReply {
                         reply_to_id: runtime_types::gprimitives::MessageId,
-                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: _0,
                         keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 2)]
                     UploadCode {
-                        code: ::std::vec::Vec<::core::primitive::u8>,
+                        code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 3)]
                     DeclineVoucher,
@@ -3007,7 +3085,9 @@ pub mod runtime_types {
                 pub struct VoucherInfo<_0, _1> {
                     pub owner: _0,
                     pub programs: ::core::option::Option<
-                        ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
+                        ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::gprimitives::ActorId,
+                        >,
                     >,
                     pub code_uploading: ::core::primitive::bool,
                     pub expiry: _1,
@@ -3021,10 +3101,12 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::issue`]."]
                     issue {
-                        spender: ::subxt::utils::AccountId32,
+                        spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         balance: ::core::primitive::u128,
                         programs: ::core::option::Option<
-                            ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<
+                                runtime_types::gprimitives::ActorId,
+                            >,
                         >,
                         code_uploading: ::core::primitive::bool,
                         duration: ::core::primitive::u32,
@@ -3040,19 +3122,22 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::revoke`]."]
                     revoke {
-                        spender: ::subxt::utils::AccountId32,
+                        spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::update`]."]
                     update {
-                        spender: ::subxt::utils::AccountId32,
+                        spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
-                        move_ownership: ::core::option::Option<::subxt::utils::AccountId32>,
+                        move_ownership:
+                            ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                         balance_top_up: ::core::option::Option<::core::primitive::u128>,
                         append_programs: ::core::option::Option<
                             ::core::option::Option<
-                                ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
+                                ::subxt::ext::subxt_core::alloc::vec::Vec<
+                                    runtime_types::gprimitives::ActorId,
+                                >,
                             >,
                         >,
                         code_uploading: ::core::option::Option<::core::primitive::bool>,
@@ -3114,8 +3199,8 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "Voucher has been issued."]
                     VoucherIssued {
-                        owner: ::subxt::utils::AccountId32,
-                        spender: ::subxt::utils::AccountId32,
+                        owner: ::subxt::ext::subxt_core::utils::AccountId32,
+                        spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 1)]
@@ -3123,20 +3208,21 @@ pub mod runtime_types {
                     #[doc = ""]
                     #[doc = "NOTE: currently means only \"refunded\"."]
                     VoucherRevoked {
-                        spender: ::subxt::utils::AccountId32,
+                        spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 2)]
                     #[doc = "Voucher has been updated."]
                     VoucherUpdated {
-                        spender: ::subxt::utils::AccountId32,
+                        spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
-                        new_owner: ::core::option::Option<::subxt::utils::AccountId32>,
+                        new_owner:
+                            ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                     },
                     #[codec(index = 3)]
                     #[doc = "Voucher has been declined (set to expired state)."]
                     VoucherDeclined {
-                        spender: ::subxt::utils::AccountId32,
+                        spender: ::subxt::ext::subxt_core::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                 }
@@ -3152,9 +3238,9 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::report_equivocation`]."]
                     report_equivocation {
-                        equivocation_proof: ::std::boxed::Box<
+                        equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_grandpa::EquivocationProof<
-                                ::subxt::utils::H256,
+                                ::subxt::ext::subxt_core::utils::H256,
                                 ::core::primitive::u32,
                             >,
                         >,
@@ -3163,9 +3249,9 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::report_equivocation_unsigned`]."]
                     report_equivocation_unsigned {
-                        equivocation_proof: ::std::boxed::Box<
+                        equivocation_proof: ::subxt::ext::subxt_core::alloc::boxed::Box<
                             runtime_types::sp_consensus_grandpa::EquivocationProof<
-                                ::subxt::utils::H256,
+                                ::subxt::ext::subxt_core::utils::H256,
                                 ::core::primitive::u32,
                             >,
                         >,
@@ -3211,7 +3297,7 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "New authority set has been applied."]
                     NewAuthorities {
-                        authority_set: ::std::vec::Vec<(
+                        authority_set: ::subxt::ext::subxt_core::alloc::vec::Vec<(
                             runtime_types::sp_consensus_grandpa::app::Public,
                             ::core::primitive::u64,
                         )>,
@@ -3275,19 +3361,23 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::add_registrar`]."]
                     add_registrar {
-                        account: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        account: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::set_identity`]."]
                     set_identity {
-                        info:
-                            ::std::boxed::Box<runtime_types::pallet_identity::legacy::IdentityInfo>,
+                        info: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::pallet_identity::legacy::IdentityInfo,
+                        >,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::set_subs`]."]
                     set_subs {
-                        subs: ::std::vec::Vec<(
-                            ::subxt::utils::AccountId32,
+                        subs: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                            ::subxt::ext::subxt_core::utils::AccountId32,
                             runtime_types::pallet_identity::types::Data,
                         )>,
                     },
@@ -3318,7 +3408,10 @@ pub mod runtime_types {
                     set_account_id {
                         #[codec(compact)]
                         index: ::core::primitive::u32,
-                        new: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        new: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 8)]
                     #[doc = "See [`Pallet::set_fields`]."]
@@ -3332,33 +3425,48 @@ pub mod runtime_types {
                     provide_judgement {
                         #[codec(compact)]
                         reg_index: ::core::primitive::u32,
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         judgement: runtime_types::pallet_identity::types::Judgement<
                             ::core::primitive::u128,
                         >,
-                        identity: ::subxt::utils::H256,
+                        identity: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 10)]
                     #[doc = "See [`Pallet::kill_identity`]."]
                     kill_identity {
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 11)]
                     #[doc = "See [`Pallet::add_sub`]."]
                     add_sub {
-                        sub: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        sub: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         data: runtime_types::pallet_identity::types::Data,
                     },
                     #[codec(index = 12)]
                     #[doc = "See [`Pallet::rename_sub`]."]
                     rename_sub {
-                        sub: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        sub: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         data: runtime_types::pallet_identity::types::Data,
                     },
                     #[codec(index = 13)]
                     #[doc = "See [`Pallet::remove_sub`]."]
                     remove_sub {
-                        sub: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        sub: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 14)]
                     #[doc = "See [`Pallet::quit_sub`]."]
@@ -3424,35 +3532,37 @@ pub mod runtime_types {
                 pub enum Event {
                     #[codec(index = 0)]
                     #[doc = "A name was set or reset (which will remove all judgements)."]
-                    IdentitySet { who: ::subxt::utils::AccountId32 },
+                    IdentitySet {
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
+                    },
                     #[codec(index = 1)]
                     #[doc = "A name was cleared, and the given balance returned."]
                     IdentityCleared {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
                     #[doc = "A name was removed and the given balance slashed."]
                     IdentityKilled {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
                     #[doc = "A judgement was asked from a registrar."]
                     JudgementRequested {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         registrar_index: ::core::primitive::u32,
                     },
                     #[codec(index = 4)]
                     #[doc = "A judgement request was retracted."]
                     JudgementUnrequested {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         registrar_index: ::core::primitive::u32,
                     },
                     #[codec(index = 5)]
                     #[doc = "A judgement was given by a registrar."]
                     JudgementGiven {
-                        target: ::subxt::utils::AccountId32,
+                        target: ::subxt::ext::subxt_core::utils::AccountId32,
                         registrar_index: ::core::primitive::u32,
                     },
                     #[codec(index = 6)]
@@ -3463,23 +3573,23 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "A sub-identity was added to an identity and the deposit paid."]
                     SubIdentityAdded {
-                        sub: ::subxt::utils::AccountId32,
-                        main: ::subxt::utils::AccountId32,
+                        sub: ::subxt::ext::subxt_core::utils::AccountId32,
+                        main: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 8)]
                     #[doc = "A sub-identity was removed from an identity and the deposit freed."]
                     SubIdentityRemoved {
-                        sub: ::subxt::utils::AccountId32,
-                        main: ::subxt::utils::AccountId32,
+                        sub: ::subxt::ext::subxt_core::utils::AccountId32,
+                        main: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 9)]
                     #[doc = "A sub-identity was cleared, and the given deposit repatriated from the"]
                     #[doc = "main identity account to the sub-identity account."]
                     SubIdentityRevoked {
-                        sub: ::subxt::utils::AccountId32,
-                        main: ::subxt::utils::AccountId32,
+                        sub: ::subxt::ext::subxt_core::utils::AccountId32,
+                        main: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
                 }
@@ -3638,10 +3748,10 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "At the end of the session, at least one validator was found to be offline."]
                     SomeOffline {
-                        offline: ::std::vec::Vec<(
-                            ::subxt::utils::AccountId32,
+                        offline: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                            ::subxt::ext::subxt_core::utils::AccountId32,
                             runtime_types::sp_staking::Exposure<
-                                ::subxt::utils::AccountId32,
+                                ::subxt::ext::subxt_core::utils::AccountId32,
                                 ::core::primitive::u128,
                             >,
                         )>,
@@ -3680,25 +3790,35 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::as_multi_threshold_1`]."]
                     as_multi_threshold_1 {
-                        other_signatories: ::std::vec::Vec<::subxt::utils::AccountId32>,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                        >,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::as_multi`]."]
                     as_multi {
                         threshold: ::core::primitive::u16,
-                        other_signatories: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                        other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                        >,
                         maybe_timepoint: ::core::option::Option<
                             runtime_types::pallet_multisig::Timepoint<::core::primitive::u32>,
                         >,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                         max_weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::approve_as_multi`]."]
                     approve_as_multi {
                         threshold: ::core::primitive::u16,
-                        other_signatories: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                        other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                        >,
                         maybe_timepoint: ::core::option::Option<
                             runtime_types::pallet_multisig::Timepoint<::core::primitive::u32>,
                         >,
@@ -3709,7 +3829,9 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::cancel_as_multi`]."]
                     cancel_as_multi {
                         threshold: ::core::primitive::u16,
-                        other_signatories: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                        other_signatories: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                        >,
                         timepoint:
                             runtime_types::pallet_multisig::Timepoint<::core::primitive::u32>,
                         call_hash: [::core::primitive::u8; 32usize],
@@ -3767,26 +3889,26 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "A new multisig operation has begun."]
                     NewMultisig {
-                        approving: ::subxt::utils::AccountId32,
-                        multisig: ::subxt::utils::AccountId32,
+                        approving: ::subxt::ext::subxt_core::utils::AccountId32,
+                        multisig: ::subxt::ext::subxt_core::utils::AccountId32,
                         call_hash: [::core::primitive::u8; 32usize],
                     },
                     #[codec(index = 1)]
                     #[doc = "A multisig operation has been approved by someone."]
                     MultisigApproval {
-                        approving: ::subxt::utils::AccountId32,
+                        approving: ::subxt::ext::subxt_core::utils::AccountId32,
                         timepoint:
                             runtime_types::pallet_multisig::Timepoint<::core::primitive::u32>,
-                        multisig: ::subxt::utils::AccountId32,
+                        multisig: ::subxt::ext::subxt_core::utils::AccountId32,
                         call_hash: [::core::primitive::u8; 32usize],
                     },
                     #[codec(index = 2)]
                     #[doc = "A multisig operation has been executed."]
                     MultisigExecuted {
-                        approving: ::subxt::utils::AccountId32,
+                        approving: ::subxt::ext::subxt_core::utils::AccountId32,
                         timepoint:
                             runtime_types::pallet_multisig::Timepoint<::core::primitive::u32>,
-                        multisig: ::subxt::utils::AccountId32,
+                        multisig: ::subxt::ext::subxt_core::utils::AccountId32,
                         call_hash: [::core::primitive::u8; 32usize],
                         result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
@@ -3794,10 +3916,10 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "A multisig operation has been cancelled."]
                     MultisigCancelled {
-                        cancelling: ::subxt::utils::AccountId32,
+                        cancelling: ::subxt::ext::subxt_core::utils::AccountId32,
                         timepoint:
                             runtime_types::pallet_multisig::Timepoint<::core::primitive::u32>,
-                        multisig: ::subxt::utils::AccountId32,
+                        multisig: ::subxt::ext::subxt_core::utils::AccountId32,
                         call_hash: [::core::primitive::u8; 32usize],
                     },
                 }
@@ -3842,8 +3964,10 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::unbond`]."]
                     unbond {
-                        member_account:
-                            ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        member_account: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         #[codec(compact)]
                         unbonding_points: ::core::primitive::u128,
                     },
@@ -3856,8 +3980,10 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::withdraw_unbonded`]."]
                     withdraw_unbonded {
-                        member_account:
-                            ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        member_account: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         num_slashing_spans: ::core::primitive::u32,
                     },
                     #[codec(index = 6)]
@@ -3865,25 +3991,45 @@ pub mod runtime_types {
                     create {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
-                        root: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        nominator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        bouncer: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        root: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        nominator: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        bouncer: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::create_with_pool_id`]."]
                     create_with_pool_id {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
-                        root: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        nominator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        bouncer: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        root: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        nominator: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        bouncer: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         pool_id: ::core::primitive::u32,
                     },
                     #[codec(index = 8)]
                     #[doc = "See [`Pallet::nominate`]."]
                     nominate {
                         pool_id: ::core::primitive::u32,
-                        validators: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                        validators: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                        >,
                     },
                     #[codec(index = 9)]
                     #[doc = "See [`Pallet::set_state`]."]
@@ -3895,7 +4041,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::set_metadata`]."]
                     set_metadata {
                         pool_id: ::core::primitive::u32,
-                        metadata: ::std::vec::Vec<::core::primitive::u8>,
+                        metadata: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 11)]
                     #[doc = "See [`Pallet::set_configs`]."]
@@ -3924,13 +4070,13 @@ pub mod runtime_types {
                     update_roles {
                         pool_id: ::core::primitive::u32,
                         new_root: runtime_types::pallet_nomination_pools::ConfigOp<
-                            ::subxt::utils::AccountId32,
+                            ::subxt::ext::subxt_core::utils::AccountId32,
                         >,
                         new_nominator: runtime_types::pallet_nomination_pools::ConfigOp<
-                            ::subxt::utils::AccountId32,
+                            ::subxt::ext::subxt_core::utils::AccountId32,
                         >,
                         new_bouncer: runtime_types::pallet_nomination_pools::ConfigOp<
-                            ::subxt::utils::AccountId32,
+                            ::subxt::ext::subxt_core::utils::AccountId32,
                         >,
                     },
                     #[codec(index = 13)]
@@ -3939,7 +4085,10 @@ pub mod runtime_types {
                     #[codec(index = 14)]
                     #[doc = "See [`Pallet::bond_extra_other`]."]
                     bond_extra_other {
-                        member: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        member: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         extra: runtime_types::pallet_nomination_pools::BondExtra<
                             ::core::primitive::u128,
                         >,
@@ -3951,14 +4100,16 @@ pub mod runtime_types {
                     },
                     #[codec(index = 16)]
                     #[doc = "See [`Pallet::claim_payout_other`]."]
-                    claim_payout_other { other: ::subxt::utils::AccountId32 },
+                    claim_payout_other {
+                        other: ::subxt::ext::subxt_core::utils::AccountId32,
+                    },
                     #[codec(index = 17)]
                     #[doc = "See [`Pallet::set_commission`]."]
                     set_commission {
                         pool_id: ::core::primitive::u32,
                         new_commission: ::core::option::Option<(
                             runtime_types::sp_arithmetic::per_things::Perbill,
-                            ::subxt::utils::AccountId32,
+                            ::subxt::ext::subxt_core::utils::AccountId32,
                         )>,
                     },
                     #[codec(index = 18)]
@@ -4109,13 +4260,13 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "A pool has been created."]
                     Created {
-                        depositor: ::subxt::utils::AccountId32,
+                        depositor: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
                     #[doc = "A member has became bonded in a pool."]
                     Bonded {
-                        member: ::subxt::utils::AccountId32,
+                        member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
                         bonded: ::core::primitive::u128,
                         joined: ::core::primitive::bool,
@@ -4123,7 +4274,7 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "A payout has been made to a member."]
                     PaidOut {
-                        member: ::subxt::utils::AccountId32,
+                        member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
                         payout: ::core::primitive::u128,
                     },
@@ -4140,7 +4291,7 @@ pub mod runtime_types {
                     #[doc = "number of points that are issued in the unbonding pool will be less than the amount"]
                     #[doc = "requested to be unbonded."]
                     Unbonded {
-                        member: ::subxt::utils::AccountId32,
+                        member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
                         balance: ::core::primitive::u128,
                         points: ::core::primitive::u128,
@@ -4154,7 +4305,7 @@ pub mod runtime_types {
                     #[doc = "Similar to `Unbonded` event, in the absence of slashing, the ratio of point to balance"]
                     #[doc = "will be 1."]
                     Withdrawn {
-                        member: ::subxt::utils::AccountId32,
+                        member: ::subxt::ext::subxt_core::utils::AccountId32,
                         pool_id: ::core::primitive::u32,
                         balance: ::core::primitive::u128,
                         points: ::core::primitive::u128,
@@ -4174,15 +4325,17 @@ pub mod runtime_types {
                     #[doc = "The removal can be voluntary (withdrawn all unbonded funds) or involuntary (kicked)."]
                     MemberRemoved {
                         pool_id: ::core::primitive::u32,
-                        member: ::subxt::utils::AccountId32,
+                        member: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 8)]
                     #[doc = "The roles of a pool have been updated to the given new roles. Note that the depositor"]
                     #[doc = "can never change."]
                     RolesUpdated {
-                        root: ::core::option::Option<::subxt::utils::AccountId32>,
-                        bouncer: ::core::option::Option<::subxt::utils::AccountId32>,
-                        nominator: ::core::option::Option<::subxt::utils::AccountId32>,
+                        root: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
+                        bouncer:
+                            ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
+                        nominator:
+                            ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
                     },
                     #[codec(index = 9)]
                     #[doc = "The active balance of pool `pool_id` has been slashed to `balance`."]
@@ -4203,7 +4356,7 @@ pub mod runtime_types {
                         pool_id: ::core::primitive::u32,
                         current: ::core::option::Option<(
                             runtime_types::sp_arithmetic::per_things::Perbill,
-                            ::subxt::utils::AccountId32,
+                            ::subxt::ext::subxt_core::utils::AccountId32,
                         )>,
                     },
                     #[codec(index = 12)]
@@ -4257,8 +4410,9 @@ pub mod runtime_types {
                 pub commission: runtime_types::pallet_nomination_pools::Commission,
                 pub member_counter: ::core::primitive::u32,
                 pub points: ::core::primitive::u128,
-                pub roles:
-                    runtime_types::pallet_nomination_pools::PoolRoles<::subxt::utils::AccountId32>,
+                pub roles: runtime_types::pallet_nomination_pools::PoolRoles<
+                    ::subxt::ext::subxt_core::utils::AccountId32,
+                >,
                 pub state: runtime_types::pallet_nomination_pools::PoolState,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -4276,7 +4430,7 @@ pub mod runtime_types {
             pub struct Commission {
                 pub current: ::core::option::Option<(
                     runtime_types::sp_arithmetic::per_things::Perbill,
-                    ::subxt::utils::AccountId32,
+                    ::subxt::ext::subxt_core::utils::AccountId32,
                 )>,
                 pub max: ::core::option::Option<runtime_types::sp_arithmetic::per_things::Perbill>,
                 pub change_rate: ::core::option::Option<
@@ -4365,7 +4519,7 @@ pub mod runtime_types {
                     #[doc = "\\[kind, timeslot\\]."]
                     Offence {
                         kind: [::core::primitive::u8; 16usize],
-                        timeslot: ::std::vec::Vec<::core::primitive::u8>,
+                        timeslot: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                 }
             }
@@ -4380,21 +4534,29 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::note_preimage`]."]
                     note_preimage {
-                        bytes: ::std::vec::Vec<::core::primitive::u8>,
+                        bytes: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::unnote_preimage`]."]
-                    unnote_preimage { hash: ::subxt::utils::H256 },
+                    unnote_preimage {
+                        hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::request_preimage`]."]
-                    request_preimage { hash: ::subxt::utils::H256 },
+                    request_preimage {
+                        hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::unrequest_preimage`]."]
-                    unrequest_preimage { hash: ::subxt::utils::H256 },
+                    unrequest_preimage {
+                        hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::ensure_updated`]."]
                     ensure_updated {
-                        hashes: ::std::vec::Vec<::subxt::utils::H256>,
+                        hashes: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            ::subxt::ext::subxt_core::utils::H256,
+                        >,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -4430,13 +4592,19 @@ pub mod runtime_types {
                 pub enum Event {
                     #[codec(index = 0)]
                     #[doc = "A preimage has been noted."]
-                    Noted { hash: ::subxt::utils::H256 },
+                    Noted {
+                        hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 1)]
                     #[doc = "A preimage has been requested."]
-                    Requested { hash: ::subxt::utils::H256 },
+                    Requested {
+                        hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 2)]
                     #[doc = "A preimage has ben cleared."]
-                    Cleared { hash: ::subxt::utils::H256 },
+                    Cleared {
+                        hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum HoldReason {
@@ -4483,22 +4651,33 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::proxy`]."]
                     proxy {
-                        real: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        real: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         force_proxy_type:
                             ::core::option::Option<runtime_types::vara_runtime::ProxyType>,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::add_proxy`]."]
                     add_proxy {
-                        delegate: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         proxy_type: runtime_types::vara_runtime::ProxyType,
                         delay: ::core::primitive::u32,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::remove_proxy`]."]
                     remove_proxy {
-                        delegate: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         proxy_type: runtime_types::vara_runtime::ProxyType,
                         delay: ::core::primitive::u32,
                     },
@@ -4515,7 +4694,10 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::kill_pure`]."]
                     kill_pure {
-                        spawner: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        spawner: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         proxy_type: runtime_types::vara_runtime::ProxyType,
                         index: ::core::primitive::u16,
                         #[codec(compact)]
@@ -4526,29 +4708,46 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     #[doc = "See [`Pallet::announce`]."]
                     announce {
-                        real: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        call_hash: ::subxt::utils::H256,
+                        real: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::remove_announcement`]."]
                     remove_announcement {
-                        real: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        call_hash: ::subxt::utils::H256,
+                        real: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 8)]
                     #[doc = "See [`Pallet::reject_announcement`]."]
                     reject_announcement {
-                        delegate: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        call_hash: ::subxt::utils::H256,
+                        delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 9)]
                     #[doc = "See [`Pallet::proxy_announced`]."]
                     proxy_announced {
-                        delegate: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        real: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        delegate: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        real: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         force_proxy_type:
                             ::core::option::Option<runtime_types::vara_runtime::ProxyType>,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -4592,31 +4791,31 @@ pub mod runtime_types {
                     #[doc = "A pure account has been created by new proxy with given"]
                     #[doc = "disambiguation index and proxy type."]
                     PureCreated {
-                        pure: ::subxt::utils::AccountId32,
-                        who: ::subxt::utils::AccountId32,
+                        pure: ::subxt::ext::subxt_core::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         proxy_type: runtime_types::vara_runtime::ProxyType,
                         disambiguation_index: ::core::primitive::u16,
                     },
                     #[codec(index = 2)]
                     #[doc = "An announcement was placed to make a call in the future."]
                     Announced {
-                        real: ::subxt::utils::AccountId32,
-                        proxy: ::subxt::utils::AccountId32,
-                        call_hash: ::subxt::utils::H256,
+                        real: ::subxt::ext::subxt_core::utils::AccountId32,
+                        proxy: ::subxt::ext::subxt_core::utils::AccountId32,
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 3)]
                     #[doc = "A proxy was added."]
                     ProxyAdded {
-                        delegator: ::subxt::utils::AccountId32,
-                        delegatee: ::subxt::utils::AccountId32,
+                        delegator: ::subxt::ext::subxt_core::utils::AccountId32,
+                        delegatee: ::subxt::ext::subxt_core::utils::AccountId32,
                         proxy_type: runtime_types::vara_runtime::ProxyType,
                         delay: ::core::primitive::u32,
                     },
                     #[codec(index = 4)]
                     #[doc = "A proxy was removed."]
                     ProxyRemoved {
-                        delegator: ::subxt::utils::AccountId32,
-                        delegatee: ::subxt::utils::AccountId32,
+                        delegator: ::subxt::ext::subxt_core::utils::AccountId32,
+                        delegatee: ::subxt::ext::subxt_core::utils::AccountId32,
                         proxy_type: runtime_types::vara_runtime::ProxyType,
                         delay: ::core::primitive::u32,
                     },
@@ -4645,22 +4844,34 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::add_member`]."]
                     add_member {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        who: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::promote_member`]."]
                     promote_member {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        who: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::demote_member`]."]
                     demote_member {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        who: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::remove_member`]."]
                     remove_member {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        who: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         min_rank: ::core::primitive::u16,
                     },
                     #[codec(index = 4)]
@@ -4712,24 +4923,26 @@ pub mod runtime_types {
                 pub enum Event {
                     #[codec(index = 0)]
                     #[doc = "A member `who` has been added."]
-                    MemberAdded { who: ::subxt::utils::AccountId32 },
+                    MemberAdded {
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
+                    },
                     #[codec(index = 1)]
                     #[doc = "The member `who`se rank has been changed to the given `rank`."]
                     RankChanged {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         rank: ::core::primitive::u16,
                     },
                     #[codec(index = 2)]
                     #[doc = "The member `who` of given `rank` has been removed from the collective."]
                     MemberRemoved {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         rank: ::core::primitive::u16,
                     },
                     #[codec(index = 3)]
                     #[doc = "The member `who` has voted for the `poll` with the given `vote` leading to an updated"]
                     #[doc = "`tally`."]
                     Voted {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         poll: ::core::primitive::u32,
                         vote: runtime_types::pallet_ranked_collective::VoteRecord,
                         tally: runtime_types::pallet_ranked_collective::Tally,
@@ -4737,7 +4950,7 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::CompactAs,
+                ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                 Debug,
                 crate::gp::Decode,
                 crate::gp::DecodeAsType,
@@ -4770,8 +4983,9 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::submit`]."]
                     submit {
-                        proposal_origin:
-                            ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
+                        proposal_origin: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::OriginCaller,
+                        >,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
                             runtime_types::sp_runtime::traits::BlakeTwo256,
@@ -4806,52 +5020,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::set_metadata`]."]
                     set_metadata {
                         index: ::core::primitive::u32,
-                        maybe_hash: ::core::option::Option<::subxt::utils::H256>,
-                    },
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
-                pub enum Call2 {
-                    #[codec(index = 0)]
-                    #[doc = "See [`Pallet::submit`]."]
-                    submit {
-                        proposal_origin:
-                            ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
-                        proposal: runtime_types::frame_support::traits::preimages::Bounded<
-                            runtime_types::vara_runtime::RuntimeCall,
-                            runtime_types::sp_runtime::traits::BlakeTwo256,
-                        >,
-                        enactment_moment:
-                            runtime_types::frame_support::traits::schedule::DispatchTime<
-                                ::core::primitive::u32,
-                            >,
-                    },
-                    #[codec(index = 1)]
-                    #[doc = "See [`Pallet::place_decision_deposit`]."]
-                    place_decision_deposit { index: ::core::primitive::u32 },
-                    #[codec(index = 2)]
-                    #[doc = "See [`Pallet::refund_decision_deposit`]."]
-                    refund_decision_deposit { index: ::core::primitive::u32 },
-                    #[codec(index = 3)]
-                    #[doc = "See [`Pallet::cancel`]."]
-                    cancel { index: ::core::primitive::u32 },
-                    #[codec(index = 4)]
-                    #[doc = "See [`Pallet::kill`]."]
-                    kill { index: ::core::primitive::u32 },
-                    #[codec(index = 5)]
-                    #[doc = "See [`Pallet::nudge_referendum`]."]
-                    nudge_referendum { index: ::core::primitive::u32 },
-                    #[codec(index = 6)]
-                    #[doc = "See [`Pallet::one_fewer_deciding`]."]
-                    one_fewer_deciding { track: ::core::primitive::u16 },
-                    #[codec(index = 7)]
-                    #[doc = "See [`Pallet::refund_submission_deposit`]."]
-                    refund_submission_deposit { index: ::core::primitive::u32 },
-                    #[codec(index = 8)]
-                    #[doc = "See [`Pallet::set_metadata`]."]
-                    set_metadata {
-                        index: ::core::primitive::u32,
-                        maybe_hash: ::core::option::Option<::subxt::utils::H256>,
+                        maybe_hash: ::core::option::Option<::subxt::ext::subxt_core::utils::H256>,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -4898,51 +5067,8 @@ pub mod runtime_types {
                     PreimageNotExist,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "The `Error` enum of this pallet."]
-                pub enum Error2 {
-                    #[codec(index = 0)]
-                    #[doc = "Referendum is not ongoing."]
-                    NotOngoing,
-                    #[codec(index = 1)]
-                    #[doc = "Referendum's decision deposit is already paid."]
-                    HasDeposit,
-                    #[codec(index = 2)]
-                    #[doc = "The track identifier given was invalid."]
-                    BadTrack,
-                    #[codec(index = 3)]
-                    #[doc = "There are already a full complement of referenda in progress for this track."]
-                    Full,
-                    #[codec(index = 4)]
-                    #[doc = "The queue of the track is empty."]
-                    QueueEmpty,
-                    #[codec(index = 5)]
-                    #[doc = "The referendum index provided is invalid in this context."]
-                    BadReferendum,
-                    #[codec(index = 6)]
-                    #[doc = "There was nothing to do in the advancement."]
-                    NothingToDo,
-                    #[codec(index = 7)]
-                    #[doc = "No track exists for the proposal origin."]
-                    NoTrack,
-                    #[codec(index = 8)]
-                    #[doc = "Any deposit cannot be refunded until after the decision is over."]
-                    Unfinished,
-                    #[codec(index = 9)]
-                    #[doc = "The deposit refunder is not the depositor."]
-                    NoPermission,
-                    #[codec(index = 10)]
-                    #[doc = "The deposit cannot be refunded since none was made."]
-                    NoDeposit,
-                    #[codec(index = 11)]
-                    #[doc = "The referendum status is invalid for this operation."]
-                    BadStatus,
-                    #[codec(index = 12)]
-                    #[doc = "The preimage does not exist."]
-                    PreimageNotExist,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
-                pub enum Event {
+                pub enum Event1 {
                     #[codec(index = 0)]
                     #[doc = "A referendum has been submitted."]
                     Submitted {
@@ -4957,20 +5083,20 @@ pub mod runtime_types {
                     #[doc = "The decision deposit has been placed."]
                     DecisionDepositPlaced {
                         index: ::core::primitive::u32,
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
                     #[doc = "The decision deposit has been refunded."]
                     DecisionDepositRefunded {
                         index: ::core::primitive::u32,
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
                     #[doc = "A deposit has been slashed."]
                     DepositSlashed {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
@@ -5037,20 +5163,20 @@ pub mod runtime_types {
                     #[doc = "The submission deposit has been refunded."]
                     SubmissionDepositRefunded {
                         index: ::core::primitive::u32,
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 14)]
                     #[doc = "Metadata for a referendum has been set."]
                     MetadataSet {
                         index: ::core::primitive::u32,
-                        hash: ::subxt::utils::H256,
+                        hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 15)]
                     #[doc = "Metadata for a referendum has been cleared."]
                     MetadataCleared {
                         index: ::core::primitive::u32,
-                        hash: ::subxt::utils::H256,
+                        hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -5070,20 +5196,20 @@ pub mod runtime_types {
                     #[doc = "The decision deposit has been placed."]
                     DecisionDepositPlaced {
                         index: ::core::primitive::u32,
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
                     #[doc = "The decision deposit has been refunded."]
                     DecisionDepositRefunded {
                         index: ::core::primitive::u32,
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
                     #[doc = "A deposit has been slashed."]
                     DepositSlashed {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
@@ -5138,20 +5264,20 @@ pub mod runtime_types {
                     #[doc = "The submission deposit has been refunded."]
                     SubmissionDepositRefunded {
                         index: ::core::primitive::u32,
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
                     #[codec(index = 14)]
                     #[doc = "Metadata for a referendum has been set."]
                     MetadataSet {
                         index: ::core::primitive::u32,
-                        hash: ::subxt::utils::H256,
+                        hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 15)]
                     #[doc = "Metadata for a referendum has been cleared."]
                     MetadataCleared {
                         index: ::core::primitive::u32,
-                        hash: ::subxt::utils::H256,
+                        hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                 }
             }
@@ -5267,7 +5393,7 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct TrackInfo<_0, _1> {
-                    pub name: ::std::string::String,
+                    pub name: ::subxt::ext::subxt_core::alloc::string::String,
                     pub max_deciding: ::core::primitive::u32,
                     pub decision_deposit: _0,
                     pub prepare_period: _1,
@@ -5295,7 +5421,9 @@ pub mod runtime_types {
                             ::core::primitive::u32,
                         )>,
                         priority: ::core::primitive::u8,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::cancel`]."]
@@ -5313,7 +5441,9 @@ pub mod runtime_types {
                             ::core::primitive::u32,
                         )>,
                         priority: ::core::primitive::u8,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::cancel_named`]."]
@@ -5329,7 +5459,9 @@ pub mod runtime_types {
                             ::core::primitive::u32,
                         )>,
                         priority: ::core::primitive::u8,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::schedule_named_after`]."]
@@ -5341,7 +5473,9 @@ pub mod runtime_types {
                             ::core::primitive::u32,
                         )>,
                         priority: ::core::primitive::u8,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -5414,7 +5548,7 @@ pub mod runtime_types {
                 pub maybe_periodic: ::core::option::Option<(_2, _2)>,
                 pub origin: _3,
                 #[codec(skip)]
-                pub __subxt_unused_type_params: ::core::marker::PhantomData<_4>,
+                pub __ignore: ::core::marker::PhantomData<_4>,
             }
         }
         pub mod pallet_session {
@@ -5428,7 +5562,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::set_keys`]."]
                     set_keys {
                         keys: runtime_types::vara_runtime::SessionKeys,
-                        proof: ::std::vec::Vec<::core::primitive::u8>,
+                        proof: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::purge_keys`]."]
@@ -5482,7 +5616,7 @@ pub mod runtime_types {
                             #[codec(compact)]
                             value: ::core::primitive::u128,
                             payee: runtime_types::pallet_staking::RewardDestination<
-                                ::subxt::utils::AccountId32,
+                                ::subxt::ext::subxt_core::utils::AccountId32,
                             >,
                         },
                         #[codec(index = 1)]
@@ -5510,8 +5644,11 @@ pub mod runtime_types {
                         #[codec(index = 5)]
                         #[doc = "See [`Pallet::nominate`]."]
                         nominate {
-                            targets: ::std::vec::Vec<
-                                ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                            targets: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                                ::subxt::ext::subxt_core::utils::MultiAddress<
+                                    ::subxt::ext::subxt_core::utils::AccountId32,
+                                    (),
+                                >,
                             >,
                         },
                         #[codec(index = 6)]
@@ -5521,7 +5658,7 @@ pub mod runtime_types {
                         #[doc = "See [`Pallet::set_payee`]."]
                         set_payee {
                             payee: runtime_types::pallet_staking::RewardDestination<
-                                ::subxt::utils::AccountId32,
+                                ::subxt::ext::subxt_core::utils::AccountId32,
                             >,
                         },
                         #[codec(index = 8)]
@@ -5553,12 +5690,14 @@ pub mod runtime_types {
                         #[codec(index = 14)]
                         #[doc = "See [`Pallet::set_invulnerables`]."]
                         set_invulnerables {
-                            invulnerables: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                            invulnerables: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                                ::subxt::ext::subxt_core::utils::AccountId32,
+                            >,
                         },
                         #[codec(index = 15)]
                         #[doc = "See [`Pallet::force_unstake`]."]
                         force_unstake {
-                            stash: ::subxt::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             num_slashing_spans: ::core::primitive::u32,
                         },
                         #[codec(index = 16)]
@@ -5568,12 +5707,13 @@ pub mod runtime_types {
                         #[doc = "See [`Pallet::cancel_deferred_slash`]."]
                         cancel_deferred_slash {
                             era: ::core::primitive::u32,
-                            slash_indices: ::std::vec::Vec<::core::primitive::u32>,
+                            slash_indices:
+                                ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u32>,
                         },
                         #[codec(index = 18)]
                         #[doc = "See [`Pallet::payout_stakers`]."]
                         payout_stakers {
-                            validator_stash: ::subxt::utils::AccountId32,
+                            validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             era: ::core::primitive::u32,
                         },
                         #[codec(index = 19)]
@@ -5585,14 +5725,17 @@ pub mod runtime_types {
                         #[codec(index = 20)]
                         #[doc = "See [`Pallet::reap_stash`]."]
                         reap_stash {
-                            stash: ::subxt::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             num_slashing_spans: ::core::primitive::u32,
                         },
                         #[codec(index = 21)]
                         #[doc = "See [`Pallet::kick`]."]
                         kick {
-                            who: ::std::vec::Vec<
-                                ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                            who: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                                ::subxt::ext::subxt_core::utils::MultiAddress<
+                                    ::subxt::ext::subxt_core::utils::AccountId32,
+                                    (),
+                                >,
                             >,
                         },
                         #[codec(index = 22)]
@@ -5625,12 +5768,12 @@ pub mod runtime_types {
                         #[codec(index = 23)]
                         #[doc = "See [`Pallet::chill_other`]."]
                         chill_other {
-                            controller: ::subxt::utils::AccountId32,
+                            controller: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 24)]
                         #[doc = "See [`Pallet::force_apply_min_commission`]."]
                         force_apply_min_commission {
-                            validator_stash: ::subxt::utils::AccountId32,
+                            validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 25)]
                         #[doc = "See [`Pallet::set_min_commission`]."]
@@ -5640,7 +5783,7 @@ pub mod runtime_types {
                         #[codec(index = 26)]
                         #[doc = "See [`Pallet::payout_stakers_by_page`]."]
                         payout_stakers_by_page {
-                            validator_stash: ::subxt::utils::AccountId32,
+                            validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             era: ::core::primitive::u32,
                             page: ::core::primitive::u32,
                         },
@@ -5760,23 +5903,23 @@ pub mod runtime_types {
                         #[codec(index = 1)]
                         #[doc = "The nominator has been rewarded by this amount to this destination."]
                         Rewarded {
-                            stash: ::subxt::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             dest: runtime_types::pallet_staking::RewardDestination<
-                                ::subxt::utils::AccountId32,
+                                ::subxt::ext::subxt_core::utils::AccountId32,
                             >,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 2)]
                         #[doc = "A staker (validator or nominator) has been slashed by the given amount."]
                         Slashed {
-                            staker: ::subxt::utils::AccountId32,
+                            staker: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 3)]
                         #[doc = "A slash for the given validator, for the given percentage of their stake, at the given"]
                         #[doc = "era as been reported."]
                         SlashReported {
-                            validator: ::subxt::utils::AccountId32,
+                            validator: ::subxt::ext::subxt_core::utils::AccountId32,
                             fraction: runtime_types::sp_arithmetic::per_things::Perbill,
                             slash_era: ::core::primitive::u32,
                         },
@@ -5795,44 +5938,46 @@ pub mod runtime_types {
                         #[doc = "NOTE: This event is only emitted when funds are bonded via a dispatchable. Notably,"]
                         #[doc = "it will not be emitted for staking rewards when they are added to stake."]
                         Bonded {
-                            stash: ::subxt::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 7)]
                         #[doc = "An account has unbonded this amount."]
                         Unbonded {
-                            stash: ::subxt::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 8)]
                         #[doc = "An account has called `withdraw_unbonded` and removed unbonding chunks worth `Balance`"]
                         #[doc = "from the unlocking queue."]
                         Withdrawn {
-                            stash: ::subxt::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 9)]
                         #[doc = "A nominator has been kicked from a validator."]
                         Kicked {
-                            nominator: ::subxt::utils::AccountId32,
-                            stash: ::subxt::utils::AccountId32,
+                            nominator: ::subxt::ext::subxt_core::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 10)]
                         #[doc = "The election failed. No new era is planned."]
                         StakingElectionFailed,
                         #[codec(index = 11)]
                         #[doc = "An account has stopped participating as either a validator or nominator."]
-                        Chilled { stash: ::subxt::utils::AccountId32 },
+                        Chilled {
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
+                        },
                         #[codec(index = 12)]
                         #[doc = "The stakers' rewards are getting paid."]
                         PayoutStarted {
                             era_index: ::core::primitive::u32,
-                            validator_stash: ::subxt::utils::AccountId32,
+                            validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 13)]
                         #[doc = "A validator has set their preferences."]
                         ValidatorPrefsSet {
-                            stash: ::subxt::utils::AccountId32,
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
                             prefs: runtime_types::pallet_staking::ValidatorPrefs,
                         },
                         #[codec(index = 14)]
@@ -5856,7 +6001,7 @@ pub mod runtime_types {
                     pub span_index: ::core::primitive::u32,
                     pub last_start: ::core::primitive::u32,
                     pub last_nonzero_slash: ::core::primitive::u32,
-                    pub prior: ::std::vec::Vec<::core::primitive::u32>,
+                    pub prior: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u32>,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SpanRecord<_0> {
@@ -5872,7 +6017,8 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct EraRewardPoints<_0> {
                 pub total: ::core::primitive::u32,
-                pub individual: ::subxt::utils::KeyedVec<_0, ::core::primitive::u32>,
+                pub individual:
+                    ::subxt::ext::subxt_core::utils::KeyedVec<_0, ::core::primitive::u32>,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum Forcing {
@@ -5888,7 +6034,7 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct Nominations {
                 pub targets: runtime_types::bounded_collections::bounded_vec::BoundedVec<
-                    ::subxt::utils::AccountId32,
+                    ::subxt::ext::subxt_core::utils::AccountId32,
                 >,
                 pub submitted_in: ::core::primitive::u32,
                 pub suppressed: ::core::primitive::bool,
@@ -5908,7 +6054,7 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct StakingLedger {
-                pub stash: ::subxt::utils::AccountId32,
+                pub stash: ::subxt::ext::subxt_core::utils::AccountId32,
                 #[codec(compact)]
                 pub total: ::core::primitive::u128,
                 #[codec(compact)]
@@ -5925,8 +6071,8 @@ pub mod runtime_types {
             pub struct UnappliedSlash<_0, _1> {
                 pub validator: _0,
                 pub own: _1,
-                pub others: ::std::vec::Vec<(_0, _1)>,
-                pub reporters: ::std::vec::Vec<_0>,
+                pub others: ::subxt::ext::subxt_core::alloc::vec::Vec<(_0, _1)>,
+                pub reporters: ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
                 pub payout: _1,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -5953,24 +6099,36 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::sudo`]."]
                     sudo {
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::sudo_unchecked_weight`]."]
                     sudo_unchecked_weight {
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                         weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::set_key`]."]
                     set_key {
-                        new: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        new: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::sudo_as`]."]
                     sudo_as {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        who: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::remove_key`]."]
@@ -5995,8 +6153,8 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "The sudo key has been updated."]
                     KeyChanged {
-                        old: ::core::option::Option<::subxt::utils::AccountId32>,
-                        new: ::subxt::utils::AccountId32,
+                        old: ::core::option::Option<::subxt::ext::subxt_core::utils::AccountId32>,
+                        new: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 2)]
                     #[doc = "The key was permanently removed."]
@@ -6037,7 +6195,7 @@ pub mod runtime_types {
                     #[doc = "A transaction fee `actual_fee`, of which `tip` was added to the minimum inclusion fee,"]
                     #[doc = "has been paid by `who`."]
                     TransactionFeePaid {
-                        who: ::subxt::utils::AccountId32,
+                        who: ::subxt::ext::subxt_core::utils::AccountId32,
                         actual_fee: ::core::primitive::u128,
                         tip: ::core::primitive::u128,
                     },
@@ -6065,7 +6223,10 @@ pub mod runtime_types {
                     propose_spend {
                         #[codec(compact)]
                         value: ::core::primitive::u128,
-                        beneficiary: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        beneficiary: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::reject_proposal`]."]
@@ -6084,7 +6245,10 @@ pub mod runtime_types {
                     spend_local {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
-                        beneficiary: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        beneficiary: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::remove_approval`]."]
@@ -6095,10 +6259,12 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::spend`]."]
                     spend {
-                        asset_kind: ::std::boxed::Box<()>,
+                        asset_kind: ::subxt::ext::subxt_core::alloc::boxed::Box<()>,
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
-                        beneficiary: ::std::boxed::Box<::subxt::utils::AccountId32>,
+                        beneficiary: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                        >,
                         valid_from: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 6)]
@@ -6170,7 +6336,7 @@ pub mod runtime_types {
                     Awarded {
                         proposal_index: ::core::primitive::u32,
                         award: ::core::primitive::u128,
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 3)]
                     #[doc = "A proposal was rejected; funds were slashed."]
@@ -6196,7 +6362,7 @@ pub mod runtime_types {
                     SpendApproved {
                         proposal_index: ::core::primitive::u32,
                         amount: ::core::primitive::u128,
-                        beneficiary: ::subxt::utils::AccountId32,
+                        beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                     #[codec(index = 8)]
                     #[doc = "The inactive funds of the pallet have been updated."]
@@ -6210,7 +6376,7 @@ pub mod runtime_types {
                         index: ::core::primitive::u32,
                         asset_kind: (),
                         amount: ::core::primitive::u128,
-                        beneficiary: ::subxt::utils::AccountId32,
+                        beneficiary: ::subxt::ext::subxt_core::utils::AccountId32,
                         valid_from: ::core::primitive::u32,
                         expire_at: ::core::primitive::u32,
                     },
@@ -6260,7 +6426,7 @@ pub mod runtime_types {
                 pub expire_at: _3,
                 pub status: runtime_types::pallet_treasury::PaymentState<_0>,
                 #[codec(skip)]
-                pub __subxt_unused_type_params: ::core::marker::PhantomData<_4>,
+                pub __ignore: ::core::marker::PhantomData<_4>,
             }
         }
         pub mod pallet_utility {
@@ -6273,34 +6439,48 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::batch`]."]
                     batch {
-                        calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
+                        calls: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::as_derivative`]."]
                     as_derivative {
                         index: ::core::primitive::u16,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::batch_all`]."]
                     batch_all {
-                        calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
+                        calls: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::dispatch_as`]."]
                     dispatch_as {
-                        as_origin: ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        as_origin: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::OriginCaller,
+                        >,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::force_batch`]."]
                     force_batch {
-                        calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
+                        calls: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::with_weight`]."]
                     with_weight {
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                         weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                 }
@@ -6357,12 +6537,18 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::vest_other`]."]
                     vest_other {
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::vested_transfer`]."]
                     vested_transfer {
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         schedule: runtime_types::pallet_vesting::vesting_info::VestingInfo<
                             ::core::primitive::u128,
                             ::core::primitive::u32,
@@ -6371,8 +6557,14 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::force_vested_transfer`]."]
                     force_vested_transfer {
-                        source: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        source: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         schedule: runtime_types::pallet_vesting::vesting_info::VestingInfo<
                             ::core::primitive::u128,
                             ::core::primitive::u32,
@@ -6387,7 +6579,10 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::force_remove_vesting_schedule`]."]
                     force_remove_vesting_schedule {
-                        target: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        target: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
                         schedule_index: ::core::primitive::u32,
                     },
                 }
@@ -6418,13 +6613,13 @@ pub mod runtime_types {
                     #[doc = "The amount vested has been updated. This could indicate a change in funds available."]
                     #[doc = "The balance given is the amount which is left unvested (and thus locked)."]
                     VestingUpdated {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                         unvested: ::core::primitive::u128,
                     },
                     #[codec(index = 1)]
                     #[doc = "An \\[account\\] has become fully vested."]
                     VestingCompleted {
-                        account: ::subxt::utils::AccountId32,
+                        account: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
                 }
             }
@@ -6454,21 +6649,27 @@ pub mod runtime_types {
                 pub enum Call {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::whitelist_call`]."]
-                    whitelist_call { call_hash: ::subxt::utils::H256 },
+                    whitelist_call {
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::remove_whitelisted_call`]."]
-                    remove_whitelisted_call { call_hash: ::subxt::utils::H256 },
+                    remove_whitelisted_call {
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::dispatch_whitelisted_call`]."]
                     dispatch_whitelisted_call {
-                        call_hash: ::subxt::utils::H256,
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
                         call_encoded_len: ::core::primitive::u32,
                         call_weight_witness: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::dispatch_whitelisted_call_with_preimage`]."]
                     dispatch_whitelisted_call_with_preimage {
-                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
+                        call: ::subxt::ext::subxt_core::alloc::boxed::Box<
+                            runtime_types::vara_runtime::RuntimeCall,
+                        >,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -6494,12 +6695,16 @@ pub mod runtime_types {
                 #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
-                    CallWhitelisted { call_hash: ::subxt::utils::H256 },
+                    CallWhitelisted {
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 1)]
-                    WhitelistedCallRemoved { call_hash: ::subxt::utils::H256 },
+                    WhitelistedCallRemoved {
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 2)]
                     WhitelistedCallDispatched {
-                        call_hash: ::subxt::utils::H256,
+                        call_hash: ::subxt::ext::subxt_core::utils::H256,
                         result: ::core::result::Result<
                             runtime_types::frame_support::dispatch::PostDispatchInfo,
                             runtime_types::sp_runtime::DispatchErrorWithPostInfo<
@@ -6522,7 +6727,7 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct FixedI64(pub ::core::primitive::i64);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -6533,7 +6738,7 @@ pub mod runtime_types {
             pub mod per_things {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -6541,7 +6746,7 @@ pub mod runtime_types {
                 )]
                 pub struct PerU16(pub ::core::primitive::u16);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -6549,7 +6754,7 @@ pub mod runtime_types {
                 )]
                 pub struct Perbill(pub ::core::primitive::u32);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -6557,7 +6762,7 @@ pub mod runtime_types {
                 )]
                 pub struct Percent(pub ::core::primitive::u8);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -6565,7 +6770,7 @@ pub mod runtime_types {
                 )]
                 pub struct Permill(pub ::core::primitive::u32);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                     Debug,
                     crate::gp::Decode,
                     crate::gp::DecodeAsType,
@@ -6696,7 +6901,7 @@ pub mod runtime_types {
                 pub second_header: _0,
             }
             #[derive(
-                ::subxt::ext::codec::CompactAs,
+                ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                 Debug,
                 crate::gp::Decode,
                 crate::gp::DecodeAsType,
@@ -6754,7 +6959,8 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct Support<_0> {
                 pub total: ::core::primitive::u128,
-                pub voters: ::std::vec::Vec<(_0, ::core::primitive::u128)>,
+                pub voters:
+                    ::subxt::ext::subxt_core::alloc::vec::Vec<(_0, ::core::primitive::u128)>,
             }
         }
         pub mod sp_runtime {
@@ -6767,8 +6973,9 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct Digest {
-                        pub logs:
-                            ::std::vec::Vec<runtime_types::sp_runtime::generic::digest::DigestItem>,
+                        pub logs: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                            runtime_types::sp_runtime::generic::digest::DigestItem,
+                        >,
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
@@ -6777,20 +6984,20 @@ pub mod runtime_types {
                         #[codec(index = 6)]
                         PreRuntime(
                             [::core::primitive::u8; 4usize],
-                            ::std::vec::Vec<::core::primitive::u8>,
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         ),
                         #[codec(index = 4)]
                         Consensus(
                             [::core::primitive::u8; 4usize],
-                            ::std::vec::Vec<::core::primitive::u8>,
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         ),
                         #[codec(index = 5)]
                         Seal(
                             [::core::primitive::u8; 4usize],
-                            ::std::vec::Vec<::core::primitive::u8>,
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         ),
                         #[codec(index = 0)]
-                        Other(::std::vec::Vec<::core::primitive::u8>),
+                        Other(::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>),
                         #[codec(index = 8)]
                         RuntimeEnvironmentUpdated,
                     }
@@ -7321,11 +7528,11 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct Header<_0> {
-                        pub parent_hash: ::subxt::utils::H256,
+                        pub parent_hash: ::subxt::ext::subxt_core::utils::H256,
                         #[codec(compact)]
                         pub number: _0,
-                        pub state_root: ::subxt::utils::H256,
-                        pub extrinsics_root: ::subxt::utils::H256,
+                        pub state_root: ::subxt::ext::subxt_core::utils::H256,
+                        pub extrinsics_root: ::subxt::ext::subxt_core::utils::H256,
                         pub digest: runtime_types::sp_runtime::generic::digest::Digest,
                     }
                 }
@@ -7421,7 +7628,9 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct MembershipProof {
                 pub session: ::core::primitive::u32,
-                pub trie_nodes: ::std::vec::Vec<::std::vec::Vec<::core::primitive::u8>>,
+                pub trie_nodes: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                    ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                >,
                 pub validator_count: ::core::primitive::u32,
             }
         }
@@ -7432,7 +7641,7 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct OffenceDetails<_0, _1> {
                     pub offender: _1,
-                    pub reporters: ::std::vec::Vec<_0>,
+                    pub reporters: ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -7441,13 +7650,17 @@ pub mod runtime_types {
                 pub total: _1,
                 #[codec(compact)]
                 pub own: _1,
-                pub others: ::std::vec::Vec<runtime_types::sp_staking::IndividualExposure<_0, _1>>,
+                pub others: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                    runtime_types::sp_staking::IndividualExposure<_0, _1>,
+                >,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ExposurePage<_0, _1> {
                 #[codec(compact)]
                 pub page_total: _1,
-                pub others: ::std::vec::Vec<runtime_types::sp_staking::IndividualExposure<_0, _1>>,
+                pub others: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                    runtime_types::sp_staking::IndividualExposure<_0, _1>,
+                >,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct IndividualExposure<_0, _1> {
@@ -7469,13 +7682,15 @@ pub mod runtime_types {
             use super::runtime_types;
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct RuntimeVersion {
-                pub spec_name: ::std::string::String,
-                pub impl_name: ::std::string::String,
+                pub spec_name: ::subxt::ext::subxt_core::alloc::string::String,
+                pub impl_name: ::subxt::ext::subxt_core::alloc::string::String,
                 pub authoring_version: ::core::primitive::u32,
                 pub spec_version: ::core::primitive::u32,
                 pub impl_version: ::core::primitive::u32,
-                pub apis:
-                    ::std::vec::Vec<([::core::primitive::u8; 8usize], ::core::primitive::u32)>,
+                pub apis: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    [::core::primitive::u8; 8usize],
+                    ::core::primitive::u32,
+                )>,
                 pub transaction_version: ::core::primitive::u32,
                 pub state_version: ::core::primitive::u8,
             }
@@ -7568,166 +7783,168 @@ pub mod runtime_types {
             pub struct CustomCheckNonce(#[codec(compact)] pub ::core::primitive::u32);
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct NposSolution16 {
-                pub votes1: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                pub votes1: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes2: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes2: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     (
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ),
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes3: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes3: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 2usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes4: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes4: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 3usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes5: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes5: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 4usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes6: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes6: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 5usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes7: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes7: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 6usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes8: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes8: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 7usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes9: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes9: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 8usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes10: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes10: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 9usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes11: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes11: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 10usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes12: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes12: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 11usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes13: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes13: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 12usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes14: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes14: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 13usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes15: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes15: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 14usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
-                pub votes16: ::std::vec::Vec<(
-                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                pub votes16: ::subxt::ext::subxt_core::alloc::vec::Vec<(
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u32>,
                     [(
-                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
-                        ::subxt::ext::codec::Compact<
+                        ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::subxt_core::ext::codec::Compact<
                             runtime_types::sp_arithmetic::per_things::PerU16,
                         >,
                     ); 15usize],
-                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                    ::subxt::ext::subxt_core::ext::codec::Compact<::core::primitive::u16>,
                 )>,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum OriginCaller {
                 #[codec(index = 0)]
                 system(
-                    runtime_types::frame_support::dispatch::RawOrigin<::subxt::utils::AccountId32>,
+                    runtime_types::frame_support::dispatch::RawOrigin<
+                        ::subxt::ext::subxt_core::utils::AccountId32,
+                    >,
                 ),
                 #[codec(index = 20)]
                 Origins(
@@ -7786,7 +8003,7 @@ pub mod runtime_types {
                 #[codec(index = 18)]
                 FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Call),
                 #[codec(index = 19)]
-                FellowshipReferenda(runtime_types::pallet_referenda::pallet::Call2),
+                FellowshipReferenda(runtime_types::pallet_referenda::pallet::Call),
                 #[codec(index = 21)]
                 Whitelist(runtime_types::pallet_whitelist::pallet::Call),
                 #[codec(index = 22)]
@@ -7853,7 +8070,7 @@ pub mod runtime_types {
                 #[codec(index = 18)]
                 FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Error),
                 #[codec(index = 19)]
-                FellowshipReferenda(runtime_types::pallet_referenda::pallet::Error2),
+                FellowshipReferenda(runtime_types::pallet_referenda::pallet::Error),
                 #[codec(index = 21)]
                 Whitelist(runtime_types::pallet_whitelist::pallet::Error),
                 #[codec(index = 22)]
@@ -7926,7 +8143,7 @@ pub mod runtime_types {
                 #[codec(index = 16)]
                 ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Event),
                 #[codec(index = 17)]
-                Referenda(runtime_types::pallet_referenda::pallet::Event),
+                Referenda(runtime_types::pallet_referenda::pallet::Event1),
                 #[codec(index = 18)]
                 FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Event),
                 #[codec(index = 19)]
@@ -9699,7 +9916,7 @@ pub mod exports {
         pub use super::runtime_types::pallet_conviction_voting::pallet::Event;
     }
     pub mod referenda {
-        pub use super::runtime_types::pallet_referenda::pallet::Event;
+        pub use super::runtime_types::pallet_referenda::pallet::Event1 as Event;
     }
     pub mod fellowship_collective {
         pub use super::runtime_types::pallet_ranked_collective::pallet::Event;

@@ -28,6 +28,7 @@ use parity_scale_codec::{Decode, Encode};
 pub mod db;
 pub mod mirror;
 pub mod router;
+pub mod wvara;
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum BlockEvent {
@@ -36,6 +37,7 @@ pub enum BlockEvent {
         address: ActorId,
         event: mirror::Event,
     },
+    WVara(wvara::Event),
 }
 
 impl BlockEvent {
@@ -47,5 +49,11 @@ impl BlockEvent {
 impl From<router::Event> for BlockEvent {
     fn from(value: router::Event) -> Self {
         Self::Router(value)
+    }
+}
+
+impl From<wvara::Event> for BlockEvent {
+    fn from(value: wvara::Event) -> Self {
+        Self::WVara(value)
     }
 }

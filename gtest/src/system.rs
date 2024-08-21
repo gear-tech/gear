@@ -17,11 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    accounts::Accounts,
+    actors::Actors,
     log::{BlockRunResult, CoreLog},
     mailbox::ActorMailbox,
-    manager::{Actors, Balance, ExtManager, MintMode},
+    manager::ExtManager,
     program::{Program, ProgramIdWrapper},
-    Gas, GAS_ALLOWANCE,
+    Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
@@ -53,33 +55,36 @@ struct PageKey {
 }
 
 #[derive(Debug)]
-struct PagesStorage {
-    actors: Actors,
-}
+struct PagesStorage;
 
 impl LazyPagesStorage for PagesStorage {
     fn page_exists(&self, mut key: &[u8]) -> bool {
         let PageKey {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
-        self.actors
-            .borrow()
-            .get(&program_id)
-            .and_then(|(actor, _)| actor.get_pages_data())
-            .map(|pages_data| pages_data.contains_key(&page))
-            .unwrap_or(false)
+
+        Actors::access(program_id, |actor| {
+            actor
+                .and_then(|actor| actor.get_pages_data())
+                .map(|pages_data| pages_data.contains_key(&page))
+                .unwrap_or(false)
+        })
     }
 
     fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
         let PageKey {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
-        let actors = self.actors.borrow();
-        let (actor, _balance) = actors.get(&program_id)?;
-        let pages_data = actor.get_pages_data()?;
-        let page_buf = pages_data.get(&page)?;
-        buffer.copy_from_slice(page_buf);
-        Some(page_buf.len() as u32)
+
+        Actors::access(program_id, |actor| {
+            actor
+                .and_then(|actor| actor.get_pages_data())
+                .and_then(|pages_data| pages_data.get(&page))
+                .map(|page_buf| {
+                    buffer.copy_from_slice(page_buf);
+                    page_buf.len() as u32
+                })
+        })
     }
 }
 
@@ -115,13 +120,10 @@ impl System {
             }
 
             let ext_manager = ExtManager::new();
-
-            let actors = ext_manager.actors.clone();
-            let pages_storage = PagesStorage { actors };
             gear_lazy_pages::init(
                 LazyPagesVersion::Version1,
                 LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
-                pages_storage,
+                PagesStorage,
             )
             .expect("Failed to init lazy-pages");
 
@@ -275,9 +277,7 @@ impl System {
     /// Returns a [`Program`] by `id`.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
         let id = id.into().0;
-        let manager = self.0.borrow();
-
-        if manager.is_program(&id) {
+        if Actors::is_program(id) {
             Some(Program {
                 id,
                 manager: &self.0,
@@ -294,12 +294,8 @@ impl System {
 
     /// Returns a list of programs.
     pub fn programs(&self) -> Vec<Program> {
-        let manager = self.0.borrow();
-        let actors = manager.actors.borrow();
-        actors
-            .keys()
-            .copied()
-            .filter(|id| manager.is_program(id))
+        Actors::program_ids()
+            .into_iter()
             .map(|id| Program {
                 id,
                 manager: &self.0,
@@ -314,7 +310,7 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        self.0.borrow().is_active_program(&program_id)
+        Actors::is_active_program(program_id)
     }
 
     /// Saves code to the storage and returns its code hash
@@ -369,22 +365,46 @@ impl System {
     #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
         let program_id = id.into().0;
-        if !self.0.borrow().is_user(&program_id) {
+        if !Actors::is_user(program_id) {
             panic!("Mailbox available only for users");
         }
         ActorMailbox::new(program_id, &self.0)
     }
 
     /// Mint balance to user with given `id` and `value`.
-    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
-        let actor_id = id.into().0;
-        self.0
-            .borrow_mut()
-            .mint_to(&actor_id, value, MintMode::KeepAlive);
+    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
+        let id = id.into().0;
+
+        if Actors::is_program(id) {
+            panic!(
+                "Attempt to mint value to a program {id:?}, please use `System::transfer` instead"
+            );
+        }
+
+        self.0.borrow_mut().mint_to(&id, value);
+    }
+
+    /// Transfer balance from user with given `from` id to user with given `to`
+    /// id.
+    pub fn transfer(
+        &self,
+        from: impl Into<ProgramIdWrapper>,
+        to: impl Into<ProgramIdWrapper>,
+        value: Value,
+        keep_alive: bool,
+    ) {
+        let from = from.into().0;
+        let to = to.into().0;
+
+        if Actors::is_program(from) {
+            panic!("Attempt to transfer from a program {from:?}");
+        }
+
+        Accounts::transfer(from, to, value, keep_alive);
     }
 
     /// Returns balance of user with given `id`.
-    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
+    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
         self.0.borrow().balance_of(&actor_id)
     }
@@ -396,6 +416,11 @@ impl Drop for System {
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
         self.0.borrow().gas_tree.reset();
         self.0.borrow().mailbox.reset();
+        self.0.borrow().task_pool.clear();
+
+        // Clear actors and accounts storages
+        Actors::clear();
+        Accounts::clear();
     }
 }
 

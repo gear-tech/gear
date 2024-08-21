@@ -29,11 +29,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
-        address[] memory _validatorAddressArray
+        address[] memory _validatorsKeys
     ) public initializer {
         __Ownable_init(initialOwner);
 
-        setStorageSlot("router.storage.Router");
+        setStorageSlot("router.storage.RouterV1");
         Storage storage router = _getStorage();
 
         router.genesisBlockHash = blockhash(block.number - 1);
@@ -43,7 +43,25 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.signingThresholdPercentage = 6666; // 2/3 percentage (66.66%).
         router.baseWeight = 2_500_000_000;
         router.valuePerWeight = 10;
-        _setValidators(_validatorAddressArray);
+        _setValidators(_validatorsKeys);
+    }
+
+    function reinitialize() public onlyOwner reinitializer(2) {
+        Storage storage oldRouter = _getStorage();
+
+        address _mirror = oldRouter.mirror;
+        address _mirrorProxy = oldRouter.mirrorProxy;
+        address _wrappedVara = oldRouter.wrappedVara;
+        address[] memory _validatorsKeys = oldRouter.validatorsKeys;
+
+        setStorageSlot("router.storage.RouterV2");
+        Storage storage router = _getStorage();
+
+        router.genesisBlockHash = blockhash(block.number - 1);
+        router.mirror = _mirror;
+        router.mirrorProxy = _mirrorProxy;
+        router.wrappedVara = _wrappedVara;
+        _setValidators(_validatorsKeys);
     }
 
     /* Operational functions */
@@ -107,7 +125,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return router.programsCount;
     }
 
-    function programExists(address program) public view returns (bool) {
+    function programCodeId(address program) public view returns (bytes32) {
         Storage storage router = _getStorage();
         return router.programs[program];
     }
@@ -207,9 +225,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         _retrieveValue(totalValue);
 
+        // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
+        // reverts execution in case of address is already taken.
         address actorId = Clones.cloneDeterministic(router.mirrorProxy, keccak256(abi.encodePacked(codeId, salt)));
 
-        router.programs[actorId] = true;
+        router.programs[actorId] = codeId;
         router.programsCount++;
 
         emit ProgramCreated(actorId, codeId);
@@ -334,7 +354,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function _doStateTransition(StateTransition calldata stateTransition) private returns (bytes32) {
         Storage storage router = _getStorage();
 
-        require(router.programs[stateTransition.actorId], "couldn't perform transition for unknown program");
+        require(router.programs[stateTransition.actorId] != 0, "couldn't perform transition for unknown program");
 
         IWrappedVara wrappedVaraActor = IWrappedVara(router.wrappedVara);
         wrappedVaraActor.transfer(stateTransition.actorId, stateTransition.valueToReceive);

@@ -8,7 +8,7 @@
 use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params};
 use batch_pool::{api::GearApiFacade, BatchPool};
-use gsdk::config::GearConfig;
+use gsdk::subscription::BlockEvents;
 use names::Generator;
 use rand::rngs::SmallRng;
 use tokio::sync::broadcast::Sender;
@@ -36,12 +36,12 @@ async fn run(params: Params) -> Result<()> {
 /// Connect to API of provided node address and subscribe for events.
 ///
 /// Broadcast new events to receivers.
-async fn listen_events(tx: Sender<subxt::events::Events<GearConfig>>, node: String) -> Result<()> {
+async fn listen_events(tx: Sender<BlockEvents>, node: String) -> Result<()> {
     let api = gsdk::Api::new(node.as_str()).await?;
     let mut event_listener = api.subscribe_finalized_blocks().await?;
 
-    while let Some(events) = event_listener.next_events().await {
-        tx.send(events?)?;
+    while let Some(events) = event_listener.next_events().await? {
+        tx.send(events)?;
     }
 
     Err(anyhow!("Listen events: Can't get new events"))

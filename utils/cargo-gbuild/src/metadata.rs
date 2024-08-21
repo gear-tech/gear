@@ -20,7 +20,7 @@ use crate::Artifact;
 use anyhow::{anyhow, Result};
 use cargo_metadata::{CargoOpt, Message, MetadataCommand};
 use cargo_toml::Manifest;
-use gear_wasm_builder::optimize::OptType;
+use gear_wasm_optimizer::OptType;
 use serde::{Deserialize, Serialize};
 use std::{
     io::BufReader,
