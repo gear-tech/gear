@@ -79,7 +79,6 @@ fn process_observer_event() {
 
     let create_program_events = vec![
         BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
-        // TODO (breathx): think of constant.
         BlockEvent::mirror(
             actor_id,
             MirrorEvent::ExecutableBalanceTopUpRequested {
@@ -197,36 +196,6 @@ fn handle_new_code_invalid() {
 }
 
 #[test]
-fn host_ping_pong() {
-    init_logger();
-
-    let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
-
-    init_new_block(&mut processor, Default::default());
-
-    let program_id = 42.into();
-
-    let code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    processor
-        .handle_new_program(program_id, code_id)
-        .expect("failed to create new program");
-
-    let state_hash = processor
-        .handle_user_message(
-            H256::zero(),
-            vec![create_message(DispatchKind::Init, "PING")],
-        )
-        .expect("failed to populate message queue");
-
-    let _init = processor.run_on_host(program_id, state_hash).unwrap();
-}
-
-#[test]
 fn ping_pong() {
     init_logger();
 
@@ -248,13 +217,27 @@ fn ping_pong() {
         .expect("failed to create new program");
 
     let state_hash = processor
-        .handle_user_message(
-            H256::zero(),
-            vec![
-                create_message_full(MessageId::from(1), DispatchKind::Init, user_id, "PING"),
-                create_message_full(MessageId::from(2), DispatchKind::Handle, user_id, "PING"),
-            ],
-        )
+        .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
+        .expect("failed to top up balance");
+
+    let messages = vec![
+        create_message_full(
+            &mut processor,
+            MessageId::from(1),
+            DispatchKind::Init,
+            user_id,
+            "PING",
+        ),
+        create_message_full(
+            &mut processor,
+            MessageId::from(2),
+            DispatchKind::Handle,
+            user_id,
+            "PING",
+        ),
+    ];
+    let state_hash = processor
+        .handle_messages_queueing(state_hash, messages)
         .expect("failed to populate message queue");
 
     let mut programs = BTreeMap::from_iter([(program_id, state_hash)]);
@@ -272,22 +255,38 @@ fn ping_pong() {
     assert_eq!(message.payload_bytes(), b"PONG");
 }
 
-fn create_message(kind: DispatchKind, payload: impl AsRef<[u8]>) -> UserMessage {
-    create_message_full(H256::random().into(), kind, H256::random().into(), payload)
+fn create_message(
+    processor: &mut Processor,
+    kind: DispatchKind,
+    payload: impl AsRef<[u8]>,
+) -> Dispatch {
+    create_message_full(
+        processor,
+        H256::random().into(),
+        kind,
+        H256::random().into(),
+        payload,
+    )
 }
 
 fn create_message_full(
+    processor: &mut Processor,
     id: MessageId,
     kind: DispatchKind,
     source: ActorId,
     payload: impl AsRef<[u8]>,
-) -> UserMessage {
-    UserMessage {
+) -> Dispatch {
+    let payload = payload.as_ref().to_vec();
+    let payload_hash = processor.handle_payload(payload).unwrap();
+
+    Dispatch {
         id,
         kind,
         source,
-        payload: payload.as_ref().to_vec(),
+        payload_hash,
         value: 0,
+        details: None,
+        context: None,
     }
 }
 
@@ -324,48 +323,46 @@ fn async_and_ping() {
         .handle_new_program(ping_id, ping_code_id)
         .expect("failed to create new program");
 
+    let state_hash = processor
+        .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
+        .expect("failed to top up balance");
+
+    let message = create_message_full(
+        &mut processor,
+        get_next_message_id(),
+        DispatchKind::Init,
+        user_id,
+        "PING",
+    );
     let ping_state_hash = processor
-        .handle_user_message(
-            H256::zero(),
-            vec![UserMessage {
-                id: get_next_message_id(),
-                kind: DispatchKind::Init,
-                source: user_id,
-                payload: b"PING".to_vec(),
-                value: 0,
-            }],
-        )
+        .handle_message_queueing(state_hash, message)
         .expect("failed to populate message queue");
 
     processor
         .handle_new_program(async_id, upload_code_id)
         .expect("failed to create new program");
 
+    let message = create_message_full(
+        &mut processor,
+        get_next_message_id(),
+        DispatchKind::Init,
+        user_id,
+        ping_id.encode(),
+    );
     let async_state_hash = processor
-        .handle_user_message(
-            H256::zero(),
-            vec![UserMessage {
-                id: get_next_message_id(),
-                kind: DispatchKind::Init,
-                source: user_id,
-                payload: ping_id.encode(),
-                value: 0,
-            }],
-        )
+        .handle_message_queueing(state_hash, message)
         .expect("failed to populate message queue");
 
     let wait_for_reply_to = get_next_message_id();
+    let message = create_message_full(
+        &mut processor,
+        wait_for_reply_to,
+        DispatchKind::Handle,
+        user_id,
+        demo_async::Command::Common.encode(),
+    );
     let async_state_hash = processor
-        .handle_user_message(
-            async_state_hash,
-            vec![UserMessage {
-                id: wait_for_reply_to,
-                kind: DispatchKind::Handle,
-                source: user_id,
-                payload: demo_async::Command::Common.encode(),
-                value: 0,
-            }],
-        )
+        .handle_message_queueing(async_state_hash, message)
         .expect("failed to populate message queue");
 
     let mut programs =
@@ -441,7 +438,12 @@ fn many_waits() {
             .expect("failed to create new program");
 
         let state_hash = processor
-            .handle_user_message(H256::zero(), vec![create_message(DispatchKind::Init, b"")])
+            .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
+            .expect("failed to top up balance");
+
+        let message = create_message(&mut processor, DispatchKind::Init, b"");
+        let state_hash = processor
+            .handle_message_queueing(state_hash, message)
             .expect("failed to populate message queue");
 
         programs.insert(program_id, state_hash);
@@ -451,8 +453,9 @@ fn many_waits() {
     assert_eq!(to_users.len(), amount as usize);
 
     for (_pid, state_hash) in programs.iter_mut() {
+        let message = create_message(&mut processor, DispatchKind::Handle, b"");
         let new_state_hash = processor
-            .handle_user_message(*state_hash, vec![create_message(DispatchKind::Handle, b"")])
+            .handle_message_queueing(*state_hash, message)
             .expect("failed to populate message queue");
         *state_hash = new_state_hash;
     }

@@ -19,7 +19,6 @@
 //! Program's execution service for eGPU.
 
 use anyhow::Result;
-use core_processor::common::JournalNote;
 use ethexe_common::{
     mirror::Event as MirrorEvent,
     router::{Event as RouterEvent, StateTransition},
@@ -29,7 +28,7 @@ use ethexe_common::{
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
 use gear_core::{
-    ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
+    ids::{prelude::CodeIdExt, ProgramId},
     message::{DispatchKind, Payload},
 };
 use gprimitives::{CodeId, H256};
@@ -42,15 +41,6 @@ mod run;
 
 #[cfg(test)]
 mod tests;
-
-// TODO (breathx): remove me.
-pub struct UserMessage {
-    id: MessageId,
-    kind: DispatchKind,
-    source: ActorId,
-    payload: Vec<u8>,
-    value: u128,
-}
 
 pub struct Processor {
     db: Database,
@@ -121,7 +111,6 @@ impl Processor {
     }
 
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {
-        // TODO (breathx): impl key_exists().
         if self.db.original_code(code_id).is_none() {
             anyhow::bail!("code existence should be checked on smart contract side");
         }
@@ -206,84 +195,6 @@ impl Processor {
         state.queue_hash = self.db.write_queue(queue).into();
 
         Ok(self.db.write_state(state))
-    }
-
-    pub fn handle_user_message(
-        &mut self,
-        program_hash: H256,
-        messages: Vec<UserMessage>,
-    ) -> Result<H256> {
-        if messages.is_empty() {
-            return Ok(program_hash);
-        }
-
-        let mut dispatches = Vec::with_capacity(messages.len());
-
-        for message in messages {
-            let payload = Payload::try_from(message.payload)
-                .map_err(|_| anyhow::anyhow!("payload should be checked on eth side"))?;
-
-            let payload_hash = payload
-                .inner()
-                .is_empty()
-                .then_some(MaybeHash::Empty)
-                .unwrap_or_else(|| self.db.write_payload(payload).into());
-
-            let dispatch = Dispatch {
-                id: message.id,
-                kind: message.kind,
-                source: message.source,
-                payload_hash,
-                value: message.value,
-                // TODO: handle replies.
-                details: None,
-                context: None,
-            };
-
-            dispatches.push(dispatch);
-        }
-
-        let mut program_state = self
-            .db
-            .read_state(program_hash)
-            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
-
-        let mut queue = if let MaybeHash::Hash(queue_hash_and_len) = program_state.queue_hash {
-            self.db
-                .read_queue(queue_hash_and_len.hash)
-                .ok_or_else(|| anyhow::anyhow!("queue should exist if hash present"))?
-        } else {
-            VecDeque::with_capacity(dispatches.len())
-        };
-
-        queue.extend(dispatches);
-
-        let queue_hash = self.db.write_queue(queue);
-
-        program_state.queue_hash = MaybeHash::Hash(queue_hash.into());
-
-        Ok(self.db.write_state(program_state))
-    }
-
-    pub fn run_on_host(
-        &mut self,
-        program_id: ProgramId,
-        program_state: H256,
-    ) -> Result<Vec<JournalNote>> {
-        let original_code_id = self.db.program_code_id(program_id).unwrap();
-
-        let maybe_instrumented_code = self
-            .db
-            .instrumented_code(ethexe_runtime::VERSION, original_code_id);
-
-        let mut executor = self.creator.instantiate()?;
-
-        executor.run(
-            program_id,
-            original_code_id,
-            program_state,
-            maybe_instrumented_code,
-        )
     }
 
     // TODO: replace LocalOutcome with Transition struct.
