@@ -2481,12 +2481,16 @@ pub mod runtime_types {
                     pub upload_page_data: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow_per_page: runtime_types::sp_weights::weight_v2::Weight,
+                    pub read: runtime_types::sp_weights::weight_v2::Weight,
+                    pub write: runtime_types::sp_weights::weight_v2::Weight,
+                    pub read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct RentWeights {
-                    pub dispatch_stash: runtime_types::sp_weights::weight_v2::Weight,
                     pub waitlist: runtime_types::sp_weights::weight_v2::Weight,
+                    pub dispatch_stash: runtime_types::sp_weights::weight_v2::Weight,
                     pub reservation: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2499,8 +2503,6 @@ pub mod runtime_types {
                     pub rent_weights: runtime_types::pallet_gear::schedule::RentWeights,
                     pub instantiation_weights:
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
-                    pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub db_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,

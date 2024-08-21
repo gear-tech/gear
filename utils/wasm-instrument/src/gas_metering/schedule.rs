@@ -28,8 +28,6 @@ pub struct Schedule {
     pub memory_weights: MemoryWeights,
     pub rent_weights: RentWeights,
     pub instantiation_weights: InstantiationWeights,
-    pub db_write_per_byte: Weight,
-    pub db_read_per_byte: Weight,
     pub code_instrumentation_cost: Weight,
     pub code_instrumentation_byte_cost: Weight,
     pub load_allocations_weight: Weight,
@@ -44,14 +42,6 @@ impl Default for Schedule {
             memory_weights: MemoryWeights::default(),
             rent_weights: RentWeights::default(),
             instantiation_weights: InstantiationWeights::default(),
-            db_write_per_byte: Weight {
-                ref_time: 234,
-                proof_size: 0,
-            },
-            db_read_per_byte: Weight {
-                ref_time: 569,
-                proof_size: 0,
-            },
             code_instrumentation_cost: Weight {
                 ref_time: 306821000,
                 proof_size: 3793,
@@ -661,6 +651,10 @@ pub struct MemoryWeights {
     pub upload_page_data: Weight,
     pub mem_grow: Weight,
     pub mem_grow_per_page: Weight,
+    pub read: Weight,
+    pub write: Weight,
+    pub read_per_byte: Weight,
+    pub write_per_byte: Weight,
     pub parachain_read_heuristic: Weight,
 }
 
@@ -705,6 +699,22 @@ impl Default for MemoryWeights {
             },
             mem_grow_per_page: Weight {
                 ref_time: 0,
+                proof_size: 0,
+            },
+            read: Weight {
+                ref_time: 25000000,
+                proof_size: 0,
+            },
+            write: Weight {
+                ref_time: 100000000,
+                proof_size: 0,
+            },
+            read_per_byte: Weight {
+                ref_time: 569,
+                proof_size: 0,
+            },
+            write_per_byte: Weight {
+                ref_time: 234,
                 proof_size: 0,
             },
             parachain_read_heuristic: Weight {
@@ -756,19 +766,19 @@ impl Default for InstantiationWeights {
 }
 
 pub struct RentWeights {
-    pub dispatch_stash: Weight,
     pub waitlist: Weight,
+    pub dispatch_stash: Weight,
     pub reservation: Weight,
 }
 
 impl Default for RentWeights {
     fn default() -> Self {
         Self {
-            dispatch_stash: Weight {
+            waitlist: Weight {
                 ref_time: 100,
                 proof_size: 0,
             },
-            waitlist: Weight {
+            dispatch_stash: Weight {
                 ref_time: 100,
                 proof_size: 0,
             },
