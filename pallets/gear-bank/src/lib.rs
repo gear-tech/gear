@@ -46,7 +46,7 @@ macro_rules! impl_config {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
-            type SplitGas = SplitGas;
+            type SplitGasFeeRatio = SplitGasFeeRatio;
             type SplitTxFeeRatio = SplitTxFeeRatio;
         }
     };
@@ -103,7 +103,7 @@ pub mod pallet {
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
 
-        type SplitGas: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+        type SplitGasFeeRatio: Get<Option<(Perbill, AccountIdOf<Self>)>>;
 
         /// The ratio of how much of the tx fees goes to the treasury
         type SplitTxFeeRatio: Get<Option<u32>>;
@@ -225,8 +225,8 @@ pub mod pallet {
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
                 total = total.saturating_add(value);
 
-                if let Some((gas_split, split_dest)) = T::SplitGas::get() {
-                    // split value by `SplitGas`.
+                if let Some((gas_split, split_dest)) = T::SplitGasFeeRatio::get() {
+                    // split value by `SplitGasFeeRatio`.
                     let to_split = gas_split.mul_floor(value);
                     let to_user = value - to_split;
 
@@ -237,7 +237,7 @@ pub mod pallet {
                         );
                     }
 
-                    // Withdraw value to `SplitGas` destination.
+                    // Withdraw value to `SplitGasFeeRatio` destination.
                     if let Err(e) = Self::withdraw(&split_dest, to_split) {
                         log::error!(
                             "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
@@ -566,7 +566,7 @@ pub mod pallet {
                 let err_msg = format!(
                     "pallet_gear_bank::withdraw_value: withdraw failed. \
                     Receiver - {account_id:?}, value - {value:?}, receiver reducible balance - {receiver_balance:?}, \
-                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, 
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?},
                     on finalize value - {on_finalize_value:?}. \
                     Got error - {e:?}"
                 );

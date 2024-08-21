@@ -66,7 +66,7 @@ parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
     // TODO: Issue #4058
-    pub SplitGas: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
+    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
     pub SplitTxFeeRatio: Option<u32> = None;
 }
 
