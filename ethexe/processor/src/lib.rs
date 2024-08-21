@@ -183,7 +183,6 @@ impl Processor {
             dispatches.push(dispatch);
         }
 
-        // TODO: on zero hash return default avoiding db.
         let mut program_state = self
             .db
             .read_state(program_hash)
@@ -278,6 +277,7 @@ impl Processor {
                 BlockEvent::Router(event) => match event.clone() {
                     RouterEvent::ProgramCreated { actor_id, code_id } => {
                         self.handle_new_program(actor_id, code_id)?;
+
                         programs.insert(actor_id, H256::zero());
                     }
                     _ => {
@@ -288,12 +288,15 @@ impl Processor {
                     }
                 },
                 BlockEvent::Mirror { address, event } => {
-                    // TODO (breathx): handle if not (program from another router / incorrect event order ).
-                    let state_hash = *programs.get(address).expect("should exist");
+                    let Some(&state_hash) = programs.get(address) else {
+                        log::debug!("Received mirror event from unrecognized program ({address}): {event:?}");
 
-                    let state_hash = match event.clone() {
+                        continue;
+                    };
+
+                    let new_state_hash = match event.clone() {
                         MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
-                            self.handle_executable_balance_top_up(state_hash, value)?
+                            self.handle_executable_balance_top_up(state_hash, value)
                         }
                         MirrorEvent::MessageQueueingRequested {
                             id,
@@ -314,23 +317,24 @@ impl Processor {
                                     kind,
                                     source,
                                     payload,
-                                    // TODO (breathx): mutate exec balance after #4067.
                                     value,
                                 }],
-                            )?
+                            )
                         }
                         _ => {
                             log::debug!(
                                 "Handling for mirror event {event:?} is not yet implemented; noop"
                             );
+
                             continue;
                         }
                     };
 
-                    programs.insert(*address, state_hash);
+                    programs.insert(*address, new_state_hash?);
                 }
                 BlockEvent::WVara(event) => {
                     log::debug!("Handling for wvara event {event:?} is not yet implemented; noop");
+
                     continue;
                 }
             }
