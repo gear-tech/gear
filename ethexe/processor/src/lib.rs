@@ -26,13 +26,10 @@ use ethexe_common::{
     BlockEvent,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::{
-    self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
-};
+use ethexe_runtime_common::state::{Dispatch, MaybeHash, Storage};
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
     message::{DispatchKind, Payload},
-    program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceCreator;
@@ -121,8 +118,8 @@ impl Processor {
         Ok(true)
     }
 
-    // TODO: deal with params on smart contract side.
-    pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<H256> {
+    pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {
+        // TODO (breathx): impl key_exists().
         if self.db.original_code(code_id).is_none() {
             anyhow::bail!("code existence should be checked on smart contract side");
         }
@@ -133,26 +130,7 @@ impl Processor {
 
         self.db.set_program_code_id(program_id, code_id);
 
-        // TODO (breathx): state here is non-zero (?!).
-
-        let active_program = ActiveProgram {
-            allocations_hash: MaybeHash::Empty,
-            pages_hash: MaybeHash::Empty,
-            memory_infix: MemoryInfix::new(0),
-            initialized: false,
-        };
-
-        // TODO: on program creation send message to it.
-        let program_state = ProgramState {
-            state: state::Program::Active(active_program),
-            queue_hash: MaybeHash::Empty,
-            waitlist_hash: MaybeHash::Empty,
-            balance: 0,
-            executable_balance: 10_000_000_000_000, // TODO: remove this minting
-        };
-
-        // TODO: not write zero state, but just register it (or support default on get)
-        Ok(self.db.write_state(program_state))
+        Ok(())
     }
 
     pub fn handle_executable_balance_top_up(
@@ -300,10 +278,8 @@ impl Processor {
             match event {
                 BlockEvent::Router(event) => match event.clone() {
                     RouterEvent::ProgramCreated { actor_id, code_id } => {
-                        // TODO (breathx): set this zero like start of the block data.
-                        let state_hash = self.handle_new_program(actor_id, code_id)?;
-
-                        programs.insert(actor_id, state_hash);
+                        self.handle_new_program(actor_id, code_id)?;
+                        programs.insert(actor_id, H256::zero());
                     }
                     _ => {
                         log::debug!(
@@ -326,8 +302,7 @@ impl Processor {
                             payload,
                             value,
                         } => {
-                            // TODO (breathx): replace with state_hash.is_zero();
-                            let kind = if !initial_program_states.contains_key(address) {
+                            let kind = if state_hash.is_zero() {
                                 DispatchKind::Init
                             } else {
                                 DispatchKind::Handle

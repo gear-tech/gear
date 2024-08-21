@@ -212,12 +212,15 @@ fn host_ping_pong() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let state_hash = processor
+    processor
         .handle_new_program(program_id, code_id)
         .expect("failed to create new program");
 
     let state_hash = processor
-        .handle_user_message(state_hash, vec![create_message(DispatchKind::Init, "PING")])
+        .handle_user_message(
+            H256::zero(),
+            vec![create_message(DispatchKind::Init, "PING")],
+        )
         .expect("failed to populate message queue");
 
     let _init = processor.run_on_host(program_id, state_hash).unwrap();
@@ -240,13 +243,13 @@ fn ping_pong() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let state_hash = processor
+    processor
         .handle_new_program(program_id, code_id)
         .expect("failed to create new program");
 
     let state_hash = processor
         .handle_user_message(
-            state_hash,
+            H256::zero(),
             vec![
                 create_message_full(MessageId::from(1), DispatchKind::Init, user_id, "PING"),
                 create_message_full(MessageId::from(2), DispatchKind::Handle, user_id, "PING"),
@@ -317,12 +320,13 @@ fn async_and_ping() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let ping_state_hash = processor
+    processor
         .handle_new_program(ping_id, ping_code_id)
         .expect("failed to create new program");
+
     let ping_state_hash = processor
         .handle_user_message(
-            ping_state_hash,
+            H256::zero(),
             vec![UserMessage {
                 id: get_next_message_id(),
                 kind: DispatchKind::Init,
@@ -333,12 +337,13 @@ fn async_and_ping() {
         )
         .expect("failed to populate message queue");
 
-    let async_state_hash = processor
+    processor
         .handle_new_program(async_id, upload_code_id)
         .expect("failed to create new program");
+
     let async_state_hash = processor
         .handle_user_message(
-            async_state_hash,
+            H256::zero(),
             vec![UserMessage {
                 id: get_next_message_id(),
                 kind: DispatchKind::Init,
@@ -431,11 +436,12 @@ fn many_waits() {
     for i in 0..amount {
         let program_id = ProgramId::from(i);
 
-        let state_hash = processor
+        processor
             .handle_new_program(program_id, code_id)
             .expect("failed to create new program");
+
         let state_hash = processor
-            .handle_user_message(state_hash, vec![create_message(DispatchKind::Init, b"")])
+            .handle_user_message(H256::zero(), vec![create_message(DispatchKind::Init, b"")])
             .expect("failed to populate message queue");
 
         programs.insert(program_id, state_hash);
