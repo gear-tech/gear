@@ -105,9 +105,8 @@ impl Program {
 /// ethexe program state.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ProgramState {
-    // TODO (breathx): rename to program
     /// Active, exited or terminated program state.
-    pub state: Program,
+    pub program: Program,
     /// Hash of incoming message queue, see [`MessageQueue`].
     pub queue_hash: MaybeHash,
     /// Hash of waiting messages list, see [`Waitlist`].
@@ -121,7 +120,7 @@ pub struct ProgramState {
 impl ProgramState {
     pub const fn zero() -> Self {
         Self {
-            state: Program::Active(ActiveProgram {
+            program: Program::Active(ActiveProgram {
                 allocations_hash: MaybeHash::Empty,
                 pages_hash: MaybeHash::Empty,
                 memory_infix: MemoryInfix::new(0),

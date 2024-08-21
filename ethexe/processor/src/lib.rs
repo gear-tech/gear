@@ -173,7 +173,7 @@ impl Processor {
             .read_state(state_hash)
             .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
 
-        anyhow::ensure!(state.state.is_active(), "program should be active");
+        anyhow::ensure!(state.program.is_active(), "program should be active");
 
         let queue = if let MaybeHash::Hash(HashAndLen {
             hash: queue_hash, ..
