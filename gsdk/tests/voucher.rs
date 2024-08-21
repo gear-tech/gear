@@ -47,6 +47,7 @@ async fn test_issue_voucher() -> Result<()> {
             None,
             false,
             100,
+            None,
         )
         .await?;
 
@@ -74,7 +75,14 @@ async fn test_decline_revoke_voucher() -> Result<()> {
     // issue voucher
     let tx = signer
         .calls
-        .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            None,
+            true,
+            100,
+            None,
+        )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let _voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
@@ -111,7 +119,14 @@ async fn test_upload_code_with_voucher() -> Result<()> {
     // issue voucher
     let tx = signer
         .calls
-        .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            None,
+            true,
+            100,
+            None,
+        )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
@@ -154,7 +169,14 @@ async fn test_send_message_with_voucher() -> Result<()> {
     // 1. issue voucher
     let tx = signer
         .calls
-        .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            None,
+            true,
+            100,
+            None,
+        )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();

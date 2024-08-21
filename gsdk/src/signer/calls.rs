@@ -248,8 +248,14 @@ impl SignerCalls {
         programs: Option<Vec<ProgramId>>,
         code_uploading: bool,
         duration: u32,
+        code_ids: Option<Vec<CodeId>>,
     ) -> Result<TxInBlock> {
         let programs_value = programs
+            .map(|vec| {
+                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
+            })
+            .convert();
+        let code_ids_value = code_ids
             .map(|vec| {
                 Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
             })
@@ -264,6 +270,7 @@ impl SignerCalls {
                     programs_value,
                     Value::bool(code_uploading),
                     Value::from(duration),
+                    code_ids_value,
                 ],
             )
             .await
@@ -280,8 +287,20 @@ impl SignerCalls {
         append_programs: Option<Option<Vec<ProgramId>>>,
         code_uploading: Option<bool>,
         prolong_duration: u32,
+        append_code_ids: Option<Option<Vec<CodeId>>>,
     ) -> Result<TxInBlock> {
         let append_programs_value = append_programs
+            .map(|o| {
+                o.map(|vec| {
+                    Value::unnamed_composite(
+                        vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
+                    )
+                })
+                .convert()
+            })
+            .convert();
+
+        let append_code_ids_value = append_code_ids
             .map(|o| {
                 o.map(|vec| {
                     Value::unnamed_composite(
@@ -305,6 +324,7 @@ impl SignerCalls {
                     append_programs_value,
                     code_uploading.map(Value::bool).convert(),
                     Value::from(prolong_duration),
+                    append_code_ids_value,
                 ],
             )
             .await

@@ -3000,6 +3000,15 @@ pub mod runtime_types {
                     },
                     #[codec(index = 3)]
                     DeclineVoucher,
+                    #[codec(index = 4)]
+                    CreateProgram {
+                        code_id: runtime_types::gprimitives::CodeId,
+                        salt: ::std::vec::Vec<::core::primitive::u8>,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: _0,
+                        keep_alive: ::core::primitive::bool,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct VoucherId(pub [::core::primitive::u8; 32usize]);
@@ -3011,6 +3020,8 @@ pub mod runtime_types {
                     >,
                     pub code_uploading: ::core::primitive::bool,
                     pub expiry: _1,
+                    pub code_ids:
+                        ::core::option::Option<::std::vec::Vec<runtime_types::gprimitives::CodeId>>,
                 }
             }
             pub mod pallet {
@@ -3028,6 +3039,9 @@ pub mod runtime_types {
                         >,
                         code_uploading: ::core::primitive::bool,
                         duration: ::core::primitive::u32,
+                        code_ids: ::core::option::Option<
+                            ::std::vec::Vec<runtime_types::gprimitives::CodeId>,
+                        >,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::call`]."]
@@ -3100,6 +3114,12 @@ pub mod runtime_types {
                     #[codec(index = 10)]
                     #[doc = "Voucher is disabled for code uploading, but requested."]
                     CodeUploadingDisabled,
+                    #[codec(index = 11)]
+                    #[doc = "CodeId is not in whitelisted set for voucher."]
+                    InappropriateCodeId,
+                    #[codec(index = 12)]
+                    #[doc = "Try to whitelist more CodeId than allowed."]
+                    MaxCodeIdsLimitExceeded,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Voucher event."]

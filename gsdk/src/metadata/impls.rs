@@ -402,6 +402,24 @@ fn prepaid_call_to_scale_value(call: PrepaidCall<u128>) -> Value {
             Value::named_variant("UploadCode", [("code", Value::from_bytes(code))])
         }
         PrepaidCall::DeclineVoucher => Value::unnamed_variant("DeclineVoucher", []),
+        PrepaidCall::CreateProgram {
+            code_id,
+            salt,
+            payload,
+            gas_limit,
+            value,
+            keep_alive,
+        } => Value::named_variant(
+            "CreateProgram",
+            [
+                ("code_id", Value::from_bytes(code_id.0)),
+                ("salt", Value::from_bytes(salt)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
         _ => unreachable!("other prepaid calls aren't supported"),
     }
 }
