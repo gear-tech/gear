@@ -360,8 +360,17 @@ impl Processor {
 
                 states.insert(actor_id, H256::zero());
             }
-            _ => {
-                log::debug!("Handling for router event {event:?} is not yet implemented; noop");
+            RouterEvent::CodeValidationRequested { .. }
+            | RouterEvent::BaseWeightChanged { .. }
+            | RouterEvent::StorageSlotChanged
+            | RouterEvent::ValidatorsSetChanged
+            | RouterEvent::ValuePerWeightChanged { .. } => {
+                log::debug!("Handler not yet implemented: {event:?}");
+                return Ok(());
+            }
+            RouterEvent::BlockCommitted { .. } | RouterEvent::CodeGotValidated { .. } => {
+                log::debug!("Informational events are noop for processing: {event:?}");
+                return Ok(());
             }
         };
 
@@ -410,9 +419,16 @@ impl Processor {
 
                 self.handle_message_queueing(state_hash, dispatch)?
             }
-            _ => {
-                log::debug!("Handler for this event isn't yet implemented: {event:?}");
-
+            MirrorEvent::ReplyQueueingRequested { .. }
+            | MirrorEvent::ValueClaimingRequested { .. } => {
+                log::debug!("Handler not yet implemented: {event:?}");
+                return Ok(());
+            }
+            MirrorEvent::StateChanged { .. }
+            | MirrorEvent::ValueClaimed { .. }
+            | MirrorEvent::Message { .. }
+            | MirrorEvent::Reply { .. } => {
+                log::debug!("Informational events are noop for processing: {event:?}");
                 return Ok(());
             }
         };
@@ -427,8 +443,15 @@ impl Processor {
         _states: &mut BTreeMap<ProgramId, H256>,
         event: WVaraEvent,
     ) -> Result<()> {
-        log::debug!("Handler for this event isn't yet implemented: {event:?}");
-
-        Ok(())
+        match event {
+            WVaraEvent::Transfer { .. } => {
+                log::debug!("Handler not yet implemented: {event:?}");
+                Ok(())
+            }
+            WVaraEvent::Approval { .. } => {
+                log::debug!("Informational events are noop for processing: {event:?}");
+                Ok(())
+            }
+        }
     }
 }
