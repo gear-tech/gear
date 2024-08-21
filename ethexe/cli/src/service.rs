@@ -129,7 +129,6 @@ impl Service {
                         validators: config.validators.clone(),
                     },
                     signer.clone(),
-                    Box::new(db.clone()),
                 )
                 .await?,
             )
@@ -618,10 +617,30 @@ impl Service {
             return Ok(());
         };
 
-        if let Err(err) = sequencer.process_collected_commitments() {
-            log::warn!("Sequencer failed to process collected commitments: {err}");
+        let Some(chain_head) = sequencer.chain_head() else {
+            return Err(anyhow!("Chain head is not set in sequencer"));
+        };
+
+        // If chain head is not yet processed by this node, this is normal situation,
+        // so we just skip this round for sequencer.
+
+        let Some(block_is_empty) = db.block_is_empty(chain_head) else {
+            log::warn!("Failed to get block emptiness status for {chain_head}");
             return Ok(());
-        }
+        };
+
+        let last_not_empty_block = match block_is_empty {
+            true => match db.block_prev_commitment(chain_head) {
+                Some(prev_commitment) => prev_commitment,
+                None => {
+                    log::warn!("Failed to get previous commitment for {chain_head}");
+                    return Ok(());
+                }
+            },
+            false => chain_head,
+        };
+
+        sequencer.process_collected_commitments(last_not_empty_block)?;
 
         if maybe_validator.is_none() && maybe_network_sender.is_none() {
             return Ok(());

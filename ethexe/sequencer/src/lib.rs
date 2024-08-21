@@ -22,10 +22,7 @@ pub mod agro;
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
 use anyhow::{anyhow, Result};
-use ethexe_common::{
-    db::BlockMetaStorage,
-    router::{BlockCommitment, CodeCommitment},
-};
+use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::Event;
 use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
@@ -39,8 +36,6 @@ use tokio::sync::watch;
 pub struct Sequencer {
     key: PublicKey,
     ethereum: Ethereum,
-
-    db: Box<dyn BlockMetaStorage>,
 
     validators: HashSet<Address>,
     threshold: u64,
@@ -79,11 +74,7 @@ struct CommitmentAndOrigins<C> {
 type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
 
 impl Sequencer {
-    pub async fn new(
-        config: &Config,
-        signer: Signer,
-        db: Box<dyn BlockMetaStorage>,
-    ) -> Result<Self> {
+    pub async fn new(config: &Config, signer: Signer) -> Result<Self> {
         let (status_sender, _status_receiver) = watch::channel(SequencerStatus::default());
         Ok(Sequencer {
             key: config.sign_tx_public,
@@ -94,7 +85,6 @@ impl Sequencer {
                 config.sign_tx_public.to_address(),
             )
             .await?,
-            db,
             validators: config.validators.iter().cloned().collect(),
             threshold: 1,
             code_commitments: Default::default(),
@@ -105,6 +95,10 @@ impl Sequencer {
             status: Default::default(),
             status_sender,
         })
+    }
+
+    pub fn chain_head(&self) -> Option<H256> {
+        self.chain_head
     }
 
     // This function should never block.
@@ -124,33 +118,16 @@ impl Sequencer {
         Ok(())
     }
 
-    pub fn process_collected_commitments(&mut self) -> Result<()> {
+    pub fn process_collected_commitments(&mut self, from_block: H256) -> Result<()> {
         if self.codes_candidate.is_some() || self.blocks_candidate.is_some() {
             return Err(anyhow!("Previous commitments candidate are not submitted"));
         }
 
-        let Some(chain_head) = self.chain_head else {
-            return Err(anyhow!("No chain head is set"));
-        };
-
         self.codes_candidate =
             Self::code_commitments_candidate(&self.code_commitments, self.threshold);
 
-        let last_not_empty_block = if self.db.block_is_empty(chain_head).ok_or(anyhow!(
-            "Failed to get block emptiness status for {chain_head}"
-        ))? {
-            self.db.block_prev_commitment(chain_head).ok_or(anyhow!(
-                "Failed to get previous commitment for {chain_head}"
-            ))?
-        } else {
-            chain_head
-        };
-
-        self.blocks_candidate = Self::block_commitments_candidate(
-            &self.block_commitments,
-            last_not_empty_block,
-            self.threshold,
-        )?;
+        self.blocks_candidate =
+            Self::block_commitments_candidate(&self.block_commitments, from_block, self.threshold)?;
 
         Ok(())
     }

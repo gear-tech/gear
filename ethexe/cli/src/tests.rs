@@ -257,7 +257,6 @@ impl TestEnv {
                 validators: vec![self.validator_public_key.to_address()],
             },
             self.signer.clone(),
-            Box::new(self.db.clone()),
         )
         .await?;
 
