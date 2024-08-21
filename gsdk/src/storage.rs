@@ -37,8 +37,7 @@ use crate::{
         vara_runtime::RuntimeEvent,
     },
     result::{Error, Result},
-    utils::storage_address_bytes,
-    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
+    utils, Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
@@ -51,8 +50,8 @@ use subxt::{
     dynamic::{DecodedValueThunk, Value},
     ext::codec::{Decode, Encode},
     metadata::types::StorageEntryType,
-    storage::address::{StorageAddress, Yes},
-    utils::Static,
+    storage::{Address, DynamicAddress, StaticStorageKey},
+    utils::Yes,
 };
 
 impl Api {
@@ -85,14 +84,13 @@ impl Api {
     ///
     /// ```
     #[storage_fetch]
-    pub async fn fetch_storage_at<'a, Address, Value>(
+    pub async fn fetch_storage_at<'a, Addr, Value>(
         &self,
-        address: &'a Address,
+        address: &'a Addr,
         block_hash: Option<H256>,
     ) -> Result<Value>
     where
-        Address:
-            StorageAddress<IsFetchable = Yes, IsDefaultable = Yes, Target = DecodedValueThunk> + 'a,
+        Addr: Address<IsFetchable = Yes, IsDefaultable = Yes, Target = DecodedValueThunk> + 'a,
         Value: Decode,
     {
         let client = self.storage();
@@ -193,7 +191,7 @@ impl Api {
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
 
         for gas_node_id in gas_node_ids {
-            let addr = Self::storage(GearGasStorage::GasNodes, vec![Static(gas_node_id)]);
+            let addr = Self::storage(GearGasStorage::GasNodes, StaticStorageKey::new(gas_node_id));
             let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
             gas_nodes.push((*gas_node_id, gas_node));
         }
@@ -339,9 +337,9 @@ impl Api {
             .iter(pages_storage_address)
             .await?;
 
-        while let Some(Ok((encoded_key, encoded_value))) = pages_stream.next().await {
-            let (_, page) = <([u8; 68], u32)>::decode(&mut encoded_key.as_slice())?;
-            let data = encoded_value.encoded().to_vec();
+        while let Some(Ok(pair)) = pages_stream.next().await {
+            let (_, page) = <([u8; 68], u32)>::decode(&mut pair.key_bytes.as_ref())?;
+            let data = pair.value.encoded().to_vec();
             pages.insert(page, data);
         }
 
@@ -365,7 +363,7 @@ impl Api {
         };
 
         for page in page_numbers {
-            let addr = Self::storage(
+            let addr: DynamicAddress<Vec<Value>> = Self::storage(
                 GearProgramStorage::MemoryPages,
                 vec![
                     Value::from_bytes(program_id),
@@ -375,8 +373,7 @@ impl Api {
             );
 
             let metadata = self.metadata();
-            let lookup_bytes = storage_address_bytes(&addr, &metadata)?;
-
+            let lookup_bytes = utils::storage_address_bytes(&addr, &metadata)?;
             let encoded_page = self
                 .get_storage(block_hash)
                 .await?
@@ -448,10 +445,7 @@ impl Api {
 }
 
 /// Get storage entry type id using `metadata` and storage entry `address`
-pub(crate) fn storage_type_id(
-    metadata: &subxt::Metadata,
-    address: &impl StorageAddress,
-) -> Result<u32> {
+pub(crate) fn storage_type_id(metadata: &subxt::Metadata, address: &impl Address) -> Result<u32> {
     let storage_type = metadata
         .pallet_by_name_err(address.pallet_name())?
         .storage()
