@@ -100,7 +100,7 @@ impl Validator {
         &mut self,
         db: &impl CodesStorage,
         requests: impl IntoIterator<Item = CodeCommitment>,
-    ) -> Result<Signature> {
+    ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
         for request in requests.into_iter() {
             commitment_digests.push(request.as_digest());
@@ -114,13 +114,14 @@ impl Validator {
             self.pub_key,
             self.router_address,
         )
+        .map(|signature| (commitments_digest, signature))
     }
 
     pub fn validate_block_commitments(
         &mut self,
         db: &impl BlockMetaStorage,
         requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
-    ) -> Result<Signature> {
+    ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
         for request in requests.into_iter() {
             commitment_digests.push(request.as_digest());
@@ -134,6 +135,7 @@ impl Validator {
             self.pub_key,
             self.router_address,
         )
+        .map(|signature| (commitments_digest, signature))
     }
 
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {

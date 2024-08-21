@@ -33,7 +33,7 @@ use ethexe_network::GossipsubMessage;
 use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_sequencer::agro::AggregatedCommitments;
-use ethexe_signer::{AsDigest, Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
@@ -690,10 +690,8 @@ impl Service {
             // on local validator. So we just print warning in this case.
 
             if code_requests.is_empty().not() {
-                let digest = code_requests.as_digest();
-
                 match validator.validate_code_commitments(db, code_requests) {
-                    Result::Ok(signature) => {
+                    Result::Ok((digest, signature)) => {
                         sequencer.receive_codes_signature(digest, signature)?
                     }
                     Result::Err(err) => {
@@ -703,9 +701,8 @@ impl Service {
             }
 
             if block_requests.is_empty().not() {
-                let digest = block_requests.as_digest();
                 match validator.validate_block_commitments(db, block_requests) {
-                    Result::Ok(signature) => {
+                    Result::Ok((digest, signature)) => {
                         sequencer.receive_blocks_signature(digest, signature)?
                     }
                     Result::Err(err) => {
@@ -760,21 +757,13 @@ impl Service {
                 let codes = codes
                     .is_empty()
                     .not()
-                    .then(|| {
-                        let digest = codes.as_digest();
-                        let signature = validator.validate_code_commitments(db, codes)?;
-                        Ok((digest, signature))
-                    })
+                    .then(|| validator.validate_code_commitments(db, codes))
                     .transpose()?;
 
                 let blocks = blocks
                     .is_empty()
                     .not()
-                    .then(|| {
-                        let digest = blocks.as_digest();
-                        let signature = validator.validate_block_commitments(db, blocks)?;
-                        Ok((digest, signature))
-                    })
+                    .then(|| validator.validate_block_commitments(db, blocks))
                     .transpose()?;
 
                 let message = NetworkMessage::ApproveCommitments { codes, blocks };
