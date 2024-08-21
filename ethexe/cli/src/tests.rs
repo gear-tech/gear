@@ -37,7 +37,7 @@ use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use futures::StreamExt;
 use gear_core::ids::prelude::*;
-use gprimitives::{ActorId, CodeId, MessageId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::{
@@ -148,6 +148,7 @@ struct TestEnv {
     validator_private_key: ethexe_signer::PrivateKey,
     validator_public_key: ethexe_signer::PublicKey,
     router_address: ethexe_signer::Address,
+    sender_address: ActorId,
     block_time: Duration,
     running_service_handle: Option<JoinHandle<Result<()>>>,
 }
@@ -226,6 +227,7 @@ impl TestEnv {
             validator_private_key,
             validator_public_key,
             router_address,
+            sender_address: ActorId::from(H160::from(sender_address.0)),
             block_time,
             running_service_handle: None,
         };
@@ -414,9 +416,12 @@ async fn ping() {
                     if address == program_id {
                         match event {
                             MirrorEvent::MessageQueueingRequested {
-                                id, payload, value, ..
+                                id,
+                                source,
+                                payload,
+                                value,
                             } => {
-                                // TODO (breathx): assert source.
+                                assert_eq!(source, env.sender_address);
                                 assert_eq!(payload, b"PING");
                                 assert_eq!(value, 0);
                                 init_message_id = id;
@@ -583,9 +588,12 @@ async fn ping_reorg() {
                     if address == program_id {
                         match event {
                             MirrorEvent::MessageQueueingRequested {
-                                id, payload, value, ..
+                                id,
+                                source,
+                                payload,
+                                value,
                             } => {
-                                // TODO (breathx): assert source.
+                                assert_eq!(source, env.sender_address);
                                 assert_eq!(payload, b"PING");
                                 assert_eq!(value, 0);
                                 init_message_id = id;
@@ -829,9 +837,13 @@ async fn ping_deep_sync() {
                     if address == program_id {
                         match event {
                             MirrorEvent::MessageQueueingRequested {
-                                id, payload, value, ..
+                                id,
+                                source,
+                                payload,
+                                value,
+                                ..
                             } => {
-                                // TODO (breathx): assert source.
+                                assert_eq!(source, env.sender_address);
                                 assert_eq!(payload, b"PING");
                                 assert_eq!(value, 0);
                                 init_message_id = id;
