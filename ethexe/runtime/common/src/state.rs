@@ -39,7 +39,7 @@ use parity_scale_codec::{Decode, Encode};
 
 pub use gear_core::program::ProgramState as InitStatus;
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct HashAndLen {
     pub hash: H256,
     pub len: NonZeroU32,
@@ -55,7 +55,7 @@ impl From<H256> for HashAndLen {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum MaybeHash {
     Hash(HashAndLen),
     Empty,
@@ -77,7 +77,7 @@ impl MaybeHash {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ActiveProgram {
     /// Hash of wasm memory pages allocations, see [`Allocations`].
     pub allocations_hash: MaybeHash,
@@ -89,7 +89,7 @@ pub struct ActiveProgram {
     pub initialized: bool,
 }
 
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub enum Program {
     Active(ActiveProgram),
     Exited(ProgramId),
@@ -97,7 +97,7 @@ pub enum Program {
 }
 
 /// ethexe program state.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub state: Program,
@@ -109,6 +109,27 @@ pub struct ProgramState {
     pub balance: Value,
     /// Executable balance.
     pub executable_balance: Value,
+}
+
+impl ProgramState {
+    pub const fn zero() -> Self {
+        Self {
+            state: Program::Active(ActiveProgram {
+                allocations_hash: MaybeHash::Empty,
+                pages_hash: MaybeHash::Empty,
+                memory_infix: MemoryInfix::new(0),
+                initialized: false,
+            }),
+            queue_hash: MaybeHash::Empty,
+            waitlist_hash: MaybeHash::Empty,
+            balance: 0,
+            executable_balance: 0,
+        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        *self == Self::zero()
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
