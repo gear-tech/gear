@@ -18,7 +18,6 @@
 
 //! Storage interfaces
 use crate::{
-    config::GearConfig,
     metadata::{
         runtime_types::{
             frame_system::pallet::Call,
@@ -31,9 +30,9 @@ use crate::{
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
         vara_runtime::RuntimeCall,
     },
-    signer::Inner,
+    signer::{utils::EventsResult, Inner},
     utils::storage_address_bytes,
-    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages, Result,
+    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
 };
 use gear_core::{
     ids::*,
@@ -44,11 +43,11 @@ use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 use subxt::{
-    blocks::ExtrinsicEvents, dynamic::Value, metadata::EncodeWithMetadata, storage::StorageAddress,
+    dynamic::Value,
+    metadata::EncodeWithMetadata,
+    storage::{Address, StaticStorageKey},
     utils::Static,
 };
-
-type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 /// Implementation of storage calls for [`Signer`].
 #[derive(Clone)]
@@ -57,7 +56,7 @@ pub struct SignerStorage(pub(crate) Arc<Inner>);
 // pallet-system
 impl SignerStorage {
     /// Sets storage values via calling sudo pallet
-    pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> EventsResult {
+    pub async fn set_storage(&self, items: &[(impl Address, impl Encode)]) -> EventsResult {
         let metadata = self.0.api().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
@@ -96,7 +95,7 @@ impl SignerStorage {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = Api::storage(GearGasStorage::GasNodes, vec![Static(gas_node.0)]);
+            let addr = Api::storage(GearGasStorage::GasNodes, StaticStorageKey::new(&gas_node.0));
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await

@@ -18,12 +18,12 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{state_args, Program, System};
+use gtest::{constants::DEFAULT_USER_ALICE, state_args, Program, System};
 use std::{fs, path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
-    let user = 0;
+    let user = DEFAULT_USER_ALICE;
     let program = Program::from_file(sys, prog);
 
     // Init program

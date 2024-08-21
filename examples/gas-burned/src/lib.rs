@@ -13,14 +13,14 @@ mod wasm;
 
 #[cfg(test)]
 mod tests {
-    use gtest::{Gas, Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Gas, Program, System};
 
     #[test]
     fn gas_burned() {
         let system = System::new();
         system.init_logger();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         let program = Program::current(&system);
         let init_msg_id = program.send_bytes(from, "init");
