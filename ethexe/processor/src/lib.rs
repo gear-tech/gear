@@ -27,7 +27,7 @@ use ethexe_common::{
     BlockEvent,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::{Dispatch, MaybeHash, Storage};
+use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
     message::{DispatchKind, Payload},
@@ -43,6 +43,7 @@ mod run;
 #[cfg(test)]
 mod tests;
 
+// TODO (breathx): remove me.
 pub struct UserMessage {
     id: MessageId,
     kind: DispatchKind,
@@ -145,6 +146,64 @@ impl Processor {
             .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
 
         state.executable_balance += value;
+
+        Ok(self.db.write_state(state))
+    }
+
+    pub fn handle_payload(&mut self, payload: Vec<u8>) -> Result<MaybeHash> {
+        let payload = Payload::try_from(payload)
+            .map_err(|_| anyhow::anyhow!("payload should be checked on eth side"))?;
+
+        let hash = payload
+            .inner()
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.db.write_payload(payload).into());
+
+        Ok(hash)
+    }
+
+    pub fn handle_message_queueing(
+        &mut self,
+        state_hash: H256,
+        dispatch: Dispatch,
+    ) -> Result<H256> {
+        self.handle_messages_queueing(state_hash, vec![dispatch])
+    }
+
+    pub fn handle_messages_queueing(
+        &mut self,
+        state_hash: H256,
+        dispatches: Vec<Dispatch>,
+    ) -> Result<H256> {
+        if dispatches.is_empty() {
+            return Ok(state_hash);
+        }
+
+        let mut state = self
+            .db
+            .read_state(state_hash)
+            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+
+        anyhow::ensure!(state.state.is_active(), "program should be active");
+
+        let queue = if let MaybeHash::Hash(HashAndLen {
+            hash: queue_hash, ..
+        }) = state.queue_hash
+        {
+            let mut queue = self
+                .db
+                .read_queue(queue_hash)
+                .ok_or_else(|| anyhow::anyhow!("queue should exist if hash present"))?;
+
+            queue.extend(dispatches);
+
+            queue
+        } else {
+            VecDeque::from(dispatches)
+        };
+
+        state.queue_hash = self.db.write_queue(queue).into();
 
         Ok(self.db.write_state(state))
     }
@@ -331,22 +390,25 @@ impl Processor {
                 payload,
                 value,
             } => {
+                let payload_hash = self.handle_payload(payload)?;
+
                 let kind = if state_hash.is_zero() {
                     DispatchKind::Init
                 } else {
                     DispatchKind::Handle
                 };
 
-                self.handle_user_message(
-                    state_hash,
-                    vec![UserMessage {
-                        id,
-                        kind,
-                        source,
-                        payload,
-                        value,
-                    }],
-                )?
+                let dispatch = Dispatch {
+                    id,
+                    kind,
+                    source,
+                    payload_hash,
+                    value,
+                    details: None,
+                    context: None,
+                };
+
+                self.handle_message_queueing(state_hash, dispatch)?
             }
             _ => {
                 log::debug!("Handler for this event isn't yet implemented: {event:?}");

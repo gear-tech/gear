@@ -96,9 +96,16 @@ pub enum Program {
     Terminated(ProgramId),
 }
 
+impl Program {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Active(_))
+    }
+}
+
 /// ethexe program state.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ProgramState {
+    // TODO (breathx): rename to program
     /// Active, exited or terminated program state.
     pub state: Program,
     /// Hash of incoming message queue, see [`MessageQueue`].
