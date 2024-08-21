@@ -63,6 +63,7 @@ pub struct Service {
     rpc: Option<ethexe_rpc::RpcService>,
 }
 
+// TODO: consider to move this to another module #4176
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum NetworkMessage {
     PublishCommitments {
@@ -532,8 +533,8 @@ impl Service {
                     );
 
                     if let Err(err) = result {
-                        // TODO: slash peer/validator in case of error #+_+_+
-                        // TODO: consider error log as temporary solution #+_+_+
+                        // TODO: slash peer/validator in case of error #4175
+                        // TODO: consider error log as temporary solution #4175
                         log::warn!("Failed to process network message: {err}");
                     }
                 }

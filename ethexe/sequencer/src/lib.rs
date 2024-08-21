@@ -61,6 +61,7 @@ pub struct Config {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SequencerStatus {
+    // TODO: change this to code and blocks commitments in the commitments map #4177
     pub aggregated_commitments: u64,
     pub submitted_code_commitments: u64,
     pub submitted_block_commitments: u64,
