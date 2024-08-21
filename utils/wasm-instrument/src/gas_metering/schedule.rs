@@ -806,3 +806,10 @@ pub struct Weight {
     pub ref_time: u64,
     pub proof_size: u64,
 }
+
+impl Weight {
+    #[doc(hidden)]
+    pub const fn ref_time(&self) -> u64 {
+        self.ref_time
+    }
+}

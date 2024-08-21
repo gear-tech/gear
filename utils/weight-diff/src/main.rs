@@ -222,9 +222,9 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 | "InstructionWeights"
                 | "SyscallWeights"
                 | "MemoryWeights"
-                | "InstantiationWeights"
                 | "RentWeights"
                 | "DbWeights"
+                | "InstantiationWeights"
         ) {
             return;
         }
@@ -389,11 +389,11 @@ fn main() {
                         "InstructionWeights" => &raw_schedule["instruction_weights"][field_name],
                         "SyscallWeights" => &raw_schedule["syscall_weights"][field_name],
                         "MemoryWeights" => &raw_schedule["memory_weights"][field_name],
+                        "RentWeights" => &raw_schedule["rent_weights"][field_name],
+                        "DbWeights" => &raw_schedule["db_weights"][field_name],
                         "InstantiationWeights" => {
                             &raw_schedule["instantiation_weights"][field_name]
                         }
-                        "RentWeights" => &raw_schedule["rent_weights"][field_name],
-                        "DbWeights" => &raw_schedule["db_weights"][field_name],
                         _ => &raw_schedule,
                     };
 
@@ -445,6 +445,15 @@ fn main() {
                 }
             });
 
+            declarations.push(quote! {
+                impl Weight {
+                    #[doc(hidden)]
+                    pub const fn ref_time(&self) -> u64 {
+                        self.ref_time
+                    }
+                }
+            });
+
             let output = declarations
                 .into_iter()
                 .map(|stream| stream.to_string())
@@ -461,13 +470,14 @@ fn main() {
                 //! `pallets/gear/src/schedule.rs`.
                 //!
                 //! See `./scripts/weight-dump.sh` if you want to update it.
+            }];
 
+            declarations.push(quote! {
                 use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
                 use gear_core::costs::SyscallCosts;
                 use gear_lazy_pages_common::LazyPagesCosts;
                 use gear_wasm_instrument::gas_metering::{InstantiationWeights, MemoryWeights, SyscallWeights, Schedule};
-
-            }];
+            });
 
             // LazyPagesCosts
             declarations.push(quote! {
@@ -587,15 +597,6 @@ fn main() {
                 }
             });
 
-            // process_costs and block_config()
-            let vara_schedule: Schedule<vara_runtime::Runtime> = Default::default();
-
-            let process_costs = vara_schedule.process_costs();
-
-            let instrumentation = process_costs.instrumentation.cost_for_one();
-            let instrumentation_per_byte = process_costs.instrumentation_per_byte.cost_for_one();
-            let load_allocations_per_interval =
-                process_costs.load_allocations_per_interval.cost_for_one();
             declarations.push(quote! {
                 pub fn process_costs(schedule: &Schedule) -> ProcessCosts {
                     ProcessCosts {
@@ -613,10 +614,10 @@ fn main() {
                         read: schedule.db_weights.read.ref_time.into(),
                         write: schedule.db_weights.write.ref_time.into(),
                         read_per_byte: schedule.db_weights.read_per_byte.ref_time.into(),
-                        instrumentation: #instrumentation.into(),
-                        instrumentation_per_byte: #instrumentation_per_byte.into(),
+                        instrumentation: schedule.code_instrumentation_cost.ref_time.into(),
+                        instrumentation_per_byte: schedule.code_instrumentation_byte_cost.ref_time.into(),
                         instantiation_costs: instantiation_costs(&schedule.instantiation_weights),
-                        load_allocations_per_interval: #load_allocations_per_interval.into()
+                        load_allocations_per_interval: schedule.load_allocations_weight.ref_time.into(),
                     }
                 }
             });

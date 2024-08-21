@@ -20,6 +20,7 @@
 #![doc = r" `pallets/gear/src/schedule.rs`."]
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
+
 use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
 use gear_core::costs::SyscallCosts;
 use gear_lazy_pages_common::LazyPagesCosts;
@@ -167,9 +168,9 @@ pub fn process_costs(schedule: &Schedule) -> ProcessCosts {
         read: schedule.db_weights.read.ref_time.into(),
         write: schedule.db_weights.write.ref_time.into(),
         read_per_byte: schedule.db_weights.read_per_byte.ref_time.into(),
-        instrumentation: 306821000u64.into(),
-        instrumentation_per_byte: 627777u64.into(),
+        instrumentation: schedule.code_instrumentation_cost.ref_time.into(),
+        instrumentation_per_byte: schedule.code_instrumentation_byte_cost.ref_time.into(),
         instantiation_costs: instantiation_costs(&schedule.instantiation_weights),
-        load_allocations_per_interval: 20729u64.into(),
+        load_allocations_per_interval: schedule.load_allocations_weight.ref_time.into(),
     }
 }
