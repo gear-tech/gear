@@ -255,6 +255,7 @@ impl TestEnv {
                 sign_tx_public: self.sequencer_public_key,
                 router_address: self.router_address,
                 validators: vec![self.validator_public_key.to_address()],
+                threshold: 1,
             },
             self.signer.clone(),
         )

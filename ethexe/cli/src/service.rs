@@ -102,8 +102,17 @@ impl Service {
         .await?;
 
         let router_query = RouterQuery::new(&config.ethereum_rpc, ethereum_router_address).await?;
+
         let genesis_block_hash = router_query.genesis_block_hash().await?;
-        log::info!("👶 Genesis block hash: {genesis_block_hash}");
+        log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
+
+        let validators = router_query.validators().await?;
+        log::info!("👥 Validators set: {validators:?}");
+
+        let threshold_percentage = router_query.threshold_percentage().await?;
+        // See Router.sol validatorsThreshold impl
+        let threshold = (validators.len() as u64 * threshold_percentage + 9999) / 10000;
+        log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
         let query = ethexe_observer::Query::new(
             Arc::new(db.clone()),
@@ -126,7 +135,8 @@ impl Service {
                         ethereum_rpc: config.ethereum_rpc.clone(),
                         sign_tx_public: key,
                         router_address: config.ethereum_router_address,
-                        validators: config.validators.clone(),
+                        validators,
+                        threshold,
                     },
                     signer.clone(),
                 )
@@ -522,6 +532,8 @@ impl Service {
                     );
 
                     if let Err(err) = result {
+                        // TODO: slash peer/validator in case of error #+_+_+
+                        // TODO: consider error log as temporary solution #+_+_+
                         log::warn!("Failed to process network message: {err}");
                     }
                 }
@@ -850,6 +862,8 @@ mod tests {
 
     #[tokio::test]
     async fn basics() {
+        gear_utils::init_default_logger();
+
         let tmp_dir = tempdir().unwrap();
         let tmp_dir = tmp_dir.path().to_path_buf();
 
@@ -860,7 +874,7 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "ws://54.67.75.1:8546".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
+            ethereum_router_address: "0xa9e7B594e18e28b1Cc0FA4000D92ded887CB356F"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,
@@ -876,7 +890,6 @@ mod tests {
                 "dev".to_string(),
             )),
             rpc_port: Some(9090),
-            validators: Default::default(),
         })
         .await
         .unwrap();
@@ -886,7 +899,7 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
+            ethereum_router_address: "0xa9e7B594e18e28b1Cc0FA4000D92ded887CB356F"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,
@@ -899,7 +912,6 @@ mod tests {
             net_config: None,
             prometheus_config: None,
             rpc_port: None,
-            validators: Default::default(),
         })
         .await
         .unwrap();

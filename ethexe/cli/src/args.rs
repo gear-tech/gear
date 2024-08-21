@@ -108,9 +108,6 @@ pub struct Args {
     #[clap(flatten)]
     pub prometheus_params: Option<PrometheusParams>,
 
-    /// Validators set
-    pub validators: Option<Vec<String>>,
-
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,
 }

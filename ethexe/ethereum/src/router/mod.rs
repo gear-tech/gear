@@ -236,4 +236,22 @@ impl RouterQuery {
             .map(|res| H256(*res._0))
             .map_err(Into::into)
     }
+
+    pub async fn validators(&self) -> Result<Vec<LocalAddress>> {
+        self.0
+            .validators()
+            .call()
+            .await
+            .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn threshold_percentage(&self) -> Result<u64> {
+        self.0
+            .signingThresholdPercentage()
+            .call()
+            .await
+            .map(|res| res._0.to())
+            .map_err(Into::into)
+    }
 }

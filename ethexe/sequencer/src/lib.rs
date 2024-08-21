@@ -56,6 +56,7 @@ pub struct Config {
     pub sign_tx_public: PublicKey,
     pub router_address: Address,
     pub validators: Vec<Address>,
+    pub threshold: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -86,7 +87,7 @@ impl Sequencer {
             )
             .await?,
             validators: config.validators.iter().cloned().collect(),
-            threshold: 1,
+            threshold: config.threshold,
             code_commitments: Default::default(),
             block_commitments: Default::default(),
             codes_candidate: Default::default(),
@@ -118,6 +119,11 @@ impl Sequencer {
         Ok(())
     }
 
+    /// Process collected by sequencer commitments and prepare them for submission.
+    ///
+    /// `from_block` is the block hash,
+    /// from which the sequencer should start collecting block commitments list.
+    /// If `from_block` is not collected yet by the sequencer, then nothing will be done.
     pub fn process_collected_commitments(&mut self, from_block: H256) -> Result<()> {
         if self.codes_candidate.is_some() || self.blocks_candidate.is_some() {
             return Err(anyhow!("Previous commitments candidate are not submitted"));
