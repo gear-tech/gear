@@ -1236,11 +1236,7 @@ pub mod pallet {
                 packet.gas_limit().expect("Infallible"),
                 keep_alive,
             )?;
-            GearBank::<T>::deposit_value(
-                &gas_sponsor,
-                packet.value().unique_saturated_into(),
-                keep_alive,
-            )?;
+            GearBank::<T>::deposit_value(&who, packet.value().unique_saturated_into(), keep_alive)?;
 
             let origin = who.clone().into_origin();
 
