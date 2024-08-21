@@ -19,7 +19,7 @@
 use crate::{abi::IWrappedVara, AlloyProvider, AlloyTransport};
 use alloy::{
     primitives::{Address, Uint},
-    providers::{ProviderBuilder, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
 use anyhow::Result;
@@ -42,6 +42,13 @@ impl WVara {
 
     pub fn address(&self) -> LocalAddress {
         LocalAddress(*self.0.address().0)
+    }
+
+    pub fn query(&self) -> WVaraQuery {
+        WVaraQuery(QueryInstance::new(
+            *self.0.address(),
+            Arc::new(self.0.provider().root().clone()),
+        ))
     }
 
     pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {

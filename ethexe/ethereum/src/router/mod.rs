@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IRouter, AlloyProvider, AlloyTransport};
+use crate::{abi::IRouter, wvara::WVara, AlloyProvider, AlloyTransport};
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     primitives::{Address, Bytes, B256},
@@ -40,15 +40,38 @@ type Instance = IRouter::IRouterInstance<AlloyTransport, InstanceProvider>;
 
 type QueryInstance = IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
 
-pub struct Router(Instance);
+pub struct Router {
+    instance: Instance,
+    wvara_address: Address,
+}
 
 impl Router {
-    pub(crate) fn new(address: Address, provider: InstanceProvider) -> Self {
-        Self(Instance::new(address, provider))
+    pub(crate) fn new(
+        address: Address,
+        wvara_address: Address,
+        provider: InstanceProvider,
+    ) -> Self {
+        Self {
+            instance: Instance::new(address, provider),
+            wvara_address,
+        }
     }
 
     pub fn address(&self) -> LocalAddress {
-        LocalAddress(*self.0.address().0)
+        LocalAddress(*self.instance.address().0)
+    }
+
+    pub fn query(&self) -> RouterQuery {
+        RouterQuery {
+            instance: QueryInstance::new(
+                *self.instance.address(),
+                Arc::new(self.instance.provider().root().clone()),
+            ),
+        }
+    }
+
+    pub fn wvara(&self) -> WVara {
+        WVara::new(self.wvara_address, self.instance.provider().clone())
     }
 
     pub async fn update_validators(&self, validators: Vec<H160>) -> Result<H256> {
@@ -57,7 +80,7 @@ impl Router {
             .map(|v| v.to_fixed_bytes().into())
             .collect();
 
-        let builder = self.0.updateValidators(validators);
+        let builder = self.instance.updateValidators(validators);
         let tx = builder.send().await?;
 
         let receipt = tx.get_receipt().await?;
@@ -70,7 +93,7 @@ impl Router {
         code_id: CodeId,
         blob_tx_hash: H256,
     ) -> Result<H256> {
-        let builder = self.0.requestCodeValidation(
+        let builder = self.instance.requestCodeValidation(
             code_id.into_bytes().into(),
             blob_tx_hash.to_fixed_bytes().into(),
         );
@@ -88,7 +111,7 @@ impl Router {
         let code_id = CodeId::generate(code);
 
         let builder = self
-            .0
+            .instance
             .requestCodeValidation(code_id.into_bytes().into(), B256::ZERO)
             .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
         let tx = builder.send().await?;
@@ -99,9 +122,9 @@ impl Router {
     }
 
     pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
-        let filter = Filter::new().address(*self.0.address());
+        let filter = Filter::new().address(*self.instance.address());
         let mut router_events = self
-            .0
+            .instance
             .provider()
             .subscribe_logs(&filter)
             .await?
@@ -132,7 +155,7 @@ impl Router {
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<(H256, ActorId)> {
-        let builder = self.0.createProgram(
+        let builder = self.instance.createProgram(
             code_id.into_bytes().into(),
             salt.to_fixed_bytes().into(),
             payload.as_ref().to_vec().into(),
@@ -165,7 +188,7 @@ impl Router {
         commitments: Vec<CodeCommitment>,
         signatures: Vec<LocalSignature>,
     ) -> Result<H256> {
-        let builder = self.0.commitCodes(
+        let builder = self.instance.commitCodes(
             commitments.into_iter().map(Into::into).collect(),
             signatures
                 .into_iter()
@@ -183,7 +206,7 @@ impl Router {
         signatures: Vec<LocalSignature>,
     ) -> Result<H256> {
         let builder = self
-            .0
+            .instance
             .commitBlocks(
                 commitments.into_iter().map(Into::into).collect(),
                 signatures
@@ -198,20 +221,21 @@ impl Router {
     }
 }
 
-pub struct RouterQuery(QueryInstance);
+pub struct RouterQuery {
+    instance: QueryInstance,
+}
 
 impl RouterQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
         let provider = Arc::new(ProviderBuilder::new().on_builtin(rpc_url).await?);
 
-        Ok(Self(QueryInstance::new(
-            Address::new(router_address.0),
-            provider,
-        )))
+        Ok(Self {
+            instance: QueryInstance::new(Address::new(router_address.0), provider),
+        })
     }
 
-    pub async fn wrapped_vara_address(&self) -> Result<Address> {
-        self.0
+    pub async fn wvara_address(&self) -> Result<Address> {
+        self.instance
             .wrappedVara()
             .call()
             .await
@@ -220,7 +244,7 @@ impl RouterQuery {
     }
 
     pub async fn last_commitment_block_hash(&self) -> Result<H256> {
-        self.0
+        self.instance
             .lastBlockCommitmentHash()
             .call()
             .await
@@ -229,7 +253,7 @@ impl RouterQuery {
     }
 
     pub async fn genesis_block_hash(&self) -> Result<H256> {
-        self.0
+        self.instance
             .genesisBlockHash()
             .call()
             .await
