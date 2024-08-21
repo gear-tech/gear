@@ -21,6 +21,7 @@
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
 
+#[derive(Debug, Clone)]
 pub struct Schedule {
     pub limits: Limits,
     pub instruction_weights: InstructionWeights,
@@ -60,6 +61,7 @@ impl Default for Schedule {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Limits {
     pub stack_height: Option<u32>,
     pub globals: u32,
@@ -96,6 +98,7 @@ impl Default for Limits {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct InstructionWeights {
     pub version: u32,
     pub i64const: u32,
@@ -282,6 +285,7 @@ impl Default for InstructionWeights {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct SyscallWeights {
     pub alloc: Weight,
     pub free: Weight,
@@ -642,6 +646,7 @@ impl Default for SyscallWeights {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct MemoryWeights {
     pub lazy_pages_signal_read: Weight,
     pub lazy_pages_signal_write: Weight,
@@ -707,6 +712,7 @@ impl Default for MemoryWeights {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct InstantiationWeights {
     pub code_section_per_byte: Weight,
     pub data_section_per_byte: Weight,
@@ -747,6 +753,7 @@ impl Default for InstantiationWeights {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RentWeights {
     pub waitlist: Weight,
     pub dispatch_stash: Weight,
@@ -772,6 +779,7 @@ impl Default for RentWeights {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct DbWeights {
     pub read: Weight,
     pub read_per_byte: Weight,
@@ -802,6 +810,7 @@ impl Default for DbWeights {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Weight {
     pub ref_time: u64,
     pub proof_size: u64,

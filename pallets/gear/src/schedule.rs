@@ -984,8 +984,8 @@ impl<T: Config> Default for SyscallWeights<T> {
 }
 
 impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
-    fn from(val: SyscallWeights<T>) -> SyscallCosts {
-        SyscallCosts {
+    fn from(val: SyscallWeights<T>) -> Self {
+        Self {
             alloc: val.alloc.ref_time().into(),
             free: val.free.ref_time().into(),
             free_range: val.free_range.ref_time().into(),
