@@ -143,8 +143,7 @@ impl Processor {
             .read_state(state_hash)
             .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
 
-        // TODO (breathx): mutate exec balance after #4067.
-        state.balance += value;
+        state.executable_balance += value;
 
         Ok(self.db.write_state(state))
     }
