@@ -126,17 +126,11 @@ pub struct Schedule<T: Config> {
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
 
-    /// Holding in storages rent costs.
+    /// The weights for renting.
     pub rent_weights: RentWeights<T>,
 
     /// The weights for instantiation of the module.
     pub instantiation_weights: InstantiationWeights,
-
-    /// Single db write per byte cost.
-    pub db_write_per_byte: Weight,
-
-    /// Single db read per byte cost.
-    pub db_read_per_byte: Weight,
 
     /// WASM code instrumentation base cost.
     pub code_instrumentation_cost: Weight,
@@ -624,6 +618,16 @@ pub struct MemoryWeights<T: Config> {
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow_per_page: Weight,
 
+    /// Single db read cost.
+    pub read: Weight,
+    /// Single db write cost.
+    pub write: Weight,
+
+    /// Single db read per byte cost.
+    pub read_per_byte: Weight,
+    /// Single db write per byte cost.
+    pub write_per_byte: Weight,
+
     /// Cost per one [GearPage].
     /// When we read page data from storage in para-chain, then it should be sent to relay-chain,
     /// in order to use it for process queue execution. So, reading from storage cause
@@ -675,9 +679,9 @@ impl From<InstantiationWeights> for InstantiationCosts {
         Self {
             code_section_per_byte: val.code_section_per_byte.ref_time().into(),
             data_section_per_byte: val.data_section_per_byte.ref_time().into(),
-            element_section_per_byte: val.element_section_per_byte.ref_time().into(),
             global_section_per_byte: val.global_section_per_byte.ref_time().into(),
             table_section_per_byte: val.table_section_per_byte.ref_time().into(),
+            element_section_per_byte: val.element_section_per_byte.ref_time().into(),
             type_section_per_byte: val.type_section_per_byte.ref_time().into(),
         }
     }
@@ -711,8 +715,11 @@ pub struct InstantiationWeights {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct RentWeights<T: Config> {
-    pub dispatch_stash: Weight,
+    /// Holding message in waitlist weight.
     pub waitlist: Weight,
+    /// Holding message in dispatch stash weight.
+    pub dispatch_stash: Weight,
+    /// Holding reservation weight.
     pub reservation: Weight,
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
@@ -801,8 +808,6 @@ impl<T: Config> Default for Schedule<T> {
             syscall_weights: Default::default(),
             memory_weights: Default::default(),
             rent_weights: Default::default(),
-            db_write_per_byte: cost_byte(W::<T>::db_write_per_kb),
-            db_read_per_byte: cost_byte(W::<T>::db_read_per_kb),
             instantiation_weights: InstantiationWeights {
                 code_section_per_byte: cost_byte(W::<T>::instantiate_module_code_section_per_kb),
                 data_section_per_byte: cost_byte(W::<T>::instantiate_module_data_section_per_kb),
@@ -1196,6 +1201,10 @@ impl<T: Config> Default for MemoryWeights<T> {
                 .saturating_add(T::DbWeight::get().writes(1)),
             mem_grow: cost_batched(W::<T>::mem_grow),
             mem_grow_per_page: cost_batched(W::<T>::mem_grow_per_page),
+            write: DbWeightOf::<T>::get().writes(1),
+            read: DbWeightOf::<T>::get().reads(1),
+            write_per_byte: cost_byte(W::<T>::db_write_per_kb),
+            read_per_byte: cost_byte(W::<T>::db_read_per_kb),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,
@@ -1233,9 +1242,9 @@ impl<T: Config> Schedule<T> {
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
             lazy_pages: self.memory_weights.clone().into(),
-            read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
-            read_per_byte: self.db_read_per_byte.ref_time().into(),
-            write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
+            read: self.memory_weights.read.ref_time().into(),
+            read_per_byte: self.memory_weights.read_per_byte.ref_time().into(),
+            write: self.memory_weights.write.ref_time().into(),
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
             instantiation_costs: self.instantiation_weights.clone().into(),

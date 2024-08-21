@@ -589,9 +589,6 @@ fn main() {
 
             let process_costs = vara_schedule.process_costs();
 
-            let db_read = process_costs.read.cost_for_one();
-            let db_write = process_costs.write.cost_for_one();
-            let read_per_byte = process_costs.read_per_byte.cost_for_one();
             let instrumentation = process_costs.instrumentation.cost_for_one();
             let instrumentation_per_byte = process_costs.instrumentation_per_byte.cost_for_one();
             let load_allocations_per_interval =
@@ -610,9 +607,9 @@ fn main() {
                             mem_grow_per_page: schedule.memory_weights.mem_grow_per_page.ref_time.into(),
                         },
                         lazy_pages: lazy_pages_costs(&schedule.memory_weights),
-                        read: #db_read.into(),
-                        write: #db_write.into(),
-                        read_per_byte: #read_per_byte.into(),
+                        read: schedule.memory_weights.read.ref_time.into(),
+                        write: schedule.memory_weights.write.ref_time.into(),
+                        read_per_byte: schedule.memory_weights.read_per_byte.ref_time.into(),
                         instrumentation: #instrumentation.into(),
                         instrumentation_per_byte: #instrumentation_per_byte.into(),
                         instantiation_costs: instantiation_costs(&schedule.instantiation_weights),
