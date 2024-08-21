@@ -8,6 +8,7 @@ name = "validator-checks"
 path = "bin/validator-checks.rs"
 
 [dependencies]
+anyhow.workspace = true
 gsdk.workspace = true
 clap = { workspace = true, features = ["derive"] }
 subxt.workspace = true

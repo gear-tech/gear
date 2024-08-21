@@ -28,7 +28,7 @@ mod report;
 
 type Seed = u64;
 type CallId = usize;
-type EventsReceiver = Receiver<subxt::events::Events<gsdk::config::GearConfig>>;
+type EventsReceiver = Receiver<gsdk::subscription::BlockEvents>;
 
 pub struct BatchPool<Rng: CallGenRng> {
     api: GearApiFacade,

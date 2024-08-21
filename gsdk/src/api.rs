@@ -17,12 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, Result,
-    TxInBlock,
+    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, TxInBlock,
 };
+use anyhow::Result;
 use core::ops::{Deref, DerefMut};
-use std::result::Result as StdResult;
-use subxt::{Error, OnlineClient};
+use subxt::OnlineClient;
 
 /// Gear api wrapper.
 #[derive(Clone)]
@@ -108,8 +107,8 @@ impl Api {
         tx.fetch_events()
             .await?
             .iter()
-            .map(|e| -> StdResult<Event, Error> { e?.as_root_event::<Event>() })
-            .collect::<StdResult<Vec<Event>, Error>>()
+            .map(|e| -> Result<Event> { e?.as_root_event::<Event>().map_err(Into::into) })
+            .collect::<Result<Vec<Event>>>()
             .map_err(Into::into)
     }
 
@@ -122,7 +121,7 @@ impl Api {
 
     /// New signer from api
     pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd)
+        Signer::new(self, suri, passwd).map_err(Into::into)
     }
 }
 

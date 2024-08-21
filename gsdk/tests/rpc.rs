@@ -259,11 +259,11 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
         git_commit_hash
     );
 
-    let block_hash_1 = finalized_blocks.next_events().await.unwrap()?.block_hash();
+    let block_hash_1 = finalized_blocks.next_events().await?.unwrap().block_hash();
     let wasm_blob_version_2 = api.runtime_wasm_blob_version(Some(block_hash_1)).await?;
     assert_eq!(wasm_blob_version_1, wasm_blob_version_2);
 
-    let block_hash_2 = finalized_blocks.next_events().await.unwrap()?.block_hash();
+    let block_hash_2 = finalized_blocks.next_events().await?.unwrap().block_hash();
     let wasm_blob_version_3 = api.runtime_wasm_blob_version(Some(block_hash_2)).await?;
     assert_ne!(block_hash_1, block_hash_2);
     assert_eq!(wasm_blob_version_2, wasm_blob_version_3);
@@ -525,11 +525,13 @@ async fn query_program_counters(
     let mut count_memory_page = 0u64;
     let mut count_program = 0u64;
     let mut count_active_program = 0u64;
-    while let Some(Ok((key, value))) = iter.next().await {
+    while let Some(pair) = iter.next().await {
+        let pair = pair?;
+        let (key, value) = (pair.key_bytes, pair.value);
         let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
         count_program += 1;
 
-        let program_id = ProgramId::decode(&mut key.as_slice())?;
+        let program_id = ProgramId::decode(&mut key.as_ref())?;
 
         if let Program::Active(_) = program {
             count_active_program += 1;
