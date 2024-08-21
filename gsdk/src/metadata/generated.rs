@@ -2422,6 +2422,13 @@ pub mod runtime_types {
             pub mod schedule {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct DbWeights {
+                    pub read: runtime_types::sp_weights::weight_v2::Weight,
+                    pub read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub write: runtime_types::sp_weights::weight_v2::Weight,
+                    pub write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct InstantiationWeights {
                     pub code_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub data_section_per_byte: runtime_types::sp_weights::weight_v2::Weight,
@@ -2551,10 +2558,6 @@ pub mod runtime_types {
                     pub upload_page_data: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow_per_page: runtime_types::sp_weights::weight_v2::Weight,
-                    pub read: runtime_types::sp_weights::weight_v2::Weight,
-                    pub write: runtime_types::sp_weights::weight_v2::Weight,
-                    pub read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2571,6 +2574,7 @@ pub mod runtime_types {
                     pub syscall_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
                     pub rent_weights: runtime_types::pallet_gear::schedule::RentWeights,
+                    pub db_weights: runtime_types::pallet_gear::schedule::DbWeights,
                     pub instantiation_weights:
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,

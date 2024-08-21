@@ -119,6 +119,7 @@ struct DeserializableSchedule {
     syscall_weights: IndexMap<String, Weight>,
     memory_weights: IndexMap<String, Weight>,
     rent_weights: IndexMap<String, Weight>,
+    db_weights: IndexMap<String, Value>,
     instantiation_weights: IndexMap<String, Weight>,
     #[serde(flatten)]
     other_fields: IndexMap<String, Weight>,
@@ -223,6 +224,7 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 | "MemoryWeights"
                 | "InstantiationWeights"
                 | "RentWeights"
+                | "DbWeights"
         ) {
             return;
         }
@@ -391,6 +393,7 @@ fn main() {
                             &raw_schedule["instantiation_weights"][field_name]
                         }
                         "RentWeights" => &raw_schedule["rent_weights"][field_name],
+                        "DbWeights" => &raw_schedule["db_weights"][field_name],
                         _ => &raw_schedule,
                     };
 
@@ -607,9 +610,9 @@ fn main() {
                             mem_grow_per_page: schedule.memory_weights.mem_grow_per_page.ref_time.into(),
                         },
                         lazy_pages: lazy_pages_costs(&schedule.memory_weights),
-                        read: schedule.memory_weights.read.ref_time.into(),
-                        write: schedule.memory_weights.write.ref_time.into(),
-                        read_per_byte: schedule.memory_weights.read_per_byte.ref_time.into(),
+                        read: schedule.db_weights.read.ref_time.into(),
+                        write: schedule.db_weights.write.ref_time.into(),
+                        read_per_byte: schedule.db_weights.read_per_byte.ref_time.into(),
                         instrumentation: #instrumentation.into(),
                         instrumentation_per_byte: #instrumentation_per_byte.into(),
                         instantiation_costs: instantiation_costs(&schedule.instantiation_weights),

@@ -27,6 +27,7 @@ pub struct Schedule {
     pub syscall_weights: SyscallWeights,
     pub memory_weights: MemoryWeights,
     pub rent_weights: RentWeights,
+    pub db_weights: DbWeights,
     pub instantiation_weights: InstantiationWeights,
     pub code_instrumentation_cost: Weight,
     pub code_instrumentation_byte_cost: Weight,
@@ -41,6 +42,7 @@ impl Default for Schedule {
             syscall_weights: SyscallWeights::default(),
             memory_weights: MemoryWeights::default(),
             rent_weights: RentWeights::default(),
+            db_weights: DbWeights::default(),
             instantiation_weights: InstantiationWeights::default(),
             code_instrumentation_cost: Weight {
                 ref_time: 306821000,
@@ -651,10 +653,6 @@ pub struct MemoryWeights {
     pub upload_page_data: Weight,
     pub mem_grow: Weight,
     pub mem_grow_per_page: Weight,
-    pub read: Weight,
-    pub write: Weight,
-    pub read_per_byte: Weight,
-    pub write_per_byte: Weight,
     pub parachain_read_heuristic: Weight,
 }
 
@@ -699,22 +697,6 @@ impl Default for MemoryWeights {
             },
             mem_grow_per_page: Weight {
                 ref_time: 0,
-                proof_size: 0,
-            },
-            read: Weight {
-                ref_time: 25000000,
-                proof_size: 0,
-            },
-            write: Weight {
-                ref_time: 100000000,
-                proof_size: 0,
-            },
-            read_per_byte: Weight {
-                ref_time: 569,
-                proof_size: 0,
-            },
-            write_per_byte: Weight {
-                ref_time: 234,
                 proof_size: 0,
             },
             parachain_read_heuristic: Weight {
@@ -784,6 +766,36 @@ impl Default for RentWeights {
             },
             reservation: Weight {
                 ref_time: 100,
+                proof_size: 0,
+            },
+        }
+    }
+}
+
+pub struct DbWeights {
+    pub read: Weight,
+    pub read_per_byte: Weight,
+    pub write: Weight,
+    pub write_per_byte: Weight,
+}
+
+impl Default for DbWeights {
+    fn default() -> Self {
+        Self {
+            read: Weight {
+                ref_time: 25000000,
+                proof_size: 0,
+            },
+            read_per_byte: Weight {
+                ref_time: 569,
+                proof_size: 0,
+            },
+            write: Weight {
+                ref_time: 100000000,
+                proof_size: 0,
+            },
+            write_per_byte: Weight {
+                ref_time: 234,
                 proof_size: 0,
             },
         }

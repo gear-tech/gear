@@ -6510,7 +6510,7 @@ fn terminated_locking_funds() {
         let gas_for_code_len = read_cost;
         let gas_for_program = read_cost;
         let gas_for_code = schedule
-            .memory_weights
+            .db_weights
             .read_per_byte
             .ref_time()
             .saturating_mul(code_length)
@@ -8013,7 +8013,7 @@ fn gas_spent_precalculated() {
             let instrumented_prog = get_program_code(pid);
             let code_len = instrumented_prog.code().len() as u64;
             let gas_for_code_read = schedule
-                .memory_weights
+                .db_weights
                 .read_per_byte
                 .ref_time()
                 .saturating_mul(code_len)
