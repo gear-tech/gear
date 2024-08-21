@@ -15911,6 +15911,106 @@ fn use_big_memory() {
     });
 }
 
+#[test]
+fn test_prepaid_upload_code_create_program_works() {
+    use demo_init_wait::WASM_BINARY;
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let user1_initial_balance = Balances::free_balance(USER_1);
+        let user2_initial_balance = Balances::free_balance(USER_2);
+
+        // USER_2 issues a voucher for USER_1 enough to upload code and create program
+        let voucher_balance = gas_price(100_000_000_000u64);
+        assert_ok!(GearVoucher::issue(
+            RuntimeOrigin::signed(USER_2),
+            USER_1,
+            voucher_balance,
+            None,
+            true,
+            100,
+            None,
+        ));
+        let voucher_id = utils::get_last_voucher_id();
+
+        // Balance check
+        assert_eq!(
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
+            voucher_balance
+        );
+
+        run_to_next_block(None);
+
+        let code = WASM_BINARY.to_vec();
+
+        // USER_1 Upload code with voucher
+        assert_ok!(GearVoucher::call(
+            RuntimeOrigin::signed(USER_1),
+            voucher_id,
+            PrepaidCall::UploadCode { code: code.clone() }
+        ));
+        let code_id = utils::get_last_code_id();
+
+        run_to_next_block(None);
+
+        // USER_1 create program with prepaid call
+        let gas_limit = 10_000_000_000u64;
+        assert_ok!(GearVoucher::call(
+            RuntimeOrigin::signed(USER_1),
+            voucher_id,
+            PrepaidCall::CreateProgram {
+                code_id,
+                salt: vec![],
+                payload: vec![],
+                gas_limit,
+                value: 0,
+                keep_alive: false
+            }
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert!(utils::is_active(program_id));
+        assert!(!Gear::is_initialized(program_id));
+
+        run_to_next_block(None);
+
+        // there should be one message for the program author
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+
+        // USER_1 send reply to program with prepaid call
+        assert_ok!(GearVoucher::call(
+            RuntimeOrigin::signed(USER_1),
+            voucher_id,
+            PrepaidCall::SendReply {
+                reply_to_id: message_id,
+                payload: b"PONG".to_vec(),
+                gas_limit,
+                value: 0,
+                keep_alive: false,
+            }
+        ));
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(utils::is_active(program_id));
+        assert!(Gear::is_initialized(program_id));
+
+        // USER_1 balance not changed
+        assert_eq!(Balances::free_balance(USER_1), user1_initial_balance);
+        // USER_2 balance is initial minus voucher_balance
+        assert_eq!(
+            Balances::free_balance(USER_2),
+            user2_initial_balance - voucher_balance
+        );
+    })
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 

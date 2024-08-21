@@ -1191,14 +1191,11 @@ pub mod pallet {
         }
 
         pub(crate) fn init_packet(
-            who: T::AccountId,
             code_id: CodeId,
             salt: Vec<u8>,
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            keep_alive: bool,
-            gas_sponsor: Option<T::AccountId>,
         ) -> Result<InitPacket, DispatchError> {
             let packet = InitPacket::new_from_user(
                 code_id,
@@ -1219,14 +1216,6 @@ pub mod pallet {
                 Error::<T>::ProgramAlreadyExists
             );
 
-            // First we reserve enough funds on the account to pay for `gas_limit`
-            // and to transfer declared value.
-            // If voucher or any other prepaid mechanism is not used,
-            // gas limit is taken from user's account.
-            let gas_sponsor = gas_sponsor.unwrap_or_else(|| who.clone());
-            GearBank::<T>::deposit_gas(&gas_sponsor, gas_limit, keep_alive)?;
-            GearBank::<T>::deposit_value(&who, value, keep_alive)?;
-
             Ok(packet)
         }
 
@@ -1234,7 +1223,25 @@ pub mod pallet {
             who: T::AccountId,
             packet: InitPacket,
             code_info: CodeInfo,
+            keep_alive: bool,
+            gas_sponsor: Option<T::AccountId>,
         ) -> Result<(), DispatchError> {
+            // First we reserve enough funds on the account to pay for `gas_limit`
+            // and to transfer declared value.
+            // If voucher or any other prepaid mechanism is not used,
+            // gas limit is taken from user's account.
+            let gas_sponsor = gas_sponsor.unwrap_or_else(|| who.clone());
+            GearBank::<T>::deposit_gas(
+                &gas_sponsor,
+                packet.gas_limit().expect("Infallible"),
+                keep_alive,
+            )?;
+            GearBank::<T>::deposit_value(
+                &gas_sponsor,
+                packet.value().unique_saturated_into(),
+                keep_alive,
+            )?;
+
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
@@ -1252,7 +1259,7 @@ pub mod pallet {
             let program_account = program_id.cast();
             let ed = CurrencyOf::<T>::minimum_balance();
             CurrencyOf::<T>::transfer(
-                &who,
+                &gas_sponsor,
                 &program_account,
                 ed,
                 ExistenceRequirement::AllowDeath,
@@ -1276,7 +1283,7 @@ pub mod pallet {
             };
 
             Self::create(
-                who.clone(),
+                gas_sponsor,
                 message_id,
                 packet.gas_limit().expect("Infallible"),
                 false,
@@ -1406,16 +1413,8 @@ pub mod pallet {
 
             let code_and_id = Self::try_new_code(code)?;
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
-            let packet = Self::init_packet(
-                who.clone(),
-                code_and_id.code_id(),
-                salt,
-                init_payload,
-                gas_limit,
-                value,
-                keep_alive,
-                None,
-            )?;
+            let packet =
+                Self::init_packet(code_and_id.code_id(), salt, init_payload, gas_limit, value)?;
 
             if !T::CodeStorage::exists(code_and_id.code_id()) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
@@ -1432,7 +1431,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet, code_info)?;
+            Self::do_create_program(who, packet, code_info, keep_alive, None)?;
 
             Ok(().into())
         }
@@ -1969,7 +1968,8 @@ pub mod pallet {
             Ok(().into())
         }
 
-        pub fn create_program_impl(
+        #[allow(clippy::too_many_arguments)]
+        fn create_program_impl(
             origin: AccountIdOf<T>,
             code_id: CodeId,
             salt: Vec<u8>,
@@ -1986,18 +1986,15 @@ pub mod pallet {
             Self::check_gas_limit(gas_limit)?;
 
             // Construct packet.
-            let packet = Self::init_packet(
-                origin.clone(),
-                code_id,
-                salt,
-                init_payload,
-                gas_limit,
-                value,
+            let packet = Self::init_packet(code_id, salt, init_payload, gas_limit, value)?;
+
+            Self::do_create_program(
+                origin,
+                packet,
+                CodeInfo::from_code(&code_id, &code),
                 keep_alive,
                 gas_sponsor,
             )?;
-
-            Self::do_create_program(origin, packet, CodeInfo::from_code(&code_id, &code))?;
             Ok(().into())
         }
     }
