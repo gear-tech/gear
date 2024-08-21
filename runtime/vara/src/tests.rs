@@ -19,7 +19,7 @@
 use super::*;
 use crate::Runtime;
 use frame_support::traits::StorageInstance;
-use gear_lazy_pages_common::LazyPagesCosts;
+use gear_core::costs::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use runtime_common::weights::{
     check_instructions_weights, check_lazy_pages_costs, check_pages_costs, check_syscall_weights,
