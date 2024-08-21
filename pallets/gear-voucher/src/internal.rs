@@ -85,10 +85,13 @@ impl<T: Config> Pallet<T> {
         match call {
             PrepaidCall::DeclineVoucher => (),
             PrepaidCall::UploadCode { .. } => {
-                ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
+                ensure!(
+                    voucher.permissions.code_uploading,
+                    Error::<T>::CodeUploadingDisabled
+                )
             }
             PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => {
-                if let Some(ref programs) = voucher.programs {
+                if let Some(ref programs) = voucher.permissions.programs {
                     let destination = Self::prepaid_call_destination(&origin, call)
                         .ok_or(Error::<T>::UnknownDestination)?;
 
@@ -99,7 +102,7 @@ impl<T: Config> Pallet<T> {
                 }
             }
             PrepaidCall::CreateProgram { code_id, .. } => {
-                if let Some(code_ids) = voucher.code_ids {
+                if let Some(code_ids) = voucher.permissions.code_ids {
                     ensure!(code_ids.contains(code_id), Error::<T>::InappropriateCodeId);
                 }
             }
@@ -190,22 +193,18 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// May be different to original issuer.
     /// Owner manages and claims back remaining balance of the voucher.
     pub owner: AccountId,
-    /// Set of programs this voucher could be used to interact with.
-    /// In case of [`None`] means any gear program.
-    pub programs: Option<BTreeSet<ProgramId>>,
-    /// Flag if this voucher's covers uploading codes as prepaid call.
-    pub code_uploading: bool,
     /// The block number at and after which voucher couldn't be used and
     /// can be revoked by owner.
     pub expiry: BlockNumber,
     /// Set of CodeId this voucher could be used to create program.
     /// In case of [`None`] means any uploaded code.
-    pub code_ids: Option<BTreeSet<CodeId>>,
+    pub permissions: VoucherPermissions,
 }
 
 impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
     pub fn contains(&self, program_id: ProgramId) -> bool {
-        self.programs
+        self.permissions
+            .programs
             .as_ref()
             .map_or(true, |v| v.contains(&program_id))
     }
@@ -240,4 +239,66 @@ pub enum PrepaidCall<Balance> {
         value: Balance,
         keep_alive: bool,
     },
+}
+
+/// Voucher Permissions:
+/// * programs: pool of programs spender can interact with,
+///             if None - means any program,
+///             limited by Config param;
+/// * code_uploading:
+///             allow voucher to be used as payer for `upload_code`
+///             transactions fee;
+/// * code_ids: pool of code identifiers spender can create program from,
+///             if None - means any code,
+///             limited by Config param;
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq)]
+pub struct VoucherPermissions {
+    /// Set of programs this voucher could be used to interact with.
+    /// In case of [`None`] means any gear program.
+    pub programs: Option<BTreeSet<ProgramId>>,
+    /// Flag if this voucher's covers uploading codes as prepaid call.
+    pub code_uploading: bool,
+    /// Set of CodeId this voucher could be used to create program.
+    /// In case of [`None`] means any uploaded code.
+    pub code_ids: Option<BTreeSet<CodeId>>,
+}
+
+impl VoucherPermissions {
+    pub const fn none() -> Self {
+        Self {
+            programs: Some(BTreeSet::new()),
+            code_uploading: false,
+            code_ids: Some(BTreeSet::new()),
+        }
+    }
+
+    pub const fn all() -> Self {
+        Self {
+            programs: None,
+            code_uploading: true,
+            code_ids: None,
+        }
+    }
+
+    pub fn allow_code_uploading(self, code_uploading: bool) -> Self {
+        Self {
+            code_uploading,
+            ..self
+        }
+    }
+
+    pub fn allow_programs(self, programs: Option<BTreeSet<ProgramId>>) -> Self {
+        Self { programs, ..self }
+    }
+
+    pub fn allow_code_ids(self, code_ids: Option<BTreeSet<CodeId>>) -> Self {
+        Self { code_ids, ..self }
+    }
+}
+
+impl Default for VoucherPermissions {
+    /// Default permissions don't allow anything
+    fn default() -> Self {
+        Self::none()
+    }
 }

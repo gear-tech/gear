@@ -24,7 +24,7 @@ use common::Origin;
 use frame_support::{assert_noop, assert_ok, assert_storage_noop};
 use primitive_types::H256;
 use sp_runtime::traits::{One, Zero};
-use utils::{DEFAULT_BALANCE, DEFAULT_VALIDITY};
+use utils::{DEFAULT_BALANCE, DEFAULT_PERMISSIONS, DEFAULT_VALIDITY};
 
 #[test]
 fn voucher_issue_works() {
@@ -63,15 +63,15 @@ fn voucher_issue_works() {
 
         let voucher_info = Vouchers::<Test>::get(BOB, voucher_id).expect("Voucher isn't found");
         assert_eq!(voucher_info.owner, ALICE);
-        assert_eq!(voucher_info.programs, Some([program_id].into()));
+        assert_eq!(voucher_info.permissions.programs, Some([program_id].into()));
         assert_eq!(
             voucher_info.expiry,
             System::block_number().saturating_add(DEFAULT_VALIDITY + 1)
         );
-        assert!(!voucher_info.code_uploading);
+        assert!(!voucher_info.permissions.code_uploading);
 
         let voucher_info = Vouchers::<Test>::get(BOB, voucher_id_2).expect("Voucher isn't found");
-        assert!(voucher_info.code_uploading);
+        assert!(voucher_info.permissions.code_uploading);
     });
 }
 
@@ -90,10 +90,12 @@ fn voucher_issue_err_cases() {
                 RuntimeOrigin::signed(ALICE),
                 BOB,
                 1_000,
-                Some(set),
-                false,
                 100,
-                None
+                VoucherPermissions {
+                    programs: Some(set),
+                    code_uploading: false,
+                    code_ids: None
+                }
             ),
             Error::<Test>::MaxProgramsLimitExceeded,
         );
@@ -118,10 +120,8 @@ fn voucher_issue_err_cases() {
                     RuntimeOrigin::signed(ALICE),
                     BOB,
                     1_000,
-                    Some([program_id].into()),
-                    false,
                     duration,
-                    None
+                    DEFAULT_PERMISSIONS
                 ),
                 Error::<Test>::DurationOutOfBounds,
             );
@@ -170,10 +170,8 @@ fn voucher_call_works() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             1_000,
-            None,
-            false,
             DEFAULT_VALIDITY,
-            None
+            VoucherPermissions::all().allow_code_uploading(false),
         ));
         let voucher_id_any = utils::get_last_voucher_id();
 
@@ -206,10 +204,8 @@ fn voucher_call_works() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             1_000,
-            Some(Default::default()),
-            true,
             DEFAULT_VALIDITY,
-            None
+            VoucherPermissions::all(),
         ));
         let voucher_id_code = utils::get_last_voucher_id();
 
@@ -526,9 +522,15 @@ fn voucher_update_works() {
             voucher_balance + balance_top_up
         );
         assert_eq!(voucher.owner, BOB);
-        assert_eq!(voucher.programs, Some([program_id, new_program_id].into()));
-        assert_eq!(voucher.code_ids, Some([code_id, new_code_id].into()));
-        assert!(voucher.code_uploading);
+        assert_eq!(
+            voucher.permissions.programs,
+            Some([program_id, new_program_id].into())
+        );
+        assert_eq!(
+            voucher.permissions.code_ids,
+            Some([code_id, new_code_id].into())
+        );
+        assert!(voucher.permissions.code_uploading);
         assert_eq!(
             voucher.expiry,
             System::block_number() + DEFAULT_VALIDITY + 1 + duration_prolong
@@ -567,8 +569,8 @@ fn voucher_update_works() {
 
         assert_eq!(Balances::free_balance(voucher_id_acc), voucher_balance);
         assert_eq!(voucher.owner, BOB);
-        assert_eq!(voucher.programs, None);
-        assert_eq!(voucher.code_ids, None);
+        assert_eq!(voucher.permissions.programs, None);
+        assert_eq!(voucher.permissions.code_ids, None);
         assert_eq!(
             voucher.expiry,
             System::block_number() + DEFAULT_VALIDITY + 1 + duration_prolong
@@ -853,10 +855,8 @@ fn voucher_decline_works() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             DEFAULT_BALANCE,
-            None,
-            false,
             DEFAULT_VALIDITY,
-            None
+            DEFAULT_PERMISSIONS
         ));
 
         let voucher_id = utils::get_last_voucher_id();
@@ -893,10 +893,8 @@ fn voucher_decline_err_cases() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             DEFAULT_BALANCE,
-            None,
-            false,
             DEFAULT_VALIDITY,
-            None
+            DEFAULT_PERMISSIONS,
         ));
 
         let voucher_id = utils::get_last_voucher_id();
@@ -917,6 +915,7 @@ mod utils {
 
     pub(crate) const DEFAULT_VALIDITY: BlockNumberFor<Test> = 100;
     pub(crate) const DEFAULT_BALANCE: BalanceOf<Test> = ExistentialDeposit::get() * 1_000;
+    pub(crate) const DEFAULT_PERMISSIONS: VoucherPermissions = VoucherPermissions::none();
 
     #[track_caller]
     pub(crate) fn issue(
@@ -937,14 +936,17 @@ mod utils {
         code_uploading: bool,
         code_id: Option<CodeId>,
     ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
+        let permissions = VoucherPermissions {
+            programs: Some([program].into()),
+            code_uploading,
+            code_ids: code_id.map(|id| [id].into()),
+        };
         Voucher::issue(
             RuntimeOrigin::signed(from),
             to,
             balance,
-            Some([program].into()),
-            code_uploading,
             DEFAULT_VALIDITY,
-            code_id.map(|id| [id].into()),
+            permissions,
         )
         .map(|_| get_last_voucher_id())
     }

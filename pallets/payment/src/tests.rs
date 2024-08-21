@@ -26,7 +26,7 @@ use frame_support::{
     weights::{Weight, WeightToFee},
 };
 use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch, UserStoredMessage};
-use pallet_gear_voucher::{Call as VoucherCall, PrepaidCall};
+use pallet_gear_voucher::{Call as VoucherCall, PrepaidCall, VoucherPermissions};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
 use sp_runtime::{codec::Encode, testing::TestXt, traits::SignedExtension, FixedPointNumber};
@@ -526,10 +526,8 @@ fn fee_payer_replacement_works() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             synthesized_initial_balance,
-            Some([program_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([program_id].into())),
         ));
         let voucher_id = get_last_voucher_id();
 
@@ -615,10 +613,8 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             200_000_000,
-            Some([program_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([program_id].into())),
         ));
         let voucher_id = get_last_voucher_id();
 
@@ -701,10 +697,8 @@ fn voucher_call_send_payer_ok() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            Some([program_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([program_id].into())),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -816,10 +810,8 @@ fn voucher_call_send_payer_wrong_program_err() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            Some([voucher_program_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([voucher_program_id].into())),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -875,10 +867,8 @@ fn voucher_call_send_payer_expiry_err() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            Some([program_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([program_id].into())),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -951,10 +941,8 @@ fn voucher_call_reply_payer_ok() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            Some([program_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([program_id].into())),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1031,10 +1019,8 @@ fn voucher_call_upload_payer_ok() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            None,
-            true,
             100,
-            None,
+            VoucherPermissions::all(),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1110,10 +1096,8 @@ fn voucher_call_upload_payer_forbidden_err() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            None,
-            false,
             100,
-            None,
+            VoucherPermissions::none(),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1169,10 +1153,8 @@ fn voucher_call_decline_payer_ok() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            None,
-            true,
             100,
-            None,
+            VoucherPermissions::none(),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1251,10 +1233,8 @@ fn voucher_call_decline_payer_expired_err() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            None,
-            false,
             100,
-            None,
+            VoucherPermissions::none(),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1315,10 +1295,8 @@ fn voucher_call_create_program_payer_ok() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            None,
-            true,
             100,
-            None,
+            VoucherPermissions::all(),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();
@@ -1394,10 +1372,8 @@ fn voucher_call_create_program_payer_forbidden_err() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             voucher_initial_balance,
-            None,
-            false,
             100,
-            Some([].into()),
+            VoucherPermissions::none(),
         ));
         let voucher_id = get_last_voucher_id();
         let voucher_account_id = voucher_id.cast::<AccountIdOf<Test>>();

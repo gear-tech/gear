@@ -69,7 +69,7 @@ use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
 };
-use pallet_gear_voucher::PrepaidCall;
+use pallet_gear_voucher::{PrepaidCall, VoucherPermissions};
 use sp_runtime::{
     codec::{Decode, Encode},
     traits::{Dispatchable, One, UniqueSaturatedInto},
@@ -14115,10 +14115,8 @@ fn send_gasless_message_works() {
             RuntimeOrigin::signed(USER_1),
             USER_2,
             gas_price(DEFAULT_GAS_LIMIT),
-            Some([program_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([program_id].into())),
         ));
 
         // Balances check
@@ -14218,10 +14216,8 @@ fn send_gasless_reply_works() {
             RuntimeOrigin::signed(USER_2),
             USER_1,
             gas_price(DEFAULT_GAS_LIMIT),
-            Some([prog_id].into()),
-            false,
             100,
-            None,
+            VoucherPermissions::none().allow_programs(Some([prog_id].into())),
         ));
         let voucher_id = utils::get_last_voucher_id();
 
@@ -15926,10 +15922,8 @@ fn test_prepaid_upload_code_create_program_works() {
             RuntimeOrigin::signed(USER_2),
             USER_1,
             voucher_balance,
-            None,
-            true,
             100,
-            None,
+            VoucherPermissions::all(),
         ));
         let voucher_id = utils::get_last_voucher_id();
 
