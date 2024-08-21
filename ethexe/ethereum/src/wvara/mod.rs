@@ -16,16 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IWrappedVara, AlloyProvider, AlloyTransport};
+use crate::{
+    abi::{self, IWrappedVara},
+    AlloyProvider, AlloyTransport,
+};
 use alloy::{
-    primitives::{Address, Uint},
+    primitives::{Address, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
 use anyhow::Result;
 use ethexe_signer::Address as LocalAddress;
-use gprimitives::H256;
+use gprimitives::{H256, U256};
 use std::sync::Arc;
+
+pub mod events;
 
 type InstanceProvider = Arc<AlloyProvider>;
 type Instance = IWrappedVara::IWrappedVaraInstance<AlloyTransport, InstanceProvider>;
@@ -51,18 +56,37 @@ impl WVara {
         ))
     }
 
-    pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {
-        let value = Uint::<256, 4>::from(value);
+    pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
+        let builder = self.0.transfer(to, AlloyU256::from(value));
+        let tx = builder.send().await?;
 
-        self._approve(address, value).await
+        let receipt = tx.get_receipt().await?;
+
+        let tx_hash = (*receipt.transaction_hash).into();
+
+        Ok(tx_hash)
+    }
+
+    pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
+        let builder = self.0.transferFrom(from, to, AlloyU256::from(value));
+        let tx = builder.send().await?;
+
+        let receipt = tx.get_receipt().await?;
+
+        let tx_hash = (*receipt.transaction_hash).into();
+
+        Ok(tx_hash)
+    }
+
+    pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {
+        self._approve(address, AlloyU256::from(value)).await
     }
 
     pub async fn approve_all(&self, address: Address) -> Result<H256> {
-        self._approve(address, Uint::<256, 4>::MAX).await
+        self._approve(address, AlloyU256::MAX).await
     }
 
-    // TODO (breathx): handle events.
-    async fn _approve(&self, address: Address, value: Uint<256, 4>) -> Result<H256> {
+    async fn _approve(&self, address: Address, value: AlloyU256) -> Result<H256> {
         let builder = self.0.approve(address, value);
         let tx = builder.send().await?;
 
@@ -84,5 +108,32 @@ impl WVaraQuery {
             Address::new(router_address.0),
             provider,
         )))
+    }
+
+    pub async fn total_supply(&self) -> Result<u128> {
+        self.0
+            .totalSupply()
+            .call()
+            .await
+            .map(|res| abi::uint256_to_u128_lossy(res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn balance_of(&self, address: Address) -> Result<u128> {
+        self.0
+            .balanceOf(address)
+            .call()
+            .await
+            .map(|res| abi::uint256_to_u128_lossy(res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn allowance(&self, owner: Address, spender: Address) -> Result<U256> {
+        self.0
+            .allowance(owner, spender)
+            .call()
+            .await
+            .map(|res| U256(res._0.into_limbs()))
+            .map_err(Into::into)
     }
 }

@@ -234,6 +234,15 @@ impl RouterQuery {
         })
     }
 
+    pub fn from_provider(
+        router_address: Address,
+        provider: Arc<RootProvider<BoxTransport>>,
+    ) -> Self {
+        Self {
+            instance: QueryInstance::new(router_address, provider),
+        }
+    }
+
     pub async fn wvara_address(&self) -> Result<Address> {
         self.instance
             .wrappedVara()

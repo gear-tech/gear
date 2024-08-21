@@ -16,44 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! ethexe common types and traits.
-
-#![no_std]
-
-extern crate alloc;
-
-use gprimitives::ActorId;
+use gprimitives::{ActorId, U256};
 use parity_scale_codec::{Decode, Encode};
 
-pub mod db;
-pub mod mirror;
-pub mod router;
-pub mod wvara;
+/* Events section */
 
 #[derive(Clone, Debug, Encode, Decode)]
-pub enum BlockEvent {
-    Router(router::Event),
-    Mirror {
-        address: ActorId,
-        event: mirror::Event,
+pub enum Event {
+    Transfer {
+        from: ActorId,
+        to: ActorId,
+        value: u128,
     },
-    WVara(wvara::Event),
-}
-
-impl BlockEvent {
-    pub fn mirror(address: ActorId, event: mirror::Event) -> Self {
-        Self::Mirror { address, event }
-    }
-}
-
-impl From<router::Event> for BlockEvent {
-    fn from(value: router::Event) -> Self {
-        Self::Router(value)
-    }
-}
-
-impl From<wvara::Event> for BlockEvent {
-    fn from(value: wvara::Event) -> Self {
-        Self::WVara(value)
-    }
+    Approval {
+        owner: ActorId,
+        spender: ActorId,
+        value: U256,
+    },
 }
