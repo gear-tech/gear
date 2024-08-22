@@ -49,7 +49,6 @@ use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::sync::Arc;
-use wvara::WVara;
 
 mod abi;
 mod eip1167;
@@ -72,7 +71,7 @@ pub(crate) fn decode_log<E: SolEvent>(log: Log) -> Result<E> {
 
 pub struct Ethereum {
     router_address: Address,
-    wrapped_vara_address: Address,
+    wvara_address: Address,
     provider: Arc<AlloyProvider>,
 }
 
@@ -84,7 +83,7 @@ impl Ethereum {
         sender_address: LocalAddress,
     ) -> Result<Self> {
         let router_query = RouterQuery::new(rpc_url, router_address).await?;
-        let wrapped_vara_address = router_query.wrapped_vara_address().await?;
+        let wvara_address = router_query.wvara_address().await?;
 
         let router_address = Address::new(router_address.0);
 
@@ -92,7 +91,7 @@ impl Ethereum {
 
         Ok(Self {
             router_address,
-            wrapped_vara_address,
+            wvara_address,
             provider,
         })
     }
@@ -126,7 +125,7 @@ impl Ethereum {
         )
         .await?;
         let wrapped_vara = IWrappedVara::new(*proxy.address(), provider.clone());
-        let wrapped_vara_address = *wrapped_vara.address();
+        let wvara_address = *wrapped_vara.address();
 
         let nonce = provider.get_transaction_count(deployer_address).await?;
         let mirror_address = deployer_address.create(
@@ -150,7 +149,7 @@ impl Ethereum {
                     initialOwner: deployer_address,
                     _mirror: mirror_address,
                     _mirrorProxy: mirror_proxy_address,
-                    _wrappedVara: wrapped_vara_address,
+                    _wrappedVara: wvara_address,
                     _validatorsKeys: validators,
                 }
                 .abi_encode(),
@@ -174,7 +173,7 @@ impl Ethereum {
 
         Ok(Self {
             router_address,
-            wrapped_vara_address,
+            wvara_address,
             provider,
         })
     }
@@ -184,16 +183,15 @@ impl Ethereum {
     }
 
     pub fn router(&self) -> Router {
-        Router::new(self.router_address, self.provider.clone())
+        Router::new(
+            self.router_address,
+            self.wvara_address,
+            self.provider.clone(),
+        )
     }
 
     pub fn mirror(&self, address: LocalAddress) -> Mirror {
         Mirror::new(address.0.into(), self.provider.clone())
-    }
-
-    // TODO (breathx): move in router.
-    pub fn wvara(&self) -> WVara {
-        WVara::new(self.wrapped_vara_address, self.provider.clone())
     }
 }
 
