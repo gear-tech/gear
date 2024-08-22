@@ -1,0 +1,508 @@
+{
+  "vara_schedule": {
+    "limits": {
+      "stack_height": 36743,
+      "globals": 256,
+      "locals": 1024,
+      "parameters": 128,
+      "memory_pages": 32768,
+      "table_size": 4096,
+      "table_number": 100,
+      "br_table_size": 256,
+      "subject_len": 32,
+      "call_depth": 32,
+      "payload_len": 8388608,
+      "code_len": 524288,
+      "data_segments_amount": 1024
+    },
+    "instruction_weights": {
+      "version": 1500,
+      "i64const": 186,
+      "i64load": 5844,
+      "i32load": 5810,
+      "i64store": 10110,
+      "i32store": 10955,
+      "select": 6108,
+      "if": 4860,
+      "br": 3318,
+      "br_if": 5383,
+      "br_table": 10309,
+      "br_table_per_entry": 162,
+      "call": 4691,
+      "call_indirect": 21442,
+      "call_indirect_per_param": 1259,
+      "call_per_local": 0,
+      "local_get": 682,
+      "local_set": 1322,
+      "local_tee": 1291,
+      "global_get": 642,
+      "global_set": 1243,
+      "memory_current": 12424,
+      "i64clz": 386,
+      "i32clz": 258,
+      "i64ctz": 404,
+      "i32ctz": 210,
+      "i64popcnt": 406,
+      "i32popcnt": 244,
+      "i64eqz": 1820,
+      "i32eqz": 907,
+      "i32extend8s": 377,
+      "i32extend16s": 374,
+      "i64extend8s": 352,
+      "i64extend16s": 377,
+      "i64extend32s": 368,
+      "i64extendsi32": 340,
+      "i64extendui32": 205,
+      "i32wrapi64": 6,
+      "i64eq": 1847,
+      "i32eq": 816,
+      "i64ne": 2249,
+      "i32ne": 889,
+      "i64lts": 1646,
+      "i32lts": 755,
+      "i64ltu": 1600,
+      "i32ltu": 774,
+      "i64gts": 1718,
+      "i32gts": 789,
+      "i64gtu": 1583,
+      "i32gtu": 730,
+      "i64les": 1632,
+      "i32les": 774,
+      "i64leu": 1719,
+      "i32leu": 701,
+      "i64ges": 1912,
+      "i32ges": 731,
+      "i64geu": 1842,
+      "i32geu": 727,
+      "i64add": 924,
+      "i32add": 340,
+      "i64sub": 904,
+      "i32sub": 230,
+      "i64mul": 1683,
+      "i32mul": 839,
+      "i64divs": 3949,
+      "i32divs": 2848,
+      "i64divu": 3537,
+      "i32divu": 2593,
+      "i64rems": 18869,
+      "i32rems": 15274,
+      "i64remu": 3541,
+      "i32remu": 2526,
+      "i64and": 1000,
+      "i32and": 297,
+      "i64or": 924,
+      "i32or": 294,
+      "i64xor": 969,
+      "i32xor": 345,
+      "i64shl": 741,
+      "i32shl": 231,
+      "i64shrs": 692,
+      "i32shrs": 233,
+      "i64shru": 766,
+      "i32shru": 312,
+      "i64rotl": 749,
+      "i32rotl": 338,
+      "i64rotr": 724,
+      "i32rotr": 306
+    },
+    "syscall_weights": {
+      "alloc": {
+        "ref_time": 1565142,
+        "proof_size": 0
+      },
+      "free": {
+        "ref_time": 868476,
+        "proof_size": 0
+      },
+      "free_range": {
+        "ref_time": 919826,
+        "proof_size": 0
+      },
+      "free_range_per_page": {
+        "ref_time": 37915,
+        "proof_size": 0
+      },
+      "gr_reserve_gas": {
+        "ref_time": 2195328,
+        "proof_size": 0
+      },
+      "gr_unreserve_gas": {
+        "ref_time": 2244307,
+        "proof_size": 0
+      },
+      "gr_system_reserve_gas": {
+        "ref_time": 1040553,
+        "proof_size": 0
+      },
+      "gr_gas_available": {
+        "ref_time": 902353,
+        "proof_size": 0
+      },
+      "gr_message_id": {
+        "ref_time": 902698,
+        "proof_size": 0
+      },
+      "gr_program_id": {
+        "ref_time": 900381,
+        "proof_size": 0
+      },
+      "gr_source": {
+        "ref_time": 908094,
+        "proof_size": 0
+      },
+      "gr_value": {
+        "ref_time": 904173,
+        "proof_size": 0
+      },
+      "gr_value_available": {
+        "ref_time": 902487,
+        "proof_size": 0
+      },
+      "gr_size": {
+        "ref_time": 897599,
+        "proof_size": 0
+      },
+      "gr_read": {
+        "ref_time": 1671922,
+        "proof_size": 0
+      },
+      "gr_read_per_byte": {
+        "ref_time": 197,
+        "proof_size": 0
+      },
+      "gr_env_vars": {
+        "ref_time": 1032776,
+        "proof_size": 0
+      },
+      "gr_block_height": {
+        "ref_time": 979678,
+        "proof_size": 0
+      },
+      "gr_block_timestamp": {
+        "ref_time": 893761,
+        "proof_size": 0
+      },
+      "gr_random": {
+        "ref_time": 1850133,
+        "proof_size": 0
+      },
+      "gr_reply_deposit": {
+        "ref_time": 4907182,
+        "proof_size": 0
+      },
+      "gr_send": {
+        "ref_time": 2964123,
+        "proof_size": 0
+      },
+      "gr_send_per_byte": {
+        "ref_time": 492,
+        "proof_size": 0
+      },
+      "gr_send_wgas": {
+        "ref_time": 2997732,
+        "proof_size": 0
+      },
+      "gr_send_wgas_per_byte": {
+        "ref_time": 492,
+        "proof_size": 0
+      },
+      "gr_send_init": {
+        "ref_time": 1086936,
+        "proof_size": 0
+      },
+      "gr_send_push": {
+        "ref_time": 1944435,
+        "proof_size": 0
+      },
+      "gr_send_push_per_byte": {
+        "ref_time": 492,
+        "proof_size": 0
+      },
+      "gr_send_commit": {
+        "ref_time": 2460027,
+        "proof_size": 0
+      },
+      "gr_send_commit_wgas": {
+        "ref_time": 2499815,
+        "proof_size": 0
+      },
+      "gr_reservation_send": {
+        "ref_time": 3420647,
+        "proof_size": 0
+      },
+      "gr_reservation_send_per_byte": {
+        "ref_time": 493,
+        "proof_size": 0
+      },
+      "gr_reservation_send_commit": {
+        "ref_time": 2916856,
+        "proof_size": 0
+      },
+      "gr_reply_commit": {
+        "ref_time": 12018944,
+        "proof_size": 0
+      },
+      "gr_reply_commit_wgas": {
+        "ref_time": 12137604,
+        "proof_size": 0
+      },
+      "gr_reservation_reply": {
+        "ref_time": 8379472,
+        "proof_size": 0
+      },
+      "gr_reservation_reply_per_byte": {
+        "ref_time": 720353,
+        "proof_size": 0
+      },
+      "gr_reservation_reply_commit": {
+        "ref_time": 7809250,
+        "proof_size": 0
+      },
+      "gr_reply_push": {
+        "ref_time": 1701621,
+        "proof_size": 0
+      },
+      "gr_reply": {
+        "ref_time": 13603312,
+        "proof_size": 0
+      },
+      "gr_reply_per_byte": {
+        "ref_time": 711,
+        "proof_size": 0
+      },
+      "gr_reply_wgas": {
+        "ref_time": 11943522,
+        "proof_size": 0
+      },
+      "gr_reply_wgas_per_byte": {
+        "ref_time": 711,
+        "proof_size": 0
+      },
+      "gr_reply_push_per_byte": {
+        "ref_time": 652,
+        "proof_size": 0
+      },
+      "gr_reply_to": {
+        "ref_time": 947649,
+        "proof_size": 0
+      },
+      "gr_signal_code": {
+        "ref_time": 993041,
+        "proof_size": 0
+      },
+      "gr_signal_from": {
+        "ref_time": 951017,
+        "proof_size": 0
+      },
+      "gr_reply_input": {
+        "ref_time": 13351726,
+        "proof_size": 0
+      },
+      "gr_reply_input_wgas": {
+        "ref_time": 10595976,
+        "proof_size": 0
+      },
+      "gr_reply_push_input": {
+        "ref_time": 1147079,
+        "proof_size": 0
+      },
+      "gr_reply_push_input_per_byte": {
+        "ref_time": 144,
+        "proof_size": 0
+      },
+      "gr_send_input": {
+        "ref_time": 2836419,
+        "proof_size": 0
+      },
+      "gr_send_input_wgas": {
+        "ref_time": 2890461,
+        "proof_size": 0
+      },
+      "gr_send_push_input": {
+        "ref_time": 1439174,
+        "proof_size": 0
+      },
+      "gr_send_push_input_per_byte": {
+        "ref_time": 161,
+        "proof_size": 0
+      },
+      "gr_debug": {
+        "ref_time": 1275542,
+        "proof_size": 0
+      },
+      "gr_debug_per_byte": {
+        "ref_time": 438,
+        "proof_size": 0
+      },
+      "gr_reply_code": {
+        "ref_time": 900950,
+        "proof_size": 0
+      },
+      "gr_exit": {
+        "ref_time": 96563242,
+        "proof_size": 0
+      },
+      "gr_leave": {
+        "ref_time": 130303114,
+        "proof_size": 0
+      },
+      "gr_wait": {
+        "ref_time": 112591140,
+        "proof_size": 0
+      },
+      "gr_wait_for": {
+        "ref_time": 92188166,
+        "proof_size": 0
+      },
+      "gr_wait_up_to": {
+        "ref_time": 127918232,
+        "proof_size": 0
+      },
+      "gr_wake": {
+        "ref_time": 3011481,
+        "proof_size": 0
+      },
+      "gr_create_program": {
+        "ref_time": 3690192,
+        "proof_size": 0
+      },
+      "gr_create_program_payload_per_byte": {
+        "ref_time": 116,
+        "proof_size": 0
+      },
+      "gr_create_program_salt_per_byte": {
+        "ref_time": 1403,
+        "proof_size": 0
+      },
+      "gr_create_program_wgas": {
+        "ref_time": 3758182,
+        "proof_size": 0
+      },
+      "gr_create_program_wgas_payload_per_byte": {
+        "ref_time": 114,
+        "proof_size": 0
+      },
+      "gr_create_program_wgas_salt_per_byte": {
+        "ref_time": 1399,
+        "proof_size": 0
+      }
+    },
+    "memory_weights": {
+      "lazy_pages_signal_read": {
+        "ref_time": 28366609,
+        "proof_size": 0
+      },
+      "lazy_pages_signal_write": {
+        "ref_time": 34110270,
+        "proof_size": 0
+      },
+      "lazy_pages_signal_write_after_read": {
+        "ref_time": 9140438,
+        "proof_size": 0
+      },
+      "lazy_pages_host_func_read": {
+        "ref_time": 29943865,
+        "proof_size": 0
+      },
+      "lazy_pages_host_func_write": {
+        "ref_time": 36653194,
+        "proof_size": 0
+      },
+      "lazy_pages_host_func_write_after_read": {
+        "ref_time": 11758882,
+        "proof_size": 0
+      },
+      "load_page_data": {
+        "ref_time": 9171648,
+        "proof_size": 0
+      },
+      "upload_page_data": {
+        "ref_time": 103834672,
+        "proof_size": 0
+      },
+      "mem_grow": {
+        "ref_time": 858927,
+        "proof_size": 0
+      },
+      "mem_grow_per_page": {
+        "ref_time": 0,
+        "proof_size": 0
+      },
+      "parachain_read_heuristic": {
+        "ref_time": 0,
+        "proof_size": 0
+      }
+    },
+    "rent_weights": {
+      "waitlist": {
+        "ref_time": 100,
+        "proof_size": 0
+      },
+      "dispatch_stash": {
+        "ref_time": 100,
+        "proof_size": 0
+      },
+      "reservation": {
+        "ref_time": 100,
+        "proof_size": 0
+      }
+    },
+    "db_weights": {
+      "read": {
+        "ref_time": 25000000,
+        "proof_size": 0
+      },
+      "read_per_byte": {
+        "ref_time": 569,
+        "proof_size": 0
+      },
+      "write": {
+        "ref_time": 100000000,
+        "proof_size": 0
+      },
+      "write_per_byte": {
+        "ref_time": 234,
+        "proof_size": 0
+      }
+    },
+    "instantiation_weights": {
+      "code_section_per_byte": {
+        "ref_time": 1990,
+        "proof_size": 0
+      },
+      "data_section_per_byte": {
+        "ref_time": 457,
+        "proof_size": 0
+      },
+      "global_section_per_byte": {
+        "ref_time": 1756,
+        "proof_size": 0
+      },
+      "table_section_per_byte": {
+        "ref_time": 629,
+        "proof_size": 0
+      },
+      "element_section_per_byte": {
+        "ref_time": 2193,
+        "proof_size": 0
+      },
+      "type_section_per_byte": {
+        "ref_time": 15225,
+        "proof_size": 0
+      }
+    },
+    "code_instrumentation_cost": {
+      "ref_time": 306821000,
+      "proof_size": 3793
+    },
+    "code_instrumentation_byte_cost": {
+      "ref_time": 627777,
+      "proof_size": 0
+    },
+    "load_allocations_weight": {
+      "ref_time": 20729,
+      "proof_size": 0
+    }
+  },
+  "label": "main"
+}

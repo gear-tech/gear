@@ -76,7 +76,7 @@ impl<T> Default for CostOf<T> {
 }
 
 /// Some actions or calls amount.
-#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
 pub struct CallsAmount(u32);
 
 impl CostOf<CallsAmount> {
@@ -88,15 +88,15 @@ impl CostOf<CallsAmount> {
 }
 
 /// Bytes amount.
-#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
 pub struct BytesAmount(u32);
 
 /// Chain blocks amount.
-#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
 pub struct BlocksAmount(u32);
 
 /// Program imported function call (syscall) costs.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyscallCosts {
     /// Cost of calling `alloc`.
     pub alloc: CostOf<CallsAmount>,
@@ -522,7 +522,7 @@ pub struct LazyPagesCosts {
 }
 
 /// Holding in storages rent costs.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct RentCosts {
     /// Holding message in waitlist cost per block.
     pub waitlist: CostOf<BlocksAmount>,
@@ -533,7 +533,7 @@ pub struct RentCosts {
 }
 
 /// Execution externalities costs.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ExtCosts {
     /// Syscalls costs.
     pub syscalls: SyscallCosts,
@@ -546,7 +546,7 @@ pub struct ExtCosts {
 }
 
 /// Module instantiation costs.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct InstantiationCosts {
     /// WASM module code section instantiation per byte cost.
     pub code_section_per_byte: CostOf<BytesAmount>,
@@ -563,7 +563,7 @@ pub struct InstantiationCosts {
 }
 
 /// Costs for message processing
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProcessCosts {
     /// Execution externalities costs.
     pub ext: ExtCosts,
