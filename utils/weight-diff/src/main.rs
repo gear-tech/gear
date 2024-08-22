@@ -486,9 +486,11 @@ fn main() {
                 //! `pallets/gear/src/schedule.rs`.
                 //!
                 //! See `./scripts/weight-dump.sh` if you want to update it.
-
-                use crate::costs::*;
             }];
+
+            declarations.push(quote! {
+                use crate::costs::*;
+            });
 
             for (structure_name, structure) in visitor.structures {
                 let structure_ident = &structure.ident;
