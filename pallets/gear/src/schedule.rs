@@ -1570,7 +1570,12 @@ mod test {
                 wasm_instrument_schedule_rules.instruction_cost(i)
             );
             assert!(custom_cost_rules.instruction_cost(i).is_some());
-        })
+        });
+
+        assert_eq!(
+            schedule.process_costs(),
+            wasm_instrument_schedule.process_costs()
+        );
     }
 
     /// This function creates a program with full of empty

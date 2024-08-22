@@ -283,8 +283,8 @@ static TYPE_LIST: &[&str] = &[
     "LazyPagesCosts",
 ];
 
-impl<'ast> Visit<'ast> for ImplementationVisitor {
-    fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
+impl ImplementationVisitor {
+    fn find_from_impls(&mut self, node: &syn::ItemImpl) -> bool {
         let mut implementation = node.clone();
         implementation.attrs.clear();
         implementation.generics = Generics::default();
@@ -337,23 +337,39 @@ impl<'ast> Visit<'ast> for ImplementationVisitor {
                     }
                 }
             }
+
+            true
         } else {
-            // Now let's do `Schedule::process_costs()`
+            false
+        }
+    }
 
-            if let Type::Path(path) = &mut *implementation.self_ty {
-                if let Some(PathSegment { arguments, ident }) = path.path.segments.first_mut() {
-                    *arguments = PathArguments::None;
-                    if *ident == "Schedule" {
-                        // only leave process_costs method
-                        implementation.items.retain(|item| match item {
-                            ImplItem::Fn(func) => func.sig.ident == "process_costs",
-                            _ => false,
-                        });
+    fn find_process_costs(&mut self, node: &syn::ItemImpl) {
+        let mut implementation = node.clone();
+        implementation.attrs.clear();
+        implementation.generics = Generics::default();
 
-                        self.impls.push(implementation);
-                    }
+        if let Type::Path(path) = &mut *implementation.self_ty {
+            if let Some(PathSegment { arguments, ident }) = path.path.segments.first_mut() {
+                *arguments = PathArguments::None;
+                if *ident == "Schedule" {
+                    // only leave process_costs method
+                    implementation.items.retain(|item| match item {
+                        ImplItem::Fn(func) => func.sig.ident == "process_costs",
+                        _ => false,
+                    });
+
+                    self.impls.push(implementation);
                 }
             }
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for ImplementationVisitor {
+    fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
+        if !self.find_from_impls(node) {
+            self.find_process_costs(node);
         }
 
         visit::visit_item_impl(self, node);
