@@ -27,13 +27,19 @@ use super::{
         gear_core_errors as generated_core_errors, gprimitives as generated_ids,
         pallet_balances::pallet::Call as BalancesCall,
         pallet_gear::pallet::Call as GearCall,
-        pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
+        pallet_gear_voucher::internal::{
+            PrepaidCall, VoucherId, VoucherPermissions, VoucherPermissionsExtend,
+        },
         pallet_sudo::pallet::Call as SudoCall,
     },
     vara_runtime::{RuntimeCall, RuntimeEvent},
 };
 use core::ops::{Index, IndexMut};
-use gear_core::{ids, message, message::UserMessage};
+use gear_core::{
+    ids::{self, *},
+    message::{self, UserMessage},
+    program,
+};
 use parity_scale_codec::{Decode, Encode};
 use subxt::{dynamic::Value, utils::MultiAddress};
 
@@ -430,5 +436,129 @@ impl Convert<Value<()>> for Option<Value<()>> {
             Some(v) => Value::unnamed_variant("Some", [v]),
             None => Value::unnamed_variant("None", []),
         }
+    }
+}
+
+impl VoucherPermissions {
+    pub const fn none() -> Self {
+        Self {
+            programs: Some(Vec::new()),
+            code_uploading: false,
+            code_ids: Some(Vec::new()),
+        }
+    }
+
+    pub const fn all() -> Self {
+        Self {
+            programs: None,
+            code_uploading: true,
+            code_ids: None,
+        }
+    }
+
+    pub fn allow_code_uploading(self, code_uploading: bool) -> Self {
+        Self {
+            code_uploading,
+            ..self
+        }
+    }
+
+    pub fn allow_programs(self, programs: Option<Vec<ProgramId>>) -> Self {
+        let programs = programs.map(|v| v.into_iter().map(|id| id.into()).collect());
+        Self { programs, ..self }
+    }
+
+    pub fn allow_code_ids(self, code_ids: Option<Vec<CodeId>>) -> Self {
+        let code_ids = code_ids.map(|v| v.into_iter().map(|id| id.into()).collect());
+        Self { code_ids, ..self }
+    }
+}
+
+impl Default for VoucherPermissions {
+    /// Default permissions don't allow anything
+    fn default() -> Self {
+        Self::none()
+    }
+}
+
+impl From<VoucherPermissions> for Value {
+    fn from(value: VoucherPermissions) -> Self {
+        let programs_value = value
+            .programs
+            .map(|vec| {
+                Value::unnamed_composite(
+                    vec.into_iter()
+                        .map(|v| Value::from_bytes(v.0))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .convert();
+        let code_ids_value = value
+            .code_ids
+            .map(|vec| {
+                Value::unnamed_composite(
+                    vec.into_iter()
+                        .map(|v| Value::from_bytes(v.0))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .convert();
+
+        Value::named_composite([
+            ("programs", programs_value),
+            ("code_uploading", Value::bool(value.code_uploading)),
+            ("code_ids", code_ids_value),
+        ])
+    }
+}
+
+impl Default for VoucherPermissionsExtend {
+    fn default() -> Self {
+        Self {
+            append_programs: Default::default(),
+            code_uploading: Default::default(),
+            append_code_ids: Default::default(),
+        }
+    }
+}
+
+impl From<VoucherPermissionsExtend> for Value {
+    fn from(value: VoucherPermissionsExtend) -> Self {
+        let append_programs_value = value
+            .append_programs
+            .map(|o| {
+                o.map(|vec| {
+                    Value::unnamed_composite(
+                        vec.into_iter()
+                            .map(|v| Value::from_bytes(v.0))
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .convert()
+            })
+            .convert();
+
+        let append_code_ids_value = value
+            .append_code_ids
+            .map(|o| {
+                o.map(|vec| {
+                    Value::unnamed_composite(
+                        vec.into_iter()
+                            .map(|v| Value::from_bytes(v.0))
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .convert()
+            })
+            .convert();
+
+        Value::named_composite([
+            ("append_programs", append_programs_value),
+            (
+                "code_uploading",
+                value.code_uploading.map(Value::bool).convert(),
+            ),
+            ("append_code_ids", append_code_ids_value),
+        ])
     }
 }

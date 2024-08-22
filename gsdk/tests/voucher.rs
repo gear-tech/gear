@@ -18,8 +18,8 @@
 
 use gear_core::ids::{prelude::CodeIdExt, CodeId, MessageId, ProgramId};
 use gsdk::{
-    metadata::runtime_types::pallet_gear_voucher::internal::VoucherId, Api, Event, Result,
-    TxInBlock,
+    metadata::runtime_types::pallet_gear_voucher::internal::{VoucherId, VoucherPermissions},
+    Api, Event, Result, TxInBlock,
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
@@ -44,10 +44,8 @@ async fn test_issue_voucher() -> Result<()> {
         .issue_voucher(
             account_id.clone(),
             voucher_initial_balance,
-            None,
-            false,
             100,
-            None,
+            VoucherPermissions::none(),
         )
         .await?;
 
@@ -78,10 +76,8 @@ async fn test_decline_revoke_voucher() -> Result<()> {
         .issue_voucher(
             account_id.clone(),
             voucher_initial_balance,
-            None,
-            true,
             100,
-            None,
+            VoucherPermissions::none(),
         )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
@@ -122,10 +118,8 @@ async fn test_upload_code_with_voucher() -> Result<()> {
         .issue_voucher(
             account_id.clone(),
             voucher_initial_balance,
-            None,
-            true,
             100,
-            None,
+            VoucherPermissions::all(),
         )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
@@ -172,10 +166,8 @@ async fn test_send_message_with_voucher() -> Result<()> {
         .issue_voucher(
             account_id.clone(),
             voucher_initial_balance,
-            None,
-            true,
             100,
-            None,
+            VoucherPermissions::all(),
         )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;

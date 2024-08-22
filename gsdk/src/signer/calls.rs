@@ -23,7 +23,9 @@ use crate::{
     metadata::{
         calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
         runtime_types::{
-            pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
+            pallet_gear_voucher::internal::{
+                PrepaidCall, VoucherId, VoucherPermissions, VoucherPermissionsExtend,
+            },
             sp_weights::weight_v2::Weight,
         },
         vara_runtime::RuntimeCall,
@@ -245,32 +247,17 @@ impl SignerCalls {
         &self,
         spender: impl Into<AccountId32>,
         balance: u128,
-        programs: Option<Vec<ProgramId>>,
-        code_uploading: bool,
         duration: u32,
-        code_ids: Option<Vec<CodeId>>,
+        permissions: VoucherPermissions,
     ) -> Result<TxInBlock> {
-        let programs_value = programs
-            .map(|vec| {
-                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
-            })
-            .convert();
-        let code_ids_value = code_ids
-            .map(|vec| {
-                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
-            })
-            .convert();
-
         self.0
             .run_tx(
                 GearVoucherCall::Issue,
                 vec![
                     Value::from_bytes(spender.into()),
                     Value::u128(balance),
-                    programs_value,
-                    Value::bool(code_uploading),
                     Value::from(duration),
-                    code_ids_value,
+                    Value::from(permissions),
                 ],
             )
             .await
@@ -284,33 +271,9 @@ impl SignerCalls {
         voucher_id: VoucherId,
         move_ownership: Option<impl Into<AccountId32>>,
         balance_top_up: Option<u128>,
-        append_programs: Option<Option<Vec<ProgramId>>>,
-        code_uploading: Option<bool>,
         prolong_duration: u32,
-        append_code_ids: Option<Option<Vec<CodeId>>>,
+        permissions_extend: VoucherPermissionsExtend,
     ) -> Result<TxInBlock> {
-        let append_programs_value = append_programs
-            .map(|o| {
-                o.map(|vec| {
-                    Value::unnamed_composite(
-                        vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
-                    )
-                })
-                .convert()
-            })
-            .convert();
-
-        let append_code_ids_value = append_code_ids
-            .map(|o| {
-                o.map(|vec| {
-                    Value::unnamed_composite(
-                        vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
-                    )
-                })
-                .convert()
-            })
-            .convert();
-
         self.0
             .run_tx(
                 GearVoucherCall::Update,
@@ -321,10 +284,8 @@ impl SignerCalls {
                         .map(|v| Value::from_bytes(v.into()))
                         .convert(),
                     balance_top_up.map(Value::u128).convert(),
-                    append_programs_value,
-                    code_uploading.map(Value::bool).convert(),
                     Value::from(prolong_duration),
-                    append_code_ids_value,
+                    Value::from(permissions_extend),
                 ],
             )
             .await

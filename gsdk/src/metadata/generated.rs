@@ -3015,13 +3015,30 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct VoucherInfo<_0, _1> {
                     pub owner: _0,
+                    pub expiry: _1,
+                    pub permissions:
+                        runtime_types::pallet_gear_voucher::internal::VoucherPermissions,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct VoucherPermissions {
                     pub programs: ::core::option::Option<
                         ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
                     >,
                     pub code_uploading: ::core::primitive::bool,
-                    pub expiry: _1,
                     pub code_ids:
                         ::core::option::Option<::std::vec::Vec<runtime_types::gprimitives::CodeId>>,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct VoucherPermissionsExtend {
+                    pub append_programs: ::core::option::Option<
+                        ::core::option::Option<
+                            ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
+                        >,
+                    >,
+                    pub code_uploading: ::core::option::Option<::core::primitive::bool>,
+                    pub append_code_ids: ::core::option::Option<
+                        ::core::option::Option<::std::vec::Vec<runtime_types::gprimitives::CodeId>>,
+                    >,
                 }
             }
             pub mod pallet {
@@ -3034,14 +3051,9 @@ pub mod runtime_types {
                     issue {
                         spender: ::subxt::utils::AccountId32,
                         balance: ::core::primitive::u128,
-                        programs: ::core::option::Option<
-                            ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
-                        >,
-                        code_uploading: ::core::primitive::bool,
                         duration: ::core::primitive::u32,
-                        code_ids: ::core::option::Option<
-                            ::std::vec::Vec<runtime_types::gprimitives::CodeId>,
-                        >,
+                        permissions:
+                            runtime_types::pallet_gear_voucher::internal::VoucherPermissions,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::call`]."]
@@ -3064,13 +3076,9 @@ pub mod runtime_types {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                         move_ownership: ::core::option::Option<::subxt::utils::AccountId32>,
                         balance_top_up: ::core::option::Option<::core::primitive::u128>,
-                        append_programs: ::core::option::Option<
-                            ::core::option::Option<
-                                ::std::vec::Vec<runtime_types::gprimitives::ActorId>,
-                            >,
-                        >,
-                        code_uploading: ::core::option::Option<::core::primitive::bool>,
                         prolong_duration: ::core::option::Option<::core::primitive::u32>,
+                        permissions_extend:
+                            runtime_types::pallet_gear_voucher::internal::VoucherPermissionsExtend,
                     },
                     #[codec(index = 5)]
                     #[doc = "See [`Pallet::decline`]."]

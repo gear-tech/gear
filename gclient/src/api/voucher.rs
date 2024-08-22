@@ -22,7 +22,10 @@ use gear_core::ids::ProgramId;
 use gsdk::{
     ext::sp_core::H256,
     metadata::{
-        runtime_types::pallet_gear_voucher::{internal::VoucherId, pallet::Event as VoucherEvent},
+        runtime_types::pallet_gear_voucher::{
+            internal::{VoucherId, VoucherPermissions, VoucherPermissionsExtend},
+            pallet::Event as VoucherEvent,
+        },
         Event,
     },
 };
@@ -30,33 +33,22 @@ use gsdk::{
 impl GearApi {
     /// Issue a new voucher.
     ///
-    /// Returns issued `voucher_id` at specified `at_block_hash`.
+    /// See [`pallet_gear_voucher::pallet::Call::issue`]
     ///
-    /// Arguments:
-    /// * spender:  user id that is eligible to use the voucher;
-    /// * balance:  voucher balance could be used for transactions fees and gas;
-    /// * programs: pool of programs spender can interact with, if None - means
-    ///   any program, limited by Config param;
-    /// * code_uploading: allow voucher to be used as payer for `upload_code`
-    ///   transactions fee;
-    /// * duration: amount of blocks voucher could be used by spender and
-    ///   couldn't be revoked by owner. Must be out in [MinDuration;
-    ///   MaxDuration] constants. Expiration block of the voucher calculates as:
-    ///   current bn (extrinsic exec bn) + duration + 1.
+    /// Returns issued `voucher_id` at specified `at_block_hash`.
     pub async fn issue_voucher(
         &self,
         spender: ProgramId,
         balance: u128,
-        programs: Option<Vec<ProgramId>>,
-        code_uploading: bool,
         duration: u32,
+        permissions: VoucherPermissions,
     ) -> Result<(VoucherId, H256)> {
         let spender: [u8; 32] = spender.into();
 
         let tx = self
             .0
             .calls
-            .issue_voucher(spender, balance, programs, code_uploading, duration)
+            .issue_voucher(spender, balance, duration, permissions)
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
@@ -72,27 +64,9 @@ impl GearApi {
 
     /// Update existing voucher.
     ///
-    /// This extrinsic updates existing voucher: it can only extend vouchers
-    /// rights in terms of balance, validity or programs to interact pool.
+    /// See [`pallet_gear_voucher::pallet::Call::update`]
     ///
     /// Can only be called by the voucher owner.
-    ///
-    /// Arguments:
-    /// * spender:          account id of the voucher spender;
-    /// * voucher_id:       voucher id to be updated;
-    /// * move_ownership:   optionally moves ownership to another account;
-    /// * balance_top_up:   optionally top ups balance of the voucher from
-    ///   origins balance;
-    /// * append_programs:  optionally extends pool of programs by
-    ///   `Some(programs_set)` passed or allows it to interact with any program
-    ///   by `None` passed;
-    /// * code_uploading:   optionally allows voucher to be used to pay fees for
-    ///   `upload_code` extrinsics;
-    /// * prolong_duration: optionally increases expiry block number. If voucher
-    ///   is expired, prolongs since current bn. Validity prolongation (since
-    ///   current block number for expired or since storage written expiry)
-    ///   should be in [MinDuration; MaxDuration], in other words voucher
-    ///   couldn't have expiry greater than current block number + MaxDuration.
     #[allow(clippy::too_many_arguments)]
     pub async fn update_voucher(
         &self,
@@ -100,9 +74,8 @@ impl GearApi {
         voucher_id: VoucherId,
         move_ownership: Option<ProgramId>,
         balance_top_up: Option<u128>,
-        append_programs: Option<Option<Vec<ProgramId>>>,
-        code_uploading: Option<bool>,
         prolong_duration: u32,
+        permissions_extnend: VoucherPermissionsExtend,
     ) -> Result<(VoucherId, H256)> {
         let spender: [u8; 32] = spender.into();
         let move_ownership: Option<[u8; 32]> = move_ownership.map(|v| v.into());
@@ -115,9 +88,8 @@ impl GearApi {
                 voucher_id,
                 move_ownership,
                 balance_top_up,
-                append_programs,
-                code_uploading,
                 prolong_duration,
+                permissions_extnend,
             )
             .await?;
 

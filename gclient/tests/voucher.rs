@@ -21,6 +21,7 @@
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
 use gear_core::ids::ProgramId;
+use gsdk::metadata::runtime_types::pallet_gear_voucher::internal::VoucherPermissions;
 use parity_scale_codec::Encode;
 
 #[tokio::test]
@@ -42,7 +43,12 @@ async fn voucher_issue_and_upload_code_and_send_message() -> anyhow::Result<()> 
 
     // Issue voucher
     let (voucher_id, ..) = api
-        .issue_voucher(actor_id, voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            actor_id,
+            voucher_initial_balance,
+            100,
+            VoucherPermissions::all(),
+        )
         .await?;
 
     // Upload code with voucher
