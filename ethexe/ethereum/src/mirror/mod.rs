@@ -19,7 +19,7 @@
 use crate::{abi::IMirror, AlloyProvider, AlloyTransport};
 use alloy::{
     primitives::Address,
-    providers::{ProviderBuilder, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
@@ -44,6 +44,13 @@ impl Mirror {
 
     pub fn address(&self) -> LocalAddress {
         LocalAddress(*self.0.address().0)
+    }
+
+    pub fn query(&self) -> MirrorQuery {
+        MirrorQuery(QueryInstance::new(
+            *self.0.address(),
+            Arc::new(self.0.provider().root().clone()),
+        ))
     }
 
     pub async fn send_message(

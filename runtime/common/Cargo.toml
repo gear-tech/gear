@@ -17,6 +17,7 @@ frame-system.workspace = true
 pallet-authorship.workspace = true
 pallet-balances.workspace = true
 pallet-session.workspace = true
+pallet-treasury.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
 

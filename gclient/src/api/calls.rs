@@ -1336,11 +1336,11 @@ impl GearApi {
             .await
     }
 
-    fn process_set_code(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<H256> {
+    fn process_set_code(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<()> {
         for event in events.iter() {
             let event = event?.as_root_event::<Event>()?;
             if let Event::System(SystemEvent::CodeUpdated) = event {
-                return Ok(events.block_hash());
+                return Ok(());
             }
         }
 
@@ -1354,7 +1354,7 @@ impl GearApi {
     /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
     /// extrinsic.
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let events = self
+        let (block_hash, events) = self
             .0
             .calls
             .sudo_unchecked_weight(
@@ -1367,7 +1367,8 @@ impl GearApi {
                 },
             )
             .await?;
-        self.process_set_code(&events)
+        self.process_set_code(&events)?;
+        Ok(block_hash)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1387,7 +1388,7 @@ impl GearApi {
     /// [`pallet_system::set_code_without_checks`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code_without_checks)
     /// extrinsic.
     pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let events = self
+        let (block_hash, events) = self
             .0
             .calls
             .sudo_unchecked_weight(
@@ -1400,7 +1401,8 @@ impl GearApi {
                 },
             )
             .await?;
-        self.process_set_code(&events)
+        self.process_set_code(&events)?;
+        Ok(block_hash)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1438,7 +1440,7 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(events.block_hash())
+        Ok(events.0)
     }
 
     /// Same as [`upload_code`](Self::upload_code), but upload code

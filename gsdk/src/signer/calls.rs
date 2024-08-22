@@ -19,7 +19,6 @@
 //! gear api calls
 use super::Inner;
 use crate::{
-    config::GearConfig,
     metadata::{
         calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
         runtime_types::{
@@ -31,14 +30,13 @@ use crate::{
         vara_runtime::RuntimeCall,
         Convert,
     },
-    Error, Result, TxInBlock,
+    signer::utils::EventsResult,
+    Result, TxInBlock,
 };
 use gear_core::ids::*;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
-use subxt::{blocks::ExtrinsicEvents, dynamic::Value};
-
-type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
+use subxt::dynamic::Value;
 
 /// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
