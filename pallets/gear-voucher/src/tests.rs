@@ -22,6 +22,7 @@ use super::*;
 use crate::mock::*;
 use common::Origin;
 use frame_support::{assert_noop, assert_ok, assert_storage_noop};
+use gear_core::ids::{CodeId, ProgramId};
 use primitive_types::H256;
 use sp_runtime::traits::{One, Zero};
 use utils::{DEFAULT_BALANCE, DEFAULT_PERMISSIONS, DEFAULT_VALIDITY};
@@ -474,14 +475,17 @@ fn voucher_update_works() {
             Some(ALICE),
             // balance top up
             Some(0),
-            // extra programs
-            Some(Some([program_id].into())),
-            // forbid code uploading (already forbidden)
-            Some(false),
             // prolong duration
             Some(0),
-            // extra code_id
-            Some(Some([code_id].into()))
+            // extend permissions
+            VoucherPermissionsExtend {
+                // extra programs
+                append_programs: Some(Some([program_id].into())),
+                // allow code uploading
+                code_uploading: Some(false),
+                // extra code_id
+                append_code_ids: Some(Some([code_id].into())),
+            }
         )));
 
         assert_ok!(Voucher::update(
@@ -492,14 +496,17 @@ fn voucher_update_works() {
             Some(BOB),
             // balance top up
             Some(balance_top_up),
-            // extra programs
-            Some(Some([new_program_id].into())),
-            // allow code uploading
-            Some(true),
             // prolong duration
             Some(duration_prolong),
-            // extra code_id
-            Some(Some([new_code_id].into()))
+            // extend permissions
+            VoucherPermissionsExtend {
+                // extra programs
+                append_programs: Some(Some([new_program_id].into())),
+                // allow code uploading
+                code_uploading: Some(true),
+                // extra code_id
+                append_code_ids: Some(Some([new_code_id].into())),
+            }
         ));
 
         System::assert_has_event(
@@ -546,14 +553,17 @@ fn voucher_update_works() {
             None,
             // balance top up
             None,
-            // extra programs
-            Some(None),
-            // code uploading
-            None,
             // prolong duration
             None,
-            // extra code_id
-            Some(None)
+            // extend permissions
+            VoucherPermissionsExtend {
+                // extra programs
+                append_programs: Some(None),
+                // allow code uploading
+                code_uploading: None,
+                // extra code_id
+                append_code_ids: Some(None),
+            }
         ));
 
         System::assert_has_event(
@@ -584,14 +594,17 @@ fn voucher_update_works() {
             None,
             // balance top up
             None,
-            // extra programs
-            Some(Some([program_id].into())),
-            // code uploading
-            Some(true),
             // prolong duration
             None,
-            // extra code_id
-            Some(Some([code_id].into())),
+            // extend permissions
+            VoucherPermissionsExtend {
+                // extra programs
+                append_programs: Some(Some([program_id].into())),
+                // allow code uploading
+                code_uploading: Some(true),
+                // extra code_id
+                append_code_ids: Some(Some([code_id].into())),
+            }
         )));
 
         let huge_block = 10_000_000_000;
@@ -606,14 +619,10 @@ fn voucher_update_works() {
             None,
             // balance top up
             None,
-            // extra programs
-            None,
-            // code uploading
-            None,
             // prolong duration
             Some(duration_prolong),
-            // extra code_id
-            None
+            // extend permissions
+            None.into(),
         ));
 
         let voucher = Vouchers::<Test>::get(BOB, voucher_id).expect("Failed to get voucher");
@@ -636,14 +645,10 @@ fn voucher_update_works() {
                 None,
                 // balance top up
                 None,
-                // extra programs
-                None,
-                // code uploading
-                None,
                 // prolong duration
                 Some(valid_prolong + 1),
-                // extra code_id
-                None
+                // extend permissions
+                None.into(),
             ),
             Error::<Test>::DurationOutOfBounds
         );
@@ -656,14 +661,10 @@ fn voucher_update_works() {
             None,
             // balance top up
             None,
-            // extra programs
-            None,
-            // code uploading
-            None,
             // prolong duration
             Some(valid_prolong),
-            // extra code_id
-            None
+            // extend permissions
+            None.into(),
         ),);
     });
 }
@@ -694,14 +695,10 @@ fn voucher_update_err_cases() {
                 None,
                 // balance top up
                 None,
-                // extra programs
-                None,
-                // code uploading
-                None,
                 // prolong duration
                 None,
-                // extra code_id
-                None
+                // extend permissions
+                None.into(),
             ),
             Error::<Test>::InexistentVoucher
         );
@@ -716,14 +713,10 @@ fn voucher_update_err_cases() {
                 None,
                 // balance top up
                 None,
-                // extra programs
-                None,
-                // code uploading
-                None,
                 // prolong duration
                 None,
-                // extra code_id
-                None
+                // extend permissions
+                None.into(),
             ),
             Error::<Test>::BadOrigin
         );
@@ -738,14 +731,10 @@ fn voucher_update_err_cases() {
                 None,
                 // balance top up
                 Some(100_000_000_000_000),
-                // extra programs
-                None,
-                // code uploading
-                None,
                 // prolong duration
                 None,
-                // extra code_id
-                None
+                // extend permissions
+                None.into(),
             ),
             Error::<Test>::BalanceTransfer
         );
@@ -764,14 +753,17 @@ fn voucher_update_err_cases() {
                 None,
                 // balance top up
                 None,
-                // extra programs
-                Some(Some(set)),
-                // code uploading
-                None,
                 // prolong duration
                 None,
-                // extra code_id
-                None
+                // extend permissions
+                VoucherPermissionsExtend {
+                    // extra programs
+                    append_programs: Some(Some(set)),
+                    // allow code uploading
+                    code_uploading: None,
+                    // extra code_id
+                    append_code_ids: None,
+                }
             ),
             Error::<Test>::MaxProgramsLimitExceeded
         );
@@ -786,14 +778,17 @@ fn voucher_update_err_cases() {
                 None,
                 // balance top up
                 None,
-                // extra programs
-                None,
-                // code uploading
-                Some(false),
                 // prolong duration
                 None,
-                // extra code_id
-                None
+                // extend permissions
+                VoucherPermissionsExtend {
+                    // extra programs
+                    append_programs: None,
+                    // allow code uploading
+                    code_uploading: Some(false),
+                    // extra code_id
+                    append_code_ids: None,
+                }
             ),
             Error::<Test>::CodeUploadingEnabled
         );
@@ -808,14 +803,10 @@ fn voucher_update_err_cases() {
                 None,
                 // balance top up
                 None,
-                // extra programs
-                None,
-                // code uploading
-                None,
                 // prolong duration
                 Some(MaxVoucherDuration::get().saturating_sub(DEFAULT_VALIDITY)),
-                // extra code_id
-                None
+                // extend permissions
+                None.into(),
             ),
             Error::<Test>::DurationOutOfBounds
         );
@@ -834,14 +825,17 @@ fn voucher_update_err_cases() {
                 None,
                 // balance top up
                 None,
-                // extra programs
-                None,
-                // code uploading
-                None,
                 // prolong duration
                 None,
-                // extra code_id
-                Some(Some(set)),
+                // extend permissions
+                VoucherPermissionsExtend {
+                    // extra programs
+                    append_programs: None,
+                    // allow code uploading
+                    code_uploading: None,
+                    // extra code_id
+                    append_code_ids: Some(Some(set)),
+                }
             ),
             Error::<Test>::MaxCodeIdsLimitExceeded
         );

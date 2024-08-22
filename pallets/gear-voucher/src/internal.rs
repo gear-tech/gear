@@ -294,11 +294,109 @@ impl VoucherPermissions {
     pub fn allow_code_ids(self, code_ids: Option<BTreeSet<CodeId>>) -> Self {
         Self { code_ids, ..self }
     }
+
+    /// Extend permissions
+    ///
+    /// Returns `true` if permissions extended
+    pub fn extend<T: Config>(
+        &mut self,
+        extend: VoucherPermissionsExtend,
+    ) -> Result<bool, Error<T>> {
+        // Flag if permissions needs update in storage.
+        let mut updated = false;
+
+        // Flattening code uploading.
+        let code_uploading = extend.code_uploading.filter(|v| *v != self.code_uploading);
+        // Optionally enabling code uploading.
+        if let Some(code_uploading) = code_uploading {
+            ensure!(code_uploading, Error::<T>::CodeUploadingEnabled);
+
+            self.code_uploading = true;
+            updated = true;
+        }
+
+        // Optionally extends whitelisted programs with amount validation.
+        match extend.append_programs {
+            // Adding given destination set to voucher,
+            // if it has destinations limit.
+            Some(Some(mut extra_programs)) if self.programs.is_some() => {
+                let programs = self.programs.as_mut().expect("Infallible");
+                let initial_len = programs.len();
+
+                programs.append(&mut extra_programs);
+
+                ensure!(
+                    programs.len() <= T::MaxProgramsAmount::get().into(),
+                    Error::<T>::MaxProgramsLimitExceeded
+                );
+
+                updated |= programs.len() != initial_len;
+            }
+
+            // Extending vouchers to unlimited destinations.
+            Some(None) => updated |= self.programs.take().is_some(),
+
+            // Noop.
+            _ => (),
+        }
+
+        // Optionally extends whitelisted code_ids.
+        match extend.append_code_ids {
+            // Adding given destination set to voucher,
+            // if it has destinations limit.
+            Some(Some(mut extra_code_ids)) if self.code_ids.is_some() => {
+                let code_ids = self.code_ids.as_mut().expect("Infallible; qed");
+                let initial_len = code_ids.len();
+
+                code_ids.append(&mut extra_code_ids);
+
+                ensure!(
+                    code_ids.len() <= T::MaxCodeIdsAmount::get().into(),
+                    Error::<T>::MaxCodeIdsLimitExceeded
+                );
+
+                updated |= code_ids.len() != initial_len;
+            }
+
+            // Extending vouchers to any CodeId.
+            Some(None) => updated |= self.code_ids.take().is_some(),
+
+            // Noop.
+            _ => (),
+        }
+
+        // Return updated flag
+        Ok(updated)
+    }
 }
 
 impl Default for VoucherPermissions {
     /// Default permissions don't allow anything
     fn default() -> Self {
         Self::none()
+    }
+}
+
+/// Voucher Permissions Extend
+/// * append_programs:  optionally extends pool of programs by
+///                     `Some(programs_set)` passed or allows
+///                     it to interact with any program by
+///                     `None` passed;
+/// * code_uploading:   optionally allows voucher to be used to pay
+///                     fees for `upload_code` extrinsics;
+/// * append_code_ids:  optionally extends pool of code identifiers
+///                     `Some(code_ids)` passed or allows
+///                     it to interact with any program by
+///                     `None` passed;
+#[derive(Debug, Default, Clone, Encode, Decode, TypeInfo, PartialEq)]
+pub struct VoucherPermissionsExtend {
+    pub append_programs: Option<Option<BTreeSet<ProgramId>>>,
+    pub code_uploading: Option<bool>,
+    pub append_code_ids: Option<Option<BTreeSet<CodeId>>>,
+}
+
+impl From<Option<VoucherPermissionsExtend>> for VoucherPermissionsExtend {
+    fn from(value: Option<VoucherPermissionsExtend>) -> Self {
+        value.unwrap_or_default()
     }
 }

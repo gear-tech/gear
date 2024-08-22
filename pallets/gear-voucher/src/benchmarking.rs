@@ -57,7 +57,13 @@ benchmarks! {
         // Voucher validity.
         let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
 
-    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), balance, Some(set), code_uploading, validity, None)
+        // Permissions
+        let permissions = VoucherPermissions {
+            programs: Some(set),
+            code_uploading,
+            code_ids: None,
+        };
+    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), balance, validity, permissions)
     verify {
         let (key_spender, voucher_id, voucher_info) = Vouchers::<T>::iter().next().expect("Couldn't find voucher");
 
@@ -83,14 +89,11 @@ benchmarks! {
         // Voucher balance.
         let balance = 10_000_000_000_000_u128.unique_saturated_into();
 
-        // Forbid uploading codes.
-        let code_uploading = false;
-
         // Voucher validity.
         let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
 
         // Issue voucher.
-        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, None, code_uploading, validity, None).is_ok());
+        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, validity, VoucherPermissions::none()).is_ok());
         let (_, voucher_id, _) = Vouchers::<T>::iter().next().expect("Couldn't find voucher");
 
         frame_system::Pallet::<T>::set_block_number(frame_system::Pallet::<T>::block_number() + validity + One::one());
@@ -125,8 +128,15 @@ benchmarks! {
         // Voucher validity.
         let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
 
+         // Permissions
+         let permissions = VoucherPermissions {
+            programs: Some(set),
+            code_uploading,
+            code_ids: None,
+        };
+
         // Issue voucher.
-        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, Some(set), code_uploading, validity, None).is_ok());
+        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, validity, permissions).is_ok());
         let (_, voucher_id, _) = Vouchers::<T>::iter().next().expect("Couldn't find voucher");
 
         // New owner account.
@@ -146,10 +156,17 @@ benchmarks! {
 
         // prolong duration.
         let prolong_duration = Some(validity);
-    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), voucher_id, move_ownership, balance_top_up, append_programs, code_uploading, prolong_duration, None)
+
+        // Permissions
+        let permissions_extend = VoucherPermissionsExtend {
+            append_programs,
+            code_uploading,
+            append_code_ids: None,
+        };
+    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), voucher_id, move_ownership, balance_top_up, prolong_duration, permissions_extend)
     verify {
         let voucher_info = Vouchers::<T>::get(spender, voucher_id).expect("Must be");
-        assert_eq!(voucher_info.programs.map(|v| v.len()), Some(<<T as Config>::MaxProgramsAmount as Get<u8>>::get() as usize));
+        assert_eq!(voucher_info.permissions.programs.map(|v| v.len()), Some(<<T as Config>::MaxProgramsAmount as Get<u8>>::get() as usize));
         assert_eq!(CurrencyOf::<T>::free_balance(&voucher_id.cast::<T::AccountId>()), balance * 2u128.unique_saturated_into());
     }
 
@@ -167,14 +184,11 @@ benchmarks! {
         // Voucher balance.
         let balance = 10_000_000_000_000_u128.unique_saturated_into();
 
-        // Forbid uploading codes.
-        let code_uploading = false;
-
         // Voucher validity.
         let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
 
         // Issue voucher.
-        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, None, code_uploading, validity, None).is_ok());
+        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, validity, VoucherPermissions::none()).is_ok());
         let (_, voucher_id, _) = Vouchers::<T>::iter().next().expect("Couldn't find voucher");
     }: _(RawOrigin::Signed(spender.clone()), voucher_id)
     verify {

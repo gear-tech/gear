@@ -55,7 +55,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
     PalletId,
 };
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::ids::MessageId;
 pub use primitive_types::H256;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
@@ -83,7 +83,6 @@ pub mod pallet {
         traits::{CheckedSub, One, Zero},
         SaturatedConversion, Saturating,
     };
-    use sp_std::collections::btree_set::BTreeSet;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -445,10 +444,8 @@ pub mod pallet {
             voucher_id: VoucherId,
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
-            append_programs: Option<Option<BTreeSet<ProgramId>>>,
-            code_uploading: Option<bool>,
             prolong_duration: Option<BlockNumberFor<T>>,
-            append_code_ids: Option<Option<BTreeSet<CodeId>>>,
+            permissions_extend: VoucherPermissionsExtend,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
@@ -465,10 +462,6 @@ pub mod pallet {
 
             // Flattening move ownership back to current owner.
             let new_owner = move_ownership.filter(|addr| *addr != voucher.owner);
-
-            // Flattening code uploading.
-            let code_uploading =
-                code_uploading.filter(|v| *v != voucher.permissions.code_uploading);
 
             // Flattening duration prolongation.
             let prolong_duration = prolong_duration.filter(|dur| !dur.is_zero());
@@ -489,43 +482,6 @@ pub mod pallet {
                 )
                 .map_err(|_| Error::<T>::BalanceTransfer)?;
 
-                updated = true;
-            }
-
-            // Optionally extends whitelisted programs with amount validation.
-            match append_programs {
-                // Adding given destination set to voucher,
-                // if it has destinations limit.
-                Some(Some(mut extra_programs)) if voucher.permissions.programs.is_some() => {
-                    let programs = voucher
-                        .permissions
-                        .programs
-                        .as_mut()
-                        .expect("Infallible; qed");
-                    let initial_len = programs.len();
-
-                    programs.append(&mut extra_programs);
-
-                    ensure!(
-                        programs.len() <= T::MaxProgramsAmount::get().into(),
-                        Error::<T>::MaxProgramsLimitExceeded
-                    );
-
-                    updated |= programs.len() != initial_len;
-                }
-
-                // Extending vouchers to unlimited destinations.
-                Some(None) => updated |= voucher.permissions.programs.take().is_some(),
-
-                // Noop.
-                _ => (),
-            }
-
-            // Optionally enabling code uploading.
-            if let Some(code_uploading) = code_uploading {
-                ensure!(code_uploading, Error::<T>::CodeUploadingEnabled);
-
-                voucher.permissions.code_uploading = true;
                 updated = true;
             }
 
@@ -555,34 +511,8 @@ pub mod pallet {
                 updated = true;
             }
 
-            // Optionally extends whitelisted code_ids.
-            match append_code_ids {
-                // Adding given destination set to voucher,
-                // if it has destinations limit.
-                Some(Some(mut extra_code_ids)) if voucher.permissions.code_ids.is_some() => {
-                    let code_ids = voucher
-                        .permissions
-                        .code_ids
-                        .as_mut()
-                        .expect("Infallible; qed");
-                    let initial_len = code_ids.len();
-
-                    code_ids.append(&mut extra_code_ids);
-
-                    ensure!(
-                        code_ids.len() <= T::MaxCodeIdsAmount::get().into(),
-                        Error::<T>::MaxCodeIdsLimitExceeded
-                    );
-
-                    updated |= code_ids.len() != initial_len;
-                }
-
-                // Extending vouchers to any CodeId.
-                Some(None) => updated |= voucher.permissions.code_ids.take().is_some(),
-
-                // Noop.
-                _ => (),
-            }
+            // extend permissions
+            updated |= voucher.permissions.extend::<T>(permissions_extend)?;
 
             // Check for Noop.
             if updated {
