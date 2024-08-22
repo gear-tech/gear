@@ -361,14 +361,9 @@ impl Service {
                 outcomes
                     .into_iter()
                     .map(|outcome| match outcome {
-                        LocalOutcome::CodeApproved(code_id) => Commitment::Code(CodeCommitment {
-                            id: code_id,
-                            valid: true,
-                        }),
-                        LocalOutcome::CodeRejected(code_id) => Commitment::Code(CodeCommitment {
-                            id: code_id,
-                            valid: false,
-                        }),
+                        LocalOutcome::CodeValidated { id, valid } => {
+                            Commitment::Code(CodeCommitment { id, valid })
+                        }
                         _ => unreachable!("Only code outcomes are expected here"),
                     })
                     .collect()

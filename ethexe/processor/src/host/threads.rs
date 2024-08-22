@@ -55,7 +55,7 @@ impl ThreadParams {
     pub fn pages(&mut self) -> &BTreeMap<GearPage, H256> {
         self.pages.get_or_insert_with(|| {
             let ProgramState {
-                state: Program::Active(ActiveProgram { pages_hash, .. }),
+                program: Program::Active(ActiveProgram { pages_hash, .. }),
                 ..
             } = self.db.read_state(self.state_hash).expect(UNKNOWN_STATE)
             else {
