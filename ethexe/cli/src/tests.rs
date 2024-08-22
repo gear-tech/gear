@@ -37,7 +37,7 @@ use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use futures::{lock::Mutex, StreamExt};
 use gear_core::ids::prelude::*;
-use gprimitives::{ActorId, CodeId, MessageId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use std::{
     sync::Arc,
     time::{Duration, SystemTime},

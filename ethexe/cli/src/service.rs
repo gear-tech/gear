@@ -33,10 +33,13 @@ use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_signer::{PublicKey, Signer};
 use ethexe_validator::Commitment;
-use futures::{future, lock::Mutex, stream::StreamExt, FutureExt};
+use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::Decode;
 use std::{future::Future, sync::Arc, time::Duration};
+
+#[cfg(test)]
+use futures::lock::Mutex;
 
 /// ethexe service.
 pub struct Service {
@@ -55,6 +58,7 @@ pub struct Service {
     rpc: Option<ethexe_rpc::RpcService>,
 
     // service status
+    #[cfg(test)]
     status: Arc<Mutex<Status>>,
 }
 
@@ -160,6 +164,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.block_time,
+            #[cfg(test)]
             status: Default::default(),
         })
     }
@@ -199,6 +204,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            #[cfg(test)]
             status: Default::default(),
         }
     }
@@ -391,6 +397,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time,
+            #[cfg(test)]
             status,
         } = self;
 
@@ -433,7 +440,11 @@ impl Service {
             roles.push_str(&format!(", Validator ({})", val.address()));
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
-        *status.lock().await = Status::Active;
+
+        #[cfg(test)]
+        {
+            *status.lock().await = Status::Active;
+        }
 
         loop {
             tokio::select! {
@@ -515,7 +526,10 @@ impl Service {
             }
         }
 
-        *status.lock().await = Status::Terminated;
+        #[cfg(test)]
+        {
+            *status.lock().await = Status::Terminated;
+        }
         Ok(())
     }
 
@@ -526,6 +540,7 @@ impl Service {
         })
     }
 
+    #[cfg(test)]
     /// Get the pointer of service status
     pub fn status(&self) -> Arc<Mutex<Status>> {
         self.status.clone()
