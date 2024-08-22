@@ -526,7 +526,7 @@ mod tests {
         // Send a commitment from service1
         let commitment_data = b"test commitment".to_vec();
 
-        sender.publish_commitments(commitment_data.clone());
+        sender.publish_message(commitment_data.clone());
 
         let mut gossip_stream = service2.gossip_stream;
 

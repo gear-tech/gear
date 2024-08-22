@@ -271,7 +271,7 @@ impl RouterQuery {
     }
 
     pub async fn validators(&self) -> Result<Vec<LocalAddress>> {
-        self.0
+        self.instance
             .validators()
             .call()
             .await
@@ -280,7 +280,7 @@ impl RouterQuery {
     }
 
     pub async fn threshold_percentage(&self) -> Result<u64> {
-        self.0
+        self.instance
             .signingThresholdPercentage()
             .call()
             .await
