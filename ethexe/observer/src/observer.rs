@@ -185,7 +185,6 @@ pub(crate) async fn read_block_events(
     provider: &ObserverProvider,
     router_address: AlloyAddress,
 ) -> Result<Vec<BlockEvent>> {
-    // TODO (breathx): discuss should we check validity of wvara address for router on some block.
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
     let wvara_address = router_query.wvara_address().await?;
 
@@ -265,7 +264,6 @@ pub(crate) async fn read_block_events_batch(
     provider: &ObserverProvider,
     router_address: AlloyAddress,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
-    // TODO (breathx): discuss should we check validity of wvara address for router on some block.
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
     let wvara_address = router_query.wvara_address().await?;
 

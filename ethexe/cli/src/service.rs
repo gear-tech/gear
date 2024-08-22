@@ -396,14 +396,7 @@ impl Service {
                 let commitments: Vec<_> = outcomes
                     .into_iter()
                     .map(|outcome| match outcome {
-                        LocalOutcome::CodeApproved(code_id) => CodeCommitment {
-                            id: code_id,
-                            valid: true,
-                        },
-                        LocalOutcome::CodeRejected(code_id) => CodeCommitment {
-                            id: code_id,
-                            valid: false,
-                        },
+                        LocalOutcome::CodeValidated { id, valid } => CodeCommitment { id, valid },
                         _ => unreachable!("Only code outcomes are expected here"),
                     })
                     .collect();
