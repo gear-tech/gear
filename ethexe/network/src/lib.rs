@@ -26,15 +26,16 @@ use anyhow::Context;
 use ethexe_signer::{PublicKey, Signer};
 use libp2p::{
     connection_limits,
+    core::upgrade,
     futures::{Stream, StreamExt},
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
         dial_opts::{DialOpts, PeerCondition},
-        NetworkBehaviour, SwarmEvent,
+        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
     },
-    Multiaddr, PeerId, Swarm, SwarmBuilder,
+    Multiaddr, PeerId, Swarm, SwarmBuilder, Transport,
 };
 use std::{
     collections::HashSet,
@@ -69,7 +70,7 @@ impl NetworkService {
 
         let keypair =
             NetworkEventLoop::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkEventLoop::create_swarm(keypair)?;
+        let mut swarm = NetworkEventLoop::create_swarm(keypair, config.transport_type)?;
 
         for multiaddr in config.external_addresses {
             swarm.add_external_address(multiaddr);
@@ -150,6 +151,13 @@ impl Stream for GossipsubMessageStream {
     }
 }
 
+#[derive(Default, Debug, Clone)]
+pub enum TransportType {
+    #[default]
+    Quic,
+    Memory,
+}
+
 #[derive(Debug, Clone)]
 pub struct NetworkEventLoopConfig {
     pub config_dir: PathBuf,
@@ -157,6 +165,7 @@ pub struct NetworkEventLoopConfig {
     pub external_addresses: HashSet<Multiaddr>,
     pub bootstrap_addresses: HashSet<Multiaddr>,
     pub listen_addresses: HashSet<Multiaddr>,
+    pub transport_type: TransportType,
 }
 
 impl NetworkEventLoopConfig {
@@ -167,6 +176,19 @@ impl NetworkEventLoopConfig {
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
+            transport_type: TransportType::Quic,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_memory(config_path: PathBuf, addr: &str) -> Self {
+        Self {
+            config_dir: config_path,
+            public_key: None,
+            external_addresses: Default::default(),
+            bootstrap_addresses: Default::default(),
+            listen_addresses: [addr.parse().unwrap()].into(),
+            transport_type: TransportType::Memory,
         }
     }
 }
@@ -209,13 +231,40 @@ impl NetworkEventLoop {
         Ok(identity::Keypair::from(pair))
     }
 
-    fn create_swarm(keypair: identity::Keypair) -> anyhow::Result<Swarm<Behaviour>> {
-        let swarm = SwarmBuilder::with_existing_identity(keypair)
-            .with_tokio()
-            .with_quic()
-            .with_behaviour(Behaviour::from_keypair)?
-            .build();
-        Ok(swarm)
+    pub fn local_peer_id(&self) -> &PeerId {
+        self.swarm.local_peer_id()
+    }
+
+    fn create_swarm(
+        keypair: identity::Keypair,
+        transport_type: TransportType,
+    ) -> anyhow::Result<Swarm<Behaviour>> {
+        match transport_type {
+            TransportType::Quic => Ok(SwarmBuilder::with_existing_identity(keypair)
+                .with_tokio()
+                .with_quic()
+                .with_behaviour(Behaviour::from_keypair)?
+                .build()),
+
+            TransportType::Memory => {
+                let transport = libp2p::core::transport::MemoryTransport::default()
+                    .upgrade(upgrade::Version::V1)
+                    .authenticate(libp2p::plaintext::Config::new(&keypair))
+                    .multiplex(libp2p::yamux::Config::default())
+                    .boxed();
+                let behaviour =
+                    Behaviour::from_keypair(&keypair).map_err(|err| anyhow::anyhow!(err))?;
+                let config = SwarmConfig::with_tokio_executor()
+                    .with_substream_upgrade_protocol_override(upgrade::Version::V1);
+
+                Ok(Swarm::new(
+                    transport,
+                    behaviour,
+                    keypair.public().to_peer_id(),
+                    config,
+                ))
+            }
+        }
     }
 
     pub async fn run(mut self) {
@@ -436,4 +485,64 @@ impl Behaviour {
 fn gpu_commitments_topic() -> gossipsub::IdentTopic {
     // TODO: use router address in topic name to avoid obsolete router
     gossipsub::IdentTopic::new("gpu-commitments")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::time::{timeout, Duration};
+
+    #[tokio::test]
+    async fn test_memory_transport() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let tmp_dir1 = tempfile::tempdir().unwrap();
+        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
+        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
+        let service1 = NetworkService::new(config.clone(), &signer1).unwrap();
+
+        let peer_id = service1.event_loop.local_peer_id().to_string();
+
+        let multiaddr: Multiaddr = format!("/memory/1/p2p/{}", peer_id).parse().unwrap();
+
+        let (sender, mut _service1_handle) =
+            (service1.sender, tokio::spawn(service1.event_loop.run()));
+
+        // second service
+        let tmp_dir2 = tempfile::tempdir().unwrap();
+        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
+        let mut config2 =
+            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/2");
+
+        config2.bootstrap_addresses = [multiaddr].into();
+
+        let service2 = NetworkService::new(config2.clone(), &signer2).unwrap();
+
+        tokio::spawn(service2.event_loop.run());
+
+        // Wait for the connection to be established
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // Send a commitment from service1
+        let commitment_data = b"test commitment".to_vec();
+
+        sender.publish_commitments(commitment_data.clone());
+
+        let mut gossip_stream = service2.gossip_stream;
+
+        // Wait for the commitment to be received by service2
+        let received_commitment = timeout(Duration::from_secs(5), async {
+            while let Some(message) = gossip_stream.next().await {
+                if message.data == commitment_data {
+                    return Some(message);
+                }
+            }
+
+            None
+        })
+        .await
+        .expect("Timeout while waiting for commitment");
+
+        assert!(received_commitment.is_some(), "Commitment was not received");
+    }
 }

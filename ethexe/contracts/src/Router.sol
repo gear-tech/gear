@@ -29,11 +29,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
-        address[] memory _validatorAddressArray
+        address[] memory _validatorsKeys
     ) public initializer {
         __Ownable_init(initialOwner);
 
-        setStorageSlot("router.storage.Router");
+        setStorageSlot("router.storage.RouterV1");
         Storage storage router = _getStorage();
 
         router.genesisBlockHash = blockhash(block.number - 1);
@@ -43,7 +43,25 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.signingThresholdPercentage = 6666; // 2/3 percentage (66.66%).
         router.baseWeight = 2_500_000_000;
         router.valuePerWeight = 10;
-        _setValidators(_validatorAddressArray);
+        _setValidators(_validatorsKeys);
+    }
+
+    function reinitialize() public onlyOwner reinitializer(2) {
+        Storage storage oldRouter = _getStorage();
+
+        address _mirror = oldRouter.mirror;
+        address _mirrorProxy = oldRouter.mirrorProxy;
+        address _wrappedVara = oldRouter.wrappedVara;
+        address[] memory _validatorsKeys = oldRouter.validatorsKeys;
+
+        setStorageSlot("router.storage.RouterV2");
+        Storage storage router = _getStorage();
+
+        router.genesisBlockHash = blockhash(block.number - 1);
+        router.mirror = _mirror;
+        router.mirrorProxy = _mirrorProxy;
+        router.wrappedVara = _wrappedVara;
+        _setValidators(_validatorsKeys);
     }
 
     /* Operational functions */

@@ -40,7 +40,7 @@ extern "C" fn handle() {
 
 #[cfg(test)]
 mod tests {
-    use gtest::{Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn test_init() {
@@ -51,7 +51,7 @@ mod tests {
         system.init_logger();
 
         // Get program from artifact
-        let user = 0;
+        let user = DEFAULT_USER_ALICE;
         let program = Program::current(&system);
 
         // Init program

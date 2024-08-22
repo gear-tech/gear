@@ -12,7 +12,7 @@ resolver = "2"
 
 default-members = ["node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker"]
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
     "common",
@@ -166,9 +166,9 @@ serde = { version = "^1", default-features = false }
 serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
-subxt = "0.32.1"
-subxt-metadata = "0.32.1"
-subxt-codegen = "0.32.1"
+subxt = "0.37.0"
+subxt-metadata = "0.37.0"
+subxt-codegen = "0.37.0"
 syn = "2.0.71"
 thiserror = "1.0.62"
 tokio = { version = "1.38.0" }
@@ -303,9 +303,13 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
-sandbox-wasmer = { package = "wasmer", version = "4.3.4", features = ["singlepass"] }
+sandbox-wasmer = { package = "wasmer", version = "4.3.4", features = [
+    "singlepass",
+] }
 sandbox-wasmer-types = { package = "wasmer-types", version = "4.3.4" }
-sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
+sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = [
+    "virtual_memory",
+] }
 
 # Substrate deps
 binary-merkle-tree = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
@@ -498,6 +502,7 @@ demo-wat = { path = "examples/wat" }
 # TODO: remove these dependencies (from this file?) or add more docs.
 
 cfg-if = "1.0.0"                                             # gear-lazy-pages
+cargo-http-registry = "0.1.6"                                # crates-io
 errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 indexmap = "2.2.6"                                           # utils/weight-diff
@@ -525,11 +530,11 @@ wasm-opt = "0.116"                                           # utils/wasm-builde
 wasmprinter = "0.2"                                          # utils/wasm-gen
 whoami = "1.5.1"                                             # gcli
 fail = "0.5"                                                 # gear-common
-scale-value = "^0.12"                                        # gsdk
+scale-value = "^0.16"                                        # gsdk
 heck = "0.5.0"                                               # gsdk-api-gen
 etc = "0.1.19"                                               # gcli
 toml_edit = "0.22.12"                                        # crates-io
-scale-decode = "0.9.0"                                       # gsdk
+scale-decode = "0.13.0"                                      # gsdk
 directories = "5.0.1"                                        # utils/key-finder
 num-traits = { version = "0.2", default-features = false }   # gear-core
 glob = "0.3.1"                                               # cargo-gbuild

@@ -29,9 +29,8 @@ use sp_core::H256;
 use subxt::{
     dynamic::Value,
     error::{DispatchError as SubxtDispatchError, Error},
-    metadata::{EncodeWithMetadata, Metadata},
-    storage::{DynamicAddress, Storage, StorageAddress},
-    OnlineClient,
+    storage::{Address, DynamicAddress, Storage, StorageKey},
+    Metadata, OnlineClient,
 };
 
 impl Api {
@@ -73,33 +72,30 @@ impl Api {
     }
 
     /// Get the storage address from storage info.
-    pub fn storage<Encodable: EncodeWithMetadata, T: StorageInfo>(
+    pub fn storage<T: StorageInfo, Keys: StorageKey>(
         storage: T,
-        encodable: Vec<Encodable>,
-    ) -> DynamicAddress<Encodable> {
-        subxt::dynamic::storage(T::PALLET, storage.storage_name(), encodable)
+        keys: Keys,
+    ) -> DynamicAddress<Keys> {
+        subxt::dynamic::storage(T::PALLET, storage.storage_name(), keys)
     }
 
     /// Get the storage root address from storage info.
-    pub fn storage_root<T: StorageInfo>(storage: T) -> DynamicAddress<Value> {
-        subxt::dynamic::storage(T::PALLET, storage.storage_name(), vec![])
+    pub fn storage_root<T: StorageInfo>(storage: T) -> DynamicAddress<Vec<Value>> {
+        subxt::dynamic::storage(T::PALLET, storage.storage_name(), Default::default())
     }
 }
 
 /// Return the root of a given [`StorageAddress`]: hash the pallet name and entry name
 /// and append those bytes to the output.
-pub(crate) fn write_storage_address_root_bytes<Address: StorageAddress>(
-    addr: &Address,
-    out: &mut Vec<u8>,
-) {
+pub(crate) fn write_storage_address_root_bytes(addr: &impl Address, out: &mut Vec<u8>) {
     out.extend(hashing::twox_128(addr.pallet_name().as_bytes()));
     out.extend(hashing::twox_128(addr.entry_name().as_bytes()));
 }
 
 /// Outputs the [`storage_address_root_bytes`] as well as any additional bytes that represent
 /// a lookup in a storage map at that location.
-pub(crate) fn storage_address_bytes<Address: StorageAddress>(
-    addr: &Address,
+pub(crate) fn storage_address_bytes(
+    addr: &impl Address,
     metadata: &Metadata,
 ) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::new();

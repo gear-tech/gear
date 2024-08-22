@@ -2,7 +2,7 @@ use demo_new_meta::{
     MessageInitIn, Person, Wallet, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2,
 };
 use gstd::Encode;
-use gtest::{state_args, state_args_encoded, Program, System};
+use gtest::{constants::DEFAULT_USER_ALICE, state_args, state_args_encoded, Program, System};
 
 #[test]
 fn read_state_bytes_returns_full_state() {
@@ -183,10 +183,9 @@ fn read_state_with_two_args_wasm_func_returns_transformed_state() {
 }
 
 fn initialize_current_program(system: &System) -> Program {
-    const SOME_USER_ID: u64 = 3;
     let program = Program::current(system);
     program.send(
-        SOME_USER_ID,
+        DEFAULT_USER_ALICE,
         MessageInitIn {
             amount: 123,
             currency: "USD".into(),

@@ -25,6 +25,7 @@ extern crate alloc;
 pub mod db;
 pub mod mirror;
 pub mod router;
+pub mod wvara;
 
 pub use gear_core;
 pub use gprimitives;
@@ -39,6 +40,7 @@ pub enum BlockEvent {
         address: ActorId,
         event: mirror::Event,
     },
+    WVara(wvara::Event),
 }
 
 impl BlockEvent {
@@ -50,5 +52,11 @@ impl BlockEvent {
 impl From<router::Event> for BlockEvent {
     fn from(value: router::Event) -> Self {
         Self::Router(value)
+    }
+}
+
+impl From<wvara::Event> for BlockEvent {
+    fn from(value: wvara::Event) -> Self {
+        Self::WVara(value)
     }
 }

@@ -32,10 +32,10 @@ jobs:
           targets: wasm32-unknown-unknown
           components: llvm-tools
 
-      - name: "Check packages"
+      - name: "Publish packages (simulate)"
         if: ${{ !inputs.publish }}
-        run: cargo +stable run -p crates-io check
+        run: cargo +stable run --release -p crates-io publish -v ${{ inputs.version }} --simulate --registry-path /tmp/cargo-http-registry
 
       - name: "Publish packages"
         if: ${{ inputs.publish }}
-        run: cargo +stable run -p crates-io publish -v ${{ inputs.version }}
+        run: cargo +stable run --release -p crates-io publish -v ${{ inputs.version }}
