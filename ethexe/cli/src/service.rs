@@ -39,7 +39,7 @@ use parity_scale_codec::Decode;
 use std::{future::Future, sync::Arc, time::Duration};
 
 #[cfg(test)]
-use futures::lock::Mutex;
+pub use {futures::lock::Mutex, tests::Status};
 
 /// ethexe service.
 pub struct Service {
@@ -555,22 +555,6 @@ pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
     }
 }
 
-/// Service status
-#[derive(Default, PartialEq)]
-pub enum Status {
-    #[default]
-    Pending,
-    Active,
-    Terminated,
-}
-
-impl Status {
-    /// If the service is active
-    pub fn active(&self) -> bool {
-        *self == Status::Active
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::Service;
@@ -580,6 +564,22 @@ mod tests {
         time::Duration,
     };
     use tempfile::tempdir;
+
+    /// Service status
+    #[derive(Default, PartialEq)]
+    pub enum Status {
+        #[default]
+        Pending,
+        Active,
+        Terminated,
+    }
+
+    impl Status {
+        /// If the service is active
+        pub fn active(&self) -> bool {
+            *self == Status::Active
+        }
+    }
 
     #[tokio::test]
     async fn basics() {
