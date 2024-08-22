@@ -292,80 +292,69 @@ impl<'ast> Visit<'ast> for ImplementationVisitor {
         // first extract all the `*Costs` impls.
         if let Some((_, Path { segments, .. }, _)) = &mut implementation.trait_ {
             if let Some(PathSegment { ident, arguments }) = segments.first_mut() {
-                if ident.to_string() == "From" {
-                    match &mut *implementation.self_ty {
-                        Type::Path(tpath) => {
-                            let PathArguments::AngleBracketed(types) = arguments else {
-                                unreachable!("unexpected From impl detected")
-                            };
+                if *ident == "From" {
+                    if let Type::Path(tpath) = &mut *implementation.self_ty {
+                        let PathArguments::AngleBracketed(types) = arguments else {
+                            unreachable!("unexpected From impl detected")
+                        };
 
-                            let Some(GenericArgument::Type(ref mut typ)) = types.args.first_mut()
-                            else {
-                                unreachable!("unexpected From impl detected")
-                            };
+                        let Some(GenericArgument::Type(ref mut typ)) = types.args.first_mut()
+                        else {
+                            unreachable!("unexpected From impl detected")
+                        };
 
-                            match typ {
-                                Type::Path(path) => {
-                                    path.path.segments.first_mut().unwrap().arguments =
-                                        PathArguments::None;
-                                }
+                        if let Type::Path(path) = typ {
+                            path.path.segments.first_mut().unwrap().arguments =
+                                PathArguments::None;
+                        }
 
-                                _ => (),
-                            }
+                        if let Some(PathSegment {
+                            ident,
+                            arguments: _,
+                        }) = tpath.path.segments.first_mut()
+                        {
+                            if TYPE_LIST.contains(&ident.to_string().as_str()) {
+                                let Some(ImplItem::Fn(from_fn)) =
+                                    implementation.items.first_mut()
+                                else {
+                                    unreachable!("unexpected From impl detected")
+                                };
 
-                            if let Some(PathSegment {
-                                ident,
-                                arguments: _,
-                            }) = tpath.path.segments.first_mut()
-                            {
-                                if TYPE_LIST.contains(&ident.to_string().as_str()) {
-                                    let Some(ImplItem::Fn(from_fn)) =
-                                        implementation.items.first_mut()
-                                    else {
-                                        unreachable!("unexpected From impl detected")
-                                    };
+                                let first_arg = from_fn.sig.inputs.first_mut().unwrap();
+                                match first_arg {
+                                    FnArg::Typed(typed) => match &mut *typed.ty {
+                                        Type::Path(path) => {
+                                            path.path.segments.first_mut().unwrap().arguments =
+                                                PathArguments::None;
 
-                                    let first_arg = from_fn.sig.inputs.first_mut().unwrap();
-                                    match first_arg {
-                                        FnArg::Typed(typed) => match &mut *typed.ty {
-                                            Type::Path(path) => {
-                                                path.path.segments.first_mut().unwrap().arguments =
-                                                    PathArguments::None;
+                                            self.impls.push(implementation);
+                                        }
 
-                                                self.impls.push(implementation);
-                                            }
-
-                                            _ => unreachable!("unexpected From impl detected"),
-                                        },
                                         _ => unreachable!("unexpected From impl detected"),
-                                    }
+                                    },
+                                    _ => unreachable!("unexpected From impl detected"),
                                 }
                             }
                         }
-                        _ => (),
                     }
                 }
             }
         } else {
             // Now let's do `Schedule::process_costs()`
 
-            match &mut *implementation.self_ty {
-                Type::Path(path) => {
-                    if let Some(PathSegment { arguments, ident }) = path.path.segments.first_mut() {
-                        *arguments = PathArguments::None;
-                        if ident.to_string() == "Schedule" {
-                            // only leave process_costs method
-                            implementation.items.retain(|item| match item {
-                                ImplItem::Fn(func) => func.sig.ident.to_string() == "process_costs",
-                                _ => false,
-                            });
+            if let Type::Path(path) = &mut *implementation.self_ty {
+                if let Some(PathSegment { arguments, ident }) = path.path.segments.first_mut() {
+                    *arguments = PathArguments::None;
+                    if *ident == "Schedule" {
+                        // only leave process_costs method
+                        implementation.items.retain(|item| match item {
+                            ImplItem::Fn(func) => func.sig.ident == "process_costs",
+                            _ => false,
+                        });
 
-                            self.impls.push(implementation);
-                        }
+                        self.impls.push(implementation);
                     }
                 }
-
-                _ => (),
             }
         }
 
@@ -583,7 +572,7 @@ fn main() {
 
             let output = declarations
                 .into_iter()
-                .chain(impl_output.into_iter())
+                .chain(impl_output)
                 .map(|stream| stream.to_string())
                 .collect::<Vec<_>>()
                 .join("\n\n");
