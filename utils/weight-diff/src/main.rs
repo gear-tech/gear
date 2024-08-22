@@ -304,8 +304,7 @@ impl<'ast> Visit<'ast> for ImplementationVisitor {
                         };
 
                         if let Type::Path(path) = typ {
-                            path.path.segments.first_mut().unwrap().arguments =
-                                PathArguments::None;
+                            path.path.segments.first_mut().unwrap().arguments = PathArguments::None;
                         }
 
                         if let Some(PathSegment {
@@ -314,8 +313,7 @@ impl<'ast> Visit<'ast> for ImplementationVisitor {
                         }) = tpath.path.segments.first_mut()
                         {
                             if TYPE_LIST.contains(&ident.to_string().as_str()) {
-                                let Some(ImplItem::Fn(from_fn)) =
-                                    implementation.items.first_mut()
+                                let Some(ImplItem::Fn(from_fn)) = implementation.items.first_mut()
                                 else {
                                     unreachable!("unexpected From impl detected")
                                 };
