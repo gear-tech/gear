@@ -27,14 +27,15 @@ use gear_utils::codegen::{format_with_rustfmt, LICENSE};
 use indexmap::IndexMap;
 use pallet_gear::Schedule;
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fs, path::PathBuf, str::FromStr};
 use syn::{
     ext::IdentExt,
     visit::{self, Visit},
-    AngleBracketedGenericArguments, Fields, Generics, ItemStruct, PathArguments, Type, TypePath,
+    AngleBracketedGenericArguments, Fields, FnArg, GenericArgument, Generics, ImplItem, Item,
+    ItemImpl, ItemStruct, Path, PathArguments, PathSegment, Type, TypePath,
 };
 use tabled::{builder::Builder, Style};
 
@@ -268,6 +269,110 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
     }
 }
 
+#[derive(Default)]
+struct ImplementationVisitor {
+    impls: Vec<ItemImpl>,
+}
+
+static TYPE_LIST: &[&str] = &[
+    "InstructionCosts",
+    "SyscallCosts",
+    "MemoryCosts",
+    "RentCosts",
+    "InstantiationCosts",
+    "LazyPagesCosts",
+];
+
+impl<'ast> Visit<'ast> for ImplementationVisitor {
+    fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
+        let mut implementation = node.clone();
+        implementation.attrs.clear();
+        implementation.generics = Generics::default();
+
+        // first extract all the `*Costs` impls.
+        if let Some((_, Path { segments, .. }, _)) = &mut implementation.trait_ {
+            if let Some(PathSegment { ident, arguments }) = segments.first_mut() {
+                if ident.to_string() == "From" {
+                    match &mut *implementation.self_ty {
+                        Type::Path(tpath) => {
+                            let PathArguments::AngleBracketed(types) = arguments else {
+                                unreachable!("unexpected From impl detected")
+                            };
+
+                            let Some(GenericArgument::Type(ref mut typ)) = types.args.first_mut()
+                            else {
+                                unreachable!("unexpected From impl detected")
+                            };
+
+                            match typ {
+                                Type::Path(path) => {
+                                    path.path.segments.first_mut().unwrap().arguments =
+                                        PathArguments::None;
+                                }
+
+                                _ => (),
+                            }
+
+                            if let Some(PathSegment {
+                                ident,
+                                arguments: _,
+                            }) = tpath.path.segments.first_mut()
+                            {
+                                if TYPE_LIST.contains(&ident.to_string().as_str()) {
+                                    let Some(ImplItem::Fn(from_fn)) =
+                                        implementation.items.first_mut()
+                                    else {
+                                        unreachable!("unexpected From impl detected")
+                                    };
+
+                                    let first_arg = from_fn.sig.inputs.first_mut().unwrap();
+                                    match first_arg {
+                                        FnArg::Typed(typed) => match &mut *typed.ty {
+                                            Type::Path(path) => {
+                                                path.path.segments.first_mut().unwrap().arguments =
+                                                    PathArguments::None;
+
+                                                self.impls.push(implementation);
+                                            }
+
+                                            _ => unreachable!("unexpected From impl detected"),
+                                        },
+                                        _ => unreachable!("unexpected From impl detected"),
+                                    }
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        } else {
+            // Now let's do `Schedule::process_costs()`
+
+            match &mut *implementation.self_ty {
+                Type::Path(path) => {
+                    if let Some(PathSegment { arguments, ident }) = path.path.segments.first_mut() {
+                        *arguments = PathArguments::None;
+                        if ident.to_string() == "Schedule" {
+                            // only leave process_costs method
+                            implementation.items.retain(|item| match item {
+                                ImplItem::Fn(func) => func.sig.ident.to_string() == "process_costs",
+                                _ => false,
+                            });
+
+                            self.impls.push(implementation);
+                        }
+                    }
+                }
+
+                _ => (),
+            }
+        }
+
+        visit::visit_item_impl(self, node);
+    }
+}
+
 fn main() {
     let Cli { command } = Cli::parse();
 
@@ -364,11 +469,22 @@ fn main() {
             let mut visitor = StructuresVisitor::default();
             visitor.visit_file(&file);
 
+            let mut impl_visitor = ImplementationVisitor::default();
+            impl_visitor.visit_file(&file);
+
+            let impl_output = impl_visitor
+                .impls
+                .drain(..)
+                .map(|item| Item::Impl(item).to_token_stream())
+                .collect::<Vec<_>>();
+
             let mut declarations = vec![quote! {
                 //! This is auto-generated module that contains cost schedule from
                 //! `pallets/gear/src/schedule.rs`.
                 //!
                 //! See `./scripts/weight-dump.sh` if you want to update it.
+
+                use crate::costs::*;
             }];
 
             for (structure_name, structure) in visitor.structures {
@@ -441,7 +557,7 @@ fn main() {
             }
 
             declarations.push(quote! {
-                #[derive(Debug, Clone)]
+                #[derive(Debug, Clone, Copy)]
                 pub struct Weight {
                     pub ref_time: u64,
                     pub proof_size: u64,
@@ -454,11 +570,20 @@ fn main() {
                     pub const fn ref_time(&self) -> u64 {
                         self.ref_time
                     }
+
+                    #[doc(hidden)]
+                    pub const fn saturating_add(&self, other: Self) -> Self {
+                        Self {
+                            ref_time: self.ref_time.saturating_add(other.ref_time),
+                            proof_size: self.proof_size.saturating_add(other.proof_size)
+                        }
+                    }
                 }
             });
 
             let output = declarations
                 .into_iter()
+                .chain(impl_output.into_iter())
                 .map(|stream| stream.to_string())
                 .collect::<Vec<_>>()
                 .join("\n\n");

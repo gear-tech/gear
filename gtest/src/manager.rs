@@ -642,7 +642,7 @@ impl ExtManager {
             forbidden_funcs: Default::default(),
             reserve_for: RESERVE_FOR,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
-            costs: super::costs::process_costs(&schedule),
+            costs: schedule.process_costs(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
             max_reservations: MAX_RESERVATIONS,

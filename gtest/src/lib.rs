@@ -496,7 +496,6 @@ mod accounts;
 mod actors;
 mod bank;
 mod blocks;
-mod costs;
 mod error;
 mod gas_tree;
 mod log;
