@@ -33,7 +33,7 @@ use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_signer::{PublicKey, Signer};
 use ethexe_validator::Commitment;
-use futures::{future, stream::StreamExt, FutureExt};
+use futures::{future, lock::Mutex, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::Decode;
 use std::{future::Future, sync::Arc, time::Duration};
@@ -53,6 +53,9 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
     rpc: Option<ethexe_rpc::RpcService>,
+
+    // service status
+    status: Arc<Mutex<Status>>,
 }
 
 impl Service {
@@ -157,6 +160,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.block_time,
+            status: Default::default(),
         })
     }
 
@@ -195,6 +199,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            status: Default::default(),
         }
     }
 
@@ -391,6 +396,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time,
+            ..
         } = self;
 
         if let Some(metrics_service) = metrics_service {
@@ -511,8 +517,14 @@ impl Service {
                     break;
                 }
             }
+
+            let mut status = self.status.lock().await;
+            if !status.active() {
+                *status = Status::Active;
+            }
         }
 
+        *self.status.lock().await = Status::Terminated;
         Ok(())
     }
 
@@ -522,6 +534,11 @@ impl Service {
             err
         })
     }
+
+    /// Get the pointer of service status
+    pub fn status(&self) -> Arc<Mutex<Status>> {
+        self.status.clone()
+    }
 }
 
 pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
@@ -529,6 +546,22 @@ pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
         f.await
     } else {
         future::pending().await
+    }
+}
+
+/// Service status
+#[derive(Default, PartialEq)]
+pub enum Status {
+    #[default]
+    Pending,
+    Active,
+    Terminated,
+}
+
+impl Status {
+    /// If the service is active
+    pub fn active(&self) -> bool {
+        *self == Status::Active
     }
 }
 

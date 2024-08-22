@@ -38,7 +38,7 @@ use ethexe_validator::Validator;
 use futures::StreamExt;
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use std::{sync::Arc, time::Duration};
+use std::{cell::RefCell, sync::Arc, time::Duration};
 use tokio::{
     sync::{
         mpsc::{self, Receiver},
