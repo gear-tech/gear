@@ -745,15 +745,13 @@ mod tests {
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment2.block_hash, threshold)
                 .expect("Must have candidate");
-        let mut expected_digests = [commitment1.as_digest(), commitment2.as_digest()];
-        expected_digests.sort();
+        let expected_digests = [commitment1.as_digest(), commitment2.as_digest()];
         assert_eq!(candidate.digests(), expected_digests.as_slice());
 
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment3.block_hash, threshold)
                 .expect("Must have candidate");
-        let mut expected_digests = [commitment1.as_digest(), commitment3.as_digest()];
-        expected_digests.sort();
+        let expected_digests = [commitment1.as_digest(), commitment3.as_digest()];
         assert_eq!(candidate.digests(), expected_digests.as_slice());
     }
 
