@@ -316,7 +316,7 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::UploadCode`
     pub async fn upload_code_with_voucher(
         &self,
         voucher_id: VoucherId,
@@ -332,7 +332,36 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::CreateProgram`
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_program_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        code_id: CodeId,
+        salt: Vec<u8>,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<TxInBlock> {
+        let call = PrepaidCall::<u128>::CreateProgram {
+            code_id: code_id.into(),
+            salt,
+            payload,
+            gas_limit,
+            value,
+            keep_alive,
+        };
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Call,
+                vec![Value::from_bytes(voucher_id.0), call.into()],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::call` `PrepaidCall::SendMessage`
     pub async fn send_message_with_voucher(
         &self,
         voucher_id: VoucherId,
@@ -358,7 +387,7 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::SendReply`
     pub async fn send_reply_with_voucher(
         &self,
         voucher_id: VoucherId,
@@ -384,7 +413,7 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::DeclineVoucher`
     pub async fn decline_voucher_with_voucher(&self, voucher_id: VoucherId) -> Result<TxInBlock> {
         let call = PrepaidCall::<u128>::DeclineVoucher;
 
