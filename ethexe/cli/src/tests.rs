@@ -23,6 +23,7 @@ use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
     rpc::types::anvil::MineOptions,
+    signers::k256::elliptic_curve::generic_array::sequence,
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
@@ -153,6 +154,256 @@ struct TestEnv {
     running_service_handle: Option<JoinHandle<Result<()>>>,
 }
 
+struct AnvilWallets {
+    wallets: Vec<ethexe_signer::PublicKey>,
+    next_wallet: usize,
+}
+
+impl AnvilWallets {
+    pub fn new(signer: &Signer) -> Self {
+        let accounts = [
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+            "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+            "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
+            "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+            "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+            "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+            "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
+            "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
+            "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
+        ]
+        .map(|s| signer.add_key(s.parse().unwrap()).unwrap());
+
+        Self {
+            wallets: accounts.to_vec(),
+            next_wallet: 0,
+        }
+    }
+
+    pub fn next(&mut self) -> ethexe_signer::PublicKey {
+        let pub_key = self.wallets.get(self.next_wallet).expect("No more wallets");
+        self.next_wallet += 1;
+        pub_key.clone()
+    }
+}
+
+struct Lol {
+    anvil: AnvilInstance,
+    wallets: AnvilWallets,
+
+    observer: Observer,
+    blob_reader: Arc<MockBlobReader>,
+    ethereum: Ethereum,
+    router_query: RouterQuery,
+    signer: Signer,
+    validators: Vec<ethexe_signer::PublicKey>,
+    router_address: ethexe_signer::Address,
+    sender_id: ActorId,
+    genesis_block_hash: H256,
+    threshold: u64,
+    block_time: Duration,
+}
+
+impl Lol {
+    pub async fn new(validators_amount: usize) -> Result<Self> {
+        let mut anvil = Anvil::new().try_spawn().unwrap();
+        log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
+        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+
+        let rpc_url = anvil.ws_endpoint();
+        let signer = Signer::new(tempfile::tempdir()?.into_path())?;
+        let mut wallets = AnvilWallets::new(&signer);
+
+        let sender_address = wallets.next().to_address();
+        let validators: Vec<_> = (0..validators_amount)
+            .map(|_| signer.generate_key().unwrap())
+            .collect();
+
+        let ethereum = Ethereum::deploy(
+            &rpc_url,
+            validators.iter().map(|k| k.to_address()).collect(),
+            signer.clone(),
+            sender_address,
+        )
+        .await?;
+
+        let router = ethereum.router();
+        let router_query = router.query();
+        let router_address = router.address();
+
+        let block_time = Duration::from_secs(1);
+
+        let blob_reader = Arc::new(MockBlobReader::new(block_time));
+
+        let observer = Observer::new(&rpc_url, router_address, blob_reader.clone())
+            .await
+            .expect("failed to create observer");
+
+        let genesis_block_hash = router_query.genesis_block_hash().await?;
+        let threshold = router_query.threshold().await?;
+
+        Ok(Lol {
+            anvil,
+            wallets,
+            observer,
+            blob_reader,
+            ethereum,
+            router_query,
+            signer,
+            validators,
+            router_address,
+            sender_id: ActorId::from(H160::from(sender_address.0)),
+            genesis_block_hash,
+            threshold,
+            block_time,
+        })
+    }
+
+    fn create_node(&self, db: Option<Database>) -> Node {
+        Node {
+            db: db.unwrap_or_else(|| Database::from_one(&MemDb::default(), self.router_address.0)),
+            rpc_url: self.anvil.ws_endpoint(),
+            genesis_block_hash: self.genesis_block_hash,
+            blob_reader: self.blob_reader.clone(),
+            observer: self.observer.clone(),
+            signer: self.signer.clone(),
+            block_time: self.block_time,
+            validators: self.validators.iter().map(|k| k.to_address()).collect(),
+            threshold: self.threshold,
+            router_address: self.router_address,
+            running_service_handle: None,
+        }
+    }
+
+    pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
+        log::info!("📗 Uploading code len {}", code.len());
+        let code_id = CodeId::generate(code);
+        let blob_tx = H256::random();
+
+        self.blob_reader
+            .add_blob_transaction(blob_tx, code.to_vec())
+            .await;
+        let tx_hash = self
+            .ethereum
+            .router()
+            .request_code_validation(code_id, blob_tx)
+            .await?;
+
+        Ok((tx_hash, code_id))
+    }
+
+    pub async fn new_listener(&self) -> Listener {
+        Listener::new(self.observer.clone()).await
+    }
+}
+
+struct Node {
+    db: Database,
+    rpc_url: String,
+    genesis_block_hash: H256,
+    blob_reader: Arc<MockBlobReader>,
+    observer: Observer,
+    signer: Signer,
+    validators: Vec<ethexe_signer::Address>,
+    threshold: u64,
+    router_address: ethexe_signer::Address,
+    block_time: Duration,
+    running_service_handle: Option<JoinHandle<Result<()>>>,
+}
+
+impl Node {
+    pub async fn start_service(
+        &mut self,
+        sequencer_public_key: Option<ethexe_signer::PublicKey>,
+        validator_public_key: Option<ethexe_signer::PublicKey>,
+        network_address: Option<String>,
+    ) {
+        assert!(
+            self.running_service_handle.is_none(),
+            "Service is already running"
+        );
+
+        let processor = Processor::new(self.db.clone()).unwrap();
+
+        let query = Query::new(
+            Arc::new(self.db.clone()),
+            &self.rpc_url,
+            self.router_address,
+            self.genesis_block_hash,
+            self.blob_reader.clone(),
+            10000,
+        )
+        .await
+        .unwrap();
+
+        let network = network_address.as_ref().map(|addr| {
+            let config_path = tempfile::tempdir().unwrap().into_path();
+            let config =
+                ethexe_network::NetworkEventLoopConfig::new_memory(config_path, addr.as_str());
+            ethexe_network::NetworkService::new(config, &self.signer).unwrap()
+        });
+
+        let sequencer = match sequencer_public_key.as_ref() {
+            Some(key) => Some(
+                Sequencer::new(
+                    &ethexe_sequencer::Config {
+                        ethereum_rpc: self.rpc_url.clone(),
+                        sign_tx_public: *key,
+                        router_address: self.router_address,
+                        validators: self.validators.clone(),
+                        threshold: self.threshold,
+                    },
+                    self.signer.clone(),
+                )
+                .await
+                .unwrap(),
+            ),
+            None => None,
+        };
+
+        let validator = match validator_public_key.as_ref() {
+            Some(key) => Some(Validator::new(
+                &ethexe_validator::Config {
+                    pub_key: *key,
+                    router_address: self.router_address,
+                },
+                self.signer.clone(),
+            )),
+            None => None,
+        };
+
+        let service = Service::new_from_parts(
+            self.db.clone(),
+            self.observer.clone(),
+            query,
+            processor,
+            self.signer.clone(),
+            self.block_time,
+            network,
+            sequencer,
+            validator,
+            None,
+            None,
+        );
+
+        let handle = task::spawn(service.run());
+        self.running_service_handle = Some(handle);
+
+        // Sleep to wait for the new service to start
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    pub async fn stop_service(&mut self) {
+        let handle = self
+            .running_service_handle
+            .take()
+            .expect("Service is not running");
+        handle.abort();
+        let _ = handle.await;
+    }
+}
+
 impl TestEnv {
     async fn new(config: TestEnvConfig) -> Result<TestEnv> {
         let TestEnvConfig {
@@ -162,8 +413,6 @@ impl TestEnv {
             validator_private_key,
             block_time,
         } = config;
-
-        let db = Database::from_one(&MemDb::default(), router_address.unwrap_or_default().0);
 
         let tempdir = tempfile::tempdir()?.into_path();
         let signer = Signer::new(tempdir.join("key"))?;
@@ -199,6 +448,8 @@ impl TestEnv {
         let blob_reader = blob_reader.unwrap_or_else(|| Arc::new(MockBlobReader::new(block_time)));
 
         let router_address = router.address();
+
+        let db = Database::from_one(&MemDb::default(), router_address.0);
 
         let query = Query::new(
             Arc::new(db.clone()),
@@ -251,6 +502,10 @@ impl TestEnv {
             return Err(anyhow!("Service is already running"));
         }
 
+        let config_path = tempfile::tempdir()?.into_path();
+        let config = ethexe_network::NetworkEventLoopConfig::new_memory(config_path, "/memory/1");
+        let network = ethexe_network::NetworkService::new(config, &self.signer)?;
+
         let processor = Processor::new(self.db.clone())?;
 
         let sequencer = Sequencer::new(
@@ -280,7 +535,7 @@ impl TestEnv {
             processor,
             self.signer.clone(),
             self.block_time,
-            None,
+            Some(network),
             Some(sequencer),
             Some(validator),
             None,
@@ -337,14 +592,12 @@ impl Drop for TestEnv {
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let anvil = TestEnv::start_anvil();
-
-    let mut env = TestEnv::new(TestEnvConfig::default().rpc_url(anvil.ws_endpoint()))
-        .await
-        .unwrap();
+    let mut env = Lol::new(1).await.unwrap();
     let mut listener = env.new_listener().await;
+    let mut node = env.create_node(None);
 
-    env.start_service().await.unwrap();
+    node.start_service(Some(env.wallets.next()), Some(env.validators[0]), None)
+        .await;
 
     let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
 
@@ -382,11 +635,11 @@ async fn ping() {
         .await
         .unwrap();
 
-    let code = env
+    let code = node
         .db
         .original_code(code_id)
         .expect("After approval, the code is guaranteed to be in the database");
-    let _ = env
+    let _ = node
         .db
         .instrumented_code(1, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
@@ -424,7 +677,7 @@ async fn ping() {
                                 payload,
                                 value,
                             } => {
-                                assert_eq!(source, env.sender_address);
+                                assert_eq!(source, env.sender_id);
                                 assert_eq!(payload, b"PING");
                                 assert_eq!(value, 0);
                                 init_message_id = id;
