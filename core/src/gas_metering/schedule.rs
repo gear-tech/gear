@@ -20,6 +20,7 @@
 #![doc = r" `pallets/gear/src/schedule.rs`."]
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
+
 use crate::costs::*;
 
 #[derive(Debug, Clone)]

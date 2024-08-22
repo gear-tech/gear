@@ -125,44 +125,6 @@ fn duplicate_export() {
     );
 }
 
-// TODO: move to gear-core
-/*#[test]
-fn unsupported_instruction() {
-    // floats
-    let module = parse_wat(
-        r#"(module
-        (func (result f64)
-            f64.const 10
-            f64.const 3
-            f64.div)
-        (global i32 (i32.const 42))
-        (memory 0 1)
-        )"#,
-    );
-
-    assert_eq!(
-        inject(module, |_| CustomConstantCostRules::default(), "env"),
-        Err(InstrumentationError::GasInjection)
-    );
-
-    // memory grow
-    let module = parse_wat(
-        r#"(module
-        (func (result i32)
-            global.get 0
-            memory.grow
-        )
-        (global i32 (i32.const 42))
-        (memory 0 1)
-        )"#,
-    );
-
-    assert_eq!(
-        inject(module, |_| CustomConstantCostRules::default(), "env"),
-        Err(InstrumentationError::GasInjection)
-    );
-}*/
-
 #[test]
 fn call_index() {
     let injected_module = inject(
