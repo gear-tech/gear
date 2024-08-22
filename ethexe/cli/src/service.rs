@@ -396,7 +396,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time,
-            ..
+            status,
         } = self;
 
         if let Some(metrics_service) = metrics_service {
@@ -438,6 +438,7 @@ impl Service {
             roles.push_str(&format!(", Validator ({})", val.address()));
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
+        *status.lock().await = Status::Active;
 
         loop {
             tokio::select! {
@@ -517,14 +518,9 @@ impl Service {
                     break;
                 }
             }
-
-            let mut status = self.status.lock().await;
-            if !status.active() {
-                *status = Status::Active;
-            }
         }
 
-        *self.status.lock().await = Status::Terminated;
+        *status.lock().await = Status::Terminated;
         Ok(())
     }
 
