@@ -279,9 +279,9 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn threshold_percentage(&self) -> Result<u64> {
+    pub async fn threshold(&self) -> Result<u64> {
         self.instance
-            .signingThresholdPercentage()
+            .validatorsThreshold()
             .call()
             .await
             .map(|res| res._0.to())

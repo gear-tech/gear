@@ -110,9 +110,7 @@ impl Service {
         let validators = router_query.validators().await?;
         log::info!("👥 Validators set: {validators:?}");
 
-        let threshold_percentage = router_query.threshold_percentage().await?;
-        // See Router.sol validatorsThreshold impl
-        let threshold = (validators.len() as u64 * threshold_percentage + 9999) / 10000;
+        let threshold = router_query.threshold().await?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
         let query = ethexe_observer::Query::new(
