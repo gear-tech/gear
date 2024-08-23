@@ -257,13 +257,13 @@ async fn test_voucher_balance_transfer_error() -> Result<()> {
 
     let error = get_issued_voucher_id(tx)
         .await
-        .expect_err("Error: Subxt(Runtime(Module(ModuleError(<GearVoucher::BalanceTransfer>))))");
+        .expect_err("Expect: Subxt(Runtime(Module(ModuleError(<GearVoucher::BalanceTransfer>))))");
 
     assert!(matches!(
         error,
         Error::Subxt(SubxtError::Runtime(subxt::error::DispatchError::Module(
             err
-        ))) if err.to_string() == "GearVoucher::BalanceTransfer".to_string()
+        ))) if err.to_string() == "GearVoucher::BalanceTransfer"
     ));
     Ok(())
 }
@@ -291,14 +291,14 @@ async fn test_voucher_duration_error() -> Result<()> {
         .await?;
 
     let error = get_issued_voucher_id(tx).await.expect_err(
-        "Error: Subxt(Runtime(Module(ModuleError(<GearVoucher::DurationOutOfBounds>))))",
+        "Expect: Subxt(Runtime(Module(ModuleError(<GearVoucher::DurationOutOfBounds>))))",
     );
 
     assert!(matches!(
         error,
         Error::Subxt(SubxtError::Runtime(subxt::error::DispatchError::Module(
             err
-        ))) if err.to_string() == "GearVoucher::DurationOutOfBounds".to_string()
+        ))) if err.to_string() == "GearVoucher::DurationOutOfBounds"
     ));
     Ok(())
 }

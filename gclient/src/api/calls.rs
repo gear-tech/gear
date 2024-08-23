@@ -1469,6 +1469,72 @@ impl GearApi {
         Err(Error::EventNotFound)
     }
 
+    /// Same as [`create_program_bytes`](Self::create_program_bytes), but creates program
+    /// using voucher.
+    ///
+    /// # See also
+    /// - [`upload_code_with_voucher`](Self::upload_code_with_voucher) function uploads
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_program_bytes_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        code_id: CodeId,
+        salt: impl AsRef<[u8]>,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, ProgramId, H256)> {
+        let salt = salt.as_ref().to_vec();
+        let payload = payload.as_ref().to_vec();
+
+        let tx = self
+            .0
+            .calls
+            .create_program_with_voucher(
+                voucher_id, code_id, salt, payload, gas_limit, value, keep_alive,
+            )
+            .await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::MessageQueued {
+                id,
+                destination,
+                entry: MessageEntry::Init,
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), destination.into(), tx.block_hash()));
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Same as [`create_program_bytes_with_voucher`](Self::create_program_bytes_with_voucher), but
+    /// initializes a newly created program with an encoded `payload`.
+    pub async fn create_program_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        code_id: CodeId,
+        salt: impl AsRef<[u8]>,
+        payload: impl Encode,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<(MessageId, ProgramId, H256)> {
+        self.create_program_bytes_with_voucher(
+            voucher_id,
+            code_id,
+            salt,
+            payload.encode(),
+            gas_limit,
+            value,
+            keep_alive,
+        )
+        .await
+    }
+
     /// Same as [`send_message_bytes`](Self::send_message_bytes), but sends a
     /// message using voucher.
     pub async fn send_message_bytes_with_voucher(
