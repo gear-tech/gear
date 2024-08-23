@@ -274,6 +274,10 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 has_doc |= res;
                 res
             });
+
+            if !has_doc {
+                field.attrs.push(parse_quote!(#[allow(missing_docs)]));
+            }
         }
 
         self.structures.insert(structure_name, structure);

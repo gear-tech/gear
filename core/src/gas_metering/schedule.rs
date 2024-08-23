@@ -194,92 +194,179 @@ pub struct InstructionWeights {
     #[doc = " Changes to other parts of the schedule should not increment the version in"]
     #[doc = " order to avoid unnecessary re-instrumentations."]
     pub version: u32,
+    #[allow(missing_docs)]
     pub i64const: u32,
+    #[allow(missing_docs)]
     pub i64load: u32,
+    #[allow(missing_docs)]
     pub i32load: u32,
+    #[allow(missing_docs)]
     pub i64store: u32,
+    #[allow(missing_docs)]
     pub i32store: u32,
+    #[allow(missing_docs)]
     pub select: u32,
+    #[allow(missing_docs)]
     pub r#if: u32,
+    #[allow(missing_docs)]
     pub br: u32,
+    #[allow(missing_docs)]
     pub br_if: u32,
+    #[allow(missing_docs)]
     pub br_table: u32,
+    #[allow(missing_docs)]
     pub br_table_per_entry: u32,
+    #[allow(missing_docs)]
     pub call: u32,
+    #[allow(missing_docs)]
     pub call_indirect: u32,
+    #[allow(missing_docs)]
     pub call_indirect_per_param: u32,
+    #[allow(missing_docs)]
     pub call_per_local: u32,
+    #[allow(missing_docs)]
     pub local_get: u32,
+    #[allow(missing_docs)]
     pub local_set: u32,
+    #[allow(missing_docs)]
     pub local_tee: u32,
+    #[allow(missing_docs)]
     pub global_get: u32,
+    #[allow(missing_docs)]
     pub global_set: u32,
+    #[allow(missing_docs)]
     pub memory_current: u32,
+    #[allow(missing_docs)]
     pub i64clz: u32,
+    #[allow(missing_docs)]
     pub i32clz: u32,
+    #[allow(missing_docs)]
     pub i64ctz: u32,
+    #[allow(missing_docs)]
     pub i32ctz: u32,
+    #[allow(missing_docs)]
     pub i64popcnt: u32,
+    #[allow(missing_docs)]
     pub i32popcnt: u32,
+    #[allow(missing_docs)]
     pub i64eqz: u32,
+    #[allow(missing_docs)]
     pub i32eqz: u32,
+    #[allow(missing_docs)]
     pub i32extend8s: u32,
+    #[allow(missing_docs)]
     pub i32extend16s: u32,
+    #[allow(missing_docs)]
     pub i64extend8s: u32,
+    #[allow(missing_docs)]
     pub i64extend16s: u32,
+    #[allow(missing_docs)]
     pub i64extend32s: u32,
+    #[allow(missing_docs)]
     pub i64extendsi32: u32,
+    #[allow(missing_docs)]
     pub i64extendui32: u32,
+    #[allow(missing_docs)]
     pub i32wrapi64: u32,
+    #[allow(missing_docs)]
     pub i64eq: u32,
+    #[allow(missing_docs)]
     pub i32eq: u32,
+    #[allow(missing_docs)]
     pub i64ne: u32,
+    #[allow(missing_docs)]
     pub i32ne: u32,
+    #[allow(missing_docs)]
     pub i64lts: u32,
+    #[allow(missing_docs)]
     pub i32lts: u32,
+    #[allow(missing_docs)]
     pub i64ltu: u32,
+    #[allow(missing_docs)]
     pub i32ltu: u32,
+    #[allow(missing_docs)]
     pub i64gts: u32,
+    #[allow(missing_docs)]
     pub i32gts: u32,
+    #[allow(missing_docs)]
     pub i64gtu: u32,
+    #[allow(missing_docs)]
     pub i32gtu: u32,
+    #[allow(missing_docs)]
     pub i64les: u32,
+    #[allow(missing_docs)]
     pub i32les: u32,
+    #[allow(missing_docs)]
     pub i64leu: u32,
+    #[allow(missing_docs)]
     pub i32leu: u32,
+    #[allow(missing_docs)]
     pub i64ges: u32,
+    #[allow(missing_docs)]
     pub i32ges: u32,
+    #[allow(missing_docs)]
     pub i64geu: u32,
+    #[allow(missing_docs)]
     pub i32geu: u32,
+    #[allow(missing_docs)]
     pub i64add: u32,
+    #[allow(missing_docs)]
     pub i32add: u32,
+    #[allow(missing_docs)]
     pub i64sub: u32,
+    #[allow(missing_docs)]
     pub i32sub: u32,
+    #[allow(missing_docs)]
     pub i64mul: u32,
+    #[allow(missing_docs)]
     pub i32mul: u32,
+    #[allow(missing_docs)]
     pub i64divs: u32,
+    #[allow(missing_docs)]
     pub i32divs: u32,
+    #[allow(missing_docs)]
     pub i64divu: u32,
+    #[allow(missing_docs)]
     pub i32divu: u32,
+    #[allow(missing_docs)]
     pub i64rems: u32,
+    #[allow(missing_docs)]
     pub i32rems: u32,
+    #[allow(missing_docs)]
     pub i64remu: u32,
+    #[allow(missing_docs)]
     pub i32remu: u32,
+    #[allow(missing_docs)]
     pub i64and: u32,
+    #[allow(missing_docs)]
     pub i32and: u32,
+    #[allow(missing_docs)]
     pub i64or: u32,
+    #[allow(missing_docs)]
     pub i32or: u32,
+    #[allow(missing_docs)]
     pub i64xor: u32,
+    #[allow(missing_docs)]
     pub i32xor: u32,
+    #[allow(missing_docs)]
     pub i64shl: u32,
+    #[allow(missing_docs)]
     pub i32shl: u32,
+    #[allow(missing_docs)]
     pub i64shrs: u32,
+    #[allow(missing_docs)]
     pub i32shrs: u32,
+    #[allow(missing_docs)]
     pub i64shru: u32,
+    #[allow(missing_docs)]
     pub i32shru: u32,
+    #[allow(missing_docs)]
     pub i64rotl: u32,
+    #[allow(missing_docs)]
     pub i32rotl: u32,
+    #[allow(missing_docs)]
     pub i64rotr: u32,
+    #[allow(missing_docs)]
     pub i32rotr: u32,
 }
 
@@ -984,9 +1071,13 @@ impl Default for RentWeights {
 #[derive(Debug, Clone)]
 #[doc = " Describes DB access weights."]
 pub struct DbWeights {
+    #[allow(missing_docs)]
     pub read: Weight,
+    #[allow(missing_docs)]
     pub read_per_byte: Weight,
+    #[allow(missing_docs)]
     pub write: Weight,
+    #[allow(missing_docs)]
     pub write_per_byte: Weight,
 }
 
