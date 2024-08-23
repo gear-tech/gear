@@ -23,7 +23,6 @@ use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
     rpc::types::anvil::MineOptions,
-    signers::k256::elliptic_curve::generic_array::sequence,
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
@@ -189,7 +188,8 @@ impl AnvilWallets {
 }
 
 struct Lol {
-    anvil: AnvilInstance,
+    _anvil: Option<AnvilInstance>,
+    rpc_url: String,
     wallets: AnvilWallets,
 
     observer: Observer,
@@ -207,11 +207,19 @@ struct Lol {
 
 impl Lol {
     pub async fn new(validators_amount: usize) -> Result<Self> {
-        let mut anvil = Anvil::new().try_spawn().unwrap();
-        log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
-        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+        let (rpc_url, anvil) = match std::env::var("__ETHEXE_CLI_TESTS_RPC_URL") {
+            Ok(rpc_url) => {
+                log::info!("📍 Using provided RPC URL: {}", rpc_url);
+                (rpc_url, None)
+            },
+            Err(_) => {
+                let mut anvil = Anvil::new().try_spawn().unwrap();
+                drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+                log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
+                (anvil.ws_endpoint(), Some(anvil))
+            }
+        };
 
-        let rpc_url = anvil.ws_endpoint();
         let signer = Signer::new(tempfile::tempdir()?.into_path())?;
         let mut wallets = AnvilWallets::new(&signer);
 
@@ -244,7 +252,8 @@ impl Lol {
         let threshold = router_query.threshold().await?;
 
         Ok(Lol {
-            anvil,
+            _anvil: anvil,
+            rpc_url,
             wallets,
             observer,
             blob_reader,
@@ -263,7 +272,7 @@ impl Lol {
     fn create_node(&self, db: Option<Database>) -> Node {
         Node {
             db: db.unwrap_or_else(|| Database::from_one(&MemDb::default(), self.router_address.0)),
-            rpc_url: self.anvil.ws_endpoint(),
+            rpc_url: self.rpc_url.clone(),
             genesis_block_hash: self.genesis_block_hash,
             blob_reader: self.blob_reader.clone(),
             observer: self.observer.clone(),
