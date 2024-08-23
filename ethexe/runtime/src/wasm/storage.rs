@@ -53,6 +53,10 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
+        if hash.is_zero() {
+            return Some(ProgramState::zero());
+        }
+
         database_ri::read_unwrapping(&hash)
     }
 
@@ -81,6 +85,10 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
+        if state.is_zero() {
+            return H256::zero();
+        }
+
         database_ri::write(state)
     }
 

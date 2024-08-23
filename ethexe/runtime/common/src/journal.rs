@@ -78,7 +78,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             DispatchOutcome::Exit { .. } => todo!(),
             DispatchOutcome::InitSuccess { program_id } => {
                 log::trace!("Dispatch {message_id} init success for program {program_id}");
-                self.update_program(program_id, |mut state, _| match &mut state.state {
+                self.update_program(program_id, |mut state, _| match &mut state.program {
                     state::Program::Active(program) => {
                         program.initialized = true;
                         Some(state)
@@ -96,7 +96,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 );
                 self.update_program(program_id, |state, _| {
                     Some(ProgramState {
-                        state: state::Program::Terminated(origin),
+                        program: state::Program::Terminated(origin),
                         ..state
                     })
                 });
@@ -122,7 +122,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         self.update_program(id_exited, |state, _| {
             Some(ProgramState {
-                state: state::Program::Exited(value_destination),
+                program: state::Program::Exited(value_destination),
                 ..state
             })
         });
@@ -325,7 +325,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         }
 
         self.update_program(program_id, |state, storage| {
-            let state::Program::Active(mut active_state) = state.state else {
+            let state::Program::Active(mut active_state) = state.program else {
                 return None;
             };
 
@@ -343,7 +343,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             };
 
             Some(ProgramState {
-                state: state::Program::Active(changed_active_state),
+                program: state::Program::Active(changed_active_state),
                 ..state
             })
         });

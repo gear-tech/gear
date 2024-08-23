@@ -61,7 +61,6 @@ interface IMirror {
     event Reply(bytes payload, uint128 value, bytes32 replyTo, bytes4 indexed replyCode);
 
     // TODO (breathx): should we deposit it? should we notify about successful reply sending?
-    // TODO (breathx): `value` could be removed from event.
     /**
      * @dev Emitted when a user succeed in claiming value request and receives balance.
      *
