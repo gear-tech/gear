@@ -530,8 +530,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Legacy call with call_index(4) removed
-
         /// Decline existing and not expired voucher.
         ///
         /// This extrinsic expires voucher of the caller, if it's still active,
@@ -539,7 +537,7 @@ pub mod pallet {
         ///
         /// Arguments:
         /// * voucher_id:   voucher id to be declined.
-        #[pallet::call_index(5)]
+        #[pallet::call_index(4)]
         #[pallet::weight(T::WeightInfo::decline())]
         pub fn decline(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
             // Ensuring origin.

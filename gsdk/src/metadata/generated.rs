@@ -3170,7 +3170,7 @@ pub mod runtime_types {
                         permissions_extend:
                             runtime_types::pallet_gear_voucher::internal::VoucherPermissionsExtend,
                     },
-                    #[codec(index = 5)]
+                    #[codec(index = 4)]
                     #[doc = "See [`Pallet::decline`]."]
                     decline {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
