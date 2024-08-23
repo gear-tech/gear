@@ -401,14 +401,23 @@ impl Database {
 // TODO: consider to change decode panics to Results.
 impl Storage for Database {
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
+        if hash.is_zero() {
+            return Some(ProgramState::zero());
+        }
+
         let data = self.cas.read(&hash)?;
-        Some(
-            ProgramState::decode(&mut &data[..])
-                .expect("Failed to decode data into `ProgramState`"),
-        )
+
+        let state = ProgramState::decode(&mut &data[..])
+            .expect("Failed to decode data into `ProgramState`");
+
+        Some(state)
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
+        if state.is_zero() {
+            return H256::zero();
+        }
+
         self.cas.write(&state.encode())
     }
 

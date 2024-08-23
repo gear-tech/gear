@@ -22,10 +22,12 @@ mod apis;
 pub mod constants;
 pub mod weights;
 
+use sp_runtime::traits::Get;
+
 use frame_support::{
     pallet_prelude::DispatchClass,
     parameter_types,
-    traits::{Currency, OnUnbalanced},
+    traits::{Currency, Imbalance, OnUnbalanced},
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
         Weight,
@@ -85,22 +87,54 @@ pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
-pub struct DealWithFees<R>(sp_std::marker::PhantomData<R>);
-impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
+/// Logic for the author to get a portion of fees.
+pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
+impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
     R: pallet_balances::Config + pallet_authorship::Config,
     <R as frame_system::Config>::AccountId: From<AccountId>,
     <R as frame_system::Config>::AccountId: Into<AccountId>,
 {
+    fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
+        if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
+            <pallet_balances::Pallet<R>>::resolve_creating(&author, amount);
+        }
+    }
+}
+
+pub struct DealWithFees<R>(sp_std::marker::PhantomData<R>);
+impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
+where
+    R: pallet_balances::Config
+        + pallet_treasury::Config
+        + pallet_authorship::Config
+        + pallet_gear_bank::Config,
+    pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
+    <R as frame_system::Config>::AccountId: From<AccountId>,
+    <R as frame_system::Config>::AccountId: Into<AccountId>,
+{
     fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
+        use pallet_treasury::Pallet as Treasury;
+
         if let Some(fees) = fees_then_tips.next() {
-            if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
-                <pallet_balances::Pallet<R>>::resolve_creating(&author, fees);
-            }
-            if let Some(tips) = fees_then_tips.next() {
-                if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
-                    <pallet_balances::Pallet<R>>::resolve_creating(&author, tips);
+            let split_tx_fee_ratio = R::SplitTxFeeRatio::get();
+            if let Some(split_tx_fee_ratio) = split_tx_fee_ratio {
+                // for fees, SplitTxFeeRatio to treasury else to author
+                let (mut to_author, to_treasury) =
+                    fees.ration(100 - split_tx_fee_ratio, split_tx_fee_ratio);
+                if let Some(tips) = fees_then_tips.next() {
+                    // for tips, if any, 100% to author
+                    tips.merge_into(&mut to_author);
                 }
+                <Treasury<R> as OnUnbalanced<_>>::on_unbalanced(to_treasury);
+                <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
+            } else {
+                let mut to_author = fees;
+                if let Some(tips) = fees_then_tips.next() {
+                    // for tips, if any, 100% to author
+                    tips.merge_into(&mut to_author);
+                }
+                <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
             }
         }
     }

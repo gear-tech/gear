@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use libp2p::{
-    core::{ConnectedPoint, Endpoint},
+    core::{transport::PortUse, ConnectedPoint, Endpoint},
     swarm::{
         dummy, ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour,
         THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
@@ -184,6 +184,7 @@ impl NetworkBehaviour for Behaviour {
         peer: PeerId,
         _addr: &Multiaddr,
         _role_override: Endpoint,
+        _port_use: PortUse,
     ) -> Result<THandler<Self>, ConnectionDenied> {
         self.established_outbound_per_peer
             .add_connection(peer, connection_id)?;

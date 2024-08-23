@@ -70,7 +70,7 @@ impl Mirror {
             if log.topic0().map(|v| v.0)
                 == Some(signatures::MESSAGE_QUEUEING_REQUESTED.to_fixed_bytes())
             {
-                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log.clone())?;
+                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log)?;
 
                 message_id = Some((*event.id).into());
 
