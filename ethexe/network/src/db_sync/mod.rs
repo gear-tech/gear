@@ -918,9 +918,15 @@ mod tests {
         let bob_peer_id = *bob.local_peer_id();
         alice.connect(&mut bob).await;
 
-        bob.behaviour_mut().request(Request::ProgramIds);
-        bob.behaviour_mut().request(Request::ProgramIds);
-        bob.behaviour_mut().request(Request::ProgramIds);
+        // make request way heavier so there definitely will be a few simultaneous requests
+        let request = Request::DataForHashes(
+            iter::from_fn(|| Some(H256::random()))
+                .take(16 * 1024)
+                .collect(),
+        );
+        bob.behaviour_mut().request(request.clone());
+        bob.behaviour_mut().request(request.clone());
+        bob.behaviour_mut().request(request);
         tokio::spawn(bob.loop_on_next());
 
         let event = alice.next_behaviour_event().await;
@@ -931,7 +937,14 @@ mod tests {
 
         let event = alice.next_behaviour_event().await;
         assert!(
-            matches!(event, Event::IncomingRequestDropped { peer_id, .. } if peer_id == bob_peer_id)
+            matches!(event, Event::IncomingRequestDropped { peer_id, .. } if peer_id == bob_peer_id),
+            "event: {event:?}"
         );
+
+        let event = alice.next_behaviour_event().await;
+        assert!(matches!(event, Event::ResponseSent { peer_id, .. } if peer_id == bob_peer_id));
+
+        let event = alice.next_behaviour_event().await;
+        assert!(matches!(event, Event::ResponseSent { peer_id, .. } if peer_id == bob_peer_id));
     }
 }
