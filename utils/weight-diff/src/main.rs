@@ -33,7 +33,6 @@ use serde_json::Value;
 use std::{fs, path::PathBuf, str::FromStr};
 use syn::{
     ext::IdentExt,
-    parse_quote,
     visit::{self, Visit},
     AngleBracketedGenericArguments, Fields, FnArg, GenericArgument, Generics, ImplItem, Item,
     ItemImpl, ItemStruct, Path, PathArguments, PathSegment, Type, TypePath,
@@ -266,18 +265,9 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                     }
                 }
             }
-            let mut has_doc = false;
-
-            field.attrs.retain(|attr| {
-                let ident = &attr.path().segments.first().unwrap().ident;
-                let res = ident == "doc";
-                has_doc |= res;
-                res
-            });
-
-            if !has_doc {
-                field.attrs.push(parse_quote!(#[allow(missing_docs)]));
-            }
+            field
+                .attrs
+                .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
         }
 
         self.structures.insert(structure_name, structure);
@@ -376,14 +366,8 @@ impl ImplementationVisitor {
                 if *ident == "Schedule" {
                     // only leave process_costs method
                     implementation.items.retain_mut(|item| match item {
-                        ImplItem::Fn(func) => {
-                            if func.sig.ident == "process_costs" {
-                                func.attrs.push(parse_quote!(#[allow(missing_docs)]));
-                                true
-                            } else {
-                                false
-                            }
-                        }
+                        ImplItem::Fn(func) => func.sig.ident == "process_costs",
+
                         _ => false,
                     });
 
@@ -517,7 +501,7 @@ fn main() {
             }];
 
             declarations.push(quote! {
-                #![allow(rustdoc::broken_intra_doc_links)]
+                #![allow(rustdoc::broken_intra_doc_links, missing_docs)]
 
                 use crate::costs::*;
             });
