@@ -5102,6 +5102,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "rand 0.8.5",
 ]
 
 [[package]]
