@@ -274,11 +274,6 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 has_doc |= res;
                 res
             });
-            if !has_doc {
-                field.attrs.push(parse_quote! {
-                    #[allow(missing_docs)]
-                });
-            }
         }
 
         self.structures.insert(structure_name, structure);
@@ -518,6 +513,8 @@ fn main() {
             }];
 
             declarations.push(quote! {
+                #![allow(rustdoc::broken_intra_doc_links)]
+
                 use crate::costs::*;
             });
 
