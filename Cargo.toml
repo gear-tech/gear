@@ -82,6 +82,7 @@ members = [
     "examples/waiter",
     "examples/waiting-proxy",
     "examples/wat",
+    "examples/input-bug",
     "galloc",
     "gbuiltins/*",
     "gcli",

@@ -3639,6 +3639,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-input-bug"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+]
+
+[[package]]
 name = "demo-messenger"
 version = "0.1.0"
 dependencies = [
