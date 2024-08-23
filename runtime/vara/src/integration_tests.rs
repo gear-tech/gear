@@ -27,9 +27,9 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
-use gear_wasm_instrument::{
+use gwasm_instrument::{
+    gas_metering::Rules,
     parity_wasm::elements::{Instruction, Module},
-    Rules,
 };
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
@@ -876,8 +876,7 @@ fn process_costs_are_same() {
 }
 
 fn all_measured_instructions() -> Vec<Instruction> {
-    use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction::*};
-
+    use gwasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction::*};
     let default_table_data = BrTableData {
         table: Default::default(),
         default: 0,
@@ -1013,28 +1012,42 @@ fn default_wasm_module() -> Module {
 // This test must never fail during local development/release.
 //
 // The instruction set in the test mustn't be changed. Test checks
-// whether no instruction weight was removed from Rules, so backward
-// compatibility is reached.
+// that instructions weights in runtime and in gear-core are the same
 #[test]
-fn instructions_backward_compatibility() {
+fn schedules_are_same() {
     let vara_schedule = pallet_gear::Schedule::<super::Runtime>::default();
     let wasm_schedule = gear_core::gas_metering::Schedule::default();
 
     let schedule_rules = vara_schedule.rules(&default_wasm_module());
     let wasm_instrument_schedule_rules = wasm_schedule.rules(&default_wasm_module());
 
-    let custom_cost_rules = CustomConstantCostRules::default();
-
     all_measured_instructions().iter().for_each(|i| {
-        assert!(schedule_rules.instruction_cost(i).is_some());
         assert_eq!(
             schedule_rules.instruction_cost(i),
             wasm_instrument_schedule_rules.instruction_cost(i)
         );
-        assert!(custom_cost_rules.instruction_cost(i).is_some());
     });
 }
 
+// This test must never fail during local development/release.
+//
+// The instruction set in the test mustn't be changed. Test checks
+// whether no instruction weight was removed from Rules, so backward
+// compatibility is reached.
+#[test]
+fn instruction_backward_compatibility() {
+    let vara_schedule = pallet_gear::Schedule::<super::Runtime>::default();
+
+    let schedule_rules = vara_schedule.rules(&default_wasm_module());
+    let custom_cost_rules = CustomConstantCostRules::default();
+
+    all_measured_instructions().iter().for_each(|i| {
+        assert!(custom_cost_rules.instruction_cost(i).is_some());
+        assert!(schedule_rules.instruction_cost(i).is_some());
+    });
+}
+
+#[test]
 fn test_fees_and_tip_split() {
     init_logger();
 

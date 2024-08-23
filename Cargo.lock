@@ -18763,7 +18763,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "gear-wasm-instrument",
+ "gwasm-instrument",
  "hex-literal",
  "log",
  "pallet-authority-discovery",

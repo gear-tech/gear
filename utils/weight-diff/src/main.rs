@@ -33,6 +33,7 @@ use serde_json::Value;
 use std::{fs, path::PathBuf, str::FromStr};
 use syn::{
     ext::IdentExt,
+    parse_quote,
     visit::{self, Visit},
     AngleBracketedGenericArguments, Fields, FnArg, GenericArgument, Generics, ImplItem, Item,
     ItemImpl, ItemStruct, Path, PathArguments, PathSegment, Type, TypePath,
@@ -230,7 +231,12 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
 
         let mut structure = node.clone();
 
-        structure.attrs.clear();
+        structure
+            .attrs
+            .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
+        if structure_name == "Schedule" {
+            structure.attrs.drain(1..);
+        }
         structure.generics = Generics::default();
 
         if let Fields::Named(ref mut fields) = structure.fields {
@@ -260,7 +266,19 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                     }
                 }
             }
-            field.attrs.clear();
+            let mut has_doc = false;
+
+            field.attrs.retain(|attr| {
+                let ident = &attr.path().segments.first().unwrap().ident;
+                let res = ident == "doc";
+                has_doc |= res;
+                res
+            });
+            if !has_doc {
+                field.attrs.push(parse_quote! {
+                    #[allow(missing_docs)]
+                });
+            }
         }
 
         self.structures.insert(structure_name, structure);
@@ -286,7 +304,9 @@ static TYPE_LIST: &[&str] = &[
 impl ImplementationVisitor {
     fn find_from_impls(&mut self, node: &syn::ItemImpl) -> bool {
         let mut implementation = node.clone();
-        implementation.attrs.clear();
+        implementation
+            .attrs
+            .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
         implementation.generics = Generics::default();
 
         // first extract all the `*Costs` impls.
@@ -346,7 +366,9 @@ impl ImplementationVisitor {
 
     fn find_process_costs(&mut self, node: &syn::ItemImpl) {
         let mut implementation = node.clone();
-        implementation.attrs.clear();
+        implementation
+            .attrs
+            .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
         implementation.generics = Generics::default();
 
         if let Type::Path(path) = &mut *implementation.self_ty {
@@ -354,8 +376,15 @@ impl ImplementationVisitor {
                 *arguments = PathArguments::None;
                 if *ident == "Schedule" {
                     // only leave process_costs method
-                    implementation.items.retain(|item| match item {
-                        ImplItem::Fn(func) => func.sig.ident == "process_costs",
+                    implementation.items.retain_mut(|item| match item {
+                        ImplItem::Fn(func) => {
+                            if func.sig.ident == "process_costs" {
+                                func.attrs.push(parse_quote!(#[allow(missing_docs)]));
+                                true
+                            } else {
+                                false
+                            }
+                        }
                         _ => false,
                     });
 
@@ -562,9 +591,13 @@ fn main() {
             }
 
             declarations.push(quote! {
+
+                /// TODO: documentation
                 #[derive(Debug, Clone, Copy)]
                 pub struct Weight {
+                    /// Reference time
                     pub ref_time: u64,
+                    /// Storage size of the weight
                     pub proof_size: u64,
                 }
             });

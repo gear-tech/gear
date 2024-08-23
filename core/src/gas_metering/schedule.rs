@@ -24,16 +24,27 @@
 use crate::costs::*;
 
 #[derive(Debug, Clone)]
+#[doc = " Definition of the cost schedule and other parameterization for the wasm vm."]
 pub struct Schedule {
+    #[doc = " Describes the upper limits on various metrics."]
     pub limits: Limits,
+    #[doc = " The weights for individual wasm instructions."]
     pub instruction_weights: InstructionWeights,
+    #[doc = " The weights for each imported function a program is allowed to call."]
     pub syscall_weights: SyscallWeights,
+    #[doc = " The weights for memory interaction."]
     pub memory_weights: MemoryWeights,
+    #[doc = " The weights for renting."]
     pub rent_weights: RentWeights,
+    #[doc = " The weights for database access."]
     pub db_weights: DbWeights,
+    #[doc = " The weights for instantiation of the module."]
     pub instantiation_weights: InstantiationWeights,
+    #[doc = " WASM code instrumentation base cost."]
     pub code_instrumentation_cost: Weight,
+    #[doc = " WASM code instrumentation per-byte cost."]
     pub code_instrumentation_byte_cost: Weight,
+    #[doc = " Load allocations weight."]
     pub load_allocations_weight: Weight,
 }
 
@@ -64,19 +75,67 @@ impl Default for Schedule {
 }
 
 #[derive(Debug, Clone)]
+#[doc = " Describes the upper limits on various metrics."]
+#[doc = ""]
+#[doc = " # Note"]
+#[doc = ""]
+#[doc = " The values in this struct should never be decreased. The reason is that decreasing those"]
+#[doc = " values will break existing programs which are above the new limits when a"]
+#[doc = " re-instrumentation is triggered."]
 pub struct Limits {
+    #[doc = " Maximum allowed stack height in number of elements."]
+    #[doc = ""]
+    #[doc = " See <https://wiki.parity.io/WebAssembly-StackHeight> to find out"]
+    #[doc = " how the stack frame cost is calculated. Each element can be of one of the"]
+    #[doc = " wasm value types. This means the maximum size per element is 64bit."]
+    #[doc = ""]
+    #[doc = " # Note"]
+    #[doc = ""]
+    #[doc = " It is safe to disable (pass `None`) the `stack_height` when the execution engine"]
+    #[doc = " is part of the runtime and hence there can be no indeterminism between different"]
+    #[doc = " client resident execution engines."]
     pub stack_height: Option<u32>,
+    #[doc = " Maximum number of globals a module is allowed to declare."]
+    #[doc = ""]
+    #[doc = " Globals are not limited through the linear memory limit `memory_pages`."]
     pub globals: u32,
+    #[doc = " Maximum number of locals a function can have."]
+    #[doc = ""]
+    #[doc = " As wasm engine initializes each of the local, we need to limit their number to confine"]
+    #[doc = " execution costs."]
     pub locals: u32,
+    #[doc = " Maximum numbers of parameters a function can have."]
+    #[doc = ""]
+    #[doc = " Those need to be limited to prevent a potentially exploitable interaction with"]
+    #[doc = " the stack height instrumentation: The costs of executing the stack height"]
+    #[doc = " instrumentation for an indirectly called function scales linearly with the amount"]
+    #[doc = " of parameters of this function. Because the stack height instrumentation itself is"]
+    #[doc = " is not weight metered its costs must be static (via this limit) and included in"]
+    #[doc = " the costs of the instructions that cause them (call, call_indirect)."]
     pub parameters: u32,
+    #[doc = " Maximum number of memory pages allowed for a program."]
     pub memory_pages: u16,
+    #[doc = " Maximum number of elements allowed in a table."]
+    #[doc = ""]
+    #[doc = " Currently, the only type of element that is allowed in a table is funcref."]
     pub table_size: u32,
+    #[doc = " Maximum number of tables allowed for a program."]
+    #[doc = " The same limit also imposed by `wasmparser`,"]
+    #[doc = " see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>"]
     pub table_number: u32,
+    #[doc = " Maximum number of elements that can appear as immediate value to the br_table instruction."]
     pub br_table_size: u32,
+    #[doc = " The maximum length of a subject in bytes used for PRNG generation."]
     pub subject_len: u32,
+    #[doc = " The maximum nesting level of the call stack."]
     pub call_depth: u32,
+    #[doc = " The maximum size of a message payload in bytes."]
     pub payload_len: u32,
+    #[doc = " The maximum length of a program code in bytes. This limit applies to the instrumented"]
+    #[doc = " version of the code. Therefore `instantiate_with_code` can fail even when supplying"]
+    #[doc = " a wasm binary below this maximum size."]
     pub code_len: u32,
+    #[doc = " The maximum number of wasm data segments allowed for a program."]
     pub data_segments_amount: u32,
 }
 
@@ -101,94 +160,213 @@ impl Default for Limits {
 }
 
 #[derive(Debug, Clone)]
+#[doc = " Describes the weight for all categories of supported wasm instructions."]
+#[doc = ""]
+#[doc = " There there is one field for each wasm instruction that describes the weight to"]
+#[doc = " execute one instruction of that name. There are a few exceptions:"]
+#[doc = ""]
+#[doc = " 1. If there is a i64 and a i32 variant of an instruction we use the weight"]
+#[doc = "    of the former for both."]
+#[doc = " 2. The following instructions are free of charge because they merely structure the"]
+#[doc = "    wasm module and cannot be spammed without making the module invalid (and rejected):"]
+#[doc = "    End, Unreachable, Return, Else"]
+#[doc = " 3. The following instructions cannot be benchmarked because they are removed by any"]
+#[doc = "    real world execution engine as a preprocessing step and therefore don't yield a"]
+#[doc = "    meaningful benchmark result. However, in contrast to the instructions mentioned"]
+#[doc = "    in 2. they can be spammed. We price them with the same weight as the \"default\""]
+#[doc = "    instruction (i64.const): Block, Loop, Nop"]
+#[doc = " 4. We price both i64.const and drop as InstructionWeights.i64const / 2. The reason"]
+#[doc = "    for that is that we cannot benchmark either of them on its own but we need their"]
+#[doc = "    individual values to derive (by subtraction) the weight of all other instructions"]
+#[doc = "    that use them as supporting instructions. Supporting means mainly pushing arguments"]
+#[doc = "    and dropping return values in order to maintain a valid module."]
 pub struct InstructionWeights {
+    #[doc = " Version of the instruction weights."]
+    #[doc = ""]
+    #[doc = " # Note"]
+    #[doc = ""]
+    #[doc = " Should be incremented whenever any instruction weight is changed. The"]
+    #[doc = " reason is that changes to instruction weights require a re-instrumentation"]
+    #[doc = " in order to apply the changes to an already deployed code. The re-instrumentation"]
+    #[doc = " is triggered by comparing the version of the current schedule with the version the code was"]
+    #[doc = " instrumented with. Changes usually happen when pallet_gear is re-benchmarked."]
+    #[doc = ""]
+    #[doc = " Changes to other parts of the schedule should not increment the version in"]
+    #[doc = " order to avoid unnecessary re-instrumentations."]
     pub version: u32,
+    #[allow(missing_docs)]
     pub i64const: u32,
+    #[allow(missing_docs)]
     pub i64load: u32,
+    #[allow(missing_docs)]
     pub i32load: u32,
+    #[allow(missing_docs)]
     pub i64store: u32,
+    #[allow(missing_docs)]
     pub i32store: u32,
+    #[allow(missing_docs)]
     pub select: u32,
+    #[allow(missing_docs)]
     pub r#if: u32,
+    #[allow(missing_docs)]
     pub br: u32,
+    #[allow(missing_docs)]
     pub br_if: u32,
+    #[allow(missing_docs)]
     pub br_table: u32,
+    #[allow(missing_docs)]
     pub br_table_per_entry: u32,
+    #[allow(missing_docs)]
     pub call: u32,
+    #[allow(missing_docs)]
     pub call_indirect: u32,
+    #[allow(missing_docs)]
     pub call_indirect_per_param: u32,
+    #[allow(missing_docs)]
     pub call_per_local: u32,
+    #[allow(missing_docs)]
     pub local_get: u32,
+    #[allow(missing_docs)]
     pub local_set: u32,
+    #[allow(missing_docs)]
     pub local_tee: u32,
+    #[allow(missing_docs)]
     pub global_get: u32,
+    #[allow(missing_docs)]
     pub global_set: u32,
+    #[allow(missing_docs)]
     pub memory_current: u32,
+    #[allow(missing_docs)]
     pub i64clz: u32,
+    #[allow(missing_docs)]
     pub i32clz: u32,
+    #[allow(missing_docs)]
     pub i64ctz: u32,
+    #[allow(missing_docs)]
     pub i32ctz: u32,
+    #[allow(missing_docs)]
     pub i64popcnt: u32,
+    #[allow(missing_docs)]
     pub i32popcnt: u32,
+    #[allow(missing_docs)]
     pub i64eqz: u32,
+    #[allow(missing_docs)]
     pub i32eqz: u32,
+    #[allow(missing_docs)]
     pub i32extend8s: u32,
+    #[allow(missing_docs)]
     pub i32extend16s: u32,
+    #[allow(missing_docs)]
     pub i64extend8s: u32,
+    #[allow(missing_docs)]
     pub i64extend16s: u32,
+    #[allow(missing_docs)]
     pub i64extend32s: u32,
+    #[allow(missing_docs)]
     pub i64extendsi32: u32,
+    #[allow(missing_docs)]
     pub i64extendui32: u32,
+    #[allow(missing_docs)]
     pub i32wrapi64: u32,
+    #[allow(missing_docs)]
     pub i64eq: u32,
+    #[allow(missing_docs)]
     pub i32eq: u32,
+    #[allow(missing_docs)]
     pub i64ne: u32,
+    #[allow(missing_docs)]
     pub i32ne: u32,
+    #[allow(missing_docs)]
     pub i64lts: u32,
+    #[allow(missing_docs)]
     pub i32lts: u32,
+    #[allow(missing_docs)]
     pub i64ltu: u32,
+    #[allow(missing_docs)]
     pub i32ltu: u32,
+    #[allow(missing_docs)]
     pub i64gts: u32,
+    #[allow(missing_docs)]
     pub i32gts: u32,
+    #[allow(missing_docs)]
     pub i64gtu: u32,
+    #[allow(missing_docs)]
     pub i32gtu: u32,
+    #[allow(missing_docs)]
     pub i64les: u32,
+    #[allow(missing_docs)]
     pub i32les: u32,
+    #[allow(missing_docs)]
     pub i64leu: u32,
+    #[allow(missing_docs)]
     pub i32leu: u32,
+    #[allow(missing_docs)]
     pub i64ges: u32,
+    #[allow(missing_docs)]
     pub i32ges: u32,
+    #[allow(missing_docs)]
     pub i64geu: u32,
+    #[allow(missing_docs)]
     pub i32geu: u32,
+    #[allow(missing_docs)]
     pub i64add: u32,
+    #[allow(missing_docs)]
     pub i32add: u32,
+    #[allow(missing_docs)]
     pub i64sub: u32,
+    #[allow(missing_docs)]
     pub i32sub: u32,
+    #[allow(missing_docs)]
     pub i64mul: u32,
+    #[allow(missing_docs)]
     pub i32mul: u32,
+    #[allow(missing_docs)]
     pub i64divs: u32,
+    #[allow(missing_docs)]
     pub i32divs: u32,
+    #[allow(missing_docs)]
     pub i64divu: u32,
+    #[allow(missing_docs)]
     pub i32divu: u32,
+    #[allow(missing_docs)]
     pub i64rems: u32,
+    #[allow(missing_docs)]
     pub i32rems: u32,
+    #[allow(missing_docs)]
     pub i64remu: u32,
+    #[allow(missing_docs)]
     pub i32remu: u32,
+    #[allow(missing_docs)]
     pub i64and: u32,
+    #[allow(missing_docs)]
     pub i32and: u32,
+    #[allow(missing_docs)]
     pub i64or: u32,
+    #[allow(missing_docs)]
     pub i32or: u32,
+    #[allow(missing_docs)]
     pub i64xor: u32,
+    #[allow(missing_docs)]
     pub i32xor: u32,
+    #[allow(missing_docs)]
     pub i64shl: u32,
+    #[allow(missing_docs)]
     pub i32shl: u32,
+    #[allow(missing_docs)]
     pub i64shrs: u32,
+    #[allow(missing_docs)]
     pub i32shrs: u32,
+    #[allow(missing_docs)]
     pub i64shru: u32,
+    #[allow(missing_docs)]
     pub i32shru: u32,
+    #[allow(missing_docs)]
     pub i64rotl: u32,
+    #[allow(missing_docs)]
     pub i32rotl: u32,
+    #[allow(missing_docs)]
     pub i64rotr: u32,
+    #[allow(missing_docs)]
     pub i32rotr: u32,
 }
 
@@ -288,76 +466,147 @@ impl Default for InstructionWeights {
 }
 
 #[derive(Debug, Clone)]
+#[doc = " Describes the weight for each imported function that a program is allowed to call."]
 pub struct SyscallWeights {
+    #[doc = " Weight of calling `alloc`."]
     pub alloc: Weight,
+    #[doc = " Weight of calling `free`."]
     pub free: Weight,
+    #[doc = " Weight of calling `free_range`."]
     pub free_range: Weight,
+    #[doc = " Weight of calling `free_range` per page."]
     pub free_range_per_page: Weight,
+    #[doc = " Weight of calling `gr_reserve_gas`."]
     pub gr_reserve_gas: Weight,
+    #[doc = " Weight of calling `gr_unreserve_gas`"]
     pub gr_unreserve_gas: Weight,
+    #[doc = " Weight of calling `gr_system_reserve_gas`"]
     pub gr_system_reserve_gas: Weight,
+    #[doc = " Weight of calling `gr_gas_available`."]
     pub gr_gas_available: Weight,
+    #[doc = " Weight of calling `gr_message_id`."]
     pub gr_message_id: Weight,
+    #[doc = " Weight of calling `gr_program_id`."]
     pub gr_program_id: Weight,
+    #[doc = " Weight of calling `gr_source`."]
     pub gr_source: Weight,
+    #[doc = " Weight of calling `gr_value`."]
     pub gr_value: Weight,
+    #[doc = " Weight of calling `gr_value_available`."]
     pub gr_value_available: Weight,
+    #[doc = " Weight of calling `gr_size`."]
     pub gr_size: Weight,
+    #[doc = " Weight of calling `gr_read`."]
     pub gr_read: Weight,
+    #[doc = " Weight per payload byte by `gr_read`."]
     pub gr_read_per_byte: Weight,
+    #[doc = " Weight of calling `gr_env_vars`."]
     pub gr_env_vars: Weight,
+    #[doc = " Weight of calling `gr_block_height`."]
     pub gr_block_height: Weight,
+    #[doc = " Weight of calling `gr_block_timestamp`."]
     pub gr_block_timestamp: Weight,
+    #[doc = " Weight of calling `gr_random`."]
     pub gr_random: Weight,
+    #[doc = " Weight of calling `gr_reply_deposit`."]
     pub gr_reply_deposit: Weight,
+    #[doc = " Weight of calling `gr_send`."]
     pub gr_send: Weight,
+    #[doc = " Weight per payload byte in `gr_send`."]
     pub gr_send_per_byte: Weight,
+    #[doc = " Weight of calling `gr_send_wgas`."]
     pub gr_send_wgas: Weight,
+    #[doc = " Weight per payload byte in `gr_send_wgas`."]
     pub gr_send_wgas_per_byte: Weight,
+    #[doc = " Weight of calling `gr_value_available`."]
     pub gr_send_init: Weight,
+    #[doc = " Weight of calling `gr_send_push`."]
     pub gr_send_push: Weight,
+    #[doc = " Weight per payload byte by `gr_send_push`."]
     pub gr_send_push_per_byte: Weight,
+    #[doc = " Weight of calling `gr_send_commit`."]
     pub gr_send_commit: Weight,
+    #[doc = " Weight of calling `gr_send_commit_wgas`."]
     pub gr_send_commit_wgas: Weight,
+    #[doc = " Weight of calling `gr_reservation_send`."]
     pub gr_reservation_send: Weight,
+    #[doc = " Weight per payload byte in `gr_reservation_send`."]
     pub gr_reservation_send_per_byte: Weight,
+    #[doc = " Weight of calling `gr_reservation_send_commit`."]
     pub gr_reservation_send_commit: Weight,
+    #[doc = " Weight of calling `gr_reply_commit`."]
     pub gr_reply_commit: Weight,
+    #[doc = " Weight of calling `gr_reply_commit_wgas`."]
     pub gr_reply_commit_wgas: Weight,
+    #[doc = " Weight of calling `gr_reservation_reply`."]
     pub gr_reservation_reply: Weight,
+    #[doc = " Weight of calling `gr_reservation_reply` per one payload byte."]
     pub gr_reservation_reply_per_byte: Weight,
+    #[doc = " Weight of calling `gr_reservation_reply_commit`."]
     pub gr_reservation_reply_commit: Weight,
+    #[doc = " Weight of calling `gr_reply_push`."]
     pub gr_reply_push: Weight,
+    #[doc = " Weight of calling `gr_reply`."]
     pub gr_reply: Weight,
+    #[doc = " Weight of calling `gr_reply` per one payload byte."]
     pub gr_reply_per_byte: Weight,
+    #[doc = " Weight of calling `gr_reply_wgas`."]
     pub gr_reply_wgas: Weight,
+    #[doc = " Weight of calling `gr_reply_wgas` per one payload byte."]
     pub gr_reply_wgas_per_byte: Weight,
+    #[doc = " Weight per payload byte by `gr_reply_push`."]
     pub gr_reply_push_per_byte: Weight,
+    #[doc = " Weight of calling `gr_reply_to`."]
     pub gr_reply_to: Weight,
+    #[doc = " Weight of calling `gr_signal_code`."]
     pub gr_signal_code: Weight,
+    #[doc = " Weight of calling `gr_signal_from`."]
     pub gr_signal_from: Weight,
+    #[doc = " Weight of calling `gr_reply_input`."]
     pub gr_reply_input: Weight,
+    #[doc = " Weight of calling `gr_reply_input_wgas`."]
     pub gr_reply_input_wgas: Weight,
+    #[doc = " Weight of calling `gr_reply_push_input`."]
     pub gr_reply_push_input: Weight,
+    #[doc = " Weight per payload byte by `gr_reply_push_input`."]
     pub gr_reply_push_input_per_byte: Weight,
+    #[doc = " Weight of calling `gr_send_input`."]
     pub gr_send_input: Weight,
+    #[doc = " Weight of calling `gr_send_input_wgas`."]
     pub gr_send_input_wgas: Weight,
+    #[doc = " Weight of calling `gr_send_push_input`."]
     pub gr_send_push_input: Weight,
+    #[doc = " Weight per payload byte by `gr_send_push_input`."]
     pub gr_send_push_input_per_byte: Weight,
+    #[doc = " Weight of calling `gr_debug`."]
     pub gr_debug: Weight,
+    #[doc = " Weight per payload byte by `gr_debug_per_byte`."]
     pub gr_debug_per_byte: Weight,
+    #[doc = " Weight of calling `gr_reply_code`."]
     pub gr_reply_code: Weight,
+    #[doc = " Weight of calling `gr_exit`."]
     pub gr_exit: Weight,
+    #[doc = " Weight of calling `gr_leave`."]
     pub gr_leave: Weight,
+    #[doc = " Weight of calling `gr_wait`."]
     pub gr_wait: Weight,
+    #[doc = " Weight of calling `gr_wait_for`."]
     pub gr_wait_for: Weight,
+    #[doc = " Weight of calling `gr_wait_up_to`."]
     pub gr_wait_up_to: Weight,
+    #[doc = " Weight of calling `gr_wake`."]
     pub gr_wake: Weight,
+    #[doc = " Weight of calling `gr_create_program`."]
     pub gr_create_program: Weight,
+    #[doc = " Weight per payload byte in `gr_create_program`."]
     pub gr_create_program_payload_per_byte: Weight,
+    #[doc = " Weight per salt byte in `gr_create_program`"]
     pub gr_create_program_salt_per_byte: Weight,
+    #[doc = " Weight of calling `create_program_wgas`."]
     pub gr_create_program_wgas: Weight,
+    #[doc = " Weight per payload byte by `create_program_wgas`."]
     pub gr_create_program_wgas_payload_per_byte: Weight,
+    #[doc = " Weight per salt byte by `create_program_wgas`."]
     pub gr_create_program_wgas_salt_per_byte: Weight,
 }
 
@@ -649,17 +898,44 @@ impl Default for SyscallWeights {
 }
 
 #[derive(Debug, Clone)]
+#[doc = " Describes the weight for memory interaction."]
+#[doc = ""]
+#[doc = " Each weight with `lazy_pages_` prefix includes weight for storage read,"]
+#[doc = " because for each first page access we need to at least check whether page exists in storage."]
+#[doc = " But they do not include cost for loading page data from storage into program memory."]
+#[doc = " This weight is taken in account separately, when loading occurs."]
+#[doc = ""]
+#[doc = " Lazy-pages write accesses does not include cost for uploading page data to storage,"]
+#[doc = " because uploading happens after execution, so benchmarks do not include this cost."]
+#[doc = " But they include cost for processing changed page data in runtime."]
 pub struct MemoryWeights {
+    #[doc = " Cost per one [GearPage] signal `read` processing in lazy-pages,"]
     pub lazy_pages_signal_read: Weight,
+    #[doc = " Cost per one [GearPage] signal `write` processing in lazy-pages,"]
     pub lazy_pages_signal_write: Weight,
+    #[doc = " Cost per one [GearPage] signal `write after read` processing in lazy-pages,"]
     pub lazy_pages_signal_write_after_read: Weight,
+    #[doc = " Cost per one [GearPage] host func `read` access processing in lazy-pages,"]
     pub lazy_pages_host_func_read: Weight,
+    #[doc = " Cost per one [GearPage] host func `write` access processing in lazy-pages,"]
     pub lazy_pages_host_func_write: Weight,
+    #[doc = " Cost per one [GearPage] host func `write after read` access processing in lazy-pages,"]
     pub lazy_pages_host_func_write_after_read: Weight,
+    #[doc = " Cost per one [GearPage] data loading from storage and moving it in program memory."]
+    #[doc = " Does not include cost for storage read, because it is taken in account separately."]
     pub load_page_data: Weight,
+    #[doc = " Cost per one [GearPage] uploading data to storage."]
+    #[doc = " Does not include cost for processing changed page data in runtime,"]
+    #[doc = " cause it is taken in account separately."]
     pub upload_page_data: Weight,
+    #[doc = " Cost per one [WasmPage] for memory growing."]
     pub mem_grow: Weight,
+    #[doc = " Cost per one [WasmPage] for memory growing."]
     pub mem_grow_per_page: Weight,
+    #[doc = " Cost per one [GearPage]."]
+    #[doc = " When we read page data from storage in para-chain, then it should be sent to relay-chain,"]
+    #[doc = " in order to use it for process queue execution. So, reading from storage cause"]
+    #[doc = " additional resources consumption after block(s) production on para-chain."]
     pub parachain_read_heuristic: Weight,
 }
 
@@ -715,12 +991,19 @@ impl Default for MemoryWeights {
 }
 
 #[derive(Debug, Clone)]
+#[doc = " Describes the weight for instantiation of the module."]
 pub struct InstantiationWeights {
+    #[doc = " WASM module code section instantiation per byte cost."]
     pub code_section_per_byte: Weight,
+    #[doc = " WASM module data section instantiation per byte cost."]
     pub data_section_per_byte: Weight,
+    #[doc = " WASM module global section instantiation per byte cost."]
     pub global_section_per_byte: Weight,
+    #[doc = " WASM module table section instantiation per byte cost."]
     pub table_section_per_byte: Weight,
+    #[doc = " WASM module element section instantiation per byte cost."]
     pub element_section_per_byte: Weight,
+    #[doc = " WASM module type section instantiation per byte cost."]
     pub type_section_per_byte: Weight,
 }
 
@@ -756,9 +1039,13 @@ impl Default for InstantiationWeights {
 }
 
 #[derive(Debug, Clone)]
+#[doc = " Describes the weight for renting."]
 pub struct RentWeights {
+    #[doc = " Holding message in waitlist weight."]
     pub waitlist: Weight,
+    #[doc = " Holding message in dispatch stash weight."]
     pub dispatch_stash: Weight,
+    #[doc = " Holding reservation weight."]
     pub reservation: Weight,
 }
 
@@ -782,10 +1069,15 @@ impl Default for RentWeights {
 }
 
 #[derive(Debug, Clone)]
+#[doc = " Describes DB access weights."]
 pub struct DbWeights {
+    #[allow(missing_docs)]
     pub read: Weight,
+    #[allow(missing_docs)]
     pub read_per_byte: Weight,
+    #[allow(missing_docs)]
     pub write: Weight,
+    #[allow(missing_docs)]
     pub write_per_byte: Weight,
 }
 
@@ -812,9 +1104,12 @@ impl Default for DbWeights {
     }
 }
 
+#[doc = r" TODO: documentation"]
 #[derive(Debug, Clone, Copy)]
 pub struct Weight {
+    #[doc = r" Reference time"]
     pub ref_time: u64,
+    #[doc = r" Storage size of the weight"]
     pub proof_size: u64,
 }
 
@@ -976,6 +1271,7 @@ impl From<InstantiationWeights> for InstantiationCosts {
 }
 
 impl Schedule {
+    #[allow(missing_docs)]
     pub fn process_costs(&self) -> ProcessCosts {
         ProcessCosts {
             ext: ExtCosts {
