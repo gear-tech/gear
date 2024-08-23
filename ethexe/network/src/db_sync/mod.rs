@@ -30,7 +30,7 @@ use ethexe_db::Database;
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use libp2p::{
-    core::Endpoint,
+    core::{transport::PortUse, Endpoint},
     request_response,
     request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
     swarm::{
@@ -450,9 +450,15 @@ impl NetworkBehaviour for Behaviour {
         peer: PeerId,
         addr: &Multiaddr,
         role_override: Endpoint,
+        port_use: PortUse,
     ) -> Result<THandler<Self>, ConnectionDenied> {
-        self.inner
-            .handle_established_outbound_connection(connection_id, peer, addr, role_override)
+        self.inner.handle_established_outbound_connection(
+            connection_id,
+            peer,
+            addr,
+            role_override,
+            port_use,
+        )
     }
 
     fn on_swarm_event(&mut self, event: FromSwarm) {
@@ -539,7 +545,7 @@ mod tests {
     use gprimitives::CodeId;
     use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
-    use std::mem;
+    use std::{iter, mem};
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default(), [0; 20]);
