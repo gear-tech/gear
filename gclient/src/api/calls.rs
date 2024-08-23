@@ -1469,11 +1469,12 @@ impl GearApi {
         Err(Error::EventNotFound)
     }
 
-    /// Same as [`create_program_bytes`](Self::create_program_bytes), but creates program
-    /// using voucher.
+    /// Same as [`create_program_bytes`](Self::create_program_bytes), but
+    /// creates program using voucher.
     ///
     /// # See also
-    /// - [`upload_code_with_voucher`](Self::upload_code_with_voucher) function uploads
+    /// - [`upload_code_with_voucher`](Self::upload_code_with_voucher) function
+    ///   uploads
     #[allow(clippy::too_many_arguments)]
     pub async fn create_program_bytes_with_voucher(
         &self,
