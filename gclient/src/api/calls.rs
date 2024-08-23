@@ -1514,6 +1514,7 @@ impl GearApi {
 
     /// Same as [`create_program_bytes_with_voucher`](Self::create_program_bytes_with_voucher), but
     /// initializes a newly created program with an encoded `payload`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_program_with_voucher(
         &self,
         voucher_id: VoucherId,
