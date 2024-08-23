@@ -46,7 +46,7 @@ pallet-proxy.workspace = true
 pallet-ranked-collective.workspace = true
 pallet-referenda.workspace = true
 pallet-scheduler.workspace = true
-pallet-session = { workspace = true, features = [ "historical" ] }
+pallet-session = { workspace = true, features = ["historical"] }
 pallet-staking.workspace = true
 pallet-staking-runtime-api.workspace = true
 pallet-sudo = { workspace = true, optional = true }
@@ -114,6 +114,8 @@ env_logger.workspace = true
 wat.workspace = true
 gear-core.workspace = true
 gear-core-processor.workspace = true
+gear-wasm-instrument.workspace = true
+wabt.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -124,9 +126,9 @@ default = ["std"]
 std = [
 	"parity-scale-codec/std",
 	"common/std",
- 	"frame-try-runtime?/std",
- 	"frame-system-benchmarking?/std",
- 	"frame-benchmarking?/std",
+	"frame-try-runtime?/std",
+	"frame-system-benchmarking?/std",
+	"frame-benchmarking?/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-election-provider-support/std",
@@ -209,7 +211,7 @@ runtime-benchmarks = [
 	"hex-literal",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
-  	"pallet-utility/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-voucher/runtime-benchmarks",
 	"pallet-gear-builtin/runtime-benchmarks",
@@ -221,9 +223,7 @@ runtime-benchmarks = [
 	"pallet-ranked-collective/runtime-benchmarks",
 	"pallet-referenda/runtime-benchmarks",
 ]
-runtime-benchmarks-checkers = [
-	"pallet-gear/runtime-benchmarks-checkers",
-]
+runtime-benchmarks-checkers = ["pallet-gear/runtime-benchmarks-checkers"]
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
@@ -274,13 +274,5 @@ try-runtime = [
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
-fuzz = [
-	"common/fuzz",
-	"pallet-gear/fuzz",
-	"pallet-gear-gas/fuzz"
-]
-dev = [
-	"pallet-gear-debug",
-	"pallet-gear-eth-bridge",
-	"pallet-sudo",
-]
+fuzz = ["common/fuzz", "pallet-gear/fuzz", "pallet-gear-gas/fuzz"]
+dev = ["pallet-gear-debug", "pallet-gear-eth-bridge", "pallet-sudo"]
