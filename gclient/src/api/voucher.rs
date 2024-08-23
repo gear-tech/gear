@@ -33,7 +33,17 @@ use gsdk::{
 impl GearApi {
     /// Issue a new voucher.
     ///
-    /// See [`pallet_gear_voucher::pallet::Call::issue`]
+    /// Arguments:
+    /// * spender:      user id that is eligible to use the voucher;
+    /// * balance:      voucher balance could be used for transactions fees and
+    ///   gas;
+    /// * programs:     pool of programs spender can interact with, if None -
+    ///   means
+    /// * duration:     amount of blocks voucher could be used by spender and
+    ///   couldn't be revoked by owner. Must be out in [MinDuration;
+    ///   MaxDuration] constants. Expiration block of the voucher calculates as:
+    ///   current bn (extrinsic exec bn) + duration + 1.
+    /// * permissions:  voucher permissions
     ///
     /// Returns issued `voucher_id` at specified `at_block_hash`.
     pub async fn issue_voucher(
@@ -64,7 +74,18 @@ impl GearApi {
 
     /// Update existing voucher.
     ///
-    /// See [`pallet_gear_voucher::pallet::Call::update`]
+    /// Arguments:
+    /// * spender:          account id of the voucher spender;
+    /// * voucher_id:       voucher id to be updated;
+    /// * move_ownership:   optionally moves ownership to another account;
+    /// * balance_top_up:   optionally top ups balance of the voucher from
+    ///   origins balance;
+    /// * prolong_duration: optionally increases expiry block number. If voucher
+    ///   is expired, prolongs since current bn. Validity prolongation (since
+    ///   current block number for expired or since storage written expiry)
+    ///   should be in [MinDuration; MaxDuration], in other words voucher
+    ///   couldn't have expiry greater than current block number + MaxDuration.
+    /// * permissions_extnend: optionally extned perimissions for voucher
     ///
     /// Can only be called by the voucher owner.
     #[allow(clippy::too_many_arguments)]
