@@ -34,3 +34,14 @@ pub enum Event {
         value: U256,
     },
 }
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub enum EventForHandling {
+    Transfer {
+        /// Never router or zero address.
+        from: ActorId,
+        /// Never router or zero address.
+        to: ActorId,
+        value: u128,
+    },
+}

@@ -64,3 +64,26 @@ pub enum Event {
         source: ActorId,
     },
 }
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub enum EventForHandling {
+    ExecutableBalanceTopUpRequested {
+        value: u128,
+    },
+    MessageQueueingRequested {
+        id: MessageId,
+        source: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    },
+    ReplyQueueingRequested {
+        replied_to: MessageId,
+        source: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    },
+    ValueClaimingRequested {
+        claimed_id: MessageId,
+        source: ActorId,
+    },
+}
