@@ -1403,11 +1403,6 @@ impl<T: Config> Schedule<T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::mock::Test;
-    use gear_core::gas_metering::{
-        CustomConstantCostRules, Rules, Schedule as WasmInstrumentSchedule,
-    };
-    use gear_wasm_instrument::parity_wasm::elements;
 
     /// This function creates a program with full of empty
     /// functions, and returns the size of the wasm code.
