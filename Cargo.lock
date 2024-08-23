@@ -5102,6 +5102,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -6718,6 +6719,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-session",
+ "pallet-treasury",
  "sp-runtime",
  "sp-std 8.0.0",
 ]
