@@ -3143,7 +3143,7 @@ pub mod runtime_types {
                         code_uploading: ::core::option::Option<::core::primitive::bool>,
                         prolong_duration: ::core::option::Option<::core::primitive::u32>,
                     },
-                    #[codec(index = 5)]
+                    #[codec(index = 4)]
                     #[doc = "See [`Pallet::decline`]."]
                     decline {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
