@@ -67,7 +67,7 @@ impl PingTest {
     async fn upload_code(&mut self, env: &mut TestEnv) {
         assert!(self.code_id.is_none(), "Code already uploaded");
 
-        log::info!("📗 Upload code and waiting for code loaded and validated");
+        log::info!("🏓 Upload code and waiting for code loaded and validated");
 
         let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
 
@@ -108,10 +108,9 @@ impl PingTest {
 
     async fn create_program(&mut self, env: &mut TestEnv) {
         assert!(self.program_id.is_none(), "Program already created");
-
         let code_id = self.code_id.expect("Code must be uploaded first");
 
-        log::info!("📗 Create program and waiting for program created and PONG reply");
+        log::info!("🏓 Create ping program");
 
         let _ = env
             .ethereum
@@ -119,6 +118,13 @@ impl PingTest {
             .create_program(code_id, H256::random(), b"PING", 0)
             .await
             .unwrap();
+    }
+
+    async fn wait_for_program_creation(&mut self, env: &mut TestEnv) {
+        assert!(self.program_id.is_none(), "Program already created");
+        let code_id = self.code_id.expect("Code must be uploaded first");
+
+        log::info!("🏓 Waiting for program creation and PONG reply");
 
         let mut program_id = ActorId::default();
         let mut init_message_id = MessageId::default();
@@ -183,7 +189,7 @@ impl PingTest {
     async fn approve_wvara(&mut self, env: &mut TestEnv) {
         let program_id = self.program_id.expect("Program must be created first");
 
-        log::info!("📗 Approving WVara to mirror");
+        log::info!("🏓 Approving WVara to mirror");
 
         let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
         let wvara = env.ethereum.router().wvara();
@@ -193,11 +199,18 @@ impl PingTest {
     async fn send_ping(&mut self, env: &mut TestEnv) {
         let program_id = self.program_id.expect("Program must be created first");
 
-        log::info!("🏓 Sending PING message and wait for PONG reply");
+        log::info!("🏓 Sending PING message");
+
         let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
         let ping_program = env.ethereum.mirror(program_address);
 
         let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
+    }
+
+    async fn wait_for_pong_reply(&mut self) {
+        let program_id = self.program_id.expect("Program must be created first");
+
+        log::info!("🏓 Waiting for PONG reply");
 
         self.listener
             .apply_until_block_event(|event| match event {
@@ -225,18 +238,33 @@ async fn ping() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-
     let mut ping = PingTest::new(&mut env).await;
-
     let mut node = env.create_node(None);
     node.start_service(Some(env.wallets.next()), Some(env.validators[0]), None)
         .await;
 
     ping.upload_code(&mut env).await;
+
+    let code_id = ping.code_id.expect("Code id must be set");
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    assert_eq!(code, demo_ping::WASM_BINARY);
+
     ping.create_program(&mut env).await;
+    ping.wait_for_program_creation(&mut env).await;
     ping.approve_wvara(&mut env).await;
+
     ping.send_ping(&mut env).await;
+    ping.wait_for_pong_reply().await;
+
     ping.send_ping(&mut env).await;
+    ping.wait_for_pong_reply().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -245,59 +273,20 @@ async fn ping_reorg() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut listener = env.new_listener().await;
+    let mut ping = PingTest::new(&mut env).await;
     let mut node = env.create_node(None);
-
     let sequencer_pub_key = env.wallets.next();
     node.start_service(Some(sequencer_pub_key), Some(env.validators[0]), None)
         .await;
 
     let provider = env.observer.provider().clone();
 
-    log::info!("📗 upload code");
-    let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
-
-    log::info!("📗 Waiting for code loaded");
-    listener
-        .apply_until(|event| match event {
-            Event::CodeLoaded {
-                code_id: loaded_id,
-                code,
-            } => {
-                assert_eq!(code_id, loaded_id);
-                assert_eq!(&code, demo_ping::WASM_BINARY);
-                Ok(Some(()))
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
-
-    log::info!("📗 Waiting for code approval");
-    listener
-        .apply_until_block_event(|event| match event {
-            BlockEvent::Router(RouterEvent::CodeGotValidated {
-                id: validated_code_id,
-                valid,
-            }) => {
-                assert_eq!(code_id, validated_code_id);
-                assert!(valid);
-                Ok(Some(()))
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
+    ping.upload_code(&mut env).await;
 
     log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
 
-    let _ = env
-        .ethereum
-        .router()
-        .create_program(code_id, H256::random(), b"PING", 0)
-        .await
-        .unwrap();
+    ping.create_program(&mut env).await;
 
     // Mine some blocks to check missed blocks support
     provider
@@ -315,63 +304,8 @@ async fn ping_reorg() {
     // IMPORTANT: Mine one block to sent block event to the new service.
     provider.evm_mine(None).await.unwrap();
 
-    log::info!("📗 Waiting for program creation");
-    let mut program_id = ActorId::default();
-    let mut init_message_id = MessageId::default();
-    let mut reply_sent = false;
-    listener
-        .apply_until_block_event(|event| {
-            match event {
-                BlockEvent::Router(RouterEvent::ProgramCreated {
-                    actor_id,
-                    code_id: loaded_id,
-                }) => {
-                    assert_eq!(code_id, loaded_id);
-                    program_id = actor_id;
-                }
-                BlockEvent::Mirror { address, event } => {
-                    if address == program_id {
-                        match event {
-                            MirrorEvent::MessageQueueingRequested {
-                                id,
-                                source,
-                                payload,
-                                value,
-                            } => {
-                                assert_eq!(source, env.sender_id);
-                                assert_eq!(payload, b"PING");
-                                assert_eq!(value, 0);
-                                init_message_id = id;
-                            }
-                            MirrorEvent::Reply {
-                                payload, reply_to, ..
-                            } => {
-                                assert_eq!(payload, b"PONG");
-                                assert_eq!(reply_to, init_message_id);
-                                reply_sent = true;
-                            }
-                            MirrorEvent::StateChanged { .. } => {
-                                assert!(reply_sent);
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                BlockEvent::Router(RouterEvent::BlockCommitted { .. }) => return Ok(Some(())),
-                _ => {}
-            };
-
-            Ok(None)
-        })
-        .await
-        .unwrap();
-
-    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-
-    let wvara = env.ethereum.router().wvara();
-
-    log::info!("📗 Approving WVara to mirror");
-    wvara.approve_all(program_address.0.into()).await.unwrap();
+    ping.wait_for_program_creation(&mut env).await;
+    ping.approve_wvara(&mut env).await;
 
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
@@ -379,69 +313,29 @@ async fn ping_reorg() {
     );
     let program_created_snapshot_id = provider.anvil_snapshot().await.unwrap();
 
-    let ping_program = env.ethereum.mirror(program_address);
-
-    log::info!("📗 Sending PING message");
-    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
-
-    log::info!("📗 Waiting for PONG reply");
-    listener
-        .apply_until_block_event(|event| match event {
-            BlockEvent::Mirror { address, event } => {
-                if address == program_id {
-                    if let MirrorEvent::Reply { payload, value, .. } = event {
-                        assert_eq!(payload, b"PONG");
-                        assert_eq!(value, 0);
-                        return Ok(Some(()));
-                    }
-                }
-
-                Ok(None)
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
+    ping.send_ping(&mut env).await;
+    ping.wait_for_pong_reply().await;
 
     // Await for service block with user reply handling
     // TODO: this is for better logs reading only, should find a better solution #4099
     tokio::time::sleep(env.block_time).await;
 
-    log::info!("📗 Reverting to the program creation snapshot");
+    log::info!("📗 Test after reverting to the program creation snapshot");
     provider
         .anvil_revert(program_created_snapshot_id)
         .await
         .map(|res| assert!(res))
         .unwrap();
 
-    log::info!("📗 Sending PING message after reorg");
-    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
-
-    log::info!("📗 Waiting for PONG reply after reorg");
-    listener
-        .apply_until_block_event(|event| match event {
-            BlockEvent::Mirror { address, event } => {
-                if address == program_id {
-                    if let MirrorEvent::Reply { payload, value, .. } = event {
-                        assert_eq!(payload, b"PONG");
-                        assert_eq!(value, 0);
-                        return Ok(Some(()));
-                    }
-                }
-
-                Ok(None)
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
+    ping.send_ping(&mut env).await;
+    ping.wait_for_pong_reply().await;
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
     node.db = Database::from_one(&MemDb::default(), env.router_address.0);
 
-    log::info!("📗 Sending PING message, db cleanup and service shutting down");
-    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
+    log::info!("📗 Test after db cleanup and service shutting down");
+    ping.send_ping(&mut env).await;
 
     // Skip some blocks to simulate long time without service
     provider
@@ -458,24 +352,7 @@ async fn ping_reorg() {
     // Important: mine one block to sent block event to the new service.
     provider.evm_mine(None).await.unwrap();
 
-    log::info!("📗 Waiting for PONG reply service restart on empty db");
-    listener
-        .apply_until_block_event(|event| match event {
-            BlockEvent::Mirror { address, event } => {
-                if address == program_id {
-                    if let MirrorEvent::Reply { payload, value, .. } = event {
-                        assert_eq!(payload, b"PONG");
-                        assert_eq!(value, 0);
-                        return Ok(Some(()));
-                    }
-                }
-
-                Ok(None)
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
+    ping.wait_for_pong_reply().await;
 
     // Await for service block with user reply handling
     // TODO: this is for better logs reading only, should find a better solution #4099
@@ -492,123 +369,18 @@ async fn ping_deep_sync() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut listener = env.new_listener().await;
+    let mut ping = PingTest::new(&mut env).await;
     let mut node = env.create_node(None);
-
     let sequencer_pub_key = env.wallets.next();
     node.start_service(Some(sequencer_pub_key), Some(env.validators[0]), None)
         .await;
 
     let provider = env.observer.provider().clone();
 
-    let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
+    ping.upload_code(&mut env).await;
 
-    log::info!("📗 Waiting for code loaded");
-    listener
-        .apply_until(|event| match event {
-            Event::CodeLoaded {
-                code_id: loaded_id,
-                code,
-            } => {
-                assert_eq!(code_id, loaded_id);
-                assert_eq!(&code, demo_ping::WASM_BINARY);
-                Ok(Some(()))
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
-
-    log::info!("📗 Waiting for code approval");
-    listener
-        .apply_until_block_event(|event| match event {
-            BlockEvent::Router(RouterEvent::CodeGotValidated {
-                id: validated_code_id,
-                valid,
-            }) => {
-                assert_eq!(code_id, validated_code_id);
-                assert!(valid);
-                Ok(Some(()))
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
-
-    let code = node
-        .db
-        .original_code(code_id)
-        .expect("After approval, the code is guaranteed to be in the database");
-    let _ = node
-        .db
-        .instrumented_code(1, code_id)
-        .expect("After approval, instrumented code is guaranteed to be in the database");
-    assert_eq!(code, demo_ping::WASM_BINARY);
-
-    let _ = env
-        .ethereum
-        .router()
-        .create_program(code_id, H256::random(), b"PING", 0)
-        .await
-        .unwrap();
-
-    log::info!("📗 Waiting for program create, PONG reply and program update");
-    let mut program_id = ActorId::default();
-    let mut init_message_id = MessageId::default();
-    let mut reply_sent = false;
-    let mut block_committed = None;
-    listener
-        .apply_until_block_event(|event| {
-            match event {
-                BlockEvent::Router(RouterEvent::ProgramCreated {
-                    actor_id,
-                    code_id: loaded_id,
-                }) => {
-                    assert_eq!(code_id, loaded_id);
-                    program_id = actor_id;
-                }
-                BlockEvent::Mirror { address, event } => {
-                    if address == program_id {
-                        match event {
-                            MirrorEvent::MessageQueueingRequested {
-                                id,
-                                source,
-                                payload,
-                                value,
-                                ..
-                            } => {
-                                assert_eq!(source, env.sender_id);
-                                assert_eq!(payload, b"PING");
-                                assert_eq!(value, 0);
-                                init_message_id = id;
-                            }
-                            MirrorEvent::Reply {
-                                payload, reply_to, ..
-                            } => {
-                                assert_eq!(payload, b"PONG");
-                                assert_eq!(reply_to, init_message_id);
-                                reply_sent = true;
-                            }
-                            MirrorEvent::StateChanged { .. } => {
-                                assert!(reply_sent);
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => {
-                    block_committed = Some(block_hash);
-                    return Ok(Some(()));
-                }
-                _ => {}
-            }
-            Ok(None)
-        })
-        .await
-        .unwrap();
-
-    let block_committed_on_router = env.router_query.last_commitment_block_hash().await.unwrap();
-    assert_eq!(block_committed, Some(block_committed_on_router));
+    ping.create_program(&mut env).await;
+    ping.wait_for_program_creation(&mut env).await;
 
     // Mine some blocks to check deep sync.
     provider
@@ -619,18 +391,9 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
 
-    // Send message in between.
-    let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+    ping.approve_wvara(&mut env).await;
 
-    let wvara = env.ethereum.router().wvara();
-
-    log::info!("📗 Approving WVara to mirror");
-    wvara.approve_all(program_address.0.into()).await.unwrap();
-
-    let ping_program = env.ethereum.mirror(program_address);
-
-    log::info!("📗 Sending PING message");
-    let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
+    ping.send_ping(&mut env).await;
 
     // Mine some blocks to check deep sync.
     provider
@@ -641,24 +404,7 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
 
-    log::info!("📗 Waiting for PONG reply");
-    listener
-        .apply_until_block_event(|event| match event {
-            BlockEvent::Mirror { address, event } => {
-                if address == program_id {
-                    if let MirrorEvent::Reply { payload, value, .. } = event {
-                        assert_eq!(payload, b"PONG");
-                        assert_eq!(value, 0);
-                        return Ok(Some(()));
-                    }
-                }
-
-                Ok(None)
-            }
-            _ => Ok(None),
-        })
-        .await
-        .unwrap();
+    ping.wait_for_pong_reply().await;
 }
 
 mod utils {
@@ -756,7 +502,7 @@ mod utils {
         pub fn next(&mut self) -> ethexe_signer::PublicKey {
             let pub_key = self.wallets.get(self.next_wallet).expect("No more wallets");
             self.next_wallet += 1;
-            pub_key.clone()
+            *pub_key
         }
     }
 
