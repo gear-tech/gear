@@ -48,197 +48,13 @@ use tokio::{
 };
 use utils::*;
 
-struct PingTest {
-    listener: Listener,
-    code_id: Option<CodeId>,
-    program_id: Option<ActorId>,
-}
-
-impl PingTest {
-    async fn new(env: &mut TestEnv) -> Self {
-        let listener = env.new_listener().await;
-        Self {
-            listener,
-            code_id: None,
-            program_id: None,
-        }
-    }
-
-    async fn upload_code(&mut self, env: &mut TestEnv) {
-        assert!(self.code_id.is_none(), "Code already uploaded");
-
-        log::info!("🏓 Upload code and waiting for code loaded and validated");
-
-        let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
-
-        self.listener
-            .apply_until(|event| match event {
-                Event::CodeLoaded {
-                    code_id: loaded_id,
-                    code,
-                } => {
-                    assert_eq!(code_id, loaded_id);
-                    assert_eq!(&code, demo_ping::WASM_BINARY);
-                    Ok(Some(()))
-                }
-                _ => Ok(None),
-            })
-            .await
-            .unwrap();
-
-        self.listener
-            .apply_until_block_event(|event| {
-                if let BlockEvent::Router(RouterEvent::CodeGotValidated {
-                    id: loaded_id,
-                    valid,
-                }) = event
-                {
-                    assert_eq!(code_id, loaded_id);
-                    assert!(valid);
-                    Ok(Some(()))
-                } else {
-                    Ok(None)
-                }
-            })
-            .await
-            .unwrap();
-
-        self.code_id = Some(code_id);
-    }
-
-    async fn create_program(&mut self, env: &mut TestEnv) {
-        assert!(self.program_id.is_none(), "Program already created");
-        let code_id = self.code_id.expect("Code must be uploaded first");
-
-        log::info!("🏓 Create ping program");
-
-        let _ = env
-            .ethereum
-            .router()
-            .create_program(code_id, H256::random(), b"PING", 0)
-            .await
-            .unwrap();
-    }
-
-    async fn wait_for_program_creation(&mut self, env: &mut TestEnv) {
-        assert!(self.program_id.is_none(), "Program already created");
-        let code_id = self.code_id.expect("Code must be uploaded first");
-
-        log::info!("🏓 Waiting for program creation and PONG reply");
-
-        let mut program_id = ActorId::default();
-        let mut init_message_id = MessageId::default();
-        let mut reply_sent = false;
-        let mut block_committed = None;
-        self.listener
-            .apply_until_block_event(|event| {
-                match event {
-                    BlockEvent::Router(RouterEvent::ProgramCreated {
-                        actor_id,
-                        code_id: loaded_id,
-                    }) => {
-                        assert_eq!(code_id, loaded_id);
-                        program_id = actor_id;
-                    }
-                    BlockEvent::Mirror { address, event } => {
-                        if address == program_id {
-                            match event {
-                                MirrorEvent::MessageQueueingRequested {
-                                    id,
-                                    source,
-                                    payload,
-                                    value,
-                                } => {
-                                    assert_eq!(source, env.sender_id);
-                                    assert_eq!(payload, b"PING");
-                                    assert_eq!(value, 0);
-                                    init_message_id = id;
-                                }
-                                MirrorEvent::Reply {
-                                    payload, reply_to, ..
-                                } => {
-                                    assert_eq!(payload, b"PONG");
-                                    assert_eq!(reply_to, init_message_id);
-                                    reply_sent = true;
-                                }
-                                MirrorEvent::StateChanged { .. } => {
-                                    assert!(reply_sent);
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => {
-                        block_committed = Some(block_hash);
-                        return Ok(Some(()));
-                    }
-                    _ => {}
-                }
-                Ok(None)
-            })
-            .await
-            .unwrap();
-
-        let block_committed_on_router =
-            env.router_query.last_commitment_block_hash().await.unwrap();
-        assert_eq!(block_committed, Some(block_committed_on_router));
-
-        self.program_id = Some(program_id);
-    }
-
-    async fn approve_wvara(&mut self, env: &mut TestEnv) {
-        let program_id = self.program_id.expect("Program must be created first");
-
-        log::info!("🏓 Approving WVara to mirror");
-
-        let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-        let wvara = env.ethereum.router().wvara();
-        wvara.approve_all(program_address.0.into()).await.unwrap();
-    }
-
-    async fn send_ping(&mut self, env: &mut TestEnv) {
-        let program_id = self.program_id.expect("Program must be created first");
-
-        log::info!("🏓 Sending PING message");
-
-        let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-        let ping_program = env.ethereum.mirror(program_address);
-
-        let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
-    }
-
-    async fn wait_for_pong_reply(&mut self) {
-        let program_id = self.program_id.expect("Program must be created first");
-
-        log::info!("🏓 Waiting for PONG reply");
-
-        self.listener
-            .apply_until_block_event(|event| match event {
-                BlockEvent::Mirror { address, event } => {
-                    if address == program_id {
-                        if let MirrorEvent::Reply { payload, value, .. } = event {
-                            assert_eq!(payload, b"PONG");
-                            assert_eq!(value, 0);
-                            return Ok(Some(()));
-                        }
-                    }
-
-                    Ok(None)
-                }
-                _ => Ok(None),
-            })
-            .await
-            .unwrap();
-    }
-}
-
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut ping = PingTest::new(&mut env).await;
+    let mut ping = ping::Test::new(&mut env).await;
     let mut node = env.create_node(None);
     node.start_service(Some(env.wallets.next()), Some(env.validators[0]), None)
         .await;
@@ -273,7 +89,7 @@ async fn ping_reorg() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut ping = PingTest::new(&mut env).await;
+    let mut ping = ping::Test::new(&mut env).await;
     let mut node = env.create_node(None);
     let sequencer_pub_key = env.wallets.next();
     node.start_service(Some(sequencer_pub_key), Some(env.validators[0]), None)
@@ -369,7 +185,7 @@ async fn ping_deep_sync() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut ping = PingTest::new(&mut env).await;
+    let mut ping = ping::Test::new(&mut env).await;
     let mut node = env.create_node(None);
     let sequencer_pub_key = env.wallets.next();
     node.start_service(Some(sequencer_pub_key), Some(env.validators[0]), None)
@@ -405,6 +221,194 @@ async fn ping_deep_sync() {
         .unwrap();
 
     ping.wait_for_pong_reply().await;
+}
+
+mod ping {
+    use super::*;
+
+    pub struct Test {
+        listener: Listener,
+        pub code_id: Option<CodeId>,
+        pub program_id: Option<ActorId>,
+    }
+
+    impl Test {
+        pub async fn new(env: &mut TestEnv) -> Self {
+            let listener = env.new_listener().await;
+            Self {
+                listener,
+                code_id: None,
+                program_id: None,
+            }
+        }
+
+        pub async fn upload_code(&mut self, env: &mut TestEnv) {
+            assert!(self.code_id.is_none(), "Code already uploaded");
+
+            log::info!("🏓 Upload code and waiting for code loaded and validated");
+
+            let (_, code_id) = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
+
+            self.listener
+                .apply_until(|event| match event {
+                    Event::CodeLoaded {
+                        code_id: loaded_id,
+                        code,
+                    } => {
+                        assert_eq!(code_id, loaded_id);
+                        assert_eq!(&code, demo_ping::WASM_BINARY);
+                        Ok(Some(()))
+                    }
+                    _ => Ok(None),
+                })
+                .await
+                .unwrap();
+
+            self.listener
+                .apply_until_block_event(|event| {
+                    if let BlockEvent::Router(RouterEvent::CodeGotValidated {
+                        id: loaded_id,
+                        valid,
+                    }) = event
+                    {
+                        assert_eq!(code_id, loaded_id);
+                        assert!(valid);
+                        Ok(Some(()))
+                    } else {
+                        Ok(None)
+                    }
+                })
+                .await
+                .unwrap();
+
+            self.code_id = Some(code_id);
+        }
+
+        pub async fn create_program(&mut self, env: &mut TestEnv) {
+            assert!(self.program_id.is_none(), "Program already created");
+            let code_id = self.code_id.expect("Code must be uploaded first");
+
+            log::info!("🏓 Create ping program");
+
+            let _ = env
+                .ethereum
+                .router()
+                .create_program(code_id, H256::random(), b"PING", 0)
+                .await
+                .unwrap();
+        }
+
+        pub async fn wait_for_program_creation(&mut self, env: &mut TestEnv) {
+            assert!(self.program_id.is_none(), "Program already created");
+            let code_id = self.code_id.expect("Code must be uploaded first");
+
+            log::info!("🏓 Waiting for program creation and PONG reply");
+
+            let mut program_id = ActorId::default();
+            let mut init_message_id = MessageId::default();
+            let mut reply_sent = false;
+            let mut block_committed = None;
+            self.listener
+                .apply_until_block_event(|event| {
+                    match event {
+                        BlockEvent::Router(RouterEvent::ProgramCreated {
+                            actor_id,
+                            code_id: loaded_id,
+                        }) => {
+                            assert_eq!(code_id, loaded_id);
+                            program_id = actor_id;
+                        }
+                        BlockEvent::Mirror { address, event } => {
+                            if address == program_id {
+                                match event {
+                                    MirrorEvent::MessageQueueingRequested {
+                                        id,
+                                        source,
+                                        payload,
+                                        value,
+                                    } => {
+                                        assert_eq!(source, env.sender_id);
+                                        assert_eq!(payload, b"PING");
+                                        assert_eq!(value, 0);
+                                        init_message_id = id;
+                                    }
+                                    MirrorEvent::Reply {
+                                        payload, reply_to, ..
+                                    } => {
+                                        assert_eq!(payload, b"PONG");
+                                        assert_eq!(reply_to, init_message_id);
+                                        reply_sent = true;
+                                    }
+                                    MirrorEvent::StateChanged { .. } => {
+                                        assert!(reply_sent);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                        BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => {
+                            block_committed = Some(block_hash);
+                            return Ok(Some(()));
+                        }
+                        _ => {}
+                    }
+                    Ok(None)
+                })
+                .await
+                .unwrap();
+
+            let block_committed_on_router =
+                env.router_query.last_commitment_block_hash().await.unwrap();
+            assert_eq!(block_committed, Some(block_committed_on_router));
+
+            self.program_id = Some(program_id);
+        }
+
+        pub async fn approve_wvara(&mut self, env: &mut TestEnv) {
+            let program_id = self.program_id.expect("Program must be created first");
+
+            log::info!("🏓 Approving WVara to mirror");
+
+            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let wvara = env.ethereum.router().wvara();
+            wvara.approve_all(program_address.0.into()).await.unwrap();
+        }
+
+        pub async fn send_ping(&mut self, env: &mut TestEnv) {
+            let program_id = self.program_id.expect("Program must be created first");
+
+            log::info!("🏓 Sending PING message");
+
+            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let ping_program = env.ethereum.mirror(program_address);
+
+            let _tx = ping_program.send_message(b"PING", 0).await.unwrap();
+        }
+
+        pub async fn wait_for_pong_reply(&mut self) {
+            let program_id = self.program_id.expect("Program must be created first");
+
+            log::info!("🏓 Waiting for PONG reply");
+
+            self.listener
+                .apply_until_block_event(|event| match event {
+                    BlockEvent::Mirror { address, event } => {
+                        if address == program_id {
+                            if let MirrorEvent::Reply { payload, value, .. } = event {
+                                assert_eq!(payload, b"PONG");
+                                assert_eq!(value, 0);
+                                return Ok(Some(()));
+                            }
+                        }
+
+                        Ok(None)
+                    }
+                    _ => Ok(None),
+                })
+                .await
+                .unwrap();
+        }
+    }
 }
 
 mod utils {
