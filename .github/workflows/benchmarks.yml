@@ -161,7 +161,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: benchmarking-errors
-          path: scripts/benchmarking/benchmarking_errors.txt
+          path: scripts/benchmarking/raw_gr_exit.json
           if-no-files-found: ignore
 
       - name: "ACTIONS: Upload artifact with updated weights (vara)"
