@@ -33,9 +33,9 @@ mod wasm;
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec::Vec;
     use super::WASM_BINARY;
-    use gtest::{System, Program, constants};
+    use alloc::vec::Vec;
+    use gtest::{constants, Program, System};
 
     #[test]
     #[should_panic]

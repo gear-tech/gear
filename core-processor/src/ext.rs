@@ -940,7 +940,10 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         offset: u32,
         len: u32,
     ) -> Result<(), Self::FallibleError> {
-        let range = self.context.message_context.check_input_range(offset, len);
+        let range = self
+            .context
+            .message_context
+            .check_input_range(offset, len)?;
 
         self.with_changes(|mutator| {
             mutator.charge_gas_if_enough(
@@ -1076,7 +1079,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
             let range = mutator
                 .context
                 .message_context
-                .check_input_range(offset, len);
+                .check_input_range(offset, len)?;
             mutator.charge_gas_if_enough(
                 mutator
                     .context
@@ -1730,7 +1733,12 @@ mod tests {
                 .build(),
         );
 
-        let data = HandlePacket::default();
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
 
         let fake_handle = 0;
 
@@ -1742,20 +1750,37 @@ mod tests {
 
         let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
 
-        let res = ext
-            .context
-            .message_context
-            .payload_mut()
-            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
-        assert!(res.is_ok());
-
         let res = ext.send_push_input(handle, 2, 3);
         assert!(res.is_ok());
-
-        let res = ext.send_push_input(handle, 8, 10);
+        let res = ext.send_push_input(handle, 5, 1);
         assert!(res.is_ok());
 
-        let msg = ext.send_commit(handle, data, 0);
+        // Len too big
+        let res = ext.send_push_input(handle, 0, 7);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+        let res = ext.send_push_input(handle, 5, 2);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+
+        // Too big offset
+        let res = ext.send_push_input(handle, 6, 0);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceOffset
+            ))
+        );
+
+        let msg = ext.send_commit(handle, HandlePacket::default(), 0);
         assert!(msg.is_ok());
 
         let res = ext.send_push_input(handle, 0, 1);
@@ -1774,7 +1799,7 @@ mod tests {
             .map(|(dispatch, _, _)| dispatch)
             .expect("Send commit was ok");
 
-        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
     }
 
     #[test]
@@ -1889,9 +1914,33 @@ mod tests {
 
         let res = ext.reply_push_input(2, 3);
         assert!(res.is_ok());
-
-        let res = ext.reply_push_input(8, 10);
+        let res = ext.reply_push_input(5, 1);
         assert!(res.is_ok());
+
+        // Len too big
+        let res = ext.reply_push_input(0, 7);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+        let res = ext.reply_push_input(5, 2);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+
+        // Too big offset
+        let res = ext.reply_push_input(6, 0);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceOffset
+            ))
+        );
 
         let msg = ext.reply_commit(ReplyPacket::auto());
         assert!(msg.is_ok());
@@ -1912,7 +1961,7 @@ mod tests {
             .map(|(dispatch, _, _)| dispatch)
             .expect("Send commit was ok");
 
-        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
     }
 
     // TODO: fix me (issue #3881)
