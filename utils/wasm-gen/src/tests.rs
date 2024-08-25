@@ -1040,7 +1040,7 @@ fn execute_wasm_with_custom_configs(
     let incoming_message = IncomingMessage::new(
         message_id.into(),
         message_sender(),
-        vec![1,2,3].try_into().unwrap(),
+        vec![1, 2, 3].try_into().unwrap(),
         Default::default(),
         Default::default(),
         Default::default(),
