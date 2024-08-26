@@ -109,7 +109,7 @@ impl<'a> ActorMailbox<'a> {
             .ok_or(MailboxErrorImpl::ElementNotFound)?;
         self.manager
             .borrow_mut()
-            .claim_value_from_mailbox(self.user_id, mailboxed_msg.id())
+            .read_mailbox_message(self.user_id, mailboxed_msg.id())
             .unwrap_or_else(|e| unreachable!("Unexpected mailbox error: {e:?}"));
 
         Ok(())
@@ -159,9 +159,15 @@ mod tests {
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
+        let actual = system.balance_of(sender);
+        let expected = original_balance - value_send - res.spent_value();
         assert_eq!(
-            system.balance_of(sender),
-            original_balance - value_send - res.spent_value()
+            expected,
+            actual,
+            "expected: {}, actual: {}, difference: {}",
+            expected,
+            actual,
+            actual - expected
         );
 
         let mailbox = system.get_mailbox(sender);

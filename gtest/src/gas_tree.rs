@@ -51,12 +51,16 @@ impl GasTreeManager {
         mid: MessageId,
         amount: Gas,
     ) -> Result<PositiveImbalance, GasTreeError> {
-        GasTree::create(
-            origin.cast(),
-            GAS_MULTIPLIER,
-            GasNodeId::from(mid.cast::<PlainNodeId>()),
-            amount,
-        )
+        if !self.exists_and_deposit(mid) {
+            GasTree::create(
+                origin.cast(),
+                GAS_MULTIPLIER,
+                GasNodeId::from(mid.cast::<PlainNodeId>()),
+                amount,
+            )
+        } else {
+            Ok(PositiveImbalance::new(0))
+        }
     }
 
     /// Adapted by argument types version of the gas tree `create_deposit`

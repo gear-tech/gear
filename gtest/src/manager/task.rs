@@ -41,14 +41,12 @@ impl TaskHandler<ProgramId> for ExtManager {
     fn remove_from_mailbox(&mut self, user_id: ProgramId, message_id: MessageId) -> GearCommonGas {
         let message = ReplyMessage::auto(message_id);
 
-        if !self.gas_tree.exists_and_deposit(message.id()) {
-            self.gas_tree
-                .create(user_id, message.id(), 0)
-                .expect("failed to create gas tree node");
-        }
+        self.gas_tree
+            .create(user_id, message.id(), 0)
+            .expect("failed to create gas tree node");
 
         let mailboxed = self
-            .claim_value_from_mailbox(user_id, message_id)
+            .read_mailbox_message(user_id, message_id)
             .expect("failed to claim value from mailbox");
 
         let dispatch = message.into_stored_dispatch(
@@ -114,7 +112,6 @@ impl TaskHandler<ProgramId> for ExtManager {
         });
 
         self.send_user_message_after_delay(mailbox_message, to_mailbox);
-        self.log.push(message);
 
         GearCommonGas::MIN
     }

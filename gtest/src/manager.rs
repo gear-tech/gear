@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod hold_bound;
 mod journal;
 mod task;
 
@@ -33,7 +34,7 @@ use crate::{
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     GAS_ALLOWANCE, GAS_MULTIPLIER, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST,
     HOST_FUNC_WRITE_COST, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL,
-    LOAD_PAGE_STORAGE_DATA_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    LOAD_PAGE_STORAGE_DATA_COST, MAILBOX_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
     MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
@@ -69,7 +70,7 @@ use gear_core::{
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
-use gear_wasm_instrument::gas_metering::Schedule;
+use hold_bound::HoldBoundBuilder;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -134,6 +135,10 @@ impl ExtManager {
         }
     }
 
+    pub fn block_height(&self) -> u32 {
+        self.blocks_manager.get().height
+    }
+
     pub(crate) fn store_new_actor(
         &mut self,
         program_id: ProgramId,
@@ -181,7 +186,7 @@ impl ExtManager {
                     let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
                     Reservation {reservation} doesn't exist.");
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}")
                 })
         }).unwrap_or_else(|| {
@@ -226,7 +231,7 @@ impl ExtManager {
                 "consume_and_retrieve: failed consuming the rest of gas. Got error - {e:?}"
             );
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}")
         });
 
@@ -252,7 +257,7 @@ impl ExtManager {
         if delay.is_zero() {
             let err_msg = "send_delayed_dispatch: delayed sending with zero delay appeared";
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}");
         }
 
@@ -264,7 +269,7 @@ impl ExtManager {
                 id = dispatch.id()
             );
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}");
         }
 
@@ -275,16 +280,16 @@ impl ExtManager {
                 kind = dispatch.kind()
             );
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}");
         }
 
         let mut to_mailbox = false;
 
-        let sender_node = reservation
-            .map(|id| id.cast::<PlainNodeId>())
-            .unwrap_or_else(|| origin_msg.cast::<PlainNodeId>())
-            .cast::<MessageId>();
+        let sender_node: MessageId = reservation
+            .map(Origin::into_origin)
+            .unwrap_or_else(|| origin_msg.into_origin())
+            .into();
 
         let from = dispatch.source();
         let value = dispatch.value().try_into().unwrap_or(u128::MAX);
@@ -306,7 +311,7 @@ impl ExtManager {
                                 Lock sponsor id - {sender_node:?}. Got error - {e:?}"
                         );
 
-                        log::error!("{err_msg}");
+                        
                         unreachable!("{err_msg}");
                     });
 
@@ -333,7 +338,7 @@ impl ExtManager {
                         id = dispatch.id()
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -358,7 +363,7 @@ impl ExtManager {
                 let err_msg =
                     "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}");
             });
 
@@ -369,7 +374,7 @@ impl ExtManager {
                         Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
                         message_id = dispatch.id(),
                         lock = delay_hold.lock_amount(self));
-                        log::error!("{err_msg}");
+                        
                         unreachable!("{err_msg}");
                 });
 
@@ -380,21 +385,27 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::DispatchStash)
                 );
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}");
             }
 
             delay_hold.expected()
         } else {
             match (dispatch.gas_limit(), reservation) {
-                (Some(gas_limit), None) => self.split_with_value(
-                    sender_node,
-                    dispatch.id(),
-                    gas_limit.saturating_add(gas_for_delay),
-                    dispatch.is_reply(),
-                ),
+                (Some(gas_limit), None) => self
+                    .gas_tree
+                    .split_with_value(
+                        dispatch.is_reply(),
+                        sender_node,
+                        dispatch.id(),
+                        gas_limit.saturating_add(gas_for_delay),
+                    )
+                    .expect("GasTree corrupted"),
 
-                (None, None) => self.split(sender_node, dispatch.id(), dispatch.is_reply()),
+                (None, None) => self
+                    .gas_tree
+                    .split(dispatch.is_reply(), sender_node, dispatch.id())
+                    .expect("GasTree corrupted"),
                 (Some(gas_limit), Some(reservation_id)) => {
                     let err_msg = format!(
                         "send_delayed_dispatch: sending dispatch with gas from reservation isn't implemented. \
@@ -403,12 +414,14 @@ impl ExtManager {
                         sender = dispatch.source(),
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 }
 
                 (None, Some(reservation_id)) => {
-                    self.split(reservation_id.cast(), dispatch.id(), dispatch.is_reply());
+                    self.gas_tree
+                        .split(dispatch.is_reply(), reservation_id, dispatch.id())
+                        .expect("GasTree corrupted");
                     self.remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
             }
@@ -418,7 +431,7 @@ impl ExtManager {
                 let err_msg =
                     "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}");
             });
 
@@ -432,7 +445,7 @@ impl ExtManager {
                     lock = delay_hold.lock_amount(self)
                 );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -443,7 +456,7 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::DispatchStash)
                 );
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}");
             }
 
@@ -454,7 +467,7 @@ impl ExtManager {
             self.bank.deposit_value(from, value, false);
         }
 
-        let messaeg_id = dispatch.id();
+        let message_id = dispatch.id();
 
         let start_bn = self.blocks_manager.get().height;
         let delay_interval = Interval {
@@ -463,7 +476,7 @@ impl ExtManager {
         };
 
         self.dispatches_stash
-            .insert(messaeg_id, (dispatch.into_stored_delayed(), delay_interval));
+            .insert(message_id, (dispatch.into_stored_delayed(), delay_interval));
 
         let task = if to_user {
             ScheduledTask::SendUserMessage {
@@ -482,7 +495,7 @@ impl ExtManager {
                     Message to user - {to_user}, message id - {message_id}. Got error - {e:?}"
             );
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}");
         });
     }
@@ -508,7 +521,7 @@ impl ExtManager {
                             Lock sponsor id - {msg_id}. Got error - {e:?}"
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -529,13 +542,13 @@ impl ExtManager {
                     Message id - {message_id}, program id - {from}, destination - {to}",
             );
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}")
         });
 
-        let from = message.source().cast();
-        let to = message.destination().cast::<ProgramId>();
-        let value = message.value().try_into().unwrap_or(u128::MAX);
+        let from = message.source();
+        let to = message.destination();
+        let value = message.value();
         if Accounts::balance(from) != 0 {
             self.bank.deposit_value(from, value, false);
         }
@@ -549,7 +562,7 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::Mailbox)
                 );
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}");
             }
 
@@ -563,7 +576,7 @@ impl ExtManager {
                         id = message.id()
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -576,7 +589,7 @@ impl ExtManager {
                         message_id = message.id(),
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -588,7 +601,7 @@ impl ExtManager {
                         Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                 );
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}")
             });
 
@@ -602,14 +615,14 @@ impl ExtManager {
                         bn = hold.expected(),
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
             self.task_pool
                 .add(
                     hold.expected(),
-                    ScheduledTask::RemoveFromMailbox(to.clone(), message_id),
+                    ScheduledTask::RemoveFromMailbox(to, message_id),
                 )
                 .unwrap_or_else(|e| {
                     let err_msg = format!(
@@ -619,9 +632,10 @@ impl ExtManager {
                         bn = hold.expected()
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
+
             Some(hold.expected())
         } else {
             self.bank.transfer_value(from, to, value);
@@ -630,8 +644,9 @@ impl ExtManager {
                 // Creating auto reply message.
                 let reply_message = ReplyMessage::auto(message.id());
 
-                self.split_with_value(origin_msg, reply_message.id(), 0, true);
-
+                self.gas_tree
+                    .split_with_value(true, origin_msg, reply_message.id(), 0)
+                    .expect("GasTree corrupted");
                 // Converting reply message into appropriate type for queueing.
                 let reply_dispatch = reply_message.into_stored_dispatch(
                     message.destination(),
@@ -652,9 +667,9 @@ impl ExtManager {
     }
 
     pub(crate) fn send_user_message_after_delay(&mut self, message: UserMessage, to_mailbox: bool) {
-        let from = message.source().cast();
-        let to = message.destination().cast::<ProgramId>();
-        let value = message.value().try_into().unwrap_or(u128::MAX);
+        let from = message.source();
+        let to = message.destination();
+        let value = message.value();
 
         let _ = if to_mailbox {
             let gas_limit = self.gas_tree.get_limit(message.id()).unwrap_or_else(|e| {
@@ -664,7 +679,7 @@ impl ExtManager {
                     message_id = message.id()
                 );
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}");
             });
 
@@ -677,7 +692,7 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::Mailbox)
                 );
 
-                log::error!("{err_msg}");
+                
                 unreachable!("{err_msg}");
             }
 
@@ -689,7 +704,7 @@ impl ExtManager {
                         message_id = message.id(),
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -704,11 +719,11 @@ impl ExtManager {
                         Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}")
                 });
             self.mailbox
-                .insert(message, hold.expected)
+                .insert(message, hold.expected())
                 .unwrap_or_else(|e| {
                     let err_msg = format!(
                         "send_user_message_after_delay: failed inserting message into mailbox. \
@@ -717,7 +732,7 @@ impl ExtManager {
                         bn = hold.expected(),
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -736,7 +751,7 @@ impl ExtManager {
                     bn = hold.expected()
                 );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -763,51 +778,10 @@ impl ExtManager {
             }
 
             self.consume_and_retrieve(message.id());
-
             None
         };
-    }
 
-    fn split_with_value(
-        &mut self,
-        key: MessageId,
-        new_key: MessageId,
-        amount: u64,
-        is_reply: bool,
-    ) {
-        if !is_reply || !self.gas_tree.exists_and_deposit(new_key.clone()) {
-            self.gas_tree.split_with_value(is_reply, key.clone(), new_key.clone(), amount)
-                .unwrap_or_else(|e| {
-                    let err_msg = format!(
-                        "split_with_value: failed to split with value gas node. Original message id - {key}, \
-                        new message id - {new_key}. amount - {amount}, is_reply - {is_reply}. \
-                        Got error - {e:?}",
-                        key = key,
-                        new_key = new_key,
-                    );
-
-                    log::error!("{err_msg}");
-                    unreachable!("{err_msg}");
-                });
-        }
-    }
-
-    fn split(&mut self, key: MessageId, new_key: MessageId, is_reply: bool) {
-        if !is_reply || !self.gas_tree.exists_and_deposit(new_key.clone()) {
-            self.gas_tree.split(is_reply, key.clone(), new_key.clone())
-                .unwrap_or_else(|e| {
-                    let err_msg = format!(
-                        "split_with_value: failed to split with value gas node. Original message id - {key}, \
-                        new message id - {new_key}. is_reply - {is_reply}. \
-                        Got error - {e:?}",
-                        key = key,
-                        new_key = new_key,
-                    );
-
-                    log::error!("{err_msg}");
-                    unreachable!("{err_msg}");
-                });
-        }
+        self.log.push(message.into());
     }
 
     /// Check if the current block number should trigger new epoch and reset
@@ -1075,7 +1049,7 @@ impl ExtManager {
         Accounts::balance(*id)
     }
 
-    pub(crate) fn claim_value_from_mailbox(
+    pub(crate) fn read_mailbox_message(
         &mut self,
         to: ProgramId,
         from_mid: MessageId,
@@ -1090,7 +1064,7 @@ impl ExtManager {
         self.charge_for_hold(message.id(), hold_interval, StorageType::Mailbox);
         self.consume_and_retrieve(message.id());
 
-        self.send_value(from, Some(user_id), message.value());
+        self.bank.transfer_value(from, user_id, message.value());
 
         let _ = self.task_pool.delete(
             expected,
@@ -1426,7 +1400,7 @@ impl ExtManager {
         let cost = match storage_type {
             StorageType::Code => todo!("#646"),
             StorageType::Waitlist => WAITLIST_COST,
-            StorageType::Mailbox => 100,
+            StorageType::Mailbox => MAILBOX_COST,
             StorageType::DispatchStash => DISPATCH_HOLD_COST,
             StorageType::Program => todo!("#646"),
             StorageType::Reservation => RESERVATION_COST,
@@ -1459,14 +1433,7 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
 
         // Cost per block based on the storage used for holding
-        let cost = match storage_type {
-            StorageType::Code => todo!("#646"),
-            StorageType::Waitlist => WAITLIST_COST,
-            StorageType::Mailbox => 100,
-            StorageType::DispatchStash => DISPATCH_HOLD_COST,
-            StorageType::Program => todo!("#646"),
-            StorageType::Reservation => RESERVATION_COST,
-        };
+        let cost = Self::cost_by_storage_type(storage_type);
 
         let amount = storage_type.try_into().map_or_else(
             |_| duration.saturating_mul(cost),
@@ -1477,7 +1444,7 @@ impl ExtManager {
                         Got error - {e:?}"
                     );
 
-                    log::error!("{err_msg}");
+                    
                     unreachable!("{err_msg}");
                 });
 
@@ -1504,7 +1471,7 @@ impl ExtManager {
                 "spend_gas: failed spending gas. Message id - {id}, amount - {amount}. Got error - {e:?}"
             );
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}");
         });
 
@@ -1513,116 +1480,10 @@ impl ExtManager {
                 "spend_gas: failed getting origin node for the current one. Message id - {id}, Got error - {e:?}"
             );
 
-            log::error!("{err_msg}");
+            
             unreachable!("{err_msg}");
         });
 
         self.bank.spend_gas(external.cast(), amount, multiplier)
-    }
-}
-
-/// Hold bound, specifying cost of storage, expected block number for task to
-/// create on it, deadlines and durations of holding.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct HoldBound {
-    cost: u64,
-    expected: BlockNumber,
-    lock_id: Option<LockId>,
-}
-
-impl HoldBound {
-    pub fn cost(&self) -> u64 {
-        self.cost
-    }
-
-    pub fn expected(&self) -> BlockNumber {
-        self.expected
-    }
-
-    pub fn lock_id(&self) -> Option<LockId> {
-        self.lock_id
-    }
-
-    pub fn expected_duration(&self, manager: &ExtManager) -> BlockNumber {
-        self.expected
-            .saturating_sub(manager.blocks_manager.get().height)
-    }
-
-    pub fn deadline(&self) -> BlockNumber {
-        self.expected.saturating_add(RESERVE_FOR)
-    }
-
-    pub fn deadline_duration(&self, manager: &ExtManager) -> BlockNumber {
-        self.deadline()
-            .saturating_sub(manager.blocks_manager.get().height)
-    }
-
-    pub fn lock_amount(&self, manager: &ExtManager) -> u64 {
-        self.deadline_duration(manager)
-            .try_into()
-            .unwrap_or(u64::MAX)
-            .saturating_mul(self.cost())
-    }
-}
-
-pub struct HoldBoundBuilder {
-    storage_type: StorageType,
-    cost: u64,
-}
-
-impl HoldBoundBuilder {
-    pub fn new(storage_type: StorageType) -> Self {
-        Self {
-            storage_type,
-            cost: ExtManager::cost_by_storage_type(storage_type),
-        }
-    }
-
-    pub fn at(self, expected: BlockNumber) -> HoldBound {
-        HoldBound {
-            cost: self.cost,
-            expected,
-            lock_id: self.storage_type.try_into().ok(),
-        }
-    }
-
-    pub fn deadline(self, deadline: BlockNumber) -> HoldBound {
-        let expected = deadline.saturating_sub(RESERVE_FOR);
-
-        self.at(expected)
-    }
-
-    pub fn duration(self, manager: &ExtManager, duration: BlockNumber) -> HoldBound {
-        let expected = manager.blocks_manager.get().height.saturating_add(duration);
-
-        self.at(expected)
-    }
-
-    pub fn maximum_for(self, manager: &ExtManager, gas: u64) -> HoldBound {
-        let deadline_duration = gas
-            .saturating_div(self.cost.max(1))
-            .try_into()
-            .unwrap_or(u32::MAX);
-        let deadline = manager
-            .blocks_manager
-            .get()
-            .height
-            .saturating_add(deadline_duration);
-
-        self.deadline(deadline)
-    }
-
-    pub fn maximum_for_message(self, manager: &ExtManager, message_id: MessageId) -> HoldBound {
-        let gas_limit = manager.gas_tree.get_limit(message_id).unwrap_or_else(|e| {
-            let err_msg = format!(
-                "HoldBoundBuilder::maximum_for_message: failed getting message gas limit. \
-                Message id - {message_id}. Got error - {e:?}"
-            );
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
-
-        self.maximum_for(manager, gas_limit)
     }
 }
