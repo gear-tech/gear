@@ -131,7 +131,7 @@ impl Response {
             (Request::DataForHashes(requested_hashes), Self::DataForHashes(hashes)) => {
                 let hashes_keys: BTreeSet<H256> = hashes.keys().copied().collect();
                 let excessive_requested_hashes: BTreeSet<H256> =
-                    hashes_keys.difference(&requested_hashes).copied().collect();
+                    hashes_keys.difference(requested_hashes).copied().collect();
 
                 if excessive_requested_hashes.is_empty() {
                     return false;
