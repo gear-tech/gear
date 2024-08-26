@@ -751,6 +751,15 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         }
         Ok(())
     }
+
+    fn cost_for_reservation(&self, amount: u64, duration: u32) -> u64 {
+        self.context
+            .costs
+            .rent
+            .reservation
+            .cost_for(self.context.reserve_for.saturating_add(duration).into())
+            .saturating_add(amount)
+    }
 }
 
 impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
@@ -1176,14 +1185,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                 return Err(ReservationError::ReservationBelowMailboxThreshold.into());
             }
 
-            let reserve = mutator
-                .context
-                .costs
-                .rent
-                .reservation
-                .cost_for(mutator.context.reserve_for.saturating_add(duration).into());
-
-            let reduce_amount = amount.saturating_add(reserve);
+            let reduce_amount = mutator.cost_for_reservation(amount, duration);
 
             mutator
                 .reduce_gas(reduce_amount)
@@ -1205,29 +1207,21 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
             let current_gas_amount = self.gas_amount();
 
             // Basically amount of the reseravtion and the cost for the hold duration.
-            let reimbursement_amount = self
-                .context
-                .costs
-                .rent
-                .reservation
-                .cost_for(
-                    self.context
-                        .reserve_for
-                        .saturating_add(reimbursement.duration())
-                        .into(),
-                )
-                .saturating_add(amount);
+            let reimbursement_amount = self.cost_for_reservation(amount, reimbursement.duration());
             self.context
                 .gas_counter
                 .increase(reimbursement_amount, reimbursement)
                 .then_some(())
                 .unwrap_or_else(|| {
-                    unreachable!(
+                    let err_msg = format!(
                         "Ext::unreserve_gas: failed to reimburse unreserved gas to left counter. \
-                    Current gas amount - {}, reimburse amount - {}",
+                        Current gas amount - {}, reimburse amount - {}",
                         current_gas_amount.left(),
                         amount,
-                    )
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
                 });
         }
 
@@ -2282,23 +2276,35 @@ mod tests {
                 .build(),
         );
 
-        // Reserving and unreserving immediately
+        // Define params
         let reservation_amount = 1_000_000;
         let duration = 10;
         let duration_cost = costs
             .rent
             .reservation
             .cost_for(ext.context.reserve_for.saturating_add(duration).into());
+        let reservation_total_cost = reservation_amount + duration_cost;
+
+        let gas_before_reservation = ext.gas_amount();
+        assert_eq!(gas_before_reservation.left(), u64::MAX);
+
         let id = ext
             .reserve_gas(reservation_amount, duration)
             .expect("internal error: failed reservation");
-        let gas_before = ext.gas_amount();
-        assert!(ext.unreserve_gas(id).is_ok());
-        let gas_after = ext.gas_amount();
 
+        let gas_after_reservation = ext.gas_amount();
         assert_eq!(
-            gas_after.left(),
-            gas_before.left() + reservation_amount + duration_cost
+            gas_before_reservation.left(),
+            gas_after_reservation.left() + reservation_total_cost
         );
+
+        assert!(ext.unreserve_gas(id).is_ok());
+
+        let gas_after_unreserve = ext.gas_amount();
+        assert_eq!(
+            gas_after_unreserve.left(),
+            gas_after_reservation.left() + reservation_total_cost
+        );
+        assert_eq!(gas_after_unreserve.left(), gas_before_reservation.left());
     }
 }
