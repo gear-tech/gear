@@ -103,6 +103,8 @@ interface IMirror {
 
     function executableBalanceBurned(uint128 value) external;
 
+    function createDecoder(address implementation, bytes32 salt) external;
+
     // TODO (breathx): consider removal of this in favor of separated creation and init.
     function initMessage(address source, bytes calldata payload, uint128 value, uint128 executableBalance) external;
 }
