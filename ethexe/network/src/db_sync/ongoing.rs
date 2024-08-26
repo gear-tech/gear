@@ -67,6 +67,7 @@ pub(crate) enum PeerFailed {
 #[derive(Debug)]
 pub(crate) struct OngoingRequest {
     request_id: RequestId,
+    original_request: Request,
     request: Request,
     response: Option<Response>,
     tried_peers: HashSet<PeerId>,
@@ -77,6 +78,7 @@ impl OngoingRequest {
     pub(crate) fn new(request_id: RequestId, request: Request, timeout: Duration) -> Self {
         Self {
             request_id,
+            original_request: request.clone(),
             request,
             response: None,
             tried_peers: HashSet::new(),
@@ -84,21 +86,32 @@ impl OngoingRequest {
         }
     }
 
-    fn merge_response(&mut self, new_response: Response) -> Response {
-        if let Some(response) = self.response.take() {
-            response.merge(new_response)
+    fn inner_complete(&mut self, peer: PeerId, new_response: Response) -> Response {
+        let mut response = if let Some(mut response) = self.response.take() {
+            response.merge(new_response);
+            response
         } else {
             new_response
+        };
+
+        if response.strip(&self.original_request) {
+            // TODO: tell scoring system there was excessive data
+            log::debug!(
+                "data stripped in response from {peer} for {:?}",
+                self.request_id
+            );
         }
+
+        response
     }
 
     /// Try to bring the request to the complete state.
     ///
-    /// Returns error if response validation is failed or response is incomplete.
+    /// Returns `Err(self)` if response validation is failed or response is incomplete.
     fn try_complete(mut self, peer: PeerId, response: Response) -> Result<Response, Self> {
         self.tried_peers.insert(peer);
 
-        if let Err(error) = self.request.validate_response(&response) {
+        if let Err(error) = response.validate(&self.request) {
             let request_id = self.request_id;
             log::trace!(
                 "response validation failed for request {request_id:?} from {peer}: {error:?}",
@@ -106,10 +119,10 @@ impl OngoingRequest {
             Err(self)
         } else if let Some(new_request) = self.request.difference(&response) {
             self.request = new_request;
-            self.response = Some(self.merge_response(response));
+            self.response = Some(self.inner_complete(peer, response));
             Err(self)
         } else {
-            let response = self.merge_response(response);
+            let response = self.inner_complete(peer, response);
             Ok(response)
         }
     }
