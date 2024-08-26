@@ -455,7 +455,7 @@ impl ExtManager {
 
         let message_id = dispatch.id();
 
-        let start_bn = self.blocks_manager.get().height;
+        let start_bn = self.block_height();
         let delay_interval = Interval {
             start: start_bn,
             finish: interval_finish,
@@ -473,7 +473,7 @@ impl ExtManager {
             ScheduledTask::SendDispatch(message_id)
         };
 
-        let task_bn = self.blocks_manager.get().height.saturating_add(delay);
+        let task_bn = self.block_height().saturating_add(delay);
 
         self.task_pool.add(task_bn, task).unwrap_or_else(|e| {
             let err_msg = format!(
@@ -518,6 +518,7 @@ impl ExtManager {
         let message_id = message.id();
         let from = message.source();
         let to = message.destination();
+        let value = message.value();
 
         let stored_message = message.into_stored();
         let message: UserMessage = stored_message.clone().try_into().unwrap_or_else(|_| {
@@ -755,7 +756,7 @@ impl ExtManager {
     /// Check if the current block number should trigger new epoch and reset
     /// the provided random data.
     pub(crate) fn check_epoch(&mut self) {
-        let block_height = self.blocks_manager.get().height;
+        let block_height = self.block_height();
         if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
                 INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64,
@@ -814,7 +815,7 @@ impl ExtManager {
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
         self.gas_allowance = allowance;
         self.blocks_manager.next_block();
-        let new_block_bn = self.blocks_manager.get().height;
+        let new_block_bn = self.block_height();
 
         self.process_tasks(new_block_bn);
         let total_processed = self.process_messages();
@@ -1382,7 +1383,7 @@ impl ExtManager {
         storage_type: StorageType,
     ) {
         let id: MessageId = id.cast();
-        let current = self.blocks_manager.get().height;
+        let current = self.block_height();
 
         // Deadline of the task.
         let deadline = hold_interval.finish.saturating_add(RESERVE_FOR);

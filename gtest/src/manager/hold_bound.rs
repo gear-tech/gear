@@ -27,8 +27,7 @@ impl HoldBound {
     }
 
     pub fn expected_duration(&self, manager: &ExtManager) -> BlockNumber {
-        self.expected
-            .saturating_sub(manager.blocks_manager.get().height)
+        self.expected.saturating_sub(manager.block_height())
     }
 
     pub fn deadline(&self) -> BlockNumber {
@@ -36,14 +35,11 @@ impl HoldBound {
     }
 
     pub fn deadline_duration(&self, manager: &ExtManager) -> BlockNumber {
-        self.deadline()
-            .saturating_sub(manager.blocks_manager.get().height)
+        self.deadline().saturating_sub(manager.block_height())
     }
 
     pub fn lock_amount(&self, manager: &ExtManager) -> u64 {
-        let duration: u64 = self
-            .deadline_duration(manager)
-            .into();
+        let duration: u64 = self.deadline_duration(manager).into();
         duration.saturating_mul(self.cost())
     }
 }
