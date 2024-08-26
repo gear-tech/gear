@@ -21,7 +21,7 @@
 mod digest;
 mod signature;
 
-pub use digest::{AsDigest, Digest};
+pub use digest::{Digest, ToDigest};
 pub use signature::Signature;
 
 use anyhow::{anyhow, Result};
@@ -182,7 +182,7 @@ impl Signer {
     }
 
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
-        self.sign_digest(public_key, data.as_digest())
+        self.sign_digest(public_key, data.to_digest())
     }
 
     pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {

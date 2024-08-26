@@ -112,7 +112,7 @@ impl NetworkService {
 
 #[derive(Debug)]
 enum NetworkSenderEvent {
-    Message { data: Vec<u8> },
+    PublishMessage { data: Vec<u8> },
 }
 
 /// Communication with [`NetworkEventLoop`]
@@ -125,7 +125,7 @@ impl NetworkSender {
     pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
-            .send(NetworkSenderEvent::Message { data: data.into() });
+            .send(NetworkSenderEvent::PublishMessage { data: data.into() });
     }
 }
 
@@ -378,7 +378,7 @@ impl NetworkEventLoop {
 
     fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
         match event {
-            NetworkSenderEvent::Message { data } => {
+            NetworkSenderEvent::PublishMessage { data } => {
                 if let Err(e) = self
                     .swarm
                     .behaviour_mut()

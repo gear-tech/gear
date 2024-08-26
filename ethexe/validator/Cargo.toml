@@ -22,5 +22,5 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 
 static_init = "1.0.3"
 
-#[dev-dependencies]
+[dev-dependencies]
 ethexe-db.workspace = true

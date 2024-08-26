@@ -56,49 +56,55 @@ impl fmt::Display for Digest {
     }
 }
 
-/// Trait for hashing types into a Digest using Keccak256.
-pub trait AsDigest {
-    fn as_digest(&self) -> Digest;
+impl<T: ToDigest> FromIterator<T> for Digest {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        iter.into_iter().collect::<Vec<T>>().to_digest()
+    }
 }
 
-impl AsDigest for Digest {
-    fn as_digest(&self) -> Digest {
+/// Trait for hashing types into a Digest using Keccak256.
+pub trait ToDigest {
+    fn to_digest(&self) -> Digest;
+}
+
+impl ToDigest for Digest {
+    fn to_digest(&self) -> Digest {
         *self
     }
 }
 
-impl<T: AsDigest> AsDigest for [T] {
-    fn as_digest(&self) -> Digest {
+impl<T: ToDigest> ToDigest for [T] {
+    fn to_digest(&self) -> Digest {
         let mut message = Vec::with_capacity(self.len() * size_of::<Digest>());
 
         for item in self.iter() {
-            message.extend_from_slice(item.as_digest().as_ref());
+            message.extend_from_slice(item.to_digest().as_ref());
         }
 
-        message.as_digest()
+        message.to_digest()
     }
 }
 
-impl<T: AsDigest> AsDigest for Vec<T> {
-    fn as_digest(&self) -> Digest {
-        self.as_slice().as_digest()
+impl<T: ToDigest> ToDigest for Vec<T> {
+    fn to_digest(&self) -> Digest {
+        self.as_slice().to_digest()
     }
 }
 
-impl AsDigest for [u8] {
-    fn as_digest(&self) -> Digest {
+impl ToDigest for [u8] {
+    fn to_digest(&self) -> Digest {
         Digest(sha3::Keccak256::digest(self).into())
     }
 }
 
-impl AsDigest for CodeCommitment {
-    fn as_digest(&self) -> Digest {
-        self.encode().as_digest()
+impl ToDigest for CodeCommitment {
+    fn to_digest(&self) -> Digest {
+        self.encode().to_digest()
     }
 }
 
-impl AsDigest for StateTransition {
-    fn as_digest(&self) -> Digest {
+impl ToDigest for StateTransition {
+    fn to_digest(&self) -> Digest {
         // State transition basic fields.
 
         let state_transition_size = // concat of fields:
@@ -144,20 +150,20 @@ impl AsDigest for StateTransition {
             value_claims_bytes.extend_from_slice(value.to_be_bytes().as_slice())
         }
 
-        let value_claims_digest = value_claims_bytes.as_digest();
+        let value_claims_digest = value_claims_bytes.to_digest();
         state_transition_bytes.extend_from_slice(value_claims_digest.as_ref());
 
         // Messages field.
 
-        let messages_digest = self.messages.as_digest();
+        let messages_digest = self.messages.to_digest();
         state_transition_bytes.extend_from_slice(messages_digest.as_ref());
 
-        state_transition_bytes.as_digest()
+        state_transition_bytes.to_digest()
     }
 }
 
-impl AsDigest for OutgoingMessage {
-    fn as_digest(&self) -> Digest {
+impl ToDigest for OutgoingMessage {
+    fn to_digest(&self) -> Digest {
         let message_size = // concat of fields:
             // id
             size_of::<MessageId>()
@@ -186,12 +192,12 @@ impl AsDigest for OutgoingMessage {
         message.extend_from_slice(reply_details_to.as_ref());
         message.extend_from_slice(reply_details_code.to_bytes().as_slice());
 
-        message.as_digest()
+        message.to_digest()
     }
 }
 
-impl AsDigest for BlockCommitment {
-    fn as_digest(&self) -> Digest {
+impl ToDigest for BlockCommitment {
+    fn to_digest(&self) -> Digest {
         let block_commitment_size = // concat of fields:
             // blockHash
             size_of::<H256>()
@@ -207,9 +213,9 @@ impl AsDigest for BlockCommitment {
         block_commitment_bytes.extend_from_slice(self.block_hash.as_bytes());
         block_commitment_bytes.extend_from_slice(self.prev_commitment_hash.as_bytes());
         block_commitment_bytes.extend_from_slice(self.pred_block_hash.as_bytes());
-        block_commitment_bytes.extend_from_slice(self.transitions.as_digest().as_ref());
+        block_commitment_bytes.extend_from_slice(self.transitions.to_digest().as_ref());
 
-        block_commitment_bytes.as_digest()
+        block_commitment_bytes.to_digest()
     }
 }
 
@@ -225,7 +231,7 @@ mod tests {
             id: CodeId::from(0),
             valid: true,
         }
-        .as_digest();
+        .to_digest();
 
         let state_transition = StateTransition {
             actor_id: ActorId::from(0),
@@ -240,7 +246,7 @@ mod tests {
                 reply_details: None,
             }],
         };
-        let _digest = state_transition.as_digest();
+        let _digest = state_transition.to_digest();
 
         let transitions = vec![state_transition.clone(), state_transition];
 
@@ -250,6 +256,6 @@ mod tests {
             prev_commitment_hash: H256::from([2; 32]),
             transitions: transitions.clone(),
         };
-        let _digest = block_commitment.as_digest();
+        let _digest = block_commitment.to_digest();
     }
 }

@@ -22,7 +22,7 @@ use ethexe_common::{
     router::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
-use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::ops::Not;
@@ -52,13 +52,13 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
             block_hash: commitment.block_hash,
             prev_commitment_hash: commitment.prev_commitment_hash,
             pred_block_hash: commitment.pred_block_hash,
-            transitions_digest: commitment.transitions.as_digest(),
+            transitions_digest: commitment.transitions.to_digest(),
         }
     }
 }
 
-impl AsDigest for BlockCommitmentValidationRequest {
-    fn as_digest(&self) -> Digest {
+impl ToDigest for BlockCommitmentValidationRequest {
+    fn to_digest(&self) -> Digest {
         let mut message = Vec::with_capacity(3 * size_of::<H256>() + size_of::<Digest>());
 
         message.extend_from_slice(self.block_hash.as_bytes());
@@ -66,7 +66,7 @@ impl AsDigest for BlockCommitmentValidationRequest {
         message.extend_from_slice(self.pred_block_hash.as_bytes());
         message.extend_from_slice(self.transitions_digest.as_ref());
 
-        message.as_digest()
+        message.to_digest()
     }
 }
 
@@ -87,7 +87,7 @@ impl Validator {
         self.pub_key.to_address()
     }
 
-    pub fn aggregate<C: AsDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
+    pub fn aggregate<C: ToDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
         AggregatedCommitments::aggregate_commitments(
             commitments,
             &self.signer,
@@ -102,12 +102,12 @@ impl Validator {
         requests: impl IntoIterator<Item = CodeCommitment>,
     ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
-        for request in requests.into_iter() {
-            commitment_digests.push(request.as_digest());
+        for request in requests {
+            commitment_digests.push(request.to_digest());
             Self::validate_code_commitment(db, request)?;
         }
 
-        let commitments_digest = commitment_digests.as_digest();
+        let commitments_digest = commitment_digests.to_digest();
         agro::sign_commitments_digest(
             commitments_digest,
             &self.signer,
@@ -124,11 +124,11 @@ impl Validator {
     ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
         for request in requests.into_iter() {
-            commitment_digests.push(request.as_digest());
+            commitment_digests.push(request.to_digest());
             Self::validate_block_commitment(db, request)?;
         }
 
-        let commitments_digest = commitment_digests.as_digest();
+        let commitments_digest = commitment_digests.to_digest();
         agro::sign_commitments_digest(
             commitments_digest,
             &self.signer,
@@ -177,9 +177,8 @@ impl Validator {
             .block_outcome(block_hash)
             .ok_or(anyhow!("Cannot get from db outcome for block {block_hash}"))?
             .iter()
-            .map(AsDigest::as_digest)
-            .collect::<Vec<_>>()
-            .as_digest()
+            .map(ToDigest::to_digest)
+            .collect::<Digest>()
             .ne(&transitions_digest)
         {
             return Err(anyhow!("Requested and local transitions digest mismatch"));
@@ -275,8 +274,8 @@ mod tests {
         };
 
         assert_eq!(
-            commitment.as_digest(),
-            BlockCommitmentValidationRequest::from(&commitment).as_digest()
+            commitment.to_digest(),
+            BlockCommitmentValidationRequest::from(&commitment).to_digest()
         );
     }
 
@@ -323,7 +322,7 @@ mod tests {
         let pred_block_hash = H256::random();
         let prev_commitment_hash = H256::random();
         let transitions = vec![];
-        let transitions_digest = transitions.as_digest();
+        let transitions_digest = transitions.to_digest();
 
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);

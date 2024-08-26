@@ -25,7 +25,7 @@ use anyhow::{anyhow, Result};
 use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::Event;
-use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
@@ -328,7 +328,7 @@ impl Sequencer {
         )
     }
 
-    fn process_multisigned_candidate<C: AsDigest>(
+    fn process_multisigned_candidate<C: ToDigest>(
         candidate: &mut Option<MultisignedCommitmentDigests>,
         commitments: &mut CommitmentsMap<C>,
         threshold: u64,
@@ -397,7 +397,7 @@ impl Sequencer {
         Ok(())
     }
 
-    fn receive_commitments<C: AsDigest>(
+    fn receive_commitments<C: ToDigest>(
         aggregated: AggregatedCommitments<C>,
         validators: &HashSet<Address>,
         router_address: Address,
@@ -411,7 +411,7 @@ impl Sequencer {
 
         for commitment in aggregated.commitments {
             commitments_storage
-                .entry(commitment.as_digest())
+                .entry(commitment.to_digest())
                 .or_insert_with(|| CommitmentAndOrigins {
                     commitment,
                     origins: Default::default(),
@@ -466,9 +466,9 @@ mod tests {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct TestComm([u8; 2]);
 
-    impl AsDigest for TestComm {
-        fn as_digest(&self) -> Digest {
-            self.0.as_digest()
+    impl ToDigest for TestComm {
+        fn to_digest(&self) -> Digest {
+            self.0.to_digest()
         }
     }
 
@@ -490,7 +490,7 @@ mod tests {
         let validator1 = validator1_pub_key.to_address();
 
         let commitments = [TestComm([0, 1]), TestComm([2, 3])];
-        let commitments_digest = commitments.as_digest();
+        let commitments_digest = commitments.to_digest();
         let signature = agro::sign_commitments_digest(
             commitments_digest,
             &signer,
@@ -509,7 +509,7 @@ mod tests {
         .expect_err("No candidate is provided");
 
         let mut signatures: BTreeMap<_, _> = Default::default();
-        let digests: Vec<_> = commitments.iter().map(AsDigest::as_digest).collect();
+        let digests: Vec<_> = commitments.iter().map(ToDigest::to_digest).collect();
         let mut candidate = MultisignedCommitmentDigests::new(digests.clone()).unwrap();
 
         Sequencer::receive_signature(
@@ -624,14 +624,14 @@ mod tests {
         .unwrap();
 
         expected_commitments_storage.insert(
-            commitments[0].as_digest(),
+            commitments[0].to_digest(),
             CommitmentAndOrigins {
                 commitment: commitments[0],
                 origins: [validator1].iter().cloned().collect(),
             },
         );
         expected_commitments_storage.insert(
-            commitments[1].as_digest(),
+            commitments[1].to_digest(),
             CommitmentAndOrigins {
                 commitment: commitments[1],
                 origins: [validator1].iter().cloned().collect(),
@@ -660,12 +660,12 @@ mod tests {
         .unwrap();
 
         expected_commitments_storage
-            .get_mut(&commitments[0].as_digest())
+            .get_mut(&commitments[0].to_digest())
             .unwrap()
             .origins
             .insert(validator2);
         expected_commitments_storage
-            .get_mut(&commitments[1].as_digest())
+            .get_mut(&commitments[1].to_digest())
             .unwrap()
             .origins
             .insert(validator2);
@@ -702,7 +702,7 @@ mod tests {
         assert!(candidate.is_none());
 
         commitments.insert(
-            commitment1.as_digest(),
+            commitment1.to_digest(),
             CommitmentAndOrigins {
                 commitment: commitment1.clone(),
                 origins: Default::default(),
@@ -715,22 +715,22 @@ mod tests {
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, 0)
                 .expect("Must have candidate");
-        assert_eq!(candidate.digests(), [commitment1.as_digest()].as_slice());
+        assert_eq!(candidate.digests(), [commitment1.to_digest()].as_slice());
 
         commitments
-            .get_mut(&commitment1.as_digest())
+            .get_mut(&commitment1.to_digest())
             .unwrap()
             .origins
             .extend([Address([1; 20]), Address([2; 20])]);
         commitments.insert(
-            commitment2.as_digest(),
+            commitment2.to_digest(),
             CommitmentAndOrigins {
                 commitment: commitment2.clone(),
                 origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
             },
         );
         commitments.insert(
-            commitment3.as_digest(),
+            commitment3.to_digest(),
             CommitmentAndOrigins {
                 commitment: commitment3.clone(),
                 origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
@@ -740,18 +740,18 @@ mod tests {
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, threshold)
                 .expect("Must have candidate");
-        assert_eq!(candidate.digests(), [commitment1.as_digest()].as_slice());
+        assert_eq!(candidate.digests(), [commitment1.to_digest()].as_slice());
 
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment2.block_hash, threshold)
                 .expect("Must have candidate");
-        let expected_digests = [commitment1.as_digest(), commitment2.as_digest()];
+        let expected_digests = [commitment1.to_digest(), commitment2.to_digest()];
         assert_eq!(candidate.digests(), expected_digests.as_slice());
 
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment3.block_hash, threshold)
                 .expect("Must have candidate");
-        let expected_digests = [commitment1.as_digest(), commitment3.as_digest()];
+        let expected_digests = [commitment1.to_digest(), commitment3.to_digest()];
         assert_eq!(candidate.digests(), expected_digests.as_slice());
     }
 
@@ -778,7 +778,7 @@ mod tests {
         assert!(candidate.is_none());
 
         commitments.insert(
-            commitment1.as_digest(),
+            commitment1.to_digest(),
             CommitmentAndOrigins {
                 commitment: commitment1.clone(),
                 origins: Default::default(),
@@ -788,7 +788,7 @@ mod tests {
         assert!(candidate.is_none());
 
         commitments
-            .get_mut(&commitment1.as_digest())
+            .get_mut(&commitment1.to_digest())
             .unwrap()
             .origins
             .insert(Address([1; 20]));
@@ -796,17 +796,17 @@ mod tests {
         assert!(candidate.is_none());
 
         commitments
-            .get_mut(&commitment1.as_digest())
+            .get_mut(&commitment1.to_digest())
             .unwrap()
             .origins
             .insert(Address([2; 20]));
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold)
             .expect("Must have candidate");
-        assert_eq!(candidate.digests(), [commitment1.as_digest()].as_slice());
+        assert_eq!(candidate.digests(), [commitment1.to_digest()].as_slice());
         assert!(candidate.signatures().is_empty());
 
         commitments.insert(
-            commitment2.as_digest(),
+            commitment2.to_digest(),
             CommitmentAndOrigins {
                 commitment: commitment2.clone(),
                 origins: [Address([3; 20]), Address([4; 20])]
@@ -817,13 +817,13 @@ mod tests {
         );
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold)
             .expect("Must have candidate");
-        let mut expected_digests = [commitment1.as_digest(), commitment2.as_digest()];
+        let mut expected_digests = [commitment1.to_digest(), commitment2.to_digest()];
         expected_digests.sort();
         assert_eq!(candidate.digests(), expected_digests.as_slice());
         assert!(candidate.signatures().is_empty());
 
         commitments.insert(
-            commitment3.as_digest(),
+            commitment3.to_digest(),
             CommitmentAndOrigins {
                 commitment: commitment3,
                 origins: [Address([5; 20])].iter().cloned().collect(),
@@ -862,7 +862,7 @@ mod tests {
 
         // Test not enough signatures
         let mut candidate =
-            Some(MultisignedCommitmentDigests::new(vec![b"gear".as_digest()]).unwrap());
+            Some(MultisignedCommitmentDigests::new(vec![b"gear".to_digest()]).unwrap());
         assert!(Sequencer::process_multisigned_candidate(
             &mut candidate,
             &mut CommitmentsMap::<TestComm>::new(),
@@ -882,7 +882,7 @@ mod tests {
             .iter()
             .map(|commitment| {
                 (
-                    commitment.as_digest(),
+                    commitment.to_digest(),
                     CommitmentAndOrigins {
                         commitment: *commitment,
                         origins: origins.clone(),
@@ -892,12 +892,12 @@ mod tests {
             .collect();
 
         let mut candidate =
-            MultisignedCommitmentDigests::new(commitments.iter().map(|c| c.as_digest()).collect())
+            MultisignedCommitmentDigests::new(commitments.iter().map(|c| c.to_digest()).collect())
                 .unwrap();
 
         let router_address = Address([1; 20]);
         validators_pub_keys.iter().for_each(|pub_key| {
-            let commitments_digest = commitments.to_vec().as_digest();
+            let commitments_digest = commitments.to_vec().to_digest();
             candidate
                 .append_signature_with_check(
                     commitments_digest,
