@@ -16,68 +16,65 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::IMirror;
-use alloy::{rpc::types::eth::Log, sol_types::SolEvent};
+use crate::{decode_log, IMirror};
+use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::Result;
 use ethexe_common::mirror;
-use gprimitives::H256;
+use signatures::*;
 
 pub mod signatures {
-    use super::{IMirror, SolEvent, H256};
+    use super::*;
 
-    pub const EXECUTABLE_BALANCE_TOP_UP_REQUESTED: H256 =
-        H256(IMirror::ExecutableBalanceTopUpRequested::SIGNATURE_HASH.0);
-    pub const MESSAGE_QUEUEING_REQUESTED: H256 =
-        H256(IMirror::MessageQueueingRequested::SIGNATURE_HASH.0);
-    pub const MESSAGE: H256 = H256(IMirror::Message::SIGNATURE_HASH.0);
-    pub const REPLY_QUEUEING_REQUESTED: H256 =
-        H256(IMirror::ReplyQueueingRequested::SIGNATURE_HASH.0);
-    pub const REPLY: H256 = H256(IMirror::Reply::SIGNATURE_HASH.0);
-    pub const STATE_CHANGED: H256 = H256(IMirror::StateChanged::SIGNATURE_HASH.0);
-    pub const VALUE_CLAIMED: H256 = H256(IMirror::ValueClaimed::SIGNATURE_HASH.0);
-    pub const VALUE_CLAIMING_REQUESTED: H256 =
-        H256(IMirror::ValueClaimingRequested::SIGNATURE_HASH.0);
+    crate::signatures_consts! {
+        IMirror;
+        EXECUTABLE_BALANCE_TOP_UP_REQUESTED: ExecutableBalanceTopUpRequested,
+        MESSAGE_QUEUEING_REQUESTED: MessageQueueingRequested,
+        MESSAGE: Message,
+        REPLY_QUEUEING_REQUESTED: ReplyQueueingRequested,
+        REPLY: Reply,
+        STATE_CHANGED: StateChanged,
+        VALUE_CLAIMED: ValueClaimed,
+        VALUE_CLAIMING_REQUESTED: ValueClaimingRequested,
+    }
 
-    pub const ALL: [H256; 8] = [
+    pub const FOR_HANDLING: &[B256] = &[
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED,
         MESSAGE_QUEUEING_REQUESTED,
-        MESSAGE,
         REPLY_QUEUEING_REQUESTED,
-        REPLY,
-        STATE_CHANGED,
-        VALUE_CLAIMED,
         VALUE_CLAIMING_REQUESTED,
     ];
 }
 
 pub fn try_extract_event(log: &Log) -> Result<Option<mirror::Event>> {
-    use crate::decode_log;
-    use signatures::*;
-
-    let Some(topic0) = log.topic0().map(|v| H256(v.0)) else {
+    let Some(topic0) = log.topic0().filter(|&v| ALL.contains(v)) else {
         return Ok(None);
     };
 
-    // TODO (breathx): pattern matching issue for primitive_types::H256... ????
-    let event = match topic0 {
-        b if b == EXECUTABLE_BALANCE_TOP_UP_REQUESTED => {
+    let event = match *topic0 {
+        EXECUTABLE_BALANCE_TOP_UP_REQUESTED => {
             decode_log::<IMirror::ExecutableBalanceTopUpRequested>(log)?.into()
         }
-        b if b == MESSAGE_QUEUEING_REQUESTED => {
-            decode_log::<IMirror::MessageQueueingRequested>(log)?.into()
-        }
-        b if b == MESSAGE => decode_log::<IMirror::Message>(log)?.into(),
-        b if b == REPLY_QUEUEING_REQUESTED => {
-            decode_log::<IMirror::ReplyQueueingRequested>(log)?.into()
-        }
-        b if b == REPLY => decode_log::<IMirror::Reply>(log)?.into(),
-        b if b == STATE_CHANGED => decode_log::<IMirror::StateChanged>(log)?.into(),
-        b if b == VALUE_CLAIMED => decode_log::<IMirror::ValueClaimed>(log)?.into(),
-        b if b == VALUE_CLAIMING_REQUESTED => {
-            decode_log::<IMirror::ValueClaimingRequested>(log)?.into()
-        }
-        _ => return Ok(None),
+        MESSAGE_QUEUEING_REQUESTED => decode_log::<IMirror::MessageQueueingRequested>(log)?.into(),
+        MESSAGE => decode_log::<IMirror::Message>(log)?.into(),
+        REPLY_QUEUEING_REQUESTED => decode_log::<IMirror::ReplyQueueingRequested>(log)?.into(),
+        REPLY => decode_log::<IMirror::Reply>(log)?.into(),
+        STATE_CHANGED => decode_log::<IMirror::StateChanged>(log)?.into(),
+        VALUE_CLAIMED => decode_log::<IMirror::ValueClaimed>(log)?.into(),
+        VALUE_CLAIMING_REQUESTED => decode_log::<IMirror::ValueClaimingRequested>(log)?.into(),
+        _ => unreachable!("filtered above"),
     };
 
     Ok(Some(event))
+}
+
+pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<mirror::EventForHandling>> {
+    if log.topic0().filter(|&v| FOR_HANDLING.contains(v)).is_none() {
+        return Ok(None);
+    }
+
+    let event_for_handling = try_extract_event(log)?
+        .and_then(|v| v.as_for_handling())
+        .expect("filtered above");
+
+    Ok(Some(event_for_handling))
 }

@@ -35,13 +35,36 @@ pub enum Event {
     },
 }
 
+impl Event {
+    pub fn as_for_handling(self) -> Option<EventForHandling> {
+        Some(match self {
+            Self::Transfer { from, to, value } => EventForHandling::Transfer { from, to, value },
+            Self::Approval { .. } => return None,
+        })
+    }
+}
+
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum EventForHandling {
     Transfer {
-        /// Never router or zero address.
+        /// Never router, wvara or zero address.
         from: ActorId,
-        /// Never router or zero address.
+        /// Never router, wvara or zero address.
         to: ActorId,
         value: u128,
     },
+}
+
+impl EventForHandling {
+    pub fn involves_address(&self, address: &ActorId) -> bool {
+        match self {
+            Self::Transfer { from, to, .. } => from == address || to == address,
+        }
+    }
+
+    pub fn involves_addresses(&self, addresses: &[ActorId]) -> bool {
+        match self {
+            Self::Transfer { from, to, .. } => addresses.contains(from) || addresses.contains(to),
+        }
+    }
 }

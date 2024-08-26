@@ -102,6 +102,32 @@ pub enum Event {
     },
 }
 
+impl Event {
+    pub fn as_for_handling(self) -> Option<EventForHandling> {
+        Some(match self {
+            Self::BaseWeightChanged { base_weight } => {
+                EventForHandling::BaseWeightChanged { base_weight }
+            }
+            Self::CodeValidationRequested {
+                code_id,
+                blob_tx_hash,
+            } => EventForHandling::CodeValidationRequested {
+                code_id,
+                blob_tx_hash,
+            },
+            Self::ProgramCreated { actor_id, code_id } => {
+                EventForHandling::ProgramCreated { actor_id, code_id }
+            }
+            Self::StorageSlotChanged => EventForHandling::StorageSlotChanged,
+            Self::ValidatorsSetChanged => EventForHandling::ValidatorsSetChanged,
+            Self::ValuePerWeightChanged { value_per_weight } => {
+                EventForHandling::ValuePerWeightChanged { value_per_weight }
+            }
+            Self::BlockCommitted { .. } | Self::CodeGotValidated { .. } => return None,
+        })
+    }
+}
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum EventForHandling {
     BaseWeightChanged {

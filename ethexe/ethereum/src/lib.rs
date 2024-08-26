@@ -65,10 +65,6 @@ pub(crate) type ExeFiller = JoinFill<
     WalletFiller<EthereumWallet>,
 >;
 
-pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
-    E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
-}
-
 pub struct Ethereum {
     router_address: Address,
     wvara_address: Address,
@@ -321,3 +317,22 @@ impl SignerSync for Sender {
         self.chain_id
     }
 }
+
+pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
+    E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
+}
+
+macro_rules! signatures_consts {
+    (
+        $type_name:ident;
+        $( $const_name:ident: $name:ident, )*
+    ) => {
+        $(
+            pub const $const_name: alloy::primitives::B256 = $type_name::$name::SIGNATURE_HASH;
+        )*
+
+        pub const ALL: &[alloy::primitives::B256] = &[$($const_name,)*];
+    };
+}
+
+pub(crate) use signatures_consts;

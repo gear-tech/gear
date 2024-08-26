@@ -6,7 +6,7 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::{router::Event as RouterEvent, BlockEvent};
+use ethexe_common::{router::Event as RouterEvent, BlockEvent, BlockEventForHandling};
 use ethexe_ethereum::{
     mirror,
     router::{self, RouterQuery},
@@ -15,7 +15,7 @@ use ethexe_ethereum::{
 use ethexe_signer::Address;
 use futures::{future, stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::watch;
 
@@ -232,9 +232,9 @@ async fn read_events_impl(
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     let router_and_wvara_topic = Topic::from_iter(
         router::events::signatures::ALL
-            .into_iter()
+            .iter()
             .chain(wvara::events::signatures::ALL)
-            .map(|v| v.to_fixed_bytes().into()),
+            .cloned(),
     );
 
     let router_and_wvara_filter = filter
@@ -243,7 +243,7 @@ async fn read_events_impl(
         .event_signature(router_and_wvara_topic);
 
     let mirror_filter = filter.event_signature(Topic::from_iter(
-        mirror::events::signatures::ALL.map(|v| v.to_fixed_bytes().into()),
+        mirror::events::signatures::ALL.iter().cloned(),
     ));
 
     let (router_and_wvara_logs, mirrors_logs) = future::try_join(
@@ -285,6 +285,132 @@ async fn read_events_impl(
             res.entry(block_hash)
                 .or_default()
                 .push(BlockEvent::mirror(address, event));
+        }
+    }
+
+    Ok(res)
+}
+
+// TODO (breathx): only read events that require some activity.
+// TODO (breathx): don't store not our events.
+pub(crate) async fn read_block_events_for_handling(
+    block_hash: H256,
+    provider: &ObserverProvider,
+    router_address: AlloyAddress,
+) -> Result<Vec<BlockEventForHandling>> {
+    let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
+    let wvara_address = router_query.wvara_address().await?;
+
+    let filter = Filter::new().at_block_hash(block_hash.to_fixed_bytes());
+
+    read_events_for_handling_impl(router_address, wvara_address, provider, filter)
+        .await
+        .map(|v| v.into_values().next().unwrap_or_default())
+}
+
+pub(crate) async fn read_block_events_for_handling_batch(
+    from_block: u32,
+    to_block: u32,
+    provider: &ObserverProvider,
+    router_address: AlloyAddress,
+) -> Result<HashMap<H256, Vec<BlockEventForHandling>>> {
+    let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
+    let wvara_address = router_query.wvara_address().await?;
+
+    let mut res = HashMap::new();
+
+    let mut start_block = from_block as u64;
+    let to_block = to_block as u64;
+
+    while start_block <= to_block {
+        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE - 1);
+
+        let filter = Filter::new().from_block(start_block).to_block(end_block);
+
+        let iter_res =
+            read_events_for_handling_impl(router_address, wvara_address, provider, filter).await?;
+
+        res.extend(iter_res.into_iter());
+
+        start_block = end_block + 1;
+    }
+
+    Ok(res)
+}
+
+async fn read_events_for_handling_impl(
+    router_address: AlloyAddress,
+    wvara_address: AlloyAddress,
+    provider: &ObserverProvider,
+    filter: Filter,
+) -> Result<HashMap<H256, Vec<BlockEventForHandling>>> {
+    let router_and_wvara_topic = Topic::from_iter(
+        router::events::signatures::FOR_HANDLING
+            .iter()
+            .chain(wvara::events::signatures::FOR_HANDLING)
+            .cloned(),
+    );
+
+    let router_and_wvara_filter = filter
+        .clone()
+        .address(vec![router_address, wvara_address])
+        .event_signature(router_and_wvara_topic);
+
+    let mirror_filter = filter.event_signature(Topic::from_iter(
+        mirror::events::signatures::FOR_HANDLING.iter().cloned(),
+    ));
+
+    let (router_and_wvara_logs, mirrors_logs) = future::try_join(
+        provider.get_logs(&router_and_wvara_filter),
+        provider.get_logs(&mirror_filter),
+    )
+    .await?;
+
+    let block_hash_of = |log: &alloy::rpc::types::Log| -> Result<H256> {
+        log.block_hash
+            .map(|v| v.0.into())
+            .ok_or(anyhow!("Block hash is missing"))
+    };
+
+    let out_of_scope_addresses = [
+        (*router_address.into_word()).into(),
+        (*wvara_address.into_word()).into(),
+        ActorId::zero(),
+    ];
+
+    let mut res: HashMap<_, Vec<_>> = HashMap::new();
+
+    for router_or_wvara_log in router_and_wvara_logs {
+        let block_hash = block_hash_of(&router_or_wvara_log)?;
+
+        let maybe_block_event_for_handling = if router_or_wvara_log.address() == router_address {
+            router::events::try_extract_event_for_handling(&router_or_wvara_log)?.map(Into::into)
+        } else {
+            wvara::events::try_extract_event_for_handling(&router_or_wvara_log)?
+                .filter(|v| !v.involves_addresses(&out_of_scope_addresses))
+                .map(Into::into)
+        };
+
+        if let Some(block_event_for_handling) = maybe_block_event_for_handling {
+            res.entry(block_hash)
+                .or_default()
+                .push(block_event_for_handling);
+        }
+    }
+
+    for mirror_log in mirrors_logs {
+        let block_hash = block_hash_of(&mirror_log)?;
+
+        let address = (*mirror_log.address().into_word()).into();
+
+        // TODO (breathx): if address is unknown, then continue.
+
+        if let Some(event_for_handling) =
+            mirror::events::try_extract_event_for_handling(&mirror_log)?
+        {
+            res.entry(block_hash)
+                .or_default()
+                .push(BlockEventForHandling::mirror(address, event_for_handling));
         }
     }
 
