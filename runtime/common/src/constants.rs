@@ -42,3 +42,9 @@ pub const RENT_FREE_PERIOD_MONTH_FACTOR: BlockNumber = 6;
 /// The amount of blocks on which tasks of pausing program shifted
 /// in a case of disabled program rent logic, represented as a factor of weeks.
 pub const RENT_DISABLED_DELTA_WEEK_FACTOR: BlockNumber = 1;
+
+/// The percentage of the transaction fee that will go to the treasury
+pub const SPLIT_TX_FEE_PERCENT: u32 = 0;
+
+/// The percentage of the gas fee that will go to the specified destination
+pub const SPLIT_GAS_PERCENT: u32 = 0;

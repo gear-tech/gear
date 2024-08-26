@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::sol;
-use ethexe_common::{mirror, router};
+use alloy::{primitives::U256 as AlloyU256, sol};
+use ethexe_common::{mirror, router, wvara};
 use gear_core::message::ReplyDetails;
 use gear_core_errors::ReplyCode;
+use gprimitives::U256;
 
 sol!(
     #[sol(rpc)]
@@ -51,6 +52,12 @@ sol!(
     IWrappedVara,
     "WrappedVara.json"
 );
+
+pub(crate) fn uint256_to_u128_lossy(value: AlloyU256) -> u128 {
+    let [low, high, ..] = value.into_limbs();
+
+    ((high as u128) << 64) | (low as u128)
+}
 
 /* From common types to alloy */
 
@@ -292,5 +299,33 @@ impl From<IMirror::ValueClaimingRequested> for mirror::Event {
             claimed_id: (*event.claimedId).into(),
             source: (*event.source.into_word()).into(),
         }
+    }
+}
+
+impl From<IWrappedVara::Transfer> for wvara::Event {
+    fn from(event: IWrappedVara::Transfer) -> Self {
+        wvara::Event::Transfer {
+            from: (*event.from.into_word()).into(),
+            to: (*event.to.into_word()).into(),
+            value: uint256_to_u128_lossy(event.value),
+        }
+    }
+}
+
+impl From<IWrappedVara::Approval> for wvara::Event {
+    fn from(event: IWrappedVara::Approval) -> Self {
+        wvara::Event::Approval {
+            owner: (*event.owner.into_word()).into(),
+            spender: (*event.spender.into_word()).into(),
+            value: U256(event.value.into_limbs()),
+        }
+    }
+}
+
+#[test]
+fn cast_is_correct() {
+    for _ in 0..10 {
+        let res: u128 = rand::random();
+        assert_eq!(uint256_to_u128_lossy(AlloyU256::from(res)), res);
     }
 }

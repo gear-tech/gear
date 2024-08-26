@@ -11,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 ethexe-signer.workspace = true
-libp2p = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/tokio-swarm-test", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "quic", "tokio", "macros", "plaintext", "yamux"] }
+libp2p = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/v0.54.1-patches", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "quic", "tokio", "macros", "plaintext", "yamux"] }
 tokio = { workspace = true, features = ["sync"] }
 anyhow.workspace = true
 log.workspace = true
@@ -19,7 +19,7 @@ void = "1.0.2"
 
 [dev-dependencies]
 # newer versions are not supported on crates.io
-libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/tokio-swarm-test", default-features = false, features = ["tokio"] }
+libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/v0.54.1-patches", default-features = false, features = ["tokio"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 env_logger.workspace = true
