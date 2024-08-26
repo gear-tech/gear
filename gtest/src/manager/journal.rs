@@ -23,7 +23,7 @@ use crate::{accounts::Accounts, actors::Actors, Value, EXISTENTIAL_DEPOSIT};
 
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use core_processor::common::{DispatchOutcome, JournalHandler};
-use gear_common::{gas_provider::Imbalance as _, scheduler::ScheduledTask, Origin};
+use gear_common::{scheduler::ScheduledTask, Origin};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -104,22 +104,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        let outcome = self
-            .gas_tree
-            .consume(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
-
-        // Retrieve gas
-        if let Some((imbalance, multiplier, external)) = outcome {
-            // Peeking numeric value from negative imbalance.
-            let gas_left = imbalance.peek();
-            let id: ProgramId = external.into_origin().into();
-
-            // Unreserving funds, if left non-zero amount of gas.
-            if gas_left != 0 {
-                self.bank.withdraw_gas(id, gas_left, multiplier);
-            }
-        }
+        self.consume_and_retrieve(message_id);
     }
 
     fn send_dispatch(
@@ -343,7 +328,7 @@ impl JournalHandler for ExtManager {
         &mut self,
         reservation_id: ReservationId,
         program_id: ProgramId,
-        _expiration: u32,
+        expiration: u32,
     ) {
         let has_removed_reservation = self
             .remove_reservation(program_id, reservation_id)
@@ -351,6 +336,11 @@ impl JournalHandler for ExtManager {
         if !has_removed_reservation {
             unreachable!("Failed to remove reservation {reservation_id} from {program_id}");
         }
+
+        let _ = self.task_pool.delete(
+            expiration,
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+        );
     }
 
     #[track_caller]
