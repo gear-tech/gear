@@ -48,7 +48,7 @@ pub mod signatures {
     ];
 }
 
-pub fn try_extract_event(log: Log) -> Result<Option<router::Event>> {
+pub fn try_extract_event(log: &Log) -> Result<Option<router::Event>> {
     use crate::decode_log;
     use signatures::*;
 

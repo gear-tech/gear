@@ -54,7 +54,7 @@ sol!(
 );
 
 pub(crate) fn uint256_to_u128_lossy(value: AlloyU256) -> u128 {
-    let [.., high, low] = value.into_limbs();
+    let [low, high, ..] = value.into_limbs();
 
     ((high as u128) << 64) | (low as u128)
 }
@@ -319,5 +319,13 @@ impl From<IWrappedVara::Approval> for wvara::Event {
             spender: (*event.spender.into_word()).into(),
             value: U256(event.value.into_limbs()),
         }
+    }
+}
+
+#[test]
+fn cast_is_correct() {
+    for _ in 0..10 {
+        let res: u128 = rand::random();
+        assert_eq!(uint256_to_u128_lossy(AlloyU256::from(res)), res);
     }
 }

@@ -5102,6 +5102,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -5111,7 +5112,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "ethexe-signer",
- "libp2p 0.54.0",
+ "libp2p 0.54.1",
  "libp2p-swarm-test",
  "log",
  "tempfile",
@@ -6718,6 +6719,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-session",
+ "pallet-treasury",
  "sp-runtime",
  "sp-std 8.0.0",
 ]
@@ -9063,31 +9065,31 @@ dependencies = [
 
 [[package]]
 name = "libp2p"
-version = "0.54.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.54.1"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "bytes",
  "either",
  "futures",
  "futures-timer",
  "getrandom 0.2.15",
- "libp2p-allow-block-list 0.3.0",
- "libp2p-connection-limits 0.3.1",
- "libp2p-core 0.41.3",
- "libp2p-dns 0.41.1",
+ "libp2p-allow-block-list 0.4.0",
+ "libp2p-connection-limits 0.4.0",
+ "libp2p-core 0.42.0",
+ "libp2p-dns 0.42.0",
  "libp2p-gossipsub",
  "libp2p-identify 0.45.0",
  "libp2p-identity 0.2.9",
- "libp2p-kad 0.46.0",
- "libp2p-mdns 0.45.2",
- "libp2p-metrics 0.14.2",
- "libp2p-ping 0.44.2",
+ "libp2p-kad 0.46.1",
+ "libp2p-mdns 0.46.0",
+ "libp2p-metrics 0.15.0",
+ "libp2p-ping 0.45.0",
  "libp2p-plaintext",
- "libp2p-quic 0.10.3",
- "libp2p-swarm 0.45.0",
+ "libp2p-quic 0.11.1",
+ "libp2p-swarm 0.45.1",
  "libp2p-tcp 0.42.0",
  "libp2p-upnp",
- "libp2p-yamux 0.45.2",
+ "libp2p-yamux 0.46.0",
  "multiaddr 0.18.1",
  "pin-project",
  "rw-stream-sink 0.4.0",
@@ -9108,12 +9110,12 @@ dependencies = [
 
 [[package]]
 name = "libp2p-allow-block-list"
-version = "0.3.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.4.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "void",
 ]
 
@@ -9131,12 +9133,12 @@ dependencies = [
 
 [[package]]
 name = "libp2p-connection-limits"
-version = "0.3.1"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.4.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "void",
 ]
 
@@ -9170,8 +9172,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-core"
-version = "0.41.3"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.42.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "either",
  "fnv",
@@ -9211,13 +9213,13 @@ dependencies = [
 
 [[package]]
 name = "libp2p-dns"
-version = "0.41.1"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.42.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "async-trait",
  "futures",
  "hickory-resolver",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
  "parking_lot 0.12.3",
  "smallvec",
@@ -9227,7 +9229,7 @@ dependencies = [
 [[package]]
 name = "libp2p-gossipsub"
 version = "0.47.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "asynchronous-codec 0.7.0",
  "base64 0.22.1",
@@ -9239,9 +9241,9 @@ dependencies = [
  "futures-ticker",
  "getrandom 0.2.15",
  "hex_fmt",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "prometheus-client 0.22.2",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
@@ -9279,16 +9281,16 @@ dependencies = [
 [[package]]
 name = "libp2p-identify"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "asynchronous-codec 0.7.0",
  "either",
  "futures",
  "futures-bounded",
  "futures-timer",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "lru 0.12.3",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
@@ -9366,8 +9368,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-kad"
-version = "0.46.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.46.1"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "arrayvec 0.7.4",
  "asynchronous-codec 0.7.0",
@@ -9377,9 +9379,9 @@ dependencies = [
  "futures",
  "futures-bounded",
  "futures-timer",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
  "rand 0.8.5",
@@ -9415,16 +9417,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mdns"
-version = "0.45.2"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.46.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "data-encoding",
  "futures",
  "hickory-proto",
  "if-watch",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "rand 0.8.5",
  "smallvec",
  "socket2 0.5.7",
@@ -9449,17 +9451,17 @@ dependencies = [
 
 [[package]]
 name = "libp2p-metrics"
-version = "0.14.2"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.15.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "futures",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-gossipsub",
  "libp2p-identify 0.45.0",
  "libp2p-identity 0.2.9",
- "libp2p-kad 0.46.0",
- "libp2p-ping 0.44.2",
- "libp2p-swarm 0.45.0",
+ "libp2p-kad 0.46.1",
+ "libp2p-ping 0.45.0",
+ "libp2p-swarm 0.45.1",
  "pin-project",
  "prometheus-client 0.22.2",
  "web-time",
@@ -9507,15 +9509,15 @@ dependencies = [
 
 [[package]]
 name = "libp2p-ping"
-version = "0.44.2"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.45.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "either",
  "futures",
  "futures-timer",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "rand 0.8.5",
  "tracing",
  "void",
@@ -9524,13 +9526,13 @@ dependencies = [
 
 [[package]]
 name = "libp2p-plaintext"
-version = "0.41.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.42.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "asynchronous-codec 0.7.0",
  "bytes",
  "futures",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
@@ -9561,16 +9563,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-quic"
-version = "0.10.3"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.11.1"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "bytes",
  "futures",
  "futures-timer",
  "if-watch",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-tls 0.4.0",
+ "libp2p-tls 0.5.0",
  "parking_lot 0.12.3",
  "quinn",
  "rand 0.8.5",
@@ -9621,16 +9623,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm"
-version = "0.45.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.45.1"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "either",
  "fnv",
  "futures",
  "futures-timer",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
- "libp2p-swarm-derive 0.34.2",
+ "libp2p-swarm-derive 0.35.0",
  "lru 0.12.3",
  "multistream-select 0.13.0",
  "once_cell",
@@ -9655,8 +9657,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm-derive"
-version = "0.34.2"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.35.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -9666,18 +9668,18 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm-test"
-version = "0.3.1"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.4.1"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "async-trait",
  "futures",
  "futures-timer",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
  "libp2p-plaintext",
- "libp2p-swarm 0.45.0",
+ "libp2p-swarm 0.45.1",
  "libp2p-tcp 0.42.0",
- "libp2p-yamux 0.45.2",
+ "libp2p-yamux 0.46.0",
  "rand 0.8.5",
  "tracing",
 ]
@@ -9701,13 +9703,13 @@ dependencies = [
 [[package]]
 name = "libp2p-tcp"
 version = "0.42.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "futures",
  "futures-timer",
  "if-watch",
  "libc",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
  "socket2 0.5.7",
  "tokio",
@@ -9735,12 +9737,12 @@ dependencies = [
 
 [[package]]
 name = "libp2p-tls"
-version = "0.4.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.5.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "futures",
  "futures-rustls 0.26.0",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "libp2p-identity 0.2.9",
  "rcgen 0.11.3",
  "ring 0.17.8",
@@ -9753,14 +9755,14 @@ dependencies = [
 
 [[package]]
 name = "libp2p-upnp"
-version = "0.2.2"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.3.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "futures",
  "futures-timer",
  "igd-next",
- "libp2p-core 0.41.3",
- "libp2p-swarm 0.45.0",
+ "libp2p-core 0.42.0",
+ "libp2p-swarm 0.45.1",
  "tokio",
  "tracing",
  "void",
@@ -9814,12 +9816,12 @@ dependencies = [
 
 [[package]]
 name = "libp2p-yamux"
-version = "0.45.2"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+version = "0.46.0"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "either",
  "futures",
- "libp2p-core 0.41.3",
+ "libp2p-core 0.42.0",
  "thiserror",
  "tracing",
  "yamux 0.12.1",
@@ -10501,7 +10503,7 @@ dependencies = [
 [[package]]
 name = "multistream-select"
 version = "0.13.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "bytes",
  "futures",
@@ -13140,7 +13142,7 @@ dependencies = [
 [[package]]
 name = "quick-protobuf-codec"
 version = "0.3.1"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "asynchronous-codec 0.7.0",
  "bytes",
@@ -14220,7 +14222,7 @@ dependencies = [
 [[package]]
 name = "rw-stream-sink"
 version = "0.4.0"
-source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/tokio-swarm-test#23a8d4a5b1e284e8a5de0faddc78bccc176c88ca"
+source = "git+https://github.com/gear-tech/rust-libp2p?branch=al/v0.54.1-patches#0dd074b05b50a9faf2043d51343e0f10a83a7b69"
 dependencies = [
  "futures",
  "pin-project",
