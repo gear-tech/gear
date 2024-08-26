@@ -456,8 +456,8 @@ impl Service {
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
 
-        let mut collection_round_timer = RoundTimer::new(block_time / 4);
-        let mut validation_round_timer = RoundTimer::new(block_time / 4);
+        let mut collection_round_timer = StoppableTimer::new(block_time / 4);
+        let mut validation_round_timer = StoppableTimer::new(block_time / 4);
 
         loop {
             tokio::select! {
@@ -785,12 +785,12 @@ impl Service {
 mod utils {
     use super::*;
 
-    pub(crate) struct RoundTimer {
+    pub(crate) struct StoppableTimer {
         round_duration: Duration,
         started: Option<Instant>,
     }
 
-    impl RoundTimer {
+    impl StoppableTimer {
         pub fn new(round_duration: Duration) -> Self {
             Self {
                 round_duration,
