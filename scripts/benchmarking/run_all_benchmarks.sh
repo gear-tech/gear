@@ -17,7 +17,7 @@ BENCHMARK_REPEAT=20
 # Steps and repeats for benchmarking so called "one-time extrinsics",
 # which may be called only once and require a different benchmarking approach with more repeats.
 BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
-BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
+BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=100
 
 # Get array of isolated cores from the cpuset file.
 get_isolated_cores() {
