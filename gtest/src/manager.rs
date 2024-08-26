@@ -529,9 +529,6 @@ impl ExtManager {
             unreachable!("{err_msg}")
         });
 
-        let from = message.source();
-        let to = message.destination();
-        let value = message.value();
         if Accounts::balance(from) != 0 {
             self.bank.deposit_value(from, value, false);
         }
