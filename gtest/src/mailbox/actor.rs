@@ -127,7 +127,10 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
+    use crate::{
+        Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
+        MAILBOX_THRESHOLD,
+    };
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ProgramId;
@@ -159,15 +162,13 @@ mod tests {
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
-        let actual = system.balance_of(sender);
-        let expected = original_balance - value_send - res.spent_value();
+
         assert_eq!(
-            expected,
-            actual,
-            "expected: {}, actual: {}, difference: {}",
-            expected,
-            actual,
-            actual - expected
+            system.balance_of(sender),
+            original_balance
+                - value_send
+                - res.spent_value()
+                - GAS_MULTIPLIER.gas_to_value(MAILBOX_THRESHOLD)
         );
 
         let mailbox = system.get_mailbox(sender);
