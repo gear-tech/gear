@@ -169,7 +169,7 @@ impl JournalHandler for ExtManager {
         let dest = dispatch.destination();
         let id = dispatch.id();
         let expected_wake = duration.map(|d| {
-            let expected_bn = d + self.blocks_manager.get().height;
+            let expected_bn = d + self.block_height();
             self.task_pool
                 .add(expected_bn, ScheduledTask::WakeMessage(dest, id))
                 .unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
@@ -345,7 +345,7 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        let block_height = self.blocks_manager.get().height;
+        let block_height = self.block_height();
         self.update_genuine_program(program_id, |program| {
             program.gas_reservation_map =
                 reserver.into_map(block_height, |duration| block_height + duration);
