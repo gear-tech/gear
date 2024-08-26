@@ -5023,6 +5023,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "clap 4.5.9",
+ "demo-async",
  "demo-ping",
  "directories",
  "env_logger",
