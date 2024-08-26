@@ -24,7 +24,7 @@ use agro::{Aggregator, MultisignedCommitments};
 use anyhow::Result;
 use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::Event;
+use ethexe_observer::{BlockDataForHandling, EventForHandling};
 use ethexe_signer::{Address, PublicKey, Signer};
 use std::mem;
 use tokio::sync::watch;
@@ -78,17 +78,17 @@ impl Sequencer {
     }
 
     // This function should never block.
-    pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
+    pub fn process_observer_event(&mut self, event: &EventForHandling) -> Result<()> {
         self.update_status(|status| {
             *status = SequencerStatus::default();
         });
         match event {
-            Event::Block(data) => {
-                log::debug!(
-                    "Processing events for {:?} (parent: {:?})",
-                    data.block_hash,
-                    data.parent_hash
-                );
+            EventForHandling::Block(BlockDataForHandling {
+                block_hash,
+                parent_hash,
+                ..
+            }) => {
+                log::debug!("Processing events for {block_hash:?} (parent: {parent_hash:?})",);
 
                 if self.codes_aggregation.len() > 0 {
                     log::debug!(
@@ -97,7 +97,7 @@ impl Sequencer {
                     );
                 }
             }
-            Event::CodeLoaded { code_id, .. } => {
+            EventForHandling::CodeLoaded { code_id, .. } => {
                 log::debug!("Observed code_hash#{code_id:?}. Waiting for inclusion...")
             }
         }

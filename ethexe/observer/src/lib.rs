@@ -24,6 +24,6 @@ mod observer;
 mod query;
 
 pub use blobs::{BlobReader, ConsensusLayerBlobReader, MockBlobReader};
-pub use event::{BlockData, Event};
+pub use event::{BlockData, BlockDataForHandling, Event, EventForHandling};
 pub use observer::{Observer, ObserverStatus};
 pub use query::Query;

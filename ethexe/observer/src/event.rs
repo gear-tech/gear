@@ -1,11 +1,26 @@
-use ethexe_common::BlockEvent;
+use ethexe_common::{BlockEvent, BlockEventForHandling};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum EventForHandling {
+    Block(BlockDataForHandling),
+    CodeLoaded { code_id: CodeId, code: Vec<u8> },
+}
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum Event {
     Block(BlockData),
     CodeLoaded { code_id: CodeId, code: Vec<u8> },
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct BlockDataForHandling {
+    pub parent_hash: H256,
+    pub block_hash: H256,
+    pub block_number: u64,
+    pub block_timestamp: u64,
+    pub events: Vec<BlockEventForHandling>,
 }
 
 #[derive(Debug, Clone, Encode, Decode)]

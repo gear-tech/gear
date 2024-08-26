@@ -20,10 +20,10 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    mirror::Event as MirrorEvent,
-    router::{Event as RouterEvent, StateTransition},
-    wvara::Event as WVaraEvent,
-    BlockEvent,
+    mirror::EventForHandling as MirrorEvent,
+    router::{EventForHandling as RouterEvent, StateTransition},
+    wvara::EventForHandling as WVaraEvent,
+    BlockEventForHandling,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
@@ -226,8 +226,7 @@ impl Processor {
     pub fn process_block_events(
         &mut self,
         block_hash: H256,
-        // TODO (breathx): accept not ref?
-        events: &[BlockEvent],
+        events: Vec<BlockEventForHandling>,
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
@@ -238,14 +237,14 @@ impl Processor {
 
         for event in events {
             match event {
-                BlockEvent::Router(event) => {
-                    self.process_router_event(&mut states, event.clone())?;
+                BlockEventForHandling::Router(event) => {
+                    self.handle_router_event(&mut states, event)?;
                 }
-                BlockEvent::Mirror { address, event } => {
-                    self.process_mirror_event(&mut states, *address, event.clone())?;
+                BlockEventForHandling::Mirror { address, event } => {
+                    self.handle_mirror_event(&mut states, address, event)?;
                 }
-                BlockEvent::WVara(event) => {
-                    self.process_wvara_event(&mut states, event.clone())?;
+                BlockEventForHandling::WVara(event) => {
+                    self.handle_wvara_event(&mut states, event)?;
                 }
             }
         }
@@ -257,7 +256,7 @@ impl Processor {
         Ok(outcomes)
     }
 
-    fn process_router_event(
+    fn handle_router_event(
         &mut self,
         states: &mut BTreeMap<ProgramId, H256>,
         event: RouterEvent,
@@ -276,16 +275,12 @@ impl Processor {
                 log::debug!("Handler not yet implemented: {event:?}");
                 return Ok(());
             }
-            RouterEvent::BlockCommitted { .. } | RouterEvent::CodeGotValidated { .. } => {
-                log::debug!("Informational events are noop for processing: {event:?}");
-                return Ok(());
-            }
         };
 
         Ok(())
     }
 
-    fn process_mirror_event(
+    fn handle_mirror_event(
         &mut self,
         states: &mut BTreeMap<ProgramId, H256>,
         actor_id: ProgramId,
@@ -337,13 +332,6 @@ impl Processor {
                 log::debug!("Handler not yet implemented: {event:?}");
                 return Ok(());
             }
-            MirrorEvent::StateChanged { .. }
-            | MirrorEvent::ValueClaimed { .. }
-            | MirrorEvent::Message { .. }
-            | MirrorEvent::Reply { .. } => {
-                log::debug!("Informational events are noop for processing: {event:?}");
-                return Ok(());
-            }
         };
 
         states.insert(actor_id, new_state_hash);
@@ -351,7 +339,7 @@ impl Processor {
         Ok(())
     }
 
-    fn process_wvara_event(
+    fn handle_wvara_event(
         &mut self,
         _states: &mut BTreeMap<ProgramId, H256>,
         event: WVaraEvent,
@@ -359,10 +347,6 @@ impl Processor {
         match event {
             WVaraEvent::Transfer { .. } => {
                 log::debug!("Handler not yet implemented: {event:?}");
-                Ok(())
-            }
-            WVaraEvent::Approval { .. } => {
-                log::debug!("Informational events are noop for processing: {event:?}");
                 Ok(())
             }
         }

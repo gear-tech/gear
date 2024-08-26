@@ -24,12 +24,15 @@ use crate::{
 };
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
-    router::{BlockCommitment, CodeCommitment, Event as RouterEvent, StateTransition},
-    BlockEvent,
+    router::{
+        BlockCommitment, CodeCommitment, EventForHandling as RouterEventForHandling,
+        StateTransition,
+    },
+    BlockEventForHandling,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_observer::{BlockData, Event as ObserverEvent};
+use ethexe_observer::{BlockDataForHandling, EventForHandling};
 use ethexe_processor::LocalOutcome;
 use ethexe_signer::{PublicKey, Signer};
 use ethexe_validator::Commitment;
@@ -206,17 +209,22 @@ impl Service {
         processor: &mut ethexe_processor::Processor,
         block_hash: H256,
     ) -> Result<()> {
-        let events = query.get_block_events(block_hash).await?;
+        let events = query.get_block_events_for_handling(block_hash).await?;
 
         for event in events {
             match event {
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id,
-                    blob_tx_hash,
-                }) => {
+                BlockEventForHandling::Router(
+                    RouterEventForHandling::CodeValidationRequested {
+                        code_id,
+                        blob_tx_hash,
+                    },
+                ) => {
                     db.set_code_blob_tx(code_id, blob_tx_hash);
                 }
-                BlockEvent::Router(RouterEvent::ProgramCreated { code_id, .. }) => {
+                BlockEventForHandling::Router(RouterEventForHandling::ProgramCreated {
+                    code_id,
+                    ..
+                }) => {
                     if db.original_code(code_id).is_some() {
                         continue;
                     }
@@ -252,9 +260,10 @@ impl Service {
 
         Self::process_upload_codes(db, query, processor, block_hash).await?;
 
-        let block_events = query.get_block_events(block_hash).await?;
+        let block_events_for_handling = query.get_block_events_for_handling(block_hash).await?;
 
-        let block_outcomes = processor.process_block_events(block_hash, &block_events)?;
+        let block_outcomes =
+            processor.process_block_events(block_hash, block_events_for_handling)?;
 
         let transition_outcomes: Vec<_> = block_outcomes
             .into_iter()
@@ -293,9 +302,9 @@ impl Service {
         db: &Database,
         query: &mut ethexe_observer::Query,
         processor: &mut ethexe_processor::Processor,
-        block_data: BlockData,
+        block_data: BlockDataForHandling,
     ) -> Result<Vec<BlockCommitment>> {
-        db.set_block_events(block_data.block_hash, block_data.events.clone());
+        db.set_block_events(block_data.block_hash, block_data.events);
         db.set_block_header(
             block_data.block_hash,
             BlockHeader {
@@ -335,14 +344,14 @@ impl Service {
         query: &mut ethexe_observer::Query,
         processor: &mut ethexe_processor::Processor,
         maybe_sequencer: &mut Option<ethexe_sequencer::Sequencer>,
-        observer_event: ethexe_observer::Event,
+        observer_event: EventForHandling,
     ) -> Result<Vec<Commitment>> {
         if let Some(sequencer) = maybe_sequencer {
             sequencer.process_observer_event(&observer_event)?;
         }
 
         let commitments = match observer_event {
-            ObserverEvent::Block(block_data) => {
+            EventForHandling::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
                     block_data.block_number,
@@ -355,7 +364,7 @@ impl Service {
 
                 commitments.into_iter().map(Commitment::Block).collect()
             }
-            ethexe_observer::Event::CodeLoaded { code_id, code } => {
+            EventForHandling::CodeLoaded { code_id, code } => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
 
                 outcomes
@@ -395,7 +404,7 @@ impl Service {
             ));
         }
 
-        let observer_events = observer.events();
+        let observer_events = observer.events_for_handling();
         futures::pin_mut!(observer_events);
 
         let (mut network_sender, mut gossipsub_stream, mut network_handle) =

@@ -58,7 +58,7 @@ impl Listener {
 
         let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let _handle = task::spawn(async move {
-            let observer_events = observer.events();
+            let observer_events = observer.events_all();
             futures::pin_mut!(observer_events);
 
             send_subscription_created.send(()).unwrap();
