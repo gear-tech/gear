@@ -64,7 +64,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtest::{Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
 
@@ -84,7 +84,7 @@ mod tests {
             assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
         }
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
         let system = System::new();
         system.init_logger();
 

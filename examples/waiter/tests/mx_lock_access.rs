@@ -1,8 +1,8 @@
 use demo_waiter::{Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation};
 use gear_core::ids::MessageId;
-use gtest::{Program, System};
+use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
-pub const USER_ID: u64 = 10;
+pub const USER_ID: u64 = DEFAULT_USER_ALICE;
 
 #[test]
 fn drop_mx_lock_guard_from_different_msg_fails() {

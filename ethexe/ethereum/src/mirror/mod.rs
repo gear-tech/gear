@@ -19,7 +19,7 @@
 use crate::{abi::IMirror, AlloyProvider, AlloyTransport};
 use alloy::{
     primitives::Address,
-    providers::{ProviderBuilder, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
@@ -46,6 +46,13 @@ impl Mirror {
         LocalAddress(*self.0.address().0)
     }
 
+    pub fn query(&self) -> MirrorQuery {
+        MirrorQuery(QueryInstance::new(
+            *self.0.address(),
+            Arc::new(self.0.provider().root().clone()),
+        ))
+    }
+
     pub async fn send_message(
         &self,
         payload: impl AsRef<[u8]>,
@@ -63,7 +70,7 @@ impl Mirror {
             if log.topic0().map(|v| v.0)
                 == Some(signatures::MESSAGE_QUEUEING_REQUESTED.to_fixed_bytes())
             {
-                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log.clone())?;
+                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log)?;
 
                 message_id = Some((*event.id).into());
 

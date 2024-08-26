@@ -127,7 +127,7 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Log, Program, System, EXISTENTIAL_DEPOSIT};
+    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ProgramId;
@@ -135,7 +135,7 @@ mod tests {
     fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
         let program = Program::from_binary_with_id(system, 121, WASM_BINARY);
 
-        let sender = ProgramId::from(42).into_bytes();
+        let sender = ProgramId::from(DEFAULT_USER_ALICE).into_bytes();
         let payload = b"sup!".to_vec();
         let log = Log::builder().dest(sender).payload_bytes(payload.clone());
 
@@ -151,8 +151,7 @@ mod tests {
         let system = System::new();
         let (program, (sender, payload, log)) = prepare_program(&system);
 
-        let original_balance = 20 * EXISTENTIAL_DEPOSIT;
-        system.mint_to(sender, original_balance);
+        let original_balance = system.balance_of(sender);
 
         let value_send = 2 * EXISTENTIAL_DEPOSIT;
         let handle = Calls::builder().send_value(sender, payload, value_send);
@@ -160,12 +159,18 @@ mod tests {
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
-        assert_eq!(system.balance_of(sender), original_balance - value_send);
+        assert_eq!(
+            system.balance_of(sender),
+            original_balance - value_send - res.spent_value()
+        );
 
         let mailbox = system.get_mailbox(sender);
         assert!(mailbox.contains(&log));
         assert!(mailbox.claim_value(log).is_ok());
-        assert_eq!(system.balance_of(sender), original_balance);
+        assert_eq!(
+            system.balance_of(sender),
+            original_balance - res.spent_value()
+        );
     }
 
     #[test]

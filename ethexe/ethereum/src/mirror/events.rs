@@ -50,7 +50,7 @@ pub mod signatures {
     ];
 }
 
-pub fn try_extract_event(log: Log) -> Result<Option<mirror::Event>> {
+pub fn try_extract_event(log: &Log) -> Result<Option<mirror::Event>> {
     use crate::decode_log;
     use signatures::*;
 

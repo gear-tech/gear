@@ -35,7 +35,7 @@ mod wasm;
 mod tests {
     use alloc::vec::Vec;
     use gstd::ActorId;
-    use gtest::{Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
     #[test]
     fn auto_reply_received() {
@@ -45,7 +45,7 @@ mod tests {
         let prog1 = Program::current(&system);
         let prog1_id = ActorId::try_from(prog1.id().as_ref()).unwrap();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         // Init Program-1
         let init_msg1 = prog1.send(from, ActorId::zero());

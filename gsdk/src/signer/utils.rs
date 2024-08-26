@@ -27,7 +27,7 @@ use crate::{
     },
     result::Result,
     signer::SignerRpc,
-    Error, TxInBlock, TxStatus,
+    TxInBlock, TxStatus,
 };
 use anyhow::anyhow;
 use colored::Colorize;
@@ -36,13 +36,14 @@ use sp_core::H256;
 use std::sync::Arc;
 use subxt::{
     blocks::ExtrinsicEvents,
+    config::polkadot::PolkadotExtrinsicParamsBuilder,
     dynamic::Value,
     tx::{DynamicPayload, TxProgress},
     Error as SubxtError, OnlineClient,
 };
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
-type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
+pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 
 impl Inner {
     /// Logging balance spent
@@ -151,7 +152,7 @@ impl Inner {
             }
         }
 
-        Ok(events)
+        Ok((tx.block_hash(), events))
     }
 
     /// Run transaction.
@@ -228,7 +229,12 @@ impl Inner {
         if let Some(nonce) = self.nonce {
             self.api
                 .tx()
-                .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
+                .create_signed(
+                    tx,
+                    &self.signer,
+                    PolkadotExtrinsicParamsBuilder::new().nonce(nonce).build(),
+                )
+                .await?
                 .submit_and_watch()
                 .await
         } else {

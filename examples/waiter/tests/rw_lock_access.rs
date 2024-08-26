@@ -2,9 +2,9 @@ use demo_waiter::{
     Command, LockContinuation, LockStaticAccessSubcommand, RwLockContinuation, RwLockType,
 };
 use gear_core::ids::MessageId;
-use gtest::{Program, System};
+use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
-pub const USER_ID: u64 = 10;
+pub const USER_ID: u64 = DEFAULT_USER_ALICE;
 
 #[test]
 fn drop_r_lock_guard_from_different_msg_fails() {
