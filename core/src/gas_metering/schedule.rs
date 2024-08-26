@@ -16,11 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(rustdoc::broken_intra_doc_links, missing_docs)]
 #![doc = r" This is auto-generated module that contains cost schedule from"]
 #![doc = r" `pallets/gear/src/schedule.rs`."]
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
-#![allow(rustdoc::broken_intra_doc_links, missing_docs)]
+
 use crate::costs::*;
 
 #[derive(Debug, Clone)]
@@ -1013,20 +1014,23 @@ impl Default for DbWeights {
     }
 }
 
-#[doc = r" TODO: documentation"]
+#[doc = r" Represents the computational time and storage space required for an operation."]
 #[derive(Debug, Clone, Copy)]
 pub struct Weight {
-    #[doc = r" Reference time"]
+    #[doc = r" The weight of computational time used based on some reference hardware."]
     pub ref_time: u64,
-    #[doc = r" Storage size of the weight"]
+    #[doc = r" The weight of storage space used by proof of validity."]
     pub proof_size: u64,
 }
 
 impl Weight {
+    #[doc = r" Return the reference time part of the weight."]
     #[doc(hidden)]
     pub const fn ref_time(&self) -> u64 {
         self.ref_time
     }
+    #[doc = r" Saturating [`Weight`] addition. Computes `self + rhs`, saturating at the numeric bounds of"]
+    #[doc = r" all fields instead of overflowing."]
     #[doc(hidden)]
     pub const fn saturating_add(&self, other: Self) -> Self {
         Self {

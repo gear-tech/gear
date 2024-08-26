@@ -18,19 +18,25 @@
 
 //! Helper utility to track changes in weights between different branches.
 
+use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use frame_support::{
     sp_runtime::{FixedPointNumber, FixedU128 as Fixed},
     weights::Weight,
 };
 use gear_utils::codegen::{format_with_rustfmt, LICENSE};
+use heck::ToSnakeCase;
 use indexmap::IndexMap;
 use pallet_gear::Schedule;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{
+    fs::{self, File},
+    path::PathBuf,
+    str::FromStr,
+};
 use syn::{
     ext::IdentExt,
     visit::{self, Visit},
@@ -230,26 +236,34 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
 
         let mut structure = node.clone();
 
-        structure
-            .attrs
-            .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
+        structure.attrs.retain(|attr| {
+            attr.path()
+                .segments
+                .first()
+                .filter(|segment| segment.ident == "doc")
+                .is_some()
+        });
+
         if structure_name == "Schedule" {
             structure.attrs.drain(1..);
         }
+
         structure.generics = Generics::default();
 
         if let Fields::Named(ref mut fields) = structure.fields {
-            let last_ident = fields
+            if fields
                 .named
                 .last()
-                .and_then(|field| field.ident.as_ref().map(|ident| ident.to_string()));
-            if last_ident == Some(String::from("_phantom")) {
+                .and_then(|field| field.ident.as_ref())
+                .filter(|ident| *ident == "_phantom")
+                .is_some()
+            {
                 fields.named.pop();
             }
         }
 
         for field in structure.fields.iter_mut() {
-            field.vis = syn::parse2(quote! { pub }).unwrap();
+            field.vis = syn::parse2(quote! { pub }).expect("infallible");
 
             if let Type::Path(TypePath { path, .. }) = &mut field.ty {
                 for segment in path.segments.iter_mut() {
@@ -265,9 +279,14 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                     }
                 }
             }
-            field
-                .attrs
-                .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
+
+            field.attrs.retain(|attr| {
+                attr.path()
+                    .segments
+                    .first()
+                    .filter(|segment| segment.ident == "doc")
+                    .is_some()
+            });
         }
 
         self.structures.insert(structure_name, structure);
@@ -281,7 +300,7 @@ struct ImplementationVisitor {
     impls: Vec<ItemImpl>,
 }
 
-static TYPE_LIST: &[&str] = &[
+const TYPE_LIST: &[&str] = &[
     "InstructionCosts",
     "SyscallCosts",
     "MemoryCosts",
@@ -291,36 +310,39 @@ static TYPE_LIST: &[&str] = &[
 ];
 
 impl ImplementationVisitor {
-    fn find_from_impls(&mut self, node: &syn::ItemImpl) -> bool {
+    fn find_from_impls(&mut self, node: &ItemImpl) -> bool {
         let mut implementation = node.clone();
-        implementation
-            .attrs
-            .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
+
+        implementation.attrs.retain(|attr| {
+            attr.path()
+                .segments
+                .first()
+                .filter(|segment| segment.ident == "doc")
+                .is_some()
+        });
+
         implementation.generics = Generics::default();
 
         // first extract all the `*Costs` impls.
         if let Some((_, Path { segments, .. }, _)) = &mut implementation.trait_ {
             if let Some(PathSegment { ident, arguments }) = segments.first_mut() {
                 if *ident == "From" {
-                    if let Type::Path(tpath) = &mut *implementation.self_ty {
+                    if let Type::Path(TypePath { path, .. }) = &mut *implementation.self_ty {
                         let PathArguments::AngleBracketed(types) = arguments else {
                             unreachable!("unexpected From impl detected")
                         };
 
-                        let Some(GenericArgument::Type(ref mut typ)) = types.args.first_mut()
-                        else {
+                        let Some(GenericArgument::Type(ref mut ty)) = types.args.first_mut() else {
                             unreachable!("unexpected From impl detected")
                         };
 
-                        if let Type::Path(path) = typ {
-                            path.path.segments.first_mut().unwrap().arguments = PathArguments::None;
+                        if let Type::Path(TypePath { path, .. }) = ty {
+                            if let Some(PathSegment { arguments, .. }) = path.segments.first_mut() {
+                                *arguments = PathArguments::None;
+                            }
                         }
 
-                        if let Some(PathSegment {
-                            ident,
-                            arguments: _,
-                        }) = tpath.path.segments.first_mut()
-                        {
+                        if let Some(PathSegment { ident, .. }) = path.segments.first_mut() {
                             if TYPE_LIST.contains(&ident.to_string().as_str()) {
                                 let Some(ImplItem::Fn(from_fn)) = implementation.items.first_mut()
                                 else {
@@ -353,21 +375,26 @@ impl ImplementationVisitor {
         }
     }
 
-    fn find_process_costs(&mut self, node: &syn::ItemImpl) {
+    fn find_process_costs(&mut self, node: &ItemImpl) {
         let mut implementation = node.clone();
-        implementation
-            .attrs
-            .retain(|attr| attr.path().segments.first().unwrap().ident == "doc");
+
+        implementation.attrs.retain(|attr| {
+            attr.path()
+                .segments
+                .first()
+                .filter(|segment| segment.ident == "doc")
+                .is_some()
+        });
+
         implementation.generics = Generics::default();
 
-        if let Type::Path(path) = &mut *implementation.self_ty {
-            if let Some(PathSegment { arguments, ident }) = path.path.segments.first_mut() {
+        if let Type::Path(TypePath { path, .. }) = &mut *implementation.self_ty {
+            if let Some(PathSegment { arguments, ident }) = path.segments.first_mut() {
                 *arguments = PathArguments::None;
                 if *ident == "Schedule" {
                     // only leave process_costs method
                     implementation.items.retain_mut(|item| match item {
                         ImplItem::Fn(func) => func.sig.ident == "process_costs",
-
                         _ => false,
                     });
 
@@ -379,7 +406,7 @@ impl ImplementationVisitor {
 }
 
 impl<'ast> Visit<'ast> for ImplementationVisitor {
-    fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
+    fn visit_item_impl(&mut self, node: &'ast ItemImpl) {
         if !self.find_from_impls(node) {
             self.find_process_costs(node);
         }
@@ -388,20 +415,19 @@ impl<'ast> Visit<'ast> for ImplementationVisitor {
     }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let Cli { command } = Cli::parse();
 
     match command {
         Commands::Dump { output_path, label } => {
-            let writer = fs::File::create(output_path).unwrap();
+            let writer = File::create(output_path)?;
             serde_json::to_writer_pretty(
                 writer,
                 &SerializableDump {
                     vara_schedule: Default::default(),
                     label,
                 },
-            )
-            .unwrap();
+            )?;
         }
         Commands::Diff {
             display_units,
@@ -410,11 +436,9 @@ fn main() {
             runtime,
             kind,
         } => {
-            let dump1: DeserializableDump =
-                serde_json::from_str(&fs::read_to_string(before).unwrap()).unwrap();
+            let dump1: DeserializableDump = serde_json::from_str(&fs::read_to_string(before)?)?;
 
-            let dump2: DeserializableDump =
-                serde_json::from_str(&fs::read_to_string(after).unwrap()).unwrap();
+            let dump2: DeserializableDump = serde_json::from_str(&fs::read_to_string(after)?)?;
 
             let (schedule1, schedule2) = match runtime {
                 Runtime::Vara => (dump1.vara_schedule, dump2.vara_schedule),
@@ -471,15 +495,12 @@ fn main() {
             println!();
         }
         Commands::Codegen { path, runtime } => {
-            let dump: DeserializableDump =
-                serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+            let dump: DeserializableDump = serde_json::from_str(&fs::read_to_string(path)?)?;
             let raw_schedule = match runtime {
-                Runtime::Vara => serde_json::to_value(dump.vara_schedule).unwrap(),
+                Runtime::Vara => serde_json::to_value(dump.vara_schedule)?,
             };
 
-            let file =
-                syn::parse_file(&fs::read_to_string("pallets/gear/src/schedule.rs").unwrap())
-                    .unwrap();
+            let file = syn::parse_file(&fs::read_to_string("pallets/gear/src/schedule.rs")?)?;
 
             let mut visitor = StructuresVisitor::default();
             visitor.visit_file(&file);
@@ -493,18 +514,20 @@ fn main() {
                 .map(|item| Item::Impl(item).to_token_stream())
                 .collect::<Vec<_>>();
 
-            let mut declarations = vec![quote! {
-                //! This is auto-generated module that contains cost schedule from
-                //! `pallets/gear/src/schedule.rs`.
-                //!
-                //! See `./scripts/weight-dump.sh` if you want to update it.
-            }];
-
-            declarations.push(quote! {
-                #![allow(rustdoc::broken_intra_doc_links, missing_docs)]
-
-                use crate::costs::*;
-            });
+            let mut declarations = vec![
+                quote! {
+                    #![allow(rustdoc::broken_intra_doc_links, missing_docs)]
+                },
+                quote! {
+                    //! This is auto-generated module that contains cost schedule from
+                    //! `pallets/gear/src/schedule.rs`.
+                    //!
+                    //! See `./scripts/weight-dump.sh` if you want to update it.
+                },
+                quote! {
+                    use crate::costs::*;
+                },
+            ];
 
             for (structure_name, structure) in visitor.structures {
                 let structure_ident = &structure.ident;
@@ -516,16 +539,17 @@ fn main() {
                     let field_ident = field.ident.as_ref().unwrap();
                     let field_name = field_ident.unraw().to_string();
 
+                    let structure_name_snake_case = structure_name.to_snake_case();
                     let value = match structure_name.as_str() {
                         "Schedule" => &raw_schedule[field_name],
-                        "Limits" => &raw_schedule["limits"][field_name],
-                        "InstructionWeights" => &raw_schedule["instruction_weights"][field_name],
-                        "SyscallWeights" => &raw_schedule["syscall_weights"][field_name],
-                        "MemoryWeights" => &raw_schedule["memory_weights"][field_name],
-                        "RentWeights" => &raw_schedule["rent_weights"][field_name],
-                        "DbWeights" => &raw_schedule["db_weights"][field_name],
-                        "InstantiationWeights" => {
-                            &raw_schedule["instantiation_weights"][field_name]
+                        "Limits"
+                        | "InstructionWeights"
+                        | "SyscallWeights"
+                        | "MemoryWeights"
+                        | "RentWeights"
+                        | "DbWeights"
+                        | "InstantiationWeights" => {
+                            &raw_schedule[structure_name_snake_case.as_str()][field_name]
                         }
                         _ => &raw_schedule,
                     };
@@ -576,24 +600,26 @@ fn main() {
             }
 
             declarations.push(quote! {
-
-                /// TODO: documentation
+                /// Represents the computational time and storage space required for an operation.
                 #[derive(Debug, Clone, Copy)]
                 pub struct Weight {
-                    /// Reference time
+                    /// The weight of computational time used based on some reference hardware.
                     pub ref_time: u64,
-                    /// Storage size of the weight
+                    /// The weight of storage space used by proof of validity.
                     pub proof_size: u64,
                 }
             });
 
             declarations.push(quote! {
                 impl Weight {
+                    /// Return the reference time part of the weight.
                     #[doc(hidden)]
                     pub const fn ref_time(&self) -> u64 {
                         self.ref_time
                     }
 
+                    /// Saturating [`Weight`] addition. Computes `self + rhs`, saturating at the numeric bounds of
+                    /// all fields instead of overflowing.
                     #[doc(hidden)]
                     pub const fn saturating_add(&self, other: Self) -> Self {
                         Self {
@@ -615,4 +641,6 @@ fn main() {
             println!("{formatted}");
         }
     }
+
+    Ok(())
 }

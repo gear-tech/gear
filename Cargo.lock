@@ -7028,9 +7028,11 @@ dependencies = [
 name = "gear-weight-diff"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "clap 4.5.9",
  "frame-support",
  "gear-utils",
+ "heck 0.5.0",
  "indexmap 2.2.6",
  "pallet-gear",
  "proc-macro2",
