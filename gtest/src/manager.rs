@@ -186,7 +186,6 @@ impl ExtManager {
                     let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
                     Reservation {reservation} doesn't exist.");
 
-                    
                     unreachable!("{err_msg}")
                 })
         }).unwrap_or_else(|| {
@@ -231,7 +230,6 @@ impl ExtManager {
                 "consume_and_retrieve: failed consuming the rest of gas. Got error - {e:?}"
             );
 
-            
             unreachable!("{err_msg}")
         });
 
@@ -257,7 +255,6 @@ impl ExtManager {
         if delay.is_zero() {
             let err_msg = "send_delayed_dispatch: delayed sending with zero delay appeared";
 
-            
             unreachable!("{err_msg}");
         }
 
@@ -269,7 +266,6 @@ impl ExtManager {
                 id = dispatch.id()
             );
 
-            
             unreachable!("{err_msg}");
         }
 
@@ -280,7 +276,6 @@ impl ExtManager {
                 kind = dispatch.kind()
             );
 
-            
             unreachable!("{err_msg}");
         }
 
@@ -292,11 +287,11 @@ impl ExtManager {
             .into();
 
         let from = dispatch.source();
-        let value = dispatch.value().try_into().unwrap_or(u128::MAX);
+        let value = dispatch.value();
 
         let hold_builder = HoldBoundBuilder::new(StorageType::DispatchStash);
 
-        let delay_hold = hold_builder.duration(self, delay.try_into().unwrap_or(u32::MAX));
+        let delay_hold = hold_builder.duration(self, delay);
         let gas_for_delay = delay_hold.lock_amount(self);
 
         let interval_finish = if to_user {
@@ -311,7 +306,6 @@ impl ExtManager {
                                 Lock sponsor id - {sender_node:?}. Got error - {e:?}"
                         );
 
-                        
                         unreachable!("{err_msg}");
                     });
 
@@ -338,7 +332,6 @@ impl ExtManager {
                         id = dispatch.id()
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -363,7 +356,6 @@ impl ExtManager {
                 let err_msg =
                     "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
 
-                
                 unreachable!("{err_msg}");
             });
 
@@ -374,8 +366,7 @@ impl ExtManager {
                         Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
                         message_id = dispatch.id(),
                         lock = delay_hold.lock_amount(self));
-                        
-                        unreachable!("{err_msg}");
+                    unreachable!("{err_msg}");
                 });
 
             if delay_hold.expected_duration(self).is_zero() {
@@ -385,7 +376,6 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::DispatchStash)
                 );
 
-                
                 unreachable!("{err_msg}");
             }
 
@@ -414,7 +404,6 @@ impl ExtManager {
                         sender = dispatch.source(),
                     );
 
-                    
                     unreachable!("{err_msg}");
                 }
 
@@ -431,7 +420,6 @@ impl ExtManager {
                 let err_msg =
                     "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
 
-                
                 unreachable!("{err_msg}");
             });
 
@@ -445,7 +433,6 @@ impl ExtManager {
                     lock = delay_hold.lock_amount(self)
                 );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -456,7 +443,6 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::DispatchStash)
                 );
 
-                
                 unreachable!("{err_msg}");
             }
 
@@ -495,7 +481,6 @@ impl ExtManager {
                     Message to user - {to_user}, message id - {message_id}. Got error - {e:?}"
             );
 
-            
             unreachable!("{err_msg}");
         });
     }
@@ -521,7 +506,6 @@ impl ExtManager {
                             Lock sponsor id - {msg_id}. Got error - {e:?}"
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -542,7 +526,6 @@ impl ExtManager {
                     Message id - {message_id}, program id - {from}, destination - {to}",
             );
 
-            
             unreachable!("{err_msg}")
         });
 
@@ -562,7 +545,6 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::Mailbox)
                 );
 
-                
                 unreachable!("{err_msg}");
             }
 
@@ -576,7 +558,6 @@ impl ExtManager {
                         id = message.id()
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -589,7 +570,6 @@ impl ExtManager {
                         message_id = message.id(),
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -601,7 +581,6 @@ impl ExtManager {
                         Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                 );
 
-                
                 unreachable!("{err_msg}")
             });
 
@@ -615,7 +594,6 @@ impl ExtManager {
                         bn = hold.expected(),
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -632,7 +610,6 @@ impl ExtManager {
                         bn = hold.expected()
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -679,7 +656,6 @@ impl ExtManager {
                     message_id = message.id()
                 );
 
-                
                 unreachable!("{err_msg}");
             });
 
@@ -692,7 +668,6 @@ impl ExtManager {
                     cost = Self::cost_by_storage_type(StorageType::Mailbox)
                 );
 
-                
                 unreachable!("{err_msg}");
             }
 
@@ -704,7 +679,6 @@ impl ExtManager {
                         message_id = message.id(),
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -719,7 +693,6 @@ impl ExtManager {
                         Message id - {message_id}, program id - {from:?}, destination - {to:?}",
                     );
 
-                    
                     unreachable!("{err_msg}")
                 });
             self.mailbox
@@ -732,7 +705,6 @@ impl ExtManager {
                         bn = hold.expected(),
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -741,7 +713,7 @@ impl ExtManager {
             self.task_pool
                 .add(
                     hold.expected(),
-                    ScheduledTask::RemoveFromMailbox(to.clone(), message_id),
+                    ScheduledTask::RemoveFromMailbox(to, message_id),
                 )
                 .unwrap_or_else(|e| {
                     let err_msg = format!(
@@ -751,7 +723,6 @@ impl ExtManager {
                     bn = hold.expected()
                 );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -1397,15 +1368,14 @@ impl ExtManager {
 
     fn cost_by_storage_type(storage_type: StorageType) -> u64 {
         // Cost per block based on the storage used for holding
-        let cost = match storage_type {
+        match storage_type {
             StorageType::Code => todo!("#646"),
             StorageType::Waitlist => WAITLIST_COST,
             StorageType::Mailbox => MAILBOX_COST,
             StorageType::DispatchStash => DISPATCH_HOLD_COST,
             StorageType::Program => todo!("#646"),
             StorageType::Reservation => RESERVATION_COST,
-        };
-        cost
+        }
     }
 
     pub(crate) fn charge_for_hold(
@@ -1427,10 +1397,7 @@ impl ExtManager {
         let paid_until = current.min(deadline);
 
         // holding duration
-        let duration: u64 = paid_until
-            .saturating_sub(hold_interval.start)
-            .try_into()
-            .unwrap_or(u64::MAX);
+        let duration: u64 = paid_until.saturating_sub(hold_interval.start).into();
 
         // Cost per block based on the storage used for holding
         let cost = Self::cost_by_storage_type(storage_type);
@@ -1444,7 +1411,6 @@ impl ExtManager {
                         Got error - {e:?}"
                     );
 
-                    
                     unreachable!("{err_msg}");
                 });
 
@@ -1471,7 +1437,6 @@ impl ExtManager {
                 "spend_gas: failed spending gas. Message id - {id}, amount - {amount}. Got error - {e:?}"
             );
 
-            
             unreachable!("{err_msg}");
         });
 
@@ -1479,8 +1444,6 @@ impl ExtManager {
             let err_msg = format!(
                 "spend_gas: failed getting origin node for the current one. Message id - {id}, Got error - {e:?}"
             );
-
-            
             unreachable!("{err_msg}");
         });
 

@@ -43,8 +43,7 @@ impl HoldBound {
     pub fn lock_amount(&self, manager: &ExtManager) -> u64 {
         let duration: u64 = self
             .deadline_duration(manager)
-            .try_into()
-            .expect("not sane deadline");
+            .into();
         duration.saturating_mul(self.cost())
     }
 }
