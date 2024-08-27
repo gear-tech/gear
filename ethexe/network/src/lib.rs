@@ -503,7 +503,7 @@ impl Behaviour {
             .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
-        let peer_score = peer_score::Behaviour::new();
+        let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
 
         let ping = ping::Behaviour::default();

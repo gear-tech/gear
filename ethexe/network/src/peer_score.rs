@@ -27,7 +27,6 @@ use libp2p::{
 };
 use std::{
     collections::HashMap,
-    mem,
     task::{Context, Poll},
 };
 use tokio::sync::mpsc;
@@ -39,10 +38,10 @@ pub enum PeerScoreEvent {
 }
 
 impl PeerScoreEvent {
-    fn abs_diff(self) -> u8 {
+    fn to_u8(self, config: &Config) -> u8 {
         match self {
-            PeerScoreEvent::UnsupportedProtocol => u8::MAX,
-            PeerScoreEvent::ExcessiveData => u8::MAX,
+            PeerScoreEvent::UnsupportedProtocol => config.unsupported_protocol,
+            PeerScoreEvent::ExcessiveData => config.excessive_data,
         }
     }
 }
@@ -54,7 +53,7 @@ impl PeerScoreHandle {
     #[cfg(test)]
     pub fn new_test() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
-        mem::forget(rx);
+        std::mem::forget(rx);
         Self(tx)
     }
 
@@ -87,9 +86,41 @@ pub(crate) enum Event {
     },
 }
 
+/// Behaviour config.
+///
+/// All values represented by number that will be subtracted from peer score.
+pub(crate) struct Config {
+    unsupported_protocol: u8,
+    excessive_data: u8,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            unsupported_protocol: u8::MAX,
+            excessive_data: u8::MAX,
+        }
+    }
+}
+
+#[cfg(test)] // used only in tests yet
+impl Config {
+    #[allow(dead_code)] // not used anywhere yet
+    pub(crate) fn with_unsupported_protocol(mut self, value: u8) -> Self {
+        self.unsupported_protocol = value;
+        self
+    }
+
+    pub(crate) fn with_excessive_data(mut self, value: u8) -> Self {
+        self.excessive_data = value;
+        self
+    }
+}
+
 type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
 
 pub(crate) struct Behaviour {
+    config: Config,
     block_list: BlockListBehaviour,
     handle: PeerScoreHandle,
     rx: mpsc::UnboundedReceiver<(PeerId, PeerScoreEvent)>,
@@ -97,10 +128,11 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(config: Config) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let handle = PeerScoreHandle(tx);
         Self {
+            config,
             block_list: BlockListBehaviour::default(),
             handle,
             rx,
@@ -114,7 +146,7 @@ impl Behaviour {
 
     fn on_score_event(&mut self, peer_id: PeerId, event: PeerScoreEvent) -> Event {
         let peer_score = self.score.entry(peer_id).or_insert(u8::MAX);
-        *peer_score = peer_score.saturating_sub(event.abs_diff());
+        *peer_score = peer_score.saturating_sub(event.to_u8(&self.config));
 
         if *peer_score == u8::MIN {
             let removed = self.score.remove(&peer_id);
@@ -235,29 +267,60 @@ mod tests {
     use libp2p::{swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
 
-    async fn new_swarm() -> Swarm<Behaviour> {
-        let mut swarm = Swarm::new_ephemeral(|_keypair| Behaviour::new());
+    async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
+        let mut swarm = Swarm::new_ephemeral(|_keypair| Behaviour::new(config));
         swarm.listen().with_memory_addr_external().await;
         swarm
     }
 
+    async fn new_swarm() -> Swarm<Behaviour> {
+        new_swarm_with_config(Config::default()).await
+    }
+
     #[tokio::test]
     async fn peer_blocked() {
-        let mut alice = new_swarm().await;
+        const EXCESSIVE_DATA_ABS_DIFF: u8 = u8::MAX / 3;
+
+        let alice_config = Config::default().with_excessive_data(EXCESSIVE_DATA_ABS_DIFF);
+        let mut alice = new_swarm_with_config(alice_config).await;
         let mut chad = new_swarm().await;
         let alice_peer_id = *alice.local_peer_id();
         let chad_peer_id = *chad.local_peer_id();
         alice.connect(&mut chad).await;
 
         let handle = alice.behaviour_mut().handle();
-        handle.unsupported_protocol(chad_peer_id);
+        handle.excessive_data(chad_peer_id);
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::ScoreChanged {
+                peer_id: chad_peer_id,
+                event: PeerScoreEvent::ExcessiveData,
+                score: u8::MAX - EXCESSIVE_DATA_ABS_DIFF,
+            }
+        );
+
+        handle.excessive_data(chad_peer_id);
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::ScoreChanged {
+                peer_id: chad_peer_id,
+                event: PeerScoreEvent::ExcessiveData,
+                score: u8::MAX - 2 * EXCESSIVE_DATA_ABS_DIFF,
+            }
+        );
+
+        handle.excessive_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
             Event::PeerBlocked {
                 peer_id: chad_peer_id,
-                last_event: PeerScoreEvent::UnsupportedProtocol
+                last_event: PeerScoreEvent::ExcessiveData
             }
         );
 
