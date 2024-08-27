@@ -417,6 +417,7 @@ impl Drop for System {
         self.0.borrow().gas_tree.reset();
         self.0.borrow().mailbox.reset();
         self.0.borrow().task_pool.clear();
+        self.0.borrow().waitlist.reset();
 
         // Clear actors and accounts storages
         Actors::clear();

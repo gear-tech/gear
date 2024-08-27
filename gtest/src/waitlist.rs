@@ -35,7 +35,7 @@ pub(crate) struct WaitlistManager;
 impl WaitlistManager {
     /// Check if message with `message_id` to a program with `program_id` is in
     /// the waitlist.
-    pub(crate) fn contains(program_id: ProgramId, message_id: MessageId) -> bool {
+    pub(crate) fn contains(&self, program_id: ProgramId, message_id: MessageId) -> bool {
         <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::contains(&program_id, &message_id)
     }
 
