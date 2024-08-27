@@ -6,7 +6,7 @@ use std::collections::HashSet;
 const DEFAULT_DENIED_DUPLICATE_CRATES: [&str; 1] = ["gstd"];
 /// Returns the list of crates name.
 fn denied_duplicate_crates() -> HashSet<&'static str> {
-    option_env!("GEAR_WASM_BUILDER_DENIED_DUPLICATE_CRATES").map_or_else(
+    option_env!("__GEAR_WASM_BUILDER_DENIED_DUPLICATE_CRATES").map_or_else(
         || DEFAULT_DENIED_DUPLICATE_CRATES.into(),
         |v| v.split(',').collect(),
     )
