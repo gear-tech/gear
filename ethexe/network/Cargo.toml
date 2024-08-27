@@ -11,11 +11,24 @@ repository.workspace = true
 
 [dependencies]
 ethexe-signer.workspace = true
-libp2p = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/v0.54.1-patches", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "quic", "tokio", "macros", "plaintext", "yamux"] }
+ethexe-db.workspace = true
+
+gprimitives = { workspace = true, features = ["codec"] }
+gear-core.workspace = true
+
 tokio = { workspace = true, features = ["sync"] }
 anyhow.workspace = true
 log.workspace = true
+parity-scale-codec.workspace = true
+async-trait.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
+derive_more.workspace = true
 void = "1.0.2"
+
+[dependencies.libp2p]
+git = "https://github.com/gear-tech/rust-libp2p"
+branch = "al/v0.54.1-patches"
+features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tokio", "macros", "plaintext", "yamux"]
 
 [dev-dependencies]
 # newer versions are not supported on crates.io
