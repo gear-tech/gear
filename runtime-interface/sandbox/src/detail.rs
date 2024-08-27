@@ -470,8 +470,8 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
             // they run with minimal steps and a large number of repeats, leading to significant slowdowns.
             // Therefore, we have to clear it manually if the `BENCH_SANDBOX_RESET_COUNTER` exceeds the limit.
             // Otherwise, the store becomes too big and will slow down the benchmarks.
-            #[cfg(feature = "runtime-benchmarks")]
-            sandboxes.borrow_mut().clear();
+            //#[cfg(feature = "runtime-benchmarks")]
+            //sandboxes.borrow_mut().clear();
 
             sandboxes
                 .borrow_mut()

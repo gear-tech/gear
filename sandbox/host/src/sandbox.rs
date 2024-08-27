@@ -530,8 +530,8 @@ impl<DT: Clone> SandboxComponents<DT> {
     /// Create a new empty sandbox store.
     pub fn new(backend: SandboxBackend) -> Self {
         SandboxComponents {
-            instances: Vec::new(),
-            memories: Vec::new(),
+            instances: Vec::with_capacity(1000),
+            memories: Vec::with_capacity(1000),
             backend_context: BackendContext::new(backend),
         }
     }

@@ -149,9 +149,10 @@ for PALLET in "${PALLETS[@]}"; do
   # Run multithreaded benchmarks (pallet_gear_builtin) on fixed 4 cores.
   if [ -n "$INSTANCE_TYPE" ] && [ "$PALLET" == "pallet_gear_builtin" ]
   then
-    PREV_TASKSET_CMD=$TASKSET_CMD
     TASKSET_CMD="taskset -c 2,3,4,5"
     echo "[+] Running pallet_gear_builtin benches on fixed 4 cores: 2,3,4,5"
+  else
+    TASKSET_CMD=""
   fi
 
   # Get all the extrinsics for the pallet if the pallet is "pallet_gear".
@@ -181,92 +182,82 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
-  echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
+  #echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
-  OUTPUT=$(
-    $TASKSET_CMD $GEAR benchmark pallet \
-    --chain="$chain_spec" \
-    --steps=$BENCHMARK_STEPS \
-    --repeat=$BENCHMARK_REPEAT \
-    --pallet="$PALLET" \
-    --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
-    --heap-pages=4096 \
-    --output="$WEIGHT_FILE" \
-    --template=.maintain/frame-weight-template.hbs 2>&1
-  )
+  #OUTPUT=$(
+  #  $TASKSET_CMD $GEAR benchmark pallet \
+  #  --chain="$chain_spec" \
+  #  --steps=$BENCHMARK_STEPS \
+  #  --repeat=$BENCHMARK_REPEAT \
+  #  --pallet="$PALLET" \
+  #  --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
+  #  --heap-pages=4096 \
+  #  --output="$WEIGHT_FILE" \
+  #  --template=.maintain/frame-weight-template.hbs 2>&1
+  #)
 
-  if [ $? -ne 0 ]; then
-    echo "$OUTPUT" >> "$ERR_FILE"
-    echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
-  fi
+  #if [ $? -ne 0 ]; then
+  #  echo "$OUTPUT" >> "$ERR_FILE"
+  #  echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+  #fi
 
   # If the pallet is pallet_gear, benchmark the one-time extrinsics.
   if [ "$PALLET" == "pallet_gear" ]
   then
-    echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
-    OUTPUT=$(
-        $TASKSET_CMD $GEAR benchmark pallet \
-        --chain="$chain_spec" \
-        --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
-        --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
-        --pallet="$PALLET" \
-        --extrinsic="$(IFS=', '; echo "${ONE_TIME_EXTRINSICS[*]}")" \
-        --heap-pages=4096 \
-        --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs" \
-        --template=.maintain/frame-weight-template.hbs 2>&1
-    )
+    echo "[+] MSquares Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
+
+    $TASKSET_CMD $GEAR benchmark pallet \
+    --chain="$chain_spec" \
+    --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
+    --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
+    --pallet="$PALLET" \
+    --extrinsic="gr_exit" \
+    --heap-pages=4096 
 
     if [ $? -ne 0 ]; then
       echo "$OUTPUT" >> "$ERR_FILE"
       echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
     fi
   fi
-
-  # Reset the taskset command if it was changed.
-  if [ -n "$PREV_TASKSET_CMD" ]
-  then
-    TASKSET_CMD=$PREV_TASKSET_CMD
-    unset PREV_TASKSET_CMD
-  fi
 done
 
-if [ "$skip_machine_benchmark" != true ]
-then
-  echo "[+] Benchmarking the machine..."
-  OUTPUT=$(
-    $TASKSET_CMD $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
-  )
-  # In any case don't write errors to the error file since they're not benchmarking errors.
-  echo "[x] Machine benchmark:\n$OUTPUT"
-  echo $OUTPUT >> $MACHINE_OUTPUT
-fi
-
-# If `-s` is used, run the storage benchmark.
-if [ ! -z "$storage_folder" ]; then
-  OUTPUT=$(
-  $TASKSET_CMD $GEAR benchmark storage \
-    --chain=$chain_spec \
-    --state-version=1 \
-    --warmups=10 \
-    --base-path=$storage_folder \
-    --weight-path=./$STORAGE_OUTPUT 2>&1
-  )
-  if [ $? -ne 0 ]; then
-    echo "$OUTPUT" >> "$ERR_FILE"
-    echo "[-] Failed the storage benchmark. Error written to $ERR_FILE; continuing..."
-  fi
-else
-  unset storage_folder
-fi
-
-# Merge pallet_gear weights.
-./scripts/benchmarking/merge_outputs.sh
-
-# Check if the error file exists.
-if [ -f "$ERR_FILE" ]; then
-  echo "[-] Some benchmarks failed. See: $ERR_FILE"
-  exit 1
-else
-  echo "[+] All benchmarks passed."
-  exit 0
-fi
+#if [ "$skip_machine_benchmark" != true ]
+#then
+#  echo "[+] Benchmarking the machine..."
+#  OUTPUT=$(
+#    $TASKSET_CMD $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
+#  )
+#  # In any case don't write errors to the error file since they're not benchmarking errors.
+#  echo "[x] Machine benchmark:\n$OUTPUT"
+#  echo $OUTPUT >> $MACHINE_OUTPUT
+#fi
+#
+## If `-s` is used, run the storage benchmark.
+#if [ ! -z "$storage_folder" ]; then
+#  OUTPUT=$(
+#  $TASKSET_CMD $GEAR benchmark storage \
+#    --chain=$chain_spec \
+#    --state-version=1 \
+#    --warmups=10 \
+#    --base-path=$storage_folder \
+#    --weight-path=./$STORAGE_OUTPUT 2>&1
+#  )
+#  if [ $? -ne 0 ]; then
+#    echo "$OUTPUT" >> "$ERR_FILE"
+#    echo "[-] Failed the storage benchmark. Error written to $ERR_FILE; continuing..."
+#  fi
+#else
+#  unset storage_folder
+#fi
+#
+## Merge pallet_gear weights.
+#./scripts/benchmarking/merge_outputs.sh
+#
+## Check if the error file exists.
+#if [ -f "$ERR_FILE" ]; then
+#  echo "[-] Some benchmarks failed. See: $ERR_FILE"
+#  exit 1
+#else
+#  echo "[+] All benchmarks passed."
+#  exit 0
+#fi
