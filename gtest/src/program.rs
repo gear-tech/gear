@@ -572,7 +572,7 @@ impl<'a> Program<'a> {
 
         let message = Message::new(
             MessageId::generate_from_user(
-                system.blocks_manager.get().height,
+                system.block_height(),
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
@@ -875,7 +875,7 @@ mod tests {
         let scheme = Scheme::predefined(
             Calls::builder().noop(),
             Calls::builder()
-                .system_reserve_gas(1_000_000_000)
+                .system_reserve_gas(4_000_000_000)
                 .panic(panic_message),
             Calls::builder().noop(),
             Calls::builder().send(
@@ -883,16 +883,12 @@ mod tests {
                 Arg::bytes(message),
             ),
         );
-
         let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
-
         let msg_id = prog.send(user_id, scheme);
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
-
         let msg_id = prog.send(user_id, *b"Hello");
         let res = sys.run_next_block();
-
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);

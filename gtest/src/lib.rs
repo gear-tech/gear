@@ -504,6 +504,7 @@ mod manager;
 mod program;
 mod system;
 mod task_pool;
+mod waitlist;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
@@ -580,6 +581,9 @@ pub mod constants {
     pub const RESERVATION_COST: Gas = 100;
     /// Cost of storing delayed message per block.
     pub const DISPATCH_HOLD_COST: Gas = 100;
+
+    /// Cost of storing message in mailbox
+    pub const MAILBOX_COST: Gas = 100;
 
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).

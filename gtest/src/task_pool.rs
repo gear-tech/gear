@@ -29,7 +29,7 @@ use gear_common::{
 };
 
 /// Task pool manager which operates under the hood over
-/// [`gear_common::AuxiliaryTaskpool`].
+/// [`gear_common::auxiliary::task_pool::AuxiliaryTaskpool`].
 ///
 /// Manager is needed mainly to adapt arguments of the task pool methods to the
 /// crate.
