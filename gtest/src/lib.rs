@@ -504,6 +504,7 @@ mod manager;
 mod program;
 mod system;
 mod task_pool;
+mod waitlist;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
