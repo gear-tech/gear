@@ -18,22 +18,26 @@
 
 //! Mailbox manager.
 
-use crate::blocks::BlocksManager;
+use crate::blocks::GetBlockNumberImpl;
 use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
-    storage::{GetCallback, Interval, IterableByKeyMap, Mailbox, MailboxCallbacks},
+    storage::{Interval, IterableByKeyMap, Mailbox, MailboxCallbacks},
 };
 use gear_core::ids::{MessageId, ProgramId};
 
 /// Mailbox manager which operates under the hood over
-/// [`gear_common::AuxiliaryMailbox`].
+/// [`gear_common::auxiliary::mailbox::AuxiliaryMailbox`].
 #[derive(Debug, Default)]
 pub(crate) struct MailboxManager;
 
 impl MailboxManager {
     /// Insert user message into mailbox.
-    pub(crate) fn insert(&self, message: MailboxedMessage) -> Result<(), MailboxErrorImpl> {
-        <AuxiliaryMailbox<MailboxCallbacksImpl> as Mailbox>::insert(message, u32::MAX)
+    pub(crate) fn insert(
+        &self,
+        message: MailboxedMessage,
+        expected: BlockNumber,
+    ) -> Result<(), MailboxErrorImpl> {
+        <AuxiliaryMailbox<MailboxCallbacksImpl> as Mailbox>::insert(message, expected)
     }
 
     /// Remove user message from mailbox.
@@ -75,15 +79,4 @@ impl MailboxCallbacks<MailboxErrorImpl> for MailboxCallbacksImpl {
 
     type OnInsert = ();
     type OnRemove = ();
-}
-
-/// Block number getter.
-///
-/// Used to get block number to insert message into mailbox.
-pub(crate) struct GetBlockNumberImpl;
-
-impl GetCallback<BlockNumber> for GetBlockNumberImpl {
-    fn call() -> BlockNumber {
-        BlocksManager::new().get().height
-    }
 }
