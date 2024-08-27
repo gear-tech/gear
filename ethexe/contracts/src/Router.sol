@@ -214,7 +214,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         payable
         returns (address)
     {
-        (address actorId, uint128 executableBalance) = _createProgramNoMessage(codeId, salt, _value);
+        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(codeId, salt, _value);
 
         IMirror(actorId).initMessage(tx.origin, payload, _value, executableBalance);
 
@@ -228,7 +228,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         bytes calldata payload,
         uint128 _value
     ) external payable returns (address) {
-        (address actorId, uint128 executableBalance) = _createProgramNoMessage(codeId, salt, _value);
+        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(codeId, salt, _value);
 
         IMirror mirrorInstance = IMirror(actorId);
 
@@ -285,7 +285,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /* Helper private functions */
 
-    function _createProgramNoMessage(bytes32 codeId, bytes32 salt, uint128 _value) private returns (address, uint128) {
+    function _createProgramWithoutMessage(bytes32 codeId, bytes32 salt, uint128 _value)
+        private
+        returns (address, uint128)
+    {
         Storage storage router = _getStorage();
 
         require(router.codes[codeId] == CodeState.Validated, "code must be validated before program creation");
