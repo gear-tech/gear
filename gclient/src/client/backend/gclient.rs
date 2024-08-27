@@ -194,6 +194,10 @@ impl Backend for GClient {
             .map_err(Into::into)
     }
 
+    async fn transfer(&self, to: ActorId, value: u128) -> Result<TxResult<MessageId>> {
+        todo!()
+    }
+
     fn add_pair(&mut self, suri: impl AsRef<str>) -> Result<()> {
         let mut patt = suri.as_ref().splitn(2, ':');
         let pair = sr25519::Pair::from_string(

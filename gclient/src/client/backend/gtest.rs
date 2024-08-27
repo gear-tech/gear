@@ -155,6 +155,10 @@ impl Backend for GTest {
         result.ensure()
     }
 
+    async fn transfer(&self, to: ActorId, value: u128) -> Result<TxResult<MessageId>> {
+        todo!()
+    }
+
     fn timeout(&mut self, timeout: Duration) {
         self.timeout = timeout
     }

@@ -20,7 +20,7 @@ use crate::client::{Message, Program, TxResult};
 use anyhow::{anyhow, Result};
 pub use gclient::GClient;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
-use gprimitives::MessageId;
+use gprimitives::{ActorId, MessageId};
 use gsdk::metadata::runtime_types::gear_common::storage::primitives::Interval;
 pub use gtest::GTest;
 use std::{fs, path::PathBuf, time::Duration};
@@ -54,6 +54,11 @@ pub trait Backend: Sized {
             "gtest backend currently doesn't support this method"
         ))
     }
+
+    /// Transfer balance to account
+    ///
+    /// NOTE: this function currently mints balance from air in the gtest client.
+    async fn transfer(&self, to: ActorId, value: u128) -> Result<TxResult<MessageId>>;
 
     /// Set timeout for the backend
     fn timeout(&mut self, timeout: Duration);
