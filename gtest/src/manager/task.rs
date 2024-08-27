@@ -42,7 +42,7 @@ impl TaskHandler<ProgramId> for ExtManager {
         let message = ReplyMessage::auto(message_id);
 
         self.gas_tree
-            .create(user_id, message.id(), 0)
+            .create(user_id, message.id(), 0, true)
             .expect("failed to create gas tree node");
 
         let mailboxed = self

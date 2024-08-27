@@ -18,6 +18,7 @@
 
 mod hold_bound;
 mod journal;
+mod reservations;
 mod task;
 
 use crate::{
@@ -51,7 +52,6 @@ use core_processor::{
 };
 use gear_common::{
     auxiliary::{gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, BlockNumber},
-    gas_provider::Imbalance,
     scheduler::{ScheduledTask, StorageType},
     storage::Interval,
     LockId, Origin,
@@ -65,7 +65,6 @@ use gear_core::{
         StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
-    reservation::GasReservationSlot,
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_common::LazyPagesCosts;
@@ -174,75 +173,6 @@ impl ExtManager {
         self.id_nonce
     }
 
-    pub(crate) fn remove_gas_reservation_impl(
-        &mut self,
-        program_id: ProgramId,
-        reservation: ReservationId,
-    ) -> GasReservationSlot {
-        let slot = self.update_genuine_program(program_id, |p| {
-            p.gas_reservation_map
-                .remove(&reservation)
-                .unwrap_or_else(|| {
-                    let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
-                    Reservation {reservation} doesn't exist.");
-
-                    unreachable!("{err_msg}")
-                })
-        }).unwrap_or_else(|| {
-            unreachable!("failed to update program {program_id}")
-        });
-
-        self.remove_gas_reservation_slot(reservation, slot)
-    }
-
-    pub(crate) fn remove_gas_reservation_with_task(
-        &mut self,
-        program_id: ProgramId,
-        reservation: ReservationId,
-    ) {
-        let slot = self.remove_gas_reservation_impl(program_id, reservation);
-
-        let _ = self.task_pool.delete(
-            slot.finish,
-            ScheduledTask::RemoveGasReservation(program_id, reservation),
-        );
-    }
-
-    pub(crate) fn remove_gas_reservation_slot(
-        &mut self,
-        reservation: ReservationId,
-        slot: GasReservationSlot,
-    ) -> GasReservationSlot {
-        let interval = Interval {
-            start: slot.start,
-            finish: slot.finish,
-        };
-
-        self.charge_for_hold(reservation, interval, StorageType::Reservation);
-        self.consume_and_retrieve(reservation);
-
-        slot
-    }
-
-    pub(crate) fn consume_and_retrieve(&mut self, id: impl Origin) {
-        let outcome = self.gas_tree.consume(id).unwrap_or_else(|e| {
-            let err_msg = format!(
-                "consume_and_retrieve: failed consuming the rest of gas. Got error - {e:?}"
-            );
-
-            unreachable!("{err_msg}")
-        });
-
-        if let Some((imbalance, multiplier, external)) = outcome {
-            let gas_left = imbalance.peek();
-
-            if !gas_left.is_zero() {
-                self.bank
-                    .withdraw_gas(external.cast(), gas_left, multiplier);
-            }
-        }
-    }
-
     /// Insert message into the delayed queue.
     pub(crate) fn send_delayed_dispatch(
         &mut self,
@@ -281,10 +211,9 @@ impl ExtManager {
 
         let mut to_mailbox = false;
 
-        let sender_node: MessageId = reservation
+        let sender_node = reservation
             .map(Origin::into_origin)
-            .unwrap_or_else(|| origin_msg.into_origin())
-            .into();
+            .unwrap_or_else(|| origin_msg.into_origin());
 
         let from = dispatch.source();
         let value = dispatch.value();
@@ -494,8 +423,8 @@ impl ExtManager {
         let threshold = MAILBOX_THRESHOLD;
 
         let msg_id = reservation
-            .map(|x| x.cast::<MessageId>())
-            .unwrap_or(origin_msg);
+            .map(Origin::into_origin)
+            .unwrap_or_else(|| origin_msg.into_origin());
 
         let gas_limit = message
             .gas_limit()
@@ -792,7 +721,12 @@ impl ExtManager {
             .gas_limit()
             .unwrap_or_else(|| unreachable!("message from program API always has gas"));
         self.gas_tree
-            .create(dispatch.source(), dispatch.id(), gas_limit)
+            .create(
+                dispatch.source(),
+                dispatch.id(),
+                gas_limit,
+                dispatch.is_reply(),
+            )
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         self.route_dispatch(dispatch)
     }
@@ -1335,25 +1269,6 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    fn remove_reservation(&mut self, id: ProgramId, reservation: ReservationId) -> Option<bool> {
-        let was_in_map = self.update_genuine_program(id, |genuine_program| {
-            genuine_program
-                .gas_reservation_map
-                .remove(&reservation)
-                .is_some()
-        })?;
-
-        if was_in_map {
-            self.gas_tree
-                .consume(reservation)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        } else {
-            log::error!("Tried to remove unexistent reservation {reservation} for program {id}.");
-        }
-
-        Some(was_in_map)
-    }
-
     pub(crate) fn update_genuine_program<R, F: FnOnce(&mut GenuineProgram) -> R>(
         &mut self,
         id: ProgramId,
@@ -1373,51 +1288,6 @@ impl ExtManager {
             StorageType::DispatchStash => DISPATCH_HOLD_COST,
             StorageType::Program => todo!("#646"),
             StorageType::Reservation => RESERVATION_COST,
-        }
-    }
-
-    pub(crate) fn charge_for_hold(
-        &mut self,
-        id: impl Origin,
-        hold_interval: Interval<BlockNumber>,
-        storage_type: StorageType,
-    ) {
-        let id: MessageId = id.cast();
-        let current = self.block_height();
-
-        // Deadline of the task.
-        let deadline = hold_interval.finish.saturating_add(RESERVE_FOR);
-
-        // The block number, which was the last paid for hold.
-        //
-        // Outdated tasks can end up being store for free - this case has to be
-        // controlled by a correct selection of the `ReserveFor` constant.
-        let paid_until = current.min(deadline);
-
-        // holding duration
-        let duration: u64 = paid_until.saturating_sub(hold_interval.start).into();
-
-        // Cost per block based on the storage used for holding
-        let cost = Self::cost_by_storage_type(storage_type);
-
-        let amount = storage_type.try_into().map_or_else(
-            |_| duration.saturating_mul(cost),
-            |lock_id| {
-                let prepaid = self.gas_tree.unlock_all(id, lock_id).unwrap_or_else(|e| {
-                    let err_msg = format!(
-                        "charge_for_hold: failed unlocking locked gas.
-                        Got error - {e:?}"
-                    );
-
-                    unreachable!("{err_msg}");
-                });
-
-                prepaid.min(duration.saturating_mul(cost))
-            },
-        );
-
-        if !amount.is_zero() {
-            self.spend_gas(id, amount);
         }
     }
 

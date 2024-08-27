@@ -50,8 +50,9 @@ impl GasTreeManager {
         origin: ProgramId,
         mid: MessageId,
         amount: Gas,
+        is_reply: bool,
     ) -> Result<PositiveImbalance, GasTreeError> {
-        if !self.exists_and_deposit(mid) {
+        if !is_reply && !self.exists_and_deposit(mid) {
             GasTree::create(
                 origin.cast(),
                 GAS_MULTIPLIER,
@@ -83,7 +84,7 @@ impl GasTreeManager {
     pub(crate) fn split_with_value(
         &self,
         is_reply: bool,
-        original_mid: MessageId,
+        original_mid: impl Origin,
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
