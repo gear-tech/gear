@@ -33,24 +33,25 @@ use std::{
 use tokio::sync::mpsc;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum ScoreEvent {
+pub enum PeerScoreEvent {
     UnsupportedProtocol,
     ExcessiveData,
 }
 
-impl ScoreEvent {
+impl PeerScoreEvent {
     fn abs_diff(self) -> u8 {
         match self {
-            ScoreEvent::UnsupportedProtocol => u8::MAX,
-            ScoreEvent::ExcessiveData => u8::MAX,
+            PeerScoreEvent::UnsupportedProtocol => u8::MAX,
+            PeerScoreEvent::ExcessiveData => u8::MAX,
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct PeerScoreHandle(mpsc::UnboundedSender<(PeerId, ScoreEvent)>);
+pub struct PeerScoreHandle(mpsc::UnboundedSender<(PeerId, PeerScoreEvent)>);
 
 impl PeerScoreHandle {
+    #[cfg(test)]
     pub fn new_test() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         mem::forget(rx);
@@ -58,12 +59,32 @@ impl PeerScoreHandle {
     }
 
     pub fn unsupported_protocol(&self, peer_id: PeerId) {
-        let _res = self.0.send((peer_id, ScoreEvent::UnsupportedProtocol));
+        let _res = self.0.send((peer_id, PeerScoreEvent::UnsupportedProtocol));
     }
 
     pub fn excessive_data(&self, peer_id: PeerId) {
-        let _res = self.0.send((peer_id, ScoreEvent::ExcessiveData));
+        let _res = self.0.send((peer_id, PeerScoreEvent::ExcessiveData));
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum Event {
+    /// Peer got so low score it's blocked now
+    PeerBlocked {
+        /// Peer we blocked
+        peer_id: PeerId,
+        /// The last event changed peer score
+        last_event: PeerScoreEvent,
+    },
+    /// Peer score has been changed
+    ScoreChanged {
+        /// Peer whose score has been changed
+        peer_id: PeerId,
+        /// Event that changed score
+        event: PeerScoreEvent,
+        /// Current peer score
+        score: u8,
+    },
 }
 
 type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
@@ -71,7 +92,7 @@ type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedP
 pub(crate) struct Behaviour {
     block_list: BlockListBehaviour,
     handle: PeerScoreHandle,
-    rx: mpsc::UnboundedReceiver<(PeerId, ScoreEvent)>,
+    rx: mpsc::UnboundedReceiver<(PeerId, PeerScoreEvent)>,
     score: HashMap<PeerId, u8>,
 }
 
@@ -91,7 +112,7 @@ impl Behaviour {
         self.handle.clone()
     }
 
-    fn on_score_event(&mut self, peer_id: PeerId, event: ScoreEvent) {
+    fn on_score_event(&mut self, peer_id: PeerId, event: PeerScoreEvent) -> Event {
         let peer_score = self.score.entry(peer_id).or_insert(u8::MAX);
         *peer_score = peer_score.saturating_sub(event.abs_diff());
 
@@ -99,13 +120,24 @@ impl Behaviour {
             let removed = self.score.remove(&peer_id);
             debug_assert!(removed.is_some());
             self.block_list.block_peer(peer_id);
+
+            Event::PeerBlocked {
+                peer_id,
+                last_event: event,
+            }
+        } else {
+            Event::ScoreChanged {
+                peer_id,
+                event,
+                score: *peer_score,
+            }
         }
     }
 }
 
 impl NetworkBehaviour for Behaviour {
     type ConnectionHandler = THandler<BlockListBehaviour>;
-    type ToSwarm = void::Void;
+    type ToSwarm = Event;
 
     fn handle_pending_inbound_connection(
         &mut self,
@@ -185,14 +217,61 @@ impl NetworkBehaviour for Behaviour {
         if let Poll::Ready(to_swarm) = self.block_list.poll(cx) {
             match to_swarm {
                 ToSwarm::GenerateEvent(event) => void::unreachable(event),
-                to_swarm => return Poll::Ready(to_swarm),
+                to_swarm => return Poll::Ready(to_swarm.map_out(|void| void::unreachable(void))),
             }
         }
 
         if let Poll::Ready(Some((peer_id, event))) = self.rx.poll_recv(cx) {
-            self.on_score_event(peer_id, event);
+            return Poll::Ready(ToSwarm::GenerateEvent(self.on_score_event(peer_id, event)));
         }
 
         Poll::Pending
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use libp2p::{swarm::SwarmEvent, Swarm};
+    use libp2p_swarm_test::SwarmExt;
+
+    async fn new_swarm() -> Swarm<Behaviour> {
+        let mut swarm = Swarm::new_ephemeral(|_keypair| Behaviour::new());
+        swarm.listen().with_memory_addr_external().await;
+        swarm
+    }
+
+    #[tokio::test]
+    async fn peer_blocked() {
+        let mut alice = new_swarm().await;
+        let mut chad = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
+        let chad_peer_id = *chad.local_peer_id();
+        alice.connect(&mut chad).await;
+
+        let handle = alice.behaviour_mut().handle();
+        handle.unsupported_protocol(chad_peer_id);
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::PeerBlocked {
+                peer_id: chad_peer_id,
+                last_event: PeerScoreEvent::UnsupportedProtocol
+            }
+        );
+
+        let event = chad.next_swarm_event().await;
+        assert!(
+            matches!(
+                event,
+                SwarmEvent::ConnectionClosed {
+                    peer_id,
+                    num_established: 0,
+                    ..
+                } if peer_id == alice_peer_id
+            ),
+            "{event:?}"
+        );
     }
 }

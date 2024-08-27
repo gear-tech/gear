@@ -319,7 +319,7 @@ impl NetworkEventLoop {
             //
             BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
             //
-            BehaviourEvent::PeerScore(void) => void::unreachable(void),
+            BehaviourEvent::PeerScore(_) => {}
             //
             BehaviourEvent::Ping(ping::Event {
                 peer,
