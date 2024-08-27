@@ -20,7 +20,7 @@
 
 use crate::{router::StateTransition, BlockEvent};
 use alloc::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
 };
 use gear_core::{
@@ -81,6 +81,7 @@ pub trait CodesStorage: Send + Sync {
 
     fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId>;
     fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId);
+    fn program_ids(&self) -> BTreeSet<ProgramId>;
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);

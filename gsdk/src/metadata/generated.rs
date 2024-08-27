@@ -3157,13 +3157,6 @@ pub mod runtime_types {
                         prolong_duration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 4)]
-                    #[doc = "See [`Pallet::call_deprecated`]."]
-                    call_deprecated {
-                        call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
-                            ::core::primitive::u128,
-                        >,
-                    },
-                    #[codec(index = 5)]
                     #[doc = "See [`Pallet::decline`]."]
                     decline {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
@@ -8489,7 +8482,6 @@ pub mod calls {
         Call,
         Revoke,
         Update,
-        CallDeprecated,
         Decline,
     }
     impl CallInfo for GearVoucherCall {
@@ -8500,7 +8492,6 @@ pub mod calls {
                 Self::Call => "call",
                 Self::Revoke => "revoke",
                 Self::Update => "update",
-                Self::CallDeprecated => "call_deprecated",
                 Self::Decline => "decline",
             }
         }

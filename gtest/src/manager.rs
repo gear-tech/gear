@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod hold_bound;
 mod journal;
+mod reservations;
 mod task;
 
 use crate::{
@@ -31,8 +33,8 @@ use crate::{
     program::{Gas, WasmProgram},
     task_pool::TaskPoolManager,
     Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, RESERVE_FOR,
-    VALUE_PER_GAS,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAILBOX_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
     common::*,
@@ -40,23 +42,30 @@ use core_processor::{
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_common::{
-    auxiliary::{mailbox::MailboxErrorImpl, BlockNumber},
-    scheduler::ScheduledTask,
+    auxiliary::{gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, BlockNumber},
+    scheduler::{ScheduledTask, StorageType},
+    storage::Interval,
+    LockId, Origin,
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
-    gas_metering::Schedule,
+    gas_metering::{RentWeights, Schedule},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
-    pages::GearPage,
+    message::{
+        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
+        StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
+    },
+    pages::{num_traits::Zero, GearPage},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_native_interface::LazyPagesNative;
+use hold_bound::HoldBoundBuilder;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
+    fmt::Debug,
     mem,
 };
 
@@ -83,7 +92,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), (StoredDispatch, Option<BlockNumber>)>,
     pub(crate) gas_tree: GasTreeManager,
     pub(crate) gas_allowance: Gas,
-    pub(crate) dispatches_stash: HashMap<MessageId, Dispatch>,
+    pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
     pub(crate) messages_processing_enabled: bool,
 
     // Last block execution info
@@ -114,6 +123,10 @@ impl ExtManager {
             ),
             ..Default::default()
         }
+    }
+
+    pub fn block_height(&self) -> u32 {
+        self.blocks_manager.get().height
     }
 
     pub(crate) fn store_new_actor(
@@ -152,31 +165,518 @@ impl ExtManager {
     }
 
     /// Insert message into the delayed queue.
-    fn send_delayed_dispatch(&mut self, dispatch: Dispatch, delay: u32) {
+    pub(crate) fn send_delayed_dispatch(
+        &mut self,
+        origin_msg: MessageId,
+        dispatch: Dispatch,
+        delay: u32,
+        to_user: bool,
+        reservation: Option<ReservationId>,
+    ) {
+        if delay.is_zero() {
+            let err_msg = "send_delayed_dispatch: delayed sending with zero delay appeared";
+
+            unreachable!("{err_msg}");
+        }
+
         let message_id = dispatch.id();
-        let task = if Actors::is_program(dispatch.destination()) {
-            ScheduledTask::SendDispatch(message_id)
-        } else {
-            // TODO #4122, `to_mailbox` must be counted from provided gas
-            ScheduledTask::SendUserMessage {
-                message_id,
-                to_mailbox: true,
+
+        if self.dispatches_stash.contains_key(&message_id) {
+            let err_msg = format!(
+                "send_delayed_dispatch: stash already has the message id - {id}",
+                id = dispatch.id()
+            );
+
+            unreachable!("{err_msg}");
+        }
+
+        // Validating dispatch wasn't sent from system with delay.
+        if dispatch.is_error_reply() || matches!(dispatch.kind(), DispatchKind::Signal) {
+            let err_msg = format!(
+                "send_delayed_dispatch: message of an invalid kind is sent: {kind:?}",
+                kind = dispatch.kind()
+            );
+
+            unreachable!("{err_msg}");
+        }
+
+        let mut to_mailbox = false;
+
+        let sender_node = reservation
+            .map(Origin::into_origin)
+            .unwrap_or_else(|| origin_msg.into_origin());
+
+        let from = dispatch.source();
+        let value = dispatch.value();
+
+        let hold_builder = HoldBoundBuilder::new(StorageType::DispatchStash);
+
+        let delay_hold = hold_builder.duration(self, delay);
+        let gas_for_delay = delay_hold.lock_amount(self);
+
+        let interval_finish = if to_user {
+            let threshold = MAILBOX_THRESHOLD;
+
+            let gas_limit = dispatch
+                .gas_limit()
+                .or_else(|| {
+                    let gas_limit = self.gas_tree.get_limit(sender_node).unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "send_delayed_dispatch: failed getting message gas limit. \
+                                Lock sponsor id - {sender_node:?}. Got error - {e:?}"
+                        );
+
+                        unreachable!("{err_msg}");
+                    });
+
+                    (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
+                })
+                .unwrap_or_default();
+
+            to_mailbox = !dispatch.is_reply() && gas_limit >= threshold;
+
+            let gas_amount = if to_mailbox {
+                gas_for_delay.saturating_add(gas_limit)
+            } else {
+                gas_for_delay
+            };
+
+            self.gas_tree
+                .cut(sender_node, message_id, gas_amount)
+                .unwrap_or_else(|e| {
+                    let sender_node = sender_node.cast::<PlainNodeId>();
+                    let err_msg = format!(
+                        "send_delayed_dispatch: failed creating cut node. \
+                        Origin node - {sender_node:?}, cut node id - {id}, amount - {gas_amount}. \
+                        Got error - {e:?}",
+                        id = dispatch.id()
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+            if !to_mailbox {
+                self.gas_tree
+                    .split_with_value(
+                        true,
+                        origin_msg,
+                        MessageId::generate_reply(dispatch.id()),
+                        0,
+                    )
+                    .expect("failed to split with value gas node");
             }
+
+            if let Some(reservation_id) = reservation {
+                self.remove_gas_reservation_with_task(dispatch.source(), reservation_id)
+            }
+
+            // Locking funds for holding.
+            let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
+                // Dispatch stash storage is guaranteed to have an associated lock id
+                let err_msg =
+                    "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
+
+                unreachable!("{err_msg}");
+            });
+
+            self.gas_tree.lock(dispatch.id(), lock_id, delay_hold.lock_amount(self))
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_delayed_dispatch: failed locking gas for the user message stash hold. \
+                        Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
+                        message_id = dispatch.id(),
+                        lock = delay_hold.lock_amount(self));
+                    unreachable!("{err_msg}");
+                });
+
+            if delay_hold.expected_duration(self).is_zero() {
+                let err_msg = format!(
+                    "send_delayed_dispatch: user message got zero duration hold bound for dispatch stash. \
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
+                    cost = Self::cost_by_storage_type(StorageType::DispatchStash)
+                );
+
+                unreachable!("{err_msg}");
+            }
+
+            delay_hold.expected()
+        } else {
+            match (dispatch.gas_limit(), reservation) {
+                (Some(gas_limit), None) => self
+                    .gas_tree
+                    .split_with_value(
+                        dispatch.is_reply(),
+                        sender_node,
+                        dispatch.id(),
+                        gas_limit.saturating_add(gas_for_delay),
+                    )
+                    .expect("GasTree corrupted"),
+
+                (None, None) => self
+                    .gas_tree
+                    .split(dispatch.is_reply(), sender_node, dispatch.id())
+                    .expect("GasTree corrupted"),
+                (Some(gas_limit), Some(reservation_id)) => {
+                    let err_msg = format!(
+                        "send_delayed_dispatch: sending dispatch with gas from reservation isn't implemented. \
+                        Message - {message_id}, sender - {sender}, gas limit - {gas_limit}, reservation - {reservation_id}",
+                        message_id = dispatch.id(),
+                        sender = dispatch.source(),
+                    );
+
+                    unreachable!("{err_msg}");
+                }
+
+                (None, Some(reservation_id)) => {
+                    self.gas_tree
+                        .split(dispatch.is_reply(), reservation_id, dispatch.id())
+                        .expect("GasTree corrupted");
+                    self.remove_gas_reservation_with_task(dispatch.source(), reservation_id);
+                }
+            }
+
+            let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
+                // Dispatch stash storage is guaranteed to have an associated lock id
+                let err_msg =
+                    "send_delayed_dispatch: No associated lock id for the dispatch stash storage";
+
+                unreachable!("{err_msg}");
+            });
+
+            self.gas_tree
+                .lock(dispatch.id(), lock_id, delay_hold.lock_amount(self))
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                    "send_delayed_dispatch: failed locking gas for the program message stash hold. \
+                    Message id - {message_id}, lock amount - {lock}. Got error - {e:?}",
+                    message_id = dispatch.id(),
+                    lock = delay_hold.lock_amount(self)
+                );
+
+                    unreachable!("{err_msg}");
+                });
+
+            if delay_hold.expected_duration(self).is_zero() {
+                let err_msg = format!(
+                    "send_delayed_dispatch: program message got zero duration hold bound for dispatch stash. \
+                    Requested duration - {delay}, block cost - {cost}, source - {from:?}",
+                    cost = Self::cost_by_storage_type(StorageType::DispatchStash)
+                );
+
+                unreachable!("{err_msg}");
+            }
+
+            delay_hold.expected()
         };
 
-        let expected_bn = self.blocks_manager.get().height + delay;
-        self.task_pool
-            .add(expected_bn, task)
-            .unwrap_or_else(|e| unreachable!("TaskPool corrupted! {e:?}"));
-        if self.dispatches_stash.insert(message_id, dispatch).is_some() {
-            unreachable!("Delayed sending logic invalidated: stash contains same message");
+        if !dispatch.value().is_zero() {
+            self.bank.deposit_value(from, value, false);
         }
+
+        let message_id = dispatch.id();
+
+        let start_bn = self.block_height();
+        let delay_interval = Interval {
+            start: start_bn,
+            finish: interval_finish,
+        };
+
+        self.dispatches_stash
+            .insert(message_id, (dispatch.into_stored_delayed(), delay_interval));
+
+        let task = if to_user {
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox,
+            }
+        } else {
+            ScheduledTask::SendDispatch(message_id)
+        };
+
+        let task_bn = self.block_height().saturating_add(delay);
+
+        self.task_pool.add(task_bn, task).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "send_delayed_dispatch: failed adding task for delayed message sending. \
+                    Message to user - {to_user}, message id - {message_id}. Got error - {e:?}"
+            );
+
+            unreachable!("{err_msg}");
+        });
+    }
+
+    pub(crate) fn send_user_message(
+        &mut self,
+        origin_msg: MessageId,
+        message: Message,
+        reservation: Option<ReservationId>,
+    ) {
+        let threshold = MAILBOX_THRESHOLD;
+
+        let msg_id = reservation
+            .map(Origin::into_origin)
+            .unwrap_or_else(|| origin_msg.into_origin());
+
+        let gas_limit = message
+            .gas_limit()
+            .or_else(|| {
+                let gas_limit = self.gas_tree.get_limit(msg_id).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message: failed getting message gas limit. \
+                            Lock sponsor id - {msg_id}. Got error - {e:?}"
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+                // If available gas is greater then threshold,
+                // than threshold can be used.
+                (gas_limit >= threshold).then_some(threshold)
+            })
+            .unwrap_or_default();
+
+        let message_id = message.id();
+        let from = message.source();
+        let to = message.destination();
+        let value = message.value();
+
+        let stored_message = message.into_stored();
+        let message: UserMessage = stored_message.clone().try_into().unwrap_or_else(|_| {
+            let err_msg = format!(
+                "send_user_message: failed conversion from stored into user message. \
+                    Message id - {message_id}, program id - {from}, destination - {to}",
+            );
+
+            unreachable!("{err_msg}")
+        });
+
+        if Accounts::balance(from) != 0 {
+            self.bank.deposit_value(from, value, false);
+        }
+        let _ = if message.details().is_none() && gas_limit >= threshold {
+            let hold = HoldBoundBuilder::new(StorageType::Mailbox).maximum_for(self, gas_limit);
+
+            if hold.expected_duration(self).is_zero() {
+                let err_msg = format!(
+                    "send_user_message: mailbox message got zero duration hold bound for storing. \
+                    Gas limit - {gas_limit}, block cost - {cost}, source - {from:?}",
+                    cost = Self::cost_by_storage_type(StorageType::Mailbox)
+                );
+
+                unreachable!("{err_msg}");
+            }
+
+            self.gas_tree
+                .cut(msg_id, message.id(), gas_limit)
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message: failed creating cut node. \
+                        Origin node - {msg_id}, cut node id - {id}, amount - {gas_limit}. \
+                        Got error - {e:?}",
+                        id = message.id()
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+            self.gas_tree
+                .lock(message.id(), LockId::Mailbox, gas_limit)
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message: failed locking gas for the user message mailbox. \
+                        Message id - {message_id}, lock amount - {gas_limit}. Got error - {e:?}",
+                        message_id = message.id(),
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+            let message_id = message.id();
+            let message: UserStoredMessage = message.clone().try_into().unwrap_or_else(|_| {
+                // Replies never sent to mailbox
+                let err_msg = format!(
+                    "send_user_message: failed conversion from user into user stored message. \
+                        Message id - {message_id}, program id - {from:?}, destination - {to:?}",
+                );
+
+                unreachable!("{err_msg}")
+            });
+
+            self.mailbox
+                .insert(message, hold.expected())
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message: failed inserting message into mailbox. \
+                        Message id - {message_id}, source - {from:?}, destination - {to:?}, \
+                        expected bn - {bn:?}. Got error - {e:?}",
+                        bn = hold.expected(),
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+            self.task_pool
+                .add(
+                    hold.expected(),
+                    ScheduledTask::RemoveFromMailbox(to, message_id),
+                )
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message: failed adding task for removing from mailbox. \
+                    Bn - {bn:?}, sent to - {to:?}, message id - {message_id}. \
+                    Got error - {e:?}",
+                        bn = hold.expected()
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+            Some(hold.expected())
+        } else {
+            self.bank.transfer_value(from, to, value);
+
+            if message.details().is_none() {
+                // Creating auto reply message.
+                let reply_message = ReplyMessage::auto(message.id());
+
+                self.gas_tree
+                    .split_with_value(true, origin_msg, reply_message.id(), 0)
+                    .expect("GasTree corrupted");
+                // Converting reply message into appropriate type for queueing.
+                let reply_dispatch = reply_message.into_stored_dispatch(
+                    message.destination(),
+                    message.source(),
+                    message.id(),
+                );
+
+                self.dispatches.push_back(reply_dispatch);
+            }
+
+            None
+        };
+        self.log.push(stored_message);
+
+        if let Some(reservation_id) = reservation {
+            self.remove_gas_reservation_with_task(message.source(), reservation_id);
+        }
+    }
+
+    pub(crate) fn send_user_message_after_delay(&mut self, message: UserMessage, to_mailbox: bool) {
+        let from = message.source();
+        let to = message.destination();
+        let value = message.value();
+
+        let _ = if to_mailbox {
+            let gas_limit = self.gas_tree.get_limit(message.id()).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message_after_delay: failed getting message gas limit. \
+                        Message id - {message_id}. Got error - {e:?}",
+                    message_id = message.id()
+                );
+
+                unreachable!("{err_msg}");
+            });
+
+            let hold = HoldBoundBuilder::new(StorageType::Mailbox).maximum_for(self, gas_limit);
+
+            if hold.expected_duration(self).is_zero() {
+                let err_msg = format!(
+                    "send_user_message_after_delay: mailbox message (after delay) got zero duration hold bound for storing. \
+                    Gas limit - {gas_limit}, block cost - {cost}, source - {from:?}",
+                    cost = Self::cost_by_storage_type(StorageType::Mailbox)
+                );
+
+                unreachable!("{err_msg}");
+            }
+
+            self.gas_tree.lock(message.id(), LockId::Mailbox, gas_limit)
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message_after_delay: failed locking gas for the user message mailbox. \
+                        Message id - {message_id}, lock amount - {gas_limit}. Got error - {e:?}",
+                        message_id = message.id(),
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+            let message_id = message.id();
+            let message: UserStoredMessage = message
+                .clone()
+                .try_into()
+                .unwrap_or_else(|_| {
+                    // Replies never sent to mailbox
+                    let err_msg = format!(
+                        "send_user_message_after_delay: failed conversion from user into user stored message. \
+                        Message id - {message_id}, program id - {from:?}, destination - {to:?}",
+                    );
+
+                    unreachable!("{err_msg}")
+                });
+            self.mailbox
+                .insert(message, hold.expected())
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "send_user_message_after_delay: failed inserting message into mailbox. \
+                        Message id - {message_id}, source - {from:?}, destination - {to:?}, \
+                        expected bn - {bn:?}. Got error - {e:?}",
+                        bn = hold.expected(),
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+
+            // Adding removal request in task pool
+
+            self.task_pool
+                .add(
+                    hold.expected(),
+                    ScheduledTask::RemoveFromMailbox(to, message_id),
+                )
+                .unwrap_or_else(|e| {
+                    let err_msg = format!(
+                    "send_user_message_after_delay: failed adding task for removing from mailbox. \
+                    Bn - {bn:?}, sent to - {to:?}, message id - {message_id}. \
+                    Got error - {e:?}",
+                    bn = hold.expected()
+                );
+
+                    unreachable!("{err_msg}");
+                });
+
+            Some(hold.expected())
+        } else {
+            self.bank.transfer_value(from, to, value);
+
+            // Message is never reply here, because delayed reply sending forbidden.
+            if message.details().is_none() {
+                // Creating reply message.
+                let reply_message = ReplyMessage::auto(message.id());
+
+                // `GasNode` was created on send already.
+
+                // Converting reply message into appropriate type for queueing.
+                let reply_dispatch = reply_message.into_stored_dispatch(
+                    message.destination(),
+                    message.source(),
+                    message.id(),
+                );
+
+                // Queueing dispatch.
+                self.dispatches.push_back(reply_dispatch);
+            }
+
+            self.consume_and_retrieve(message.id());
+            None
+        };
+
+        self.log.push(message.into());
     }
 
     /// Check if the current block number should trigger new epoch and reset
     /// the provided random data.
     pub(crate) fn check_epoch(&mut self) {
-        let block_height = self.blocks_manager.get().height;
+        let block_height = self.block_height();
         if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
                 INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64,
@@ -212,7 +712,12 @@ impl ExtManager {
             .gas_limit()
             .unwrap_or_else(|| unreachable!("message from program API always has gas"));
         self.gas_tree
-            .create(dispatch.source(), dispatch.id(), gas_limit)
+            .create(
+                dispatch.source(),
+                dispatch.id(),
+                gas_limit,
+                dispatch.is_reply(),
+            )
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         self.route_dispatch(dispatch)
     }
@@ -235,7 +740,7 @@ impl ExtManager {
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
         self.gas_allowance = allowance;
         self.blocks_manager.next_block();
-        let new_block_bn = self.blocks_manager.get().height;
+        let new_block_bn = self.block_height();
 
         self.process_tasks(new_block_bn);
         let total_processed = self.process_messages();
@@ -438,21 +943,29 @@ impl ExtManager {
         Accounts::balance(*id)
     }
 
-    pub(crate) fn claim_value_from_mailbox(
+    pub(crate) fn read_mailbox_message(
         &mut self,
         to: ProgramId,
         from_mid: MessageId,
-    ) -> Result<(), MailboxErrorImpl> {
-        let (message, _) = self.mailbox.remove(to, from_mid)?;
+    ) -> Result<UserStoredMessage, MailboxErrorImpl> {
+        let (message, hold_interval) = self.mailbox.remove(to, from_mid)?;
 
-        self.send_value(
-            message.source(),
-            Some(message.destination()),
-            message.value(),
+        let expected = hold_interval.finish;
+
+        let user_id = message.destination();
+        let from = message.source();
+
+        self.charge_for_hold(message.id(), hold_interval, StorageType::Mailbox);
+        self.consume_and_retrieve(message.id());
+
+        self.bank.transfer_value(from, user_id, message.value());
+
+        let _ = self.task_pool.delete(
+            expected,
+            ScheduledTask::RemoveFromMailbox(user_id, message.id()),
         );
-        self.message_consumed(message.id());
 
-        Ok(())
+        Ok(message)
     }
 
     #[track_caller]
@@ -715,25 +1228,6 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    fn remove_reservation(&mut self, id: ProgramId, reservation: ReservationId) -> Option<bool> {
-        let was_in_map = self.update_genuine_program(id, |genuine_program| {
-            genuine_program
-                .gas_reservation_map
-                .remove(&reservation)
-                .is_some()
-        })?;
-
-        if was_in_map {
-            self.gas_tree
-                .consume(reservation)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        } else {
-            log::error!("Tried to remove unexistent reservation {reservation} for program {id}.");
-        }
-
-        Some(was_in_map)
-    }
-
     pub(crate) fn update_genuine_program<R, F: FnOnce(&mut GenuineProgram) -> R>(
         &mut self,
         id: ProgramId,
@@ -742,5 +1236,50 @@ impl ExtManager {
         Actors::modify(id, |actor| {
             actor.and_then(|actor| actor.genuine_program_mut().map(op))
         })
+    }
+
+    fn cost_by_storage_type(storage_type: StorageType) -> u64 {
+        // Cost per block based on the storage used for holding
+        let schedule = Schedule::default();
+        let RentWeights {
+            waitlist,
+            dispatch_stash,
+            reservation,
+        } = schedule.rent_weights;
+        match storage_type {
+            StorageType::Code => todo!("#646"),
+            StorageType::Waitlist => waitlist.ref_time,
+            StorageType::Mailbox => MAILBOX_COST,
+            StorageType::DispatchStash => dispatch_stash.ref_time,
+            StorageType::Program => todo!("#646"),
+            StorageType::Reservation => reservation.ref_time,
+        }
+    }
+
+    /// Spends given amount of gas from given `MessageId` in `GasTree`.
+    ///
+    /// Represents logic of burning gas by transferring gas from
+    /// current `GasTree` owner to actual block producer.
+    pub fn spend_gas(&mut self, id: MessageId, amount: u64) {
+        if amount.is_zero() {
+            return;
+        }
+
+        self.gas_tree.spend(id, amount).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "spend_gas: failed spending gas. Message id - {id}, amount - {amount}. Got error - {e:?}"
+            );
+
+            unreachable!("{err_msg}");
+        });
+
+        let (external, multiplier, _) = self.gas_tree.get_origin_node(id).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "spend_gas: failed getting origin node for the current one. Message id - {id}, Got error - {e:?}"
+            );
+            unreachable!("{err_msg}");
+        });
+
+        self.bank.spend_gas(external.cast(), amount, multiplier)
     }
 }

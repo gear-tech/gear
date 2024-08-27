@@ -29,6 +29,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
+use ethexe_network::NetworkReceiverEvent;
 use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_signer::{PublicKey, Signer};
@@ -137,7 +138,7 @@ impl Service {
             .net_config
             .as_ref()
             .map(|config| -> Result<_> {
-                ethexe_network::NetworkService::new(config.clone(), &signer)
+                ethexe_network::NetworkService::new(config.clone(), &signer, db.clone())
             })
             .transpose()?;
 
@@ -398,11 +399,11 @@ impl Service {
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
-        let (mut network_sender, mut gossipsub_stream, mut network_handle) =
+        let (mut network_sender, mut network_receiver, mut network_handle) =
             if let Some(network) = network {
                 (
                     Some(network.sender),
-                    Some(network.gossip_stream),
+                    Some(network.receiver),
                     Some(tokio::spawn(network.event_loop.run())),
                 )
             } else {
@@ -485,12 +486,12 @@ impl Service {
                         validator.clear();
                     };
                 }
-                message = maybe_await(gossipsub_stream.as_mut().map(|stream| stream.next())) => {
-                    if let Some(message) = message {
+                event = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
+                    if let Some(NetworkReceiverEvent::Commitments { source, data }) = event {
                         if let Some(sequencer) = sequencer.as_mut() {
-                            log::debug!("Received p2p commitments from: {:?}", message.source);
+                            log::debug!("Received p2p commitments from: {:?}", source);
 
-                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut message.data.as_slice())?;
+                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut data.as_slice())?;
 
                             sequencer.receive_codes_commitment(origin, codes_aggregated_commitment)?;
                             sequencer.receive_block_commitment(origin, transitions_aggregated_commitment)?;

@@ -504,6 +504,7 @@ mod manager;
 mod program;
 mod system;
 mod task_pool;
+mod waitlist;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
@@ -556,16 +557,13 @@ pub mod constants {
     /// Duration of one epoch.
     pub const EPOCH_DURATION_IN_BLOCKS: Block = 600;
 
-    /* Storage-related constants */
-    // TODO: use proper weights of db accesses (#3509).
-
     /// Minimal amount of gas required to be inserted into Mailbox.
     pub const MAILBOX_THRESHOLD: Gas = 3_000;
     /// Extra amount of blocks must be reserved for storing in storage.
     pub const RESERVE_FOR: Block = 1;
 
-    /* Execution-related constants */
-    // TODO: use proper weights of instantiation and instrumentation (#3509).
+    /// Cost of storing message in mailbox
+    pub const MAILBOX_COST: Gas = 100;
 
     /// Cost of loading allocations per interval.
     pub const LOAD_ALLOCATIONS_PER_INTERVAL: Gas = 20_000;

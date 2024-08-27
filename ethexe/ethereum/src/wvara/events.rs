@@ -33,7 +33,7 @@ pub mod signatures {
     pub const ALL: [H256; 2] = [TRANSFER, APPROVAL];
 }
 
-pub fn try_extract_event(log: Log) -> Result<Option<wvara::Event>> {
+pub fn try_extract_event(log: &Log) -> Result<Option<wvara::Event>> {
     use crate::decode_log;
     use signatures::*;
 
