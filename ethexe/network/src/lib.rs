@@ -18,7 +18,7 @@
 
 mod custom_connection_limits;
 pub mod db_sync;
-mod peer_score;
+pub mod peer_score;
 mod utils;
 
 pub mod export {
@@ -151,6 +151,7 @@ pub enum NetworkReceiverEvent {
         data: Vec<u8>,
     },
     DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
+    PeerBlocked(PeerId),
 }
 
 pub struct NetworkReceiver {
@@ -250,8 +251,12 @@ impl NetworkEventLoop {
         Ok(identity::Keypair::from(pair))
     }
 
-    pub fn local_peer_id(&self) -> &PeerId {
-        self.swarm.local_peer_id()
+    pub fn local_peer_id(&self) -> PeerId {
+        *self.swarm.local_peer_id()
+    }
+
+    pub fn score_handle(&self) -> peer_score::PeerScoreHandle {
+        self.swarm.behaviour().peer_score.handle()
     }
 
     fn create_swarm(
@@ -319,6 +324,14 @@ impl NetworkEventLoop {
             //
             BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
             //
+            BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
+                peer_id,
+                last_event: _,
+            }) => {
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::PeerBlocked(peer_id));
+            }
             BehaviourEvent::PeerScore(_) => {}
             //
             BehaviourEvent::Ping(ping::Event {
@@ -594,7 +607,6 @@ mod tests {
         config2.bootstrap_addresses = [multiaddr].into();
 
         let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
-
         tokio::spawn(service2.event_loop.run());
 
         // Wait for the connection to be established
@@ -671,6 +683,48 @@ mod tests {
             NetworkReceiverEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
                 [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
             )))
+        );
+    }
+
+    #[tokio::test]
+    async fn peer_blocked_by_score() {
+        init_logger();
+
+        let tmp_dir1 = tempfile::tempdir().unwrap();
+        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/5");
+        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
+
+        let peer_id = service1.event_loop.local_peer_id();
+        let multiaddr: Multiaddr = format!("/memory/3/p2p/{peer_id}").parse().unwrap();
+
+        let peer_score_handle = service1.event_loop.score_handle();
+
+        tokio::spawn(service1.event_loop.run());
+
+        // second service
+        let tmp_dir2 = tempfile::tempdir().unwrap();
+        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
+        let mut config2 =
+            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/6");
+        config2.bootstrap_addresses = [multiaddr].into();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
+
+        let service2_peer_id = service2.event_loop.local_peer_id();
+
+        tokio::spawn(service2.event_loop.run());
+
+        // Wait for the connection to be established
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        peer_score_handle.unsupported_protocol(service2_peer_id);
+
+        let event = service1.receiver.recv().await;
+        assert_eq!(
+            event,
+            Some(NetworkReceiverEvent::PeerBlocked(service2_peer_id))
         );
     }
 }
