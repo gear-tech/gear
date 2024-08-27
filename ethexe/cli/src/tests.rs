@@ -46,7 +46,7 @@ use tokio::{
     },
     task::{self, JoinHandle},
 };
-use utils::*;
+use utils::{Listener, TestEnv};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
@@ -230,7 +230,7 @@ async fn async_ping() {
 
     let mut env = TestEnv::new(1).await.unwrap();
     let mut ping = ping::Test::new(&mut env).await;
-    let mut async_test = async_test::Test::new(&mut env).await;
+    let mut async_test = async_test::Test::new(&env).await;
     let mut node = env.create_node(None);
     node.start_service(Some(env.wallets.next()), Some(env.validators[0]), None)
         .await;
@@ -240,20 +240,27 @@ async fn async_ping() {
     ping.wait_for_program_creation(&mut env).await;
     ping.approve_wvara(&mut env).await;
 
-    async_test.upload_code(&mut env).await;
+    async_test
+        .upload_code()
+        .await
+        .wait_for(&mut async_test)
+        .await;
     async_test
         .create_program(&mut env, ping.program_id.expect("Must be set"))
-        .await;
-    async_test
-        .wait_for_program_creation(&mut env, ping.program_id.expect("Must be set"))
+        .await
+        .wait_for(&mut async_test)
         .await;
     async_test.approve_wvara(&mut env).await;
-
-    let message_id = async_test.send_common(&mut env).await;
-    async_test.wait_for_reply_to(message_id).await;
+    async_test
+        .send_common(&mut env)
+        .await
+        .wait_for(&mut async_test)
+        .await;
 }
 
 mod async_test {
+    use std::borrow::Borrow;
+
     use gear_core::message::{ReplyCode, SuccessReplyReason};
     use parity_scale_codec::Encode;
 
@@ -261,59 +268,44 @@ mod async_test {
 
     pub struct Test {
         listener: Listener,
+        blob_reader: Arc<MockBlobReader>,
+        ethereum: Ethereum,
         pub code_id: Option<CodeId>,
         pub program_id: Option<ActorId>,
     }
 
     impl Test {
-        pub async fn new(env: &mut TestEnv) -> Self {
-            let listener = env.new_listener().await;
+        pub async fn new(env: &TestEnv) -> Self {
             Self {
-                listener,
+                listener: env.new_listener().await,
+                blob_reader: env.blob_reader.clone(),
+                ethereum: env.ethereum.clone(),
                 code_id: None,
                 program_id: None,
             }
         }
 
-        pub async fn upload_code(&mut self, env: &mut TestEnv) {
+        pub async fn upload_code(&mut self) -> WaitForUploadCode {
             assert!(self.code_id.is_none(), "Code is already uploaded");
 
-            log::info!("⏳ Upload demo async code and waiting for code loaded and validated");
+            log::info!("⏳ Upload code and waiting for code loaded and validated");
 
-            let (_, code_id) = env.upload_code(demo_async::WASM_BINARY).await.unwrap();
+            let (_, code_id) = utils::upload_code(
+                self.blob_reader.borrow(),
+                &self.ethereum,
+                demo_async::WASM_BINARY,
+            )
+            .await
+            .unwrap();
 
-            self.listener
-                .apply_until(|event| match event {
-                    Event::CodeLoaded {
-                        code_id: loaded_id,
-                        code,
-                    } if loaded_id == code_id => {
-                        assert_eq!(&code, demo_async::WASM_BINARY);
-                        Ok(Some(()))
-                    }
-                    _ => Ok(None),
-                })
-                .await
-                .unwrap();
-
-            self.listener
-                .apply_until_block_event(|event| match event {
-                    BlockEvent::Router(RouterEvent::CodeGotValidated {
-                        id: loaded_id,
-                        valid,
-                    }) if loaded_id == code_id => {
-                        assert!(valid);
-                        Ok(Some(()))
-                    }
-                    _ => Ok(None),
-                })
-                .await
-                .unwrap();
-
-            self.code_id = Some(code_id);
+            WaitForUploadCode { code_id }
         }
 
-        pub async fn create_program(&mut self, env: &mut TestEnv, ping_id: ActorId) {
+        pub async fn create_program(
+            &mut self,
+            env: &mut TestEnv,
+            ping_id: ActorId,
+        ) -> WaitForProgramCreation {
             assert!(
                 self.program_id.is_none(),
                 "Program has been already created"
@@ -329,95 +321,28 @@ mod async_test {
                 .await
                 .unwrap();
 
-            self.program_id = Some(program_id);
-        }
-
-        pub async fn wait_for_program_creation(&mut self, env: &mut TestEnv, ping_id: ActorId) {
-            let program_id = self.program_id.expect("Program must be created first");
-            let code_id = self.code_id.expect("Code must be uploaded first");
-
-            log::info!("⏳ Waiting for demo async program creation");
-
-            let mut init_message_id = MessageId::default();
-            let mut program_created = false;
-            let mut reply_sent = false;
-            let mut block_committed = None;
-            self.listener
-                .apply_until_block_event(|event| {
-                    match event {
-                        BlockEvent::Router(RouterEvent::ProgramCreated {
-                            actor_id,
-                            code_id: loaded_id,
-                        }) if actor_id == program_id => {
-                            assert_eq!(code_id, loaded_id);
-                            program_created = true;
-                        }
-                        BlockEvent::Mirror { address, event } if address == program_id => {
-                            assert!(program_created);
-                            match event {
-                                MirrorEvent::MessageQueueingRequested {
-                                    id,
-                                    source,
-                                    payload,
-                                    value,
-                                } => {
-                                    assert_eq!(source, env.sender_id);
-                                    assert_eq!(payload, ping_id.encode());
-                                    assert_eq!(value, 0);
-                                    init_message_id = id;
-                                }
-                                MirrorEvent::Reply {
-                                    payload,
-                                    reply_to,
-                                    reply_code,
-                                    ..
-                                } => {
-                                    assert_eq!(payload, b"");
-                                    assert_eq!(reply_to, init_message_id);
-                                    assert_eq!(
-                                        reply_code,
-                                        ReplyCode::Success(SuccessReplyReason::Auto)
-                                    );
-                                    reply_sent = true;
-                                }
-                                MirrorEvent::StateChanged { .. } => {
-                                    assert!(reply_sent);
-                                }
-                                _ => {}
-                            }
-                        }
-                        BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => {
-                            block_committed = Some(block_hash);
-                            return Ok(Some(()));
-                        }
-                        _ => {}
-                    }
-                    Ok(None)
-                })
-                .await
-                .unwrap();
-
-            let block_committed_on_router =
-                env.router_query.last_commitment_block_hash().await.unwrap();
-            assert_eq!(block_committed, Some(block_committed_on_router));
-
-            self.program_id = Some(program_id);
+            WaitForProgramCreation {
+                code_id,
+                program_id,
+                sender_id: env.sender_id,
+                ping_id,
+            }
         }
 
         pub async fn approve_wvara(&mut self, env: &mut TestEnv) {
             let program_id = self.program_id.expect("Program must be created first");
 
-            log::info!("⏳ Approving WVara to demo async");
+            log::info!("⏳ Approving WVara");
 
             let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
             let wvara = env.ethereum.router().wvara();
             wvara.approve_all(program_address.0.into()).await.unwrap();
         }
 
-        pub async fn send_common(&mut self, env: &mut TestEnv) -> MessageId {
+        pub async fn send_common(&mut self, env: &mut TestEnv) -> WaitForReplyTo {
             let program_id = self.program_id.expect("Program must be created first");
 
-            log::info!("⏳ Sending message `Common` to demo async");
+            log::info!("⏳ Sending message `Common`");
 
             let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
             let async_program = env.ethereum.mirror(program_address);
@@ -427,33 +352,74 @@ mod async_test {
                 .await
                 .unwrap();
 
-            message_id
+            WaitForReplyTo {
+                program_id,
+                message_id,
+            }
         }
+    }
 
-        pub async fn wait_for_reply_to(&mut self, message_id: MessageId) {
-            let program_id = self.program_id.expect("Program must be created first");
+    pub struct WaitForUploadCode {
+        code_id: CodeId,
+    }
 
-            log::info!("⏳ Waiting for reply to message {message_id} from demo async");
+    impl WaitForUploadCode {
+        pub async fn wait_for(self, test: &mut Test) {
+            log::info!("⏳ Waiting for code to be loaded and validated");
 
-            self.listener
-                .apply_until_block_event(|event| match event {
-                    BlockEvent::Mirror { address, event } => match event {
-                        MirrorEvent::Reply {
-                            reply_to,
-                            reply_code,
-                            payload,
-                            ..
-                        } if address == program_id && reply_to == message_id => {
-                            assert_eq!(reply_code, ReplyCode::Success(SuccessReplyReason::Manual));
-                            assert_eq!(payload, message_id.encode());
-                            Ok(Some(()))
-                        }
-                        _ => Ok(None),
-                    },
-                    _ => Ok(None),
-                })
-                .await
-                .unwrap();
+            test.listener
+                .wait_for_upload_code(self.code_id, demo_async::WASM_BINARY, true)
+                .await;
+
+            test.code_id = Some(self.code_id);
+        }
+    }
+
+    pub struct WaitForProgramCreation {
+        code_id: CodeId,
+        program_id: ActorId,
+        sender_id: ActorId,
+        ping_id: ActorId,
+    }
+
+    impl WaitForProgramCreation {
+        pub async fn wait_for(self, test: &mut Test) {
+            log::info!("⏳ Waiting for program creation");
+
+            test.listener
+                .wait_for_program_creation(
+                    self.program_id,
+                    self.code_id,
+                    self.sender_id,
+                    self.ping_id.encode().as_slice(),
+                    0,
+                    b"",
+                    ReplyCode::Success(SuccessReplyReason::Auto),
+                )
+                .await;
+
+            test.program_id = Some(self.program_id);
+        }
+    }
+
+    pub struct WaitForReplyTo {
+        program_id: ActorId,
+        message_id: MessageId,
+    }
+
+    impl WaitForReplyTo {
+        pub async fn wait_for(self, test: &mut Test) {
+            log::info!("⏳ Waiting for reply to message {}", self.message_id);
+
+            test.listener
+                .wait_for_reply_to(
+                    self.message_id,
+                    self.program_id,
+                    self.message_id.encode().as_slice(),
+                    0,
+                    ReplyCode::Success(SuccessReplyReason::Manual),
+                )
+                .await;
         }
     }
 }
@@ -645,14 +611,16 @@ mod ping {
 
 mod utils {
     use super::*;
+    use gear_core::message::ReplyCode;
 
     pub struct Listener {
         receiver: Receiver<Event>,
+        router_query: RouterQuery,
         _handle: JoinHandle<()>,
     }
 
     impl Listener {
-        pub async fn new(mut observer: Observer) -> Self {
+        pub async fn new(mut observer: Observer, router_query: RouterQuery) -> Self {
             let (sender, receiver) = mpsc::channel::<Event>(1024);
 
             let (send_subscription_created, receive_subscription_created) =
@@ -669,7 +637,11 @@ mod utils {
             });
             receive_subscription_created.await.unwrap();
 
-            Self { receiver, _handle }
+            Self {
+                receiver,
+                router_query,
+                _handle,
+            }
         }
 
         pub async fn next_event(&mut self) -> Result<Event> {
@@ -705,6 +677,142 @@ mod utils {
                     }
                 }
             }
+        }
+
+        pub async fn wait_for_upload_code(
+            &mut self,
+            code_id: CodeId,
+            expected_code: &[u8],
+            expected_valid: bool,
+        ) {
+            self.apply_until(|event| match event {
+                Event::CodeLoaded {
+                    code_id: loaded_id,
+                    code,
+                } if loaded_id == code_id => {
+                    assert_eq!(code.as_slice(), expected_code);
+                    Ok(Some(()))
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+
+            self.apply_until_block_event(|event| match event {
+                BlockEvent::Router(RouterEvent::CodeGotValidated { id, valid })
+                    if id == code_id =>
+                {
+                    assert_eq!(valid, expected_valid);
+                    Ok(Some(()))
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        pub async fn wait_for_program_creation(
+            &mut self,
+            program_id: ActorId,
+            expected_code_id: CodeId,
+            expected_source: ActorId,
+            expected_payload: &[u8],
+            expected_value: u128,
+            expected_reply_payload: &[u8],
+            expected_reply_code: ReplyCode,
+        ) {
+            let mut init_message_id = MessageId::default();
+            let mut program_created = false;
+            let mut reply_sent = false;
+            let mut block_committed = None;
+            self.apply_until_block_event(|event| {
+                match event {
+                    BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
+                        if actor_id == program_id =>
+                    {
+                        assert_eq!(code_id, expected_code_id);
+                        program_created = true;
+                    }
+                    BlockEvent::Mirror { address, event } if address == program_id => {
+                        assert!(program_created);
+                        match event {
+                            MirrorEvent::MessageQueueingRequested {
+                                id,
+                                source,
+                                payload,
+                                value,
+                            } => {
+                                assert_eq!(source, expected_source);
+                                assert_eq!(payload, expected_payload);
+                                assert_eq!(value, expected_value);
+                                init_message_id = id;
+                            }
+                            MirrorEvent::Reply {
+                                payload,
+                                reply_to,
+                                reply_code,
+                                ..
+                            } => {
+                                assert_eq!(payload, expected_reply_payload);
+                                assert_eq!(reply_to, init_message_id);
+                                assert_eq!(reply_code, expected_reply_code,);
+                                reply_sent = true;
+                            }
+                            MirrorEvent::StateChanged { .. } => {
+                                assert!(reply_sent);
+                            }
+                            _ => {}
+                        }
+                    }
+                    BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => {
+                        block_committed = Some(block_hash);
+                        return Ok(Some(()));
+                    }
+                    _ => {}
+                }
+                Ok(None)
+            })
+            .await
+            .unwrap();
+
+            let block_committed_on_router = self
+                .router_query
+                .last_commitment_block_hash()
+                .await
+                .unwrap();
+            assert_eq!(block_committed, Some(block_committed_on_router));
+        }
+
+        pub async fn wait_for_reply_to(
+            &mut self,
+            message_id: MessageId,
+            expected_program_id: ActorId,
+            expected_reply_payload: &[u8],
+            expected_value: u128,
+            expected_reply_code: ReplyCode,
+        ) {
+            self.apply_until_block_event(|event| match event {
+                BlockEvent::Mirror {
+                    address,
+                    event:
+                        MirrorEvent::Reply {
+                            reply_to,
+                            payload,
+                            reply_code,
+                            value,
+                        },
+                } if reply_to == message_id => {
+                    assert_eq!(address, expected_program_id);
+                    assert_eq!(payload, expected_reply_payload);
+                    assert_eq!(value, expected_value);
+                    assert_eq!(reply_code, expected_reply_code);
+                    Ok(Some(()))
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
         }
     }
 
@@ -860,7 +968,7 @@ mod utils {
         }
 
         pub async fn new_listener(&self) -> Listener {
-            Listener::new(self.observer.clone()).await
+            Listener::new(self.observer.clone(), self.router_query.clone()).await
         }
     }
 
@@ -969,5 +1077,24 @@ mod utils {
             handle.abort();
             let _ = handle.await;
         }
+    }
+
+    pub async fn upload_code(
+        blob_reader: &MockBlobReader,
+        ethereum: &Ethereum,
+        code: &[u8],
+    ) -> Result<(H256, CodeId)> {
+        let code_id = CodeId::generate(code);
+        let blob_tx = H256::random();
+
+        blob_reader
+            .add_blob_transaction(blob_tx, code.to_vec())
+            .await;
+        let tx_hash = ethereum
+            .router()
+            .request_code_validation(code_id, blob_tx)
+            .await?;
+
+        Ok((tx_hash, code_id))
     }
 }

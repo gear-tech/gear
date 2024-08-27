@@ -69,6 +69,7 @@ pub(crate) fn decode_log<E: SolEvent>(log: Log) -> Result<E> {
     E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
 }
 
+#[derive(Clone)]
 pub struct Ethereum {
     router_address: Address,
     wvara_address: Address,
