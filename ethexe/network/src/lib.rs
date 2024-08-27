@@ -18,6 +18,7 @@
 
 mod custom_connection_limits;
 pub mod db_sync;
+mod peer_score;
 mod utils;
 
 pub mod export {
@@ -318,25 +319,31 @@ impl NetworkEventLoop {
             //
             BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
             //
+            BehaviourEvent::PeerScore(void) => void::unreachable(void),
+            //
             BehaviourEvent::Ping(ping::Event {
                 peer,
                 connection: _,
                 result,
             }) => {
                 if let Err(e) = result {
-                    log::debug!("Ping to {peer} failed: {e}. Disconnecting...");
+                    log::debug!("ping to {peer} failed: {e}. Disconnecting...");
                     let _res = self.swarm.disconnect_peer_id(peer);
                 }
             }
             //
             BehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+                let behaviour = self.swarm.behaviour_mut();
+
                 if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
                 {
-                    log::debug!("{peer_id} is not supported with `{}` protocol and `{}` agent. Disconnecting...", info.protocol_version, info.agent_version);
-                    let _res = self.swarm.disconnect_peer_id(peer_id);
+                    log::debug!(
+                        "{peer_id} is not supported with `{}` protocol and `{}` agent",
+                        info.protocol_version,
+                        info.agent_version
+                    );
+                    behaviour.peer_score.handle().unsupported_protocol(peer_id);
                 }
-
-                let behaviour = self.swarm.behaviour_mut();
 
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
@@ -345,8 +352,12 @@ impl NetworkEventLoop {
                 }
             }
             BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
-                log::debug!("{peer_id} is not identified: {error}. Disconnecting...");
-                let _res = self.swarm.disconnect_peer_id(peer_id);
+                log::debug!("{peer_id} is not identified: {error}");
+                self.swarm
+                    .behaviour()
+                    .peer_score
+                    .handle()
+                    .unsupported_protocol(peer_id);
             }
             BehaviourEvent::Identify(_) => {}
             //
@@ -395,8 +406,12 @@ impl NetworkEventLoop {
                     .send(NetworkReceiverEvent::Commitments { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
-                log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
-                let _res = self.swarm.disconnect_peer_id(peer_id);
+                log::debug!("`gossipsub` protocol is not supported");
+                self.swarm
+                    .behaviour()
+                    .peer_score
+                    .handle()
+                    .unsupported_protocol(peer_id);
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
@@ -445,6 +460,8 @@ pub(crate) struct Behaviour {
     pub custom_connection_limits: custom_connection_limits::Behaviour,
     // limit connections
     pub connection_limits: connection_limits::Behaviour,
+    // peer scoring system
+    pub peer_score: peer_score::Behaviour,
     // fast peer liveliness check
     pub ping: ping::Behaviour,
     // friend or foe system
@@ -486,6 +503,9 @@ impl Behaviour {
             .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
+        let peer_score = peer_score::Behaviour::new();
+        let peer_score_handle = peer_score.handle();
+
         let ping = ping::Behaviour::default();
 
         let identify_config = identify::Config::new(PROTOCOL_VERSION.to_string(), keypair.public())
@@ -520,11 +540,12 @@ impl Behaviour {
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 
-        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), db);
+        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
 
         Ok(Self {
             custom_connection_limits,
             connection_limits,
+            peer_score,
             ping,
             identify,
             mdns4,

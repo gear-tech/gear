@@ -24,6 +24,7 @@ use crate::{
         SendRequestErrorKind,
     },
     export::{Multiaddr, PeerId},
+    peer_score::PeerScoreHandle,
     utils::ParityScaleCodec,
 };
 use ethexe_db::Database;
@@ -34,14 +35,14 @@ use libp2p::{
     request_response,
     request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
     swarm::{
-        CloseConnection, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler,
-        THandlerInEvent, THandlerOutEvent, ToSwarm,
+        ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
+        THandlerOutEvent, ToSwarm,
     },
     StreamProtocol,
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     task::{Context, Poll},
     time::Duration,
 };
@@ -260,21 +261,21 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<Self>>>,
+    peer_score_handle: PeerScoreHandle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
 }
 
 impl Behaviour {
     /// TODO: use database via traits
-    pub(crate) fn new(config: Config, db: Database) -> Self {
+    pub(crate) fn new(config: Config, peer_score_handle: PeerScoreHandle, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
             ),
-            pending_events: VecDeque::new(),
-            ongoing_requests: OngoingRequests::from_config(&config),
+            peer_score_handle: peer_score_handle.clone(),
+            ongoing_requests: OngoingRequests::new(&config, peer_score_handle),
             ongoing_responses: OngoingResponses::new(db, &config),
         }
     }
@@ -361,13 +362,8 @@ impl Behaviour {
                 log::trace!("outbound failure for request {request_id} to {peer}: {error}");
 
                 if let OutboundFailure::UnsupportedProtocols = error {
-                    log::debug!("request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol. Disconnecting...");
-
-                    // TODO: remove queue when peer scoring system is introduced
-                    self.pending_events.push_front(ToSwarm::CloseConnection {
-                        peer_id: peer,
-                        connection: CloseConnection::All,
-                    });
+                    log::debug!("request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol");
+                    self.peer_score_handle.unsupported_protocol(peer);
                 }
 
                 let event =
@@ -400,11 +396,8 @@ impl Behaviour {
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
             } => {
-                log::debug!("Request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol. Disconnecting...");
-                return Poll::Ready(ToSwarm::CloseConnection {
-                    peer_id: peer,
-                    connection: CloseConnection::All,
-                });
+                log::debug!("request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol");
+                self.peer_score_handle.unsupported_protocol(peer);
             }
             request_response::Event::InboundFailure { .. } => {}
             request_response::Event::ResponseSent { .. } => {}
@@ -494,10 +487,6 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some(event) = self.pending_events.pop_back() {
-            return Poll::Ready(event);
-        }
-
         if let Some(request_id) = self.ongoing_requests.remove_if_timeout(cx) {
             return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestFailed {
                 request_id,
@@ -563,7 +552,7 @@ mod tests {
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let behaviour = Behaviour::new(config, db.clone());
+        let behaviour = Behaviour::new(config, PeerScoreHandle::new_test(), db.clone());
         let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
         (swarm, db)

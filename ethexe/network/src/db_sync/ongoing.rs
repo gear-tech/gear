@@ -19,6 +19,7 @@
 use crate::{
     db_sync::{Config, InnerBehaviour, Request, RequestId, Response, ResponseId},
     export::PeerId,
+    peer_score::PeerScoreHandle,
 };
 use ethexe_db::{CodesStorage, Database};
 use libp2p::{
@@ -72,10 +73,16 @@ pub(crate) struct OngoingRequest {
     response: Option<Response>,
     tried_peers: HashSet<PeerId>,
     timeout: Pin<Box<Sleep>>,
+    peer_score_handle: PeerScoreHandle,
 }
 
 impl OngoingRequest {
-    pub(crate) fn new(request_id: RequestId, request: Request, timeout: Duration) -> Self {
+    pub(crate) fn new(
+        request_id: RequestId,
+        request: Request,
+        timeout: Duration,
+        peer_score_handle: PeerScoreHandle,
+    ) -> Self {
         Self {
             request_id,
             original_request: request.clone(),
@@ -83,6 +90,7 @@ impl OngoingRequest {
             response: None,
             tried_peers: HashSet::new(),
             timeout: Box::pin(time::sleep(timeout)),
+            peer_score_handle,
         }
     }
 
@@ -95,11 +103,11 @@ impl OngoingRequest {
         };
 
         if response.strip(&self.original_request) {
-            // TODO: tell scoring system there was excessive data
             log::debug!(
                 "data stripped in response from {peer} for {:?}",
                 self.request_id
             );
+            self.peer_score_handle.excessive_data(peer);
         }
 
         response
@@ -162,10 +170,11 @@ pub(crate) struct OngoingRequests {
     active_requests: HashMap<OutboundRequestId, OngoingRequest>,
     max_rounds_per_request: u32,
     request_timeout: Duration,
+    peer_score_handle: PeerScoreHandle,
 }
 
 impl OngoingRequests {
-    pub(crate) fn from_config(config: &Config) -> Self {
+    pub(crate) fn new(config: &Config, peer_score_handle: PeerScoreHandle) -> Self {
         Self {
             connections: Default::default(),
             request_id_counter: 0,
@@ -173,6 +182,7 @@ impl OngoingRequests {
             active_requests: Default::default(),
             max_rounds_per_request: config.max_rounds_per_request,
             request_timeout: config.request_timeout,
+            peer_score_handle,
         }
     }
 
@@ -210,7 +220,12 @@ impl OngoingRequests {
 
     pub(crate) fn push_pending_request(&mut self, request: Request) -> RequestId {
         let request_id = self.next_request_id();
-        let ongoing_request = OngoingRequest::new(request_id, request, self.request_timeout);
+        let ongoing_request = OngoingRequest::new(
+            request_id,
+            request,
+            self.request_timeout,
+            self.peer_score_handle.clone(),
+        );
         self.pending_requests.push_front(ongoing_request);
         request_id
     }
