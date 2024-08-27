@@ -40,7 +40,7 @@ pub type AuxiliaryWaitlist<WaitListCallbacks> = WaitlistImpl<
 pub type WaitlistedMessage = StoredDispatch;
 
 std::thread_local! {
-    // Definition of the mailbox (`StorageDoubleMap`) global storage, accessed by the `Mailbox` trait implementor.
+    // Definition of the waitlist (`StorageDoubleMap`) global storage, accessed by the `Waitlist` trait implementor.
     pub(crate) static WAITLIST_STORAGE: RefCell<DoubleBTreeMap<ProgramId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
 }
 

@@ -20,15 +20,15 @@
 
 #![allow(unused)]
 
-use crate::blocks::BlocksManager;
+use crate::blocks::GetBlockNumberImpl;
 use gear_common::{
     auxiliary::{waitlist::*, BlockNumber},
-    storage::{GetCallback, Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},
+    storage::{Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},
 };
 use gear_core::ids::{MessageId, ProgramId};
 
 /// Waitlist manager which operates under the hood over
-/// [`gear_common::AuxiliaryWaitlist`].
+/// [`gear_common::auxiliary::waitlist::AuxiliaryWaitlist`].
 #[derive(Debug, Default)]
 pub(crate) struct WaitlistManager;
 
@@ -78,15 +78,4 @@ impl WaitlistCallbacks for WaitlistCallbacksImpl {
 
     type OnInsert = ();
     type OnRemove = ();
-}
-
-/// Block number getter.
-///
-/// Used to get block number to insert message into mailbox.
-pub(crate) struct GetBlockNumberImpl;
-
-impl GetCallback<BlockNumber> for GetBlockNumberImpl {
-    fn call() -> BlockNumber {
-        BlocksManager::new().get().height
-    }
 }

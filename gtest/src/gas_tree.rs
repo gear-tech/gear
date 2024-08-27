@@ -36,7 +36,7 @@ pub type OriginNodeDataOf = (
 type GasTree = <AuxiliaryGasProvider as Provider>::GasTree;
 
 /// Gas tree manager which operates under the hood over
-/// [`gear_common::AuxiliaryGasProvider`].
+/// [`gear_common::auxiliary::gas_provider::AuxiliaryGasProvider`].
 ///
 /// Manager is needed mainly to adapt arguments of the gas tree methods to the
 /// crate.
