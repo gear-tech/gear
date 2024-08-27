@@ -19,7 +19,7 @@
 use crate::{
     db_sync::{Config, InnerBehaviour, Request, RequestId, Response, ResponseId},
     export::PeerId,
-    peer_score::PeerScoreHandle,
+    peer_score::Handle,
 };
 use ethexe_db::{CodesStorage, Database};
 use libp2p::{
@@ -73,7 +73,7 @@ pub(crate) struct OngoingRequest {
     response: Option<Response>,
     tried_peers: HashSet<PeerId>,
     timeout: Pin<Box<Sleep>>,
-    peer_score_handle: PeerScoreHandle,
+    peer_score_handle: Handle,
 }
 
 impl OngoingRequest {
@@ -81,7 +81,7 @@ impl OngoingRequest {
         request_id: RequestId,
         request: Request,
         timeout: Duration,
-        peer_score_handle: PeerScoreHandle,
+        peer_score_handle: Handle,
     ) -> Self {
         Self {
             request_id,
@@ -170,11 +170,11 @@ pub(crate) struct OngoingRequests {
     active_requests: HashMap<OutboundRequestId, OngoingRequest>,
     max_rounds_per_request: u32,
     request_timeout: Duration,
-    peer_score_handle: PeerScoreHandle,
+    peer_score_handle: Handle,
 }
 
 impl OngoingRequests {
-    pub(crate) fn new(config: &Config, peer_score_handle: PeerScoreHandle) -> Self {
+    pub(crate) fn new(config: &Config, peer_score_handle: Handle) -> Self {
         Self {
             connections: Default::default(),
             request_id_counter: 0,

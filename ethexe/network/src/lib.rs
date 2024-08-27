@@ -255,7 +255,7 @@ impl NetworkEventLoop {
         *self.swarm.local_peer_id()
     }
 
-    pub fn score_handle(&self) -> peer_score::PeerScoreHandle {
+    pub fn score_handle(&self) -> peer_score::Handle {
         self.swarm.behaviour().peer_score.handle()
     }
 
@@ -326,7 +326,7 @@ impl NetworkEventLoop {
             //
             BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
                 peer_id,
-                last_event: _,
+                last_reason: _,
             }) => {
                 let _res = self
                     .external_tx

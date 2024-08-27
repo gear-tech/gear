@@ -24,7 +24,7 @@ use crate::{
         SendRequestErrorKind,
     },
     export::{Multiaddr, PeerId},
-    peer_score::PeerScoreHandle,
+    peer_score,
     utils::ParityScaleCodec,
 };
 use ethexe_db::Database;
@@ -261,14 +261,14 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    peer_score_handle: PeerScoreHandle,
+    peer_score_handle: peer_score::Handle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
 }
 
 impl Behaviour {
     /// TODO: use database via traits
-    pub(crate) fn new(config: Config, peer_score_handle: PeerScoreHandle, db: Database) -> Self {
+    pub(crate) fn new(config: Config, peer_score_handle: peer_score::Handle, db: Database) -> Self {
         Self {
             inner: InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
@@ -552,7 +552,7 @@ mod tests {
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let behaviour = Behaviour::new(config, PeerScoreHandle::new_test(), db.clone());
+        let behaviour = Behaviour::new(config, peer_score::Handle::new_test(), db.clone());
         let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
         (swarm, db)

@@ -32,24 +32,25 @@ use std::{
 use tokio::sync::mpsc;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum PeerScoreEvent {
+pub(crate) enum ScoreChangedReason {
     UnsupportedProtocol,
     ExcessiveData,
 }
 
-impl PeerScoreEvent {
+impl ScoreChangedReason {
     fn to_u8(self, config: &Config) -> u8 {
         match self {
-            PeerScoreEvent::UnsupportedProtocol => config.unsupported_protocol,
-            PeerScoreEvent::ExcessiveData => config.excessive_data,
+            ScoreChangedReason::UnsupportedProtocol => config.unsupported_protocol,
+            ScoreChangedReason::ExcessiveData => config.excessive_data,
         }
     }
 }
 
+/// Handle to report peer actions
 #[derive(Debug, Clone)]
-pub struct PeerScoreHandle(mpsc::UnboundedSender<(PeerId, PeerScoreEvent)>);
+pub struct Handle(mpsc::UnboundedSender<(PeerId, ScoreChangedReason)>);
 
-impl PeerScoreHandle {
+impl Handle {
     #[cfg(test)]
     pub fn new_test() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
@@ -58,11 +59,13 @@ impl PeerScoreHandle {
     }
 
     pub fn unsupported_protocol(&self, peer_id: PeerId) {
-        let _res = self.0.send((peer_id, PeerScoreEvent::UnsupportedProtocol));
+        let _res = self
+            .0
+            .send((peer_id, ScoreChangedReason::UnsupportedProtocol));
     }
 
     pub fn excessive_data(&self, peer_id: PeerId) {
-        let _res = self.0.send((peer_id, PeerScoreEvent::ExcessiveData));
+        let _res = self.0.send((peer_id, ScoreChangedReason::ExcessiveData));
     }
 }
 
@@ -72,15 +75,15 @@ pub(crate) enum Event {
     PeerBlocked {
         /// Peer we blocked
         peer_id: PeerId,
-        /// The last event changed peer score
-        last_event: PeerScoreEvent,
+        /// The last reason changed peer score
+        last_reason: ScoreChangedReason,
     },
     /// Peer score has been changed
     ScoreChanged {
         /// Peer whose score has been changed
         peer_id: PeerId,
-        /// Event that changed score
-        event: PeerScoreEvent,
+        /// Reason why score is changed
+        reason: ScoreChangedReason,
         /// Current peer score
         score: u8,
     },
@@ -122,15 +125,15 @@ type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedP
 pub(crate) struct Behaviour {
     config: Config,
     block_list: BlockListBehaviour,
-    handle: PeerScoreHandle,
-    rx: mpsc::UnboundedReceiver<(PeerId, PeerScoreEvent)>,
+    handle: Handle,
+    rx: mpsc::UnboundedReceiver<(PeerId, ScoreChangedReason)>,
     score: HashMap<PeerId, u8>,
 }
 
 impl Behaviour {
     pub(crate) fn new(config: Config) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
-        let handle = PeerScoreHandle(tx);
+        let handle = Handle(tx);
         Self {
             config,
             block_list: BlockListBehaviour::default(),
@@ -140,13 +143,13 @@ impl Behaviour {
         }
     }
 
-    pub(crate) fn handle(&self) -> PeerScoreHandle {
+    pub(crate) fn handle(&self) -> Handle {
         self.handle.clone()
     }
 
-    fn on_score_event(&mut self, peer_id: PeerId, event: PeerScoreEvent) -> Event {
+    fn on_score_event(&mut self, peer_id: PeerId, reason: ScoreChangedReason) -> Event {
         let peer_score = self.score.entry(peer_id).or_insert(u8::MAX);
-        *peer_score = peer_score.saturating_sub(event.to_u8(&self.config));
+        *peer_score = peer_score.saturating_sub(reason.to_u8(&self.config));
 
         if *peer_score == u8::MIN {
             let removed = self.score.remove(&peer_id);
@@ -155,12 +158,12 @@ impl Behaviour {
 
             Event::PeerBlocked {
                 peer_id,
-                last_event: event,
+                last_reason: reason,
             }
         } else {
             Event::ScoreChanged {
                 peer_id,
-                event,
+                reason,
                 score: *peer_score,
             }
         }
@@ -247,14 +250,11 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Poll::Ready(to_swarm) = self.block_list.poll(cx) {
-            match to_swarm {
-                ToSwarm::GenerateEvent(event) => void::unreachable(event),
-                to_swarm => return Poll::Ready(to_swarm.map_out(|void| void::unreachable(void))),
-            }
+            return Poll::Ready(to_swarm.map_out(|void| void::unreachable(void)));
         }
 
-        if let Poll::Ready(Some((peer_id, event))) = self.rx.poll_recv(cx) {
-            return Poll::Ready(ToSwarm::GenerateEvent(self.on_score_event(peer_id, event)));
+        if let Poll::Ready(Some((peer_id, reason))) = self.rx.poll_recv(cx) {
+            return Poll::Ready(ToSwarm::GenerateEvent(self.on_score_event(peer_id, reason)));
         }
 
         Poll::Pending
@@ -296,7 +296,7 @@ mod tests {
             event,
             Event::ScoreChanged {
                 peer_id: chad_peer_id,
-                event: PeerScoreEvent::ExcessiveData,
+                reason: ScoreChangedReason::ExcessiveData,
                 score: u8::MAX - EXCESSIVE_DATA_ABS_DIFF,
             }
         );
@@ -308,7 +308,7 @@ mod tests {
             event,
             Event::ScoreChanged {
                 peer_id: chad_peer_id,
-                event: PeerScoreEvent::ExcessiveData,
+                reason: ScoreChangedReason::ExcessiveData,
                 score: u8::MAX - 2 * EXCESSIVE_DATA_ABS_DIFF,
             }
         );
@@ -320,7 +320,7 @@ mod tests {
             event,
             Event::PeerBlocked {
                 peer_id: chad_peer_id,
-                last_event: PeerScoreEvent::ExcessiveData
+                last_reason: ScoreChangedReason::ExcessiveData
             }
         );
 
