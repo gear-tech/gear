@@ -153,3 +153,19 @@ fn features_tracking() {
     assert!(read_export_entry("handle_signal").is_some());
     assert!(read_export_entry("handle_reply").is_none());
 }
+
+#[ignore]
+#[test]
+/// Build fails on multiple crate versions check.
+/// Suppose that the `syn` crate is referenced more than once
+fn build_release_for_target_deny_duplicate_crate() {
+    let mut cmd = CargoRunner::new()
+        .args(["build", "--release", "--target", TARGET])
+        .0;
+    cmd.arg("--color=always");
+    cmd.arg("--manifest-path=test-program/Cargo.toml");
+    cmd.arg("--config=env.GEAR_WASM_BUILDER_DENIED_DUPLICATE_CRATES=\'syn\'");
+
+    let status = cmd.status().expect("cargo run error");
+    assert!(!status.success())
+}
