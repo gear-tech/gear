@@ -557,19 +557,22 @@ pub mod constants {
     /// Duration of one epoch.
     pub const EPOCH_DURATION_IN_BLOCKS: Block = 600;
 
+    /* Storage-related constants */
+
     /// Minimal amount of gas required to be inserted into Mailbox.
     pub const MAILBOX_THRESHOLD: Gas = 3_000;
     /// Extra amount of blocks must be reserved for storing in storage.
     pub const RESERVE_FOR: Block = 1;
 
+    /* Rent-related constants */
+
     /// Cost of storing message in mailbox
     pub const MAILBOX_COST: Gas = 100;
 
-    /// Cost of loading allocations per interval.
-    pub const LOAD_ALLOCATIONS_PER_INTERVAL: Gas = 20_000;
+    /* Execution-related constants */
+
     /// Maximal amount of reservations program may have.
     pub const MAX_RESERVATIONS: u64 = 256;
-
     /// Initial random seed for testing environment.
     pub const INITIAL_RANDOM_SEED: u64 = 42;
 

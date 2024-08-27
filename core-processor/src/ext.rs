@@ -1420,10 +1420,9 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::RentCosts;
     use alloc::vec;
     use gear_core::{
-        costs::{CostOf, SyscallCosts},
+        costs::{CostOf, RentCosts, SyscallCosts},
         message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
