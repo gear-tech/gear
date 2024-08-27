@@ -52,7 +52,7 @@ impl GasTreeManager {
         amount: Gas,
         is_reply: bool,
     ) -> Result<PositiveImbalance, GasTreeError> {
-        if !is_reply && !self.exists_and_deposit(mid) {
+        if !is_reply || !self.exists_and_deposit(mid) {
             GasTree::create(
                 origin.cast(),
                 GAS_MULTIPLIER,
