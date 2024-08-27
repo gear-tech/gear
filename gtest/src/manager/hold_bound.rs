@@ -19,11 +19,10 @@
 //! Implementation of HoldBound and HoldBound builder, specifcying cost of
 //! holding data.
 
-use std::cmp::Ordering;
-
 use super::ExtManager;
 use crate::RESERVE_FOR;
 use gear_common::{auxiliary::BlockNumber, scheduler::StorageType, LockId, MessageId};
+use std::cmp::Ordering;
 
 /// Hold bound, specifying cost of storage, expected block number for task to
 /// create on it, deadlines and durations of holding.
@@ -114,8 +113,9 @@ impl HoldBoundBuilder {
     pub fn maximum_for(self, manager: &ExtManager, gas: u64) -> HoldBound {
         let deadline_duration = gas
             .saturating_div(self.cost.max(1))
+            // `saturated_into` conversion: try_into + unwrap_or(MAX)
             .try_into()
-            .expect("not sane deadline");
+            .unwrap_or(u32::MAX);
         let deadline = manager
             .blocks_manager
             .get()

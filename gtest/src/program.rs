@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     default_users_list,
     manager::ExtManager,
+    state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
     Result, Value, GAS_ALLOWANCE,
 };

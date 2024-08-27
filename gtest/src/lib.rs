@@ -492,28 +492,21 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-mod accounts;
-mod actors;
-mod bank;
-mod blocks;
 mod error;
-mod gas_tree;
 mod log;
-mod mailbox;
 mod manager;
 mod program;
+mod state;
 mod system;
-mod task_pool;
-mod waitlist;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
 pub use error::{Result, TestError};
-pub use mailbox::ActorMailbox;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,
 };
+pub use state::mailbox::ActorMailbox;
 pub use system::System;
 
 pub use constants::Value;

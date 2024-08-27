@@ -17,12 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    accounts::Accounts,
-    actors::Actors,
     log::{BlockRunResult, CoreLog},
-    mailbox::ActorMailbox,
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
+    state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
     Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};

@@ -20,7 +20,7 @@
 
 #![allow(unused)]
 
-use crate::blocks::GetBlockNumberImpl;
+use crate::state::blocks::GetBlockNumberImpl;
 use gear_common::{
     auxiliary::{waitlist::*, BlockNumber},
     storage::{Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},

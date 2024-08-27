@@ -16,12 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// Implementation of the `JournalHandler` trait for the `ExtManager`.
-use std::collections::BTreeMap;
-
-use crate::{accounts::Accounts, actors::Actors, Value, EXISTENTIAL_DEPOSIT};
+//! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
+use crate::{
+    state::{accounts::Accounts, actors::Actors},
+    Value, EXISTENTIAL_DEPOSIT,
+};
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     event::{MessageWaitedRuntimeReason, RuntimeReason},
@@ -34,6 +35,7 @@ use gear_core::{
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
     pages::{
+        num_traits::Zero,
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage,
     },
@@ -41,6 +43,7 @@ use gear_core::{
 };
 use gear_core_errors::SignalCode;
 use gear_wasm_instrument::gas_metering::Schedule;
+use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(
@@ -186,7 +189,7 @@ impl JournalHandler for ExtManager {
     ) {
         log::debug!("[{message_id}] waked message#{awakening_id}");
 
-        if delay == 0 {
+        if delay.is_zero() {
             if let Ok(dispatch) = self.wake_dispatch_impl(program_id, awakening_id) {
                 self.dispatches.push_back(dispatch);
 
@@ -247,7 +250,7 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
-        if value == 0 {
+        if value.is_zero() {
             // Nothing to do
             return;
         }

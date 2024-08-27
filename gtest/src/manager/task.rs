@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::actors::Actors;
+//! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
-/// Implementation of the `TaskHandler` trait for the `ExtManager`.
 use super::ExtManager;
+use crate::state::actors::Actors;
 use core_processor::common::JournalHandler;
 use gear_common::{
     scheduler::{StorageType, TaskHandler},
