@@ -19,7 +19,7 @@
 use crate::client::{Backend, Code, Message, Program, TxResult};
 use anyhow::{anyhow, Result};
 use gear_core::ids::ProgramId;
-use gprimitives::{ActorId, MessageId};
+use gprimitives::{ActorId, MessageId, H256};
 use gtest::System;
 use std::{
     collections::HashMap,
@@ -63,7 +63,7 @@ impl GTest {
         std::thread::spawn(move || {
             let system = System::new();
             while let Ok(tx) = rx.recv() {
-                let (result, nounce) = match tx {
+                let (result, nonce) = match tx {
                     Request::Deploy {
                         nonce,
                         code,
@@ -77,10 +77,15 @@ impl GTest {
                         signer,
                     } => (handle::send(&system, prog, message, signer), nonce),
                     Request::Program { nonce, id } => (handle::prog(&system, id), nonce),
+                    Request::MintTo {
+                        actor,
+                        value,
+                        nonce,
+                    } => (handle::mint_to(&system, actor, value), nonce),
                 };
 
                 if let Ok(mut resps) = resps.lock() {
-                    resps.insert(nounce, result);
+                    resps.insert(nonce, result);
                 }
             }
         });
@@ -155,8 +160,20 @@ impl Backend for GTest {
         result.ensure()
     }
 
-    async fn transfer(&self, to: ActorId, value: u128) -> Result<TxResult<MessageId>> {
-        todo!()
+    async fn transfer(&self, to: ActorId, value: u128) -> Result<TxResult<H256>> {
+        let nonce = self.nonce.load(Ordering::SeqCst);
+        self.tx.send(Request::MintTo {
+            actor: to,
+            value,
+            nonce,
+        })?;
+
+        let _ = self.resp(nonce).await?;
+
+        Ok(TxResult {
+            result: Default::default(),
+            logs: Default::default(),
+        })
     }
 
     fn timeout(&mut self, timeout: Duration) {
@@ -197,6 +214,11 @@ pub enum Request {
         nonce: usize,
         id: ProgramId,
     },
+    MintTo {
+        nonce: usize,
+        actor: ActorId,
+        value: u128,
+    },
 }
 
 /// GTest responses
@@ -205,6 +227,7 @@ pub enum Response {
     Deploy(TxResult<ActorId>),
     Send(TxResult<Result<MessageId>>),
     Program(Option<ActorId>),
+    MintTo,
 }
 
 /// gtest handles
@@ -222,6 +245,12 @@ pub(crate) mod handle {
     /// Return back program id if program exists
     pub fn prog(system: &System, prog: ProgramId) -> Response {
         Response::Program(system.get_program(prog).map(|p| p.id()))
+    }
+
+    /// Mint value to actor id
+    pub fn mint_to(system: &System, actor: ActorId, value: u128) -> Response {
+        system.mint_to(actor, value);
+        Response::MintTo
     }
 
     /// Deploy program via gtest

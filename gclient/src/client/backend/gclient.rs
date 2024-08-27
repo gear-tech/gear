@@ -194,8 +194,18 @@ impl Backend for GClient {
             .map_err(Into::into)
     }
 
-    async fn transfer(&self, to: ActorId, value: u128) -> Result<TxResult<MessageId>> {
-        todo!()
+    async fn transfer(&self, to: ActorId, value: u128) -> Result<TxResult<H256>> {
+        let hash = self
+            .inner
+            .lock()
+            .await
+            .transfer_keep_alive(to, value)
+            .await?;
+
+        Ok(TxResult {
+            result: hash,
+            logs: self.logs(hash).await?,
+        })
     }
 
     fn add_pair(&mut self, suri: impl AsRef<str>) -> Result<()> {
