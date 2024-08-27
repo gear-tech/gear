@@ -22,7 +22,7 @@ use ethexe_common::{
     router::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
-use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use ethexe_signer::{sha3, Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::ops::Not;
@@ -52,21 +52,17 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
             block_hash: commitment.block_hash,
             prev_commitment_hash: commitment.prev_commitment_hash,
             pred_block_hash: commitment.pred_block_hash,
-            transitions_digest: commitment.transitions.to_digest(),
+            transitions_digest: commitment.transitions.iter().collect(),
         }
     }
 }
 
 impl ToDigest for BlockCommitmentValidationRequest {
-    fn to_digest(&self) -> Digest {
-        let mut message = Vec::with_capacity(3 * size_of::<H256>() + size_of::<Digest>());
-
-        message.extend_from_slice(self.block_hash.as_bytes());
-        message.extend_from_slice(self.prev_commitment_hash.as_bytes());
-        message.extend_from_slice(self.pred_block_hash.as_bytes());
-        message.extend_from_slice(self.transitions_digest.as_ref());
-
-        message.to_digest()
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        sha3::Digest::update(hasher, self.block_hash.as_bytes());
+        sha3::Digest::update(hasher, self.prev_commitment_hash.as_bytes());
+        sha3::Digest::update(hasher, self.pred_block_hash.as_bytes());
+        sha3::Digest::update(hasher, self.transitions_digest.as_ref());
     }
 }
 
@@ -107,7 +103,7 @@ impl Validator {
             Self::validate_code_commitment(db, request)?;
         }
 
-        let commitments_digest = commitment_digests.to_digest();
+        let commitments_digest = commitment_digests.iter().collect();
         agro::sign_commitments_digest(
             commitments_digest,
             &self.signer,
@@ -128,7 +124,7 @@ impl Validator {
             Self::validate_block_commitment(db, request)?;
         }
 
-        let commitments_digest = commitment_digests.to_digest();
+        let commitments_digest = commitment_digests.iter().collect();
         agro::sign_commitments_digest(
             commitments_digest,
             &self.signer,
@@ -177,7 +173,6 @@ impl Validator {
             .block_outcome(block_hash)
             .ok_or(anyhow!("Cannot get from db outcome for block {block_hash}"))?
             .iter()
-            .map(ToDigest::to_digest)
             .collect::<Digest>()
             .ne(&transitions_digest)
         {
@@ -322,7 +317,7 @@ mod tests {
         let pred_block_hash = H256::random();
         let prev_commitment_hash = H256::random();
         let transitions = vec![];
-        let transitions_digest = transitions.to_digest();
+        let transitions_digest = transitions.iter().collect();
 
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);

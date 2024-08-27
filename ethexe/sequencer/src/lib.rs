@@ -461,14 +461,14 @@ impl Sequencer {
 mod tests {
     use super::*;
     use anyhow::Ok;
-    use ethexe_signer::PrivateKey;
+    use ethexe_signer::{sha3, PrivateKey};
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct TestComm([u8; 2]);
 
     impl ToDigest for TestComm {
-        fn to_digest(&self) -> Digest {
-            self.0.to_digest()
+        fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+            sha3::Digest::update(hasher, self.0);
         }
     }
 
@@ -490,7 +490,7 @@ mod tests {
         let validator1 = validator1_pub_key.to_address();
 
         let commitments = [TestComm([0, 1]), TestComm([2, 3])];
-        let commitments_digest = commitments.to_digest();
+        let commitments_digest = commitments.iter().collect();
         let signature = agro::sign_commitments_digest(
             commitments_digest,
             &signer,
@@ -897,7 +897,7 @@ mod tests {
 
         let router_address = Address([1; 20]);
         validators_pub_keys.iter().for_each(|pub_key| {
-            let commitments_digest = commitments.to_vec().to_digest();
+            let commitments_digest = commitments.iter().collect();
             candidate
                 .append_signature_with_check(
                     commitments_digest,

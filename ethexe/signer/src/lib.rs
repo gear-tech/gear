@@ -22,6 +22,7 @@ mod digest;
 mod signature;
 
 pub use digest::{Digest, ToDigest};
+pub use sha3;
 pub use signature::Signature;
 
 use anyhow::{anyhow, Result};

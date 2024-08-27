@@ -36,8 +36,12 @@ impl<T: ToDigest> AggregatedCommitments<T> {
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
-        let signature =
-            sign_commitments_digest(commitments.to_digest(), signer, pub_key, router_address)?;
+        let signature = sign_commitments_digest(
+            commitments.iter().collect(),
+            signer,
+            pub_key,
+            router_address,
+        )?;
 
         Ok(AggregatedCommitments {
             commitments,
@@ -47,7 +51,7 @@ impl<T: ToDigest> AggregatedCommitments<T> {
 
     pub fn recover(&self, router_address: Address) -> Result<Address> {
         recover_from_commitments_digest(
-            self.commitments.to_digest(),
+            self.commitments.iter().collect(),
             &self.signature,
             router_address,
         )
@@ -81,7 +85,7 @@ impl MultisignedCommitmentDigests {
         }
 
         Ok(Self {
-            digest: digests.to_digest(),
+            digest: digests.iter().collect(),
             digests,
             signatures: BTreeMap::new(),
         })
@@ -180,15 +184,18 @@ fn to_router_digest(commitments_digest: Digest, router_address: Address) -> Dige
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_signer::PrivateKey;
+    use ethexe_signer::{
+        sha3::{Digest as _, Keccak256},
+        PrivateKey,
+    };
     use std::str::FromStr;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MyComm([u8; 2]);
 
     impl ToDigest for MyComm {
-        fn to_digest(&self) -> Digest {
-            self.0.to_digest()
+        fn update_hasher(&self, hasher: &mut Keccak256) {
+            hasher.update(self.0);
         }
     }
 
@@ -203,9 +210,9 @@ mod tests {
         let pub_key = signer.add_key(private_key).unwrap();
 
         let router_address = Address([0x01; 20]);
-        let commitments = vec![MyComm([1, 2]), MyComm([3, 4])];
+        let commitments = [MyComm([1, 2]), MyComm([3, 4])];
 
-        let commitments_digest = commitments.to_digest();
+        let commitments_digest = commitments.iter().collect();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
         let recovered =
@@ -256,7 +263,7 @@ mod tests {
         assert_eq!(multisigned.digests(), digests.as_slice());
         assert_eq!(multisigned.signatures().len(), 0);
 
-        let commitments_digest = commitments.to_digest();
+        let commitments_digest = commitments.iter().collect();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 
@@ -284,7 +291,7 @@ mod tests {
 
         let mut multisigned =
             MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
-        let commitments_digest = commitments.to_digest();
+        let commitments_digest = commitments.iter().collect();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 
