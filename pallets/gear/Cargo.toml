@@ -182,6 +182,7 @@ runtime-benchmarks = [
     "frame-system/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
     "common/runtime-benchmarks",
+    "gear-runtime-interface/runtime-benchmarks",
     "gear-core-backend/mock",
     "gear-core-errors/codec",
     "gear-sandbox",
