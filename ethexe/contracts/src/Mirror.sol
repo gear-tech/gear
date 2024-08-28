@@ -23,6 +23,7 @@ contract Mirror is IMirror {
 
     /* Primary Gear logic */
 
+    // TODO (breathx): sendMessage with msg.sender, but with tx.origin if decoder.
     function sendMessage(bytes calldata _payload, uint128 _value) external payable returns (bytes32) {
         uint128 baseFee = IRouter(router()).baseFee();
         _retrieveValueToRouter(baseFee + _value);

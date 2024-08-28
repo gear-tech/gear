@@ -79,6 +79,8 @@ interface IMirror {
 
     function router() external view returns (address);
 
+    function decoder() external view returns (address);
+
     /* Primary Gear logic */
 
     function sendMessage(bytes calldata payload, uint128 value) external payable returns (bytes32);
