@@ -109,7 +109,7 @@ impl<'a> ActorMailbox<'a> {
             .ok_or(MailboxErrorImpl::ElementNotFound)?;
         self.manager
             .borrow_mut()
-            .claim_value_from_mailbox(self.user_id, mailboxed_msg.id())
+            .read_mailbox_message(self.user_id, mailboxed_msg.id())
             .unwrap_or_else(|e| unreachable!("Unexpected mailbox error: {e:?}"));
 
         Ok(())
@@ -127,7 +127,10 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
+    use crate::{
+        Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
+        MAILBOX_THRESHOLD,
+    };
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ProgramId;
@@ -159,9 +162,13 @@ mod tests {
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
+
         assert_eq!(
             system.balance_of(sender),
-            original_balance - value_send - res.spent_value()
+            original_balance
+                - value_send
+                - res.spent_value()
+                - GAS_MULTIPLIER.gas_to_value(MAILBOX_THRESHOLD)
         );
 
         let mailbox = system.get_mailbox(sender);
