@@ -269,7 +269,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         _validateSignatures(keccak256(codeCommetmentsHashes), signatures);
     }
 
-    function commitBlocks(BlockCommitment[] calldata blockCommitmentsArray, bytes[] calldata signatures) external {
+    function commitBlocks(BlockCommitment[] calldata blockCommitmentsArray, bytes[] calldata signatures)
+        external
+        nonReentrant
+    {
         bytes memory blockCommitmentsHashes;
 
         for (uint256 i = 0; i < blockCommitmentsArray.length; i++) {
@@ -345,6 +348,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         );
         require(_isPredecessorHash(blockCommitment.predBlockHash), "allowed predecessor block not found");
 
+        /*
+         * @dev SECURITY: this settlement should be performed before any other calls to avoid reentrancy.
+         */
+        router.lastBlockCommitmentHash = blockCommitment.blockHash;
+
         bytes memory transitionsHashes;
 
         for (uint256 i = 0; i < blockCommitment.transitions.length; i++) {
@@ -355,7 +363,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
         }
 
-        router.lastBlockCommitmentHash = blockCommitment.blockHash;
         emit BlockCommitted(blockCommitment.blockHash);
 
         return _blockCommitmentHash(
