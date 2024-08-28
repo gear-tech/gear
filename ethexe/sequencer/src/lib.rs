@@ -27,6 +27,7 @@ use ethexe_ethereum::Ethereum;
 use ethexe_observer::Event;
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
+use indexmap::IndexSet;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Not,
@@ -310,7 +311,7 @@ impl Sequencer {
         commitments: &CommitmentsMap<CodeCommitment>,
         threshold: u64,
     ) -> Option<MultisignedCommitmentDigests> {
-        let suitable_commitment_digests: Vec<_> = commitments
+        let suitable_commitment_digests: IndexSet<_> = commitments
             .iter()
             .filter_map(|(&digest, c)| (c.origins.len() as u64 >= threshold).then_some(digest))
             .collect();
@@ -321,9 +322,7 @@ impl Sequencer {
 
         Some(
             MultisignedCommitmentDigests::new(suitable_commitment_digests).unwrap_or_else(|err| {
-                unreachable!(
-                    "Guarantied by impl to be non-empty and without duplicates, but get: {err}"
-                );
+                unreachable!("Guarantied by impl to be non-empty, but get: {err}");
             }),
         )
     }
@@ -509,7 +508,7 @@ mod tests {
         .expect_err("No candidate is provided");
 
         let mut signatures: BTreeMap<_, _> = Default::default();
-        let digests: Vec<_> = commitments.iter().map(ToDigest::to_digest).collect();
+        let digests: IndexSet<_> = commitments.iter().map(ToDigest::to_digest).collect();
         let mut candidate = MultisignedCommitmentDigests::new(digests.clone()).unwrap();
 
         Sequencer::receive_signature(
@@ -540,8 +539,8 @@ mod tests {
         .unwrap();
 
         signatures.insert(validator1, signature);
-        assert_eq!(digests.as_slice(), candidate.digests());
-        assert_eq!(&signatures, candidate.signatures());
+        assert_eq!(candidate.digests(), &digests);
+        assert_eq!(candidate.signatures(), &signatures);
 
         let validator2_private_key = validators_private_keys[1];
         let validator2_pub_key = PublicKey::from(validator2_private_key);
@@ -565,8 +564,8 @@ mod tests {
         .unwrap();
 
         signatures.insert(validator2, signature);
-        assert_eq!(digests.as_slice(), candidate.digests());
-        assert_eq!(&signatures, candidate.signatures());
+        assert_eq!(candidate.digests(), &digests);
+        assert_eq!(candidate.signatures(), &signatures);
     }
 
     #[test]
@@ -697,6 +696,8 @@ mod tests {
             transitions: Default::default(),
         };
 
+        let mut expected_digests = IndexSet::new();
+
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, threshold);
         assert!(candidate.is_none());
@@ -715,7 +716,8 @@ mod tests {
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, 0)
                 .expect("Must have candidate");
-        assert_eq!(candidate.digests(), [commitment1.to_digest()].as_slice());
+        expected_digests.insert(commitment1.to_digest());
+        assert_eq!(candidate.digests(), &expected_digests);
 
         commitments
             .get_mut(&commitment1.to_digest())
@@ -740,19 +742,20 @@ mod tests {
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, threshold)
                 .expect("Must have candidate");
-        assert_eq!(candidate.digests(), [commitment1.to_digest()].as_slice());
+        assert_eq!(candidate.digests(), &expected_digests);
 
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment2.block_hash, threshold)
                 .expect("Must have candidate");
-        let expected_digests = [commitment1.to_digest(), commitment2.to_digest()];
-        assert_eq!(candidate.digests(), expected_digests.as_slice());
+        expected_digests.insert(commitment2.to_digest());
+        assert_eq!(candidate.digests(), &expected_digests);
 
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment3.block_hash, threshold)
                 .expect("Must have candidate");
-        let expected_digests = [commitment1.to_digest(), commitment3.to_digest()];
-        assert_eq!(candidate.digests(), expected_digests.as_slice());
+        expected_digests.pop();
+        expected_digests.insert(commitment3.to_digest());
+        assert_eq!(candidate.digests(), &expected_digests);
     }
 
     #[test]
@@ -802,7 +805,8 @@ mod tests {
             .insert(Address([2; 20]));
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold)
             .expect("Must have candidate");
-        assert_eq!(candidate.digests(), [commitment1.to_digest()].as_slice());
+        let expected_digests: IndexSet<_> = [commitment1.to_digest()].into_iter().collect();
+        assert_eq!(candidate.digests(), &expected_digests);
         assert!(candidate.signatures().is_empty());
 
         commitments.insert(
@@ -817,9 +821,11 @@ mod tests {
         );
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold)
             .expect("Must have candidate");
-        let mut expected_digests = [commitment1.to_digest(), commitment2.to_digest()];
+        let mut expected_digests: IndexSet<_> = [commitment1.to_digest(), commitment2.to_digest()]
+            .into_iter()
+            .collect();
         expected_digests.sort();
-        assert_eq!(candidate.digests(), expected_digests.as_slice());
+        assert_eq!(candidate.digests(), &expected_digests);
         assert!(candidate.signatures().is_empty());
 
         commitments.insert(
@@ -831,7 +837,7 @@ mod tests {
         );
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold)
             .expect("Must have candidate");
-        assert_eq!(candidate.digests(), expected_digests.as_slice());
+        assert_eq!(candidate.digests(), &expected_digests);
         assert!(candidate.signatures().is_empty());
     }
 
@@ -861,8 +867,9 @@ mod tests {
         .is_none());
 
         // Test not enough signatures
-        let mut candidate =
-            Some(MultisignedCommitmentDigests::new(vec![b"gear".to_digest()]).unwrap());
+        let mut candidate = Some(
+            MultisignedCommitmentDigests::new([b"gear".to_digest()].into_iter().collect()).unwrap(),
+        );
         assert!(Sequencer::process_multisigned_candidate(
             &mut candidate,
             &mut CommitmentsMap::<TestComm>::new(),

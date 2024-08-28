@@ -178,7 +178,7 @@ impl Router {
             }
         }
 
-        let actor_id = actor_id.ok_or(anyhow!("Couldn't find `ProgramCreated` log"))?;
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
 
         Ok((tx_hash, actor_id))
     }

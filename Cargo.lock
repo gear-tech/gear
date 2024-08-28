@@ -5242,6 +5242,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
+ "indexmap 2.2.6",
  "log",
  "parity-scale-codec",
  "tokio",

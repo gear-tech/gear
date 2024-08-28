@@ -18,8 +18,9 @@
 
 //! Abstract commitment aggregator.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
 
@@ -68,20 +69,14 @@ impl<T: ToDigest> AggregatedCommitments<T> {
 
 pub(crate) struct MultisignedCommitmentDigests {
     digest: Digest,
-    digests: Vec<Digest>,
+    digests: IndexSet<Digest>,
     signatures: BTreeMap<Address, Signature>,
 }
 
 impl MultisignedCommitmentDigests {
-    pub fn new(mut digests: Vec<Digest>) -> Result<Self> {
-        let len = digests.len();
-        if len == 0 {
-            return Err(anyhow::anyhow!("Empty commitments digests"));
-        }
-
-        digests.dedup();
-        if digests.len() != len {
-            return Err(anyhow::anyhow!("Duplicate commitments digests"));
+    pub fn new(digests: IndexSet<Digest>) -> Result<Self> {
+        if digests.is_empty() {
+            return Err(anyhow!("Empty commitments digests"));
         }
 
         Ok(Self {
@@ -99,7 +94,7 @@ impl MultisignedCommitmentDigests {
         check_origin: impl FnOnce(Address) -> Result<()>,
     ) -> Result<()> {
         if self.digest != digest {
-            return Err(anyhow::anyhow!("Aggregated commitments digest mismatch"));
+            return Err(anyhow!("Aggregated commitments digest mismatch"));
         }
 
         let origin = recover_from_commitments_digest(digest, &signature, router_address)?;
@@ -110,8 +105,8 @@ impl MultisignedCommitmentDigests {
         Ok(())
     }
 
-    pub fn digests(&self) -> &[Digest] {
-        self.digests.as_slice()
+    pub fn digests(&self) -> &IndexSet<Digest> {
+        &self.digests
     }
 
     pub fn signatures(&self) -> &BTreeMap<Address, Signature> {
@@ -256,11 +251,10 @@ mod tests {
 
         let router_address = Address([0x01; 20]);
         let commitments = [MyComm([1, 2]), MyComm([3, 4])];
-        let digests = commitments.map(|c| c.to_digest());
+        let digests: IndexSet<_> = commitments.map(|c| c.to_digest()).into_iter().collect();
 
-        let mut multisigned =
-            MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
-        assert_eq!(multisigned.digests(), digests.as_slice());
+        let mut multisigned = MultisignedCommitmentDigests::new(digests.clone()).unwrap();
+        assert_eq!(multisigned.digests(), &digests);
         assert_eq!(multisigned.signatures().len(), 0);
 
         let commitments_digest = commitments.iter().collect();
@@ -270,7 +264,7 @@ mod tests {
         multisigned
             .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
             .unwrap();
-        assert_eq!(multisigned.digests(), digests.as_slice());
+        assert_eq!(multisigned.digests(), &digests);
         assert_eq!(multisigned.signatures().len(), 1);
     }
 

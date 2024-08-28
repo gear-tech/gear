@@ -25,7 +25,6 @@ use ethexe_sequencer::agro::{self, AggregatedCommitments};
 use ethexe_signer::{sha3, Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::ops::Not;
 
 pub struct Validator {
     pub_key: PublicKey,
@@ -138,7 +137,7 @@ impl Validator {
         let CodeCommitment { id: code_id, valid } = request;
         if db
             .code_valid(code_id)
-            .ok_or(anyhow!("Code {code_id} is not validated by this node"))?
+            .ok_or_else(|| anyhow!("Code {code_id} is not validated by this node"))?
             .ne(&valid)
         {
             return Err(anyhow!(
@@ -159,11 +158,7 @@ impl Validator {
             transitions_digest,
         } = request;
 
-        if db
-            .block_end_state_is_valid(block_hash)
-            .unwrap_or(false)
-            .not()
-        {
+        if !db.block_end_state_is_valid(block_hash).unwrap_or(false) {
             return Err(anyhow!(
                 "Requested block {block_hash} is not processed by this node"
             ));
@@ -171,27 +166,24 @@ impl Validator {
 
         if db
             .block_outcome(block_hash)
-            .ok_or(anyhow!("Cannot get from db outcome for block {block_hash}"))?
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for block {block_hash}"))?
             .iter()
             .collect::<Digest>()
-            .ne(&transitions_digest)
+            != transitions_digest
         {
             return Err(anyhow!("Requested and local transitions digest mismatch"));
         }
 
-        if db
-            .block_prev_commitment(block_hash)
-            .ok_or(anyhow!(
-                "Cannot get from db previous commitment block for block {block_hash}"
-            ))?
-            .ne(&allowed_prev_commitment_hash)
+        if db.block_prev_commitment(block_hash).ok_or_else(|| {
+            anyhow!("Cannot get from db previous commitment for block {block_hash}")
+        })? != allowed_prev_commitment_hash
         {
             return Err(anyhow!(
                 "Requested and local previous commitment block hash mismatch"
             ));
         }
 
-        if Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)?.not() {
+        if !Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)? {
             return Err(anyhow!(
                 "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
             ));
@@ -213,7 +205,7 @@ impl Validator {
 
         let block_header = db
             .block_header(block_hash)
-            .ok_or(anyhow!("header not found for block: {block_hash}"))?;
+            .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?;
 
         if block_header.parent_hash == pred_hash {
             return Ok(true);
@@ -221,7 +213,7 @@ impl Validator {
 
         let pred_height = db
             .block_header(pred_hash)
-            .ok_or(anyhow!("header not found for pred block: {pred_hash}"))?
+            .ok_or_else(|| anyhow!("header not found for pred block: {pred_hash}"))?
             .height;
 
         let distance = block_header.height.saturating_sub(pred_height);
@@ -236,7 +228,7 @@ impl Validator {
             }
             block_hash = db
                 .block_header(block_hash)
-                .ok_or(anyhow!("header not found for block: {block_hash}"))?
+                .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?
                 .parent_hash;
         }
 

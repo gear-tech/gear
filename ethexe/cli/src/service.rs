@@ -259,7 +259,7 @@ impl Service {
 
                     let blob_tx_hash = db
                         .code_blob_tx(code_id)
-                        .ok_or(anyhow!("Blob tx hash not found"))?;
+                        .ok_or_else(|| anyhow!("Blob tx hash not found"))?;
 
                     let code = query.download_code(code_id, blob_tx_hash).await?;
 
@@ -307,7 +307,7 @@ impl Service {
             // so append it to the `wait for commitment` queue.
             let mut queue = db
                 .block_commitment_queue(block_hash)
-                .ok_or(anyhow!("Commitment queue is not found for block"))?;
+                .ok_or_else(|| anyhow!("Commitment queue is not found for block"))?;
             queue.push_back(block_hash);
             db.set_block_commitment_queue(block_hash, queue);
         }
@@ -356,7 +356,7 @@ impl Service {
                 pred_block_hash: block_data.block_hash,
                 prev_commitment_hash: db
                     .block_prev_commitment(block_hash)
-                    .ok_or(anyhow!("Prev commitment not found"))?,
+                    .ok_or_else(|| anyhow!("Prev commitment not found"))?,
                 transitions,
             });
         }

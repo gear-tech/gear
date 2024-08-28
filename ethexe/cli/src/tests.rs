@@ -73,7 +73,10 @@ impl Listener {
     }
 
     pub async fn next_event(&mut self) -> Result<Event> {
-        self.receiver.recv().await.ok_or(anyhow!("No more events"))
+        self.receiver
+            .recv()
+            .await
+            .ok_or_else(|| anyhow!("No more events"))
     }
 
     pub async fn apply_until<R: Sized>(
