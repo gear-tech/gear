@@ -91,7 +91,7 @@ impl<'a, T: ToDigest> FromIterator<&'a T> for Digest {
 impl<T: ToDigest> ToDigest for [T] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         for item in self {
-            item.update_hasher(hasher);
+            hasher.update(item.to_digest().as_ref());
         }
     }
 }
