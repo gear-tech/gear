@@ -19,15 +19,14 @@
 //! Implementation of HoldBound and HoldBound builder, specifcying cost of
 //! holding data.
 
-use gear_common::{auxiliary::BlockNumber, scheduler::StorageType, LockId, MessageId};
-
-use crate::RESERVE_FOR;
-
 use super::ExtManager;
+use crate::RESERVE_FOR;
+use gear_common::{auxiliary::BlockNumber, scheduler::StorageType, LockId, MessageId};
+use std::cmp::Ordering;
 
 /// Hold bound, specifying cost of storage, expected block number for task to
 /// create on it, deadlines and durations of holding.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HoldBound {
     cost: u64,
     expected: BlockNumber,
@@ -65,6 +64,19 @@ impl HoldBound {
     }
 }
 
+impl PartialOrd for HoldBound {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for HoldBound {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.expected.cmp(&other.expected)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct HoldBoundBuilder {
     storage_type: StorageType,
     cost: u64,
@@ -101,8 +113,9 @@ impl HoldBoundBuilder {
     pub fn maximum_for(self, manager: &ExtManager, gas: u64) -> HoldBound {
         let deadline_duration = gas
             .saturating_div(self.cost.max(1))
+            // `saturated_into` conversion: try_into + unwrap_or(MAX)
             .try_into()
-            .expect("not sane deadline");
+            .unwrap_or(u32::MAX);
         let deadline = manager
             .blocks_manager
             .get()
