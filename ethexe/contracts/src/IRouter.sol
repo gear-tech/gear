@@ -220,6 +220,14 @@ interface IRouter {
         payable
         returns (address);
 
+    function createProgramWithDecoder(
+        address decoderImplementation,
+        bytes32 codeId,
+        bytes32 salt,
+        bytes calldata payload,
+        uint128 value
+    ) external payable returns (address);
+
     function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external;
 
     function commitBlocks(BlockCommitment[] calldata blockCommitmentsArray, bytes[] calldata signatures) external;
