@@ -252,18 +252,19 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn latest_valid_block_height(&self) -> Option<u32> {
+    fn latest_valid_block(&self) -> Option<(H256, BlockHeader)> {
         self.kv
             .get(&KeyPrefix::LatestValidBlock.one(self.router_address))
-            .map(|block_height| {
-                u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
+            .map(|data| {
+                <(H256, BlockHeader)>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `(H256, BlockHeader)`")
             })
     }
 
-    fn set_latest_valid_block_height(&self, block_height: u32) {
+    fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader) {
         self.kv.put(
             &KeyPrefix::LatestValidBlock.one(self.router_address),
-            block_height.to_le_bytes().to_vec(),
+            (block_hash, header).encode(),
         );
     }
 }

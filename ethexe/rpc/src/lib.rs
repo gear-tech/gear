@@ -26,7 +26,7 @@ struct PerConnection<RpcMiddleware, HttpMiddleware> {
 #[rpc(server)]
 pub trait RpcApi {
     #[method(name = "blockHeader")]
-    async fn block_header(&self, hash: Option<H256>) -> RpcResult<BlockHeader>;
+    async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;
 
     #[method(name = "calculateReplyForHandle")]
     async fn calculate_reply_for_handle(&self, at: Option<H256>) -> RpcResult<Vec<u8>>;
@@ -42,26 +42,31 @@ impl RpcModule {
         Self { db, processor }
     }
 
-    pub fn block_header_at_or_latest(&self, at: impl Into<Option<H256>>) -> RpcResult<BlockHeader> {
+    pub fn block_header_at_or_latest(
+        &self,
+        at: impl Into<Option<H256>>,
+    ) -> RpcResult<(H256, BlockHeader)> {
         if let Some(hash) = at.into() {
             self.db
                 .block_header(hash)
+                .map(|header| (hash, header))
                 .ok_or_else(|| db_err("Block header for requested hash wasn't found"))
         } else {
-            // TODO (breathx): latest valid hash.
-            Some(Default::default()).ok_or_else(|| db_err("Latest block header wasn't found"))
+            self.db
+                .latest_valid_block()
+                .ok_or_else(|| db_err("Latest block header wasn't found"))
         }
     }
 }
 
 #[async_trait]
 impl RpcApiServer for RpcModule {
-    async fn block_header(&self, hash: Option<H256>) -> RpcResult<BlockHeader> {
+    async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)> {
         self.block_header_at_or_latest(hash)
     }
 
     async fn calculate_reply_for_handle(&self, at: Option<H256>) -> RpcResult<Vec<u8>> {
-        let block_hash = self.block_header_at_or_latest(at)?.hash;
+        let block_hash = self.block_header_at_or_latest(at)?.0;
 
         let mut processor = self.processor.clone();
 
