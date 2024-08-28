@@ -30,7 +30,7 @@ contract Mirror is IMirror {
 
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
-        emit MessageQueueingRequested(id, tx.origin, _payload, _value);
+        emit MessageQueueingRequested(id, _source(), _payload, _value);
 
         return id;
     }
@@ -39,12 +39,12 @@ contract Mirror is IMirror {
         uint128 baseFee = IRouter(router()).baseFee();
         _retrieveValueToRouter(baseFee + _value);
 
-        emit ReplyQueueingRequested(_repliedTo, tx.origin, _payload, _value);
+        emit ReplyQueueingRequested(_repliedTo, _source(), _payload, _value);
     }
 
     function claimValue(bytes32 _claimedId) external {
         // TODO (breathx): should we charge here something for try?
-        emit ValueClaimingRequested(_claimedId, tx.origin);
+        emit ValueClaimingRequested(_claimedId, _source());
     }
 
     function executableBalanceTopUp(uint128 _value) external payable {
@@ -130,7 +130,9 @@ contract Mirror is IMirror {
     {
         require(nonce == 0, "init message must be created before any others");
 
-        // @dev: charging at this point already made on router side.
+        /*
+         * @dev: charging at this point is already made in router.
+         */
         uint256 initNonce = nonce++;
         bytes32 id = keccak256(abi.encodePacked(address(this), initNonce));
 
@@ -145,12 +147,20 @@ contract Mirror is IMirror {
 
     /* Local helper functions */
 
+    function _source() private view returns (address) {
+        if (decoder != address(0) && msg.sender == decoder) {
+            return tx.origin;
+        } else {
+            return msg.sender;
+        }
+    }
+
     function _retrieveValueToRouter(uint128 _value) private {
         address routerAddress = router();
 
         IWrappedVara wrappedVara = IWrappedVara(IRouter(routerAddress).wrappedVara());
 
-        bool success = wrappedVara.transferFrom(tx.origin, routerAddress, _value);
+        bool success = wrappedVara.transferFrom(_source(), routerAddress, _value);
 
         require(success, "failed to retrieve WVara");
     }
