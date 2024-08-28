@@ -228,11 +228,57 @@ async fn ping_deep_sync() {
 async fn async_ping() {
     gear_utils::init_default_logger();
 
-    let mut env = TestEnv::new(1).await.unwrap();
+    let mut env = TestEnv::new(3).await.unwrap();
     let mut ping = ping::Test::new(&mut env).await;
     let mut async_test = async_test::Test::new(&env).await;
-    let mut node = env.create_node(None);
-    node.start_service(Some(env.wallets.next()), Some(env.validators[0]), None)
+
+    log::info!("📗 Starting sequencer");
+    let mut sequencer = env.create_node(None);
+    sequencer
+        .start_service(
+            Some(env.wallets.next()),
+            None,
+            Some(("/memory/1".to_string(), None)),
+        )
+        .await;
+
+    log::info!("📗 Starting validator 1");
+    let mut validator = env.create_node(None);
+    validator
+        .start_service(
+            None,
+            Some(env.validators[0]),
+            Some((
+                "/memory/2".to_string(),
+                Some(sequencer.multiaddr.clone().expect("Must be set")),
+            )),
+        )
+        .await;
+
+    log::info!("📗 Starting validator 2");
+    let mut validator2 = env.create_node(None);
+    validator2
+        .start_service(
+            None,
+            Some(env.validators[1]),
+            Some((
+                "/memory/3".to_string(),
+                Some(sequencer.multiaddr.clone().expect("Must be set")),
+            )),
+        )
+        .await;
+
+    log::info!("📗 Starting validator 3");
+    let mut validator3 = env.create_node(None);
+    validator3
+        .start_service(
+            None,
+            Some(env.validators[2]),
+            Some((
+                "/memory/4".to_string(),
+                Some(sequencer.multiaddr.clone().expect("Must be set")),
+            )),
+        )
         .await;
 
     ping.upload_code(&mut env).await;
@@ -947,6 +993,7 @@ mod utils {
                 threshold: self.threshold,
                 router_address: self.router_address,
                 running_service_handle: None,
+                multiaddr: None,
             }
         }
 
@@ -974,6 +1021,7 @@ mod utils {
 
     pub struct Node {
         pub db: Database,
+        pub multiaddr: Option<String>,
 
         rpc_url: String,
         genesis_block_hash: H256,
@@ -992,7 +1040,7 @@ mod utils {
             &mut self,
             sequencer_public_key: Option<ethexe_signer::PublicKey>,
             validator_public_key: Option<ethexe_signer::PublicKey>,
-            network_address: Option<String>,
+            network: Option<(String, Option<String>)>,
         ) {
             assert!(
                 self.running_service_handle.is_none(),
@@ -1012,11 +1060,19 @@ mod utils {
             .await
             .unwrap();
 
-            let network = network_address.as_ref().map(|addr| {
+            let network = network.as_ref().map(|(addr, bootstrap_addr)| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
-                let config =
+                let mut config =
                     ethexe_network::NetworkEventLoopConfig::new_memory(config_path, addr.as_str());
-                ethexe_network::NetworkService::new(config, &self.signer, self.db.clone()).unwrap()
+                if let Some(bootstrap_addr) = bootstrap_addr {
+                    let multiaddr = bootstrap_addr.parse().unwrap();
+                    config.bootstrap_addresses = [multiaddr].into();
+                }
+                let network =
+                    ethexe_network::NetworkService::new(config, &self.signer, self.db.clone())
+                        .unwrap();
+                self.multiaddr = Some(format!("{addr}/p2p/{}", network.event_loop.local_peer_id()));
+                network
             });
 
             let sequencer = match sequencer_public_key.as_ref() {
