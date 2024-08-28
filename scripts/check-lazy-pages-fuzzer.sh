@@ -38,20 +38,20 @@ main() {
     if echo $OUTPUT | grep -q 'SIG: Unprotect WASM memory at address' && \
         ! echo $OUTPUT | grep -iq "ERROR"
     then
-        echo -e "\nSuccess"
+        echo "Success"
         exit 0
     else
         cat $OUTPUT_FILE
-        echo -e "\nFailure"
+        echo "Failure"
         print_seed
         exit 1
     fi
 }
 
 print_seed() {
-    echo -e "\n Seed start: \""
+    echo "Seed start: \""
     xxd -p $FUZZER_INPUT_FILE | tr --delete '\n'
-    echo -e "\n\" seed end."
+    echo "\" seed end."
 }
 
 main
