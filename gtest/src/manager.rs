@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod exec;
+mod block_exec;
 mod expend;
 mod hold_bound;
 mod journal;
@@ -56,7 +56,7 @@ use core_processor::{
     configs::{
         BlockConfig, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER,
     },
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext,
+    ContextChargedForInstrumentation, Ext,
 };
 use gear_common::{
     auxiliary::{
@@ -69,7 +69,7 @@ use gear_common::{
     LockId, Origin,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    code::{Code, CodeAndId, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -156,16 +156,17 @@ impl ExtManager {
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<TestActor> {
-        if let Program::Genuine(GenuineProgram { code, .. }) = &program {
-            self.store_new_code(code.code().to_vec());
+        if let Program::Genuine(GenuineProgram {
+            ref code, code_id, ..
+        }) = program
+        {
+            self.store_new_code(code_id, code.code().to_vec());
         }
         Actors::insert(program_id, TestActor::new(init_message_id, program))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
-        let code_id = CodeId::generate(&code);
+    pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
         self.opt_binaries.insert(code_id, code);
-        code_id
     }
 
     pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {

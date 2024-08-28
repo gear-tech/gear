@@ -25,7 +25,7 @@ use crate::{
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
 };
@@ -337,19 +337,7 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let schedule = Schedule::default();
-        let code = Code::try_new(
-            self.code,
-            schedule.instruction_weights.version,
-            |module| schedule.rules(module),
-            schedule.limits.stack_height,
-            schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
-        )
-        .expect("Failed to create Program from code");
-
-        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
-        let (code, code_id) = code_and_id.into_parts();
+        let (code, code_id) = Self::build_instrumented_code_and_id(self.code);
 
         if let Some(metadata) = self.meta {
             system
@@ -370,6 +358,24 @@ impl ProgramBuilder {
                 gas_reservation_map: Default::default(),
             }),
         )
+    }
+
+    pub(crate) fn build_instrumented_code_and_id(
+        original_code: Vec<u8>,
+    ) -> (InstrumentedCode, CodeId) {
+        let schedule = Schedule::default();
+        let code = Code::try_new(
+            original_code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
+        )
+        .expect("Failed to create Program from provided code");
+
+        let c: InstrumentedCodeAndId = CodeAndId::new(code).into();
+        c.into_parts()
     }
 }
 
@@ -905,21 +911,18 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
         let init_msg_payload = String::from("InvalidInput");
-        let msg_id = prog.send(user_id, init_msg_payload);
+        let failed_mid = prog.send(user_id, init_msg_payload);
+        let skipped_mid = prog.send(user_id, String::from("should_be_skipped"));
 
         let res = sys.run_next_block();
 
-        res.assert_panicked_with(msg_id, "Failed to load destination: Decode(Error)");
-
-        let msg_id = prog.send(user_id, String::from("should_be_skipped"));
-
-        let res = sys.run_next_block();
+        res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
         let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
             .source(prog.id())
             .dest(user_id);
 
-        assert!(res.not_executed.contains(&msg_id));
+        assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));
     }
 
