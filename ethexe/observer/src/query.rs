@@ -131,6 +131,7 @@ impl Query {
                     height,
                     timestamp,
                     parent_hash,
+                    hash: block_hash,
                 };
 
                 database.set_block_header(block_hash, header.clone());
@@ -328,6 +329,7 @@ impl Query {
                     height,
                     timestamp,
                     parent_hash,
+                    hash: block_hash,
                 };
 
                 self.database.set_block_header(block_hash, meta.clone());

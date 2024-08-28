@@ -35,6 +35,7 @@ pub struct BlockHeader {
     pub height: u32,
     pub timestamp: u64,
     pub parent_hash: H256,
+    pub hash: H256,
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode)]

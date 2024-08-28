@@ -5197,6 +5197,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-processor",
  "futures",
  "gprimitives",
  "hex",

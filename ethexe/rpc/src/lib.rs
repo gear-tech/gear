@@ -1,4 +1,5 @@
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
+use ethexe_processor::Processor;
 use futures::FutureExt;
 use gprimitives::H256;
 use jsonrpsee::{
@@ -8,7 +9,7 @@ use jsonrpsee::{
         serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
         TowerServiceBuilder,
     },
-    types::{ErrorCode, ErrorObject},
+    types::ErrorObject,
     Methods,
 };
 use std::net::SocketAddr;
@@ -25,29 +26,55 @@ struct PerConnection<RpcMiddleware, HttpMiddleware> {
 #[rpc(server)]
 pub trait RpcApi {
     #[method(name = "blockHeader")]
-    async fn block_header(&self, hash: H256) -> RpcResult<BlockHeader>;
+    async fn block_header(&self, hash: Option<H256>) -> RpcResult<BlockHeader>;
+
+    #[method(name = "calculateReplyForHandle")]
+    async fn calculate_reply_for_handle(&self, at: Option<H256>) -> RpcResult<Vec<u8>>;
 }
 
 pub struct RpcModule {
     db: Database,
+    processor: Processor,
 }
 
 impl RpcModule {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(db: Database, processor: Processor) -> Self {
+        Self { db, processor }
+    }
+
+    pub fn block_header_at_or_latest(&self, at: impl Into<Option<H256>>) -> RpcResult<BlockHeader> {
+        if let Some(hash) = at.into() {
+            self.db
+                .block_header(hash)
+                .ok_or_else(|| db_err("Block header for requested hash wasn't found"))
+        } else {
+            // TODO (breathx): latest valid hash.
+            Some(Default::default()).ok_or_else(|| db_err("Latest block header wasn't found"))
+        }
     }
 }
 
 #[async_trait]
 impl RpcApiServer for RpcModule {
-    async fn block_header(&self, hash: H256) -> RpcResult<BlockHeader> {
-        // let db = db.lock().await;
-        self.db.block_header(hash).ok_or(ErrorObject::borrowed(
-            ErrorCode::InvalidParams.code(),
-            "Block not found",
-            None,
-        ))
+    async fn block_header(&self, hash: Option<H256>) -> RpcResult<BlockHeader> {
+        self.block_header_at_or_latest(hash)
     }
+
+    async fn calculate_reply_for_handle(&self, at: Option<H256>) -> RpcResult<Vec<u8>> {
+        let block_hash = self.block_header_at_or_latest(at)?.hash;
+
+        let mut processor = self.processor.clone();
+
+        processor.execute_for_reply(block_hash).map_err(runtime_err)
+    }
+}
+
+fn db_err(err: &'static str) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Database error", Some(err))
+}
+
+fn runtime_err(err: anyhow::Error) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
 }
 
 pub struct RpcConfig {
@@ -57,12 +84,14 @@ pub struct RpcConfig {
 
 pub struct RpcService {
     config: RpcConfig,
+    processor: Processor,
 }
 
 impl RpcService {
-    pub fn new(port: u16, db: Database) -> Self {
+    pub fn new(port: u16, db: Database, processor: Processor) -> Self {
         Self {
             config: RpcConfig { port, db },
+            processor,
         }
     }
 
@@ -71,7 +100,7 @@ impl RpcService {
             TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], self.config.port))).await?;
 
         let service_builder = Server::builder().to_service_builder();
-        let module = RpcApiServer::into_rpc(RpcModule::new(self.config.db));
+        let module = RpcApiServer::into_rpc(RpcModule::new(self.config.db, self.processor));
 
         let (stop_handle, server_handle) = stop_channel();
 

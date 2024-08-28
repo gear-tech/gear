@@ -144,7 +144,7 @@ impl Service {
 
         let rpc = config
             .rpc_port
-            .map(|port| ethexe_rpc::RpcService::new(port, db.clone()));
+            .map(|port| ethexe_rpc::RpcService::new(port, db.clone(), processor.clone()));
 
         Ok(Self {
             db,
@@ -303,6 +303,7 @@ impl Service {
                 height: block_data.block_number.try_into()?,
                 timestamp: block_data.block_timestamp,
                 parent_hash: block_data.parent_hash,
+                hash: block_data.block_hash,
             },
         );
 

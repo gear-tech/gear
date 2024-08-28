@@ -42,6 +42,7 @@ mod run;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone)]
 pub struct Processor {
     db: Database,
     creator: InstanceCreator,
@@ -107,6 +108,11 @@ impl Processor {
         );
 
         Ok(true)
+    }
+
+    pub fn execute_for_reply(&mut self, block_hash: H256) -> Result<Vec<u8>> {
+        self.creator.set_chain_head(block_hash);
+        Ok(Default::default())
     }
 
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {

@@ -26,7 +26,7 @@ use utils::*;
 use wabt::wat2wasm;
 
 fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
-    let chain_head = H256::random();
+    let chain_head = meta.hash;
     processor.db.set_block_header(chain_head, meta);
     processor.creator.set_chain_head(chain_head);
     chain_head
@@ -42,6 +42,7 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
             height,
             timestamp,
             parent_hash,
+            hash: H256::random(),
         },
     );
     let parent_out_program_hashes = processor
