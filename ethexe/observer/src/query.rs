@@ -228,9 +228,11 @@ impl Query {
         let mut actual_commitment_queue: VecDeque<H256> = self
             .database
             .block_commitment_queue(hash)
-            .ok_or(anyhow!(
-                "Commitment queue not found for block {hash}, possible database inconsistency."
-            ))?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Commitment queue not found for block {hash}, possible database inconsistency."
+                )
+            })?
             .into_iter()
             .filter(|hash| !committed_blocks.contains(hash))
             .collect();
@@ -268,7 +270,7 @@ impl Query {
         let program_state_hashes = self
             .database
             .block_end_program_states(parent)
-            .ok_or(anyhow!("parent block end states not found"))?;
+            .ok_or_else(|| anyhow!("parent block end states not found"))?;
         self.database
             .set_block_start_program_states(block_hash, program_state_hashes);
 
@@ -276,7 +278,7 @@ impl Query {
         let queue = self
             .database
             .block_commitment_queue(parent)
-            .ok_or(anyhow!("parent block commitment queue not found"))?;
+            .ok_or_else(|| anyhow!("parent block commitment queue not found"))?;
         let committed_blocks = self.get_committed_blocks(block_hash).await?;
         let current_queue = queue
             .into_iter()
@@ -289,12 +291,12 @@ impl Query {
         if self
             .database
             .block_is_empty(parent)
-            .ok_or(anyhow!("Cannot identify whether parent is empty"))?
+            .ok_or_else(|| anyhow!("Cannot identify whether parent is empty"))?
         {
             let parent_prev_commitment = self
                 .database
                 .block_prev_commitment(parent)
-                .ok_or(anyhow!("parent block prev commitment not found"))?;
+                .ok_or_else(|| anyhow!("parent block prev commitment not found"))?;
             self.database
                 .set_block_prev_commitment(block_hash, parent_prev_commitment);
         } else {
@@ -312,13 +314,13 @@ impl Query {
                     .provider
                     .get_block_by_hash(block_hash.0.into(), BlockTransactionsKind::Hashes)
                     .await?
-                    .ok_or(anyhow!("Block not found"))?;
+                    .ok_or_else(|| anyhow!("Block not found"))?;
 
                 let height = u32::try_from(
                     block
                         .header
                         .number
-                        .ok_or(anyhow!("Block number not found"))?,
+                        .ok_or_else(|| anyhow!("Block number not found"))?,
                 )
                 .unwrap_or_else(|err| unreachable!("Ethereum block number not fit in u32: {err}"));
                 let timestamp = block.header.timestamp;

@@ -52,6 +52,7 @@ enum KeyPrefix {
     CodeUpload = 7,
     LatestValidBlock = 8,
     BlockHeader = 9,
+    CodeValid = 10,
 }
 
 impl KeyPrefix {
@@ -298,7 +299,7 @@ impl CodesStorage for Database {
 
         self.kv
             .iter_prefix(&key_prefix)
-            .map(|(key, code_id)| {
+            .map(|#[allow(unused_variables)] (key, code_id)| {
                 let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(splitted_key_prefix, key_prefix);
                 let program_id =
@@ -347,6 +348,17 @@ impl CodesStorage for Database {
     fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
         self.kv
             .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
+    }
+
+    fn code_valid(&self, code_id: CodeId) -> Option<bool> {
+        self.kv.get(&KeyPrefix::CodeValid.one(code_id)).map(|data| {
+            bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
+        })
+    }
+
+    fn set_code_valid(&self, code_id: CodeId, approved: bool) {
+        self.kv
+            .put(&KeyPrefix::CodeValid.one(code_id), approved.encode());
     }
 }
 

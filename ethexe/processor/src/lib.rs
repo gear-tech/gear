@@ -218,8 +218,9 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing upload code {code_id:?}");
 
-        let valid = !(code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none());
+        let valid = code_id == CodeId::generate(code) && self.handle_new_code(code)?.is_some();
 
+        self.db.set_code_valid(code_id, valid);
         Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
     }
 
