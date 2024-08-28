@@ -118,10 +118,11 @@ impl TaskHandler<ProgramId> for ExtManager {
 
     fn remove_gas_reservation(
         &mut self,
-        _program_id: ProgramId,
-        _reservation_id: ReservationId,
+        program_id: ProgramId,
+        reservation_id: ReservationId,
     ) -> GearCommonGas {
-        todo!()
+        let _slot = self.remove_gas_reservation_impl(program_id, reservation_id);
+        GearCommonGas::MIN
     }
 
     fn remove_resume_session(&mut self, _session_id: u32) -> GearCommonGas {
