@@ -127,7 +127,7 @@
 //!         let prog = Program::current(&sys);
 //!
 //!         // Provide user with some balance.
-//!         sys.min_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
+//!         sys.mint_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
 //!
 //!         // Send an init message to the program.
 //!         let init_message_id = prog.send_bytes(USER_ID, b"Doesn't matter");
