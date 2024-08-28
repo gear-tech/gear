@@ -66,9 +66,8 @@ contract Mirror is IMirror {
         // TODO (breathx): handle if goes to mailbox or not. Send value in place or not.
 
         if (decoder != address(0)) {
-            bytes memory callData = abi.encodeWithSignature(
-                "onMessageSent(bytes32, address, bytes, uint128)", id, destination, payload, value
-            );
+            bytes memory callData =
+                abi.encodeWithSelector(IMirrorDecoder.onMessageSent.selector, id, destination, payload, value);
 
             // Result is ignored here.
             // TODO (breathx): make gas configurable?
@@ -90,8 +89,8 @@ contract Mirror is IMirror {
         _sendValueTo(destination, value);
 
         if (decoder != address(0)) {
-            bytes memory callData = abi.encodeWithSignature(
-                "onReplySent(address, bytes, uint128, bytes32, bytes4)", destination, payload, value, replyTo, replyCode
+            bytes memory callData = abi.encodeWithSelector(
+                IMirrorDecoder.onReplySent.selector, destination, payload, value, replyTo, replyCode
             );
 
             // Result is ignored here.
