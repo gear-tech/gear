@@ -489,7 +489,7 @@ mod tests {
         let validator1 = validator1_pub_key.to_address();
 
         let commitments = [TestComm([0, 1]), TestComm([2, 3])];
-        let commitments_digest = commitments.iter().collect();
+        let commitments_digest = commitments.to_digest();
         let signature = agro::sign_commitments_digest(
             commitments_digest,
             &signer,
@@ -904,7 +904,7 @@ mod tests {
 
         let router_address = Address([1; 20]);
         validators_pub_keys.iter().for_each(|pub_key| {
-            let commitments_digest = commitments.iter().collect();
+            let commitments_digest = commitments.to_digest();
             candidate
                 .append_signature_with_check(
                     commitments_digest,
