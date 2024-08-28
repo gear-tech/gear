@@ -300,6 +300,10 @@ impl CodesStorage for Database {
         self.kv
             .iter_prefix(&key_prefix)
             .map(|(key, code_id)| {
+                // Avoid unused variable warning in release mode.
+                #[allow(unused_variables)]
+                let code_id = code_id;
+
                 let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(splitted_key_prefix, key_prefix);
                 let program_id =
