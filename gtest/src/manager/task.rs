@@ -18,8 +18,14 @@
 
 /// Implementation of the `TaskHandler` trait for the `ExtManager`.
 use super::ExtManager;
-use gear_common::{scheduler::TaskHandler, Gas as GearCommonGas};
-use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
+use gear_common::{
+    scheduler::{StorageType, TaskHandler},
+    Gas as GearCommonGas,
+};
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    message::ReplyMessage,
+};
 
 impl TaskHandler<ProgramId> for ExtManager {
     fn pause_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
@@ -32,12 +38,26 @@ impl TaskHandler<ProgramId> for ExtManager {
         todo!("#646")
     }
 
-    fn remove_from_mailbox(
-        &mut self,
-        _user_id: ProgramId,
-        _message_id: MessageId,
-    ) -> GearCommonGas {
-        todo!()
+    fn remove_from_mailbox(&mut self, user_id: ProgramId, message_id: MessageId) -> GearCommonGas {
+        let message = ReplyMessage::auto(message_id);
+
+        self.gas_tree
+            .create(user_id, message.id(), 0, true)
+            .expect("failed to create gas tree node");
+
+        let mailboxed = self
+            .read_mailbox_message(user_id, message_id)
+            .expect("failed to claim value from mailbox");
+
+        let dispatch = message.into_stored_dispatch(
+            mailboxed.destination(),
+            mailboxed.source(),
+            mailboxed.id(),
+        );
+
+        self.dispatches.push_back(dispatch);
+
+        GearCommonGas::MIN
     }
 
     fn remove_from_waitlist(
@@ -63,34 +83,35 @@ impl TaskHandler<ProgramId> for ExtManager {
     }
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> GearCommonGas {
-        let dispatch = self
+        let (dispatch, hold_interval) = self
             .dispatches_stash
             .remove(&stashed_message_id)
-            .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
+            .unwrap_or_else(|| unreachable!("TaskPool corrupted"));
 
-        self.dispatches.push_back(dispatch.into_stored());
+        self.charge_for_hold(dispatch.id(), hold_interval, StorageType::DispatchStash);
 
+        self.dispatches.push_back(dispatch.into());
         GearCommonGas::MIN
     }
 
     fn send_user_message(
         &mut self,
         stashed_message_id: MessageId,
-        _to_mailbox: bool,
+        to_mailbox: bool,
     ) -> GearCommonGas {
-        let dispatch = self
+        let (message, hold_interval) = self
             .dispatches_stash
             .remove(&stashed_message_id)
+            .map(|(dispatch, interval)| (dispatch.into_parts().1, interval))
             .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
-        let stored_message = dispatch.into_parts().1.into_stored();
-        let mailbox_message = stored_message.clone().try_into().unwrap_or_else(|e| {
+
+        self.charge_for_hold(message.id(), hold_interval, StorageType::DispatchStash);
+
+        let mailbox_message = message.clone().try_into().unwrap_or_else(|e| {
             unreachable!("invalid message: can't be converted to user message {e:?}")
         });
 
-        self.mailbox
-            .insert(mailbox_message)
-            .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-        self.log.push(stored_message);
+        self.send_user_message_after_delay(mailbox_message, to_mailbox);
 
         GearCommonGas::MIN
     }

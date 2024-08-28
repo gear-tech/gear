@@ -21,7 +21,8 @@
 mod digest;
 mod signature;
 
-pub use digest::{AsDigest, Digest};
+pub use digest::{Digest, ToDigest};
+pub use sha3;
 pub use signature::Signature;
 
 use anyhow::{anyhow, Result};
@@ -59,9 +60,7 @@ impl TryFrom<ActorId> for Address {
             .take(12)
             .all(|&byte| byte == 0)
             .then_some(Address(id.to_address_lossy().0))
-            .ok_or(anyhow!(
-                "First 12 bytes are not 0, it is not ethereum address"
-            ))
+            .ok_or_else(|| anyhow!("First 12 bytes are not 0, it is not ethereum address"))
     }
 }
 
@@ -182,7 +181,7 @@ impl Signer {
     }
 
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
-        self.sign_digest(public_key, data.as_digest())
+        self.sign_digest(public_key, data.to_digest())
     }
 
     pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {
@@ -349,6 +348,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
+        // TODO: remove the deprecated ethers crate in favor of alloy #4197
         let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
             .expect("failed to parse sig");
 

@@ -22,10 +22,9 @@ use ethexe_common::{
     router::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
-use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{sha3, Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::ops::Not;
 
 pub struct Validator {
     pub_key: PublicKey,
@@ -52,21 +51,17 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
             block_hash: commitment.block_hash,
             prev_commitment_hash: commitment.prev_commitment_hash,
             pred_block_hash: commitment.pred_block_hash,
-            transitions_digest: commitment.transitions.as_digest(),
+            transitions_digest: commitment.transitions.iter().collect(),
         }
     }
 }
 
-impl AsDigest for BlockCommitmentValidationRequest {
-    fn as_digest(&self) -> Digest {
-        let mut message = Vec::with_capacity(3 * size_of::<H256>() + size_of::<Digest>());
-
-        message.extend_from_slice(self.block_hash.as_bytes());
-        message.extend_from_slice(self.prev_commitment_hash.as_bytes());
-        message.extend_from_slice(self.pred_block_hash.as_bytes());
-        message.extend_from_slice(self.transitions_digest.as_ref());
-
-        message.as_digest()
+impl ToDigest for BlockCommitmentValidationRequest {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        sha3::Digest::update(hasher, self.block_hash.as_bytes());
+        sha3::Digest::update(hasher, self.prev_commitment_hash.as_bytes());
+        sha3::Digest::update(hasher, self.pred_block_hash.as_bytes());
+        sha3::Digest::update(hasher, self.transitions_digest.as_ref());
     }
 }
 
@@ -87,7 +82,7 @@ impl Validator {
         self.pub_key.to_address()
     }
 
-    pub fn aggregate<C: AsDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
+    pub fn aggregate<C: ToDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {
         AggregatedCommitments::aggregate_commitments(
             commitments,
             &self.signer,
@@ -102,12 +97,12 @@ impl Validator {
         requests: impl IntoIterator<Item = CodeCommitment>,
     ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
-        for request in requests.into_iter() {
-            commitment_digests.push(request.as_digest());
+        for request in requests {
+            commitment_digests.push(request.to_digest());
             Self::validate_code_commitment(db, request)?;
         }
 
-        let commitments_digest = commitment_digests.as_digest();
+        let commitments_digest = commitment_digests.iter().collect();
         agro::sign_commitments_digest(
             commitments_digest,
             &self.signer,
@@ -124,11 +119,11 @@ impl Validator {
     ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
         for request in requests.into_iter() {
-            commitment_digests.push(request.as_digest());
+            commitment_digests.push(request.to_digest());
             Self::validate_block_commitment(db, request)?;
         }
 
-        let commitments_digest = commitment_digests.as_digest();
+        let commitments_digest = commitment_digests.iter().collect();
         agro::sign_commitments_digest(
             commitments_digest,
             &self.signer,
@@ -142,7 +137,7 @@ impl Validator {
         let CodeCommitment { id: code_id, valid } = request;
         if db
             .code_valid(code_id)
-            .ok_or(anyhow!("Code {code_id} is not validated by this node"))?
+            .ok_or_else(|| anyhow!("Code {code_id} is not validated by this node"))?
             .ne(&valid)
         {
             return Err(anyhow!(
@@ -163,11 +158,7 @@ impl Validator {
             transitions_digest,
         } = request;
 
-        if db
-            .block_end_state_is_valid(block_hash)
-            .unwrap_or(false)
-            .not()
-        {
+        if !db.block_end_state_is_valid(block_hash).unwrap_or(false) {
             return Err(anyhow!(
                 "Requested block {block_hash} is not processed by this node"
             ));
@@ -175,29 +166,24 @@ impl Validator {
 
         if db
             .block_outcome(block_hash)
-            .ok_or(anyhow!("Cannot get from db outcome for block {block_hash}"))?
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for block {block_hash}"))?
             .iter()
-            .map(AsDigest::as_digest)
-            .collect::<Vec<_>>()
-            .as_digest()
-            .ne(&transitions_digest)
+            .collect::<Digest>()
+            != transitions_digest
         {
             return Err(anyhow!("Requested and local transitions digest mismatch"));
         }
 
-        if db
-            .block_prev_commitment(block_hash)
-            .ok_or(anyhow!(
-                "Cannot get from db previous commitment block for block {block_hash}"
-            ))?
-            .ne(&allowed_prev_commitment_hash)
+        if db.block_prev_commitment(block_hash).ok_or_else(|| {
+            anyhow!("Cannot get from db previous commitment for block {block_hash}")
+        })? != allowed_prev_commitment_hash
         {
             return Err(anyhow!(
                 "Requested and local previous commitment block hash mismatch"
             ));
         }
 
-        if Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)?.not() {
+        if !Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)? {
             return Err(anyhow!(
                 "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
             ));
@@ -219,7 +205,7 @@ impl Validator {
 
         let block_header = db
             .block_header(block_hash)
-            .ok_or(anyhow!("header not found for block: {block_hash}"))?;
+            .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?;
 
         if block_header.parent_hash == pred_hash {
             return Ok(true);
@@ -227,7 +213,7 @@ impl Validator {
 
         let pred_height = db
             .block_header(pred_hash)
-            .ok_or(anyhow!("header not found for pred block: {pred_hash}"))?
+            .ok_or_else(|| anyhow!("header not found for pred block: {pred_hash}"))?
             .height;
 
         let distance = block_header.height.saturating_sub(pred_height);
@@ -242,7 +228,7 @@ impl Validator {
             }
             block_hash = db
                 .block_header(block_hash)
-                .ok_or(anyhow!("header not found for block: {block_hash}"))?
+                .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?
                 .parent_hash;
         }
 
@@ -275,8 +261,8 @@ mod tests {
         };
 
         assert_eq!(
-            commitment.as_digest(),
-            BlockCommitmentValidationRequest::from(&commitment).as_digest()
+            commitment.to_digest(),
+            BlockCommitmentValidationRequest::from(&commitment).to_digest()
         );
     }
 
@@ -323,7 +309,7 @@ mod tests {
         let pred_block_hash = H256::random();
         let prev_commitment_hash = H256::random();
         let transitions = vec![];
-        let transitions_digest = transitions.as_digest();
+        let transitions_digest = transitions.iter().collect();
 
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);

@@ -19,14 +19,9 @@
 //! Keccak256 digest type. Implements AsDigest hashing for ethexe common types.
 
 use core::fmt;
-use ethexe_common::router::{
-    BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition, ValueClaim,
-};
-use gprimitives::{MessageId, H256};
+use ethexe_common::router::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
-
-use crate::Address;
 
 #[derive(
     Clone,
@@ -56,167 +51,100 @@ impl fmt::Display for Digest {
     }
 }
 
+impl<'a> FromIterator<&'a Digest> for Digest {
+    fn from_iter<I: IntoIterator<Item = &'a Digest>>(iter: I) -> Self {
+        let mut hasher = sha3::Keccak256::new();
+        for digest in iter {
+            hasher.update(digest.as_ref());
+        }
+        Digest(hasher.finalize().into())
+    }
+}
+
+impl FromIterator<Digest> for Digest {
+    fn from_iter<I: IntoIterator<Item = Digest>>(iter: I) -> Self {
+        let mut hasher = sha3::Keccak256::new();
+        for digest in iter {
+            hasher.update(digest.as_ref());
+        }
+        Digest(hasher.finalize().into())
+    }
+}
+
 /// Trait for hashing types into a Digest using Keccak256.
-pub trait AsDigest {
-    fn as_digest(&self) -> Digest;
+pub trait ToDigest {
+    fn to_digest(&self) -> Digest {
+        let mut hasher = sha3::Keccak256::new();
+        self.update_hasher(&mut hasher);
+        Digest(hasher.finalize().into())
+    }
+
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256);
 }
 
-impl AsDigest for Digest {
-    fn as_digest(&self) -> Digest {
-        *self
+impl<'a, T: ToDigest> FromIterator<&'a T> for Digest {
+    fn from_iter<I: IntoIterator<Item = &'a T>>(iter: I) -> Self {
+        iter.into_iter().map(|item| item.to_digest()).collect()
     }
 }
 
-impl<T: AsDigest> AsDigest for [T] {
-    fn as_digest(&self) -> Digest {
-        let mut message = Vec::with_capacity(self.len() * size_of::<Digest>());
+impl ToDigest for [u8] {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self);
+    }
+}
 
-        for item in self.iter() {
-            message.extend_from_slice(item.as_digest().as_ref());
+impl ToDigest for CodeCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.encode().as_slice());
+    }
+}
+
+impl ToDigest for StateTransition {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.actor_id.to_address_lossy().as_bytes());
+        hasher.update(self.new_state_hash.as_bytes());
+        hasher.update(self.value_to_receive.to_be_bytes().as_slice());
+
+        let mut value_hasher = sha3::Keccak256::new();
+        for value_claim in &self.value_claims {
+            value_hasher.update(value_claim.message_id.as_ref());
+            value_hasher.update(value_claim.destination.to_address_lossy().as_bytes());
+            value_hasher.update(value_claim.value.to_be_bytes().as_slice());
         }
+        hasher.update(value_hasher.finalize().as_slice());
 
-        message.as_digest()
+        hasher.update(self.messages.iter().collect::<Digest>().as_ref());
     }
 }
 
-impl<T: AsDigest> AsDigest for Vec<T> {
-    fn as_digest(&self) -> Digest {
-        self.as_slice().as_digest()
-    }
-}
-
-impl AsDigest for [u8] {
-    fn as_digest(&self) -> Digest {
-        Digest(sha3::Keccak256::digest(self).into())
-    }
-}
-
-impl AsDigest for CodeCommitment {
-    fn as_digest(&self) -> Digest {
-        self.encode().as_digest()
-    }
-}
-
-impl AsDigest for StateTransition {
-    fn as_digest(&self) -> Digest {
-        // State transition basic fields.
-
-        let state_transition_size = // concat of fields:
-            // actorId
-            size_of::<Address>()
-            // newStateHash
-            + size_of::<H256>()
-            // valueToReceive
-            + size_of::<u128>()
-            // digest(valueClaimsBytes)
-            + size_of::<Digest>()
-            // digest(messagesHashesBytes)
-            + size_of::<Digest>();
-
-        let mut state_transition_bytes = Vec::with_capacity(state_transition_size);
-
-        state_transition_bytes.extend_from_slice(self.actor_id.to_address_lossy().as_bytes());
-        state_transition_bytes.extend_from_slice(self.new_state_hash.as_bytes());
-        state_transition_bytes.extend_from_slice(self.value_to_receive.to_be_bytes().as_slice());
-
-        // TODO (breathx): consider SeqHash for ValueClaim, so hashing of inner fields.
-        // Value claims field.
-
-        let value_claim_size = // concat of fields:
-            // messageId
-            size_of::<MessageId>()
-            // destination
-            + size_of::<Address>()
-            // value
-            + size_of::<u128>();
-
-        let mut value_claims_bytes = Vec::with_capacity(self.value_claims.len() * value_claim_size);
-
-        for ValueClaim {
-            message_id,
-            destination,
-            value,
-        } in &self.value_claims
-        {
-            value_claims_bytes.extend_from_slice(message_id.as_ref());
-            value_claims_bytes.extend_from_slice(destination.to_address_lossy().as_bytes());
-            // TODO (breathx): double check if we should use BIG endian.
-            value_claims_bytes.extend_from_slice(value.to_be_bytes().as_slice())
-        }
-
-        let value_claims_digest = value_claims_bytes.as_digest();
-        state_transition_bytes.extend_from_slice(value_claims_digest.as_ref());
-
-        // Messages field.
-
-        let messages_digest = self.messages.as_digest();
-        state_transition_bytes.extend_from_slice(messages_digest.as_ref());
-
-        state_transition_bytes.as_digest()
-    }
-}
-
-impl AsDigest for OutgoingMessage {
-    fn as_digest(&self) -> Digest {
-        let message_size = // concat of fields:
-            // id
-            size_of::<MessageId>()
-            // destination
-            + size_of::<Address>()
-            // payload
-            + self.payload.len()
-            // value
-            + size_of::<u128>()
-            // replyDetails.to
-            + size_of::<MessageId>()
-            // replyDetails.code
-            + size_of::<[u8; 4]>();
-
-        let mut message = Vec::with_capacity(message_size);
-
-        message.extend_from_slice(self.id.as_ref());
-        message.extend_from_slice(self.destination.to_address_lossy().as_bytes());
-        message.extend_from_slice(&self.payload);
-        // TODO (breathx): double check big endian.
-        message.extend_from_slice(self.value.to_be_bytes().as_slice());
-
+impl ToDigest for OutgoingMessage {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let (reply_details_to, reply_details_code) =
             self.reply_details.unwrap_or_default().into_parts();
 
-        message.extend_from_slice(reply_details_to.as_ref());
-        message.extend_from_slice(reply_details_code.to_bytes().as_slice());
-
-        message.as_digest()
+        hasher.update(self.id.as_ref());
+        hasher.update(self.destination.to_address_lossy().as_bytes());
+        hasher.update(self.payload.as_slice());
+        hasher.update(self.value.to_be_bytes().as_slice());
+        hasher.update(reply_details_to.as_ref());
+        hasher.update(reply_details_code.to_bytes().as_slice());
     }
 }
 
-impl AsDigest for BlockCommitment {
-    fn as_digest(&self) -> Digest {
-        let block_commitment_size = // concat of fields:
-            // blockHash
-            size_of::<H256>()
-            // prevCommitmentHash
-            + size_of::<H256>()
-            // predBlockHash
-            + size_of::<H256>()
-            // hash(transitionsHashesBytes)
-            + size_of::<Digest>();
-
-        let mut block_commitment_bytes = Vec::with_capacity(block_commitment_size);
-
-        block_commitment_bytes.extend_from_slice(self.block_hash.as_bytes());
-        block_commitment_bytes.extend_from_slice(self.prev_commitment_hash.as_bytes());
-        block_commitment_bytes.extend_from_slice(self.pred_block_hash.as_bytes());
-        block_commitment_bytes.extend_from_slice(self.transitions.as_digest().as_ref());
-
-        block_commitment_bytes.as_digest()
+impl ToDigest for BlockCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.block_hash.as_bytes());
+        hasher.update(self.prev_commitment_hash.as_bytes());
+        hasher.update(self.pred_block_hash.as_bytes());
+        hasher.update(self.transitions.iter().collect::<Digest>().as_ref());
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gprimitives::{ActorId, CodeId};
+    use gprimitives::{ActorId, CodeId, MessageId, H256};
     use std::vec;
 
     #[test]
@@ -225,7 +153,7 @@ mod tests {
             id: CodeId::from(0),
             valid: true,
         }
-        .as_digest();
+        .to_digest();
 
         let state_transition = StateTransition {
             actor_id: ActorId::from(0),
@@ -240,7 +168,7 @@ mod tests {
                 reply_details: None,
             }],
         };
-        let _digest = state_transition.as_digest();
+        let _digest = state_transition.to_digest();
 
         let transitions = vec![state_transition.clone(), state_transition];
 
@@ -250,6 +178,6 @@ mod tests {
             prev_commitment_hash: H256::from([2; 32]),
             transitions: transitions.clone(),
         };
-        let _digest = block_commitment.as_digest();
+        let _digest = block_commitment.to_digest();
     }
 }

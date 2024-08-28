@@ -20,7 +20,7 @@ use anyhow::{Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
 
-use crate::builder_error::BuilderError;
+use crate::{builder_error::BuilderError, multiple_crate_versions};
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
 #[derive(Debug, Default)]
@@ -52,6 +52,9 @@ impl CrateInfo {
         let root_package = Self::root_package(&metadata)
             .ok_or_else(|| BuilderError::RootPackageNotFound.into())
             .and_then(Self::check)?;
+
+        multiple_crate_versions::check(&metadata, &root_package.id)?;
+
         let name = root_package.name.clone();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();

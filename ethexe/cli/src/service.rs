@@ -29,7 +29,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::GossipsubMessage;
+use ethexe_network::NetworkReceiverEvent;
 use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_sequencer::agro::AggregatedCommitments;
@@ -171,7 +171,7 @@ impl Service {
             .net_config
             .as_ref()
             .map(|config| -> Result<_> {
-                ethexe_network::NetworkService::new(config.clone(), &signer)
+                ethexe_network::NetworkService::new(config.clone(), &signer, db.clone())
             })
             .transpose()?;
 
@@ -259,7 +259,7 @@ impl Service {
 
                     let blob_tx_hash = db
                         .code_blob_tx(code_id)
-                        .ok_or(anyhow!("Blob tx hash not found"))?;
+                        .ok_or_else(|| anyhow!("Blob tx hash not found"))?;
 
                     let code = query.download_code(code_id, blob_tx_hash).await?;
 
@@ -307,7 +307,7 @@ impl Service {
             // so append it to the `wait for commitment` queue.
             let mut queue = db
                 .block_commitment_queue(block_hash)
-                .ok_or(anyhow!("Commitment queue is not found for block"))?;
+                .ok_or_else(|| anyhow!("Commitment queue is not found for block"))?;
             queue.push_back(block_hash);
             db.set_block_commitment_queue(block_hash, queue);
         }
@@ -356,7 +356,7 @@ impl Service {
                 pred_block_hash: block_data.block_hash,
                 prev_commitment_hash: db
                     .block_prev_commitment(block_hash)
-                    .ok_or(anyhow!("Prev commitment not found"))?,
+                    .ok_or_else(|| anyhow!("Prev commitment not found"))?,
                 transitions,
             });
         }
@@ -428,11 +428,11 @@ impl Service {
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
-        let (mut network_sender, mut gossipsub_stream, mut network_handle) =
+        let (mut network_sender, mut network_receiver, mut network_handle) =
             if let Some(network) = network {
                 (
                     Some(network.sender),
-                    Some(network.gossip_stream),
+                    Some(network.receiver),
                     Some(tokio::spawn(network.event_loop.run())),
                 )
             } else {
@@ -456,8 +456,8 @@ impl Service {
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
 
-        let mut collection_round_timer = RoundTimer::new(block_time / 4);
-        let mut validation_round_timer = RoundTimer::new(block_time / 4);
+        let mut collection_round_timer = StoppableTimer::new(block_time / 4);
+        let mut validation_round_timer = StoppableTimer::new(block_time / 4);
 
         loop {
             tokio::select! {
@@ -510,13 +510,15 @@ impl Service {
 
                     validation_round_timer.stop();
                 }
-                message = maybe_await(gossipsub_stream.as_mut().map(|stream| stream.next())) => {
-                    let Some(message) = message else {
+                event = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
+                    let Some(NetworkReceiverEvent::Message { source, data }) = event else {
                         continue;
                     };
 
+                    log::debug!("Received a network message from peer {source:?}");
+
                     let result = Self::process_network_message(
-                        message,
+                        data.as_slice(),
                         &db,
                         validator.as_mut(),
                         sequencer.as_mut(),
@@ -718,13 +720,13 @@ impl Service {
     }
 
     fn process_network_message(
-        message: GossipsubMessage,
+        mut data: &[u8],
         db: &Database,
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
     ) -> Result<()> {
-        let message = NetworkMessage::decode(&mut message.data.as_slice())?;
+        let message = NetworkMessage::decode(&mut data)?;
         match message {
             NetworkMessage::PublishCommitments { codes, blocks } => {
                 let Some(sequencer) = maybe_sequencer else {
@@ -785,12 +787,12 @@ impl Service {
 mod utils {
     use super::*;
 
-    pub(crate) struct RoundTimer {
+    pub(crate) struct StoppableTimer {
         round_duration: Duration,
         started: Option<Instant>,
     }
 
-    impl RoundTimer {
+    impl StoppableTimer {
         pub fn new(round_duration: Duration) -> Self {
             Self {
                 round_duration,

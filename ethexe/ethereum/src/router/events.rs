@@ -48,7 +48,7 @@ pub mod signatures {
     ];
 }
 
-pub fn try_extract_event(log: Log) -> Result<Option<router::Event>> {
+pub fn try_extract_event(log: &Log) -> Result<Option<router::Event>> {
     use crate::decode_log;
     use signatures::*;
 
@@ -62,7 +62,9 @@ pub fn try_extract_event(log: Log) -> Result<Option<router::Event>> {
         b if b == BLOCK_COMMITTED => decode_log::<IRouter::BlockCommitted>(log)?.into(),
         b if b == CODE_GOT_VALIDATED => decode_log::<IRouter::CodeGotValidated>(log)?.into(),
         b if b == CODE_VALIDATION_REQUESTED => {
-            let tx_hash = log.transaction_hash.ok_or(anyhow!("Tx hash not found"))?;
+            let tx_hash = log
+                .transaction_hash
+                .ok_or_else(|| anyhow!("Tx hash not found"))?;
 
             let mut event = decode_log::<IRouter::CodeValidationRequested>(log)?;
 

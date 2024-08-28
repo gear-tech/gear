@@ -17,17 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod custom_connection_limits;
+pub mod db_sync;
+mod utils;
 
-pub mod utils {
+pub mod export {
     pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 }
 
 use anyhow::Context;
+use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
 use libp2p::{
     connection_limits,
     core::upgrade,
-    futures::{Stream, StreamExt},
+    futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
@@ -42,9 +45,7 @@ use std::{
     fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
-    pin::Pin,
     str::FromStr,
-    task::Poll,
 };
 use tokio::{select, sync::mpsc};
 
@@ -59,18 +60,22 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 pub struct NetworkService {
     pub sender: NetworkSender,
-    pub gossip_stream: GossipsubMessageStream,
+    pub receiver: NetworkReceiver,
     pub event_loop: NetworkEventLoop,
 }
 
 impl NetworkService {
-    pub fn new(config: NetworkEventLoopConfig, signer: &Signer) -> anyhow::Result<NetworkService> {
+    pub fn new(
+        config: NetworkEventLoopConfig,
+        signer: &Signer,
+        db: Database,
+    ) -> anyhow::Result<NetworkService> {
         fs::create_dir_all(&config.config_dir)
             .context("failed to create network configuration directory")?;
 
         let keypair =
             NetworkEventLoop::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkEventLoop::create_swarm(keypair, config.transport_type)?;
+        let mut swarm = NetworkEventLoop::create_swarm(keypair, db, config.transport_type)?;
 
         for multiaddr in config.external_addresses {
             swarm.add_external_address(multiaddr);
@@ -95,16 +100,16 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let (general_tx, general_rx) = mpsc::unbounded_channel();
-        let (gossipsub_tx, gossipsub_rx) = mpsc::unbounded_channel();
+        let (network_sender, sender_rx) = NetworkSender::new();
+        let (receiver_tx, network_receiver) = NetworkReceiver::new();
 
         Ok(Self {
-            sender: NetworkSender { tx: general_tx },
-            gossip_stream: GossipsubMessageStream { rx: gossipsub_rx },
+            sender: network_sender,
+            receiver: network_receiver,
             event_loop: NetworkEventLoop {
                 swarm,
-                general_rx,
-                gossipsub_tx,
+                external_rx: sender_rx,
+                external_tx: receiver_tx,
             },
         })
     }
@@ -112,42 +117,53 @@ impl NetworkService {
 
 #[derive(Debug)]
 enum NetworkSenderEvent {
-    Message { data: Vec<u8> },
+    PublishMessage { data: Vec<u8> },
+    RequestDbData(db_sync::Request),
 }
 
-/// Communication with [`NetworkEventLoop`]
 #[derive(Debug, Clone)]
 pub struct NetworkSender {
     tx: mpsc::UnboundedSender<NetworkSenderEvent>,
 }
 
 impl NetworkSender {
+    fn new() -> (Self, mpsc::UnboundedReceiver<NetworkSenderEvent>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (Self { tx }, rx)
+    }
+
     pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
-            .send(NetworkSenderEvent::Message { data: data.into() });
+            .send(NetworkSenderEvent::PublishMessage { data: data.into() });
+    }
+
+    pub fn request_db_data(&self, request: db_sync::Request) {
+        let _res = self.tx.send(NetworkSenderEvent::RequestDbData(request));
     }
 }
 
-#[derive(Debug)]
-pub struct GossipsubMessage {
-    pub source: Option<PeerId>,
-    pub data: Vec<u8>,
+#[derive(Debug, Eq, PartialEq)]
+pub enum NetworkReceiverEvent {
+    Message {
+        source: Option<PeerId>,
+        data: Vec<u8>,
+    },
+    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
 }
 
-#[derive(Debug)]
-pub struct GossipsubMessageStream {
-    rx: mpsc::UnboundedReceiver<GossipsubMessage>,
+pub struct NetworkReceiver {
+    rx: mpsc::UnboundedReceiver<NetworkReceiverEvent>,
 }
 
-impl Stream for GossipsubMessageStream {
-    type Item = GossipsubMessage;
+impl NetworkReceiver {
+    fn new() -> (mpsc::UnboundedSender<NetworkReceiverEvent>, Self) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (tx, Self { rx })
+    }
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.rx).poll_recv(cx)
+    pub async fn recv(&mut self) -> Option<NetworkReceiverEvent> {
+        self.rx.recv().await
     }
 }
 
@@ -194,8 +210,10 @@ impl NetworkEventLoopConfig {
 
 pub struct NetworkEventLoop {
     swarm: Swarm<Behaviour>,
-    general_rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
-    gossipsub_tx: mpsc::UnboundedSender<GossipsubMessage>,
+    // event receiver from service
+    external_rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
+    // event sender to service
+    external_tx: mpsc::UnboundedSender<NetworkReceiverEvent>,
 }
 
 impl NetworkEventLoop {
@@ -236,13 +254,14 @@ impl NetworkEventLoop {
 
     fn create_swarm(
         keypair: identity::Keypair,
+        db: Database,
         transport_type: TransportType,
     ) -> anyhow::Result<Swarm<Behaviour>> {
         match transport_type {
             TransportType::Quic => Ok(SwarmBuilder::with_existing_identity(keypair)
                 .with_tokio()
                 .with_quic()
-                .with_behaviour(Behaviour::from_keypair)?
+                .with_behaviour(move |keypair| Behaviour::new(keypair, db))?
                 .build()),
 
             TransportType::Memory => {
@@ -251,8 +270,7 @@ impl NetworkEventLoop {
                     .authenticate(libp2p::plaintext::Config::new(&keypair))
                     .multiplex(libp2p::yamux::Config::default())
                     .boxed();
-                let behaviour =
-                    Behaviour::from_keypair(&keypair).map_err(|err| anyhow::anyhow!(err))?;
+                let behaviour = Behaviour::new(&keypair, db).map_err(|err| anyhow::anyhow!(err))?;
                 let config = SwarmConfig::with_tokio_executor()
                     .with_substream_upgrade_protocol_override(upgrade::Version::V1);
 
@@ -270,7 +288,7 @@ impl NetworkEventLoop {
         loop {
             select! {
                 event = self.swarm.select_next_some() => self.handle_swarm_event(event),
-                event = self.general_rx.recv() => match event {
+                event = self.external_rx.recv() => match event {
                     Some(event) => {
                         self.handle_network_rx_event(event);
                     }
@@ -362,22 +380,48 @@ impl NetworkEventLoop {
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message: gossipsub::Message { source, data, .. },
+                message:
+                    gossipsub::Message {
+                        source,
+                        data,
+                        sequence_number: _,
+                        topic,
+                    },
                 ..
-            }) => {
-                let _res = self.gossipsub_tx.send(GossipsubMessage { source, data });
+            }) if gpu_commitments_topic().hash() == topic => {
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
                 let _res = self.swarm.disconnect_peer_id(peer_id);
             }
             BehaviourEvent::Gossipsub(_) => {}
+            //
+            BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
+                request_id: _,
+                response,
+            }) => {
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::DbResponse(Ok(response)));
+            }
+            BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
+                request_id: _,
+                error,
+            }) => {
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::DbResponse(Err(error)));
+            }
+            BehaviourEvent::DbSync(_) => {}
         }
     }
 
     fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
         match event {
-            NetworkSenderEvent::Message { data } => {
+            NetworkSenderEvent::PublishMessage { data } => {
                 if let Err(e) = self
                     .swarm
                     .behaviour_mut()
@@ -387,12 +431,15 @@ impl NetworkEventLoop {
                     log::debug!("gossipsub publishing failed: {e}")
                 }
             }
+            NetworkSenderEvent::RequestDbData(request) => {
+                self.swarm.behaviour_mut().db_sync.request(request);
+            }
         }
     }
 }
 
 #[derive(NetworkBehaviour)]
-pub struct Behaviour {
+pub(crate) struct Behaviour {
     // custom options to limit connections
     pub custom_connection_limits: custom_connection_limits::Behaviour,
     // limit connections
@@ -408,11 +455,14 @@ pub struct Behaviour {
     pub kad: kad::Behaviour<kad::store::MemoryStore>,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
+    // database synchronization protocol
+    pub db_sync: db_sync::Behaviour,
 }
 
 impl Behaviour {
-    fn from_keypair(
+    fn new(
         keypair: &identity::Keypair,
+        db: Database,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let peer_id = keypair.public().to_peer_id();
 
@@ -469,6 +519,8 @@ impl Behaviour {
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 
+        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), db);
+
         Ok(Self {
             custom_connection_limits,
             connection_limits,
@@ -477,6 +529,7 @@ impl Behaviour {
             mdns4,
             kad,
             gossipsub,
+            db_sync,
         })
     }
 }
@@ -489,20 +542,22 @@ fn gpu_commitments_topic() -> gossipsub::IdentTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tests::init_logger;
+    use ethexe_db::MemDb;
     use tokio::time::{timeout, Duration};
 
     #[tokio::test]
     async fn test_memory_transport() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        init_logger();
 
         let tmp_dir1 = tempfile::tempdir().unwrap();
         let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
         let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
-        let service1 = NetworkService::new(config.clone(), &signer1).unwrap();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
 
-        let peer_id = service1.event_loop.local_peer_id().to_string();
-
-        let multiaddr: Multiaddr = format!("/memory/1/p2p/{}", peer_id).parse().unwrap();
+        let peer_id = service1.event_loop.local_peer_id();
+        let multiaddr: Multiaddr = format!("/memory/1/p2p/{peer_id}").parse().unwrap();
 
         let (sender, mut _service1_handle) =
             (service1.sender, tokio::spawn(service1.event_loop.run()));
@@ -512,10 +567,11 @@ mod tests {
         let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
         let mut config2 =
             NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/2");
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
 
         config2.bootstrap_addresses = [multiaddr].into();
 
-        let service2 = NetworkService::new(config2.clone(), &signer2).unwrap();
+        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
 
         tokio::spawn(service2.event_loop.run());
 
@@ -527,13 +583,15 @@ mod tests {
 
         sender.publish_message(commitment_data.clone());
 
-        let mut gossip_stream = service2.gossip_stream;
+        let mut receiver = service2.receiver;
 
         // Wait for the commitment to be received by service2
         let received_commitment = timeout(Duration::from_secs(5), async {
-            while let Some(message) = gossip_stream.next().await {
-                if message.data == commitment_data {
-                    return Some(message);
+            while let Some(NetworkReceiverEvent::Message { source: _, data }) =
+                receiver.recv().await
+            {
+                if data == commitment_data {
+                    return Some(data);
                 }
             }
 
@@ -543,5 +601,54 @@ mod tests {
         .expect("Timeout while waiting for commitment");
 
         assert!(received_commitment.is_some(), "Commitment was not received");
+    }
+
+    #[tokio::test]
+    async fn request_db_data() {
+        init_logger();
+
+        let tmp_dir1 = tempfile::tempdir().unwrap();
+        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/3");
+        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
+
+        let peer_id = service1.event_loop.local_peer_id();
+        let multiaddr: Multiaddr = format!("/memory/3/p2p/{peer_id}").parse().unwrap();
+
+        tokio::spawn(service1.event_loop.run());
+
+        // second service
+        let tmp_dir2 = tempfile::tempdir().unwrap();
+        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
+        let mut config2 =
+            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/4");
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+
+        config2.bootstrap_addresses = [multiaddr].into();
+
+        let hello = db.write(b"hello");
+        let world = db.write(b"world");
+
+        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
+        tokio::spawn(service2.event_loop.run());
+
+        // Wait for the connection to be established
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        service1
+            .sender
+            .request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+
+        let event = timeout(Duration::from_secs(5), service1.receiver.recv())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        assert_eq!(
+            event,
+            NetworkReceiverEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
+                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+            )))
+        );
     }
 }

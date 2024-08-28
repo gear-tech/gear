@@ -499,7 +499,9 @@ fn spend_gas_all_balance_validator_account_deleted() {
 
         assert_bank_balance(0, 0);
 
-        assert_balance(&BLOCK_AUTHOR, gas_price(GAS_AMOUNT));
+        // mul ceil GAS_AMOUNT because of gas fee split.
+        let (gas_split, _) = SplitGasFeeRatio::get().unwrap();
+        assert_balance(&BLOCK_AUTHOR, gas_split.mul_ceil(gas_price(GAS_AMOUNT)));
 
         assert_alice_dec(gas_price(GAS_AMOUNT));
         assert_gas_value(&ALICE, 0, 0);
@@ -1636,7 +1638,12 @@ mod utils {
     // Asserts block author balance inc.
     #[track_caller]
     pub fn assert_block_author_inc(diff: Balance) {
-        assert_balance(&BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT + diff)
+        // mul ceil diff because of gas fee split.
+        let (gas_split, _) = SplitGasFeeRatio::get().unwrap();
+        assert_balance(
+            &BLOCK_AUTHOR,
+            EXISTENTIAL_DEPOSIT + gas_split.mul_ceil(diff),
+        )
     }
 
     // Asserts Charlie balance inc.

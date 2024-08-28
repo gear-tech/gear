@@ -1016,7 +1016,7 @@ mod utils {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let config =
                     ethexe_network::NetworkEventLoopConfig::new_memory(config_path, addr.as_str());
-                ethexe_network::NetworkService::new(config, &self.signer).unwrap()
+                ethexe_network::NetworkService::new(config, &self.signer, self.db.clone()).unwrap()
             });
 
             let sequencer = match sequencer_public_key.as_ref() {

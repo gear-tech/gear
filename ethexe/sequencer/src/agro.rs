@@ -18,26 +18,31 @@
 
 //! Abstract commitment aggregator.
 
-use anyhow::Result;
-use ethexe_signer::{Address, AsDigest, Digest, PublicKey, Signature, Signer};
+use anyhow::{anyhow, Result};
+use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-pub struct AggregatedCommitments<D: AsDigest> {
+pub struct AggregatedCommitments<D: ToDigest> {
     pub commitments: Vec<D>,
     pub signature: Signature,
 }
 
-impl<T: AsDigest> AggregatedCommitments<T> {
+impl<T: ToDigest> AggregatedCommitments<T> {
     pub fn aggregate_commitments(
         commitments: Vec<T>,
         signer: &Signer,
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
-        let signature =
-            sign_commitments_digest(commitments.as_digest(), signer, pub_key, router_address)?;
+        let signature = sign_commitments_digest(
+            commitments.iter().collect(),
+            signer,
+            pub_key,
+            router_address,
+        )?;
 
         Ok(AggregatedCommitments {
             commitments,
@@ -47,7 +52,7 @@ impl<T: AsDigest> AggregatedCommitments<T> {
 
     pub fn recover(&self, router_address: Address) -> Result<Address> {
         recover_from_commitments_digest(
-            self.commitments.as_digest(),
+            self.commitments.iter().collect(),
             &self.signature,
             router_address,
         )
@@ -64,24 +69,18 @@ impl<T: AsDigest> AggregatedCommitments<T> {
 
 pub(crate) struct MultisignedCommitmentDigests {
     digest: Digest,
-    digests: Vec<Digest>,
+    digests: IndexSet<Digest>,
     signatures: BTreeMap<Address, Signature>,
 }
 
 impl MultisignedCommitmentDigests {
-    pub fn new(mut digests: Vec<Digest>) -> Result<Self> {
-        let len = digests.len();
-        if len == 0 {
-            return Err(anyhow::anyhow!("Empty commitments digests"));
-        }
-
-        digests.dedup();
-        if digests.len() != len {
-            return Err(anyhow::anyhow!("Duplicate commitments digests"));
+    pub fn new(digests: IndexSet<Digest>) -> Result<Self> {
+        if digests.is_empty() {
+            return Err(anyhow!("Empty commitments digests"));
         }
 
         Ok(Self {
-            digest: digests.as_digest(),
+            digest: digests.iter().collect(),
             digests,
             signatures: BTreeMap::new(),
         })
@@ -95,7 +94,7 @@ impl MultisignedCommitmentDigests {
         check_origin: impl FnOnce(Address) -> Result<()>,
     ) -> Result<()> {
         if self.digest != digest {
-            return Err(anyhow::anyhow!("Aggregated commitments digest mismatch"));
+            return Err(anyhow!("Aggregated commitments digest mismatch"));
         }
 
         let origin = recover_from_commitments_digest(digest, &signature, router_address)?;
@@ -106,8 +105,8 @@ impl MultisignedCommitmentDigests {
         Ok(())
     }
 
-    pub fn digests(&self) -> &[Digest] {
-        self.digests.as_slice()
+    pub fn digests(&self) -> &IndexSet<Digest> {
+        &self.digests
     }
 
     pub fn signatures(&self) -> &BTreeMap<Address, Signature> {
@@ -115,12 +114,12 @@ impl MultisignedCommitmentDigests {
     }
 }
 
-pub(crate) struct MultisignedCommitments<C: AsDigest> {
+pub(crate) struct MultisignedCommitments<C: ToDigest> {
     commitments: Vec<C>,
     signatures: BTreeMap<Address, Signature>,
 }
 
-impl<C: AsDigest> MultisignedCommitments<C> {
+impl<C: ToDigest> MultisignedCommitments<C> {
     pub fn from_multisigned_digests(
         multisigned: MultisignedCommitmentDigests,
         get_commitment: impl FnMut(Digest) -> C,
@@ -167,27 +166,31 @@ fn recover_from_commitments_digest(
 }
 
 fn to_router_digest(commitments_digest: Digest, router_address: Address) -> Digest {
+    // See explanation: https://eips.ethereum.org/EIPS/eip-191
     [
         [0x19, 0x00].as_ref(),
         router_address.0.as_ref(),
         commitments_digest.as_ref(),
     ]
     .concat()
-    .as_digest()
+    .to_digest()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_signer::PrivateKey;
+    use ethexe_signer::{
+        sha3::{Digest as _, Keccak256},
+        PrivateKey,
+    };
     use std::str::FromStr;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MyComm([u8; 2]);
 
-    impl AsDigest for MyComm {
-        fn as_digest(&self) -> Digest {
-            self.0.as_digest()
+    impl ToDigest for MyComm {
+        fn update_hasher(&self, hasher: &mut Keccak256) {
+            hasher.update(self.0);
         }
     }
 
@@ -202,9 +205,9 @@ mod tests {
         let pub_key = signer.add_key(private_key).unwrap();
 
         let router_address = Address([0x01; 20]);
-        let commitments = vec![MyComm([1, 2]), MyComm([3, 4])];
+        let commitments = [MyComm([1, 2]), MyComm([3, 4])];
 
-        let commitments_digest = commitments.as_digest();
+        let commitments_digest = commitments.iter().collect();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
         let recovered =
@@ -248,21 +251,20 @@ mod tests {
 
         let router_address = Address([0x01; 20]);
         let commitments = [MyComm([1, 2]), MyComm([3, 4])];
-        let digests = commitments.map(|c| c.as_digest());
+        let digests: IndexSet<_> = commitments.map(|c| c.to_digest()).into_iter().collect();
 
-        let mut multisigned =
-            MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
-        assert_eq!(multisigned.digests(), digests.as_slice());
+        let mut multisigned = MultisignedCommitmentDigests::new(digests.clone()).unwrap();
+        assert_eq!(multisigned.digests(), &digests);
         assert_eq!(multisigned.signatures().len(), 0);
 
-        let commitments_digest = commitments.as_digest();
+        let commitments_digest = commitments.iter().collect();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 
         multisigned
             .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
             .unwrap();
-        assert_eq!(multisigned.digests(), digests.as_slice());
+        assert_eq!(multisigned.digests(), &digests);
         assert_eq!(multisigned.signatures().len(), 1);
     }
 
@@ -275,15 +277,15 @@ mod tests {
 
         let router_address = Address([1; 20]);
         let commitments = [MyComm([1, 2]), MyComm([3, 4])];
-        let digests = commitments.map(|c| c.as_digest());
+        let digests = commitments.map(|c| c.to_digest());
         let mut commitments_map: BTreeMap<_, _> = commitments
             .into_iter()
-            .map(|c| (c.as_digest(), c))
+            .map(|c| (c.to_digest(), c))
             .collect();
 
         let mut multisigned =
             MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
-        let commitments_digest = commitments.as_digest();
+        let commitments_digest = commitments.iter().collect();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 

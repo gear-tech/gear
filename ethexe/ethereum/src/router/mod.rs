@@ -135,7 +135,7 @@ impl Router {
         while let Some(log) = router_events.next().await {
             match log.topic0().map(|v| H256(v.0)) {
                 Some(b) if b == signatures::CODE_GOT_VALIDATED => {
-                    let event = crate::decode_log::<IRouter::CodeGotValidated>(log)?;
+                    let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
 
                     if event.id == code_id {
                         return Ok(event.valid);
@@ -171,7 +171,7 @@ impl Router {
         // TODO: return init message id
         for log in receipt.inner.logs() {
             if log.topic0().map(|v| v.0) == Some(signatures::PROGRAM_CREATED.to_fixed_bytes()) {
-                let event = crate::decode_log::<IRouter::ProgramCreated>(log.clone())?;
+                let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
 
                 actor_id = Some((*event.actorId.into_word()).into());
 
@@ -179,7 +179,7 @@ impl Router {
             }
         }
 
-        let actor_id = actor_id.ok_or(anyhow!("Couldn't find `ProgramCreated` log"))?;
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
 
         Ok((tx_hash, actor_id))
     }

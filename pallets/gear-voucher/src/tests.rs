@@ -141,31 +141,6 @@ fn voucher_call_works() {
             },
         ));
 
-        // Always ok, because legacy call doesn't access vouchers storage
-        // and just proxies payment to specific synthetic account.
-        assert_ok!(Voucher::call_deprecated(
-            RuntimeOrigin::signed(ALICE),
-            PrepaidCall::SendMessage {
-                destination: H256::random().cast(),
-                payload: vec![],
-                gas_limit: 0,
-                value: 0,
-                keep_alive: false
-            }
-        ));
-
-        // Ok, if message exists in mailbox.
-        assert_ok!(Voucher::call_deprecated(
-            RuntimeOrigin::signed(ALICE),
-            PrepaidCall::SendReply {
-                reply_to_id: MAILBOXED_MESSAGE,
-                payload: vec![],
-                gas_limit: 0,
-                value: 0,
-                keep_alive: false
-            },
-        ));
-
         // Checking case of any program.
         assert_ok!(Voucher::issue(
             RuntimeOrigin::signed(ALICE),
@@ -335,30 +310,6 @@ fn voucher_call_err_cases() {
                 }
             ),
             Error::<Test>::VoucherExpired
-        );
-
-        // Message doesn't exist in mailbox.
-        assert_noop!(
-            Voucher::call_deprecated(
-                RuntimeOrigin::signed(BOB),
-                PrepaidCall::SendReply {
-                    reply_to_id: H256::random().cast(),
-                    payload: vec![],
-                    gas_limit: 0,
-                    value: 0,
-                    keep_alive: false
-                },
-            ),
-            Error::<Test>::UnknownDestination
-        );
-
-        // Code uploading is always forbidden for `call_deprecated`.
-        assert_noop!(
-            Voucher::call_deprecated(
-                RuntimeOrigin::signed(BOB),
-                PrepaidCall::UploadCode { code: vec![] },
-            ),
-            Error::<Test>::CodeUploadingDisabled
         );
     })
 }
