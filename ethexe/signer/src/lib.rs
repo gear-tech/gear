@@ -348,7 +348,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        // TODO: remove the deprecated ethers crate in favor of alloy #+_+_+
+        // TODO: remove the deprecated ethers crate in favor of alloy #4197
         let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
             .expect("failed to parse sig");
 
