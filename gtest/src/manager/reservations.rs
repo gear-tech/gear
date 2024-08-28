@@ -27,29 +27,6 @@ use gear_common::{
 use gear_core::reservation::GasReservationSlot;
 
 impl ExtManager {
-    pub(crate) fn remove_reservation(
-        &mut self,
-        id: ProgramId,
-        reservation: ReservationId,
-    ) -> Option<bool> {
-        let was_in_map = self.update_genuine_program(id, |genuine_program| {
-            genuine_program
-                .gas_reservation_map
-                .remove(&reservation)
-                .is_some()
-        })?;
-
-        if was_in_map {
-            self.gas_tree
-                .consume(reservation)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        } else {
-            log::error!("Tried to remove unexistent reservation {reservation} for program {id}.");
-        }
-
-        Some(was_in_map)
-    }
-
     pub(crate) fn remove_gas_reservation_impl(
         &mut self,
         program_id: ProgramId,

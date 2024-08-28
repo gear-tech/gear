@@ -18,15 +18,18 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
+use std::collections::BTreeMap;
+
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use crate::{
+    manager::hold_bound::HoldBoundBuilder,
     state::{accounts::Accounts, actors::Actors},
     Value, EXISTENTIAL_DEPOSIT,
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     event::{MessageWaitedRuntimeReason, RuntimeReason},
-    scheduler::ScheduledTask,
+    scheduler::{ScheduledTask, StorageType, TaskHandler},
     Origin,
 };
 use gear_core::{
@@ -43,7 +46,6 @@ use gear_core::{
 };
 use gear_core_errors::SignalCode;
 use gear_wasm_instrument::gas_metering::Schedule;
-use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(
@@ -327,7 +329,7 @@ impl JournalHandler for ExtManager {
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        _program_id: ProgramId,
+        program_id: ProgramId,
         amount: u64,
         duration: u32,
     ) {
@@ -339,9 +341,57 @@ impl JournalHandler for ExtManager {
             duration
         );
 
+        let hold = HoldBoundBuilder::new(StorageType::Reservation).duration(self, duration);
+
+        if hold.expected_duration(self).is_zero() {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: reservation got zero duration hold bound for storing. \
+                Duration - {duration}, block cost - {cost}, program - {program_id}.",
+                cost = Self::cost_by_storage_type(StorageType::Reservation)
+            );
+
+            unreachable!("{err_msg}");
+        }
+
+        let total_amount = amount.saturating_add(hold.lock_amount(self));
+
         self.gas_tree
-            .reserve_gas(message_id, reservation_id, amount)
+            .reserve_gas(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+
+        let lock_id = hold.lock_id().unwrap_or_else(|| {
+            // Reservation storage is guaranteed to have an associated lock id
+            let err_msg =
+                "JournalHandler::reserve_gas: No associated lock id for the reservation storage";
+
+            unreachable!("{err_msg}");
+        });
+
+        self.gas_tree
+            .lock(reservation_id, lock_id, hold.lock_amount(self))
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "JournalHandler::reserve_gas: failed locking gas for the reservation hold. \
+                Reseravation - {reservation_id}, lock amount - {lock}. Got error - {e:?}",
+                    lock = hold.lock_amount(self)
+                );
+
+                unreachable!("{err_msg}");
+            });
+
+        self.task_pool.add(
+            hold.expected(),
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id)
+        ).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: failed adding task for gas reservation removal. \
+                Expected bn - {bn:?}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
+                bn = hold.expected()
+            );
+
+
+            unreachable!("{err_msg}");
+        });
     }
 
     fn unreserve_gas(
@@ -350,12 +400,7 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         expiration: u32,
     ) {
-        let has_removed_reservation = self
-            .remove_reservation(program_id, reservation_id)
-            .expect("failed to find genuine_program");
-        if !has_removed_reservation {
-            unreachable!("Failed to remove reservation {reservation_id} from {program_id}");
-        }
+        <Self as TaskHandler<ProgramId>>::remove_gas_reservation(self, program_id, reservation_id);
 
         let _ = self.task_pool.delete(
             expiration,
