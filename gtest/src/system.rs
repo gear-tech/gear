@@ -17,12 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    accounts::Accounts,
-    actors::Actors,
     log::{BlockRunResult, CoreLog},
-    mailbox::ActorMailbox,
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
+    state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
     Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
@@ -417,6 +415,7 @@ impl Drop for System {
         self.0.borrow().gas_tree.reset();
         self.0.borrow().mailbox.reset();
         self.0.borrow().task_pool.clear();
+        self.0.borrow().waitlist.reset();
 
         // Clear actors and accounts storages
         Actors::clear();

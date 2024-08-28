@@ -16,17 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// Implementation of the `JournalHandler` trait for the `ExtManager`.
+//! Implementation of the `JournalHandler` trait for the `ExtManager`.
+
 use std::collections::BTreeMap;
 
-use crate::{
-    accounts::Accounts, actors::Actors, manager::hold_bound::HoldBoundBuilder, Value,
-    EXISTENTIAL_DEPOSIT,
-};
-
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
+use crate::{
+    manager::hold_bound::HoldBoundBuilder,
+    state::{accounts::Accounts, actors::Actors},
+    Value, EXISTENTIAL_DEPOSIT,
+};
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
+    event::{MessageWaitedRuntimeReason, RuntimeReason},
     scheduler::{ScheduledTask, StorageType, TaskHandler},
     Origin,
 };
@@ -169,21 +171,15 @@ impl JournalHandler for ExtManager {
         &mut self,
         dispatch: StoredDispatch,
         duration: Option<u32>,
-        _: MessageWaitedType,
+        waited_type: MessageWaitedType,
     ) {
         log::debug!("[{}] wait", dispatch.id());
 
-        let dest = dispatch.destination();
-        let id = dispatch.id();
-        let expected_wake = duration.map(|d| {
-            let expected_bn = d + self.block_height();
-            self.task_pool
-                .add(expected_bn, ScheduledTask::WakeMessage(dest, id))
-                .unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
-
-            expected_bn
-        });
-        self.wait_list.insert((dest, id), (dispatch, expected_wake));
+        self.wait_dipatch_impl(
+            dispatch,
+            duration,
+            MessageWaitedRuntimeReason::from(waited_type).into_reason(),
+        );
     }
 
     fn wake_message(
@@ -191,23 +187,42 @@ impl JournalHandler for ExtManager {
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
-        _delay: u32,
+        delay: u32,
     ) {
         log::debug!("[{message_id}] waked message#{awakening_id}");
 
-        if let Some((msg, expected_bn)) = self.wait_list.remove(&(program_id, awakening_id)) {
-            self.dispatches.push_back(msg);
+        if delay.is_zero() {
+            if let Ok(dispatch) = self.wake_dispatch_impl(program_id, awakening_id) {
+                self.dispatches.push_back(dispatch);
 
-            let Some(expected_bn) = expected_bn else {
                 return;
-            };
-            self.task_pool
-                .delete(
-                    expected_bn,
-                    ScheduledTask::WakeMessage(program_id, awakening_id),
-                )
-                .unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
+            }
+        } else if self.waitlist.contains(program_id, awakening_id) {
+            let expected_bn = self.block_height() + delay;
+            let task = ScheduledTask::WakeMessage(program_id, awakening_id);
+
+            // This validation helps us to avoid returning error on insertion into
+            // `TaskPool` in case of duplicate wake.
+            if !self.task_pool.contains(&expected_bn, &task) {
+                self.task_pool.add(expected_bn, task).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "JournalHandler::wake_message: failed adding task for waking message. \
+                        Expected bn - {expected_bn:?}, program id - {program_id}, message_id - {awakening_id}.
+                        Got error - {e:?}"
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+            }
+
+            return;
         }
+
+        log::debug!(
+            "Attempt to wake unknown message {:?} from {:?}",
+            awakening_id,
+            message_id
+        );
     }
 
     #[track_caller]
@@ -237,7 +252,7 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
-        if value == 0 {
+        if value.is_zero() {
             // Nothing to do
             return;
         }
@@ -353,7 +368,7 @@ impl JournalHandler for ExtManager {
         });
 
         self.gas_tree
-            .lock(reservation_id.cast(), lock_id, hold.lock_amount(self))
+            .lock(reservation_id, lock_id, hold.lock_amount(self))
             .unwrap_or_else(|e| {
                 let err_msg = format!(
                     "JournalHandler::reserve_gas: failed locking gas for the reservation hold. \
