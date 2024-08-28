@@ -67,11 +67,16 @@ pub trait KVDatabase: Send + Sync {
 
     /// Put (insert) value by key.
     fn put(&self, key: &[u8], data: Vec<u8>);
+
+    fn iter_prefix<'a>(
+        &'a self,
+        prefix: &'a [u8],
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_>;
 }
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
+    use std::{collections::BTreeSet, thread};
 
     use crate::{CASDatabase, KVDatabase};
 
@@ -100,6 +105,21 @@ mod tests {
         let data = b"value".to_vec();
         db.put(key, data.clone());
         assert_eq!(db.get(key.as_slice()), Some(data));
+    }
+
+    pub fn kv_iter_prefix<DB: KVDatabase>(db: DB) {
+        db.put(b"prefix_foo", b"hello".to_vec());
+        db.put(b"prefix_bar", b"world".to_vec());
+
+        let values: BTreeSet<(Vec<u8>, Vec<u8>)> = db.iter_prefix(b"prefix_").collect();
+        assert_eq!(
+            values,
+            [
+                (b"prefix_foo".to_vec(), b"hello".to_vec()),
+                (b"prefix_bar".to_vec(), b"world".to_vec()),
+            ]
+            .into(),
+        );
     }
 
     pub fn cas_multi_thread<DB: CASDatabase>(db: DB) {

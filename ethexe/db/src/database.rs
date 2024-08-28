@@ -18,13 +18,13 @@
 
 //! Database for ethexe.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::{CASDatabase, KVDatabase};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage},
-    events::BlockEvent,
-    StateTransition,
+    db::{BlockHeader, BlockMetaStorage, CodesStorage},
+    router::StateTransition,
+    BlockEvent,
 };
 use ethexe_runtime_common::state::{
     Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
@@ -34,12 +34,11 @@ use gear_core::{
     ids::{ActorId, CodeId, ProgramId},
     memory::PageBuf,
     message::Payload,
-    reservation::GasReservationMap,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-const LOG_TARGET: &str = "hyper-db";
+const LOG_TARGET: &str = "ethexe-db";
 
 #[repr(u64)]
 enum KeyPrefix {
@@ -52,15 +51,30 @@ enum KeyPrefix {
     BlockSmallMeta = 6,
     CodeUpload = 7,
     LatestValidBlock = 8,
+    BlockHeader = 9,
 }
 
 impl KeyPrefix {
+    fn prefix(self) -> [u8; 32] {
+        H256::from_low_u64_be(self as u64).0
+    }
+
     fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
-        [H256::from_low_u64_be(self as u64).as_bytes(), key.as_ref()].concat()
+        [self.prefix().as_ref(), key.as_ref()].concat()
     }
 
     fn two(self, key1: impl AsRef<[u8]>, key2: impl AsRef<[u8]>) -> Vec<u8> {
         let key = [key1.as_ref(), key2.as_ref()].concat();
+        self.one(key)
+    }
+
+    fn three(
+        self,
+        key1: impl AsRef<[u8]>,
+        key2: impl AsRef<[u8]>,
+        key3: impl AsRef<[u8]>,
+    ) -> Vec<u8> {
+        let key = [key1.as_ref(), key2.as_ref(), key3.as_ref()].concat();
         self.one(key)
     }
 }
@@ -68,6 +82,7 @@ impl KeyPrefix {
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,
+    router_address: [u8; 20],
 }
 
 impl Clone for Database {
@@ -75,13 +90,13 @@ impl Clone for Database {
         Self {
             cas: self.cas.clone_boxed(),
             kv: self.kv.clone_boxed_kv(),
+            router_address: self.router_address,
         }
     }
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 struct BlockSmallMetaInfo {
-    header: Option<BlockHeader>,
     block_end_state_is_valid: bool,
     is_empty: Option<bool>,
     prev_commitment: Option<H256>,
@@ -90,20 +105,18 @@ struct BlockSmallMetaInfo {
 
 impl BlockMetaStorage for Database {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
-        self.block_small_meta(block_hash)
-            .and_then(|meta| meta.header)
+        self.kv
+            .get(&KeyPrefix::BlockHeader.one(block_hash))
+            .map(|data| {
+                BlockHeader::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BlockHeader`")
+            })
     }
 
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set header: {header:?}");
-        let meta = self.block_small_meta(block_hash).unwrap_or_default();
-        self.set_block_small_meta(
-            block_hash,
-            BlockSmallMetaInfo {
-                header: Some(header),
-                ..meta
-            },
-        );
+        self.kv
+            .put(&KeyPrefix::BlockHeader.one(block_hash), header.encode());
     }
 
     fn block_end_state_is_valid(&self, block_hash: H256) -> Option<bool> {
@@ -176,7 +189,7 @@ impl BlockMetaStorage for Database {
 
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
         self.kv
-            .get(&KeyPrefix::BlockStartProgramStates.one(block_hash))
+            .get(&KeyPrefix::BlockStartProgramStates.two(self.router_address, block_hash))
             .map(|data| {
                 BTreeMap::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -186,14 +199,14 @@ impl BlockMetaStorage for Database {
     fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set start program states: {map:?}");
         self.kv.put(
-            &KeyPrefix::BlockStartProgramStates.one(block_hash),
+            &KeyPrefix::BlockStartProgramStates.two(self.router_address, block_hash),
             map.encode(),
         );
     }
 
     fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
         self.kv
-            .get(&KeyPrefix::BlockEndProgramStates.one(block_hash))
+            .get(&KeyPrefix::BlockEndProgramStates.two(self.router_address, block_hash))
             .map(|data| {
                 BTreeMap::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -202,14 +215,14 @@ impl BlockMetaStorage for Database {
 
     fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         self.kv.put(
-            &KeyPrefix::BlockEndProgramStates.one(block_hash),
+            &KeyPrefix::BlockEndProgramStates.two(self.router_address, block_hash),
             map.encode(),
         );
     }
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
         self.kv
-            .get(&KeyPrefix::BlockEvents.one(block_hash))
+            .get(&KeyPrefix::BlockEvents.two(self.router_address, block_hash))
             .map(|data| {
                 Vec::<BlockEvent>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<BlockEvent>`")
@@ -217,13 +230,15 @@ impl BlockMetaStorage for Database {
     }
 
     fn set_block_events(&self, block_hash: H256, events: Vec<BlockEvent>) {
-        self.kv
-            .put(&KeyPrefix::BlockEvents.one(block_hash), events.encode());
+        self.kv.put(
+            &KeyPrefix::BlockEvents.two(self.router_address, block_hash),
+            events.encode(),
+        );
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
         self.kv
-            .get(&KeyPrefix::BlockOutcome.one(block_hash))
+            .get(&KeyPrefix::BlockOutcome.two(self.router_address, block_hash))
             .map(|data| {
                 Vec::<StateTransition>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<StateTransition>`")
@@ -231,13 +246,15 @@ impl BlockMetaStorage for Database {
     }
 
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
-        self.kv
-            .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
+        self.kv.put(
+            &KeyPrefix::BlockOutcome.two(self.router_address, block_hash),
+            outcome.encode(),
+        );
     }
 
     fn latest_valid_block_height(&self) -> Option<u32> {
         self.kv
-            .get(&KeyPrefix::LatestValidBlock.one([]))
+            .get(&KeyPrefix::LatestValidBlock.one(self.router_address))
             .map(|block_height| {
                 u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
             })
@@ -245,7 +262,7 @@ impl BlockMetaStorage for Database {
 
     fn set_latest_valid_block_height(&self, block_height: u32) {
         self.kv.put(
-            &KeyPrefix::LatestValidBlock.one([]),
+            &KeyPrefix::LatestValidBlock.one(self.router_address),
             block_height.to_le_bytes().to_vec(),
         );
     }
@@ -276,9 +293,32 @@ impl CodesStorage for Database {
         );
     }
 
+    fn program_ids(&self) -> BTreeSet<ProgramId> {
+        let key_prefix = KeyPrefix::ProgramToCodeId.prefix();
+
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, code_id)| {
+                let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(splitted_key_prefix, key_prefix);
+                let program_id =
+                    ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
+
+                #[cfg(debug_assertions)]
+                CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
+
+                program_id
+            })
+            .collect()
+    }
+
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
-            .get(&KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id))
+            .get(&KeyPrefix::InstrumentedCode.three(
+                self.router_address,
+                runtime_id.to_le_bytes(),
+                code_id,
+            ))
             .map(|data| {
                 InstrumentedCode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
@@ -287,35 +327,47 @@ impl CodesStorage for Database {
 
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
         self.kv.put(
-            &KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id),
+            &KeyPrefix::InstrumentedCode.three(
+                self.router_address,
+                runtime_id.to_le_bytes(),
+                code_id,
+            ),
             code.encode(),
         );
     }
 
-    fn code_upload_info(&self, code_id: CodeId) -> Option<CodeUploadInfo> {
+    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256> {
         self.kv
             .get(&KeyPrefix::CodeUpload.one(code_id))
             .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `(ActorId, H256)`")
+                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
             })
     }
 
-    fn set_code_upload_info(&self, code_id: CodeId, info: CodeUploadInfo) {
+    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), info.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
     }
 }
 
 impl Database {
-    pub fn new(cas: Box<dyn CASDatabase>, kv: Box<dyn KVDatabase>) -> Self {
-        Self { cas, kv }
+    pub fn new(
+        cas: Box<dyn CASDatabase>,
+        kv: Box<dyn KVDatabase>,
+        router_address: [u8; 20],
+    ) -> Self {
+        Self {
+            cas,
+            kv,
+            router_address,
+        }
     }
 
-    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
+    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB, router_address: [u8; 20]) -> Self {
         Self {
             cas: CASDatabase::clone_boxed(db),
             kv: KVDatabase::clone_boxed_kv(db),
+            router_address,
         }
     }
 
@@ -331,7 +383,7 @@ impl Database {
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
         self.kv
-            .get(&KeyPrefix::BlockSmallMeta.one(block_hash))
+            .get(&KeyPrefix::BlockSmallMeta.two(self.router_address, block_hash))
             .map(|data| {
                 BlockSmallMetaInfo::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BlockSmallMetaInfo`")
@@ -339,22 +391,33 @@ impl Database {
     }
 
     fn set_block_small_meta(&self, block_hash: H256, meta: BlockSmallMetaInfo) {
-        self.kv
-            .put(&KeyPrefix::BlockSmallMeta.one(block_hash), meta.encode());
+        self.kv.put(
+            &KeyPrefix::BlockSmallMeta.two(self.router_address, block_hash),
+            meta.encode(),
+        );
     }
 }
 
 // TODO: consider to change decode panics to Results.
 impl Storage for Database {
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
+        if hash.is_zero() {
+            return Some(ProgramState::zero());
+        }
+
         let data = self.cas.read(&hash)?;
-        Some(
-            ProgramState::decode(&mut &data[..])
-                .expect("Failed to decode data into `ProgramState`"),
-        )
+
+        let state = ProgramState::decode(&mut &data[..])
+            .expect("Failed to decode data into `ProgramState`");
+
+        Some(state)
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
+        if state.is_zero() {
+            return H256::zero();
+        }
+
         self.cas.write(&state.encode())
     }
 
@@ -398,18 +461,6 @@ impl Storage for Database {
         self.cas.write(&allocations.encode())
     }
 
-    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap> {
-        let data = self.cas.read(&hash)?;
-        Some(
-            GasReservationMap::decode(&mut &data[..])
-                .expect("Failed to decode data into `GasReservationMap`"),
-        )
-    }
-
-    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256 {
-        self.cas.write(&gas_reservation_map.encode())
-    }
-
     fn read_payload(&self, hash: H256) -> Option<Payload> {
         let data = self.cas.read(&hash)?;
         Some(Payload::try_from(data).expect("Failed to decode data into `Payload`"))
@@ -436,7 +487,7 @@ mod tests {
     #[test]
     fn test_database() {
         let db = crate::MemDb::default();
-        let database = crate::Database::from_one(&db);
+        let database = crate::Database::from_one(&db, Default::default());
 
         let block_hash = H256::zero();
         // let parent_hash = H256::zero();

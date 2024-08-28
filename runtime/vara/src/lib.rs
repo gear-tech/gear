@@ -67,6 +67,7 @@ use frame_system::{
 };
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
+use pallet_gear_builtin::ActorWithId;
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
@@ -86,7 +87,8 @@ pub use runtime_common::{
         RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
-    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
+    VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
@@ -215,7 +217,7 @@ parameter_types! {
     pub const SS58Prefix: u8 = VARA_SS58_PREFIX;
     pub RuntimeBlockWeights: BlockWeights = runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
     pub RuntimeBlockLength: BlockLength =
-        BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+        BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_LENGTH_RATIO);
 }
 
 // Configure FRAME pallets to include in runtime.
@@ -1100,12 +1102,16 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
+    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
+    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
     type BankAddress = BankAddress;
     type GasMultiplier = GasMultiplier;
+    type SplitGasFeeRatio = SplitGasFeeRatio;
+    type SplitTxFeeRatio = SplitTxFeeRatio;
 }
 
 impl pallet_gear::Config for Runtime {
@@ -1172,16 +1178,16 @@ impl pallet_gear_messenger::Config for Runtime {
 /// Builtin actors arranged in a tuple.
 #[cfg(not(feature = "dev"))]
 pub type BuiltinActors = (
-    pallet_gear_builtin::bls12_381::Actor<Runtime>,
-    pallet_gear_builtin::staking::Actor<Runtime>,
+    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
+    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
 );
 
 /// Builtin actors arranged in a tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
-    pallet_gear_builtin::bls12_381::Actor<Runtime>,
-    pallet_gear_builtin::staking::Actor<Runtime>,
-    pallet_gear_eth_bridge::Actor<Runtime>,
+    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
+    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
+    ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
 );
 
 impl pallet_gear_builtin::Config for Runtime {

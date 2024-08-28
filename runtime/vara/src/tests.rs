@@ -72,6 +72,20 @@ fn bridge_session_timer_is_correct() {
 }
 
 #[test]
+fn normal_dispatch_length_suits_minimal() {
+    const MB: u32 = 1024 * 1024;
+
+    let block_length = <Runtime as frame_system::Config>::BlockLength::get();
+
+    // Normal dispatch class is bigger than 2 MB.
+    assert!(*block_length.max.get(DispatchClass::Normal) > 2 * MB);
+
+    // Others are on maximum.
+    assert_eq!(*block_length.max.get(DispatchClass::Operational), 5 * MB);
+    assert_eq!(*block_length.max.get(DispatchClass::Mandatory), 5 * MB);
+}
+
+#[test]
 fn instruction_weights_heuristics_test() {
     let weights = InstructionWeights::<Runtime>::default();
 
@@ -80,16 +94,16 @@ fn instruction_weights_heuristics_test() {
         _phantom: core::marker::PhantomData,
 
         i64const: 160,
-        i64load: 3_100,
+        i64load: 5_800,
         i32load: 8_000,
-        i64store: 29_000,
+        i64store: 10_000,
         i32store: 20_000,
         select: 7_100,
         r#if: 8_000,
         br: 3_300,
         br_if: 6_000,
         br_table: 10_900,
-        br_table_per_entry: 100,
+        br_table_per_entry: 150,
 
         call: 4_900,
         call_per_local: 0,
@@ -103,22 +117,22 @@ fn instruction_weights_heuristics_test() {
         global_set: 1_000,
         memory_current: 14_200,
 
-        i64clz: 6_100,
-        i32clz: 6_100,
-        i64ctz: 6_700,
-        i32ctz: 6_700,
-        i64popcnt: 1_000,
+        i64clz: 400,
+        i32clz: 300,
+        i64ctz: 400,
+        i32ctz: 250,
+        i64popcnt: 450,
         i32popcnt: 350,
         i64eqz: 1_300,
         i32eqz: 1_200,
-        i32extend8s: 800,
-        i32extend16s: 800,
-        i64extend8s: 800,
-        i64extend16s: 800,
-        i64extend32s: 800,
-        i64extendsi32: 800,
+        i32extend8s: 400,
+        i32extend16s: 400,
+        i64extend8s: 400,
+        i64extend16s: 400,
+        i64extend32s: 400,
+        i64extendsi32: 350,
         i64extendui32: 400,
-        i32wrapi64: 150,
+        i32wrapi64: 10,
         i64eq: 1_800,
         i32eq: 1_100,
         i64ne: 1_700,
@@ -144,7 +158,7 @@ fn instruction_weights_heuristics_test() {
         i64add: 1_300,
         i32add: 500,
         i64sub: 1_300,
-        i32sub: 500,
+        i32sub: 250,
         i64mul: 2_000,
         i32mul: 1_000,
         i64divs: 3_500,
@@ -152,8 +166,8 @@ fn instruction_weights_heuristics_test() {
 
         i64divu: 3_500,
         i32divu: 3_500,
-        i64rems: 10_000,
-        i32rems: 10_000,
+        i64rems: 18_000,
+        i32rems: 15_000,
         i64remu: 3_500,
         i32remu: 3_500,
         i64and: 1_000,
@@ -166,13 +180,13 @@ fn instruction_weights_heuristics_test() {
         i64shl: 1_000,
         i32shl: 400,
         i64shrs: 1_000,
-        i32shrs: 800,
+        i32shrs: 250,
         i64shru: 1_000,
         i32shru: 400,
-        i64rotl: 1_500,
+        i64rotl: 750,
         i32rotl: 400,
         i64rotr: 1_000,
-        i32rotr: 800,
+        i32rotr: 300,
     };
 
     check_instructions_weights(weights, expected_weights);
@@ -188,7 +202,7 @@ fn syscall_weights_test() {
         free_range: 900_000.into(),
         free_range_per_page: 40_000.into(),
         gr_reserve_gas: 2_300_000.into(),
-        gr_unreserve_gas: 1_900_000.into(),
+        gr_unreserve_gas: 2_200_000.into(),
         gr_system_reserve_gas: 1_000_000.into(),
         gr_gas_available: 932_300.into(),
         gr_message_id: 926_500.into(),
@@ -203,7 +217,7 @@ fn syscall_weights_test() {
         gr_block_height: 925_900.into(),
         gr_block_timestamp: 933_000.into(),
         gr_random: 1_900_000.into(),
-        gr_reply_deposit: 6_500_000.into(),
+        gr_reply_deposit: 4_900_000.into(),
         gr_send: 3_200_000.into(),
         gr_send_per_byte: 500.into(),
         gr_send_wgas: 3_300_000.into(),
@@ -216,22 +230,22 @@ fn syscall_weights_test() {
         gr_reservation_send: 3_400_000.into(),
         gr_reservation_send_per_byte: 500.into(),
         gr_reservation_send_commit: 2_900_000.into(),
-        gr_reply_commit: 21_300_000.into(),
-        gr_reply_commit_wgas: 19_200_000.into(),
-        gr_reservation_reply: 8_300_000.into(),
+        gr_reply_commit: 12_000_000.into(),
+        gr_reply_commit_wgas: 12_000_000.into(),
+        gr_reservation_reply: 8_500_000.into(),
         gr_reservation_reply_per_byte: 675_000.into(),
-        gr_reservation_reply_commit: 7_000_000.into(),
+        gr_reservation_reply_commit: 8_000_000.into(),
         gr_reply_push: 1_700_000.into(),
-        gr_reply: 22_500_000.into(),
+        gr_reply: 12_500_000.into(),
         gr_reply_per_byte: 650.into(),
-        gr_reply_wgas: 21_400_000.into(),
+        gr_reply_wgas: 12_500_000.into(),
         gr_reply_wgas_per_byte: 650.into(),
         gr_reply_push_per_byte: 640.into(),
         gr_reply_to: 950_200.into(),
         gr_signal_code: 962_500.into(),
         gr_signal_from: 941_500.into(),
-        gr_reply_input: 19_000_000.into(),
-        gr_reply_input_wgas: 24_600_000.into(),
+        gr_reply_input: 13_500_000.into(),
+        gr_reply_input_wgas: 8_000_000.into(),
         gr_reply_push_input: 1_200_000.into(),
         gr_reply_push_input_per_byte: 146.into(),
         gr_send_input: 3_100_000.into(),
@@ -241,12 +255,12 @@ fn syscall_weights_test() {
         gr_debug: 1_200_000.into(),
         gr_debug_per_byte: 450.into(),
         gr_reply_code: 919_800.into(),
-        gr_exit: 24_100_000.into(),
-        gr_leave: 12_500_000.into(),
-        gr_wait: 11_400_000.into(),
-        gr_wait_for: 11_500_000.into(),
-        gr_wait_up_to: 11_600_000.into(),
-        gr_wake: 3_700_000.into(),
+        gr_exit: 18_000_000.into(),
+        gr_leave: 14_000_000.into(),
+        gr_wait: 14_000_000.into(),
+        gr_wait_for: 14_000_000.into(),
+        gr_wait_up_to: 14_500_000.into(),
+        gr_wake: 3_000_000.into(),
         gr_create_program: 4_100_000.into(),
         gr_create_program_payload_per_byte: 120.into(),
         gr_create_program_salt_per_byte: 1_400.into(),
@@ -285,8 +299,24 @@ fn lazy_page_costs_heuristic_test() {
         host_func_read: 29_000_000.into(),
         host_func_write: 137_000_000.into(),
         host_func_write_after_read: 112_000_000.into(),
-        load_page_storage_data: 10_700_000.into(),
+        load_page_storage_data: 9_000_000.into(),
     };
 
     check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
+}
+
+/// Check that it is not possible to write/change memory pages too cheaply,
+/// because this may cause runtime heap memory overflow.
+#[test]
+fn write_is_not_too_cheap() {
+    let costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let cheapest_write = u64::MAX
+        .min(costs.signal_write.cost_for_one())
+        .min(costs.signal_read.cost_for_one() + costs.signal_write_after_read.cost_for_one())
+        .min(costs.host_func_write.cost_for_one())
+        .min(costs.host_func_read.cost_for_one() + costs.host_func_write_after_read.cost_for_one());
+
+    let block_max_gas = 3 * 10 ^ 12; // 3 seconds
+    let runtime_heap_size_in_wasm_pages = 0x4000; // 1GB
+    assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }

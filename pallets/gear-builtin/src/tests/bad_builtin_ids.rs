@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError};
+use crate::{self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
@@ -82,6 +82,8 @@ parameter_types! {
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
+    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 pallet_gear_bank::impl_config!(Test);
@@ -95,60 +97,9 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub struct FirstBuiltinActor {}
-impl BuiltinActor for FirstBuiltinActor {
+pub struct SomeBuiltinActor {}
+impl BuiltinActor for SomeBuiltinActor {
     type Error = BuiltinActorError;
-
-    const ID: u64 = 1_u64;
-
-    fn handle(
-        _dispatch: &StoredDispatch,
-        _gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
-        let payload = b"Success".to_vec().try_into().expect("Small vector");
-
-        (Ok(payload), 1_000_u64)
-    }
-}
-
-pub struct SecondBuiltinActor {}
-impl BuiltinActor for SecondBuiltinActor {
-    type Error = BuiltinActorError;
-
-    const ID: u64 = 2_u64;
-
-    fn handle(
-        _dispatch: &StoredDispatch,
-        _gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
-        let payload = b"Success".to_vec().try_into().expect("Small vector");
-
-        (Ok(payload), 1_000_u64)
-    }
-}
-
-pub struct ThirdBuiltinActor {}
-impl BuiltinActor for ThirdBuiltinActor {
-    type Error = BuiltinActorError;
-
-    const ID: u64 = 3_u64;
-
-    fn handle(
-        _dispatch: &StoredDispatch,
-        _gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
-        let payload = b"Success".to_vec().try_into().expect("Small vector");
-
-        (Ok(payload), 1_000_u64)
-    }
-}
-
-// Duplicate builtin id: `BuiltinId(2)` already exists.
-pub struct DuplicateBuiltinActor {}
-impl BuiltinActor for DuplicateBuiltinActor {
-    type Error = BuiltinActorError;
-
-    const ID: u64 = 2_u64;
 
     fn handle(
         _dispatch: &StoredDispatch,
@@ -163,10 +114,10 @@ impl BuiltinActor for DuplicateBuiltinActor {
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (
-        FirstBuiltinActor,
-        SecondBuiltinActor,
-        ThirdBuiltinActor,
-        DuplicateBuiltinActor,
+        ActorWithId<1, SomeBuiltinActor>,
+        ActorWithId<2, SomeBuiltinActor>,
+        ActorWithId<3, SomeBuiltinActor>,
+        ActorWithId<2, SomeBuiltinActor>, // 2 already exists
     );
     type WeightInfo = ();
 }

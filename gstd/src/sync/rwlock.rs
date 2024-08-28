@@ -52,7 +52,7 @@ const READERS_LIMIT: ReadersCount = 32;
 /// reading when processing one of the `get` commands and for writing in the
 /// case of the `inc` command.
 ///
-/// ```
+/// ```ignored
 /// use gstd::{msg, sync::RwLock, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();

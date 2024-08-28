@@ -142,8 +142,6 @@ where
     T::AccountId: Origin,
     CallOf<T>: From<pallet_staking::Call<T>>,
 {
-    const ID: u64 = 2;
-
     type Error = BuiltinActorError;
 
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {

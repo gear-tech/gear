@@ -24,12 +24,13 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
+use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
 use sp_core::{ed25519::Public, H256};
 use sp_runtime::{
     impl_opaque_keys,
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage,
+    BuildStorage, Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -159,6 +160,8 @@ parameter_types! {
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
+    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 pallet_gear_bank::impl_config!(Test);
@@ -172,9 +175,11 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
+pub const BUILTIN_ID: u64 = 1;
+
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
-    type Builtins = (crate::builtin::Actor<Test>,);
+    type Builtins = (ActorWithId<BUILTIN_ID, crate::builtin::Actor<Test>>,);
     type WeightInfo = ();
 }
 

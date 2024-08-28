@@ -21,11 +21,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
 
+extern crate alloc;
+
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
+
+use alloc::format;
 
 pub use pallet::*;
 
@@ -42,6 +46,8 @@ macro_rules! impl_config {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
+            type SplitGasFeeRatio = SplitGasFeeRatio;
+            type SplitTxFeeRatio = SplitTxFeeRatio;
         }
     };
 }
@@ -74,7 +80,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::traits::Zero;
+    use sp_runtime::{traits::Zero, Perbill};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -96,6 +102,11 @@ pub mod pallet {
         #[pallet::constant]
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
+
+        type SplitGasFeeRatio: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+
+        /// The ratio of how much of the tx fees goes to the treasury
+        type SplitTxFeeRatio: Get<Option<u32>>;
     }
 
     // Funds pallets error.
@@ -214,10 +225,28 @@ pub mod pallet {
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
                 total = total.saturating_add(value);
 
-                if let Err(e) = Self::withdraw(&account_id, value) {
-                    log::error!(
-                        "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                    );
+                if let Some((gas_split, split_dest)) = T::SplitGasFeeRatio::get() {
+                    // split value by `SplitGasFeeRatio`.
+                    let to_split = gas_split.mul_floor(value);
+                    let to_user = value - to_split;
+
+                    // Withdraw value to user.
+                    if let Err(e) = Self::withdraw(&account_id, to_user) {
+                        log::error!(
+                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                        );
+                    }
+
+                    // Withdraw value to `SplitGasFeeRatio` destination.
+                    if let Err(e) = Self::withdraw(&split_dest, to_split) {
+                        log::error!(
+                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                        );
+                    }
+                } else {
+                    let _ = Self::withdraw(&account_id, value).map_err(|e| log::error!(
+                                "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                            ));
                 }
             }
 
@@ -403,7 +432,20 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| {
+                let receiver_balance = Self::reducible_balance(account_id);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::withdraw_gas: withdraw failed. \
+                    Receiver - {account_id:?}, amount - {amount}, receiver reducible balance - {receiver_balance:?}, \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -413,8 +455,12 @@ pub mod pallet {
             amount: u64,
             multiplier: GasMultiplier<T>,
         ) -> Result<(), Error<T>> {
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+            let block_author = Authorship::<T>::author().unwrap_or_else(|| {
+                let err_msg = "pallet_gear_bank::spend_gas: Failed to find block author";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Self::spend_gas_to(&block_author, account_id, amount, multiplier)
         }
@@ -431,8 +477,20 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
-            Self::withdraw_on_finalize(to, value)
-                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
+                let to_balance = Self::reducible_balance(to);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::spend_gas_to: withdraw on finalize failed. \
+                    Spending gas from - {account_id:?}, to - {to:?}, amount - {amount}, receiver reducible balance {to_balance:?} \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -501,7 +559,21 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| {
+                let receiver_balance = Self::reducible_balance(account_id);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::withdraw_value: withdraw failed. \
+                    Receiver - {account_id:?}, value - {value:?}, receiver reducible balance - {receiver_balance:?}, \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?},
+                    on finalize value - {on_finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -522,7 +594,21 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(destination, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(destination, value).unwrap_or_else(|e| {
+                let receiver_balance = Self::reducible_balance(destination);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::transfer_value: withdraw failed. \
+                    Sender - {account_id:?}, receiver - {destination:?}, value - {value:?},
+                    receiver reducible balance - {receiver_balance:?}, bank reducible balance - {bank_balance:?}, \
+                    unused value - {unused_value:?}, on finalize value - {on_finalize_value:?} \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
 
             Ok(())
         }
@@ -546,6 +632,22 @@ pub mod pallet {
             Self::account(account_id)
                 .map(|v| v.total())
                 .unwrap_or_default()
+        }
+
+        fn bank_balance_full_data() -> (BalanceOf<T>, BalanceOf<T>, BalanceOf<T>) {
+            (
+                Self::reducible_balance(&T::BankAddress::get()),
+                UnusedValue::<T>::get(),
+                OnFinalizeValue::<T>::get(),
+            )
+        }
+
+        fn reducible_balance(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
+            <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+                account_id,
+                Preservation::Expendable,
+                Fortitude::Polite,
+            )
         }
     }
 }

@@ -23,9 +23,14 @@ use crate::{
     metrics::MetricsService,
 };
 use anyhow::{anyhow, Ok, Result};
-use ethexe_common::{events::BlockEvent, BlockCommitment, CodeCommitment, StateTransition};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeUploadInfo, CodesStorage, Database};
-use ethexe_observer::{BlockData, CodeLoadedData};
+use ethexe_common::{
+    router::{BlockCommitment, CodeCommitment, Event as RouterEvent, StateTransition},
+    BlockEvent,
+};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
+use ethexe_ethereum::router::RouterQuery;
+use ethexe_network::NetworkReceiverEvent;
+use ethexe_observer::{BlockData, Event as ObserverEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_signer::{PublicKey, Signer};
 use ethexe_validator::Commitment;
@@ -53,9 +58,6 @@ pub struct Service {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
-        let db = ethexe_db::Database::from_one(&rocks_db);
-
         let blob_reader = Arc::new(
             ethexe_observer::ConsensusLayerBlobReader::new(
                 &config.ethereum_rpc,
@@ -66,6 +68,9 @@ impl Service {
         );
 
         let ethereum_router_address = config.ethereum_router_address;
+        let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
+        let db = ethexe_db::Database::from_one(&rocks_db, ethereum_router_address.0);
+
         let observer = ethexe_observer::Observer::new(
             &config.ethereum_rpc,
             ethereum_router_address,
@@ -73,9 +78,7 @@ impl Service {
         )
         .await?;
 
-        let router_query =
-            ethexe_ethereum::RouterQuery::new(&config.ethereum_rpc, ethereum_router_address)
-                .await?;
+        let router_query = RouterQuery::new(&config.ethereum_rpc, ethereum_router_address).await?;
         let genesis_block_hash = router_query.genesis_block_hash().await?;
         log::info!("👶 Genesis block hash: {genesis_block_hash}");
 
@@ -135,7 +138,7 @@ impl Service {
             .net_config
             .as_ref()
             .map(|config| -> Result<_> {
-                ethexe_network::NetworkService::new(config.clone(), &signer)
+                ethexe_network::NetworkService::new(config.clone(), &signer, db.clone())
             })
             .transpose()?;
 
@@ -208,26 +211,25 @@ impl Service {
 
         for event in events {
             match event {
-                BlockEvent::UploadCode(event) => {
-                    db.set_code_upload_info(
-                        event.code_id,
-                        CodeUploadInfo {
-                            origin: event.origin,
-                            tx_hash: event.blob_tx(),
-                        },
-                    );
+                BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    blob_tx_hash,
+                }) => {
+                    db.set_code_blob_tx(code_id, blob_tx_hash);
                 }
-                BlockEvent::CreateProgram(event) => {
-                    let code_id = event.code_id;
+                BlockEvent::Router(RouterEvent::ProgramCreated { code_id, .. }) => {
                     if db.original_code(code_id).is_some() {
                         continue;
                     }
 
                     log::debug!("📥 downloading absent code: {code_id}");
-                    let CodeUploadInfo { origin, tx_hash } = db
-                        .code_upload_info(code_id)
-                        .ok_or(anyhow!("Origin and tx hash not found"))?;
-                    let code = query.download_code(code_id, origin, tx_hash).await?;
+
+                    let blob_tx_hash = db
+                        .code_blob_tx(code_id)
+                        .ok_or(anyhow!("Blob tx hash not found"))?;
+
+                    let code = query.download_code(code_id, blob_tx_hash).await?;
+
                     processor.process_upload_code(code_id, code.as_slice())?;
                 }
                 _ => continue,
@@ -318,8 +320,8 @@ impl Service {
 
             commitments.push(BlockCommitment {
                 block_hash,
-                allowed_pred_block_hash: block_data.block_hash,
-                allowed_prev_commitment_hash: db
+                pred_block_hash: block_data.block_hash,
+                prev_commitment_hash: db
                     .block_prev_commitment(block_hash)
                     .ok_or(anyhow!("Prev commitment not found"))?,
                 transitions,
@@ -341,30 +343,28 @@ impl Service {
         }
 
         let commitments = match observer_event {
-            ethexe_observer::Event::Block(block_data) => {
+            ObserverEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
                     block_data.block_number,
                     block_data.block_hash,
                     block_data.parent_hash
                 );
+
                 let commitments =
                     Self::process_block_event(db, query, processor, block_data).await?;
+
                 commitments.into_iter().map(Commitment::Block).collect()
             }
-            ethexe_observer::Event::CodeLoaded(CodeLoadedData { code_id, code, .. }) => {
+            ethexe_observer::Event::CodeLoaded { code_id, code } => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
+
                 outcomes
                     .into_iter()
                     .map(|outcome| match outcome {
-                        LocalOutcome::CodeApproved(code_id) => Commitment::Code(CodeCommitment {
-                            code_id,
-                            approved: true,
-                        }),
-                        LocalOutcome::CodeRejected(code_id) => Commitment::Code(CodeCommitment {
-                            code_id,
-                            approved: false,
-                        }),
+                        LocalOutcome::CodeValidated { id, valid } => {
+                            Commitment::Code(CodeCommitment { id, valid })
+                        }
                         _ => unreachable!("Only code outcomes are expected here"),
                     })
                     .collect()
@@ -399,11 +399,11 @@ impl Service {
         let observer_events = observer.events();
         futures::pin_mut!(observer_events);
 
-        let (mut network_sender, mut gossipsub_stream, mut network_handle) =
+        let (mut network_sender, mut network_receiver, mut network_handle) =
             if let Some(network) = network {
                 (
                     Some(network.sender),
-                    Some(network.gossip_stream),
+                    Some(network.receiver),
                     Some(tokio::spawn(network.event_loop.run())),
                 )
             } else {
@@ -486,12 +486,12 @@ impl Service {
                         validator.clear();
                     };
                 }
-                message = maybe_await(gossipsub_stream.as_mut().map(|stream| stream.next())) => {
-                    if let Some(message) = message {
+                event = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
+                    if let Some(NetworkReceiverEvent::Commitments { source, data }) = event {
                         if let Some(sequencer) = sequencer.as_mut() {
-                            log::debug!("Received p2p commitments from: {:?}", message.source);
+                            log::debug!("Received p2p commitments from: {:?}", source);
 
-                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut message.data.as_slice())?;
+                            let (origin, (codes_aggregated_commitment, transitions_aggregated_commitment)) = Decode::decode(&mut data.as_slice())?;
 
                             sequencer.receive_codes_commitment(origin, codes_aggregated_commitment)?;
                             sequencer.receive_block_commitment(origin, transitions_aggregated_commitment)?;
@@ -548,7 +548,7 @@ mod tests {
 
         Service::new(&Config {
             node_name: "test".to_string(),
-            ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
+            ethereum_rpc: "ws://54.67.75.1:8546".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x05069E9045Ca0D2B72840c6A21C7bE588E02089A"
                 .parse()

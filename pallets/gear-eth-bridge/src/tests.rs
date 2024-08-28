@@ -539,10 +539,9 @@ mod utils {
     use crate::builtin;
     use gear_core::message::UserMessage;
     use gprimitives::{ActorId, MessageId};
-    use pallet_gear_builtin::BuiltinActor;
 
     pub(crate) fn builtin_id() -> ActorId {
-        GearBuiltin::generate_actor_id(builtin::Actor::<Test>::ID)
+        GearBuiltin::generate_actor_id(BUILTIN_ID)
     }
 
     #[track_caller]

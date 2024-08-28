@@ -50,7 +50,7 @@ impl From<&InnerNonce> for ReservationNonce {
 
 /// A changeable wrapper over u64 value, which is required
 /// to be used as an "active" reservations nonce in a gas reserver.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 struct InnerNonce(u64);
 
 impl InnerNonce {
@@ -73,7 +73,7 @@ impl From<ReservationNonce> for InnerNonce {
 /// Gas reserver.
 ///
 /// Controls gas reservations states.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct GasReserver {
     /// Message id within which reservations are created
     /// by the current instance of [`GasReserver`].
@@ -126,6 +126,11 @@ impl GasReserver {
         }
     }
 
+    /// Returns bool defining if gas reserver is empty.
+    pub fn is_empty(&self) -> bool {
+        self.states.is_empty()
+    }
+
     /// Checks that the number of existing and newly created reservations
     /// in the `states` is less than `max_reservations`. Removed reservations,
     /// which are stored with the [`GasReservationState::Removed`] state in the
@@ -173,7 +178,6 @@ impl GasReserver {
 
         let id = ReservationId::generate(self.message_id, self.nonce.fetch_inc());
 
-        // TODO #2773
         let maybe_reservation = self.states.insert(
             id,
             GasReservationState::Created {
@@ -204,7 +208,10 @@ impl GasReserver {
     /// 1. Reservation doesn't exist.
     /// 2. Reservation was "unreserved", so in [`GasReservationState::Removed`] state.
     /// 3. Reservation was marked used.
-    pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ReservationError> {
+    pub fn unreserve(
+        &mut self,
+        id: ReservationId,
+    ) -> Result<(u64, Option<UnreservedReimbursement>), ReservationError> {
         // Docs error case #1.
         let state = self
             .states
@@ -224,17 +231,23 @@ impl GasReserver {
 
         let state = self.states.remove(&id).unwrap();
 
-        let amount = match state {
+        Ok(match state {
             GasReservationState::Exists { amount, finish, .. } => {
                 self.states
                     .insert(id, GasReservationState::Removed { expiration: finish });
-                amount
+                (amount, None)
             }
-            GasReservationState::Created { amount, .. } => amount,
-            GasReservationState::Removed { .. } => unreachable!("Checked above"),
-        };
+            GasReservationState::Created {
+                amount, duration, ..
+            } => (amount, Some(UnreservedReimbursement(duration))),
+            GasReservationState::Removed { .. } => {
+                let err_msg =
+                    "GasReserver::unreserve: `Removed` variant is unreachable, checked above";
 
-        Ok(amount)
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
+        })
     }
 
     /// Marks reservation as used.
@@ -317,6 +330,19 @@ impl GasReserver {
                 GasReservationState::Removed { .. } => None,
             })
             .collect()
+    }
+}
+
+/// Safety token returned when unreserved gas can be returned back to the gas counter.
+///
+/// Wraps duration for the newly created reservation.
+#[derive(Debug, PartialEq, Eq)]
+pub struct UnreservedReimbursement(u32);
+
+impl UnreservedReimbursement {
+    /// Returns duration for the newly created unreserved reservation.
+    pub fn duration(&self) -> u32 {
+        self.0
     }
 }
 
@@ -516,7 +542,7 @@ mod tests {
 
         let mut reserver = GasReserver::new(&Default::default(), map, 256);
 
-        let amount = reserver.unreserve(id).expect("Shouldn't fail");
+        let (amount, _) = reserver.unreserve(id).expect("Shouldn't fail");
         assert_eq!(amount, slot.amount);
 
         assert!(reserver.unreserve(id).is_err());

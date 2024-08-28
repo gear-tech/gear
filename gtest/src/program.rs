@@ -17,18 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    log::RunResult,
-    manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
+    default_users_list,
+    manager::ExtManager,
+    state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
-    Result, GAS_ALLOWANCE,
+    Result, Value, GAS_ALLOWANCE,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalMessage},
+    message::{Dispatch, DispatchKind, Message},
 };
-use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
@@ -400,6 +400,10 @@ impl<'a> Program<'a> {
     ) -> Self {
         let program_id = id.clone().into().0;
 
+        if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
+            panic!("Can't create program with id {id:?}, because it's reserved for default users")
+        }
+
         if system
             .0
             .borrow_mut()
@@ -485,7 +489,7 @@ impl<'a> Program<'a> {
     }
 
     /// Send message to the program.
-    pub fn send<ID, C>(&self, from: ID, payload: C) -> RunResult
+    pub fn send<ID, C>(&self, from: ID, payload: C) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         C: Codec,
@@ -494,7 +498,7 @@ impl<'a> Program<'a> {
     }
 
     /// Send message to the program with value.
-    pub fn send_with_value<ID, C>(&self, from: ID, payload: C, value: u128) -> RunResult
+    pub fn send_with_value<ID, C>(&self, from: ID, payload: C, value: u128) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         C: Codec,
@@ -509,7 +513,7 @@ impl<'a> Program<'a> {
         payload: P,
         gas_limit: u64,
         value: u128,
-    ) -> RunResult
+    ) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         P: Encode,
@@ -518,7 +522,7 @@ impl<'a> Program<'a> {
     }
 
     /// Send message to the program with bytes payload.
-    pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> RunResult
+    pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -528,7 +532,7 @@ impl<'a> Program<'a> {
 
     /// Send the message to the program with bytes payload and value.
     #[track_caller]
-    pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> RunResult
+    pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -543,7 +547,7 @@ impl<'a> Program<'a> {
         payload: T,
         gas_limit: u64,
         value: u128,
-    ) -> RunResult
+    ) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -557,7 +561,7 @@ impl<'a> Program<'a> {
         payload: T,
         gas_limit: u64,
         value: u128,
-    ) -> RunResult
+    ) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
@@ -568,7 +572,7 @@ impl<'a> Program<'a> {
 
         let message = Message::new(
             MessageId::generate_from_user(
-                system.blocks_manager.get().height,
+                system.block_height(),
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
@@ -580,44 +584,17 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let mut actors = system.actors.borrow_mut();
-        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
+        let kind = Actors::modify(self.id, |actor| {
+            let actor = actor.expect("Can't fail");
+            if let TestActor::Uninitialized(id @ None, _) = actor {
+                *id = Some(message.id());
+                DispatchKind::Init
+            } else {
+                DispatchKind::Handle
+            }
+        });
 
-        let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
-            *id = Some(message.id());
-            DispatchKind::Init
-        } else {
-            DispatchKind::Handle
-        };
-
-        drop(actors);
-        system.validate_and_run_dispatch(Dispatch::new(kind, message))
-    }
-
-    /// Send signal to the program.
-    #[track_caller]
-    pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
-        let mut system = self.manager.borrow_mut();
-
-        let source = from.into().0;
-
-        let origin_msg_id = MessageId::generate_from_user(
-            system.blocks_manager.get().height,
-            source,
-            system.fetch_inc_message_nonce() as u128,
-        );
-        let message = SignalMessage::new(origin_msg_id, code);
-
-        let mut actors = system.actors.borrow_mut();
-        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
-
-        if let TestActor::Uninitialized(id @ None, _) = actor {
-            *id = Some(message.id());
-        };
-
-        drop(actors);
-        let dispatch = message.into_dispatch(origin_msg_id, self.id);
-        system.validate_and_run_dispatch(dispatch)
+        system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
 
     /// Get program id.
@@ -754,15 +731,8 @@ impl<'a> Program<'a> {
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
-    /// Mint balance to the account.
-    pub fn mint(&mut self, value: Balance) {
-        self.manager
-            .borrow_mut()
-            .mint_to(&self.id(), value, MintMode::KeepAlive)
-    }
-
     /// Returns the balance of the account.
-    pub fn balance(&self) -> Balance {
+    pub fn balance(&self) -> Value {
         self.manager.borrow().balance_of(&self.id())
     }
 
@@ -885,7 +855,7 @@ pub mod gbuild {
 mod tests {
     use super::Program;
 
-    use crate::{Log, ProgramIdWrapper, System};
+    use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
     use gear_common::Origin;
 
@@ -898,14 +868,14 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
         let message = "Signal handle";
         let panic_message = "Gotcha!";
 
         let scheme = Scheme::predefined(
             Calls::builder().noop(),
             Calls::builder()
-                .system_reserve_gas(1_000_000_000)
+                .system_reserve_gas(4_000_000_000)
                 .panic(panic_message),
             Calls::builder().noop(),
             Calls::builder().send(
@@ -913,14 +883,13 @@ mod tests {
                 Arg::bytes(message),
             ),
         );
-
         let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
-
-        let run_result = prog.send(user_id, scheme);
-        assert!(!run_result.main_failed());
-        let run_result = prog.send(user_id, *b"Hello");
-
-        run_result.assert_panicked_with(panic_message);
+        let msg_id = prog.send(user_id, scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
+        let msg_id = prog.send(user_id, *b"Hello");
+        let res = sys.run_next_block();
+        res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
         assert!(value.is_ok());
@@ -931,23 +900,27 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 100;
+        let user_id = DEFAULT_USER_ALICE;
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
         let init_msg_payload = String::from("InvalidInput");
-        let run_result = prog.send(user_id, init_msg_payload);
+        let msg_id = prog.send(user_id, init_msg_payload);
 
-        run_result.assert_panicked_with("Failed to load destination: Decode(Error)");
+        let res = sys.run_next_block();
 
-        let run_result = prog.send(user_id, String::from("should_be_skipped"));
+        res.assert_panicked_with(msg_id, "Failed to load destination: Decode(Error)");
+
+        let msg_id = prog.send(user_id, String::from("should_be_skipped"));
+
+        let res = sys.run_next_block();
 
         let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
             .source(prog.id())
             .dest(user_id);
 
-        assert!(!run_result.main_failed());
-        assert!(run_result.contains(&expected_log));
+        assert!(res.not_executed.contains(&msg_id));
+        assert!(res.contains(&expected_log));
     }
 
     #[test]
@@ -956,21 +929,39 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
-        sys.mint_to(user_id, 10 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user_id), 10 * crate::EXISTENTIAL_DEPOSIT);
+        let mut user_spent_balance = 0;
+        sys.mint_to(user_id, 12 * EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 12 * EXISTENTIAL_DEPOSIT);
 
-        let mut prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
+        let program_id = 137;
+        let prog = Program::from_binary_with_id(&sys, program_id, demo_ping::WASM_BINARY);
 
-        prog.mint(2 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(prog.balance(), 2 * crate::EXISTENTIAL_DEPOSIT);
+        sys.transfer(user_id, program_id, 2 * EXISTENTIAL_DEPOSIT, true);
+        assert_eq!(prog.balance(), 2 * EXISTENTIAL_DEPOSIT);
 
-        prog.send_with_value(user_id, "init".to_string(), crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(prog.balance(), 3 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user_id), 9 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_with_value(user_id, "init".to_string(), EXISTENTIAL_DEPOSIT);
+        // Note: ED is charged upon program creation if its balance is not 0.
+        user_spent_balance += sys.run_next_block().spent_value() + EXISTENTIAL_DEPOSIT;
+        assert_eq!(
+            prog.balance(),
+            3 * EXISTENTIAL_DEPOSIT + EXISTENTIAL_DEPOSIT
+        );
+        assert_eq!(
+            sys.balance_of(user_id),
+            9 * EXISTENTIAL_DEPOSIT - user_spent_balance
+        );
 
-        prog.send_with_value(user_id, "PING".to_string(), 2 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(prog.balance(), 5 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user_id), 7 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_with_value(user_id, "PING".to_string(), 2 * EXISTENTIAL_DEPOSIT);
+        user_spent_balance += sys.run_next_block().spent_value();
+
+        assert_eq!(
+            prog.balance(),
+            5 * EXISTENTIAL_DEPOSIT + EXISTENTIAL_DEPOSIT
+        );
+        assert_eq!(
+            sys.balance_of(user_id),
+            7 * EXISTENTIAL_DEPOSIT - user_spent_balance
+        );
     }
 
     #[test]
@@ -984,28 +975,50 @@ mod tests {
         let sender2 = 45;
 
         // Top-up senders balances
-        sys.mint_to(sender0, 20 * crate::EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender1, 20 * crate::EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender2, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender0, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender1, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender2, 20 * EXISTENTIAL_DEPOSIT);
+
+        // Top-up receiver balance
+        let mut receiver_expected_balance = 10 * EXISTENTIAL_DEPOSIT;
+        sys.mint_to(receiver, receiver_expected_balance);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
-        assert_eq!(prog.balance(), 0);
+        receiver_expected_balance -= sys.run_next_block().spent_value() + EXISTENTIAL_DEPOSIT;
+        assert_eq!(prog.balance(), EXISTENTIAL_DEPOSIT);
 
         // Send values to the program
-        prog.send_bytes_with_value(sender0, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(sender0), 18 * crate::EXISTENTIAL_DEPOSIT);
-        prog.send_bytes_with_value(sender1, b"insert", 4 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(sender1), 16 * crate::EXISTENTIAL_DEPOSIT);
-        prog.send_bytes_with_value(sender2, b"insert", 6 * crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(sender2), 14 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender0, b"insert", 2 * EXISTENTIAL_DEPOSIT);
+        let sender0_spent_value = sys.run_next_block().spent_value();
+        assert_eq!(
+            sys.balance_of(sender0),
+            18 * EXISTENTIAL_DEPOSIT - sender0_spent_value
+        );
+        prog.send_bytes_with_value(sender1, b"insert", 4 * EXISTENTIAL_DEPOSIT);
+        let sender1_spent_value = sys.run_next_block().spent_value();
+        assert_eq!(
+            sys.balance_of(sender1),
+            16 * EXISTENTIAL_DEPOSIT - sender1_spent_value
+        );
+        prog.send_bytes_with_value(sender2, b"insert", 6 * EXISTENTIAL_DEPOSIT);
+        let sender2_spent_value = sys.run_next_block().spent_value();
+        assert_eq!(
+            sys.balance_of(sender2),
+            14 * EXISTENTIAL_DEPOSIT - sender2_spent_value
+        );
 
         // Check program's balance
-        assert_eq!(prog.balance(), (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(
+            prog.balance(),
+            (2 + 4 + 6) * EXISTENTIAL_DEPOSIT + EXISTENTIAL_DEPOSIT
+        );
 
         // Request to smash the piggy bank and send the value to the receiver address
-        let res = prog.send_bytes(receiver, b"smash");
+        prog.send_bytes(receiver, b"smash");
+        let res = sys.run_next_block();
+        receiver_expected_balance -= res.spent_value();
         let reply_to_id = {
             let log = res.log();
             // 1 auto reply and 1 message from program
@@ -1027,36 +1040,38 @@ mod tests {
             .is_ok());
         assert_eq!(
             sys.balance_of(receiver),
-            (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT
+            (2 + 4 + 6) * EXISTENTIAL_DEPOSIT + receiver_expected_balance
         );
-
-        // Check program's balance is empty
-        assert_eq!(prog.balance(), 0);
+        // Program is alive and holds the ED
+        assert_eq!(prog.balance(), EXISTENTIAL_DEPOSIT);
     }
 
     #[test]
     #[should_panic(
-        expected = "An attempt to mint value (1) less than existential deposit (1000000000000)"
+        expected = "Failed to increase balance: the sum (1) of the total balance (0) and the value (1) \
+        cannot be lower than the existential deposit (1000000000000)"
     )]
     fn mint_less_than_deposit() {
         System::new().mint_to(1, 1);
     }
 
     #[test]
-    #[should_panic(expected = "Insufficient value: user \
-    (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
-    to send (1000000000001) value, while his balance (1000000000000)")]
+    #[should_panic(
+        expected = "Insufficient balance: user (0x0500000000000000000000000000000000000000000000000000000000000000) \
+    tries to send (1000000000001) value, (4500000000000) gas and ED (1000000000000), while his balance (1000000000000)"
+    )]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
 
-        let user = 1;
-        let prog = Program::from_binary_with_id(&sys, 2, demo_piggy_bank::WASM_BINARY);
+        let user = 5;
+        let prog = Program::from_binary_with_id(&sys, 6, demo_piggy_bank::WASM_BINARY);
 
         assert_eq!(sys.balance_of(user), 0);
-        sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user), crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(user, EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user), EXISTENTIAL_DEPOSIT);
 
-        prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
+        prog.send_bytes_with_value(user, b"init", EXISTENTIAL_DEPOSIT + 1);
+        sys.run_next_block();
     }
 
     #[test]
@@ -1064,33 +1079,46 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
+        const RECEIVER_INITIAL_BALANCE: Value = 10 * EXISTENTIAL_DEPOSIT;
+
         let sender = 42;
         let receiver = 84;
+        let mut receiver_expected_balance = RECEIVER_INITIAL_BALANCE;
 
-        sys.mint_to(sender, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(receiver, RECEIVER_INITIAL_BALANCE);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
+        receiver_expected_balance -= sys.run_next_block().spent_value() + EXISTENTIAL_DEPOSIT;
 
         // Get zero value to the receiver's mailbox
         prog.send_bytes(receiver, b"smash");
+        receiver_expected_balance -= sys.run_next_block().spent_value();
 
         let receiver_mailbox = sys.get_mailbox(receiver);
         assert!(receiver_mailbox
             .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
             .is_ok());
-        assert_eq!(sys.balance_of(receiver), 0);
+        assert_eq!(sys.balance_of(receiver), receiver_expected_balance);
 
         // Get the value > ED to the receiver's mailbox
-        prog.send_bytes_with_value(sender, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender, b"insert", 2 * EXISTENTIAL_DEPOSIT);
+        sys.run_next_block();
         prog.send_bytes(receiver, b"smash");
+        receiver_expected_balance -= sys.run_next_block().spent_value();
 
         // Check receiver's balance
         assert!(receiver_mailbox
             .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
             .is_ok());
-        assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(
+            sys.balance_of(receiver),
+            2 * EXISTENTIAL_DEPOSIT + receiver_expected_balance
+        );
+        // Program is alive and holds the ED
+        assert_eq!(prog.balance(), EXISTENTIAL_DEPOSIT);
     }
 
     struct CleanupFolderOnDrop {
@@ -1112,19 +1140,21 @@ mod tests {
 
         let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
-        let signer = 42;
+        let signer = DEFAULT_USER_ALICE;
         let signer_mailbox = sys.get_mailbox(signer);
 
         // Init capacitor with limit = 15
         prog.send(signer, InitMessage::Capacitor("15".to_string()));
+        sys.run_next_block();
 
         // Charge capacitor with charge = 10
-        let response = dbg!(prog.send_bytes(signer, b"10"));
+        dbg!(prog.send_bytes(signer, b"10"));
+        let res = sys.run_next_block();
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes([]);
-        assert!(response.contains(&log));
+        assert!(res.contains(&log));
 
         let cleanup = CleanupFolderOnDrop {
             path: "./296c6962726".to_string(),
@@ -1132,25 +1162,27 @@ mod tests {
         prog.save_memory_dump("./296c6962726/demo_custom.dump");
 
         // Charge capacitor with charge = 10
-        let response = prog.send_bytes(signer, b"10");
+        prog.send_bytes(signer, b"10");
+        let res = sys.run_next_block();
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("Discharged: 20");
         // dbg!(log.clone());
-        assert!(response.contains(&log));
+        assert!(res.contains(&log));
         assert!(signer_mailbox.claim_value(log).is_ok());
 
         prog.load_memory_dump("./296c6962726/demo_custom.dump");
         drop(cleanup);
 
         // Charge capacitor with charge = 10
-        let response = prog.send_bytes(signer, b"10");
+        prog.send_bytes(signer, b"10");
+        let res = sys.run_next_block();
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("Discharged: 20");
-        assert!(response.contains(&log));
+        assert!(res.contains(&log));
         assert!(signer_mailbox.claim_value(log).is_ok());
     }
 
@@ -1162,26 +1194,28 @@ mod tests {
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
-        let signer = 42;
+        let signer = DEFAULT_USER_ALICE;
 
         // Init simple waiter
         prog.send(signer, InitMessage::SimpleWaiter);
+        sys.run_next_block();
 
         // Invoke `exec::wait_for` when running for the first time
-        let result = prog.send_bytes(signer, b"doesn't matter");
+        prog.send_bytes(signer, b"doesn't matter");
+        let result = sys.run_next_block();
 
         // No log entries as the program is waiting
         assert!(result.log().is_empty());
 
-        // Spend 20 blocks and make the waiter to wake up
-        let results = sys.spend_blocks(20);
+        // Run task pool to make the waiter to wake up
+        let _ = sys.run_scheduled_tasks(20);
+        let res = sys.run_next_block();
 
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("hello");
-
-        assert!(results.iter().any(|result| result.contains(&log)));
+        assert!(res.contains(&log));
     }
 
     // Test for issue#3699
@@ -1192,19 +1226,22 @@ mod tests {
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
-        let signer = 42;
+        let signer = DEFAULT_USER_ALICE;
 
         // Init reserver
         prog.send(signer, InitMessage::Reserver);
+        sys.run_next_block();
 
         for _ in 0..258 {
             // Reserve
-            let result = prog.send_bytes(signer, b"reserve");
-            assert!(!result.main_failed());
+            let msg_id = prog.send_bytes(signer, b"reserve");
+            let result = sys.run_next_block();
+            assert!(result.succeed.contains(&msg_id));
 
             // Spend
-            let result = prog.send_bytes(signer, b"send from reservation");
-            assert!(!result.main_failed());
+            let msg_id = prog.send_bytes(signer, b"send from reservation");
+            let result = sys.run_next_block();
+            assert!(result.succeed.contains(&msg_id));
         }
     }
 
@@ -1215,14 +1252,31 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = [42; 32];
-        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
+        let user_id = 42;
+        let mut user_balance = 4 * EXISTENTIAL_DEPOSIT;
+        sys.mint_to(user_id, user_balance);
 
-        let run_result = prog.send(user_id, demo_exit_handle::scheme());
-        assert!(!run_result.main_failed());
+        let prog_id = 137;
+        assert_eq!(sys.balance_of(prog_id), 0);
+        let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
-        let run_result = prog.send_bytes(user_id, []);
-        assert!(!run_result.main_failed());
+        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 1_000_000_000, 0);
+        let result = sys.run_next_block();
+        user_balance -= result.spent_value() + EXISTENTIAL_DEPOSIT;
+
+        assert!(result.succeed.contains(&msg_id));
+        assert_eq!(sys.balance_of(prog_id), EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), user_balance);
+
+        let msg_id = prog.send_bytes_with_gas(user_id, [], 1_000_000_000, 0);
+        let result = sys.run_next_block();
+        user_balance -= result.spent_value();
+
+        // ED returned upon program exit
+        user_balance += EXISTENTIAL_DEPOSIT;
+        assert!(result.succeed.contains(&msg_id));
+        assert_eq!(sys.balance_of(prog_id), 0);
+        assert_eq!(sys.balance_of(user_id), user_balance);
     }
 
     #[test]
@@ -1233,9 +1287,11 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
         let user_id = ActorId::zero();
+        sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 2);
 
         // set insufficient gas for execution
-        let res = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+        let msg_id = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
+        let res = sys.run_next_block();
 
         let expected_log =
             Log::builder()
@@ -1246,7 +1302,7 @@ mod tests {
                 )));
 
         assert!(res.contains(&expected_log));
-        assert!(res.main_failed());
+        assert!(res.failed.contains(&msg_id));
     }
 
     #[test]
@@ -1256,17 +1312,19 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
         let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
 
         // Initialize program
-        let res = prog.send(user_id, Scheme::empty());
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, Scheme::empty());
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Reserve gas handle
         let handle = Calls::builder().reserve_gas(1_000_000, 10);
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Get reservation id from program
         let reservation_id = sys
@@ -1288,8 +1346,9 @@ mod tests {
 
         // Unreserve gas handle
         let handle = Calls::builder().unreserve_gas(reservation_id.into_bytes());
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Check reservation is removed from the tree
         assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
@@ -1302,13 +1361,14 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let user_id = 42;
+        let user_id = DEFAULT_USER_ALICE;
         let prog_id = 4242;
         let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
         // Initialize program
-        let res = prog.send(user_id, Scheme::empty());
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, Scheme::empty());
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Send user message from reservation
         let payload = b"to_user".to_vec();
@@ -1316,8 +1376,9 @@ mod tests {
             .reserve_gas(10_000_000_000, 5)
             .store("reservation")
             .reservation_send_value("reservation", user_id.into_origin().0, payload.clone(), 0);
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Check user message in mailbox
         let mailbox = sys.get_mailbox(user_id);
@@ -1334,16 +1395,35 @@ mod tests {
             Calls::builder().noop(),
             Calls::builder().noop(),
         );
-        let res = new_program.send(user_id, scheme);
-        assert!(!res.main_failed());
+        let msg_id = new_program.send(user_id, scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
 
         // Send program message from reservation
         let handle = Calls::builder()
             .reserve_gas(10_000_000_000, 5)
             .store("reservation")
             .reservation_send_value("reservation", new_prog_id.into_origin().0, [], 0);
-        let res = prog.send(user_id, handle);
-        assert!(!res.main_failed());
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
         assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
+    }
+
+    #[test]
+    fn tests_unused_gas_value_not_transferred() {
+        let sys = System::new();
+        sys.init_verbose_logger();
+
+        let user = 42;
+        sys.mint_to(user, 2 * EXISTENTIAL_DEPOSIT);
+
+        let prog = Program::from_binary_with_id(&sys, 69, demo_piggy_bank::WASM_BINARY);
+        prog.send_bytes_with_gas(user, b"init", 1_000_000_000, 0);
+        sys.run_next_block();
+
+        // Unspent gas is not returned to the user's balance when the sum of these is
+        // lower than ED
+        assert_eq!(sys.balance_of(user), 0)
     }
 }

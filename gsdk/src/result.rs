@@ -81,9 +81,13 @@ pub enum Error {
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
     #[error(transparent)]
+    SubxtCore(#[from] subxt::ext::subxt_core::Error),
+    #[error(transparent)]
     SubxtPublic(#[from] sp_core::crypto::PublicError),
     #[error(transparent)]
     SubxtMetadata(#[from] subxt::error::MetadataError),
+    #[error(transparent)]
+    ScaleValueEncode(#[from] scale_value::scale::EncodeError),
     #[error(transparent)]
     Tx(#[from] TxError),
     #[error(transparent)]

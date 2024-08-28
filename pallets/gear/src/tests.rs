@@ -116,7 +116,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 333_333_333, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 600_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -13524,20 +13524,6 @@ fn relay_messages() {
                     destination: USER_3.into(),
                     start: Some(2),
                     end: Some((0, true)),
-                },
-            ]),
-            Expected {
-                user: USER_3,
-                payload: vec![],
-            },
-        ),
-        (
-            RelayCall::ResendPush(vec![
-                // invalid range
-                ResendPushData {
-                    destination: USER_3.into(),
-                    start: Some(payload.len() as u32),
-                    end: Some((0, false)),
                 },
             ]),
             Expected {

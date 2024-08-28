@@ -39,7 +39,7 @@ use parity_scale_codec::{Decode, Encode};
 
 pub use gear_core::program::ProgramState as InitStatus;
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct HashAndLen {
     pub hash: H256,
     pub len: NonZeroU32,
@@ -55,7 +55,7 @@ impl From<H256> for HashAndLen {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum MaybeHash {
     Hash(HashAndLen),
     Empty,
@@ -69,6 +69,10 @@ impl From<H256> for MaybeHash {
 }
 
 impl MaybeHash {
+    pub fn is_empty(&self) -> bool {
+        matches!(self, MaybeHash::Empty)
+    }
+
     pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(H256) -> T) -> T {
         match &self {
             Self::Hash(HashAndLen { hash, .. }) => f(*hash),
@@ -77,38 +81,79 @@ impl MaybeHash {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ActiveProgram {
     /// Hash of wasm memory pages allocations, see [`Allocations`].
     pub allocations_hash: MaybeHash,
     /// Hash of memory pages table, see [`MemoryPages`].
     pub pages_hash: MaybeHash,
-    /// Hash of gas reservations map, see [`GasReservationMap`].
-    pub gas_reservation_map_hash: MaybeHash,
     /// Program memory infix.
     pub memory_infix: MemoryInfix,
     /// Program initialization status.
     pub initialized: bool,
 }
 
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub enum Program {
     Active(ActiveProgram),
     Exited(ProgramId),
     Terminated(ProgramId),
 }
 
+impl Program {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Active(_))
+    }
+}
+
 /// ethexe program state.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ProgramState {
     /// Active, exited or terminated program state.
-    pub state: Program,
+    pub program: Program,
     /// Hash of incoming message queue, see [`MessageQueue`].
     pub queue_hash: MaybeHash,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHash,
-    /// Balance
+    /// Reducible balance.
     pub balance: Value,
+    /// Executable balance.
+    pub executable_balance: Value,
+}
+
+impl ProgramState {
+    pub const fn zero() -> Self {
+        Self {
+            program: Program::Active(ActiveProgram {
+                allocations_hash: MaybeHash::Empty,
+                pages_hash: MaybeHash::Empty,
+                memory_infix: MemoryInfix::new(0),
+                initialized: false,
+            }),
+            queue_hash: MaybeHash::Empty,
+            waitlist_hash: MaybeHash::Empty,
+            balance: 0,
+            executable_balance: 0,
+        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        *self == Self::zero()
+    }
+
+    pub fn requires_init_message(&self) -> bool {
+        if !matches!(
+            self.program,
+            Program::Active(ActiveProgram {
+                initialized: false,
+                ..
+            })
+        ) {
+            return false;
+        }
+
+        self.queue_hash.is_empty() && self.waitlist_hash.is_empty()
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -121,8 +166,6 @@ pub struct Dispatch {
     pub source: ProgramId,
     /// Message payload.
     pub payload_hash: MaybeHash,
-    /// Message gas limit. Required here.
-    pub gas_limit: GasLimit,
     /// Message value.
     pub value: Value,
     /// Message details like reply message ID, status code, etc.
@@ -169,12 +212,6 @@ pub trait Storage {
 
     /// Writes allocations and returns its hash.
     fn write_allocations(&self, allocations: Allocations) -> H256;
-
-    /// Reads gas reservation map by gas reservation map hash.
-    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap>;
-
-    /// Writes gas reservation map and returns its hash.
-    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256;
 
     /// Reads payload by payload hash.
     fn read_payload(&self, hash: H256) -> Option<Payload>;

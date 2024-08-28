@@ -920,86 +920,6 @@ fn voucher_call_send_payer_expiry_err() {
 }
 
 #[test]
-fn voucher_call_deprecated_send_payer_ok() {
-    new_test_ext().execute_with(|| {
-        // Snapshot of the initial data.
-        let bob_initial_balance = Balances::free_balance(BOB);
-        let validator_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
-        let voucher_initial_balance = 1_000_000_000;
-        let program_id = H256::random().cast();
-
-        // Mocking of legacy voucher issue.
-        #[allow(deprecated)]
-        let voucher_account_id =
-            GearVoucher::call_deprecated_sponsor(&BOB, &prepaid_send(program_id))
-                .expect("Shouldn't return None");
-
-        assert_ok!(Balances::transfer_allow_death(
-            RuntimeOrigin::signed(ALICE),
-            voucher_account_id,
-            voucher_initial_balance,
-        ));
-
-        assert_eq!(
-            Balances::free_balance(voucher_account_id),
-            voucher_initial_balance
-        );
-
-        // Creating a RuntimeCall (deprecated) that should be free for caller.
-        let call = voucher_call_deprecated_send(program_id);
-
-        // Creating simulation of weight params for call to calculate fee.
-        let len = 100usize;
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
-
-        let weight = Weight::from_parts(1_000, 0);
-        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
-
-        let call_fee = fee_length + fee_weight;
-
-        // Pre-dispatch of the call.
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, &call, &info_from_weight(weight), len)
-            .unwrap();
-
-        // Bob hasn't paid fees.
-        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
-
-        // But the voucher has.
-        assert_eq!(
-            Balances::free_balance(voucher_account_id),
-            voucher_initial_balance - call_fee,
-        );
-
-        // Validator hasn't received fee yet.
-        assert_eq!(
-            Balances::free_balance(BLOCK_AUTHOR),
-            validator_initial_balance
-        );
-
-        // Post-dispatch of the call.
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
-
-        // Validating balances and validator reward.
-        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
-        assert_eq!(
-            Balances::free_balance(voucher_account_id),
-            voucher_initial_balance - call_fee,
-        );
-        assert_eq!(
-            Balances::free_balance(BLOCK_AUTHOR),
-            validator_initial_balance + call_fee,
-        );
-    });
-}
-
-#[test]
 fn voucher_call_reply_payer_ok() {
     new_test_ext().execute_with(|| {
         // Snapshot of the initial data.
@@ -1089,133 +1009,6 @@ fn voucher_call_reply_payer_ok() {
             Balances::free_balance(BLOCK_AUTHOR),
             validator_initial_balance + call_fee,
         );
-    });
-}
-
-#[test]
-fn voucher_call_deprecated_reply_payer_ok() {
-    new_test_ext().execute_with(|| {
-        // Snapshot of the initial data.
-        let bob_initial_balance = Balances::free_balance(BOB);
-        let validator_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
-        let voucher_initial_balance = 1_000_000_000;
-        let program_id = H256::random().cast();
-        let reply_to_id = H256::random().cast();
-
-        // Inserting message into Bob-s mailbox.
-        assert_ok!(MailboxOf::<Test>::insert(
-            UserStoredMessage::new(
-                reply_to_id,
-                program_id,
-                BOB.cast(),
-                Default::default(),
-                Default::default(),
-            ),
-            1_000,
-        ));
-
-        // Mocking of legacy voucher issue.
-        #[allow(deprecated)]
-        let voucher_account_id =
-            GearVoucher::call_deprecated_sponsor(&BOB, &prepaid_reply(reply_to_id))
-                .expect("Shouldn't return None");
-
-        assert_ok!(Balances::transfer_allow_death(
-            RuntimeOrigin::signed(ALICE),
-            voucher_account_id,
-            voucher_initial_balance,
-        ));
-
-        assert_eq!(
-            Balances::free_balance(voucher_account_id),
-            voucher_initial_balance
-        );
-
-        // Creating a RuntimeCall (deprecated) that should be free for caller.
-        let call = voucher_call_deprecated_reply(reply_to_id);
-
-        // Creating simulation of weight params for call to calculate fee.
-        let len = 100usize;
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
-
-        let weight = Weight::from_parts(1_000, 0);
-        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
-
-        let call_fee = fee_length + fee_weight;
-
-        // Pre-dispatch of the call.
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, &call, &info_from_weight(weight), len)
-            .unwrap();
-
-        // Bob hasn't paid fees.
-        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
-
-        // But the voucher has.
-        assert_eq!(
-            Balances::free_balance(voucher_account_id),
-            voucher_initial_balance - call_fee,
-        );
-
-        // Validator hasn't received fee yet.
-        assert_eq!(
-            Balances::free_balance(BLOCK_AUTHOR),
-            validator_initial_balance
-        );
-
-        // Post-dispatch of the call.
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
-
-        // Validating balances and validator reward.
-        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
-        assert_eq!(
-            Balances::free_balance(voucher_account_id),
-            voucher_initial_balance - call_fee,
-        );
-        assert_eq!(
-            Balances::free_balance(BLOCK_AUTHOR),
-            validator_initial_balance + call_fee,
-        );
-    });
-}
-
-#[test]
-fn voucher_call_deprecated_reply_payer_err() {
-    new_test_ext().execute_with(|| {
-        // Snapshot of the initial data.
-        let bob_initial_balance = Balances::free_balance(BOB);
-        let reply_to_id = H256::random().cast();
-
-        // Creating a RuntimeCall (deprecated) that should not be free for caller.
-        let call = voucher_call_deprecated_reply(reply_to_id);
-
-        // Creating simulation of weight params for call to calculate fee.
-        let len = 1usize;
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
-
-        let weight = Weight::from_parts(1, 0);
-        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
-
-        let call_fee = fee_length + fee_weight;
-
-        // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
-
-        // Bob has paid fees due to lack of destination for the call.
-        assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
     });
 }
 
@@ -1352,39 +1145,6 @@ fn voucher_call_upload_payer_forbidden_err() {
             Balances::free_balance(voucher_account_id),
             voucher_initial_balance
         );
-    });
-}
-
-#[test]
-fn voucher_call_deprecated_upload_payer_err() {
-    new_test_ext().execute_with(|| {
-        // Snapshot of the initial data.
-        let bob_initial_balance = Balances::free_balance(BOB);
-
-        // Creating a RuntimeCall (deprecated) that should not be free for caller.
-        let call = voucher_call_deprecated_upload(vec![]);
-
-        // Creating simulation of weight params for call to calculate fee.
-        let len = 1usize;
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
-
-        let weight = Weight::from_parts(1, 0);
-        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
-
-        let call_fee = fee_length + fee_weight;
-
-        // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
-
-        // Bob has paid fees due forbid for the code uploading in call_deprecated.
-        assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
     });
 }
 
@@ -1532,41 +1292,6 @@ fn voucher_call_decline_payer_expired_err() {
     });
 }
 
-#[test]
-fn voucher_call_deprecated_decline_payer_err() {
-    new_test_ext().execute_with(|| {
-        // Snapshot of the initial data.
-        let bob_initial_balance = Balances::free_balance(BOB);
-
-        // Creating a RuntimeCall (deprecated) that should not be free for caller.
-        let call = RuntimeCall::GearVoucher(VoucherCall::call_deprecated {
-            call: PrepaidCall::DeclineVoucher,
-        });
-
-        // Creating simulation of weight params for call to calculate fee.
-        let len = 1usize;
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
-
-        let weight = Weight::from_parts(1, 0);
-        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
-
-        let call_fee = fee_length + fee_weight;
-
-        // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
-
-        // Bob has paid fees due forbid for the code uploading in call_deprecated.
-        assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
-    });
-}
-
 mod utils {
     use super::*;
     use crate::BalanceOf;
@@ -1585,12 +1310,6 @@ mod utils {
         })
     }
 
-    pub fn voucher_call_deprecated_send(destination: ProgramId) -> RuntimeCall {
-        RuntimeCall::GearVoucher(VoucherCall::call_deprecated {
-            call: prepaid_send(destination),
-        })
-    }
-
     pub fn voucher_call_reply(voucher_id: VoucherId, reply_to_id: MessageId) -> RuntimeCall {
         RuntimeCall::GearVoucher(VoucherCall::call {
             voucher_id,
@@ -1598,21 +1317,9 @@ mod utils {
         })
     }
 
-    pub fn voucher_call_deprecated_reply(reply_to_id: MessageId) -> RuntimeCall {
-        RuntimeCall::GearVoucher(VoucherCall::call_deprecated {
-            call: prepaid_reply(reply_to_id),
-        })
-    }
-
     pub fn voucher_call_upload(voucher_id: VoucherId, code: Vec<u8>) -> RuntimeCall {
         RuntimeCall::GearVoucher(VoucherCall::call {
             voucher_id,
-            call: PrepaidCall::UploadCode { code },
-        })
-    }
-
-    pub fn voucher_call_deprecated_upload(code: Vec<u8>) -> RuntimeCall {
-        RuntimeCall::GearVoucher(VoucherCall::call_deprecated {
             call: PrepaidCall::UploadCode { code },
         })
     }
