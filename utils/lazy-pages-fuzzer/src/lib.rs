@@ -88,13 +88,14 @@ impl RunResult {
             .into_iter()
             .zip(wasmi_res.pages.into_iter())
         {
-            let lower_bytes_page_mask = ((INITIAL_PAGES as usize) * WASM_PAGE_SIZE) - 1;
-            assert_eq!(
-                lower_bytes_page_mask & wasmer_addr,
-                lower_bytes_page_mask & wasmi_addr
+            assert_eq!(wasmer_page_info, wasmi_page_info,
+                "wasmer page mem 0x{wasmer_addr:X?} wasmi page mem 0x{wasmi_addr:X?}",
             );
-            assert_eq!(wasmer_page_info, wasmi_page_info);
-            assert_eq!(wasmer_page_mem, wasmi_page_mem);
+            assert_eq!(
+                wasmer_page_mem, wasmi_page_mem,
+                "wasmer page mem 0x{wasmer_addr:X?} wasmi page mem 0x{wasmi_addr:X?} \
+                with content: 0x{wasmer_page_mem:X?} 0x{wasmi_page_mem:X?}",
+            );
         }
 
         assert_eq!(wasmer_res.globals, wasmi_res.globals);
