@@ -66,11 +66,21 @@ contract Mirror is IMirror {
         // TODO (breathx): handle if goes to mailbox or not. Send value in place or not.
 
         if (decoder != address(0)) {
-            IMirrorDecoder(decoder).onMessageSent(id, destination, payload, value);
-            // TODO (breathx): emit event with message hash?
-        } else {
-            emit Message(id, destination, payload, value);
+            bytes memory callData = abi.encodeWithSignature(
+                "onMessageSent(bytes32, address, bytes, uint128)", id, destination, payload, value
+            );
+
+            // Result is ignored here.
+            // TODO (breathx): make gas configurable?
+            (bool success,) = decoder.call{gas: 500_000}(callData);
+
+            if (success) {
+                // TODO (breathx): emit event with message hash?
+                return;
+            }
         }
+
+        emit Message(id, destination, payload, value);
     }
 
     function replySent(address destination, bytes calldata payload, uint128 value, bytes32 replyTo, bytes4 replyCode)
@@ -80,11 +90,21 @@ contract Mirror is IMirror {
         _sendValueTo(destination, value);
 
         if (decoder != address(0)) {
-            IMirrorDecoder(decoder).onReplySent(destination, payload, value, replyTo, replyCode);
-            // TODO (breathx): emit event with reply hash?
-        } else {
-            emit Reply(payload, value, replyTo, replyCode);
+            bytes memory callData = abi.encodeWithSignature(
+                "onReplySent(address, bytes, uint128, bytes32, bytes4)", destination, payload, value, replyTo, replyCode
+            );
+
+            // Result is ignored here.
+            // TODO (breathx): make gas configurable?
+            (bool success,) = decoder.call{gas: 500_000}(callData);
+
+            if (success) {
+                // TODO (breathx): emit event with reply hash?
+                return;
+            }
         }
+
+        emit Reply(payload, value, replyTo, replyCode);
     }
 
     function valueClaimed(bytes32 claimedId, address destination, uint128 value) external onlyRouter {
