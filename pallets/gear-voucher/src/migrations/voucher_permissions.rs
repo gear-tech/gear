@@ -124,20 +124,20 @@ impl<T: Config> OnRuntimeUpgrade for VoucherPermissionsMigration<T> {
 }
 
 mod v0 {
-    use crate::AccountIdOf;
-    use frame_support::pallet_prelude::*;
-    use frame_system::pallet_prelude::*;
     use gear_core::ids::ProgramId;
     use sp_runtime::{
         codec::{Decode, Encode},
         scale_info::TypeInfo,
     };
     use sp_std::collections::btree_set::BTreeSet;
-
     #[cfg(feature = "try-runtime")]
     use {
-        crate::{Config, Pallet, VoucherId},
-        frame_support::traits::{PalletInfo, StorageInstance},
+        crate::{AccountIdOf, Config, Pallet, VoucherId},
+        frame_support::{
+            pallet_prelude::*,
+            traits::{PalletInfo, StorageInstance},
+        },
+        frame_system::pallet_prelude::*,
         sp_std::marker::PhantomData,
     };
 
