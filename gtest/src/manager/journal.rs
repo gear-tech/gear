@@ -18,8 +18,6 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-use std::collections::BTreeMap;
-
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
@@ -46,6 +44,7 @@ use gear_core::{
 };
 use gear_core_errors::SignalCode;
 use gear_wasm_instrument::gas_metering::Schedule;
+use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(
@@ -100,6 +99,11 @@ impl JournalHandler for ExtManager {
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        self.waitlist.drain_key(id_exited).for_each(|entry| {
+            let message = self.wake_dispatch_requirements(entry);
+
+            self.dispatches.push_back(message);
+        });
         Actors::modify(id_exited, |actor| {
             let actor =
                 actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
