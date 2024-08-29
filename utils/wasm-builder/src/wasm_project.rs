@@ -335,7 +335,7 @@ extern "C" fn metahash() {{
                        pub const WASM_BINARY: &[u8] = include_bytes!("{}");
                        #[allow(unused)]
                        pub const WASM_EXPORTS: &[&str] = &{:?};"#,
-                display_path(meta_wasm_path.clone()),
+                display_path(meta_wasm_path.as_path()),
                 Self::get_exports(&meta_wasm_path)?,
             ),
         )
@@ -428,8 +428,8 @@ extern "C" fn metahash() {{
                        #[allow(unused)]
                        pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
                        {}"#,
-                display_path(original_copy_wasm_path),
-                display_path(opt_wasm_path),
+                display_path(original_copy_wasm_path.as_path()),
+                display_path(opt_wasm_path.as_path()),
                 metadata,
             ),
         )
@@ -442,7 +442,7 @@ extern "C" fn metahash() {{
     ///   `target/wasm32-unknown-unknown/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
-    pub fn postprocess(&self) -> Result<()> {
+    pub fn postprocess(&self) -> Result<Option<PathBuf>> {
         let file_base_name = self
             .file_base_name
             .as_ref()
@@ -516,7 +516,7 @@ extern "C" fn metahash() {{
             }
         }
 
-        for (wasm_path, _) in wasm_files {
+        for (wasm_path, _) in &wasm_files {
             let code = fs::read(wasm_path)?;
             let validator = CodeValidator::try_from(code)?;
 
@@ -531,7 +531,7 @@ extern "C" fn metahash() {{
             self.force_rerun_on_next_run(&original_wasm_path)?;
         }
 
-        Ok(())
+        Ok(wasm_files.into_iter().map(|(path, _)| path).last())
     }
 
     fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
@@ -566,10 +566,10 @@ extern "C" fn metahash() {{
     }
 
     /// Provide a dummy WASM binary if there doesn't exist one.
-    pub fn provide_dummy_wasm_binary_if_not_exist(&self) {
+    pub fn provide_dummy_wasm_binary_if_not_exist(&self) -> PathBuf {
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         if wasm_binary_rs.exists() {
-            return;
+            return wasm_binary_rs;
         }
 
         let content = if !self.project_type.is_metawasm() {
@@ -586,17 +586,15 @@ extern "C" fn metahash() {{
     pub const WASM_EXPORTS: &[&str] = &[];
     "#
         };
-        fs::write(wasm_binary_rs.as_path(), content).unwrap_or_else(|_| {
-            panic!(
-                "Writing `{}` should not fail!",
-                display_path(wasm_binary_rs)
-            )
-        });
+        let path = wasm_binary_rs.as_path();
+        fs::write(path, content)
+            .unwrap_or_else(|_| panic!("Writing `{}` should not fail!", display_path(path)));
+        wasm_binary_rs
     }
 }
 
 // Windows has path like `path\to\somewhere` which is incorrect for `include_*`
 // Rust's macros
-fn display_path(path: PathBuf) -> String {
+fn display_path(path: &Path) -> String {
     path.display().to_string().replace('\\', "/")
 }

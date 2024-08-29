@@ -100,22 +100,25 @@ impl WasmBuilder {
     }
 
     /// Build the program and produce an output WASM binary.
-    pub fn build(self) {
+    pub fn build(self) -> Option<PathBuf> {
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() || is_intellij_sync() {
-            self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
-            return;
+            let path = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
+            return Some(path);
         }
 
-        if let Err(e) = self.build_project() {
-            eprintln!("error: {e}");
-            e.chain()
-                .skip(1)
-                .for_each(|cause| eprintln!("|      {cause}"));
-            process::exit(1);
+        match self.build_project() {
+            Err(e) => {
+                eprintln!("error: {e}");
+                e.chain()
+                    .skip(1)
+                    .for_each(|cause| eprintln!("|      {cause}"));
+                process::exit(1);
+            }
+            Ok(r) => r,
         }
     }
 
-    fn build_project(mut self) -> Result<()> {
+    fn build_project(mut self) -> Result<Option<PathBuf>> {
         self.wasm_project.generate()?;
 
         self.cargo
@@ -236,46 +239,46 @@ fn is_intellij_sync() -> bool {
 const FEATURES_TO_EXCLUDE_BY_DEFAULT: &[&str] = &["std"];
 
 /// Shorthand function to be used in `build.rs`.
-pub fn build() {
+pub fn build() -> Option<PathBuf> {
     WasmBuilder::new()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
-        .build();
+        .build()
 }
 
 /// Shorthand function to be used in `build.rs`.
-pub fn build_with_metadata<T: Metadata>() {
+pub fn build_with_metadata<T: Metadata>() -> Option<PathBuf> {
     WasmBuilder::with_meta(T::repr())
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
-        .build();
+        .build()
 }
 
 /// Shorthand function to be used in `build.rs`.
-pub fn build_metawasm() {
+pub fn build_metawasm() -> Option<PathBuf> {
     WasmBuilder::new_metawasm()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
-        .build();
+        .build()
 }
 
 /// Shorthand function to be used in `build.rs`.
-pub fn recommended_nightly() {
+pub fn recommended_nightly() -> Option<PathBuf> {
     WasmBuilder::new()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .with_recommended_toolchain()
-        .build();
+        .build()
 }
 
 /// Shorthand function to be used in `build.rs`.
-pub fn recommended_nightly_with_metadata<T: Metadata>() {
+pub fn recommended_nightly_with_metadata<T: Metadata>() -> Option<PathBuf> {
     WasmBuilder::with_meta(T::repr())
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .with_recommended_toolchain()
-        .build();
+        .build()
 }
 
 /// Shorthand function to be used in `build.rs`.
-pub fn recommended_nightly_metawasm() {
+pub fn recommended_nightly_metawasm() -> Option<PathBuf> {
     WasmBuilder::new_metawasm()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .with_recommended_toolchain()
-        .build();
+        .build()
 }
