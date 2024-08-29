@@ -223,7 +223,7 @@ mod test {
             assert_eq!(owner, voucher_v1.owner);
             assert_eq!(expiry, voucher_v1.expiry);
             assert_eq!(None, voucher_v1.permissions.programs);
-            assert_eq!(true, voucher_v1.permissions.code_uploading);
+            assert!(voucher_v1.permissions.code_uploading);
             assert_eq!(Some(BTreeSet::new()), voucher_v1.permissions.code_ids);
         });
     }
