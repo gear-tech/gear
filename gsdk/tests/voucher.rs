@@ -235,6 +235,35 @@ async fn test_send_message_with_voucher() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_voucher_transfer_below_minimum_error() -> Result<()> {
+    // arrange
+    let node = dev_node();
+
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
+    let account_id = signer.account_id();
+
+    // 1. issue voucher
+    let tx = signer
+        .calls
+        .issue_voucher(account_id.clone(), 1_000, 100, VoucherPermissions::all())
+        .await?;
+
+    let error = get_issued_voucher_id(tx)
+        .await
+        .expect_err("Expect: Subxt(Runtime(Module(ModuleError(<GearVoucher::BalanceTransfer>))))");
+
+    assert!(matches!(
+        error,
+        Error::Subxt(SubxtError::Runtime(subxt::error::DispatchError::Module(
+            err
+        ))) if err.to_string() == "GearVoucher::BalanceTransfer"
+    ));
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_voucher_balance_transfer_error() -> Result<()> {
     // arrange
     let node = dev_node();
