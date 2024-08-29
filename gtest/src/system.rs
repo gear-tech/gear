@@ -17,12 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    accounts::Accounts,
-    actors::Actors,
     log::{BlockRunResult, CoreLog},
-    mailbox::ActorMailbox,
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
+    state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
     Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
@@ -220,7 +218,7 @@ impl System {
     pub fn run_to_block(&self, bn: u32) -> Vec<BlockRunResult> {
         let mut manager = self.0.borrow_mut();
 
-        let mut current_block = manager.blocks_manager.get().height;
+        let mut current_block = manager.block_height();
         if current_block > bn {
             panic!("Can't run blocks until bn {bn}, as current bn is {current_block}");
         }
@@ -230,7 +228,7 @@ impl System {
             let res = manager.run_new_block(Gas(GAS_ALLOWANCE));
             ret.push(res);
 
-            current_block = manager.blocks_manager.get().height;
+            current_block = manager.block_height();
         }
 
         ret
@@ -240,7 +238,7 @@ impl System {
     /// processing the message queue.
     pub fn run_scheduled_tasks(&self, amount: u32) -> Vec<BlockRunResult> {
         let mut manager = self.0.borrow_mut();
-        let block_height = manager.blocks_manager.get().height;
+        let block_height = manager.block_height();
 
         (block_height..block_height + amount)
             .map(|_| {
@@ -266,7 +264,7 @@ impl System {
 
     /// Return the current block height of the testing environment.
     pub fn block_height(&self) -> u32 {
-        self.0.borrow().blocks_manager.get().height
+        self.0.borrow().block_height()
     }
 
     /// Return the current block timestamp of the testing environment.
@@ -417,6 +415,7 @@ impl Drop for System {
         self.0.borrow().gas_tree.reset();
         self.0.borrow().mailbox.reset();
         self.0.borrow().task_pool.clear();
+        self.0.borrow().waitlist.reset();
 
         // Clear actors and accounts storages
         Actors::clear();

@@ -113,7 +113,7 @@ impl BlobReader for ConsensusLayerBlobReader {
         let mut coder = SimpleCoder::default();
         let data = coder
             .decode_all(&blobs)
-            .ok_or(anyhow!("failed to decode blobs"))?
+            .ok_or_else(|| anyhow!("failed to decode blobs"))?
             .concat();
 
         Ok(data)

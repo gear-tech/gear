@@ -84,6 +84,15 @@ impl KVDatabase for RocksDatabase {
             .put(key, value)
             .expect("Failed to write data, database is not in valid state");
     }
+
+    fn iter_prefix(&self, prefix: &[u8]) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_> {
+        Box::new(
+            self.inner
+                .prefix_iterator(prefix)
+                .map(|kv| kv.expect("unexpected error during iteration"))
+                .map(|(k, v)| (<[u8]>::into_vec(k), <[u8]>::into_vec(v))),
+        )
+    }
 }
 
 // TODO: Tune RocksDB configuration.
@@ -142,6 +151,13 @@ mod tests {
     fn kv_read_write() {
         with_database(|db| {
             tests::kv_read_write(db);
+        });
+    }
+
+    #[test]
+    fn kv_iter_prefix() {
+        with_database(|db| {
+            tests::kv_iter_prefix(db);
         });
     }
 

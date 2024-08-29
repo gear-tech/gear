@@ -178,7 +178,7 @@ impl Router {
             }
         }
 
-        let actor_id = actor_id.ok_or(anyhow!("Couldn't find `ProgramCreated` log"))?;
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
 
         Ok((tx_hash, actor_id))
     }
@@ -192,7 +192,7 @@ impl Router {
             commitments.into_iter().map(Into::into).collect(),
             signatures
                 .into_iter()
-                .map(|signature| Bytes::copy_from_slice(&signature.0))
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
         let tx = builder.send().await?;
@@ -211,7 +211,7 @@ impl Router {
                 commitments.into_iter().map(Into::into).collect(),
                 signatures
                     .into_iter()
-                    .map(|signature| Bytes::copy_from_slice(&signature.0))
+                    .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                     .collect(),
             )
             .gas(10_000_000);
@@ -267,6 +267,24 @@ impl RouterQuery {
             .call()
             .await
             .map(|res| H256(*res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn validators(&self) -> Result<Vec<LocalAddress>> {
+        self.instance
+            .validators()
+            .call()
+            .await
+            .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn threshold(&self) -> Result<u64> {
+        self.instance
+            .validatorsThreshold()
+            .call()
+            .await
+            .map(|res| res._0.to())
             .map_err(Into::into)
     }
 }

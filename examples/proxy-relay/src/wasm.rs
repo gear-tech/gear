@@ -21,7 +21,7 @@ use gstd::msg::{self, MessageHandle};
 
 static mut RELAY_CALL: Option<RelayCall> = None;
 
-fn resend_push(resend_pushes: &[ResendPushData]) {
+fn resend_push(resend_pushes: &[ResendPushData], size: usize) {
     for data in resend_pushes {
         let msg_handle = MessageHandle::init().expect("Failed to obtain new message handle");
 
@@ -35,7 +35,7 @@ fn resend_push(resend_pushes: &[ResendPushData]) {
         match start.map(|s| s as usize) {
             Some(s) => match end {
                 None => {
-                    msg_handle.push_input(s..).expect("Push failed");
+                    msg_handle.push_input(s..size).expect("Push failed");
                 }
                 Some((e, true)) => {
                     msg_handle.push_input(s..=e).expect("Push failed");
@@ -46,7 +46,7 @@ fn resend_push(resend_pushes: &[ResendPushData]) {
             },
             None => match end {
                 None => {
-                    msg_handle.push_input(..).expect("Push failed");
+                    msg_handle.push_input(..size).expect("Push failed");
                 }
                 Some((e, true)) => {
                     msg_handle.push_input(..=e).expect("Push failed");
@@ -67,26 +67,27 @@ fn resend_push(resend_pushes: &[ResendPushData]) {
 extern "C" fn handle() {
     use RelayCall::*;
     let relay_call = unsafe { RELAY_CALL.as_ref().expect("Relay call is not initialized") };
+    let size = msg::size();
 
     match relay_call {
         Resend(d) => {
-            msg::send_input(*d, msg::value(), ..msg::size()).expect("Resend failed");
+            msg::send_input(*d, msg::value(), ..size).expect("Resend failed");
         }
         ResendWithGas(d, gas) => {
-            msg::send_input_with_gas(*d, *gas, msg::value(), ..).expect("Resend wgas failed");
+            msg::send_input_with_gas(*d, *gas, msg::value(), ..size).expect("Resend wgas failed");
         }
         ResendPush(data) => {
-            resend_push(data);
+            resend_push(data, size);
         }
         Rereply => {
-            msg::reply_input(msg::value(), 0..msg::size()).expect("Rereply failed");
+            msg::reply_input(msg::value(), 0..size).expect("Rereply failed");
         }
         RereplyPush => {
-            msg::reply_push_input(0..).expect("Push failed");
+            msg::reply_push_input(0..size).expect("Push failed");
             msg::reply_commit(msg::value()).expect("Commit failed");
         }
         RereplyWithGas(gas) => {
-            msg::reply_input_with_gas(*gas, msg::value(), ..).expect("Rereply wgas failed");
+            msg::reply_input_with_gas(*gas, msg::value(), ..size).expect("Rereply wgas failed");
         }
     }
 }

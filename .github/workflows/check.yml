@@ -111,6 +111,11 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
+      - name: "Install deps"
+        run: |
+          sudo apt update
+          sudo apt install -y xxd
+
       - name: "MOUNT: Logs path"
         run: |
           FUZZER_LOGS_PATH=/mnt/fuzzer_logs
