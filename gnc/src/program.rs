@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Backend, Message, TxResult};
+use crate::{Backend, Message, TxResult};
 use anyhow::Result;
 use gear_core::ids::ProgramId;
 use gprimitives::MessageId;

@@ -6277,7 +6277,6 @@ dependencies = [
  "gprimitives",
  "gsdk",
  "gstd",
- "gtest",
  "hex",
  "hex-literal",
  "log",
@@ -6285,7 +6284,6 @@ dependencies = [
  "subxt",
  "thiserror",
  "tokio",
- "tracing",
  "url",
  "wabt",
  "wat",
@@ -7257,6 +7255,22 @@ dependencies = [
  "quote",
  "scale-info",
  "syn 2.0.71",
+]
+
+[[package]]
+name = "gnc"
+version = "1.5.0"
+dependencies = [
+ "anyhow",
+ "demo-proxy",
+ "gclient",
+ "gear-core",
+ "gprimitives",
+ "gsdk",
+ "gtest",
+ "parity-scale-codec",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

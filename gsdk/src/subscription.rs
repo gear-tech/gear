@@ -57,8 +57,12 @@ impl Blocks {
     }
 
     /// Wait for the next block from the subscription.
-    pub async fn next(&mut self) -> Option<StdResult<SubxtBlock, Error>> {
-        StreamExt::next(self).await
+    pub async fn next(&mut self) -> Result<Option<SubxtBlock>> {
+        if let Some(block) = StreamExt::next(self).await {
+            Ok(Some(block?))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -74,14 +78,6 @@ impl From<BlockSubscription> for Blocks {
 pub struct Events(Blocks);
 
 impl Events {
-    /// Map raw events to gear events
-    fn map_events(events: SubxtEvents<GearConfig>) -> StdResult<Vec<Event>, Error> {
-        events
-            .iter()
-            .map(|ev| ev.and_then(|e| e.as_root_event::<Event>()))
-            .collect::<StdResult<Vec<_>, Error>>()
-    }
-
     /// Wait for the next events from the subscription.
     pub async fn next(&mut self) -> Result<Vec<Event>> {
         if let Some(es) = self.0.next_events().await? {

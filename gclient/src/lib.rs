@@ -132,7 +132,6 @@
 #![allow(async_fn_in_trait)]
 
 mod api;
-mod client;
 mod utils;
 mod ws;
 
@@ -143,6 +142,3 @@ pub use gsdk::{
 };
 pub use utils::*;
 pub use ws::WSAddress;
-
-#[cfg(feature = "experimental")]
-pub use client::{Backend, Client, Message};

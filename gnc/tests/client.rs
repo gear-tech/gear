@@ -18,7 +18,7 @@
 
 use anyhow::Result;
 use demo_proxy::{InputArgs, WASM_BINARY};
-use gclient::{Backend, Client, Message};
+use gnc::{Backend, Client, Message};
 
 async fn test_ping<T: Backend>(client: Client<T>) -> Result<()> {
     let prog = client

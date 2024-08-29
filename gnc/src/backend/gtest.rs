@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Backend, Code, Message, Program, TxResult};
+use crate::{Backend, Code, Message, Program, TxResult, ALICE};
 use anyhow::{anyhow, Result};
 use gear_core::ids::ProgramId;
 use gprimitives::{ActorId, MessageId, H256};
@@ -62,6 +62,7 @@ impl GTest {
     fn spawn(resps: Arc<Mutex<HashMap<usize, Response>>>, rx: Receiver<Request>) {
         std::thread::spawn(move || {
             let system = System::new();
+            system.mint_to(ALICE, 1_000_000_000_000_000);
             while let Ok(tx) = rx.recv() {
                 let (result, nonce) = match tx {
                     Request::Deploy {
@@ -115,11 +116,12 @@ impl Backend for GTest {
         M: Into<Message> + Send,
     {
         let nonce = self.nonce.load(Ordering::SeqCst);
+        let message = message.into();
         self.tx.send(Request::Deploy {
             nonce,
             code: code.bytes()?,
-            message: message.into(),
-            signer: Default::default(),
+            signer: message.signer,
+            message,
         })?;
 
         let result = self.resp(nonce).await?;
@@ -143,11 +145,12 @@ impl Backend for GTest {
         M: Into<Message> + Send,
     {
         let nonce = self.nonce.load(Ordering::SeqCst);
+        let message = message.into();
         self.tx.send(Request::Send {
             nonce,
             prog: id,
-            message: message.into(),
-            signer: Default::default(),
+            signer: message.signer,
+            message,
         })?;
 
         let result = self.resp(nonce).await?;
@@ -232,7 +235,7 @@ pub enum Response {
 
 /// gtest handles
 pub(crate) mod handle {
-    use crate::client::{backend::gtest::Response, Message, TxResult};
+    use crate::{backend::gtest::Response, Message, TxResult};
     use anyhow::anyhow;
     use gear_core::{
         buffer::LimitedVec,
@@ -257,7 +260,8 @@ pub(crate) mod handle {
     pub fn deploy(system: &System, code: Vec<u8>, message: Message, signer: ActorId) -> Response {
         let id = CodeId::generate(&code);
         let prog = Program::from_binary_with_id(system, id.into_bytes().to_vec(), code);
-        let r = prog.send_bytes(signer, message.payload);
+        let _mid = prog.send_bytes(signer, message.payload);
+        let r = system.run_next_block();
 
         Response::Deploy(TxResult {
             result: prog.id(),
@@ -271,9 +275,10 @@ pub(crate) mod handle {
             return Response::Send(TxResult::error(anyhow!("program {prog} not found")));
         };
 
-        let r = prog.send_bytes(signer, message.payload);
+        let mid = prog.send_bytes(signer, message.payload);
+        let r = system.run_next_block();
         Response::Send(TxResult {
-            result: Ok(r.sent_message_id()),
+            result: Ok(mid),
             logs: map_logs(r.log()),
         })
     }

@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //! Gear general client
-#![cfg(feature = "experimental")]
-
+#![allow(async_fn_in_trait)]
 mod backend;
 mod packet;
 mod program;
@@ -27,8 +26,8 @@ pub use self::{
     packet::Message,
     program::Program,
 };
-use crate::{GearApi, WSAddress};
 use anyhow::{anyhow, Result};
+use gclient::{GearApi, WSAddress};
 use gear_core::message::UserMessage;
 use gprimitives::ActorId;
 

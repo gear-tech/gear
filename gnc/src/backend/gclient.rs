@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    client::{Backend, Code, Message, Program, TxResult, ALICE},
-    Event, GearApi, GearEvent,
-};
+use crate::{Backend, Code, Message, Program, TxResult, ALICE};
 use anyhow::{anyhow, Result};
+use gclient::{Event, GearApi, GearEvent};
 use gear_core::{
     ids::ProgramId,
     message::{UserMessage, UserStoredMessage},
@@ -29,7 +27,7 @@ use gprimitives::{ActorId, MessageId, H256};
 use gsdk::{
     ext::sp_core::{sr25519, Pair},
     metadata::runtime_types::gear_common::storage::primitives::Interval,
-    Events,
+    Blocks,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -95,10 +93,12 @@ impl GClient {
     }
 
     /// Spawn gear messages
-    fn spawn(mut sub: Events, gmessages: Arc<Mutex<BTreeMap<H256, Vec<UserMessage>>>>) {
+    fn spawn(mut sub: Blocks, gmessages: Arc<Mutex<BTreeMap<H256, Vec<UserMessage>>>>) {
         tokio::spawn(async move {
-            while let Ok(Some((hash, events))) = sub.next_with_hash().await {
-                let messages = events
+            while let Ok(Some(bevs)) = sub.next_events().await {
+                let messages = bevs
+                    .events()
+                    .unwrap_or_default()
                     .into_iter()
                     .filter_map(|e| {
                         if let Event::Gear(GearEvent::UserMessageSent { message, .. }) = e {
@@ -118,7 +118,7 @@ impl GClient {
                     map.pop_first();
                 }
 
-                map.insert(hash, messages);
+                map.insert(bevs.block_hash(), messages);
             }
         });
     }

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::client::{Message, Program, TxResult};
+use crate::{Message, Program, TxResult};
 use anyhow::{anyhow, Result};
 pub use gclient::GClient;
 use gear_core::{ids::ProgramId, message::UserStoredMessage};
