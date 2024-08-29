@@ -41,7 +41,7 @@
 mod benchmarking;
 
 mod internal;
-
+pub mod migrations;
 pub mod weights;
 
 #[cfg(test)]
@@ -68,7 +68,7 @@ type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The current storage version.
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
