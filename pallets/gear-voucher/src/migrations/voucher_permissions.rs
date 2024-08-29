@@ -22,8 +22,7 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_std::marker::PhantomData;
-use std::collections::BTreeSet;
+use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData};
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::ensure,
