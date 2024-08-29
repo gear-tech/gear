@@ -19,7 +19,7 @@
 use super::*;
 
 impl ExtManager {
-    pub(crate) fn wait_dipatch_impl(
+    pub(crate) fn wait_dispatch_impl(
         &self,
         dispatch: StoredDispatch,
         duration: Option<BlockNumber>,
