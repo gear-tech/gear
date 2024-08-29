@@ -497,15 +497,15 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_reply_commit: Weight {
-                ref_time: 12018944,
+                ref_time: 12049464,
                 proof_size: 0,
             },
             gr_reply_commit_wgas: Weight {
-                ref_time: 12137604,
+                ref_time: 11720008,
                 proof_size: 0,
             },
             gr_reservation_reply: Weight {
-                ref_time: 8379472,
+                ref_time: 8504802,
                 proof_size: 0,
             },
             gr_reservation_reply_per_byte: Weight {
@@ -513,7 +513,7 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_reservation_reply_commit: Weight {
-                ref_time: 7809250,
+                ref_time: 8289934,
                 proof_size: 0,
             },
             gr_reply_push: Weight {
@@ -521,7 +521,7 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_reply: Weight {
-                ref_time: 13603312,
+                ref_time: 12488174,
                 proof_size: 0,
             },
             gr_reply_per_byte: Weight {
@@ -529,7 +529,7 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_reply_wgas: Weight {
-                ref_time: 11943522,
+                ref_time: 12363104,
                 proof_size: 0,
             },
             gr_reply_wgas_per_byte: Weight {
@@ -553,11 +553,11 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_reply_input: Weight {
-                ref_time: 13351726,
+                ref_time: 13518262,
                 proof_size: 0,
             },
             gr_reply_input_wgas: Weight {
-                ref_time: 10595976,
+                ref_time: 8132850,
                 proof_size: 0,
             },
             gr_reply_push_input: Weight {
@@ -597,23 +597,23 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_exit: Weight {
-                ref_time: 96563242,
+                ref_time: 18105950,
                 proof_size: 0,
             },
             gr_leave: Weight {
-                ref_time: 130303114,
+                ref_time: 13825758,
                 proof_size: 0,
             },
             gr_wait: Weight {
-                ref_time: 112591140,
+                ref_time: 13811842,
                 proof_size: 0,
             },
             gr_wait_for: Weight {
-                ref_time: 92188166,
+                ref_time: 13619656,
                 proof_size: 0,
             },
             gr_wait_up_to: Weight {
-                ref_time: 127918232,
+                ref_time: 14400276,
                 proof_size: 0,
             },
             gr_wake: Weight {

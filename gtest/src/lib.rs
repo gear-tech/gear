@@ -127,7 +127,7 @@
 //!         let prog = Program::current(&sys);
 //!
 //!         // Provide user with some balance.
-//!         sys.min_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
+//!         sys.mint_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
 //!
 //!         // Send an init message to the program.
 //!         let init_message_id = prog.send_bytes(USER_ID, b"Doesn't matter");
@@ -492,27 +492,21 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-mod accounts;
-mod actors;
-mod bank;
-mod blocks;
 mod error;
-mod gas_tree;
 mod log;
-mod mailbox;
 mod manager;
 mod program;
+mod state;
 mod system;
-mod task_pool;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
 pub use error::{Result, TestError};
-pub use mailbox::ActorMailbox;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,
 };
+pub use state::mailbox::ActorMailbox;
 pub use system::System;
 
 pub use constants::Value;
@@ -580,6 +574,9 @@ pub mod constants {
     pub const RESERVATION_COST: Gas = 100;
     /// Cost of storing delayed message per block.
     pub const DISPATCH_HOLD_COST: Gas = 100;
+
+    /// Cost of storing message in mailbox
+    pub const MAILBOX_COST: Gas = 100;
 
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).

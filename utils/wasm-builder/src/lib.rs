@@ -32,6 +32,7 @@ use wasm_project::ProjectType;
 mod builder_error;
 pub mod code_validator;
 mod crate_info;
+mod multiple_crate_versions;
 mod smart_fs;
 mod wasm_project;
 

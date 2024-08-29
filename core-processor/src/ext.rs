@@ -751,6 +751,15 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         }
         Ok(())
     }
+
+    fn cost_for_reservation(&self, amount: u64, duration: u32) -> u64 {
+        self.context
+            .costs
+            .rent
+            .reservation
+            .cost_for(self.context.reserve_for.saturating_add(duration).into())
+            .saturating_add(amount)
+    }
 }
 
 impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
@@ -940,7 +949,10 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         offset: u32,
         len: u32,
     ) -> Result<(), Self::FallibleError> {
-        let range = self.context.message_context.check_input_range(offset, len);
+        let range = self
+            .context
+            .message_context
+            .check_input_range(offset, len)?;
 
         self.with_changes(|mutator| {
             mutator.charge_gas_if_enough(
@@ -1076,7 +1088,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
             let range = mutator
                 .context
                 .message_context
-                .check_input_range(offset, len);
+                .check_input_range(offset, len)?;
             mutator.charge_gas_if_enough(
                 mutator
                     .context
@@ -1176,14 +1188,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                 return Err(ReservationError::ReservationBelowMailboxThreshold.into());
             }
 
-            let reserve = mutator
-                .context
-                .costs
-                .rent
-                .reservation
-                .cost_for(mutator.context.reserve_for.saturating_add(duration).into());
-
-            let reduce_amount = amount.saturating_add(reserve);
+            let reduce_amount = mutator.cost_for_reservation(amount, duration);
 
             mutator
                 .reduce_gas(reduce_amount)
@@ -1199,15 +1204,29 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
-        let amount = self.context.gas_reserver.unreserve(id)?;
+        let (amount, reimburse) = self.context.gas_reserver.unreserve(id)?;
 
-        // This statement is like an op that increases "left" counter, but do not affect "burned" counter,
-        // because we don't actually refund, we just rise "left" counter during unreserve
-        // and it won't affect gas allowance counter because we don't make any actual calculations
-        // TODO: uncomment when unreserving in current message features is discussed
-        /*if !self.context.gas_counter.increase(amount) {
-            return Err(some_charge_error.into());
-        }*/
+        if let Some(reimbursement) = reimburse {
+            let current_gas_amount = self.gas_amount();
+
+            // Basically amount of the reseravtion and the cost for the hold duration.
+            let reimbursement_amount = self.cost_for_reservation(amount, reimbursement.duration());
+            self.context
+                .gas_counter
+                .increase(reimbursement_amount, reimbursement)
+                .then_some(())
+                .unwrap_or_else(|| {
+                    let err_msg = format!(
+                        "Ext::unreserve_gas: failed to reimburse unreserved gas to left counter. \
+                        Current gas amount - {}, reimburse amount - {}",
+                        current_gas_amount.left(),
+                        amount,
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}");
+                });
+        }
 
         Ok(amount)
     }
@@ -1409,11 +1428,12 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::configs::RentCosts;
     use alloc::vec;
     use gear_core::{
-        costs::SyscallCosts,
+        costs::{CostOf, SyscallCosts},
         message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
-        reservation::GasReservationState,
+        reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
     struct MessageContextBuilder {
@@ -1498,6 +1518,12 @@ mod tests {
 
         fn with_value(mut self, value: u128) -> Self {
             self.0.value_counter = ValueCounter::new(value);
+
+            self
+        }
+
+        fn with_reservations_map(mut self, map: GasReservationMap) -> Self {
+            self.0.gas_reserver = GasReserver::new(&Default::default(), map, 256);
 
             self
         }
@@ -1730,7 +1756,12 @@ mod tests {
                 .build(),
         );
 
-        let data = HandlePacket::default();
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
 
         let fake_handle = 0;
 
@@ -1742,20 +1773,37 @@ mod tests {
 
         let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
 
-        let res = ext
-            .context
-            .message_context
-            .payload_mut()
-            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
-        assert!(res.is_ok());
-
         let res = ext.send_push_input(handle, 2, 3);
         assert!(res.is_ok());
-
-        let res = ext.send_push_input(handle, 8, 10);
+        let res = ext.send_push_input(handle, 5, 1);
         assert!(res.is_ok());
 
-        let msg = ext.send_commit(handle, data, 0);
+        // Len too big
+        let res = ext.send_push_input(handle, 0, 7);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+        let res = ext.send_push_input(handle, 5, 2);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+
+        // Too big offset
+        let res = ext.send_push_input(handle, 6, 0);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceOffset
+            ))
+        );
+
+        let msg = ext.send_commit(handle, HandlePacket::default(), 0);
         assert!(msg.is_ok());
 
         let res = ext.send_push_input(handle, 0, 1);
@@ -1774,7 +1822,7 @@ mod tests {
             .map(|(dispatch, _, _)| dispatch)
             .expect("Send commit was ok");
 
-        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
     }
 
     #[test]
@@ -1889,9 +1937,33 @@ mod tests {
 
         let res = ext.reply_push_input(2, 3);
         assert!(res.is_ok());
-
-        let res = ext.reply_push_input(8, 10);
+        let res = ext.reply_push_input(5, 1);
         assert!(res.is_ok());
+
+        // Len too big
+        let res = ext.reply_push_input(0, 7);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+        let res = ext.reply_push_input(5, 2);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+
+        // Too big offset
+        let res = ext.reply_push_input(6, 0);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceOffset
+            ))
+        );
 
         let msg = ext.reply_commit(ReplyPacket::auto());
         assert!(msg.is_ok());
@@ -1912,7 +1984,7 @@ mod tests {
             .map(|(dispatch, _, _)| dispatch)
             .expect("Send commit was ok");
 
-        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
     }
 
     // TODO: fix me (issue #3881)
@@ -2181,5 +2253,107 @@ mod tests {
         let msg = ext.send_commit(handle, data, 0);
         // Sending value below ED is also fine
         assert!(msg.is_ok());
+    }
+
+    #[test]
+    fn test_unreserve_no_reimbursement() {
+        let costs = ExtCosts {
+            rent: RentCosts {
+                reservation: CostOf::new(10),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Create "pre-reservation".
+        let (id, gas_reservation_map) = {
+            let mut m = BTreeMap::new();
+            let id = ReservationId::generate(MessageId::new([5; 32]), 10);
+
+            m.insert(
+                id,
+                GasReservationSlot {
+                    amount: 1_000_000,
+                    start: 0,
+                    finish: 10,
+                },
+            );
+
+            (id, m)
+        };
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_existential_deposit(500)
+                .with_reservations_map(gas_reservation_map)
+                .with_costs(costs.clone())
+                .build(),
+        );
+
+        // Check all the reseravations are in "existing" state.
+        assert!(ext
+            .context
+            .gas_reserver
+            .states()
+            .iter()
+            .all(|(_, state)| matches!(state, GasReservationState::Exists { .. })));
+
+        // Unreserving existing and checking no gas reimbursed.
+        let gas_before = ext.gas_amount();
+        assert!(ext.unreserve_gas(id).is_ok());
+        let gas_after = ext.gas_amount();
+
+        assert_eq!(gas_after.left(), gas_before.left());
+    }
+
+    #[test]
+    fn test_unreserve_with_reimbursement() {
+        let costs = ExtCosts {
+            rent: RentCosts {
+                reservation: CostOf::new(10),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_existential_deposit(500)
+                .with_costs(costs.clone())
+                .build(),
+        );
+
+        // Define params
+        let reservation_amount = 1_000_000;
+        let duration = 10;
+        let duration_cost = costs
+            .rent
+            .reservation
+            .cost_for(ext.context.reserve_for.saturating_add(duration).into());
+        let reservation_total_cost = reservation_amount + duration_cost;
+
+        let gas_before_reservation = ext.gas_amount();
+        assert_eq!(gas_before_reservation.left(), u64::MAX);
+
+        let id = ext
+            .reserve_gas(reservation_amount, duration)
+            .expect("internal error: failed reservation");
+
+        let gas_after_reservation = ext.gas_amount();
+        assert_eq!(
+            gas_before_reservation.left(),
+            gas_after_reservation.left() + reservation_total_cost
+        );
+
+        assert!(ext.unreserve_gas(id).is_ok());
+
+        let gas_after_unreserve = ext.gas_amount();
+        assert_eq!(
+            gas_after_unreserve.left(),
+            gas_after_reservation.left() + reservation_total_cost
+        );
+        assert_eq!(gas_after_unreserve.left(), gas_before_reservation.left());
     }
 }

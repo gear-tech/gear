@@ -65,7 +65,7 @@ pub(crate) type ExeFiller = JoinFill<
     WalletFiller<EthereumWallet>,
 >;
 
-pub(crate) fn decode_log<E: SolEvent>(log: Log) -> Result<E> {
+pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
     E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
 }
 
@@ -312,9 +312,9 @@ impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
         let signature = self
             .signer
-            .raw_sign_digest(self.sender, hash.0)
+            .raw_sign_digest(self.sender, hash.0.into())
             .map_err(|err| SignerError::Other(err.into()))?;
-        Ok(Signature::try_from(&signature.0[..])?)
+        Ok(Signature::try_from(signature.as_ref())?)
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {

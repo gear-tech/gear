@@ -21,8 +21,8 @@
 use crate::GAS_MULTIPLIER;
 use gear_common::{
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
-    gas_provider::{ConsumeResultOf, GasNodeId, Provider, ReservableTree, Tree},
-    Gas, GasMultiplier, Origin,
+    gas_provider::{ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree},
+    Gas, GasMultiplier, LockId, Origin,
 };
 use gear_core::ids::{MessageId, ProgramId, ReservationId};
 
@@ -36,7 +36,7 @@ pub type OriginNodeDataOf = (
 type GasTree = <AuxiliaryGasProvider as Provider>::GasTree;
 
 /// Gas tree manager which operates under the hood over
-/// [`gear_common::AuxiliaryGasProvider`].
+/// [`gear_common::auxiliary::gas_provider::AuxiliaryGasProvider`].
 ///
 /// Manager is needed mainly to adapt arguments of the gas tree methods to the
 /// crate.
@@ -50,13 +50,18 @@ impl GasTreeManager {
         origin: ProgramId,
         mid: MessageId,
         amount: Gas,
+        is_reply: bool,
     ) -> Result<PositiveImbalance, GasTreeError> {
-        GasTree::create(
-            origin.cast(),
-            GAS_MULTIPLIER,
-            GasNodeId::from(mid.cast::<PlainNodeId>()),
-            amount,
-        )
+        if !is_reply || !self.exists_and_deposit(mid) {
+            GasTree::create(
+                origin.cast(),
+                GAS_MULTIPLIER,
+                GasNodeId::from(mid.cast::<PlainNodeId>()),
+                amount,
+            )
+        } else {
+            Ok(PositiveImbalance::new(0))
+        }
     }
 
     /// Adapted by argument types version of the gas tree `create_deposit`
@@ -79,7 +84,7 @@ impl GasTreeManager {
     pub(crate) fn split_with_value(
         &self,
         is_reply: bool,
-        original_mid: MessageId,
+        original_mid: impl Origin,
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
@@ -116,7 +121,7 @@ impl GasTreeManager {
     /// Adapted by argument types version of the gas tree `cut` method.
     pub(crate) fn cut(
         &self,
-        original_node: MessageId,
+        original_node: impl Origin,
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
@@ -128,7 +133,7 @@ impl GasTreeManager {
     }
 
     /// Adapted by argument types version of the gas tree `get_limit` method.
-    pub(crate) fn get_limit(&self, mid: MessageId) -> Result<Gas, GasTreeError> {
+    pub(crate) fn get_limit(&self, mid: impl Origin) -> Result<Gas, GasTreeError> {
         GasTree::get_limit(GasNodeId::from(mid.cast::<PlainNodeId>()))
     }
 
@@ -164,6 +169,10 @@ impl GasTreeManager {
         GasTree::exists(GasNodeId::from(node_id.cast::<PlainNodeId>()))
     }
 
+    pub(crate) fn exists_and_deposit(&self, node_id: impl Origin) -> bool {
+        GasTree::exists_and_deposit(GasNodeId::from(node_id.cast::<PlainNodeId>()))
+    }
+
     /// Adapted by argument types version of the gas tree `reset` method.
     ///
     /// *Note* Call with caution as it completely resets the storage.
@@ -174,15 +183,31 @@ impl GasTreeManager {
     /// Unreserve some value from underlying balance.
     ///
     /// Used in gas reservation for system signal.
-    pub(crate) fn system_unreserve(&self, key: MessageId) -> Result<Gas, GasTreeError> {
-        GasTree::system_unreserve(GasNodeId::from(key.cast::<PlainNodeId>()))
+    pub(crate) fn system_unreserve(&self, message_id: MessageId) -> Result<Gas, GasTreeError> {
+        GasTree::system_unreserve(GasNodeId::from(message_id.cast::<PlainNodeId>()))
     }
 
     /// Reserve some value from underlying balance.
     ///
     /// Used in gas reservation for system signal.
-    pub(crate) fn system_reserve(&self, key: MessageId, amount: Gas) -> Result<(), GasTreeError> {
-        GasTree::system_reserve(GasNodeId::from(key.cast::<PlainNodeId>()), amount)
+    pub(crate) fn system_reserve(
+        &self,
+        message_id: MessageId,
+        amount: Gas,
+    ) -> Result<(), GasTreeError> {
+        GasTree::system_reserve(GasNodeId::from(message_id.cast::<PlainNodeId>()), amount)
+    }
+
+    pub fn lock(&self, node_id: impl Origin, id: LockId, amount: Gas) -> Result<(), GasTreeError> {
+        GasTree::lock(GasNodeId::from(node_id.cast::<PlainNodeId>()), id, amount)
+    }
+
+    pub(crate) fn unlock_all(
+        &self,
+        message_id: impl Origin,
+        id: LockId,
+    ) -> Result<Gas, GasTreeError> {
+        GasTree::unlock_all(GasNodeId::from(message_id.cast::<PlainNodeId>()), id)
     }
 
     /// The id of node, external origin and funds multiplier for a key.
@@ -190,7 +215,10 @@ impl GasTreeManager {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    pub(crate) fn get_origin_node(&self, key: MessageId) -> Result<OriginNodeDataOf, GasTreeError> {
-        GasTree::get_origin_node(GasNodeId::from(key.cast::<PlainNodeId>()))
+    pub(crate) fn get_origin_node(
+        &self,
+        message_id: MessageId,
+    ) -> Result<OriginNodeDataOf, GasTreeError> {
+        GasTree::get_origin_node(GasNodeId::from(message_id.cast::<PlainNodeId>()))
     }
 }

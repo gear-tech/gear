@@ -102,8 +102,10 @@ fn process(syscall_kind: Kind) {
         }
         Kind::SendInput(gas_opt, expected_mid) => {
             let actual_mid_res = match gas_opt {
-                Some(gas) => msg::send_input_with_gas_delayed(msg::source(), gas, 0, .., 0),
-                None => msg::send_input_delayed(msg::source(), 0, .., 0),
+                Some(gas) => {
+                    msg::send_input_with_gas_delayed(msg::source(), gas, 0, ..msg::size(), 0)
+                }
+                None => msg::send_input_delayed(msg::source(), 0, ..msg::size(), 0),
             };
             assert_eq!(
                 Ok(expected_mid.into()),
@@ -120,7 +122,7 @@ fn process(syscall_kind: Kind) {
 
             // check handle
             handle
-                .push_input(0..)
+                .push_input(0..msg::size())
                 .expect("internal error: push_input failed");
 
             let actual_mid_res = handle.commit_delayed(msg::source(), 0, 0);
@@ -212,8 +214,8 @@ fn process(syscall_kind: Kind) {
         }
         Kind::ReplyInput(gas_opt, expected_mid) => {
             let actual_mid_res = match gas_opt {
-                Some(gas) => msg::reply_input_with_gas(gas, 0, ..),
-                None => msg::reply_input(0, ..),
+                Some(gas) => msg::reply_input_with_gas(gas, 0, ..msg::size()),
+                None => msg::reply_input(0, ..msg::size()),
             };
             assert_eq!(
                 Ok(expected_mid.into()),
@@ -222,7 +224,7 @@ fn process(syscall_kind: Kind) {
             );
         }
         Kind::ReplyPushInput(expected_mid) => {
-            msg::reply_push_input(..).expect("internal error: reply_push_input failed");
+            msg::reply_push_input(..msg::size()).expect("internal error: reply_push_input failed");
             let actual_mid_res = msg::reply_commit(0);
             assert_eq!(
                 Ok(expected_mid.into()),
