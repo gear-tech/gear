@@ -574,12 +574,6 @@ impl Service {
         })
     }
 
-<<<<<<< HEAD
-    #[cfg(test)]
-    /// Get the pointer of service status
-    pub fn status(&self) -> Arc<Mutex<Status>> {
-        self.status.clone()
-=======
     async fn post_process_commitments(
         code_commitments: Vec<CodeCommitment>,
         block_commitments: Vec<BlockCommitment>,
@@ -809,7 +803,12 @@ impl Service {
                 Ok(())
             }
         }
->>>>>>> master
+    }
+
+    #[cfg(test)]
+    /// Get the pointer of service status
+    pub fn status(&self) -> Arc<Mutex<Status>> {
+        self.status.clone()
     }
 }
 
