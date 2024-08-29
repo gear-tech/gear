@@ -294,4 +294,73 @@ impl ExtManager {
 
         Ok(message)
     }
+
+    pub(crate) fn send_reply_impl(
+        &mut self,
+        origin: ProgramId,
+        reply_to_id: MessageId,
+        raw_payload: impl AsRef<[u8]>,
+        value: Value,
+    ) -> Result<MessageId, MailboxErrorImpl> {
+        let payload = raw_payload
+            .as_ref()
+            .to_vec()
+            .try_into()
+            .unwrap_or_else(|err| unreachable!("Can't send reply with such payload: {err:?}"));
+
+        let mailboxed = self.read_mailbox_message(origin, reply_to_id)?;
+
+        let destination = mailboxed.source();
+
+        if !Actors::is_active_program(destination) {
+            unreachable!("Can't send reply to a non-active program {destination:?}");
+        }
+
+        let reply_id = MessageId::generate_reply(mailboxed.id());
+
+        // Set zero gas limit if reply deposit exists.
+        let gas_limit = if self.gas_tree.exists_and_deposit(reply_id) {
+            0
+        } else {
+            GAS_ALLOWANCE
+        };
+
+        self.bank.deposit_value(origin, value, false);
+        self.bank.deposit_gas(origin, gas_limit, false);
+
+        self.gas_tree
+            .create(origin, reply_id, gas_limit, true)
+            .unwrap();
+
+        let message = ReplyMessage::from_packet(
+            reply_id,
+            ReplyPacket::new_with_gas(payload, gas_limit, value),
+        );
+
+        let dispatch = message.into_stored_dispatch(origin, destination, mailboxed.id());
+
+        self.dispatches.push_back(dispatch);
+
+        Ok(reply_id)
+    }
+
+    pub(crate) fn claim_value_impl(
+        &mut self,
+        origin: ProgramId,
+        message_id: MessageId,
+    ) -> Result<(), MailboxErrorImpl> {
+        let mailboxed = self.read_mailbox_message(origin, message_id)?;
+
+        if Actors::is_active_program(mailboxed.source()) {
+            let message = ReplyMessage::auto(mailboxed.id());
+
+            self.gas_tree.create(origin, message.id(), 0, true).unwrap();
+
+            let dispatch = message.into_stored_dispatch(origin, mailboxed.source(), mailboxed.id());
+
+            self.dispatches.push_back(dispatch);
+        }
+
+        Ok(())
+    }
 }

@@ -16,17 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, Log, GAS_ALLOWANCE};
+use crate::{manager::ExtManager, Log, Value};
 use codec::Encode;
 use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
     storage::Interval,
 };
-use gear_core::{
-    ids::{prelude::MessageIdExt, MessageId, ProgramId},
-    message::{ReplyMessage, ReplyPacket},
-};
-use std::{cell::RefCell, convert::TryInto};
+use gear_core::ids::{MessageId, ProgramId};
+use std::cell::RefCell;
 
 /// Interface to a particular user mailbox.
 ///
@@ -56,7 +53,7 @@ impl<'a> ActorMailbox<'a> {
         &self,
         log: Log,
         payload: impl Encode,
-        value: u128,
+        value: Value,
     ) -> Result<MessageId, MailboxErrorImpl> {
         self.reply_bytes(log, payload.encode(), value)
     }
@@ -67,36 +64,18 @@ impl<'a> ActorMailbox<'a> {
         &self,
         log: Log,
         raw_payload: impl AsRef<[u8]>,
-        value: u128,
+        value: Value,
     ) -> Result<MessageId, MailboxErrorImpl> {
         let mailboxed_msg = self
             .find_message_by_log(&log)
             .ok_or(MailboxErrorImpl::ElementNotFound)?;
-        self.manager
-            .borrow()
-            .mailbox
-            .remove(self.user_id, mailboxed_msg.id())?;
 
-        let dispatch = {
-            let packet = ReplyPacket::new_with_gas(
-                raw_payload
-                    .as_ref()
-                    .to_vec()
-                    .try_into()
-                    .unwrap_or_else(|err| panic!("Can't send reply with such payload: {err:?}")),
-                GAS_ALLOWANCE,
-                value,
-            );
-            let reply_message =
-                ReplyMessage::from_packet(MessageId::generate_reply(mailboxed_msg.id()), packet);
-
-            reply_message.into_dispatch(self.user_id, mailboxed_msg.source(), mailboxed_msg.id())
-        };
-
-        Ok(self
-            .manager
-            .borrow_mut()
-            .validate_and_route_dispatch(dispatch))
+        self.manager.borrow_mut().send_reply_impl(
+            self.user_id,
+            mailboxed_msg.id(),
+            raw_payload,
+            value,
+        )
     }
 
     /// Claims value from a message in mailbox.
@@ -107,12 +86,10 @@ impl<'a> ActorMailbox<'a> {
         let mailboxed_msg = self
             .find_message_by_log(&log.into())
             .ok_or(MailboxErrorImpl::ElementNotFound)?;
+
         self.manager
             .borrow_mut()
-            .read_mailbox_message(self.user_id, mailboxed_msg.id())
-            .unwrap_or_else(|e| unreachable!("Unexpected mailbox error: {e:?}"));
-
-        Ok(())
+            .claim_value_impl(self.user_id, mailboxed_msg.id())
     }
 
     fn find_message_by_log(&self, log: &Log) -> Option<MailboxedMessage> {
