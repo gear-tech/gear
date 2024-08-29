@@ -5250,6 +5250,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
+ "indexmap 2.2.6",
  "log",
  "parity-scale-codec",
  "tokio",
@@ -5268,6 +5269,7 @@ dependencies = [
  "parity-scale-codec",
  "secp256k1 0.29.0",
  "sha3",
+ "tempfile",
 ]
 
 [[package]]
@@ -5290,7 +5292,7 @@ version = "1.5.0"
 dependencies = [
  "anyhow",
  "ethexe-common",
- "ethexe-network",
+ "ethexe-db",
  "ethexe-sequencer",
  "ethexe-signer",
  "futures",
@@ -5298,7 +5300,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "static_init",
- "tempfile",
 ]
 
 [[package]]

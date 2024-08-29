@@ -5,12 +5,15 @@ import {IMirrorProxy} from "./IMirrorProxy.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
+import {IMirrorDecoder} from "./IMirrorDecoder.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 // TODO: handle ETH sent in each contract.
 contract Mirror is IMirror {
     bytes32 public stateHash;
     // NOTE: Nonce 0 is used for init message in current implementation
-    uint256 public nonce; /* = 1*/
+    uint256 public nonce; /* = 1 */
+    address public decoder;
 
     /* Operational functions */
 
@@ -20,6 +23,7 @@ contract Mirror is IMirror {
 
     /* Primary Gear logic */
 
+    // TODO (breathx): sendMessage with msg.sender, but with tx.origin if decoder.
     function sendMessage(bytes calldata _payload, uint128 _value) external payable returns (bytes32) {
         uint128 baseFee = IRouter(router()).baseFee();
         _retrieveValueToRouter(baseFee + _value);
@@ -61,6 +65,21 @@ contract Mirror is IMirror {
 
     function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external onlyRouter {
         // TODO (breathx): handle if goes to mailbox or not. Send value in place or not.
+
+        if (decoder != address(0)) {
+            bytes memory callData =
+                abi.encodeWithSelector(IMirrorDecoder.onMessageSent.selector, id, destination, payload, value);
+
+            // Result is ignored here.
+            // TODO (breathx): make gas configurable?
+            (bool success,) = decoder.call{gas: 500_000}(callData);
+
+            if (success) {
+                // TODO (breathx): emit event with message hash?
+                return;
+            }
+        }
+
         emit Message(id, destination, payload, value);
     }
 
@@ -69,6 +88,21 @@ contract Mirror is IMirror {
         onlyRouter
     {
         _sendValueTo(destination, value);
+
+        if (decoder != address(0)) {
+            bytes memory callData = abi.encodeWithSelector(
+                IMirrorDecoder.onReplySent.selector, destination, payload, value, replyTo, replyCode
+            );
+
+            // Result is ignored here.
+            // TODO (breathx): make gas configurable?
+            (bool success,) = decoder.call{gas: 500_000}(callData);
+
+            if (success) {
+                // TODO (breathx): emit event with reply hash?
+                return;
+            }
+        }
 
         emit Reply(payload, value, replyTo, replyCode);
     }
@@ -83,10 +117,19 @@ contract Mirror is IMirror {
         _sendValueTo(router(), value);
     }
 
+    function createDecoder(address implementation, bytes32 salt) external onlyRouter {
+        require(nonce == 0, "decoder could only be created before init message");
+        require(decoder == address(0), "decoder could only be created once");
+
+        decoder = Clones.cloneDeterministic(implementation, salt);
+    }
+
     function initMessage(address source, bytes calldata payload, uint128 value, uint128 executableBalance)
         external
         onlyRouter
     {
+        require(nonce == 0, "init message must be created before any others");
+
         // @dev: charging at this point already made on router side.
         uint256 initNonce = nonce++;
         bytes32 id = keccak256(abi.encodePacked(address(this), initNonce));

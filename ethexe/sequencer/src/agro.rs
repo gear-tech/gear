@@ -18,207 +18,40 @@
 
 //! Abstract commitment aggregator.
 
-use anyhow::Result;
-use ethexe_common::router::{
-    BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition, ValueClaim,
-};
-use ethexe_signer::{hash, Address, PublicKey, Signature, Signer};
-use gprimitives::{MessageId, H256};
+use anyhow::{anyhow, Result};
+use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+use std::collections::BTreeMap;
 
-pub trait SeqHash {
-    fn hash(&self) -> H256;
-}
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct AggregatedCommitments<D: SeqHash> {
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+pub struct AggregatedCommitments<D: ToDigest> {
     pub commitments: Vec<D>,
     pub signature: Signature,
 }
 
-#[derive(Debug)]
-pub struct LinkedAggregation<D: SeqHash> {
-    pub aggregated: AggregatedCommitments<D>,
-    pub previous: Option<H256>,
-}
-
-#[derive(Debug)]
-pub struct AggregatedQueue<D: SeqHash> {
-    all_commitments: HashMap<H256, LinkedAggregation<D>>,
-    last: H256,
-}
-
-// TODO: REMOVE THIS IMPL. SeqHash makes sense only for `ethexe_ethereum` types.
-// identity hashing
-impl SeqHash for CodeCommitment {
-    fn hash(&self) -> H256 {
-        hash(&self.encode())
-    }
-}
-
-// TODO: REMOVE THIS IMPL. SeqHash makes sense only for `ethexe_ethereum` types.
-impl SeqHash for StateTransition {
-    fn hash(&self) -> H256 {
-        // State transition basic fields.
-
-        let state_transition_size = // concat of fields:
-            // actorId
-            size_of::<Address>()
-            // newStateHash
-            + size_of::<H256>()
-            // valueToReceive
-            + size_of::<u128>()
-            // hash(valueClaimsBytes)
-            + size_of::<H256>()
-            // hash(messagesHashesBytes)
-            + size_of::<H256>();
-
-        let mut state_transition_bytes = Vec::with_capacity(state_transition_size);
-
-        state_transition_bytes.extend_from_slice(self.actor_id.to_address_lossy().as_bytes());
-        state_transition_bytes.extend_from_slice(self.new_state_hash.as_bytes());
-        state_transition_bytes.extend_from_slice(self.value_to_receive.to_be_bytes().as_slice());
-
-        // TODO (breathx): consider SeqHash for ValueClaim, so hashing of inner fields.
-        // Value claims field.
-
-        let value_claim_size = // concat of fields:
-            // messageId
-            size_of::<MessageId>()
-            // destination
-            + size_of::<Address>()
-            // value
-            + size_of::<u128>();
-
-        let mut value_claims_bytes = Vec::with_capacity(self.value_claims.len() * value_claim_size);
-
-        for ValueClaim {
-            message_id,
-            destination,
-            value,
-        } in &self.value_claims
-        {
-            value_claims_bytes.extend_from_slice(message_id.as_ref());
-            value_claims_bytes.extend_from_slice(destination.to_address_lossy().as_bytes());
-            // TODO (breathx): double check if we should use BIG endian.
-            value_claims_bytes.extend_from_slice(value.to_be_bytes().as_slice())
-        }
-
-        let value_claims_hash = hash(&value_claims_bytes);
-        state_transition_bytes.extend_from_slice(value_claims_hash.as_bytes());
-
-        // Messages field.
-
-        let messages_hashes_hash = self.messages.hash();
-        state_transition_bytes.extend_from_slice(messages_hashes_hash.as_bytes());
-
-        hash(&state_transition_bytes)
-    }
-}
-
-impl SeqHash for OutgoingMessage {
-    fn hash(&self) -> H256 {
-        let message_size = // concat of fields:
-            // id
-            size_of::<MessageId>()
-            // destination
-            + size_of::<Address>()
-            // payload
-            + self.payload.len()
-            // value
-            + size_of::<u128>()
-            // replyDetails.to
-            + size_of::<MessageId>()
-            // replyDetails.code
-            + size_of::<[u8; 4]>();
-
-        let mut message = Vec::with_capacity(message_size);
-
-        message.extend_from_slice(self.id.as_ref());
-        message.extend_from_slice(self.destination.to_address_lossy().as_bytes());
-        message.extend_from_slice(&self.payload);
-        // TODO (breathx): double check big endian.
-        message.extend_from_slice(self.value.to_be_bytes().as_slice());
-
-        let (reply_details_to, reply_details_code) =
-            self.reply_details.unwrap_or_default().into_parts();
-
-        message.extend_from_slice(reply_details_to.as_ref());
-        message.extend_from_slice(reply_details_code.to_bytes().as_slice());
-
-        hash(&message)
-    }
-}
-
-impl SeqHash for BlockCommitment {
-    fn hash(&self) -> H256 {
-        let block_commitment_size = // concat of fields:
-            // blockHash
-            size_of::<H256>()
-            // prevCommitmentHash
-            + size_of::<H256>()
-            // predBlockHash
-            + size_of::<H256>()
-            // hash(transitionsHashesBytes)
-            + size_of::<H256>();
-
-        let mut block_commitment_bytes = Vec::with_capacity(block_commitment_size);
-
-        block_commitment_bytes.extend_from_slice(self.block_hash.as_bytes());
-        block_commitment_bytes.extend_from_slice(self.prev_commitment_hash.as_bytes());
-        block_commitment_bytes.extend_from_slice(self.pred_block_hash.as_bytes());
-        block_commitment_bytes.extend_from_slice(self.transitions.hash().as_bytes());
-
-        hash(&block_commitment_bytes)
-    }
-}
-
-impl<D: SeqHash> AggregatedCommitments<D> {
-    pub fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        for commitment in &self.commitments {
-            array.extend_from_slice(commitment.hash().as_ref());
-        }
-        hash(&array)
-    }
-}
-
-impl<T: SeqHash> SeqHash for Vec<T> {
-    fn hash(&self) -> H256 {
-        let mut array = Vec::new();
-        for commitment in self {
-            array.extend_from_slice(commitment.hash().as_ref());
-        }
-        hash(&array)
-    }
-}
-
-impl<T: SeqHash> AggregatedCommitments<T> {
+impl<T: ToDigest> AggregatedCommitments<T> {
     pub fn aggregate_commitments(
         commitments: Vec<T>,
         signer: &Signer,
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
-        let mut aggregated = AggregatedCommitments {
+        let signature =
+            sign_commitments_digest(commitments.to_digest(), signer, pub_key, router_address)?;
+
+        Ok(AggregatedCommitments {
             commitments,
-            signature: Signature::default(),
-        };
+            signature,
+        })
+    }
 
-        let buffer = [
-            [0x19, 0x00].as_ref(),
-            router_address.0.as_ref(),
-            aggregated.commitments.hash().as_ref(),
-        ]
-        .concat();
-
-        aggregated.signature = signer.sign_digest(pub_key, hash(&buffer).to_fixed_bytes())?;
-
-        Ok(aggregated)
+    pub fn recover(&self, router_address: Address) -> Result<Address> {
+        recover_from_commitments_digest(
+            self.commitments.to_digest(),
+            &self.signature,
+            router_address,
+        )
     }
 
     pub fn len(&self) -> usize {
@@ -230,278 +63,245 @@ impl<T: SeqHash> AggregatedCommitments<T> {
     }
 }
 
-impl<D: SeqHash> AggregatedQueue<D> {
-    pub fn new(initial: AggregatedCommitments<D>) -> Self {
-        let hash = initial.hash();
-        let mut all_commitments = HashMap::new();
-        all_commitments.insert(
-            hash,
-            LinkedAggregation {
-                aggregated: initial,
-                previous: None,
-            },
-        );
+pub(crate) struct MultisignedCommitmentDigests {
+    digest: Digest,
+    digests: IndexSet<Digest>,
+    signatures: BTreeMap<Address, Signature>,
+}
+
+impl MultisignedCommitmentDigests {
+    pub fn new(digests: IndexSet<Digest>) -> Result<Self> {
+        if digests.is_empty() {
+            return Err(anyhow!("Empty commitments digests"));
+        }
+
+        Ok(Self {
+            digest: digests.iter().collect(),
+            digests,
+            signatures: BTreeMap::new(),
+        })
+    }
+
+    pub fn append_signature_with_check(
+        &mut self,
+        digest: Digest,
+        signature: Signature,
+        router_address: Address,
+        check_origin: impl FnOnce(Address) -> Result<()>,
+    ) -> Result<()> {
+        if self.digest != digest {
+            return Err(anyhow!("Aggregated commitments digest mismatch"));
+        }
+
+        let origin = recover_from_commitments_digest(digest, &signature, router_address)?;
+        check_origin(origin)?;
+
+        self.signatures.insert(origin, signature);
+
+        Ok(())
+    }
+
+    pub fn digests(&self) -> &IndexSet<Digest> {
+        &self.digests
+    }
+
+    pub fn signatures(&self) -> &BTreeMap<Address, Signature> {
+        &self.signatures
+    }
+}
+
+pub(crate) struct MultisignedCommitments<C: ToDigest> {
+    commitments: Vec<C>,
+    signatures: BTreeMap<Address, Signature>,
+}
+
+impl<C: ToDigest> MultisignedCommitments<C> {
+    pub fn from_multisigned_digests(
+        multisigned: MultisignedCommitmentDigests,
+        get_commitment: impl FnMut(Digest) -> C,
+    ) -> Self {
+        let MultisignedCommitmentDigests {
+            digests,
+            signatures,
+            ..
+        } = multisigned;
+
         Self {
-            all_commitments,
-            last: hash,
+            commitments: digests.into_iter().map(get_commitment).collect(),
+            signatures,
         }
     }
 
-    pub fn push(&mut self, commitment: AggregatedCommitments<D>) {
-        let hash = commitment.hash();
-
-        let new_queue = LinkedAggregation {
-            aggregated: commitment,
-            previous: Some(self.last),
-        };
-        self.last = hash;
-
-        self.all_commitments.insert(hash, new_queue);
+    pub fn commitments(&self) -> &[C] {
+        &self.commitments
     }
 
-    pub fn get_signature(&self, commitment: H256) -> Option<Signature> {
-        self.all_commitments
-            .get(&commitment)
-            .map(|c| c.aggregated.signature.clone())
-    }
-
-    pub fn previous(&self, commitment: H256) -> Option<H256> {
-        self.all_commitments
-            .get(&commitment)
-            .and_then(|c| c.previous)
+    pub fn into_parts(self) -> (Vec<C>, BTreeMap<Address, Signature>) {
+        (self.commitments, self.signatures)
     }
 }
 
-#[derive(Clone)]
-pub struct MultisignedCommitments<D> {
-    pub commitments: Vec<D>,
-    pub sources: Vec<Address>,
-    pub signatures: Vec<Signature>,
+pub fn sign_commitments_digest(
+    commitments_digest: Digest,
+    signer: &Signer,
+    pub_key: PublicKey,
+    router_address: Address,
+) -> Result<Signature> {
+    let digest = to_router_digest(commitments_digest, router_address);
+    signer.sign_digest(pub_key, digest)
 }
 
-impl<D: fmt::Debug> fmt::Debug for MultisignedCommitments<D> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "MultisignedCommitments {{ commitments: {:?}, sources: {:?}, signatures: {:?} }}",
-            self.commitments, self.sources, self.signatures
-        )
-    }
+fn recover_from_commitments_digest(
+    commitments_digest: Digest,
+    signature: &Signature,
+    router_address: Address,
+) -> Result<Address> {
+    signature
+        .recover_from_digest(to_router_digest(commitments_digest, router_address))
+        .map(|k| k.to_address())
 }
 
-pub struct Aggregator<D: SeqHash + Clone> {
-    threshold: usize,
-
-    aggregated: HashMap<Address, AggregatedQueue<D>>,
-    plain_commitments: HashMap<H256, Vec<D>>,
-
-    rolling: Option<H256>,
-}
-
-impl<D: SeqHash + Clone> Aggregator<D> {
-    pub fn new(threshold: usize) -> Self {
-        Self {
-            threshold,
-            aggregated: HashMap::new(),
-            plain_commitments: HashMap::new(),
-            rolling: None,
-        }
-    }
-
-    pub fn push(&mut self, origin: Address, aggregated: AggregatedCommitments<D>) {
-        let hash = aggregated.hash();
-
-        self.plain_commitments
-            .insert(hash, aggregated.commitments.clone());
-
-        self.aggregated
-            .entry(origin)
-            .and_modify(|q| {
-                q.push(aggregated.clone());
-            })
-            .or_insert_with(move || AggregatedQueue::new(aggregated));
-
-        self.rolling = Some(hash);
-    }
-
-    pub fn len(&self) -> usize {
-        self.aggregated.len()
-    }
-
-    pub fn find_root(self) -> Option<MultisignedCommitments<D>> {
-        use std::collections::VecDeque;
-
-        // Start only with the root
-        let mut candidates = VecDeque::new();
-        let mut checked = HashSet::new();
-        candidates.push_back(self.rolling?);
-        checked.insert(self.rolling?);
-
-        while let Some(candidate_hash) = candidates.pop_front() {
-            // check if we can find `threshold` amount of this `candidate_hash`
-            let mut sources = vec![];
-            let mut signatures = vec![];
-
-            for (source, queue) in self.aggregated.iter() {
-                if let Some(signature) = queue.get_signature(candidate_hash) {
-                    sources.push(*source);
-                    signatures.push(signature.clone());
-                }
-            }
-
-            if signatures.len() >= self.threshold {
-                // found our candidate
-                let plain_commitments = self.plain_commitments.get(&candidate_hash)
-                    .expect("Plain commitments should be present, as they are always updated when Aggregator::push is invoked; qed");
-
-                let multi_signed = MultisignedCommitments {
-                    commitments: plain_commitments.clone(),
-                    sources,
-                    signatures,
-                };
-
-                return Some(multi_signed);
-            }
-
-            // else we try to find as many candidates as possible
-            for queue in self.aggregated.values() {
-                if let Some(previous) = queue.previous(candidate_hash) {
-                    if checked.contains(&previous) {
-                        continue;
-                    }
-                    candidates.push_back(previous);
-                    checked.insert(previous);
-                }
-            }
-        }
-
-        None
-    }
+fn to_router_digest(commitments_digest: Digest, router_address: Address) -> Digest {
+    // See explanation: https://eips.ethereum.org/EIPS/eip-191
+    [
+        [0x19, 0x00].as_ref(),
+        router_address.0.as_ref(),
+        commitments_digest.as_ref(),
+    ]
+    .concat()
+    .to_digest()
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
-    use ethexe_signer::{Address, Signature};
-    use gear_core::ids::ActorId;
+    use ethexe_signer::{
+        sha3::{Digest as _, Keccak256},
+        PrivateKey,
+    };
+    use std::str::FromStr;
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MyComm([u8; 2]);
 
-    impl SeqHash for MyComm {
-        fn hash(&self) -> H256 {
-            hash(&self.0[..])
+    impl ToDigest for MyComm {
+        fn update_hasher(&self, hasher: &mut Keccak256) {
+            hasher.update(self.0);
         }
     }
 
-    fn signer(id: u8) -> Address {
-        let mut array = [0; 20];
-        array[0] = id;
-        Address(array)
+    #[test]
+    fn test_sign_digest() {
+        let signer = Signer::tmp();
+
+        let private_key = PrivateKey::from_str(
+            "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
+        )
+        .unwrap();
+        let pub_key = signer.add_key(private_key).unwrap();
+
+        let router_address = Address([0x01; 20]);
+        let commitments = [MyComm([1, 2]), MyComm([3, 4])];
+
+        let commitments_digest = commitments.to_digest();
+        let signature =
+            sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
+        let recovered =
+            recover_from_commitments_digest(commitments_digest, &signature, router_address)
+                .unwrap();
+
+        assert_eq!(recovered, pub_key.to_address());
     }
 
-    fn signature(id: u8) -> Signature {
-        let mut array = [0; 65];
-        array[0] = id;
-        Signature::from(array)
+    #[test]
+    fn test_aggregated_commitments() {
+        let signer = Signer::tmp();
+
+        let private_key = PrivateKey::from_str(
+            "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
+        )
+        .unwrap();
+        let pub_key = signer.add_key(private_key).unwrap();
+
+        let router_address = Address([0x01; 20]);
+        let commitments = vec![MyComm([1, 2]), MyComm([3, 4])];
+
+        let agg = AggregatedCommitments::aggregate_commitments(
+            commitments,
+            &signer,
+            pub_key,
+            router_address,
+        )
+        .unwrap();
+        let recovered = agg.recover(router_address).unwrap();
+
+        assert_eq!(recovered, pub_key.to_address());
     }
 
-    #[allow(unused)]
-    fn block_hash(id: u8) -> H256 {
-        let mut array = [0; 32];
-        array[0] = id;
-        H256::from(array)
+    #[test]
+    fn test_multisigned_commitment_digests() {
+        let signer = Signer::tmp();
+
+        let private_key = PrivateKey([1; 32]);
+        let pub_key = signer.add_key(private_key).unwrap();
+
+        let router_address = Address([0x01; 20]);
+        let commitments = [MyComm([1, 2]), MyComm([3, 4])];
+        let digests: IndexSet<_> = commitments.map(|c| c.to_digest()).into_iter().collect();
+
+        let mut multisigned = MultisignedCommitmentDigests::new(digests.clone()).unwrap();
+        assert_eq!(multisigned.digests(), &digests);
+        assert_eq!(multisigned.signatures().len(), 0);
+
+        let commitments_digest = commitments.to_digest();
+        let signature =
+            sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
+
+        multisigned
+            .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
+            .unwrap();
+        assert_eq!(multisigned.digests(), &digests);
+        assert_eq!(multisigned.signatures().len(), 1);
     }
 
-    #[allow(unused)]
-    fn pid(id: u8) -> ActorId {
-        let mut array = [0; 32];
-        array[0] = id;
-        ActorId::from(array)
-    }
+    #[test]
+    fn test_multisigned_commitments() {
+        let signer = Signer::tmp();
 
-    #[allow(unused)]
-    fn state_id(id: u8) -> H256 {
-        let mut array = [0; 32];
-        array[0] = id;
-        H256::from(array)
-    }
+        let private_key = PrivateKey([1; 32]);
+        let pub_key = signer.add_key(private_key).unwrap();
 
-    fn gen_commitment(
-        signature_id: u8,
-        commitments: Vec<(u8, u8)>,
-    ) -> AggregatedCommitments<MyComm> {
-        let commitments = commitments
+        let router_address = Address([1; 20]);
+        let commitments = [MyComm([1, 2]), MyComm([3, 4])];
+        let digests = commitments.map(|c| c.to_digest());
+        let mut commitments_map: BTreeMap<_, _> = commitments
             .into_iter()
-            .map(|v| MyComm([v.0, v.1]))
+            .map(|c| (c.to_digest(), c))
             .collect();
 
-        AggregatedCommitments {
-            commitments,
-            signature: signature(signature_id),
-        }
-    }
+        let mut multisigned =
+            MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
+        let commitments_digest = commitments.to_digest();
+        let signature =
+            sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 
-    #[test]
-    fn simple() {
-        // aggregator with threshold 1
-        let mut aggregator = Aggregator::new(1);
+        multisigned
+            .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
+            .unwrap();
 
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
+        let multisigned_commitments =
+            MultisignedCommitments::from_multisigned_digests(multisigned, |d| {
+                commitments_map.remove(&d).unwrap()
+            });
 
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
+        assert_eq!(multisigned_commitments.commitments(), commitments);
 
-        assert_eq!(root.signatures.len(), 1);
-        assert_eq!(root.commitments.len(), 1);
-
-        // aggregator with threshold 1
-        let mut aggregator = Aggregator::new(1);
-
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(1), gen_commitment(1, vec![(1, 1), (2, 2)]));
-
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
-
-        assert_eq!(root.signatures.len(), 1);
-
-        // should be latest commitment
-        assert_eq!(root.commitments.len(), 2);
-    }
-
-    #[test]
-    fn more_threshold() {
-        // aggregator with threshold 2
-        let mut aggregator = Aggregator::new(2);
-
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
-
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
-
-        assert_eq!(root.signatures.len(), 2);
-        assert_eq!(root.commitments.len(), 1); // only (1, 1) is committed by both aggregators
-
-        // aggregator with threshold 2
-        let mut aggregator = Aggregator::new(2);
-
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1)]));
-        aggregator.push(signer(2), gen_commitment(0, vec![(1, 1), (2, 2)]));
-        aggregator.push(signer(1), gen_commitment(0, vec![(1, 1), (2, 2)]));
-
-        let root = aggregator
-            .find_root()
-            .expect("Failed to generate root commitment");
-
-        assert_eq!(root.signatures.len(), 2);
-        assert_eq!(root.commitments.len(), 2); // both (1, 1) and (2, 2) is committed by both aggregators
+        let parts = multisigned_commitments.into_parts();
+        assert_eq!(parts.0.as_slice(), commitments.as_slice());
+        assert_eq!(parts.1.len(), 1);
+        parts.1.into_iter().for_each(|(k, v)| {
+            assert_eq!(k, pub_key.to_address());
+            assert_eq!(v, signature);
+        });
     }
 }

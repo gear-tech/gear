@@ -117,7 +117,7 @@ impl NetworkService {
 
 #[derive(Debug)]
 enum NetworkSenderEvent {
-    PublishCommitments { data: Vec<u8> },
+    PublishMessage { data: Vec<u8> },
     RequestDbData(db_sync::Request),
 }
 
@@ -132,10 +132,10 @@ impl NetworkSender {
         (Self { tx }, rx)
     }
 
-    pub fn publish_commitments(&self, data: impl Into<Vec<u8>>) {
+    pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
-            .send(NetworkSenderEvent::PublishCommitments { data: data.into() });
+            .send(NetworkSenderEvent::PublishMessage { data: data.into() });
     }
 
     pub fn request_db_data(&self, request: db_sync::Request) {
@@ -145,7 +145,7 @@ impl NetworkSender {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum NetworkReceiverEvent {
-    Commitments {
+    Message {
         source: Option<PeerId>,
         data: Vec<u8>,
     },
@@ -392,7 +392,7 @@ impl NetworkEventLoop {
             }) if gpu_commitments_topic().hash() == topic => {
                 let _res = self
                     .external_tx
-                    .send(NetworkReceiverEvent::Commitments { source, data });
+                    .send(NetworkReceiverEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
@@ -422,7 +422,7 @@ impl NetworkEventLoop {
 
     fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
         match event {
-            NetworkSenderEvent::PublishCommitments { data } => {
+            NetworkSenderEvent::PublishMessage { data } => {
                 if let Err(e) = self
                     .swarm
                     .behaviour_mut()
@@ -582,13 +582,13 @@ mod tests {
         // Send a commitment from service1
         let commitment_data = b"test commitment".to_vec();
 
-        sender.publish_commitments(commitment_data.clone());
+        sender.publish_message(commitment_data.clone());
 
         let mut receiver = service2.receiver;
 
         // Wait for the commitment to be received by service2
         let received_commitment = timeout(Duration::from_secs(5), async {
-            while let Some(NetworkReceiverEvent::Commitments { source: _, data }) =
+            while let Some(NetworkReceiverEvent::Message { source: _, data }) =
                 receiver.recv().await
             {
                 if data == commitment_data {
