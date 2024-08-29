@@ -330,7 +330,7 @@ impl ExtManager {
 
         self.gas_tree
             .create(origin, reply_id, gas_limit, true)
-            .unwrap();
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         let message = ReplyMessage::from_packet(
             reply_id,
@@ -354,7 +354,9 @@ impl ExtManager {
         if Actors::is_active_program(mailboxed.source()) {
             let message = ReplyMessage::auto(mailboxed.id());
 
-            self.gas_tree.create(origin, message.id(), 0, true).unwrap();
+            self.gas_tree
+                .create(origin, message.id(), 0, true)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             let dispatch = message.into_stored_dispatch(origin, mailboxed.source(), mailboxed.id());
 
