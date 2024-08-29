@@ -24,7 +24,7 @@ use alloy::{
     providers::{ext::AnvilApi, Provider},
     rpc::types::anvil::MineOptions,
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use ethexe_common::{
     db::CodesStorage, mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent,
 };
@@ -40,10 +40,7 @@ use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::{
-        mpsc::{self, Receiver},
-        oneshot,
-    },
+    sync::oneshot,
     task::{self, JoinHandle},
 };
 use utils::{Listener, TestEnv};
@@ -286,36 +283,37 @@ async fn async_ping() {
     ping.wait_for_program_creation(&mut env).await;
     ping.approve_wvara(&mut env).await;
 
+    let ping_id = ping.program_id.expect("Must be set");
+
     async_test
         .upload_code()
         .await
         .wait_for(&mut async_test)
         .await;
     async_test
-        .create_program(&mut env, ping.program_id.expect("Must be set"))
+        .create_program(ping_id)
         .await
         .wait_for(&mut async_test)
         .await;
-    async_test.approve_wvara(&mut env).await;
+    async_test.approve_wvara().await;
     async_test
-        .send_common(&mut env)
+        .send_common()
         .await
         .wait_for(&mut async_test)
         .await;
 }
 
 mod async_test {
-    use std::borrow::Borrow;
-
+    use super::*;
     use gear_core::message::{ReplyCode, SuccessReplyReason};
     use parity_scale_codec::Encode;
-
-    use super::*;
+    use std::borrow::Borrow;
 
     pub struct Test {
         listener: Listener,
         blob_reader: Arc<MockBlobReader>,
         ethereum: Ethereum,
+        sender_id: ActorId,
         pub code_id: Option<CodeId>,
         pub program_id: Option<ActorId>,
     }
@@ -326,6 +324,7 @@ mod async_test {
                 listener: env.new_listener().await,
                 blob_reader: env.blob_reader.clone(),
                 ethereum: env.ethereum.clone(),
+                sender_id: env.sender_id,
                 code_id: None,
                 program_id: None,
             }
@@ -347,11 +346,7 @@ mod async_test {
             WaitForUploadCode { code_id }
         }
 
-        pub async fn create_program(
-            &mut self,
-            env: &mut TestEnv,
-            ping_id: ActorId,
-        ) -> WaitForProgramCreation {
+        pub async fn create_program(&mut self, ping_id: ActorId) -> WaitForProgramCreation {
             assert!(
                 self.program_id.is_none(),
                 "Program has been already created"
@@ -360,7 +355,7 @@ mod async_test {
 
             log::info!("⏳ Create demo async program");
 
-            let (_, program_id) = env
+            let (_, program_id) = self
                 .ethereum
                 .router()
                 .create_program(code_id, H256::random(), ping_id.encode(), 0)
@@ -370,28 +365,28 @@ mod async_test {
             WaitForProgramCreation {
                 code_id,
                 program_id,
-                sender_id: env.sender_id,
+                sender_id: self.sender_id,
                 ping_id,
             }
         }
 
-        pub async fn approve_wvara(&mut self, env: &mut TestEnv) {
+        pub async fn approve_wvara(&mut self) {
             let program_id = self.program_id.expect("Program must be created first");
 
             log::info!("⏳ Approving WVara");
 
             let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-            let wvara = env.ethereum.router().wvara();
+            let wvara = self.ethereum.router().wvara();
             wvara.approve_all(program_address.0.into()).await.unwrap();
         }
 
-        pub async fn send_common(&mut self, env: &mut TestEnv) -> WaitForReplyTo {
+        pub async fn send_common(&mut self) -> WaitForReplyTo {
             let program_id = self.program_id.expect("Program must be created first");
 
             log::info!("⏳ Sending message `Common`");
 
             let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
-            let async_program = env.ethereum.mirror(program_address);
+            let async_program = self.ethereum.mirror(program_address);
 
             let (_, message_id) = async_program
                 .send_message(demo_async::Command::Common.encode(), 0)
@@ -658,16 +653,148 @@ mod ping {
 mod utils {
     use super::*;
     use gear_core::message::ReplyCode;
+    use tokio::sync::{broadcast::Sender, Mutex};
 
-    pub struct Listener {
-        receiver: Receiver<Event>,
-        router_query: RouterQuery,
+    pub struct TestEnv {
+        pub rpc_url: String,
+        pub wallets: AnvilWallets,
+        pub observer: Observer,
+        pub blob_reader: Arc<MockBlobReader>,
+        pub ethereum: Ethereum,
+        pub router_query: RouterQuery,
+        pub signer: Signer,
+        pub validators: Vec<ethexe_signer::PublicKey>,
+        pub router_address: ethexe_signer::Address,
+        pub sender_id: ActorId,
+        pub genesis_block_hash: H256,
+        pub threshold: u64,
+        pub block_time: Duration,
+
+        broadcaster: Broadcaster,
+        _anvil: Option<AnvilInstance>,
+    }
+
+    impl TestEnv {
+        pub async fn new(validators_amount: usize) -> Result<Self> {
+            let (rpc_url, anvil) = match std::env::var("__ETHEXE_CLI_TESTS_RPC_URL") {
+                Ok(rpc_url) => {
+                    log::info!("📍 Using provided RPC URL: {}", rpc_url);
+                    (rpc_url, None)
+                }
+                Err(_) => {
+                    let mut anvil = Anvil::new().try_spawn().unwrap();
+                    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+                    log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
+                    (anvil.ws_endpoint(), Some(anvil))
+                }
+            };
+
+            let signer = Signer::new(tempfile::tempdir()?.into_path())?;
+            let mut wallets = AnvilWallets::new(&signer);
+
+            let sender_address = wallets.next().to_address();
+            let validators: Vec<_> = (0..validators_amount)
+                .map(|_| signer.generate_key().unwrap())
+                .collect();
+
+            let ethereum = Ethereum::deploy(
+                &rpc_url,
+                validators.iter().map(|k| k.to_address()).collect(),
+                signer.clone(),
+                sender_address,
+            )
+            .await?;
+
+            let router = ethereum.router();
+            let router_query = router.query();
+            let router_address = router.address();
+
+            let block_time = Duration::from_secs(1);
+
+            let blob_reader = Arc::new(MockBlobReader::new(block_time));
+
+            let observer = Observer::new(&rpc_url, router_address, blob_reader.clone())
+                .await
+                .expect("failed to create observer");
+
+            let broadcaster = Broadcaster::new(observer.clone()).await;
+
+            let genesis_block_hash = router_query.genesis_block_hash().await?;
+            let threshold = router_query.threshold().await?;
+
+            Ok(TestEnv {
+                rpc_url,
+                wallets,
+                observer,
+                blob_reader,
+                ethereum,
+                router_query,
+                signer,
+                validators,
+                router_address,
+                sender_id: ActorId::from(H160::from(sender_address.0)),
+                genesis_block_hash,
+                threshold,
+                block_time,
+                broadcaster,
+                _anvil: anvil,
+            })
+        }
+
+        pub fn create_node(&self, db: Option<Database>) -> Node {
+            Node {
+                db: db.unwrap_or_else(|| {
+                    Database::from_one(&MemDb::default(), self.router_address.0)
+                }),
+                rpc_url: self.rpc_url.clone(),
+                genesis_block_hash: self.genesis_block_hash,
+                blob_reader: self.blob_reader.clone(),
+                observer: self.observer.clone(),
+                signer: self.signer.clone(),
+                block_time: self.block_time,
+                validators: self.validators.iter().map(|k| k.to_address()).collect(),
+                threshold: self.threshold,
+                router_address: self.router_address,
+                running_service_handle: None,
+                multiaddr: None,
+            }
+        }
+
+        pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
+            log::info!("📗 Uploading code len {}", code.len());
+            let code_id = CodeId::generate(code);
+            let blob_tx = H256::random();
+
+            self.blob_reader
+                .add_blob_transaction(blob_tx, code.to_vec())
+                .await;
+            let tx_hash = self
+                .ethereum
+                .router()
+                .request_code_validation(code_id, blob_tx)
+                .await?;
+
+            Ok((tx_hash, code_id))
+        }
+
+        pub async fn new_listener(&self) -> Listener {
+            Listener {
+                receiver: self.broadcaster.sender.lock().await.subscribe(),
+                router_query: self.router_query.clone(),
+            }
+        }
+    }
+
+    struct Broadcaster {
+        sender: Arc<Mutex<Sender<Event>>>,
         _handle: JoinHandle<()>,
     }
 
-    impl Listener {
-        pub async fn new(mut observer: Observer, router_query: RouterQuery) -> Self {
-            let (sender, receiver) = mpsc::channel::<Event>(1024);
+    impl Broadcaster {
+        async fn new(mut observer: Observer) -> Self {
+            let (sender, _) = tokio::sync::broadcast::channel::<Event>(1024);
+            let sender = Arc::new(Mutex::new(sender));
+            let cloned_sender = sender.clone();
 
             let (send_subscription_created, receive_subscription_created) =
                 oneshot::channel::<()>();
@@ -678,20 +805,23 @@ mod utils {
                 send_subscription_created.send(()).unwrap();
 
                 while let Some(event) = observer_events.next().await {
-                    sender.send(event).await.unwrap();
+                    cloned_sender.lock().await.send(event).unwrap();
                 }
             });
             receive_subscription_created.await.unwrap();
 
-            Self {
-                receiver,
-                router_query,
-                _handle,
-            }
+            Self { sender, _handle }
         }
+    }
 
+    pub struct Listener {
+        receiver: tokio::sync::broadcast::Receiver<Event>,
+        router_query: RouterQuery,
+    }
+
+    impl Listener {
         pub async fn next_event(&mut self) -> Result<Event> {
-            self.receiver.recv().await.ok_or(anyhow!("No more events"))
+            self.receiver.recv().await.map_err(Into::into)
         }
 
         pub async fn apply_until<R: Sized>(
@@ -893,129 +1023,6 @@ mod utils {
             let pub_key = self.wallets.get(self.next_wallet).expect("No more wallets");
             self.next_wallet += 1;
             *pub_key
-        }
-    }
-
-    pub struct TestEnv {
-        pub rpc_url: String,
-        pub wallets: AnvilWallets,
-        pub observer: Observer,
-        pub blob_reader: Arc<MockBlobReader>,
-        pub ethereum: Ethereum,
-        pub router_query: RouterQuery,
-        pub signer: Signer,
-        pub validators: Vec<ethexe_signer::PublicKey>,
-        pub router_address: ethexe_signer::Address,
-        pub sender_id: ActorId,
-        pub genesis_block_hash: H256,
-        pub threshold: u64,
-        pub block_time: Duration,
-
-        _anvil: Option<AnvilInstance>,
-    }
-
-    impl TestEnv {
-        pub async fn new(validators_amount: usize) -> Result<Self> {
-            let (rpc_url, anvil) = match std::env::var("__ETHEXE_CLI_TESTS_RPC_URL") {
-                Ok(rpc_url) => {
-                    log::info!("📍 Using provided RPC URL: {}", rpc_url);
-                    (rpc_url, None)
-                }
-                Err(_) => {
-                    let mut anvil = Anvil::new().try_spawn().unwrap();
-                    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
-                    log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
-                    (anvil.ws_endpoint(), Some(anvil))
-                }
-            };
-
-            let signer = Signer::new(tempfile::tempdir()?.into_path())?;
-            let mut wallets = AnvilWallets::new(&signer);
-
-            let sender_address = wallets.next().to_address();
-            let validators: Vec<_> = (0..validators_amount)
-                .map(|_| signer.generate_key().unwrap())
-                .collect();
-
-            let ethereum = Ethereum::deploy(
-                &rpc_url,
-                validators.iter().map(|k| k.to_address()).collect(),
-                signer.clone(),
-                sender_address,
-            )
-            .await?;
-
-            let router = ethereum.router();
-            let router_query = router.query();
-            let router_address = router.address();
-
-            let block_time = Duration::from_secs(1);
-
-            let blob_reader = Arc::new(MockBlobReader::new(block_time));
-
-            let observer = Observer::new(&rpc_url, router_address, blob_reader.clone())
-                .await
-                .expect("failed to create observer");
-
-            let genesis_block_hash = router_query.genesis_block_hash().await?;
-            let threshold = router_query.threshold().await?;
-
-            Ok(TestEnv {
-                _anvil: anvil,
-                rpc_url,
-                wallets,
-                observer,
-                blob_reader,
-                ethereum,
-                router_query,
-                signer,
-                validators,
-                router_address,
-                sender_id: ActorId::from(H160::from(sender_address.0)),
-                genesis_block_hash,
-                threshold,
-                block_time,
-            })
-        }
-
-        pub fn create_node(&self, db: Option<Database>) -> Node {
-            Node {
-                db: db.unwrap_or_else(|| {
-                    Database::from_one(&MemDb::default(), self.router_address.0)
-                }),
-                rpc_url: self.rpc_url.clone(),
-                genesis_block_hash: self.genesis_block_hash,
-                blob_reader: self.blob_reader.clone(),
-                observer: self.observer.clone(),
-                signer: self.signer.clone(),
-                block_time: self.block_time,
-                validators: self.validators.iter().map(|k| k.to_address()).collect(),
-                threshold: self.threshold,
-                router_address: self.router_address,
-                running_service_handle: None,
-                multiaddr: None,
-            }
-        }
-
-        pub async fn upload_code(&self, code: &[u8]) -> Result<(H256, CodeId)> {
-            log::info!("📗 Uploading code len {}", code.len());
-            let code_id = CodeId::generate(code);
-            let blob_tx = H256::random();
-
-            self.blob_reader
-                .add_blob_transaction(blob_tx, code.to_vec())
-                .await;
-            let tx_hash = self
-                .ethereum
-                .router()
-                .request_code_validation(code_id, blob_tx)
-                .await?;
-
-            Ok((tx_hash, code_id))
-        }
-
-        pub async fn new_listener(&self) -> Listener {
-            Listener::new(self.observer.clone(), self.router_query.clone()).await
         }
     }
 
