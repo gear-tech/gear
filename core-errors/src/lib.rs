@@ -162,6 +162,16 @@ pub enum MessageError {
     #[display(fmt = "Outgoing messages bytes limit exceeded")]
     OutgoingMessagesBytesLimitExceeded = 311,
 
+    /// The error occurs when a wrong offset of the input buffer (currently executing message payload)
+    /// is provided.
+    #[display(fmt = "Offset value for the input payload is out of it's size bounds")]
+    OutOfBoundsInputSliceOffset = 312,
+
+    /// The error occurs when a too big length value to form a slice (range) of the input buffer
+    /// (currently executing message payload) is provided.
+    #[display(fmt = "Too big length value is set to form a slice (range) of the input buffer")]
+    OutOfBoundsInputSliceLength = 313,
+
     // TODO: remove after delay refactoring is done
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
@@ -268,6 +278,8 @@ impl ExtError {
             309 => Some(MessageError::DuplicateReplyDeposit.into()),
             310 => Some(MessageError::IncorrectMessageForReplyDeposit.into()),
             311 => Some(MessageError::OutgoingMessagesBytesLimitExceeded.into()),
+            312 => Some(MessageError::OutOfBoundsInputSliceOffset.into()),
+            313 => Some(MessageError::OutOfBoundsInputSliceLength.into()),
             399 => Some(MessageError::InsufficientGasForDelayedSending.into()),
             //
             500 => Some(ReservationError::InvalidReservationId.into()),

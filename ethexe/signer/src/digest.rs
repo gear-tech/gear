@@ -88,6 +88,20 @@ impl<'a, T: ToDigest> FromIterator<&'a T> for Digest {
     }
 }
 
+impl<T: ToDigest> ToDigest for [T] {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        for item in self {
+            hasher.update(item.to_digest().as_ref());
+        }
+    }
+}
+
+impl<T: ToDigest> ToDigest for Vec<T> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        self.as_slice().update_hasher(hasher);
+    }
+}
+
 impl ToDigest for [u8] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self);
@@ -114,7 +128,7 @@ impl ToDigest for StateTransition {
         }
         hasher.update(value_hasher.finalize().as_slice());
 
-        hasher.update(self.messages.iter().collect::<Digest>().as_ref());
+        hasher.update(self.messages.to_digest().as_ref());
     }
 }
 
@@ -137,7 +151,7 @@ impl ToDigest for BlockCommitment {
         hasher.update(self.block_hash.as_bytes());
         hasher.update(self.prev_commitment_hash.as_bytes());
         hasher.update(self.pred_block_hash.as_bytes());
-        hasher.update(self.transitions.iter().collect::<Digest>().as_ref());
+        hasher.update(self.transitions.to_digest().as_ref());
     }
 }
 

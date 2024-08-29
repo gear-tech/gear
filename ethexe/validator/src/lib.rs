@@ -51,7 +51,7 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
             block_hash: commitment.block_hash,
             prev_commitment_hash: commitment.prev_commitment_hash,
             pred_block_hash: commitment.pred_block_hash,
-            transitions_digest: commitment.transitions.iter().collect(),
+            transitions_digest: commitment.transitions.to_digest(),
         }
     }
 }
@@ -309,7 +309,7 @@ mod tests {
         let pred_block_hash = H256::random();
         let prev_commitment_hash = H256::random();
         let transitions = vec![];
-        let transitions_digest = transitions.iter().collect();
+        let transitions_digest = transitions.to_digest();
 
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);

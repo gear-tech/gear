@@ -13531,20 +13531,6 @@ fn relay_messages() {
                 payload: vec![],
             },
         ),
-        (
-            RelayCall::ResendPush(vec![
-                // invalid range
-                ResendPushData {
-                    destination: USER_3.into(),
-                    start: Some(payload.len() as u32),
-                    end: Some((0, false)),
-                },
-            ]),
-            Expected {
-                user: USER_3,
-                payload: vec![],
-            },
-        ),
     ];
 
     for (call, expectation) in pairs {

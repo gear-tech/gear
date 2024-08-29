@@ -37,12 +37,8 @@ impl<T: ToDigest> AggregatedCommitments<T> {
         pub_key: PublicKey,
         router_address: Address,
     ) -> Result<AggregatedCommitments<T>> {
-        let signature = sign_commitments_digest(
-            commitments.iter().collect(),
-            signer,
-            pub_key,
-            router_address,
-        )?;
+        let signature =
+            sign_commitments_digest(commitments.to_digest(), signer, pub_key, router_address)?;
 
         Ok(AggregatedCommitments {
             commitments,
@@ -52,7 +48,7 @@ impl<T: ToDigest> AggregatedCommitments<T> {
 
     pub fn recover(&self, router_address: Address) -> Result<Address> {
         recover_from_commitments_digest(
-            self.commitments.iter().collect(),
+            self.commitments.to_digest(),
             &self.signature,
             router_address,
         )
@@ -207,7 +203,7 @@ mod tests {
         let router_address = Address([0x01; 20]);
         let commitments = [MyComm([1, 2]), MyComm([3, 4])];
 
-        let commitments_digest = commitments.iter().collect();
+        let commitments_digest = commitments.to_digest();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
         let recovered =
@@ -257,7 +253,7 @@ mod tests {
         assert_eq!(multisigned.digests(), &digests);
         assert_eq!(multisigned.signatures().len(), 0);
 
-        let commitments_digest = commitments.iter().collect();
+        let commitments_digest = commitments.to_digest();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 
@@ -285,7 +281,7 @@ mod tests {
 
         let mut multisigned =
             MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
-        let commitments_digest = commitments.iter().collect();
+        let commitments_digest = commitments.to_digest();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 

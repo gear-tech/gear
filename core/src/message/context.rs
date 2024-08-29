@@ -428,24 +428,27 @@ impl MessageContext {
     /// limits. Result `CheckedRange` instance is accepted by
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
-    pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
+    pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
         let input = self.current.payload_bytes();
         let offset = offset as usize;
+        let len = len as usize;
+
+        // Check `offset` is not out of bounds.
         if offset >= input.len() {
-            return CheckedRange {
-                offset: 0,
-                excluded_end: 0,
-            };
+            return Err(Error::OutOfBoundsInputSliceOffset);
         }
 
-        CheckedRange {
-            offset,
-            excluded_end: if len == 0 {
-                offset
-            } else {
-                offset.saturating_add(len as usize).min(input.len())
-            },
+        // Check `len` for the current `offset` doesn't refer to the slice out of intput bounds.
+        let available_len = input.len() - offset;
+        if len > available_len {
+            return Err(Error::OutOfBoundsInputSliceLength);
         }
+
+        Ok(CheckedRange {
+            offset,
+            // guaranteed to be `<= input.len()`, because of the check upper
+            excluded_end: offset.saturating_add(len),
+        })
     }
 
     /// Send reply message.

@@ -68,6 +68,7 @@ impl AuxiliaryDoubleStorageWrap for WaitlistStorageWrap {
 }
 
 /// An implementor of the error returned from calling `Waitlist` trait functions
+#[derive(Debug)]
 pub enum WaitlistErrorImpl {
     DuplicateKey,
     ElementNotFound,

@@ -183,23 +183,31 @@ impl GasTreeManager {
     /// Unreserve some value from underlying balance.
     ///
     /// Used in gas reservation for system signal.
-    pub(crate) fn system_unreserve(&self, key: MessageId) -> Result<Gas, GasTreeError> {
-        GasTree::system_unreserve(GasNodeId::from(key.cast::<PlainNodeId>()))
+    pub(crate) fn system_unreserve(&self, message_id: MessageId) -> Result<Gas, GasTreeError> {
+        GasTree::system_unreserve(GasNodeId::from(message_id.cast::<PlainNodeId>()))
     }
 
     /// Reserve some value from underlying balance.
     ///
     /// Used in gas reservation for system signal.
-    pub(crate) fn system_reserve(&self, key: MessageId, amount: Gas) -> Result<(), GasTreeError> {
-        GasTree::system_reserve(GasNodeId::from(key.cast::<PlainNodeId>()), amount)
+    pub(crate) fn system_reserve(
+        &self,
+        message_id: MessageId,
+        amount: Gas,
+    ) -> Result<(), GasTreeError> {
+        GasTree::system_reserve(GasNodeId::from(message_id.cast::<PlainNodeId>()), amount)
     }
 
-    pub fn lock(&self, key: MessageId, id: LockId, amount: Gas) -> Result<(), GasTreeError> {
-        GasTree::lock(GasNodeId::from(key.cast::<PlainNodeId>()), id, amount)
+    pub fn lock(&self, node_id: impl Origin, id: LockId, amount: Gas) -> Result<(), GasTreeError> {
+        GasTree::lock(GasNodeId::from(node_id.cast::<PlainNodeId>()), id, amount)
     }
 
-    pub(crate) fn unlock_all(&self, key: impl Origin, id: LockId) -> Result<Gas, GasTreeError> {
-        GasTree::unlock_all(GasNodeId::from(key.cast::<PlainNodeId>()), id)
+    pub(crate) fn unlock_all(
+        &self,
+        message_id: impl Origin,
+        id: LockId,
+    ) -> Result<Gas, GasTreeError> {
+        GasTree::unlock_all(GasNodeId::from(message_id.cast::<PlainNodeId>()), id)
     }
 
     /// The id of node, external origin and funds multiplier for a key.
@@ -207,7 +215,10 @@ impl GasTreeManager {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    pub(crate) fn get_origin_node(&self, key: MessageId) -> Result<OriginNodeDataOf, GasTreeError> {
-        GasTree::get_origin_node(GasNodeId::from(key.cast::<PlainNodeId>()))
+    pub(crate) fn get_origin_node(
+        &self,
+        message_id: MessageId,
+    ) -> Result<OriginNodeDataOf, GasTreeError> {
+        GasTree::get_origin_node(GasNodeId::from(message_id.cast::<PlainNodeId>()))
     }
 }

@@ -18,7 +18,7 @@
 
 //! Mailbox manager.
 
-use crate::blocks::GetBlockNumberImpl;
+use crate::state::blocks::GetBlockNumberImpl;
 use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
     storage::{Interval, IterableByKeyMap, Mailbox, MailboxCallbacks},

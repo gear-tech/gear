@@ -18,11 +18,9 @@
 
 //! `gtest` bank
 
-use std::collections::HashMap;
-
+use crate::{constants::Value, state::accounts::Accounts, GAS_MULTIPLIER};
 use gear_common::{Gas, GasMultiplier, ProgramId};
-
-use crate::{accounts::Accounts, constants::Value, GAS_MULTIPLIER};
+use std::collections::HashMap;
 
 #[derive(Default, Debug)]
 struct BankBalance {

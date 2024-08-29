@@ -16,16 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// Implementation of the `TaskHandler` trait for the `ExtManager`.
+//! Implementation of the `TaskHandler` trait for the `ExtManager`.
+
 use super::ExtManager;
+use crate::state::actors::Actors;
+use core_processor::common::JournalHandler;
 use gear_common::{
     scheduler::{StorageType, TaskHandler},
     Gas as GearCommonGas,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    message::ReplyMessage,
+    message::{DispatchKind, ReplyMessage},
 };
+use gear_core_errors::{ErrorReplyReason, SignalCode};
 
 impl TaskHandler<ProgramId> for ExtManager {
     fn pause_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
@@ -62,10 +66,63 @@ impl TaskHandler<ProgramId> for ExtManager {
 
     fn remove_from_waitlist(
         &mut self,
-        _program_id: ProgramId,
-        _message_id: MessageId,
+        program_id: ProgramId,
+        message_id: MessageId,
     ) -> GearCommonGas {
-        todo!()
+        let waitlisted = self
+            .wake_dispatch_impl(program_id, message_id)
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "TaskHandler::remove_from_waitlist: failed waking dispatch. \
+                Program id - {program_id}, waking message - {message_id} \
+                Got error - {e:?}."
+                );
+
+                unreachable!("{err_msg}");
+            });
+
+        self.send_signal(
+            message_id,
+            waitlisted.destination(),
+            SignalCode::RemovedFromWaitlist,
+        );
+
+        if !waitlisted.is_reply() && waitlisted.kind() != DispatchKind::Signal {
+            let err = ErrorReplyReason::RemovedFromWaitlist;
+
+            let err_payload = err
+                .to_string()
+                .into_bytes()
+                .try_into()
+                .expect("internal error: error reply reason bytes size is too big");
+
+            let trap_reply = ReplyMessage::system(message_id, err_payload, err);
+
+            if Actors::is_program(waitlisted.source()) {
+                let trap_dispatch =
+                    trap_reply.into_stored_dispatch(program_id, waitlisted.source(), message_id);
+
+                self.gas_tree
+                    .split(
+                        trap_dispatch.is_reply(),
+                        waitlisted.id(),
+                        trap_dispatch.id(),
+                    )
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted: {e:?}"));
+                self.dispatches.push_back(trap_dispatch);
+            } else {
+                // TODO #4122
+            }
+        }
+
+        self.consume_and_retrieve(waitlisted.id());
+
+        if waitlisted.kind() == DispatchKind::Init {
+            let origin = waitlisted.source();
+            self.init_failure(program_id, origin);
+        }
+
+        GearCommonGas::MIN
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
@@ -73,11 +130,9 @@ impl TaskHandler<ProgramId> for ExtManager {
     }
 
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> GearCommonGas {
-        let (dispatch, _) = self
-            .wait_list
-            .remove(&(program_id, message_id))
-            .unwrap_or_else(|| unreachable!("TaskPool corrupted!"));
-        self.dispatches.push_back(dispatch);
+        if let Ok(dispatch) = self.wake_dispatch_impl(program_id, message_id) {
+            self.dispatches.push_back(dispatch);
+        }
 
         GearCommonGas::MIN
     }
@@ -118,10 +173,11 @@ impl TaskHandler<ProgramId> for ExtManager {
 
     fn remove_gas_reservation(
         &mut self,
-        _program_id: ProgramId,
-        _reservation_id: ReservationId,
+        program_id: ProgramId,
+        reservation_id: ReservationId,
     ) -> GearCommonGas {
-        todo!()
+        let _slot = self.remove_gas_reservation_impl(program_id, reservation_id);
+        GearCommonGas::MIN
     }
 
     fn remove_resume_session(&mut self, _session_id: u32) -> GearCommonGas {

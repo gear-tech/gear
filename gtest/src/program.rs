@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     default_users_list,
     manager::ExtManager,
+    state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
     Result, Value, GAS_ALLOWANCE,
 };
@@ -1351,6 +1351,50 @@ mod tests {
         assert!(res.succeed.contains(&msg_id));
 
         // Check reservation is removed from the tree
+        assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
+    }
+
+    #[test]
+    fn test_delete_expired_reservation() {
+        use demo_constructor::{Calls, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = DEFAULT_USER_ALICE;
+        let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
+
+        // Initialize program
+        let msg_id = prog.send(user_id, Scheme::empty());
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
+
+        // Reserve gas handle
+        let handle = Calls::builder().reserve_gas(1_000_000, 1);
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
+
+        // Get reservation id from program
+        let reservation_id = sys
+            .0
+            .borrow_mut()
+            .update_genuine_program(prog.id(), |genuine_prog| {
+                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
+                genuine_prog
+                    .gas_reservation_map
+                    .iter()
+                    .next()
+                    .map(|(&id, _)| id)
+                    .expect("reservation exists, checked upper; qed.")
+            })
+            .expect("internal error: existing prog not found");
+
+        // Check reservation exists in the tree
+        assert!(sys.0.borrow().gas_tree.exists(reservation_id));
+
+        sys.run_next_block();
+
         assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
     }
 
