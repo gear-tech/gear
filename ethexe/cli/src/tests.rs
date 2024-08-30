@@ -347,6 +347,7 @@ async fn ping_deep_sync() {
 async fn async_ping() {
     gear_utils::init_default_logger();
 
+    // +_+_+
     let mut env = TestEnv::new(3).await.unwrap();
 
     log::info!("📗 Starting sequencer");
@@ -359,28 +360,28 @@ async fn async_ping() {
     sequencer.start_service().await;
 
     log::info!("📗 Starting validator 0");
-    let mut validator = env.new_node(
+    let mut validator0 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[0])
             .network(None, sequencer.multiaddr.clone()),
     );
-    validator.start_service().await;
+    validator0.start_service().await;
 
     log::info!("📗 Starting validator 1");
-    let mut validator = env.new_node(
+    let mut validator1 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[1])
             .network(None, sequencer.multiaddr.clone()),
     );
-    validator.start_service().await;
+    validator1.start_service().await;
 
     log::info!("📗 Starting validator 2");
-    let mut validator = env.new_node(
+    let mut validator2 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[2])
             .network(None, sequencer.multiaddr.clone()),
     );
-    validator.start_service().await;
+    validator2.start_service().await;
 
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
@@ -455,6 +456,43 @@ async fn async_ping() {
         res.reply_code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
+
+    log::info!("📗 Stop validator 2 and check that all is still working");
+    validator2.stop_service().await;
+    let res = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
+
+    log::info!("📗 Stop validator 1 and check that it's not working");
+    validator1.stop_service().await;
+
+    let wait_for_reply_to = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .await
+        .unwrap();
+
+    let _ = tokio::time::timeout(Duration::from_secs(3), wait_for_reply_to.clone().wait_for())
+        .await
+        .expect_err("Timeout expected");
+
+    log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
+    let mut validator2 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[2])
+            .network(None, sequencer.multiaddr.clone()),
+    );
+    validator2.start_service().await;
+
+    // IMPORTANT: mine one block to sent a new block event.
+    env.observer.provider().evm_mine(None).await.unwrap();
+
+    let res = wait_for_reply_to.wait_for().await.unwrap();
+    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
 }
 
 mod utils {
@@ -794,6 +832,14 @@ mod utils {
         receiver: tokio::sync::broadcast::Receiver<Event>,
     }
 
+    impl Clone for EventsListener {
+        fn clone(&self) -> Self {
+            Self {
+                receiver: self.receiver.resubscribe(),
+            }
+        }
+    }
+
     impl EventsListener {
         pub async fn next_event(&mut self) -> Result<Event> {
             self.receiver.recv().await.map_err(Into::into)
@@ -981,11 +1027,13 @@ mod utils {
         }
     }
 
+    #[derive(Clone)]
     pub struct WaitForUploadCode {
         listener: EventsListener,
         pub code_id: CodeId,
     }
 
+    #[derive(Debug)]
     pub struct UploadCodeInfo {
         pub code_id: CodeId,
         pub code: Vec<u8>,
@@ -1032,11 +1080,13 @@ mod utils {
         }
     }
 
+    #[derive(Clone)]
     pub struct WaitForProgramCreation {
         listener: EventsListener,
         pub program_id: ActorId,
     }
 
+    #[derive(Debug)]
     pub struct ProgramCreationInfo {
         pub program_id: ActorId,
         pub code_id: CodeId,
@@ -1116,11 +1166,13 @@ mod utils {
         }
     }
 
+    #[derive(Clone)]
     pub struct WaitForReplyTo {
         listener: EventsListener,
         pub message_id: MessageId,
     }
 
+    #[derive(Debug)]
     pub struct ReplyInfo {
         pub message_id: MessageId,
         pub program_id: ActorId,
