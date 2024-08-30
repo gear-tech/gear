@@ -47,7 +47,7 @@ use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
 };
-use utils::TestEnv;
+use utils::{NodeConfig, TestEnv};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
@@ -55,9 +55,14 @@ async fn ping() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut node = env.create_node(None);
-    node.start_service(Some(env.wallets.next()), Some(env.validators[0]), None)
-        .await;
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
 
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
@@ -67,7 +72,7 @@ async fn ping() {
         .await
         .unwrap();
     assert_eq!(res.code, demo_ping::WASM_BINARY);
-    assert_eq!(res.valid, true);
+    assert!(res.valid);
 
     let code_id = res.code_id;
 
@@ -138,10 +143,14 @@ async fn ping_reorg() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut node = env.create_node(None);
+
     let sequencer_pub_key = env.wallets.next();
-    node.start_service(Some(sequencer_pub_key), Some(env.validators[0]), None)
-        .await;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_pub_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
 
     let provider = env.observer.provider().clone();
 
@@ -152,7 +161,7 @@ async fn ping_reorg() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.valid, true);
+    assert!(res.valid);
 
     let code_id = res.code_id;
 
@@ -171,8 +180,7 @@ async fn ping_reorg() {
         .unwrap();
 
     // Start new service
-    node.start_service(Some(sequencer_pub_key), Some(env.validators[0]), None)
-        .await;
+    node.start_service().await;
 
     // IMPORTANT: Mine one block to sent block event to the new service.
     provider.evm_mine(None).await.unwrap();
@@ -238,8 +246,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    node.start_service(Some(sequencer_pub_key), Some(env.validators[0]), None)
-        .await;
+    node.start_service().await;
 
     // Important: mine one block to sent block event to the new service.
     provider.evm_mine(None).await.unwrap();
@@ -261,9 +268,14 @@ async fn ping_deep_sync() {
     gear_utils::init_default_logger();
 
     let mut env = TestEnv::new(1).await.unwrap();
-    let mut node = env.create_node(None);
-    node.start_service(Some(env.wallets.next()), Some(env.validators[0]), None)
-        .await;
+
+    let sequencer_pub_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_pub_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
 
     let provider = env.observer.provider().clone();
 
@@ -275,7 +287,7 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
     assert_eq!(res.code.as_slice(), demo_ping::WASM_BINARY);
-    assert_eq!(res.valid, true);
+    assert!(res.valid);
 
     let code_id = res.code_id;
 
@@ -338,53 +350,37 @@ async fn async_ping() {
     let mut env = TestEnv::new(3).await.unwrap();
 
     log::info!("📗 Starting sequencer");
-    let mut sequencer = env.create_node(None);
-    sequencer
-        .start_service(
-            Some(env.wallets.next()),
-            None,
-            Some(("/memory/1".to_string(), None)),
-        )
-        .await;
+    let sequencer_pub_key = env.wallets.next();
+    let mut sequencer = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_pub_key)
+            .network(None, None),
+    );
+    sequencer.start_service().await;
+
+    log::info!("📗 Starting validator 0");
+    let mut validator = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[0])
+            .network(None, sequencer.multiaddr.clone()),
+    );
+    validator.start_service().await;
 
     log::info!("📗 Starting validator 1");
-    let mut validator = env.create_node(None);
-    validator
-        .start_service(
-            None,
-            Some(env.validators[0]),
-            Some((
-                "/memory/2".to_string(),
-                Some(sequencer.multiaddr.clone().expect("Must be set")),
-            )),
-        )
-        .await;
+    let mut validator = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[1])
+            .network(None, sequencer.multiaddr.clone()),
+    );
+    validator.start_service().await;
 
     log::info!("📗 Starting validator 2");
-    let mut validator2 = env.create_node(None);
-    validator2
-        .start_service(
-            None,
-            Some(env.validators[1]),
-            Some((
-                "/memory/3".to_string(),
-                Some(sequencer.multiaddr.clone().expect("Must be set")),
-            )),
-        )
-        .await;
-
-    log::info!("📗 Starting validator 3");
-    let mut validator3 = env.create_node(None);
-    validator3
-        .start_service(
-            None,
-            Some(env.validators[2]),
-            Some((
-                "/memory/4".to_string(),
-                Some(sequencer.multiaddr.clone().expect("Must be set")),
-            )),
-        )
-        .await;
+    let mut validator = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[2])
+            .network(None, sequencer.multiaddr.clone()),
+    );
+    validator.start_service().await;
 
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
@@ -394,7 +390,7 @@ async fn async_ping() {
         .await
         .unwrap();
     assert_eq!(res.code, demo_ping::WASM_BINARY);
-    assert_eq!(res.valid, true);
+    assert!(res.valid);
 
     let ping_code_id = res.code_id;
 
@@ -422,7 +418,7 @@ async fn async_ping() {
         .await
         .unwrap();
     assert_eq!(res.code, demo_async::WASM_BINARY);
-    assert_eq!(res.valid, true);
+    assert!(res.valid);
 
     let async_code_id = res.code_id;
 
@@ -482,6 +478,7 @@ mod utils {
         pub threshold: u64,
         pub block_time: Duration,
 
+        network_addresses_nonce: u64,
         broadcaster: Arc<Mutex<Sender<Event>>>,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
@@ -585,16 +582,35 @@ mod utils {
                 threshold,
                 block_time,
                 broadcaster,
+                network_addresses_nonce: 0,
                 _anvil: anvil,
                 _events_stream,
             })
         }
 
-        pub fn create_node(&self, db: Option<Database>) -> Node {
+        pub fn new_node(&mut self, config: NodeConfig) -> Node {
+            let NodeConfig {
+                db,
+                sequencer_public_key,
+                validator_public_key,
+                network,
+            } = config;
+
+            let db =
+                db.unwrap_or_else(|| Database::from_one(&MemDb::default(), self.router_address.0));
+
+            let network_address = network.as_ref().map(|network| {
+                network.address.clone().unwrap_or_else(|| {
+                    self.network_addresses_nonce += 1;
+                    format!("/memory/{}", self.network_addresses_nonce)
+                })
+            });
+
+            let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
+
             Node {
-                db: db.unwrap_or_else(|| {
-                    Database::from_one(&MemDb::default(), self.router_address.0)
-                }),
+                db,
+                multiaddr: None,
                 rpc_url: self.rpc_url.clone(),
                 genesis_block_hash: self.genesis_block_hash,
                 blob_reader: self.blob_reader.clone(),
@@ -605,7 +621,10 @@ mod utils {
                 threshold: self.threshold,
                 router_address: self.router_address,
                 running_service_handle: None,
-                multiaddr: None,
+                sequencer_public_key,
+                validator_public_key,
+                network_address,
+                network_bootstrap_address,
             }
         }
 
@@ -688,6 +707,75 @@ mod utils {
                 broadcaster: self.broadcaster.clone(),
             }
         }
+    }
+
+    pub struct TestEnvConfig {
+        pub validators_amount: usize,
+        pub block_time: Duration,
+    }
+
+    impl Default for TestEnvConfig {
+        fn default() -> Self {
+            Self {
+                validators_amount: 1,
+                block_time: Duration::from_secs(1),
+            }
+        }
+    }
+
+    impl TestEnvConfig {
+        pub fn validators_amount(mut self, validators_amount: usize) -> Self {
+            self.validators_amount = validators_amount;
+            self
+        }
+
+        pub fn block_time(mut self, block_time: Duration) -> Self {
+            self.block_time = block_time;
+            self
+        }
+    }
+
+    #[derive(Default)]
+    pub struct NodeConfig {
+        pub db: Option<Database>,
+        pub sequencer_public_key: Option<ethexe_signer::PublicKey>,
+        pub validator_public_key: Option<ethexe_signer::PublicKey>,
+        pub network: Option<NodeNetworkConfig>,
+    }
+
+    impl NodeConfig {
+        pub fn db(mut self, db: Database) -> Self {
+            self.db = Some(db);
+            self
+        }
+
+        pub fn sequencer(mut self, sequencer_public_key: ethexe_signer::PublicKey) -> Self {
+            self.sequencer_public_key = Some(sequencer_public_key);
+            self
+        }
+
+        pub fn validator(mut self, validator_public_key: ethexe_signer::PublicKey) -> Self {
+            self.validator_public_key = Some(validator_public_key);
+            self
+        }
+
+        pub fn network(
+            mut self,
+            address: Option<String>,
+            bootstrap_address: Option<String>,
+        ) -> Self {
+            self.network = Some(NodeNetworkConfig {
+                address,
+                bootstrap_address,
+            });
+            self
+        }
+    }
+
+    #[derive(Default)]
+    pub struct NodeNetworkConfig {
+        pub address: Option<String>,
+        pub bootstrap_address: Option<String>,
     }
 
     pub struct EventsPublisher {
@@ -791,15 +879,14 @@ mod utils {
         router_address: ethexe_signer::Address,
         block_time: Duration,
         running_service_handle: Option<JoinHandle<Result<()>>>,
+        sequencer_public_key: Option<ethexe_signer::PublicKey>,
+        validator_public_key: Option<ethexe_signer::PublicKey>,
+        network_address: Option<String>,
+        network_bootstrap_address: Option<String>,
     }
 
     impl Node {
-        pub async fn start_service(
-            &mut self,
-            sequencer_public_key: Option<ethexe_signer::PublicKey>,
-            validator_public_key: Option<ethexe_signer::PublicKey>,
-            network: Option<(String, Option<String>)>,
-        ) {
+        pub async fn start_service(&mut self) {
             assert!(
                 self.running_service_handle.is_none(),
                 "Service is already running"
@@ -818,11 +905,11 @@ mod utils {
             .await
             .unwrap();
 
-            let network = network.as_ref().map(|(addr, bootstrap_addr)| {
+            let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let mut config =
                     ethexe_network::NetworkEventLoopConfig::new_memory(config_path, addr.as_str());
-                if let Some(bootstrap_addr) = bootstrap_addr {
+                if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
                     let multiaddr = bootstrap_addr.parse().unwrap();
                     config.bootstrap_addresses = [multiaddr].into();
                 }
@@ -833,7 +920,7 @@ mod utils {
                 network
             });
 
-            let sequencer = match sequencer_public_key.as_ref() {
+            let sequencer = match self.sequencer_public_key.as_ref() {
                 Some(key) => Some(
                     Sequencer::new(
                         &ethexe_sequencer::Config {
@@ -851,7 +938,7 @@ mod utils {
                 None => None,
             };
 
-            let validator = match validator_public_key.as_ref() {
+            let validator = match self.validator_public_key.as_ref() {
                 Some(key) => Some(Validator::new(
                     &ethexe_validator::Config {
                         pub_key: *key,
@@ -890,6 +977,7 @@ mod utils {
                 .expect("Service is not running");
             handle.abort();
             let _ = handle.await;
+            self.multiaddr = None;
         }
     }
 
