@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
-use anyhow::{Context, Result};
+use anyhow::{Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
 use gmeta::MetadataRepr;
@@ -367,45 +367,40 @@ extern "C" fn metahash() {{
     /// Generates output optimized wasm file, `.binpath` file for our tests
     /// system and wasm binaries informational file.
     /// Makes a copy of original wasm file in `self.wasm_target_dir`.
-    pub fn postprocess_opt(
+    pub fn postprocess_opt<P: AsRef<Path>>(
         &self,
-        original_wasm_path: &PathBuf,
+        original_wasm_path: P,
         file_base_name: &String,
-    ) -> Result<()> {
+    ) -> Result<PathBuf> {
         let [original_copy_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
         // Copy original file to `self.wasm_target_dir`
-        smart_fs::copy_if_newer(original_wasm_path, &original_copy_wasm_path)
+        smart_fs::copy_if_newer(&original_wasm_path, &original_copy_wasm_path)
             .context("unable to copy WASM file")?;
 
         // Optimize wasm using and `wasm-opt` and our optimizations.
-        if smart_fs::check_if_newer(original_wasm_path, &opt_wasm_path)? {
-            let path = optimize::optimize_wasm(
-                original_copy_wasm_path.clone(),
-                opt_wasm_path.clone(),
-                "4",
-                true,
-            )
-            .map(|res| {
-                log::info!(
-                    "Wasm-opt reduced wasm size: {} -> {}",
-                    res.original_size,
-                    res.optimized_size
-                );
-                opt_wasm_path.clone()
-            })
-            .unwrap_or_else(|err| {
-                println!("cargo:warning=wasm-opt optimizations error: {}", err);
-                original_copy_wasm_path.clone()
-            });
+        if smart_fs::check_if_newer(&original_wasm_path, &opt_wasm_path)? {
+            let path = optimize::optimize_wasm(&original_copy_wasm_path, &opt_wasm_path, "4", true)
+                .map(|res| {
+                    log::info!(
+                        "Wasm-opt reduced wasm size: {} -> {}",
+                        res.original_size,
+                        res.optimized_size
+                    );
+                    opt_wasm_path.clone()
+                })
+                .unwrap_or_else(|err| {
+                    println!("cargo:warning=wasm-opt optimizations error: {}", err);
+                    original_copy_wasm_path.clone()
+                });
 
             let mut optimizer = Optimizer::new(path)?;
             optimizer
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
             optimizer.strip_custom_sections();
-            fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)
+            fs::write(&opt_wasm_path, optimizer.optimize(OptType::Opt)?)
                 .context("Failed to write optimized WASM binary")?;
         }
 
@@ -433,7 +428,8 @@ extern "C" fn metahash() {{
                 metadata,
             ),
         )
-        .context("unable to write `wasm_binary.rs`")
+        .context("unable to write `wasm_binary.rs`")?;
+        Ok(opt_wasm_path)
     }
 
     /// Post-processing after the WASM binary has been built.
@@ -442,7 +438,7 @@ extern "C" fn metahash() {{
     ///   `target/wasm32-unknown-unknown/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
-    pub fn postprocess(&self) -> Result<Option<PathBuf>> {
+    pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
         let file_base_name = self
             .file_base_name
             .as_ref()
@@ -508,11 +504,14 @@ extern "C" fn metahash() {{
             }
         }
 
+        // Tuple with PathBuf last wasm & opt.wasm
+        let mut wasm_paths: Option<(PathBuf, PathBuf)> = None;
         for (wasm_path, file_base_name) in &wasm_files {
             if self.project_type.is_metawasm() {
                 self.postprocess_meta(wasm_path, file_base_name)?;
             } else {
-                self.postprocess_opt(wasm_path, file_base_name)?;
+                let wasm_opt = self.postprocess_opt(wasm_path, file_base_name)?;
+                wasm_paths = Some((wasm_path.clone(), wasm_opt));
             }
         }
 
@@ -530,8 +529,7 @@ extern "C" fn metahash() {{
         if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").is_err() {
             self.force_rerun_on_next_run(&original_wasm_path)?;
         }
-
-        Ok(wasm_files.into_iter().map(|(path, _)| path).last())
+        Ok(wasm_paths)
     }
 
     fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
@@ -595,6 +593,6 @@ extern "C" fn metahash() {{
 
 // Windows has path like `path\to\somewhere` which is incorrect for `include_*`
 // Rust's macros
-fn display_path(path: &Path) -> String {
-    path.display().to_string().replace('\\', "/")
+fn display_path<P: AsRef<Path>>(path: P) -> String {
+    path.as_ref().display().to_string().replace('\\', "/")
 }
