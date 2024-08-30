@@ -38,7 +38,6 @@ use wasmi_backend::WasmiRunner;
 mod wasmi_backend;
 
 const INITIAL_PAGES: u32 = 10;
-const WASM_PAGE_SIZE: usize = 0x10_000;
 const PROGRAM_GAS: i64 = 1_000_000;
 const OS_PAGE_SIZE: usize = 4096;
 const MODULE_ENV: &str = "env";
@@ -88,13 +87,15 @@ impl RunResult {
             .into_iter()
             .zip(wasmi_res.pages.into_iter())
         {
-            let lower_bytes_page_mask = ((INITIAL_PAGES as usize) * WASM_PAGE_SIZE) - 1;
             assert_eq!(
-                lower_bytes_page_mask & wasmer_addr,
-                lower_bytes_page_mask & wasmi_addr
+                wasmer_page_info, wasmi_page_info,
+                "wasmer page mem 0x{wasmer_addr:X?} wasmi page mem 0x{wasmi_addr:X?}",
             );
-            assert_eq!(wasmer_page_info, wasmi_page_info);
-            assert_eq!(wasmer_page_mem, wasmi_page_mem);
+            assert_eq!(
+                wasmer_page_mem, wasmi_page_mem,
+                "wasmer page mem 0x{wasmer_addr:X?} wasmi page mem 0x{wasmi_addr:X?} \
+                with content: 0x{wasmer_page_mem:X?} 0x{wasmi_page_mem:X?}",
+            );
         }
 
         assert_eq!(wasmer_res.globals, wasmi_res.globals);
