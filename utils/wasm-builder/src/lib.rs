@@ -101,7 +101,9 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     ///
-    /// Returns tuple with paths to wasm & opt wasm file
+    /// Returns `None` if `__GEAR_WASM_BUILDER_NO_BUILD` flag is set.
+    /// Returns `Some(_)` with a tuple of paths to wasm & opt wasm file
+    /// if the build was successful.
     pub fn build(self) -> Option<(PathBuf, PathBuf)> {
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() || is_intellij_sync() {
             _ = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
@@ -241,6 +243,8 @@ fn is_intellij_sync() -> bool {
 const FEATURES_TO_EXCLUDE_BY_DEFAULT: &[&str] = &["std"];
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// See [WasmBuilder::build()].
 pub fn build() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
@@ -248,6 +252,8 @@ pub fn build() -> Option<(PathBuf, PathBuf)> {
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// See [WasmBuilder::build()].
 pub fn build_with_metadata<T: Metadata>() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::with_meta(T::repr())
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
@@ -255,6 +261,8 @@ pub fn build_with_metadata<T: Metadata>() -> Option<(PathBuf, PathBuf)> {
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// See [WasmBuilder::build()].
 pub fn build_metawasm() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new_metawasm()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
@@ -262,6 +270,8 @@ pub fn build_metawasm() -> Option<(PathBuf, PathBuf)> {
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// See [WasmBuilder::build()].
 pub fn recommended_nightly() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
@@ -270,6 +280,8 @@ pub fn recommended_nightly() -> Option<(PathBuf, PathBuf)> {
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// See [WasmBuilder::build()].
 pub fn recommended_nightly_with_metadata<T: Metadata>() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::with_meta(T::repr())
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
@@ -278,6 +290,8 @@ pub fn recommended_nightly_with_metadata<T: Metadata>() -> Option<(PathBuf, Path
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// See [WasmBuilder::build()].
 pub fn recommended_nightly_metawasm() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new_metawasm()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
