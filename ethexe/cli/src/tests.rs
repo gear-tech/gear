@@ -47,14 +47,14 @@ use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
 };
-use utils::{NodeConfig, TestEnv};
+use utils::{NodeConfig, TestEnv, TestEnvConfig};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let mut env = TestEnv::new(1).await.unwrap();
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
     let mut node = env.new_node(
@@ -142,7 +142,7 @@ async fn ping() {
 async fn ping_reorg() {
     gear_utils::init_default_logger();
 
-    let mut env = TestEnv::new(1).await.unwrap();
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_pub_key = env.wallets.next();
     let mut node = env.new_node(
@@ -267,7 +267,7 @@ async fn ping_reorg() {
 async fn ping_deep_sync() {
     gear_utils::init_default_logger();
 
-    let mut env = TestEnv::new(1).await.unwrap();
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_pub_key = env.wallets.next();
     let mut node = env.new_node(
@@ -344,11 +344,12 @@ async fn ping_deep_sync() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn async_ping() {
+async fn multiple_validators() {
     gear_utils::init_default_logger();
 
-    // +_+_+
-    let mut env = TestEnv::new(3).await.unwrap();
+    let mut env = TestEnv::new(TestEnvConfig::default().validators_amount(3))
+        .await
+        .unwrap();
 
     log::info!("📗 Starting sequencer");
     let sequencer_pub_key = env.wallets.next();
@@ -476,11 +477,12 @@ async fn async_ping() {
         .await
         .unwrap();
 
-    let _ = tokio::time::timeout(Duration::from_secs(3), wait_for_reply_to.clone().wait_for())
+    let _ = tokio::time::timeout(env.block_time * 3, wait_for_reply_to.clone().wait_for())
         .await
         .expect_err("Timeout expected");
 
     log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
+    // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
     let mut validator2 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[2])
@@ -523,7 +525,12 @@ mod utils {
     }
 
     impl TestEnv {
-        pub async fn new(validators_amount: usize) -> Result<Self> {
+        pub async fn new(config: TestEnvConfig) -> Result<Self> {
+            let TestEnvConfig {
+                validators_amount,
+                block_time,
+            } = config;
+
             let (rpc_url, anvil) = match std::env::var("__ETHEXE_CLI_TESTS_RPC_URL") {
                 Ok(rpc_url) => {
                     log::info!("📍 Using provided RPC URL: {}", rpc_url);
@@ -556,8 +563,6 @@ mod utils {
             let router = ethereum.router();
             let router_query = router.query();
             let router_address = router.address();
-
-            let block_time = Duration::from_secs(1);
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
