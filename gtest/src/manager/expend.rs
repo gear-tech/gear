@@ -49,13 +49,19 @@ impl ExtManager {
 
     pub(crate) fn cost_by_storage_type(storage_type: StorageType) -> u64 {
         // Cost per block based on the storage used for holding
+        let schedule = Schedule::default();
+        let RentWeights {
+            waitlist,
+            dispatch_stash,
+            reservation,
+        } = schedule.rent_weights;
         match storage_type {
             StorageType::Code => todo!("#646"),
-            StorageType::Waitlist => WAITLIST_COST,
+            StorageType::Waitlist => waitlist.ref_time,
             StorageType::Mailbox => MAILBOX_COST,
-            StorageType::DispatchStash => DISPATCH_HOLD_COST,
+            StorageType::DispatchStash => dispatch_stash.ref_time,
             StorageType::Program => todo!("#646"),
-            StorageType::Reservation => RESERVATION_COST,
+            StorageType::Reservation => reservation.ref_time,
         }
     }
 

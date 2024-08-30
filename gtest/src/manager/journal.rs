@@ -34,6 +34,7 @@ use gear_common::{
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
+    gas_metering::Schedule,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
@@ -45,7 +46,6 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gear_wasm_instrument::gas_metering::Schedule;
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(

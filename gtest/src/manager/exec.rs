@@ -305,47 +305,14 @@ impl ExtManager {
             .gas_tree
             .get_limit(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let schedule = Schedule::default();
         let block_config = BlockConfig {
             block_info: self.blocks_manager.get(),
             performance_multiplier: gsys::Percent::new(100),
             forbidden_funcs: Default::default(),
             reserve_for: RESERVE_FOR,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
-            costs: ProcessCosts {
-                ext: ExtCosts {
-                    syscalls: Default::default(),
-                    rent: RentCosts {
-                        waitlist: WAITLIST_COST.into(),
-                        dispatch_stash: DISPATCH_HOLD_COST.into(),
-                        reservation: RESERVATION_COST.into(),
-                    },
-                    mem_grow: Default::default(),
-                    mem_grow_per_page: Default::default(),
-                },
-                lazy_pages: LazyPagesCosts {
-                    host_func_read: HOST_FUNC_READ_COST.into(),
-                    host_func_write: HOST_FUNC_WRITE_COST.into(),
-                    host_func_write_after_read: HOST_FUNC_WRITE_AFTER_READ_COST.into(),
-                    load_page_storage_data: LOAD_PAGE_STORAGE_DATA_COST.into(),
-                    signal_read: SIGNAL_READ_COST.into(),
-                    signal_write: SIGNAL_WRITE_COST.into(),
-                    signal_write_after_read: SIGNAL_WRITE_AFTER_READ_COST.into(),
-                },
-                read: READ_COST.into(),
-                read_per_byte: READ_PER_BYTE_COST.into(),
-                write: WRITE_COST.into(),
-                instrumentation: MODULE_INSTRUMENTATION_COST.into(),
-                instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
-                instantiation_costs: InstantiationCosts {
-                    code_section_per_byte: MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    data_section_per_byte: MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    global_section_per_byte: MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    table_section_per_byte: MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    element_section_per_byte: MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    type_section_per_byte: MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                },
-                load_allocations_per_interval: LOAD_ALLOCATIONS_PER_INTERVAL.into(),
-            },
+            costs: schedule.process_costs(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
             max_reservations: MAX_RESERVATIONS,
