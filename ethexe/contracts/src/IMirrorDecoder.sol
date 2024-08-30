@@ -6,18 +6,8 @@ interface IMirrorDecoder {
 
     function mirror() external view returns (address);
 
-    function onMessageSent(
-        bytes32 id,
-        address destination,
-        bytes calldata payload,
-        uint128 value
-    ) external;
+    function onMessageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external;
 
-    function onReplySent(
-        address destination,
-        bytes calldata payload,
-        uint128 value,
-        bytes32 replyTo,
-        bytes4 replyCode
-    ) external;
+    function onReplySent(address destination, bytes calldata payload, uint128 value, bytes32 replyTo, bytes4 replyCode)
+        external;
 }
