@@ -86,6 +86,7 @@ mod staking_exposure_size_dump {
     };
     use pallet_staking::*;
     use sp_core::Get;
+    use sp_std::vec::Vec;
     use sp_staking::{EraIndex, Page, PagedExposureMetadata};
 
     // SECURITY: DELETE THIS MIGRATION ONCE PERFORMED ON CHAIN.
