@@ -11,55 +11,65 @@ on:
       VARA_SSH_PRIVATE_KEY:
         required: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  tag-image:
+  prepare:
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.image-tag.outputs.tag }}
+      image_name: ${{ steps.image.outputs.image_name }}
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create image tag
-        id: image-tag
-        run: echo "tag=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
+      - name: Get branch
+        id: branch
+        run: |
+          branch_name=${GITHUB_REF#refs/heads/}
+          echo "branch_name=$branch_name" >> $GITHUB_ENV
+
+      - name: Get short SHA
+        id: sha
+        run: |
+          sha_short=$(git rev-parse --short HEAD)
+          echo "sha_short=$sha_short" >> $GITHUB_ENV
+
+      - name: Set IMAGE_NAME
+        id: image
+        run: |
+          image_name="ghcr.io/gear-tech/node:${{ env.branch_name }}-${{ env.sha_short }}"
+          echo "image_name=$image_name" >> $GITHUB_OUTPUT
 
   build-update-validator:
     runs-on: [kuberunner]
-    needs: tag-image
+    needs: prepare
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Echo tag
-        run: echo ${{ needs.tag-image.outputs.image_tag }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to DockerHub
+      - name: Log in to the github container registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        id: docker_build
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ${{ needs.tag-image.outputs.image_tag }}
+          tags: ${{ needs.prepare.outputs.image_name }}
 
       - name: SSH into VM
         uses: appleboy/ssh-action@v1.0.3
         env:
-          NEW_IMAGE: ${{ needs.tag-image.outputs.image_tag }}
+          NEW_IMAGE: ${{ needs.prepare.outputs.image_name }}
         with:
           host: ${{ secrets.VARA_VALIDATOR_8 }}
           username: ${{ secrets.SSH_VARA_USERNAME }}
@@ -67,5 +77,22 @@ jobs:
           envs: NEW_IMAGE
           script: |
             sudo docker-compose -f /home/gear/docker-compose.yaml down
-            awk -v new_image="$NEW_IMAGE" '{gsub(/image: ghcr.io\/gear-tech\/node:.*/, "image: " new_image)}1' /home/gear/docker-compose.yaml > tmp && mv tmp /home/gear/docker-compose.yaml         
+            sudo sed -i "s|image:.*|image: ${NEW_IMAGE}|g" /home/gear/docker-compose.yaml
             sudo docker-compose -f /home/gear/docker-compose.yaml up -d
+
+  notify:
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify build failure in Telegram
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
+          token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
+          format: markdown
+          disable_web_page_preview: true
+          message: |
+            *Status:* 🔥
+            *Problem:* Build failed
+            *Details:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
