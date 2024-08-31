@@ -4,6 +4,10 @@ on:
   push:
     tags: [ "*" ]
 
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
@@ -15,6 +19,9 @@ jobs:
     steps:
       - name: "Actions: Checkout"
         uses: actions/checkout@v4
+
+      - name: "Get tag"
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
       - name: "Environment: Cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -72,3 +79,60 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifact/*
+
+  trigger-multiplatform-build:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Multiplatform Build Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.GITHUB_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'gear-tech',
+              repo: 'builds',
+              workflow_id: 'nightly.yml',
+              ref: 'master',
+              inputs: {
+                release_version: '${{ env.TAG }}',
+                latest: 'true'
+              }
+            });
+
+  trigger-docker-build:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Docker Build Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.GITHUB_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'gear-tech',
+              repo: 'gear',
+              workflow_id: 'CI-docker-gear.yml',
+              ref: 'master',
+              inputs: {
+                release_version: '${{ env.TAG }}',
+                latest: 'true'
+              }
+            });
+
+  notify:
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify build failure in Telegram
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
+          token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
+          format: markdown
+          disable_web_page_preview: true
+          message: |
+            *Status:* 🔥
+            *Problem:* Build failed
+            *Details:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
