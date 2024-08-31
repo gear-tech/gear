@@ -258,6 +258,10 @@ impl ExtManager {
 
             unreachable!("{err_msg}");
         });
+
+        // each task pool change is a write to DB, decrease allowance
+        let weight = WRITE_COST;
+        self.gas_allowance.decrease(Gas(weight));
     }
 
     pub(crate) fn send_user_message(

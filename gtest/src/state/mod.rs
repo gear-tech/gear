@@ -22,6 +22,7 @@ pub(crate) mod accounts;
 pub(crate) mod actors;
 pub(crate) mod bank;
 pub(crate) mod blocks;
+pub(crate) mod gas_allowance;
 pub(crate) mod gas_tree;
 pub(crate) mod mailbox;
 pub(crate) mod task_pool;

@@ -20,7 +20,7 @@ use super::*;
 
 impl ExtManager {
     pub(crate) fn wait_dipatch_impl(
-        &self,
+        &mut self,
         dispatch: StoredDispatch,
         duration: Option<BlockNumber>,
         reason: MessageWaitedReason,
@@ -94,6 +94,10 @@ impl ExtManager {
 
                         unreachable!("{err_msg}");
                     });
+
+                    // each task pool change is a write to DB, decrease allowance
+                    let weight = WRITE_COST;
+                    self.gas_allowance.decrease(Gas(weight));
                 }
             }
             MessageWaitedReason::Runtime(WaitCalled | WaitUpToCalled) => {
@@ -110,6 +114,10 @@ impl ExtManager {
 
                     unreachable!("{err_msg}");
                 });
+
+                // each task pool change is a write to DB, decrease allowance
+                let weight = WRITE_COST;
+                self.gas_allowance.decrease(Gas(weight));
             }
             MessageWaitedReason::System(reason) => match reason {},
         }
@@ -136,10 +144,18 @@ impl ExtManager {
 
         self.charge_for_hold(waitlisted.id(), hold_interval, StorageType::Waitlist);
 
-        let _ = self.task_pool.delete(
-            expected_bn,
-            ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expected_bn,
+                ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
+            )
+            .and_then(|_| {
+                // each task pool change is a write to DB, decrease allowance
+                let weight = WRITE_COST;
+                self.gas_allowance.decrease(Gas(weight));
+                Ok(())
+            });
 
         Ok(waitlisted)
     }

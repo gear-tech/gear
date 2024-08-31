@@ -35,6 +35,7 @@ use crate::{
         actors::{Actors, GenuineProgram, Program, TestActor},
         bank::Bank,
         blocks::BlocksManager,
+        gas_allowance::GasAllowance,
         gas_tree::GasTreeManager,
         mailbox::MailboxManager,
         task_pool::TaskPoolManager,
@@ -112,7 +113,7 @@ pub(crate) struct ExtManager {
     pub(crate) task_pool: TaskPoolManager,
     pub(crate) waitlist: WaitlistManager,
     pub(crate) gas_tree: GasTreeManager,
-    pub(crate) gas_allowance: Gas,
+    pub(crate) gas_allowance: GasAllowance,
     pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
     pub(crate) messages_processing_enabled: bool,
 
@@ -120,7 +121,7 @@ pub(crate) struct ExtManager {
     pub(crate) succeed: BTreeSet<MessageId>,
     pub(crate) failed: BTreeSet<MessageId>,
     pub(crate) not_executed: BTreeSet<MessageId>,
-    pub(crate) gas_burned: BTreeMap<MessageId, Gas>,
+
     pub(crate) log: Vec<StoredMessage>,
 }
 
@@ -287,10 +288,18 @@ impl ExtManager {
 
         self.bank.transfer_value(from, user_id, message.value());
 
-        let _ = self.task_pool.delete(
-            expected,
-            ScheduledTask::RemoveFromMailbox(user_id, message.id()),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expected,
+                ScheduledTask::RemoveFromMailbox(user_id, message.id()),
+            )
+            .and_then(|_| {
+                // each task pool change is a write to DB, decrease allowance
+                let weight = WRITE_COST;
+                self.gas_allowance.decrease(Gas(weight));
+                Ok(())
+            });
 
         Ok(message)
     }

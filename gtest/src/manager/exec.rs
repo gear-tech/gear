@@ -102,7 +102,7 @@ impl ExtManager {
     // TODO #4121
     #[track_caller]
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
-        self.gas_allowance = allowance;
+        self.gas_allowance.put(allowance);
         self.blocks_manager.next_block();
         let new_block_bn = self.block_height();
 
@@ -111,16 +111,16 @@ impl ExtManager {
 
         BlockRunResult {
             block_info: self.blocks_manager.get(),
-            gas_allowance_spent: Gas(GAS_ALLOWANCE) - self.gas_allowance,
+            gas_allowance_spent: Gas(GAS_ALLOWANCE) - self.gas_allowance.get(),
             succeed: mem::take(&mut self.succeed),
             failed: mem::take(&mut self.failed),
             not_executed: mem::take(&mut self.not_executed),
-            total_processed,
+            total_processed,``
             log: mem::take(&mut self.log)
                 .into_iter()
                 .map(CoreLog::from)
                 .collect(),
-            gas_burned: mem::take(&mut self.gas_burned),
+            gas_burned: self.gas_allowance.take_gas_burned(),
         }
     }
 
@@ -356,7 +356,7 @@ impl ExtManager {
 
         let context = match core_processor::precharge_for_program(
             &block_config,
-            self.gas_allowance.0,
+            self.gas_allowance.get().0,
             dispatch.into_incoming(gas_limit),
             dest,
         ) {

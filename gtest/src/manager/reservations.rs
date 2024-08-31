@@ -18,6 +18,8 @@
 
 //! Various reservation related methods for ExtManager
 
+use crate::WRITE_COST;
+
 use super::ExtManager;
 use gear_common::{
     scheduler::{ScheduledTask, StorageType},
@@ -55,10 +57,18 @@ impl ExtManager {
     ) {
         let slot = self.remove_gas_reservation_impl(program_id, reservation);
 
-        let _ = self.task_pool.delete(
-            slot.finish,
-            ScheduledTask::RemoveGasReservation(program_id, reservation),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                slot.finish,
+                ScheduledTask::RemoveGasReservation(program_id, reservation),
+            )
+            .and_then(|_| {
+                // each task pool change is a write to DB, decrease allowance
+                let weight = WRITE_COST;
+                self.gas_allowance.decrease(crate::Gas(weight));
+                Ok(())
+            });
     }
 
     pub(crate) fn remove_gas_reservation_slot(

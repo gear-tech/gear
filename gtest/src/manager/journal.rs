@@ -24,7 +24,7 @@ use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
     state::{accounts::Accounts, actors::Actors},
-    Value, EXISTENTIAL_DEPOSIT,
+    Value, EXISTENTIAL_DEPOSIT, WRITE_COST,
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
@@ -78,17 +78,11 @@ impl JournalHandler for ExtManager {
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
         self.gas_tree
             .spend(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
 
-        self.gas_burned
-            .entry(message_id)
-            .and_modify(|gas| {
-                *gas += Gas(amount);
-            })
-            .or_insert(Gas(amount));
+        self.gas_allowance.burn(message_id, Gas(amount));
 
         let (external, multiplier, _) = self
             .gas_tree
@@ -213,6 +207,9 @@ impl JournalHandler for ExtManager {
 
                     unreachable!("{err_msg}");
                 });
+                // each task pool change is a write to DB, decrease allowance
+                let weight = WRITE_COST;
+                self.gas_allowance.decrease(Gas(weight));
             }
 
             return;
@@ -317,7 +314,7 @@ impl JournalHandler for ExtManager {
         log::debug!(
             "Not enough gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
             dispatch.id(),
-            self.gas_allowance,
+            self.gas_allowance.get(),
             gas_burned,
         );
 
@@ -392,6 +389,10 @@ impl JournalHandler for ExtManager {
 
             unreachable!("{err_msg}");
         });
+
+        // each task pool change is a write to DB, decrease allowance
+        let weight = WRITE_COST;
+        self.gas_allowance.decrease(Gas(weight));
     }
 
     fn unreserve_gas(
@@ -402,10 +403,18 @@ impl JournalHandler for ExtManager {
     ) {
         <Self as TaskHandler<ProgramId>>::remove_gas_reservation(self, program_id, reservation_id);
 
-        let _ = self.task_pool.delete(
-            expiration,
-            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expiration,
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            )
+            .and_then(|_| {
+                // each task pool change is a write to DB, decrease allowance
+                let weight = WRITE_COST;
+                self.gas_allowance.decrease(Gas(weight));
+                Ok(())
+            });
     }
 
     #[track_caller]

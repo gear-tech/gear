@@ -254,7 +254,7 @@ impl System {
                     .collect();
                 BlockRunResult {
                     block_info,
-                    gas_allowance_spent: Gas(GAS_ALLOWANCE) - manager.gas_allowance,
+                    gas_allowance_spent: Gas(GAS_ALLOWANCE) - manager.gas_allowance.get(),
                     log,
                     ..Default::default()
                 }
