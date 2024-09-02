@@ -6,6 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+heck.workspace = true
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }

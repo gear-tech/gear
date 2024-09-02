@@ -79,7 +79,7 @@ impl Mirror {
         }
 
         let message_id =
-            message_id.ok_or(anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
+            message_id.ok_or_else(|| anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
 
         Ok((tx_hash, message_id))
     }

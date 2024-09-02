@@ -16,7 +16,7 @@
 
 use crate::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote},
-    configs::{BlockConfig, ProcessCosts},
+    configs::BlockConfig,
     context::{
         ContextChargedForAllocations, ContextChargedForCodeLength, ContextChargedForMemory,
         ContextChargedForProgram, ContextData, SystemReservationContext,
@@ -27,7 +27,7 @@ use crate::{
 use alloc::vec::Vec;
 use gear_core::{
     code::{InstantiatedSectionSizes, SectionName},
-    costs::BytesAmount,
+    costs::{BytesAmount, ProcessCosts},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},

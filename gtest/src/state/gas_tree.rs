@@ -198,12 +198,8 @@ impl GasTreeManager {
         GasTree::system_reserve(GasNodeId::from(message_id.cast::<PlainNodeId>()), amount)
     }
 
-    pub fn lock(&self, message_id: MessageId, id: LockId, amount: Gas) -> Result<(), GasTreeError> {
-        GasTree::lock(
-            GasNodeId::from(message_id.cast::<PlainNodeId>()),
-            id,
-            amount,
-        )
+    pub fn lock(&self, node_id: impl Origin, id: LockId, amount: Gas) -> Result<(), GasTreeError> {
+        GasTree::lock(GasNodeId::from(node_id.cast::<PlainNodeId>()), id, amount)
     }
 
     pub(crate) fn unlock_all(

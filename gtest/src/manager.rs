@@ -40,22 +40,13 @@ use crate::{
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    GAS_ALLOWANCE, GAS_MULTIPLIER, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST,
-    HOST_FUNC_WRITE_COST, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL,
-    LOAD_PAGE_STORAGE_DATA_COST, MAILBOX_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
-    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST,
-    READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, SIGNAL_READ_COST,
-    SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAILBOX_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
     common::*,
-    configs::{
-        BlockConfig, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER,
-    },
+    configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForInstrumentation, Ext,
 };
 use gear_common::{
@@ -70,6 +61,7 @@ use gear_common::{
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    gas_metering::{RentWeights, Schedule},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -79,7 +71,6 @@ use gear_core::{
     pages::{num_traits::Zero, GearPage},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
-use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
 use rand::{rngs::StdRng, RngCore, SeedableRng};

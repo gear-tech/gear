@@ -73,7 +73,10 @@ impl Listener {
     }
 
     pub async fn next_event(&mut self) -> Result<Event> {
-        self.receiver.recv().await.ok_or(anyhow!("No more events"))
+        self.receiver
+            .recv()
+            .await
+            .ok_or_else(|| anyhow!("No more events"))
     }
 
     pub async fn apply_until<R: Sized>(
@@ -258,6 +261,8 @@ impl TestEnv {
                 ethereum_rpc: self.rpc_url.clone(),
                 sign_tx_public: self.sequencer_public_key,
                 router_address: self.router_address,
+                validators: vec![self.validator_public_key.to_address()],
+                threshold: 1,
             },
             self.signer.clone(),
         )

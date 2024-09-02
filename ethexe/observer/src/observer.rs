@@ -255,7 +255,7 @@ async fn read_events_impl(
     let block_hash_of = |log: &alloy::rpc::types::Log| -> Result<H256> {
         log.block_hash
             .map(|v| v.0.into())
-            .ok_or(anyhow!("Block hash is missing"))
+            .ok_or_else(|| anyhow!("Block hash is missing"))
     };
 
     let mut res: HashMap<_, Vec<_>> = HashMap::new();

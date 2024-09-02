@@ -26,11 +26,11 @@ use crate::{
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
-use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -898,7 +898,7 @@ mod tests {
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
-        assert!(value.is_ok());
+        assert!(value.is_ok(), "not okay: {:?}", value);
     }
 
     #[test]
@@ -1354,6 +1354,50 @@ mod tests {
         assert!(res.succeed.contains(&msg_id));
 
         // Check reservation is removed from the tree
+        assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
+    }
+
+    #[test]
+    fn test_delete_expired_reservation() {
+        use demo_constructor::{Calls, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = DEFAULT_USER_ALICE;
+        let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
+
+        // Initialize program
+        let msg_id = prog.send(user_id, Scheme::empty());
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
+
+        // Reserve gas handle
+        let handle = Calls::builder().reserve_gas(1_000_000, 1);
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
+
+        // Get reservation id from program
+        let reservation_id = sys
+            .0
+            .borrow_mut()
+            .update_genuine_program(prog.id(), |genuine_prog| {
+                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
+                genuine_prog
+                    .gas_reservation_map
+                    .iter()
+                    .next()
+                    .map(|(&id, _)| id)
+                    .expect("reservation exists, checked upper; qed.")
+            })
+            .expect("internal error: existing prog not found");
+
+        // Check reservation exists in the tree
+        assert!(sys.0.borrow().gas_tree.exists(reservation_id));
+
+        sys.run_next_block();
+
         assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
     }
 
