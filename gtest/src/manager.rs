@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod exec;
+mod block_exec;
 mod expend;
 mod hold_bound;
 mod journal;
@@ -47,7 +47,7 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext,
+    ContextChargedForInstrumentation, Ext,
 };
 use gear_common::{
     auxiliary::{
@@ -96,7 +96,7 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) bank: Bank,
-    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) opt_binaries: BTreeMap<CodeId, InstrumentedCode>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
@@ -147,20 +147,23 @@ impl ExtManager {
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<TestActor> {
-        if let Program::Genuine(GenuineProgram { code, .. }) = &program {
-            self.store_new_code(code.code().to_vec());
+        if let Program::Genuine(GenuineProgram {
+            ref code, code_id, ..
+        }) = program
+        {
+            if self.read_code(code_id).is_none() {
+                self.store_new_code(code_id, code.clone());
+            }
         }
         Actors::insert(program_id, TestActor::new(init_message_id, program))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
-        let code_id = CodeId::generate(&code);
+    pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: InstrumentedCode) {
         self.opt_binaries.insert(code_id, code);
-        code_id
     }
 
     pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
-        self.opt_binaries.get(&code_id).map(Vec::as_slice)
+        self.opt_binaries.get(&code_id).map(|code| code.code())
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
