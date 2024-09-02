@@ -196,7 +196,7 @@ impl JournalHandler for ExtManager {
     ) {
         log::debug!("[{}] wait", dispatch.id());
 
-        self.wait_dipatch_impl(
+        self.wait_dispatch_impl(
             dispatch,
             duration,
             MessageWaitedRuntimeReason::from(waited_type).into_reason(),
