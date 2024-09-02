@@ -16,13 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, Log, Value};
+use crate::{manager::ExtManager, Log, Value, GAS_ALLOWANCE};
 use codec::Encode;
 use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
     storage::Interval,
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::{
+    ids::{prelude::MessageIdExt as _, MessageId, ProgramId},
+    message::{ReplyMessage, ReplyPacket},
+};
 use std::cell::RefCell;
 
 /// Interface to a particular user mailbox.
@@ -66,16 +69,51 @@ impl<'a> ActorMailbox<'a> {
         raw_payload: impl AsRef<[u8]>,
         value: Value,
     ) -> Result<MessageId, MailboxErrorImpl> {
-        let mailboxed_msg = self
+        let reply_to_id = self
             .find_message_by_log(&log)
-            .ok_or(MailboxErrorImpl::ElementNotFound)?;
+            .ok_or(MailboxErrorImpl::ElementNotFound)?
+            .id();
 
-        self.manager.borrow_mut().send_reply_impl(
-            self.user_id,
-            mailboxed_msg.id(),
-            raw_payload,
-            value,
-        )
+        let mailboxed = self
+            .manager
+            .borrow_mut()
+            .read_mailbox_message(self.user_id, reply_to_id)?;
+
+        let destination = mailboxed.source();
+        let reply_id = MessageId::generate_reply(mailboxed.id());
+
+        // Set zero gas limit if reply deposit exists.
+        let gas_limit = if self
+            .manager
+            .borrow_mut()
+            .gas_tree
+            .exists_and_deposit(reply_id)
+        {
+            0
+        } else {
+            GAS_ALLOWANCE
+        };
+
+        // Build a reply message
+        let dispatch = {
+            let payload = raw_payload
+                .as_ref()
+                .to_vec()
+                .try_into()
+                .unwrap_or_else(|err| unreachable!("Can't send reply with such payload: {err:?}"));
+
+            let message = ReplyMessage::from_packet(
+                reply_id,
+                ReplyPacket::new_with_gas(payload, gas_limit, value),
+            );
+
+            message.into_dispatch(self.user_id, destination, mailboxed.id())
+        };
+
+        Ok(self
+            .manager
+            .borrow_mut()
+            .validate_and_route_dispatch(dispatch))
     }
 
     /// Claims value from a message in mailbox.

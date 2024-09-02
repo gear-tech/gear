@@ -35,52 +35,6 @@ impl ExtManager {
         self.route_dispatch(dispatch)
     }
 
-    pub(crate) fn send_reply_impl(
-        &mut self,
-        origin: ProgramId,
-        reply_to_id: MessageId,
-        raw_payload: impl AsRef<[u8]>,
-        value: Value,
-    ) -> Result<MessageId, MailboxErrorImpl> {
-        let mailboxed = self.read_mailbox_message(origin, reply_to_id)?;
-
-        let destination = mailboxed.source();
-        let reply_id = MessageId::generate_reply(mailboxed.id());
-
-        // Set zero gas limit if reply deposit exists.
-        let gas_limit = if self.gas_tree.exists_and_deposit(reply_id) {
-            0
-        } else {
-            GAS_ALLOWANCE
-        };
-
-        // Build a reply message
-        let dispatch = {
-            let payload = raw_payload
-                .as_ref()
-                .to_vec()
-                .try_into()
-                .unwrap_or_else(|err| unreachable!("Can't send reply with such payload: {err:?}"));
-
-            let message = ReplyMessage::from_packet(
-                reply_id,
-                ReplyPacket::new_with_gas(payload, gas_limit, value),
-            );
-
-            message.into_dispatch(origin, destination, mailboxed.id())
-        };
-
-        self.validate_dispatch(&dispatch);
-
-        self.gas_tree
-            .create(origin, reply_id, gas_limit, true)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        self.dispatches.push_back(dispatch.into());
-
-        Ok(reply_id)
-    }
-
     pub(crate) fn claim_value_impl(
         &mut self,
         origin: ProgramId,
