@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, Log, Value, GAS_ALLOWANCE};
+use crate::{
+    manager::ExtManager,
+    state::{accounts::Accounts, actors::Actors},
+    Log, Value, GAS_ALLOWANCE,
+};
 use codec::Encode;
 use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
@@ -121,13 +125,40 @@ impl<'a> ActorMailbox<'a> {
     /// If message with traits defined in `log` is not found, an error is
     /// returned.
     pub fn claim_value<T: Into<Log>>(&self, log: T) -> Result<(), MailboxErrorImpl> {
-        let mailboxed_msg = self
+        let message_id = self
             .find_message_by_log(&log.into())
-            .ok_or(MailboxErrorImpl::ElementNotFound)?;
+            .ok_or(MailboxErrorImpl::ElementNotFound)?
+            .id();
 
-        self.manager
+        // User must exist
+        if !Accounts::exists(self.user_id) {
+            panic!(
+                "User's {} balance is zero; mint value to it first.",
+                self.user_id
+            );
+        }
+
+        let mailboxed = self
+            .manager
             .borrow_mut()
-            .claim_value_impl(self.user_id, mailboxed_msg.id())
+            .read_mailbox_message(self.user_id, message_id)?;
+
+        if Actors::is_active_program(mailboxed.source()) {
+            let message = ReplyMessage::auto(mailboxed.id());
+
+            self.manager
+                .borrow_mut()
+                .gas_tree
+                .create(self.user_id, message.id(), 0, true)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            let dispatch =
+                message.into_stored_dispatch(self.user_id, mailboxed.source(), mailboxed.id());
+
+            self.manager.borrow_mut().dispatches.push_back(dispatch);
+        }
+
+        Ok(())
     }
 
     fn find_message_by_log(&self, log: &Log) -> Option<MailboxedMessage> {

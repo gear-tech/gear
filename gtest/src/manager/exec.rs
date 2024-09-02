@@ -35,33 +35,6 @@ impl ExtManager {
         self.route_dispatch(dispatch)
     }
 
-    pub(crate) fn claim_value_impl(
-        &mut self,
-        origin: ProgramId,
-        message_id: MessageId,
-    ) -> Result<(), MailboxErrorImpl> {
-        // User must exist
-        if !Accounts::exists(origin) {
-            panic!("User's {origin} balance is zero; mint value to it first.");
-        }
-
-        let mailboxed = self.read_mailbox_message(origin, message_id)?;
-
-        if Actors::is_active_program(mailboxed.source()) {
-            let message = ReplyMessage::auto(mailboxed.id());
-
-            self.gas_tree
-                .create(origin, message.id(), 0, true)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-            let dispatch = message.into_stored_dispatch(origin, mailboxed.source(), mailboxed.id());
-
-            self.dispatches.push_back(dispatch);
-        }
-
-        Ok(())
-    }
-
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
         let source = dispatch.source();
