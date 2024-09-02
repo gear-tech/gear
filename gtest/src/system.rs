@@ -336,9 +336,7 @@ impl System {
     /// stores the code in storage.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
         let (code, code_id) = ProgramBuilder::build_instrumented_code_and_id(binary.into());
-        self.0
-            .borrow_mut()
-            .store_new_code(code_id, code.code().to_vec());
+        self.0.borrow_mut().store_new_code(code_id, code);
 
         code_id
     }

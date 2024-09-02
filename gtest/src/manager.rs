@@ -69,7 +69,7 @@ use gear_common::{
     LockId, Origin,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId, TryNewCodeConfig},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -105,7 +105,7 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) bank: Bank,
-    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) opt_binaries: BTreeMap<CodeId, InstrumentedCode>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
@@ -160,17 +160,19 @@ impl ExtManager {
             ref code, code_id, ..
         }) = program
         {
-            self.store_new_code(code_id, code.code().to_vec());
+            if self.read_code(code_id).is_none() {
+                self.store_new_code(code_id, code.clone());
+            }
         }
         Actors::insert(program_id, TestActor::new(init_message_id, program))
     }
 
-    pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
+    pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: InstrumentedCode) {
         self.opt_binaries.insert(code_id, code);
     }
 
     pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
-        self.opt_binaries.get(&code_id).map(Vec::as_slice)
+        self.opt_binaries.get(&code_id).map(|code| code.code())
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {

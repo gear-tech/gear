@@ -30,7 +30,6 @@ use gear_common::{
     Origin,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
@@ -42,7 +41,6 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gear_wasm_instrument::gas_metering::Schedule;
 use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {
@@ -293,25 +291,10 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !Actors::contains_key(candidate_id) {
-                    let schedule = Schedule::default();
-                    let code = Code::try_new(
-                        code.clone(),
-                        schedule.instruction_weights.version,
-                        |module| schedule.rules(module),
-                        schedule.limits.stack_height,
-                        schedule.limits.data_segments_amount.into(),
-                        schedule.limits.table_number.into(),
-                    )
-                    .expect("Program can't be constructed with provided code");
-
-                    let code_and_id: InstrumentedCodeAndId =
-                        CodeAndId::from_parts_unchecked(code, code_id).into();
-                    let (code, code_id) = code_and_id.into_parts();
-
                     self.store_new_actor(
                         candidate_id,
                         Program::Genuine(GenuineProgram {
-                            code,
+                            code: code.clone(),
                             code_id,
                             allocations: Default::default(),
                             pages_data: Default::default(),
