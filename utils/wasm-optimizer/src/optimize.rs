@@ -28,9 +28,8 @@ use pwasm_utils::{
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
 use std::{
-    ffi::OsStr,
     fs::{self, metadata},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 #[cfg(feature = "wasm-opt")]
@@ -149,21 +148,22 @@ pub struct OptimizationResult {
 ///
 /// The intention is to reduce the size of bloated Wasm binaries as a result of
 /// missing optimizations (or bugs?) between Rust and Wasm.
-pub fn optimize_wasm(
-    source: PathBuf,
-    destination: PathBuf,
+pub fn optimize_wasm<P: AsRef<Path>>(
+    source: P,
+    destination: P,
     optimization_passes: &str,
     keep_debug_symbols: bool,
 ) -> Result<OptimizationResult> {
     let original_size = metadata(&source)?.len() as f64 / 1000.0;
 
     do_optimization(
-        source.as_os_str(),
-        destination.as_os_str(),
+        &source,
+        &destination,
         optimization_passes,
         keep_debug_symbols,
     )?;
 
+    let destination = destination.as_ref();
     if !destination.exists() {
         return Err(anyhow::anyhow!(
             "Optimization failed, optimized wasm output file `{}` not found.",
@@ -171,7 +171,7 @@ pub fn optimize_wasm(
         ));
     }
 
-    let optimized_size = metadata(&destination)?.len() as f64 / 1000.0;
+    let optimized_size = metadata(destination)?.len() as f64 / 1000.0;
 
     Ok(OptimizationResult {
         original_size,
@@ -187,9 +187,9 @@ pub fn optimize_wasm(
 /// resulting in potentially a lot of time spent optimizing.
 ///
 /// If successful, the optimized Wasm is written to `dest_optimized`.
-pub fn do_optimization(
-    dest_wasm: &OsStr,
-    dest_optimized: &OsStr,
+pub fn do_optimization<P: AsRef<Path>>(
+    dest_wasm: P,
+    dest_optimized: P,
     optimization_level: &str,
     keep_debug_symbols: bool,
 ) -> Result<()> {
@@ -221,10 +221,10 @@ pub fn do_optimization(
     );
     let mut command = Command::new(wasm_opt_path);
     command
-        .arg(dest_wasm)
+        .arg(dest_wasm.as_ref())
         .arg(format!("-O{optimization_level}"))
         .arg("-o")
-        .arg(dest_optimized)
+        .arg(dest_optimized.as_ref())
         .arg("-mvp")
         .arg("--enable-sign-ext")
         // the memory in our module is imported, `wasm-opt` needs to be told that
@@ -259,9 +259,9 @@ pub fn do_optimization(
 /// resulting in potentially a lot of time spent optimizing.
 ///
 /// If successful, the optimized Wasm is written to `dest_optimized`.
-pub fn do_optimization(
-    dest_wasm: &OsStr,
-    dest_optimized: &OsStr,
+pub fn do_optimization<P: AsRef<Path>>(
+    dest_wasm: P,
+    dest_optimized: P,
     optimization_level: &str,
     keep_debug_symbols: bool,
 ) -> Result<()> {
