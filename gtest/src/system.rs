@@ -21,7 +21,7 @@ use crate::{
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
-    Gas, Value, GAS_ALLOWANCE,
+    Gas, ProgramBuilder, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
@@ -311,18 +311,6 @@ impl System {
         Actors::is_active_program(program_id)
     }
 
-    /// Saves code to the storage and returns its code hash
-    ///
-    /// This method is mainly used for providing a proper program from program
-    /// creation logic. In order to successfully create a new program with
-    /// `gstd::prog::create_program_bytes_with_gas` function, developer should
-    /// provide to the function "child's" code hash. Code for that code hash
-    /// must be in storage at the time of the function call. So this method
-    /// stores the code in storage.
-    pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
-        self.0.borrow_mut().store_new_code(binary.into())
-    }
-
     /// Saves code from file to the storage and returns its code hash
     ///
     /// See also [`System::submit_code`]
@@ -334,7 +322,23 @@ impl System {
                 code_path.as_ref().to_string_lossy()
             )
         });
-        self.0.borrow_mut().store_new_code(code)
+
+        self.submit_code(code)
+    }
+
+    /// Saves code to the storage and returns its code hash
+    ///
+    /// This method is mainly used for providing a proper program from program
+    /// creation logic. In order to successfully create a new program with
+    /// `gstd::prog::create_program_bytes_with_gas` function, developer should
+    /// provide to the function "child's" code hash. Code for that code hash
+    /// must be in storage at the time of the function call. So this method
+    /// stores the code in storage.
+    pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
+        let (code, code_id) = ProgramBuilder::build_instrumented_code_and_id(binary.into());
+        self.0.borrow_mut().store_new_code(code_id, code);
+
+        code_id
     }
 
     /// Saves code to the storage and returns its code hash

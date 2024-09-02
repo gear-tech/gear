@@ -66,7 +66,8 @@ impl ExtManager {
     }
 
     pub(crate) fn consume_and_retrieve(&mut self, id: impl Origin) {
-        let outcome = self.gas_tree.consume(id).unwrap_or_else(|e| {
+        let id_origin = id.into_origin();
+        let outcome = self.gas_tree.consume(id_origin).unwrap_or_else(|e| {
             let err_msg = format!(
                 "consume_and_retrieve: failed consuming the rest of gas. Got error - {e:?}"
             );
@@ -76,6 +77,9 @@ impl ExtManager {
 
         if let Some((imbalance, multiplier, external)) = outcome {
             let gas_left = imbalance.peek();
+            log::debug!(
+                "Consumed message {id_origin}. Unreserving {gas_left} (gas) from {external:?}",
+            );
 
             if !gas_left.is_zero() {
                 self.bank

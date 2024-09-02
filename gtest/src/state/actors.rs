@@ -136,14 +136,21 @@ impl TestActor {
         }
     }
 
-    // Checks if actor is dormant.
-    pub(crate) fn is_dormant(&self) -> bool {
-        matches!(self, TestActor::Dormant)
+    // Checks if actor is uninitialized.
+    pub(crate) fn is_uninitialized(&self) -> bool {
+        matches!(self, TestActor::Uninitialized(..))
     }
 
     // Checks if actor is initialized.
-    pub(crate) fn is_uninitialized(&self) -> bool {
-        matches!(self, TestActor::Uninitialized(..))
+    pub(crate) fn is_initialized(&self) -> bool {
+        matches!(self, TestActor::Initialized(..))
+    }
+
+    pub(crate) fn uninitilized_init_message_id(&self) -> Option<MessageId> {
+        match self {
+            TestActor::Uninitialized(ret, _) => *ret,
+            TestActor::Initialized(_) | TestActor::Dormant => None,
+        }
     }
 
     // Returns `Some` if actor contains genuine program.
@@ -204,7 +211,7 @@ impl TestActor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct GenuineProgram {
     pub code_id: CodeId,
     pub code: InstrumentedCode,
