@@ -1263,7 +1263,7 @@ mod tests {
         assert_eq!(sys.balance_of(prog_id), 0);
         let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
-        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 1_000_000_000, 0);
+        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 10_000_000_000, 0);
         let result = sys.run_next_block();
         user_balance -= result.spent_value() + EXISTENTIAL_DEPOSIT;
 
@@ -1271,7 +1271,7 @@ mod tests {
         assert_eq!(sys.balance_of(prog_id), EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), user_balance);
 
-        let msg_id = prog.send_bytes_with_gas(user_id, [], 2_000_000_000, 0);
+        let msg_id = prog.send_bytes_with_gas(user_id, [], 10_000_000_000, 0);
         let result = sys.run_next_block();
         user_balance -= result.spent_value();
 
