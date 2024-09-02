@@ -18,7 +18,6 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-use std::collections::BTreeMap;
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
@@ -43,6 +42,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
+use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(
