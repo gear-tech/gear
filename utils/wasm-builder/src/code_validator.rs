@@ -17,8 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, bail};
-use gear_core::code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig};
-use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, SyscallName};
+use gear_core::{
+    code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
+    gas_metering::CustomConstantCostRules,
+};
+use gear_wasm_instrument::SyscallName;
 use pwasm_utils::parity_wasm::{
     self,
     elements::{

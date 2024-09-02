@@ -26,11 +26,11 @@ use crate::{
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
+    gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
-use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -892,7 +892,7 @@ mod tests {
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
-        assert!(value.is_ok());
+        assert!(value.is_ok(), "not okay: {:?}", value);
     }
 
     #[test]
