@@ -32,10 +32,11 @@ use common::{Origin, ProgramStorage};
 use core::fmt::{Debug, Formatter};
 use core_processor::common::{DispatchOutcome, JournalNote};
 use gear_core::{
+    costs::LazyPagesCosts,
     memory::{MemoryInterval, PageBuf},
     pages::{numerated::iterators::IntervalIterator, GearPage, GearPagesAmount},
 };
-use gear_lazy_pages_common::{LazyPagesCosts, Status};
+use gear_lazy_pages_common::Status;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
 use rand::{Rng, SeedableRng};
 use sp_runtime::codec::MaxEncodedLen;

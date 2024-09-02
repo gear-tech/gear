@@ -16,27 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// Implementation of the `JournalHandler` trait for the `ExtManager`.
-use std::collections::BTreeMap;
-
-use crate::{accounts::Accounts, actors::Actors, Value, EXISTENTIAL_DEPOSIT};
+//! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
+use crate::{
+    manager::hold_bound::HoldBoundBuilder,
+    state::{accounts::Accounts, actors::Actors},
+    Value, EXISTENTIAL_DEPOSIT,
+};
 use core_processor::common::{DispatchOutcome, JournalHandler};
-use gear_common::{scheduler::ScheduledTask, Origin};
+use gear_common::{
+    event::{MessageWaitedRuntimeReason, RuntimeReason},
+    scheduler::{ScheduledTask, StorageType, TaskHandler},
+    Origin,
+};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
     pages::{
+        num_traits::Zero,
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage,
     },
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gear_wasm_instrument::gas_metering::Schedule;
+use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(
@@ -46,7 +52,8 @@ impl JournalHandler for ExtManager {
         outcome: DispatchOutcome,
     ) {
         match outcome {
-            DispatchOutcome::MessageTrap { .. } => {
+            DispatchOutcome::MessageTrap { program_id, trap } => {
+                log::debug!("🪤 Program {program_id} terminated with a trap: {trap}");
                 self.failed.insert(message_id);
             }
             DispatchOutcome::NoExecution => {
@@ -69,6 +76,8 @@ impl JournalHandler for ExtManager {
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
+        log::debug!("Burned: {:?} from: {:?}", amount, message_id);
+
         self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
         self.gas_tree
             .spend(message_id, amount)
@@ -91,6 +100,10 @@ impl JournalHandler for ExtManager {
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        log::debug!(
+            "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
+        );
+
         Actors::modify(id_exited, |actor| {
             let actor =
                 actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
@@ -116,7 +129,10 @@ impl JournalHandler for ExtManager {
     ) {
         let to_user = Actors::is_user(dispatch.destination());
         if delay > 0 {
-            log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
+            log::debug!(
+                "[{message_id}] new delayed dispatch#{} with delay for {delay} blocks",
+                dispatch.id()
+            );
 
             self.send_delayed_dispatch(message_id, dispatch, delay, to_user, reservation);
             return;
@@ -128,10 +144,18 @@ impl JournalHandler for ExtManager {
         let is_program = Actors::is_program(dispatch.destination());
 
         if is_program {
+            let gas_limit = dispatch.gas_limit();
+            log::debug!(
+                "Sending message {:?} from {:?} with gas limit {:?}",
+                dispatch.message(),
+                message_id,
+                gas_limit,
+            );
+
             if dispatch.value() != 0 {
                 self.bank.deposit_value(source, dispatch.value(), false);
             }
-            match (dispatch.gas_limit(), reservation) {
+            match (gas_limit, reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
                     .split_with_value(false, message_id, dispatch.id(), gas_limit)
@@ -154,6 +178,12 @@ impl JournalHandler for ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
+            log::debug!(
+                "Sending user message {:?} from {:?} with gas limit {:?}",
+                dispatch.message(),
+                message_id,
+                dispatch.gas_limit(),
+            );
             self.send_user_message(message_id, dispatch.into_parts().1, reservation);
         }
     }
@@ -162,21 +192,15 @@ impl JournalHandler for ExtManager {
         &mut self,
         dispatch: StoredDispatch,
         duration: Option<u32>,
-        _: MessageWaitedType,
+        waited_type: MessageWaitedType,
     ) {
         log::debug!("[{}] wait", dispatch.id());
 
-        let dest = dispatch.destination();
-        let id = dispatch.id();
-        let expected_wake = duration.map(|d| {
-            let expected_bn = d + self.block_height();
-            self.task_pool
-                .add(expected_bn, ScheduledTask::WakeMessage(dest, id))
-                .unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
-
-            expected_bn
-        });
-        self.wait_list.insert((dest, id), (dispatch, expected_wake));
+        self.wait_dispatch_impl(
+            dispatch,
+            duration,
+            MessageWaitedRuntimeReason::from(waited_type).into_reason(),
+        );
     }
 
     fn wake_message(
@@ -184,23 +208,42 @@ impl JournalHandler for ExtManager {
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
-        _delay: u32,
+        delay: u32,
     ) {
-        log::debug!("[{message_id}] waked message#{awakening_id}");
+        log::debug!("[{message_id}] tries to wake message#{awakening_id}");
 
-        if let Some((msg, expected_bn)) = self.wait_list.remove(&(program_id, awakening_id)) {
-            self.dispatches.push_back(msg);
+        if delay.is_zero() {
+            if let Ok(dispatch) = self.wake_dispatch_impl(program_id, awakening_id) {
+                self.dispatches.push_back(dispatch);
 
-            let Some(expected_bn) = expected_bn else {
                 return;
-            };
-            self.task_pool
-                .delete(
-                    expected_bn,
-                    ScheduledTask::WakeMessage(program_id, awakening_id),
-                )
-                .unwrap_or_else(|e| unreachable!("TaskPool corrupted: {e:?}"));
+            }
+        } else if self.waitlist.contains(program_id, awakening_id) {
+            let expected_bn = self.block_height() + delay;
+            let task = ScheduledTask::WakeMessage(program_id, awakening_id);
+
+            // This validation helps us to avoid returning error on insertion into
+            // `TaskPool` in case of duplicate wake.
+            if !self.task_pool.contains(&expected_bn, &task) {
+                self.task_pool.add(expected_bn, task).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "JournalHandler::wake_message: failed adding task for waking message. \
+                        Expected bn - {expected_bn:?}, program id - {program_id}, message_id - {awakening_id}.
+                        Got error - {e:?}"
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+            }
+
+            return;
         }
+
+        log::debug!(
+            "Failed to wake unknown message {:?} from {:?}",
+            awakening_id,
+            message_id
+        );
     }
 
     #[track_caller]
@@ -230,7 +273,7 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
-        if value == 0 {
+        if value.is_zero() {
             // Nothing to do
             return;
         }
@@ -249,25 +292,10 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !Actors::contains_key(candidate_id) {
-                    let schedule = Schedule::default();
-                    let code = Code::try_new(
-                        code.clone(),
-                        schedule.instruction_weights.version,
-                        |module| schedule.rules(module),
-                        schedule.limits.stack_height,
-                        schedule.limits.data_segments_amount.into(),
-                        schedule.limits.table_number.into(),
-                    )
-                    .expect("Program can't be constructed with provided code");
-
-                    let code_and_id: InstrumentedCodeAndId =
-                        CodeAndId::from_parts_unchecked(code, code_id).into();
-                    let (code, code_id) = code_and_id.into_parts();
-
                     self.store_new_actor(
                         candidate_id,
                         Program::Genuine(GenuineProgram {
-                            code,
+                            code: code.clone(),
                             code_id,
                             allocations: Default::default(),
                             pages_data: Default::default(),
@@ -307,7 +335,7 @@ impl JournalHandler for ExtManager {
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        _program_id: ProgramId,
+        program_id: ProgramId,
         amount: u64,
         duration: u32,
     ) {
@@ -319,9 +347,57 @@ impl JournalHandler for ExtManager {
             duration
         );
 
+        let hold = HoldBoundBuilder::new(StorageType::Reservation).duration(self, duration);
+
+        if hold.expected_duration(self).is_zero() {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: reservation got zero duration hold bound for storing. \
+                Duration - {duration}, block cost - {cost}, program - {program_id}.",
+                cost = Self::cost_by_storage_type(StorageType::Reservation)
+            );
+
+            unreachable!("{err_msg}");
+        }
+
+        let total_amount = amount.saturating_add(hold.lock_amount(self));
+
         self.gas_tree
-            .reserve_gas(message_id, reservation_id, amount)
+            .reserve_gas(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+
+        let lock_id = hold.lock_id().unwrap_or_else(|| {
+            // Reservation storage is guaranteed to have an associated lock id
+            let err_msg =
+                "JournalHandler::reserve_gas: No associated lock id for the reservation storage";
+
+            unreachable!("{err_msg}");
+        });
+
+        self.gas_tree
+            .lock(reservation_id, lock_id, hold.lock_amount(self))
+            .unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "JournalHandler::reserve_gas: failed locking gas for the reservation hold. \
+                Reseravation - {reservation_id}, lock amount - {lock}. Got error - {e:?}",
+                    lock = hold.lock_amount(self)
+                );
+
+                unreachable!("{err_msg}");
+            });
+
+        self.task_pool.add(
+            hold.expected(),
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id)
+        ).unwrap_or_else(|e| {
+            let err_msg = format!(
+                "JournalHandler::reserve_gas: failed adding task for gas reservation removal. \
+                Expected bn - {bn:?}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
+                bn = hold.expected()
+            );
+
+
+            unreachable!("{err_msg}");
+        });
     }
 
     fn unreserve_gas(
@@ -330,12 +406,7 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         expiration: u32,
     ) {
-        let has_removed_reservation = self
-            .remove_reservation(program_id, reservation_id)
-            .expect("failed to find genuine_program");
-        if !has_removed_reservation {
-            unreachable!("Failed to remove reservation {reservation_id} from {program_id}");
-        }
+        <Self as TaskHandler<ProgramId>>::remove_gas_reservation(self, program_id, reservation_id);
 
         let _ = self.task_pool.delete(
             expiration,
@@ -354,15 +425,26 @@ impl JournalHandler for ExtManager {
     }
 
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
+        log::debug!("Reserve {amount} of gas for system from {message_id}");
+
         self.gas_tree
             .system_reserve(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
     }
 
     fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        self.gas_tree
+        let amount = self
+            .gas_tree
             .system_unreserve(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+
+        if amount != 0 {
+            log::debug!("Unreserved {amount} gas for system from {message_id}");
+        } else {
+            log::debug!(
+                "Gas for system was not unreserved from {message_id} as there is no supply",
+            );
+        }
     }
 
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
@@ -373,10 +455,7 @@ impl JournalHandler for ExtManager {
 
         if reserved != 0 {
             log::debug!(
-                "Send signal issued by {} to {} with {} supply",
-                message_id,
-                destination,
-                reserved
+                "Send signal issued by {message_id} to {destination} with {reserved} supply",
             );
 
             let trap_signal = SignalMessage::new(message_id, code)
@@ -399,6 +478,8 @@ impl JournalHandler for ExtManager {
     }
 
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
+        log::debug!("Creating reply deposit {amount} gas for message id {future_reply_id}");
+
         self.gas_tree
             .create_deposit(message_id, future_reply_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

@@ -17,20 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     default_users_list,
     manager::ExtManager,
+    state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
     Result, Value, GAS_ALLOWANCE,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
-use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -337,19 +337,7 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let schedule = Schedule::default();
-        let code = Code::try_new(
-            self.code,
-            schedule.instruction_weights.version,
-            |module| schedule.rules(module),
-            schedule.limits.stack_height,
-            schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
-        )
-        .expect("Failed to create Program from code");
-
-        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
-        let (code, code_id) = code_and_id.into_parts();
+        let (code, code_id) = Self::build_instrumented_code_and_id(self.code);
 
         if let Some(metadata) = self.meta {
             system
@@ -370,6 +358,24 @@ impl ProgramBuilder {
                 gas_reservation_map: Default::default(),
             }),
         )
+    }
+
+    pub(crate) fn build_instrumented_code_and_id(
+        original_code: Vec<u8>,
+    ) -> (InstrumentedCode, CodeId) {
+        let schedule = Schedule::default();
+        let code = Code::try_new(
+            original_code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
+        )
+        .expect("Failed to create Program from provided code");
+
+        let c: InstrumentedCodeAndId = CodeAndId::new(code).into();
+        c.into_parts()
     }
 }
 
@@ -892,7 +898,7 @@ mod tests {
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
-        assert!(value.is_ok());
+        assert!(value.is_ok(), "not okay: {:?}", value);
     }
 
     #[test]
@@ -905,21 +911,18 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
         let init_msg_payload = String::from("InvalidInput");
-        let msg_id = prog.send(user_id, init_msg_payload);
+        let failed_mid = prog.send(user_id, init_msg_payload);
+        let skipped_mid = prog.send(user_id, String::from("should_be_skipped"));
 
         let res = sys.run_next_block();
 
-        res.assert_panicked_with(msg_id, "Failed to load destination: Decode(Error)");
-
-        let msg_id = prog.send(user_id, String::from("should_be_skipped"));
-
-        let res = sys.run_next_block();
+        res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
         let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
             .source(prog.id())
             .dest(user_id);
 
-        assert!(res.not_executed.contains(&msg_id));
+        assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));
     }
 
@@ -1260,7 +1263,7 @@ mod tests {
         assert_eq!(sys.balance_of(prog_id), 0);
         let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
-        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 1_000_000_000, 0);
+        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 10_000_000_000, 0);
         let result = sys.run_next_block();
         user_balance -= result.spent_value() + EXISTENTIAL_DEPOSIT;
 
@@ -1268,7 +1271,7 @@ mod tests {
         assert_eq!(sys.balance_of(prog_id), EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), user_balance);
 
-        let msg_id = prog.send_bytes_with_gas(user_id, [], 1_000_000_000, 0);
+        let msg_id = prog.send_bytes_with_gas(user_id, [], 10_000_000_000, 0);
         let result = sys.run_next_block();
         user_balance -= result.spent_value();
 
@@ -1351,6 +1354,50 @@ mod tests {
         assert!(res.succeed.contains(&msg_id));
 
         // Check reservation is removed from the tree
+        assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
+    }
+
+    #[test]
+    fn test_delete_expired_reservation() {
+        use demo_constructor::{Calls, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = DEFAULT_USER_ALICE;
+        let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
+
+        // Initialize program
+        let msg_id = prog.send(user_id, Scheme::empty());
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
+
+        // Reserve gas handle
+        let handle = Calls::builder().reserve_gas(1_000_000, 1);
+        let msg_id = prog.send(user_id, handle);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&msg_id));
+
+        // Get reservation id from program
+        let reservation_id = sys
+            .0
+            .borrow_mut()
+            .update_genuine_program(prog.id(), |genuine_prog| {
+                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
+                genuine_prog
+                    .gas_reservation_map
+                    .iter()
+                    .next()
+                    .map(|(&id, _)| id)
+                    .expect("reservation exists, checked upper; qed.")
+            })
+            .expect("internal error: existing prog not found");
+
+        // Check reservation exists in the tree
+        assert!(sys.0.borrow().gas_tree.exists(reservation_id));
+
+        sys.run_next_block();
+
         assert!(!sys.0.borrow().gas_tree.exists(reservation_id));
     }
 

@@ -149,6 +149,7 @@ for PALLET in "${PALLETS[@]}"; do
   # Run multithreaded benchmarks (pallet_gear_builtin) on fixed 4 cores.
   if [ -n "$INSTANCE_TYPE" ] && [ "$PALLET" == "pallet_gear_builtin" ]
   then
+    PREV_TASKSET_CMD=$TASKSET_CMD
     TASKSET_CMD="taskset -c 2,3,4,5"
     echo "[+] Running pallet_gear_builtin benches on fixed 4 cores: 2,3,4,5"
   fi
@@ -219,6 +220,13 @@ for PALLET in "${PALLETS[@]}"; do
       echo "$OUTPUT" >> "$ERR_FILE"
       echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
     fi
+  fi
+
+  # Reset the taskset command if it was changed.
+  if [ -n "$PREV_TASKSET_CMD" ]
+  then
+    TASKSET_CMD=$PREV_TASKSET_CMD
+    unset PREV_TASKSET_CMD
   fi
 done
 

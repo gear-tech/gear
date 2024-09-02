@@ -232,6 +232,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tests::init_logger;
     use libp2p::{
         futures::{stream, StreamExt},
         swarm::{
@@ -241,10 +242,6 @@ mod tests {
         Swarm,
     };
     use libp2p_swarm_test::SwarmExt;
-
-    fn init_logger() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
 
     fn new_swarm(limits: Limits) -> Swarm<Behaviour> {
         SwarmExt::new_ephemeral(|_keypair| Behaviour::new(limits))

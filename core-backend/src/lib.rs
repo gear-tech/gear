@@ -59,9 +59,8 @@ mod tests {
         error::ActorTerminationReason,
         mock::MockExt,
     };
-    use gear_core::message::DispatchKind;
+    use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
-        gas_metering::CustomConstantCostRules,
         parity_wasm::{self, builder},
         InstrumentationBuilder, SyscallName,
     };
