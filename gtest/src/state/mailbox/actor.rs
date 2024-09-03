@@ -173,13 +173,10 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
-        MAILBOX_THRESHOLD,
-    };
+    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
-    use gear_core::ids::ProgramId;
+    use gear_core::{gas_metering::RentWeights, ids::ProgramId};
 
     fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
         let program = Program::from_binary_with_id(system, 121, WASM_BINARY);
@@ -214,7 +211,7 @@ mod tests {
             original_balance
                 - value_send
                 - res.spent_value()
-                - GAS_MULTIPLIER.gas_to_value(MAILBOX_THRESHOLD)
+                - GAS_MULTIPLIER.gas_to_value(RentWeights::default().mailbox_threshold.ref_time)
         );
 
         let mailbox = system.get_mailbox(sender);

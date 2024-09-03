@@ -79,24 +79,7 @@ impl JournalHandler for ExtManager {
         log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
         self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
-        self.gas_tree
-            .spend(message_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
-
-        self.gas_burned
-            .entry(message_id)
-            .and_modify(|gas| {
-                *gas += Gas(amount);
-            })
-            .or_insert(Gas(amount));
-
-        let (external, multiplier, _) = self
-            .gas_tree
-            .get_origin_node(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
-
-        let id: ProgramId = external.into_origin().into();
-        self.bank.spend_gas(id, amount, multiplier);
+        self.spend_burned(message_id, amount);
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
@@ -326,7 +309,7 @@ impl JournalHandler for ExtManager {
             self.gas_allowance,
             gas_burned,
         );
-
+        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(gas_burned));
         self.messages_processing_enabled = false;
         self.dispatches.push_front(dispatch);
     }

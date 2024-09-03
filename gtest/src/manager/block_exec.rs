@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_core::gas_metering::TaskWeights;
+
 use super::*;
 
 impl ExtManager {
@@ -137,10 +139,108 @@ impl ExtManager {
     }
 
     #[track_caller]
-    pub(crate) fn process_tasks(&mut self, bn: u32) {
-        for task in self.task_pool.drain_prefix_keys(bn) {
-            log::debug!("⚙️  Processing task {task:?} at the block {bn}");
-            task.process_with(self);
+    pub(crate) fn process_tasks(&mut self, current_bn: u32) {
+        let db_weights = DbWeights::default();
+
+        let (first_incomplete_block, were_empty) = self
+            .first_incomplete_tasks_block
+            .take()
+            .map(|block| {
+                self.gas_allowance = self
+                    .gas_allowance
+                    .saturating_sub(Gas(db_weights.write.ref_time));
+                (block, false)
+            })
+            .unwrap_or_else(|| {
+                self.gas_allowance = self
+                    .gas_allowance
+                    .saturating_sub(Gas(db_weights.read.ref_time));
+                (current_bn, true)
+            });
+
+        // When we had to stop processing due to insufficient gas allowance.
+        let mut stopped_at = None;
+
+        let missing_blocks = first_incomplete_block..=current_bn;
+        for bn in missing_blocks {
+            if self.gas_allowance.0 <= db_weights.write.ref_time.saturating_mul(2) {
+                stopped_at = Some(bn);
+                log::debug!(
+                    "Stopped processing tasks at: {stopped_at:?} due to insufficient allowance"
+                );
+                break;
+            }
+
+            let mut last_task = None;
+            for task in self.task_pool.drain_prefix_keys(bn) {
+                // decreasing allowance due to DB deletion
+                self.on_task_pool_change();
+
+                let max_task_gas = get_maximum_task_gas(&task);
+                log::debug!(
+                    "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
+                );
+
+                if self.gas_allowance.saturating_sub(max_task_gas) <= Gas(db_weights.write.ref_time)
+                {
+                    // Since the task is not processed write DB cost should be refunded.
+                    // In the same time gas allowance should be charged for read DB cost.
+                    self.gas_allowance = self
+                        .gas_allowance
+                        .saturating_add(Gas(db_weights.write.ref_time))
+                        .saturating_sub(Gas(db_weights.read.ref_time));
+
+                    last_task = Some(task);
+
+                    log::debug!("Not enough gas to process task at {bn:?}");
+
+                    break;
+                }
+
+                let task_gas = task.process_with(self);
+
+                self.gas_allowance = self.gas_allowance.saturating_sub(Gas(task_gas));
+
+                if self.gas_allowance <= Gas(db_weights.write.ref_time + db_weights.read.ref_time) {
+                    stopped_at = Some(bn);
+                    log::debug!("Stopping processing tasks at (read next): {stopped_at:?}");
+                    break;
+                }
+            }
+
+            if let Some(task) = last_task {
+                stopped_at = Some(bn);
+
+                self.gas_allowance = self
+                    .gas_allowance
+                    .saturating_add(Gas(db_weights.write.ref_time));
+
+                self.task_pool.add(bn, task.clone()).unwrap_or_else(|e| {
+                    let err_msg = format!(
+                        "process_tasks: failed adding not processed last task to task pool. \
+                        Bn - {bn:?}, task - {task:?}. Got error - {e:?}"
+                    );
+
+                    unreachable!("{err_msg}");
+                });
+                self.on_task_pool_change();
+            }
+
+            if stopped_at.is_some() {
+                break;
+            }
+        }
+
+        if let Some(stopped_at) = stopped_at {
+            if were_empty {
+                // Charging for inserting into storage of the first block of incomplete tasks,
+                // if we were reading it only (they were empty).
+                self.gas_allowance = self
+                    .gas_allowance
+                    .saturating_sub(Gas(db_weights.write.ref_time));
+            }
+
+            self.first_incomplete_tasks_block = Some(stopped_at);
         }
     }
 
@@ -441,11 +541,36 @@ impl ExtManager {
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
             costs: schedule.process_costs(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
-            mailbox_threshold: MAILBOX_THRESHOLD,
+            mailbox_threshold: schedule.rent_weights.mailbox_threshold.ref_time,
             max_reservations: MAX_RESERVATIONS,
             max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }
+    }
+}
+
+fn get_maximum_task_gas(task: &ScheduledTask<ProgramId>) -> Gas {
+    use ScheduledTask::*;
+    let weights = TaskWeights::default();
+    match task {
+        PauseProgram(_) => Gas(0),
+        #[allow(deprecated)]
+        RemoveResumeSession(_) => Gas(0),
+
+        RemoveFromMailbox(_, _) => Gas(weights.remove_from_mailbox.ref_time),
+        RemoveFromWaitlist(_, _) => Gas(weights.remove_from_waitlist.ref_time),
+        RemovePausedProgram(_) => todo!("#646"),
+        RemoveCode(_) => todo!("#646"),
+        WakeMessage(_, _) => Gas(weights
+            .wake_message
+            .ref_time
+            .max(weights.wake_message_no_wake.ref_time)),
+        SendDispatch(_) => Gas(weights.send_dispatch.ref_time),
+        SendUserMessage { .. } => Gas(weights
+            .send_user_message_to_mailbox
+            .ref_time
+            .max(weights.send_user_message.ref_time)),
+        RemoveGasReservation(_, _) => Gas(weights.remove_gas_reservation.ref_time),
     }
 }

@@ -39,6 +39,8 @@ pub struct Schedule {
     pub rent_weights: RentWeights,
     #[doc = " The weights for database access."]
     pub db_weights: DbWeights,
+    #[doc = " The weights for executing tasks."]
+    pub task_weights: TaskWeights,
     #[doc = " The weights for instantiation of the module."]
     pub instantiation_weights: InstantiationWeights,
     #[doc = " WASM code instrumentation base cost."]
@@ -58,6 +60,7 @@ impl Default for Schedule {
             memory_weights: MemoryWeights::default(),
             rent_weights: RentWeights::default(),
             db_weights: DbWeights::default(),
+            task_weights: TaskWeights::default(),
             instantiation_weights: InstantiationWeights::default(),
             code_instrumentation_cost: Weight {
                 ref_time: 306821000,
@@ -961,6 +964,10 @@ pub struct RentWeights {
     pub dispatch_stash: Weight,
     #[doc = " Holding reservation weight."]
     pub reservation: Weight,
+    #[doc = " Holding message in mailbox weight."]
+    pub mailbox: Weight,
+    #[doc = " The minimal gas amount for message to be inserted in mailbox."]
+    pub mailbox_threshold: Weight,
 }
 
 impl Default for RentWeights {
@@ -976,6 +983,14 @@ impl Default for RentWeights {
             },
             reservation: Weight {
                 ref_time: 100,
+                proof_size: 0,
+            },
+            mailbox: Weight {
+                ref_time: 100,
+                proof_size: 0,
+            },
+            mailbox_threshold: Weight {
+                ref_time: 3000,
                 proof_size: 0,
             },
         }
@@ -1009,6 +1024,58 @@ impl Default for DbWeights {
             write_per_byte: Weight {
                 ref_time: 234,
                 proof_size: 0,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[doc = " Describes weights for running tasks."]
+pub struct TaskWeights {
+    pub remove_gas_reservation: Weight,
+    pub send_user_message_to_mailbox: Weight,
+    pub send_user_message: Weight,
+    pub send_dispatch: Weight,
+    pub wake_message: Weight,
+    pub wake_message_no_wake: Weight,
+    pub remove_from_waitlist: Weight,
+    pub remove_from_mailbox: Weight,
+}
+
+impl Default for TaskWeights {
+    fn default() -> Self {
+        Self {
+            remove_gas_reservation: Weight {
+                ref_time: 904369000,
+                proof_size: 6196,
+            },
+            send_user_message_to_mailbox: Weight {
+                ref_time: 694016000,
+                proof_size: 4323,
+            },
+            send_user_message: Weight {
+                ref_time: 1414815000,
+                proof_size: 6196,
+            },
+            send_dispatch: Weight {
+                ref_time: 806277000,
+                proof_size: 4159,
+            },
+            wake_message: Weight {
+                ref_time: 843879000,
+                proof_size: 4402,
+            },
+            wake_message_no_wake: Weight {
+                ref_time: 30115000,
+                proof_size: 3545,
+            },
+            remove_from_waitlist: Weight {
+                ref_time: 1846716000,
+                proof_size: 7609,
+            },
+            remove_from_mailbox: Weight {
+                ref_time: 1806798000,
+                proof_size: 7338,
             },
         }
     }
