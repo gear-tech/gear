@@ -168,7 +168,6 @@ impl Router {
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
 
-        // TODO: return init message id
         for log in receipt.inner.logs() {
             if log.topic0().map(|v| v.0) == Some(signatures::PROGRAM_CREATED.to_fixed_bytes()) {
                 let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
