@@ -587,4 +587,4 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-c
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
 
 # TODO: remove after https://github.com/alloy-rs/core/pull/718
-alloy-sol-type-parser = { git = "https://github.com/shuhuiluo/core.git", branch = "custom-error" }
+alloy-sol-type-parser = { git = "https://github.com/gear-tech/alloy-core", branch = "custom-error" }

@@ -670,7 +670,7 @@ dependencies = [
 [[package]]
 name = "alloy-sol-type-parser"
 version = "0.8.0"
-source = "git+https://github.com/shuhuiluo/core.git?branch=custom-error#f98764267344a503aed6d1d60c103e22a7984865"
+source = "git+https://github.com/gear-tech/alloy-core?branch=custom-error#f98764267344a503aed6d1d60c103e22a7984865"
 dependencies = [
  "serde",
  "winnow 0.6.6",
