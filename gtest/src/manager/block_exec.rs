@@ -44,9 +44,17 @@ impl ExtManager {
             panic!("Sending messages allowed only from users id");
         }
 
+        if dispatch.is_reply() && !Actors::is_active_program(destination) {
+            panic!("Can't send reply to a non-active program {destination:?}");
+        }
+
         // User must exist
         if !Accounts::exists(source) {
             panic!("User's {source} balance is zero; mint value to it first.");
+        }
+
+        if !Actors::is_active_program(destination) {
+            panic!("User message can't be sent to non active program");
         }
 
         let is_init_msg = dispatch.kind().is_init();
@@ -106,8 +114,12 @@ impl ExtManager {
         self.blocks_manager.next_block();
         let new_block_bn = self.block_height();
 
+        log::debug!("⚙️  Initialization of block #{new_block_bn}");
+
         self.process_tasks(new_block_bn);
         let total_processed = self.process_messages();
+
+        log::debug!("⚙️  Finalization of block #{new_block_bn}");
 
         BlockRunResult {
             block_info: self.blocks_manager.get(),
@@ -127,6 +139,7 @@ impl ExtManager {
     #[track_caller]
     pub(crate) fn process_tasks(&mut self, bn: u32) {
         for task in self.task_pool.drain_prefix_keys(bn) {
+            log::debug!("⚙️  Processing task {task:?} at the block {bn}");
             task.process_with(self);
         }
     }
@@ -135,6 +148,12 @@ impl ExtManager {
     fn process_messages(&mut self) -> u32 {
         self.messages_processing_enabled = true;
 
+        let block_config = self.block_config();
+
+        log::debug!(
+            "⚙️  Message queue processing at the block {}",
+            self.block_height()
+        );
         let mut total_processed = 0;
         while self.messages_processing_enabled {
             let dispatch = match self.dispatches.pop_front() {
@@ -142,39 +161,172 @@ impl ExtManager {
                 None => break,
             };
 
-            enum DispatchCase {
-                Dormant,
-                Normal(ExecutableActorData, InstrumentedCode),
-                Mock(Box<dyn WasmProgram>),
-            }
-
-            let dispatch_case = Actors::modify(dispatch.destination(), |actor| {
-                let actor = actor
-                    .unwrap_or_else(|| panic!("Somehow message queue contains message for user"));
-                if actor.is_dormant() {
-                    DispatchCase::Dormant
-                } else if let Some((data, code)) = actor.get_executable_actor_data() {
-                    DispatchCase::Normal(data, code)
-                } else if let Some(mock) = actor.take_mock() {
-                    DispatchCase::Mock(mock)
-                } else {
-                    unreachable!();
-                }
+            let maybe_mock = Actors::modify(dispatch.destination(), |actor| {
+                let actor = actor.unwrap_or_else(|| {
+                    unreachable!("Somehow message queue contains message for user")
+                });
+                actor.take_mock()
             });
-            let balance = Accounts::reducible_balance(dispatch.destination());
 
-            match dispatch_case {
-                DispatchCase::Dormant => self.process_dormant(balance, dispatch),
-                DispatchCase::Normal(data, code) => {
-                    self.process_normal(balance, data, code, dispatch)
-                }
-                DispatchCase::Mock(mock) => self.process_mock(mock, dispatch),
+            if let Some(mock) = maybe_mock {
+                self.process_mock(mock, dispatch)
+            } else {
+                self.process_dispatch(&block_config, dispatch)
             }
 
             total_processed += 1;
         }
 
         total_processed
+    }
+
+    #[track_caller]
+    fn process_dispatch(&mut self, block_config: &BlockConfig, dispatch: StoredDispatch) {
+        let destination_id = dispatch.destination();
+        let dispatch_id = dispatch.id();
+        let dispatch_kind = dispatch.kind();
+
+        let gas_limit = self
+            .gas_tree
+            .get_limit(dispatch.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        log::debug!(
+            "Processing message ({:?}): {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
+            dispatch.kind(),
+            dispatch.id(),
+            destination_id,
+            gas_limit,
+            self.gas_allowance,
+        );
+
+        let balance = Accounts::reducible_balance(destination_id);
+
+        let context = match core_processor::precharge_for_program(
+            block_config,
+            self.gas_allowance.0,
+            dispatch.into_incoming(gas_limit),
+            destination_id,
+        ) {
+            Ok(dispatch) => dispatch,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
+        let (actor_is_initialized, uninitilized_init_mid, maybe_actor_data) =
+            Actors::access(destination_id, |actor| {
+                let actor = actor.expect("internal error: program doesn't exist");
+                let actor_is_initialized = actor.is_initialized();
+                let uninitilized_init_mid = actor.uninitilized_init_message_id();
+                let maybe_actor_data = actor.get_executable_actor_data();
+
+                (
+                    actor_is_initialized,
+                    uninitilized_init_mid,
+                    maybe_actor_data,
+                )
+            });
+
+        let Some((actor_data, instrumented_code)) = maybe_actor_data else {
+            assert!(uninitilized_init_mid.is_none() && !actor_is_initialized);
+            log::debug!("Message {dispatch_id} is sent to non-active program {destination_id}");
+
+            let journal = core_processor::process_non_executable(context);
+            core_processor::handle_journal(journal, self);
+            return;
+        };
+
+        if actor_is_initialized && dispatch_kind == DispatchKind::Init {
+            // Panic is impossible, because gear protocol does not provide functionality
+            // to send second init message to any already existing program.
+            let err_msg = format!(
+                "run_queue_step: got init message for already initialized program. \
+                Current init message id - {dispatch_id:?}, already initialized program id - {destination_id:?}."
+            );
+
+            unreachable!("{err_msg}");
+        }
+
+        // If the destination program is uninitialized, then we allow
+        // to process message, if it's a reply or init message.
+        // Otherwise, we return error reply.
+        if matches!(uninitilized_init_mid, Some(message_id)
+            if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
+        {
+            if dispatch_kind == DispatchKind::Init {
+                // Panic is impossible, because gear protocol does not provide functionality
+                // to send second init message to any existing program.
+                let err_msg = format!(
+                    "run_queue_step: got init message which is not the first init message to the program. \
+                    Current init message id - {dispatch_id:?}, original init message id - {dispatch_id}, program - {destination_id:?}.",
+                );
+
+                unreachable!("{err_msg}");
+            }
+
+            let journal = core_processor::process_non_executable(context);
+            core_processor::handle_journal(journal, self);
+            return;
+        }
+
+        let context = match core_processor::precharge_for_allocations(
+            block_config,
+            context,
+            actor_data.allocations.intervals_amount() as u32,
+        ) {
+            Ok(context) => context,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
+        let context =
+            match core_processor::precharge_for_code_length(block_config, context, actor_data) {
+                Ok(context) => context,
+                Err(journal) => {
+                    core_processor::handle_journal(journal, self);
+                    return;
+                }
+            };
+
+        let code_id = context.actor_data().code_id;
+        let code_len_bytes = self
+            .read_code(code_id)
+            .map(|code| code.len().try_into().expect("to big code len"))
+            .unwrap_or_else(|| unreachable!("can't find code for the existing code id {code_id}"));
+        let context =
+            match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
+                Ok(context) => context,
+                Err(journal) => {
+                    core_processor::handle_journal(journal, self);
+                    return;
+                }
+            };
+
+        let context = match core_processor::precharge_for_module_instantiation(
+            block_config,
+            // No re-instrumentation
+            ContextChargedForInstrumentation::from(context),
+            instrumented_code.instantiated_section_sizes(),
+        ) {
+            Ok(context) => context,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
+        let journal = core_processor::process::<Ext<LazyPagesNative>>(
+            block_config,
+            (context, instrumented_code, balance).into(),
+            self.random_data.clone(),
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
+
+        core_processor::handle_journal(journal, self);
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
@@ -279,142 +431,21 @@ impl ExtManager {
         })
     }
 
-    fn process_normal(
-        &mut self,
-        balance: u128,
-        data: ExecutableActorData,
-        code: InstrumentedCode,
-        dispatch: StoredDispatch,
-    ) {
-        self.process_dispatch(balance, Some((data, code)), dispatch);
-    }
-
-    fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
-        self.process_dispatch(balance, None, dispatch);
-    }
-
-    #[track_caller]
-    fn process_dispatch(
-        &mut self,
-        balance: u128,
-        data: Option<(ExecutableActorData, InstrumentedCode)>,
-        dispatch: StoredDispatch,
-    ) {
-        let dest = dispatch.destination();
-        let gas_limit = self
-            .gas_tree
-            .get_limit(dispatch.id())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        let block_config = BlockConfig {
+    fn block_config(&self) -> BlockConfig {
+        let schedule = Schedule::default();
+        BlockConfig {
             block_info: self.blocks_manager.get(),
             performance_multiplier: gsys::Percent::new(100),
             forbidden_funcs: Default::default(),
             reserve_for: RESERVE_FOR,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
-            costs: ProcessCosts {
-                ext: ExtCosts {
-                    syscalls: Default::default(),
-                    rent: RentCosts {
-                        waitlist: WAITLIST_COST.into(),
-                        dispatch_stash: DISPATCH_HOLD_COST.into(),
-                        reservation: RESERVATION_COST.into(),
-                    },
-                    mem_grow: Default::default(),
-                    mem_grow_per_page: Default::default(),
-                },
-                lazy_pages: LazyPagesCosts {
-                    host_func_read: HOST_FUNC_READ_COST.into(),
-                    host_func_write: HOST_FUNC_WRITE_COST.into(),
-                    host_func_write_after_read: HOST_FUNC_WRITE_AFTER_READ_COST.into(),
-                    load_page_storage_data: LOAD_PAGE_STORAGE_DATA_COST.into(),
-                    signal_read: SIGNAL_READ_COST.into(),
-                    signal_write: SIGNAL_WRITE_COST.into(),
-                    signal_write_after_read: SIGNAL_WRITE_AFTER_READ_COST.into(),
-                },
-                read: READ_COST.into(),
-                read_per_byte: READ_PER_BYTE_COST.into(),
-                write: WRITE_COST.into(),
-                instrumentation: MODULE_INSTRUMENTATION_COST.into(),
-                instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
-                instantiation_costs: InstantiationCosts {
-                    code_section_per_byte: MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    data_section_per_byte: MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    global_section_per_byte: MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    table_section_per_byte: MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    element_section_per_byte: MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
-                    type_section_per_byte: MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                },
-                load_allocations_per_interval: LOAD_ALLOCATIONS_PER_INTERVAL.into(),
-            },
+            costs: schedule.process_costs(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
             max_reservations: MAX_RESERVATIONS,
             max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
-        };
-
-        let context = match core_processor::precharge_for_program(
-            &block_config,
-            self.gas_allowance.0,
-            dispatch.into_incoming(gas_limit),
-            dest,
-        ) {
-            Ok(d) => d,
-            Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
-            }
-        };
-
-        let Some((actor_data, code)) = data else {
-            let journal = core_processor::process_non_executable(context);
-            core_processor::handle_journal(journal, self);
-            return;
-        };
-
-        let context = match core_processor::precharge_for_allocations(
-            &block_config,
-            context,
-            actor_data.allocations.intervals_amount() as u32,
-        ) {
-            Ok(c) => c,
-            Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
-            }
-        };
-
-        let context =
-            match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
-                Ok(c) => c,
-                Err(journal) => {
-                    core_processor::handle_journal(journal, self);
-                    return;
-                }
-            };
-
-        let context = ContextChargedForCode::from(context);
-        let context = ContextChargedForInstrumentation::from(context);
-        let context = match core_processor::precharge_for_module_instantiation(
-            &block_config,
-            context,
-            code.instantiated_section_sizes(),
-        ) {
-            Ok(c) => c,
-            Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
-            }
-        };
-
-        let journal = core_processor::process::<Ext<LazyPagesNative>>(
-            &block_config,
-            (context, code, balance).into(),
-            self.random_data.clone(),
-        )
-        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
-
-        core_processor::handle_journal(journal, self);
+        }
     }
 }

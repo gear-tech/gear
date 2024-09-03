@@ -160,22 +160,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Program can't be constructed with provided code")]
+    #[should_panic(expected = "Failed to create Program from provided code")]
     fn test_invalid_wasm_child() {
         let sys = System::new();
-        sys.init_logger();
-        let factory = prepare_factory(&sys);
 
         let invalid_wasm = [10u8; 32];
         let invalid_wasm_path_buf = create_tmp_file_with_data(&invalid_wasm);
-        let invalid_wasm_code_hash = sys.submit_local_code_file(invalid_wasm_path_buf);
-
-        let payload = CreateProgram::Custom(vec![(
-            invalid_wasm_code_hash.into(),
-            b"some_salt".to_vec(),
-            100_000,
-        )]);
-        factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
-        let _ = sys.run_next_block();
+        let _ = sys.submit_local_code_file(invalid_wasm_path_buf);
     }
 }
