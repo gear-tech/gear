@@ -735,12 +735,27 @@ fn cost_instr_no_params_with_batch_size(w: fn(u32) -> Weight) -> u32 {
 
 #[inline]
 fn cost_instr<T: Config>(w: fn(u32) -> Weight, num_params: u32) -> u32 {
-    type W<T> = <T as Config>::WeightInfo;
+    cost_instr_no_params_with_batch_size(w)
+        .saturating_sub(cost_i64const::<T>().saturating_mul(num_params))
+}
 
-    cost_instr_no_params_with_batch_size(w).saturating_sub(
-        (cost_instr_no_params_with_batch_size(W::<T>::instr_i64const) / 2)
-            .saturating_mul(num_params),
-    )
+#[inline]
+fn cost_i64const<T: Config>() -> u32 {
+    type W<T> = <T as Config>::WeightInfo;
+    // Since we cannot directly benchmark the weight of `i64.const` (or `i32.const`; we consider their weights to be the same for our purposes),
+    // we estimate it as the difference between the benchmarks `instr_call_const` and `instr_call`.
+    // The difference between these two benchmarks will give us the weight of `i64.const`, which for x86-64
+    // can be represented by a single `mov` instruction with the embedded const parameter
+    // (for e.x: `mov reg,0xDEADBEAFDEABEAF`).
+    //
+    // This approach may work, but the estimation is not very accurate.
+    // To reduce the impact of this inaccuracy on the assessment of other instructions
+    // (as we subtract the weight of `i64.const` from other instructions),
+    // we introduce a weight division coefficient called `I64CONST_WEIGHT_DIVIDER`.
+    // This helps bring the weight of `i64.const` closer to that of the x86-64 `mov` instruction's estimate.
+    const I64CONST_WEIGHT_DIVIDER: u32 = 2;
+
+    cost_instr_no_params_with_batch_size(W::<T>::instr_i64const) / I64CONST_WEIGHT_DIVIDER
 }
 
 impl<T: Config> Default for Schedule<T> {
@@ -787,10 +802,25 @@ impl Default for Limits {
 
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
+        // # Wasmer's compiler optimization (relevant for version 4.3.5 single-pass compiler for x86-64 target)
+        //
+        // Wasmer's single-pass compiler implements an optimization for certain wasm i32 instructions where
+        // `i64const`/`i32const` parameters can be embedded into native x86-64 instructions.
+        //
+        // This optimization works for the following types of instructions:
+        //
+        // - Single-parameter i32 instructions that compile to a single x86-64 `mov` instruction,
+        //   e.g., `i64.extend_u/i32`, `i32.wrap_i64`.
+        // - Binary operation i32 instructions that compile to an x86-64 `cmp` instruction,
+        //   e.g., `i32.eq`, `i32.ne`, `i32.lt_s`, `i32.lt_u`, etc.
+        // - `i32.add`, `i32.sub` instructions where one parameter is embedded into the instruction.
+        // - Several logical i32 instructions: `i32.and`, `i32.or`, `i32.xor`.
+        //
+        // See below for the assembly listings of the mentioned instructions.
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1500,
-            i64const: cost_instr::<T>(W::<T>::instr_i64const, 1),
+            version: 1501,
+            i64const: cost_i64const::<T>(),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
             i64store: cost_instr::<T>(W::<T>::instr_i64store, 1),
@@ -819,38 +849,108 @@ impl<T: Config> Default for InstructionWeights<T> {
             i32popcnt: cost_instr::<T>(W::<T>::instr_i32popcnt, 1),
             i64eqz: cost_instr::<T>(W::<T>::instr_i64eqz, 1),
             i32eqz: cost_instr::<T>(W::<T>::instr_i32eqz, 1),
-            i32extend8s: cost_instr::<T>(W::<T>::instr_i32extend8s, 0),
-            i32extend16s: cost_instr::<T>(W::<T>::instr_i32extend16s, 0),
+            // `i32extend8s` compiles to:
+            // ```assembly
+            //     mov rax,0x3b578dc7  <- i64const
+            //     movsx esi,al
+            // ```
+            i32extend8s: cost_instr::<T>(W::<T>::instr_i32extend8s, 1),
+            // `i32extend16s` compiles to:
+            // ```assembly
+            //     mov rax,0xffffffffdd0b1b34  <- i64const
+            //     movsx esi,ax
+            // ```
+            i32extend16s: cost_instr::<T>(W::<T>::instr_i32extend16s, 1),
             i64extend8s: cost_instr::<T>(W::<T>::instr_i64extend8s, 1),
             i64extend16s: cost_instr::<T>(W::<T>::instr_i64extend16s, 1),
             i64extend32s: cost_instr::<T>(W::<T>::instr_i64extend32s, 1),
-            i64extendsi32: cost_instr::<T>(W::<T>::instr_i64extendsi32, 0),
+            // `i64extendsi32` compiles to:
+            // ```assembly
+            //     mov rax,0xffffffffdd0b1b34  <- i64const
+            //     movsxd rsi,eax
+            // ```
+            i64extendsi32: cost_instr::<T>(W::<T>::instr_i64extendsi32, 1),
+            // `i64extendui32` compiles to:
+            // ```assembly
+            //     mov esi,0x3b578dc7  <- i64const embedded in the instruction
+            // ```
             i64extendui32: cost_instr::<T>(W::<T>::instr_i64extendui32, 0),
-            i32wrapi64: cost_instr::<T>(W::<T>::instr_i32wrapi64, 1),
+            // `i32wrapi64` compiles to:
+            // ```assembly
+            //     mov esi,0x3b578dc7 <- i64const embedded in the instruction
+            // ```
+            i32wrapi64: cost_instr::<T>(W::<T>::instr_i32wrapi64, 0),
             i64eq: cost_instr::<T>(W::<T>::instr_i64eq, 2),
-            i32eq: cost_instr::<T>(W::<T>::instr_i32eq, 2),
+            // `i32eq` compiles to:
+            // ```assembly
+            //     mov eax,0x3b578dc7 <- i64const
+            //     cmp eax,0xdd0b1b34 <- i64const embedded in the instruction
+            //     setz sil
+            //     and esi,0xff
+            // ```
+            i32eq: cost_instr::<T>(W::<T>::instr_i32eq, 1),
             i64ne: cost_instr::<T>(W::<T>::instr_i64ne, 2),
-            i32ne: cost_instr::<T>(W::<T>::instr_i32ne, 2),
+            // `i32ne` compiles to:
+            // ```assembly
+            //     mov eax,0xa9601ba6 <- i64const
+            //     cmp eax,0x4b51bf3  <- i64const embedded in the instruction
+            //     setnz sil
+            //     and esi,0xff
+            // ```
+            i32ne: cost_instr::<T>(W::<T>::instr_i32ne, 1),
             i64lts: cost_instr::<T>(W::<T>::instr_i64lts, 2),
-            i32lts: cost_instr::<T>(W::<T>::instr_i32lts, 2),
+            // `i32lts` compiles to:
+            // ```assembly
+            //     mov eax,0x3b578dc7 <- i64const
+            //     cmp eax,0xdd0b1b34 <- i64const embedded in the instruction
+            //     setl sil
+            //     and esi,0xff
+            // ```
+            i32lts: cost_instr::<T>(W::<T>::instr_i32lts, 1),
             i64ltu: cost_instr::<T>(W::<T>::instr_i64ltu, 2),
-            i32ltu: cost_instr::<T>(W::<T>::instr_i32ltu, 2),
+            // `i32ltu` compiles similarly to other i32 comparisons instructions,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32ltu: cost_instr::<T>(W::<T>::instr_i32ltu, 1),
             i64gts: cost_instr::<T>(W::<T>::instr_i64gts, 2),
-            i32gts: cost_instr::<T>(W::<T>::instr_i32gts, 2),
+            // `i32gts` compiles similarly to other i32 comparisons instructions,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32gts: cost_instr::<T>(W::<T>::instr_i32gts, 1),
             i64gtu: cost_instr::<T>(W::<T>::instr_i64gtu, 2),
-            i32gtu: cost_instr::<T>(W::<T>::instr_i32gtu, 2),
+            // `i32gtu` compiles similarly to other i32 comparisons instructions,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32gtu: cost_instr::<T>(W::<T>::instr_i32gtu, 1),
             i64les: cost_instr::<T>(W::<T>::instr_i64les, 2),
-            i32les: cost_instr::<T>(W::<T>::instr_i32les, 2),
+            // `i32les` compiles similarly to other i32 comparisons instructions,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32les: cost_instr::<T>(W::<T>::instr_i32les, 1),
             i64leu: cost_instr::<T>(W::<T>::instr_i64leu, 2),
-            i32leu: cost_instr::<T>(W::<T>::instr_i32leu, 2),
+            // `i32leu` compiles similarly to other i32 comparisons instructions,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32leu: cost_instr::<T>(W::<T>::instr_i32leu, 1),
             i64ges: cost_instr::<T>(W::<T>::instr_i64ges, 2),
-            i32ges: cost_instr::<T>(W::<T>::instr_i32ges, 2),
+            // `i32ges` compiles similarly to other i32 comparisons instructions,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32ges: cost_instr::<T>(W::<T>::instr_i32ges, 1),
             i64geu: cost_instr::<T>(W::<T>::instr_i64geu, 2),
-            i32geu: cost_instr::<T>(W::<T>::instr_i32geu, 2),
+            // `i32geu` compiles similarly to other i32 comparisons instructions,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32geu: cost_instr::<T>(W::<T>::instr_i32geu, 1),
             i64add: cost_instr::<T>(W::<T>::instr_i64add, 2),
-            i32add: cost_instr::<T>(W::<T>::instr_i32add, 2),
+            // `i32add` compiles to:
+            // ```assembly
+            //     mov eax,0x3b578dc7 <- i64const
+            //     add eax,0xdd0b1b34 <- i64const embedded in the instruction
+            //     mov esi,eax
+            // ```
+            i32add: cost_instr::<T>(W::<T>::instr_i32add, 1),
             i64sub: cost_instr::<T>(W::<T>::instr_i64sub, 2),
-            i32sub: cost_instr::<T>(W::<T>::instr_i32sub, 2),
+            // `i32sub` compiles to:
+            // ```assembly
+            //     mov eax,0x3b578dc7 <- i64const
+            //     sub eax,0xdd0b1b34 <- i64const embedded in the instruction
+            //     mov esi,eax
+            // ```
+            i32sub: cost_instr::<T>(W::<T>::instr_i32sub, 1),
             i64mul: cost_instr::<T>(W::<T>::instr_i64mul, 2),
             i32mul: cost_instr::<T>(W::<T>::instr_i32mul, 2),
             i64divs: cost_instr::<T>(W::<T>::instr_i64divs, 2),
@@ -862,11 +962,29 @@ impl<T: Config> Default for InstructionWeights<T> {
             i64remu: cost_instr::<T>(W::<T>::instr_i64remu, 2),
             i32remu: cost_instr::<T>(W::<T>::instr_i32remu, 2),
             i64and: cost_instr::<T>(W::<T>::instr_i64and, 2),
-            i32and: cost_instr::<T>(W::<T>::instr_i32and, 2),
+            // `i32and` compiles to:
+            // ```assembly
+            //     mov eax,0x3b578dc7 <- i64const
+            //     and eax,0xdd0b1b34 <- i64const embedded in the instruction
+            //     mov esi,eax
+            // ```
+            i32and: cost_instr::<T>(W::<T>::instr_i32and, 1),
             i64or: cost_instr::<T>(W::<T>::instr_i64or, 2),
-            i32or: cost_instr::<T>(W::<T>::instr_i32or, 2),
+            // `i32or` compiles to:
+            // ```assembly
+            //     mov eax,0xf9e1253c <- i64const
+            //     or eax,0xeaf224f  <- i64const embedded in the instruction
+            //     mov esi,eax
+            // ```
+            i32or: cost_instr::<T>(W::<T>::instr_i32or, 1),
             i64xor: cost_instr::<T>(W::<T>::instr_i64xor, 2),
-            i32xor: cost_instr::<T>(W::<T>::instr_i32xor, 2),
+            // `i32xor` compiles to:
+            // ```assembly
+            //     mov eax,0x3b578dc7 <- i64const
+            //     xor eax,0xdd0b1b34 <- i64const embedded in the instruction
+            //     mov esi,eax
+            // ```
+            i32xor: cost_instr::<T>(W::<T>::instr_i32xor, 1),
             i64shl: cost_instr::<T>(W::<T>::instr_i64shl, 2),
             i32shl: cost_instr::<T>(W::<T>::instr_i32shl, 2),
             i64shrs: cost_instr::<T>(W::<T>::instr_i64shrs, 2),
