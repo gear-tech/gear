@@ -83,7 +83,7 @@ impl Router {
         let builder = self.instance.updateValidators(validators);
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         Ok((*receipt.transaction_hash).into())
     }
@@ -99,7 +99,7 @@ impl Router {
         );
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         Ok((*receipt.transaction_hash).into())
     }
@@ -116,7 +116,7 @@ impl Router {
             .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         Ok(((*receipt.transaction_hash).into(), code_id))
     }
@@ -163,7 +163,7 @@ impl Router {
         );
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
@@ -196,7 +196,7 @@ impl Router {
                 .collect(),
         );
         let tx = builder.send().await?;
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 
@@ -216,7 +216,7 @@ impl Router {
             )
             .gas(10_000_000);
         let tx = builder.send().await?;
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 }

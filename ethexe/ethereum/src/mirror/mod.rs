@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IMirror, AlloyProvider, AlloyTransport};
+use crate::{abi::IMirror, get_transaction_receipt, AlloyProvider, AlloyTransport};
 use alloy::{
     primitives::Address,
     providers::{Provider, ProviderBuilder, RootProvider},
@@ -61,7 +61,7 @@ impl Mirror {
         let builder = self.0.sendMessage(payload.as_ref().to_vec().into(), value);
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut message_id = None;
@@ -97,7 +97,7 @@ impl Mirror {
         );
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = get_transaction_receipt(tx).await?;
         Ok((*receipt.transaction_hash).into())
     }
 
@@ -105,7 +105,7 @@ impl Mirror {
         let builder = self.0.claimValue(claimed_id.into_bytes().into());
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = get_transaction_receipt(tx).await?;
 
         Ok((*receipt.transaction_hash).into())
     }

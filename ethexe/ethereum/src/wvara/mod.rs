@@ -60,7 +60,7 @@ impl WVara {
         let builder = self.0.transfer(to, AlloyU256::from(value));
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
 
@@ -71,7 +71,7 @@ impl WVara {
         let builder = self.0.transferFrom(from, to, AlloyU256::from(value));
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
 
@@ -90,7 +90,7 @@ impl WVara {
         let builder = self.0.approve(address, value);
         let tx = builder.send().await?;
 
-        let receipt = tx.get_receipt().await?;
+        let receipt = crate::get_transaction_receipt(tx).await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
 
