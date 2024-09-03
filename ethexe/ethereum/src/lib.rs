@@ -39,7 +39,7 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::{SolCall, SolEvent},
-    transports::{self, BoxTransport},
+    transports::{self, BoxTransport, RpcError},
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -286,12 +286,10 @@ async fn get_transaction_receipt<T: transports::Transport + Clone, N: network::N
     };
 
     for _ in 0..3 {
-        if !matches!(
-            err,
-            PendingTransactionError::TransportError(alloy::transports::RpcError::NullResp)
-        ) {
-            break;
-        };
+        match err {
+            PendingTransactionError::TransportError(RpcError::NullResp) => {}
+            _ => break,
+        }
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
