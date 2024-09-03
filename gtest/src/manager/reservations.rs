@@ -61,7 +61,10 @@ impl ExtManager {
                 slot.finish,
                 ScheduledTask::RemoveGasReservation(program_id, reservation),
             )
-            .and_then(|_| Ok(self.on_task_pool_change()));
+            .map(|_| {
+                self.on_task_pool_change();
+                
+            });
     }
 
     pub(crate) fn remove_gas_reservation_slot(

@@ -28,7 +28,6 @@ use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     event::{MessageWaitedRuntimeReason, RuntimeReason},
     scheduler::{ScheduledTask, StorageType, TaskHandler},
-    Origin,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -397,7 +396,10 @@ impl JournalHandler for ExtManager {
                 expiration,
                 ScheduledTask::RemoveGasReservation(program_id, reservation_id),
             )
-            .and_then(|_| Ok(self.on_task_pool_change()));
+            .map(|_| {
+                self.on_task_pool_change();
+                
+            });
     }
 
     #[track_caller]

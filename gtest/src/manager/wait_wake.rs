@@ -144,7 +144,10 @@ impl ExtManager {
                 expected_bn,
                 ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
             )
-            .and_then(|_| Ok(self.on_task_pool_change()));
+            .map(|_| {
+                self.on_task_pool_change();
+                
+            });
 
         Ok(waitlisted)
     }

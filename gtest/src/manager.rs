@@ -291,7 +291,10 @@ impl ExtManager {
                 expected,
                 ScheduledTask::RemoveFromMailbox(user_id, message.id()),
             )
-            .and_then(|_| Ok(self.on_task_pool_change()));
+            .map(|_| {
+                self.on_task_pool_change();
+                
+            });
 
         Ok(message)
     }
