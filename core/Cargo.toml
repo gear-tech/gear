@@ -17,10 +17,14 @@ gear-core-errors = { workspace = true, features = ["codec"] }
 gprimitives = { workspace = true, features = ["codec"] }
 gsys.workspace = true
 blake2.workspace = true
-parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+parity-scale-codec = { workspace = true, features = [
+    "derive",
+    "max-encoded-len",
+] }
 scale-info = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 log.workspace = true
+gwasm-instrument = { workspace = true, default-features = false }
 gear-wasm-instrument.workspace = true
 wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }
@@ -45,8 +49,4 @@ numerated = { workspace = true, features = ["mock"] }
 [features]
 default = []
 strict = []
-std = [
-    "serde/std",
-    "wasmparser/std",
-    "gear-core-errors/serde",
-]
+std = ["serde/std", "wasmparser/std", "gear-core-errors/serde"]

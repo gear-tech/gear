@@ -556,8 +556,7 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
-            use gear_core::code::TryNewCodeConfig;
-            use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
+            use gear_core::{code::TryNewCodeConfig, gas_metering::CustomConstantCostRules};
 
             let who = ensure_signed(origin)?;
 

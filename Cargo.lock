@@ -6451,6 +6451,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gprimitives",
  "gsys",
+ "gwasm-instrument",
  "hashbrown 0.14.5",
  "hex",
  "log",
@@ -7038,9 +7039,11 @@ dependencies = [
 name = "gear-weight-diff"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "clap 4.5.9",
  "frame-support",
  "gear-utils",
+ "heck 0.5.0",
  "indexmap 2.2.6",
  "pallet-gear",
  "proc-macro2",
@@ -18789,10 +18792,11 @@ dependencies = [
  "frame-try-runtime",
  "gbuiltin-staking",
  "gear-common",
+ "gear-core",
  "gear-core-processor",
- "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
+ "gwasm-instrument",
  "hex-literal",
  "log",
  "pallet-authority-discovery",
@@ -18866,6 +18870,7 @@ dependencies = [
  "sp-version",
  "substrate-build-script-utils",
  "substrate-wasm-builder",
+ "wabt",
  "wat",
 ]
 
