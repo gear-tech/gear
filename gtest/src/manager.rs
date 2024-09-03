@@ -293,7 +293,6 @@ impl ExtManager {
             )
             .map(|_| {
                 self.on_task_pool_change();
-                
             });
 
         Ok(message)

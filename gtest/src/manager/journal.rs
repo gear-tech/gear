@@ -398,7 +398,6 @@ impl JournalHandler for ExtManager {
             )
             .map(|_| {
                 self.on_task_pool_change();
-                
             });
     }
 
