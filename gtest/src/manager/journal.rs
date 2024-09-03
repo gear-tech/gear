@@ -217,6 +217,7 @@ impl JournalHandler for ExtManager {
 
                     unreachable!("{err_msg}");
                 });
+                self.on_task_pool_change();
             }
 
             return;
@@ -377,10 +378,9 @@ impl JournalHandler for ExtManager {
                 Expected bn - {bn:?}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
                 bn = hold.expected()
             );
-
-
             unreachable!("{err_msg}");
         });
+        self.on_task_pool_change();
     }
 
     fn unreserve_gas(
@@ -391,10 +391,13 @@ impl JournalHandler for ExtManager {
     ) {
         <Self as TaskHandler<ProgramId>>::remove_gas_reservation(self, program_id, reservation_id);
 
-        let _ = self.task_pool.delete(
-            expiration,
-            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expiration,
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            )
+            .and_then(|_| Ok(self.on_task_pool_change()));
     }
 
     #[track_caller]

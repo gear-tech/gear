@@ -285,10 +285,13 @@ impl ExtManager {
 
         self.bank.transfer_value(from, user_id, message.value());
 
-        let _ = self.task_pool.delete(
-            expected,
-            ScheduledTask::RemoveFromMailbox(user_id, message.id()),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expected,
+                ScheduledTask::RemoveFromMailbox(user_id, message.id()),
+            )
+            .and_then(|_| Ok(self.on_task_pool_change()));
 
         Ok(message)
     }

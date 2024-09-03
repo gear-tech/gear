@@ -258,6 +258,7 @@ impl ExtManager {
 
             unreachable!("{err_msg}");
         });
+        self.on_task_pool_change();
     }
 
     pub(crate) fn send_user_message(
