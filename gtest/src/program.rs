@@ -576,9 +576,14 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
+        // The current block number is always a block number of the "executed" block.
+        // So before sending any messages and triggering a block run the block number
+        // equals to 0 (curr). So any new message sent by user goes to a new block,
+        // that will be executed, i.e. block with number curr + 1.
+        let block_number = system.block_height() + 1;
         let message = Message::new(
             MessageId::generate_from_user(
-                system.block_height(),
+                block_number,
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),

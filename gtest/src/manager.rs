@@ -47,7 +47,7 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
-    ContextChargedForInstrumentation, Ext,
+    ContextChargedForInstrumentation, ContextChargedForProgram, Ext,
 };
 use gear_common::{
     auxiliary::{
@@ -70,7 +70,6 @@ use gear_core::{
     },
     pages::{num_traits::Zero, GearPage},
 };
-use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
