@@ -149,7 +149,7 @@ impl ExtManager {
         let _ = self
             .task_pool
             .delete(
-                expected_bn,
+                expected,
                 ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
             )
             .map(|_| {

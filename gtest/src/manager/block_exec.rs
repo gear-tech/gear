@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::SuccessfulDispatchResultKind;
-use gear_core::{gas::GasCounter, gas_metering::TaskWeights, str::LimitedStr};
+use gear_core::{gas::GasCounter, str::LimitedStr};
 use task::get_maximum_task_gas;
 
 use super::*;

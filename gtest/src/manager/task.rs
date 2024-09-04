@@ -206,7 +206,7 @@ impl TaskHandler<ProgramId> for ExtManager {
         reservation_id: ReservationId,
     ) -> GearCommonGas {
         let _slot = self.remove_gas_reservation_impl(program_id, reservation_id);
-        TaskWeights::default().remove_gas_reservation
+        TaskWeights::default().remove_gas_reservation.ref_time
     }
 
     fn remove_resume_session(&mut self, _session_id: u32) -> GearCommonGas {
