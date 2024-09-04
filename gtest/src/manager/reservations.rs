@@ -55,10 +55,15 @@ impl ExtManager {
     ) {
         let slot = self.remove_gas_reservation_impl(program_id, reservation);
 
-        let _ = self.task_pool.delete(
-            slot.finish,
-            ScheduledTask::RemoveGasReservation(program_id, reservation),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                slot.finish,
+                ScheduledTask::RemoveGasReservation(program_id, reservation),
+            )
+            .map(|_| {
+                self.on_task_pool_change();
+            });
     }
 
     pub(crate) fn remove_gas_reservation_slot(

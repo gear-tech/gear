@@ -28,7 +28,6 @@ use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     event::{MessageWaitedRuntimeReason, RuntimeReason},
     scheduler::{ScheduledTask, StorageType, TaskHandler},
-    Origin,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -79,24 +78,7 @@ impl JournalHandler for ExtManager {
         log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
         self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
-        self.gas_tree
-            .spend(message_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
-
-        self.gas_burned
-            .entry(message_id)
-            .and_modify(|gas| {
-                *gas += Gas(amount);
-            })
-            .or_insert(Gas(amount));
-
-        let (external, multiplier, _) = self
-            .gas_tree
-            .get_origin_node(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
-
-        let id: ProgramId = external.into_origin().into();
-        self.bank.spend_gas(id, amount, multiplier);
+        self.spend_burned(message_id, amount);
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
@@ -257,6 +239,7 @@ impl JournalHandler for ExtManager {
 
                     unreachable!("{err_msg}");
                 });
+                self.on_task_pool_change();
             }
 
             return;
@@ -349,7 +332,7 @@ impl JournalHandler for ExtManager {
             self.gas_allowance,
             gas_burned,
         );
-
+        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(gas_burned));
         self.messages_processing_enabled = false;
         self.dispatches.push_front(dispatch);
     }
@@ -417,10 +400,9 @@ impl JournalHandler for ExtManager {
                 Expected bn - {bn:?}, program id - {program_id}, reservation id - {reservation_id}. Got error - {e:?}",
                 bn = hold.expected()
             );
-
-
             unreachable!("{err_msg}");
         });
+        self.on_task_pool_change();
     }
 
     fn unreserve_gas(
@@ -431,10 +413,15 @@ impl JournalHandler for ExtManager {
     ) {
         <Self as TaskHandler<ProgramId>>::remove_gas_reservation(self, program_id, reservation_id);
 
-        let _ = self.task_pool.delete(
-            expiration,
-            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expiration,
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            )
+            .map(|_| {
+                self.on_task_pool_change();
+            });
     }
 
     #[track_caller]

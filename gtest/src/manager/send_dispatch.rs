@@ -70,7 +70,7 @@ impl ExtManager {
         let gas_for_delay = delay_hold.lock_amount(self);
 
         let interval_finish = if to_user {
-            let threshold = MAILBOX_THRESHOLD;
+            let threshold = RentWeights::default().mailbox_threshold.ref_time;
 
             let gas_limit = dispatch
                 .gas_limit()
@@ -258,6 +258,7 @@ impl ExtManager {
 
             unreachable!("{err_msg}");
         });
+        self.on_task_pool_change();
     }
 
     pub(crate) fn send_user_message(
@@ -266,7 +267,7 @@ impl ExtManager {
         message: Message,
         reservation: Option<ReservationId>,
     ) {
-        let threshold = MAILBOX_THRESHOLD;
+        let threshold = RentWeights::default().mailbox_threshold.ref_time;
 
         let msg_id = reservation
             .map(Origin::into_origin)

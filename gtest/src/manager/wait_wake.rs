@@ -20,7 +20,7 @@ use super::*;
 
 impl ExtManager {
     pub(crate) fn wait_dispatch_impl(
-        &self,
+        &mut self,
         dispatch: StoredDispatch,
         duration: Option<BlockNumber>,
         reason: MessageWaitedReason,
@@ -94,6 +94,7 @@ impl ExtManager {
 
                         unreachable!("{err_msg}");
                     });
+                    self.on_task_pool_change();
                 }
             }
             MessageWaitedReason::Runtime(WaitCalled | WaitUpToCalled) => {
@@ -110,6 +111,7 @@ impl ExtManager {
 
                     unreachable!("{err_msg}");
                 });
+                self.on_task_pool_change();
             }
             MessageWaitedReason::System(reason) => match reason {},
         }
@@ -144,10 +146,15 @@ impl ExtManager {
 
         self.charge_for_hold(waitlisted.id(), hold_interval, StorageType::Waitlist);
 
-        let _ = self.task_pool.delete(
-            expected,
-            ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expected,
+                ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
+            )
+            .map(|_| {
+                self.on_task_pool_change();
+            });
 
         waitlisted
     }
