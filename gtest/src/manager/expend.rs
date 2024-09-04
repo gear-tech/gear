@@ -63,7 +63,7 @@ impl ExtManager {
             dispatch_stash,
             reservation,
             mailbox,
-            mailbox_threshold: _,
+            ..
         } = schedule.rent_weights;
         match storage_type {
             StorageType::Code => todo!("#646"),

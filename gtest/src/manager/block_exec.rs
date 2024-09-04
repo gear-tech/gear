@@ -18,6 +18,7 @@
 
 use core_processor::SuccessfulDispatchResultKind;
 use gear_core::{gas::GasCounter, gas_metering::TaskWeights, str::LimitedStr};
+use task::get_maximum_task_gas;
 
 use super::*;
 
@@ -550,31 +551,6 @@ impl ExtManager {
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }
-    }
-}
-
-fn get_maximum_task_gas(task: &ScheduledTask<ProgramId>) -> Gas {
-    use ScheduledTask::*;
-    let weights = TaskWeights::default();
-    match task {
-        PauseProgram(_) => Gas(0),
-        #[allow(deprecated)]
-        RemoveResumeSession(_) => Gas(0),
-
-        RemoveFromMailbox(_, _) => Gas(weights.remove_from_mailbox.ref_time),
-        RemoveFromWaitlist(_, _) => Gas(weights.remove_from_waitlist.ref_time),
-        RemovePausedProgram(_) => todo!("#646"),
-        RemoveCode(_) => todo!("#646"),
-        WakeMessage(_, _) => Gas(weights
-            .wake_message
-            .ref_time
-            .max(weights.wake_message_no_wake.ref_time)),
-        SendDispatch(_) => Gas(weights.send_dispatch.ref_time),
-        SendUserMessage { .. } => Gas(weights
-            .send_user_message_to_mailbox
-            .ref_time
-            .max(weights.send_user_message.ref_time)),
-        RemoveGasReservation(_, _) => Gas(weights.remove_gas_reservation.ref_time),
     }
 }
 
