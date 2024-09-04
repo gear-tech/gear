@@ -158,9 +158,10 @@ impl TaskHandler<ProgramId> for ExtManager {
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> GearCommonGas {
         if let Ok(dispatch) = self.wake_dispatch_impl(program_id, message_id) {
             self.dispatches.push_back(dispatch);
+            TaskWeights::default().wake_message.ref_time
+        } else {
+            TaskWeights::default().wake_message_no_wake.ref_time
         }
-
-        TaskWeights::default().wake_message.ref_time
     }
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> GearCommonGas {
