@@ -104,9 +104,32 @@ impl JournalHandler for ExtManager {
             "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
         );
 
+        self.waitlist.drain_key(id_exited).for_each(|entry| {
+            let message = self.wake_dispatch_requirements(entry);
+
+            self.dispatches.push_back(message);
+        });
+
         Actors::modify(id_exited, |actor| {
             let actor =
                 actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
+
+            if let TestActor::Initialized(Program::Genuine(program)) =
+                std::mem::replace(actor, TestActor::Dormant)
+            {
+                for (reservation_id, slot) in program.gas_reservation_map {
+                    let slot = self.remove_gas_reservation_slot(reservation_id, slot);
+
+                    let result = self.task_pool.delete(
+                        slot.finish,
+                        ScheduledTask::RemoveGasReservation(id_exited, reservation_id),
+                    );
+                    log::debug!(
+                        "remove_gas_reservation_map; program_id = {id_exited:?}, result = {result:?}"
+                    );
+                }
+            }
+
             *actor = TestActor::Dormant
         });
 
@@ -196,7 +219,7 @@ impl JournalHandler for ExtManager {
     ) {
         log::debug!("[{}] wait", dispatch.id());
 
-        self.wait_dipatch_impl(
+        self.wait_dispatch_impl(
             dispatch,
             duration,
             MessageWaitedRuntimeReason::from(waited_type).into_reason(),

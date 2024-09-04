@@ -47,6 +47,10 @@ impl ExtManager {
             panic!("Sending messages allowed only from users id");
         }
 
+        if dispatch.is_reply() && !Actors::is_active_program(destination) {
+            panic!("Can't send reply to a non-active program {destination:?}");
+        }
+
         // User must exist
         if !Accounts::exists(source) {
             panic!("User's {source} balance is zero; mint value to it first.");
