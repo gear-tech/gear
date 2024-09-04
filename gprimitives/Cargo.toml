@@ -17,6 +17,9 @@ serde = { workspace = true, features = ["derive"], optional = true }
 hex.workspace = true
 gear-ss58.workspace = true
 
+[dev-dependencies]
+blake2.workspace = true
+
 [features]
 codec = ["parity-scale-codec", "scale-info"]
 serde = ["dep:serde", "primitive-types/serde_no_std"]

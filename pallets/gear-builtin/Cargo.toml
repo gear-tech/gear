@@ -30,6 +30,7 @@ common.workspace = true
 core-processor.workspace = true
 gbuiltin-bls381.workspace = true
 gbuiltin-staking.workspace = true
+gprimitives.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-runtime-interface.workspace = true

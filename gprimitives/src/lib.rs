@@ -27,6 +27,7 @@ pub use gear_ss58::Ss58Address;
 pub use nonzero_u256::NonZeroU256;
 pub use primitive_types::{H160, H256, U256};
 
+pub mod builtin;
 mod macros;
 mod nonzero_u256;
 mod utils;

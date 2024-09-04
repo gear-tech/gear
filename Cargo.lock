@@ -7264,6 +7264,7 @@ dependencies = [
 name = "gprimitives"
 version = "1.5.0"
 dependencies = [
+ "blake2 0.10.6",
  "derive_more",
  "gear-ss58",
  "hex",

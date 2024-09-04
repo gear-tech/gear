@@ -177,9 +177,8 @@ pub mod pallet {
         pallet_prelude::*,
     };
     use frame_system::pallet_prelude::*;
+    use gprimitives::builtin;
     use sp_runtime::traits::Dispatchable;
-
-    pub(crate) const SEED: [u8; 8] = *b"built/in";
 
     // This pallet doesn't define a storage version because it doesn't use any storage
     #[pallet::pallet]
@@ -210,7 +209,7 @@ pub mod pallet {
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
         pub fn generate_actor_id(builtin_id: u64) -> ProgramId {
-            hash((SEED, builtin_id).encode().as_slice()).into()
+            hash((builtin::SEED, builtin_id).encode().as_slice()).into()
         }
     }
 }
