@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core_processor::SuccessfulDispatchResultKind;
+use gear_core::{gas::GasCounter, str::LimitedStr};
+
 use super::*;
 
 impl ExtManager {
@@ -161,18 +164,7 @@ impl ExtManager {
                 None => break,
             };
 
-            let maybe_mock = Actors::modify(dispatch.destination(), |actor| {
-                let actor = actor.unwrap_or_else(|| {
-                    unreachable!("Somehow message queue contains message for user")
-                });
-                actor.take_mock()
-            });
-
-            if let Some(mock) = maybe_mock {
-                self.process_mock(mock, dispatch)
-            } else {
-                self.process_dispatch(&block_config, dispatch)
-            }
+            self.process_dispatch(&block_config, dispatch);
 
             total_processed += 1;
         }
@@ -180,7 +172,6 @@ impl ExtManager {
         total_processed
     }
 
-    #[track_caller]
     fn process_dispatch(&mut self, block_config: &BlockConfig, dispatch: StoredDispatch) {
         let destination_id = dispatch.destination();
         let dispatch_id = dispatch.id();
@@ -188,13 +179,13 @@ impl ExtManager {
 
         let gas_limit = self
             .gas_tree
-            .get_limit(dispatch.id())
+            .get_limit(dispatch_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         log::debug!(
             "Processing message ({:?}): {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
-            dispatch.kind(),
-            dispatch.id(),
+            dispatch_kind,
+            dispatch_id,
             destination_id,
             gas_limit,
             self.gas_allowance,
@@ -215,62 +206,99 @@ impl ExtManager {
             }
         };
 
-        let (actor_is_initialized, uninitilized_init_mid, maybe_actor_data) =
-            Actors::access(destination_id, |actor| {
-                let actor = actor.expect("internal error: program doesn't exist");
-                let actor_is_initialized = actor.is_initialized();
-                let uninitilized_init_mid = actor.uninitilized_init_message_id();
-                let maybe_actor_data = actor.get_executable_actor_data();
-
-                (
-                    actor_is_initialized,
-                    uninitilized_init_mid,
-                    maybe_actor_data,
-                )
-            });
-
-        let Some((actor_data, instrumented_code)) = maybe_actor_data else {
-            assert!(uninitilized_init_mid.is_none() && !actor_is_initialized);
-            log::debug!("Message {dispatch_id} is sent to non-active program {destination_id}");
-
-            let journal = core_processor::process_non_executable(context);
-            core_processor::handle_journal(journal, self);
-            return;
-        };
-
-        if actor_is_initialized && dispatch_kind == DispatchKind::Init {
-            // Panic is impossible, because gear protocol does not provide functionality
-            // to send second init message to any already existing program.
-            let err_msg = format!(
-                "run_queue_step: got init message for already initialized program. \
-                Current init message id - {dispatch_id:?}, already initialized program id - {destination_id:?}."
-            );
-
-            unreachable!("{err_msg}");
+        enum Exec {
+            Notes(Vec<JournalNote>),
+            ExecutableActor(
+                (ExecutableActorData, InstrumentedCode),
+                ContextChargedForProgram,
+            ),
         }
 
-        // If the destination program is uninitialized, then we allow
-        // to process message, if it's a reply or init message.
-        // Otherwise, we return error reply.
-        if matches!(uninitilized_init_mid, Some(message_id)
-            if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
-        {
-            if dispatch_kind == DispatchKind::Init {
+        let exec = Actors::modify(destination_id, |actor| {
+            use TestActor::*;
+
+            let actor = actor.unwrap_or_else(|| unreachable!("actor must exist for queue message"));
+
+            if actor.is_dormant() {
+                log::debug!("Message {dispatch_id} is sent to non-active program {destination_id}");
+                return Exec::Notes(core_processor::process_non_executable(context));
+            };
+
+            if actor.is_initialized() && dispatch_kind.is_init() {
                 // Panic is impossible, because gear protocol does not provide functionality
-                // to send second init message to any existing program.
+                // to send second init message to any already existing program.
                 let err_msg = format!(
-                    "run_queue_step: got init message which is not the first init message to the program. \
-                    Current init message id - {dispatch_id:?}, original init message id - {dispatch_id}, program - {destination_id:?}.",
+                    "Got init message for already initialized program. \
+                    Current init message id - {dispatch_id:?}, already initialized program id - {destination_id:?}."
                 );
 
                 unreachable!("{err_msg}");
             }
 
-            let journal = core_processor::process_non_executable(context);
-            core_processor::handle_journal(journal, self);
-            return;
-        }
+            if matches!(actor, Uninitialized(None, _)) {
+                let err_msg = format!(
+                    "Got message sent to incomplete user program. First send manually via `Program` API message \
+                    to {destination_id} program, so it's completely created and possibly initialized."
+                );
 
+                unreachable!("{err_msg}");
+            }
+
+            // If the destination program is uninitialized, then we allow
+            // to process message, if it's a reply or init message.
+            // Otherwise, we return error reply.
+            if matches!(actor, Uninitialized(Some(message_id), _)
+                if *message_id != dispatch_id && !dispatch_kind.is_reply())
+            {
+                if dispatch_kind.is_init() {
+                    // Panic is impossible, because gear protocol does not provide functionality
+                    // to send second init message to any existing program.
+                    let err_msg = format!(
+                        "run_queue_step: got init message which is not the first init message to the program. \
+                        Current init message id - {dispatch_id:?}, original init message id - {dispatch_id}, program - {destination_id:?}.",
+                    );
+
+                    unreachable!("{err_msg}");
+                }
+
+                return Exec::Notes(core_processor::process_non_executable(context));
+            }
+
+            if let Some(data) = actor.get_executable_actor_data() {
+                Exec::ExecutableActor(data, context)
+            } else if let Some(mut mock) = actor.take_mock() {
+                let journal = self.process_mock(&mut mock, context);
+                actor.set_mock(mock);
+
+                Exec::Notes(journal)
+            } else {
+                unreachable!("invalid program state");
+            }
+        });
+
+        let journal = match exec {
+            Exec::Notes(journal) => journal,
+            Exec::ExecutableActor((actor_data, instrumented_code), context) => self
+                .process_executable_actor(
+                    actor_data,
+                    instrumented_code,
+                    block_config,
+                    context,
+                    balance,
+                ),
+        };
+
+        core_processor::handle_journal(journal, self)
+    }
+
+    fn process_executable_actor(
+        &self,
+        actor_data: ExecutableActorData,
+        instrumented_code: InstrumentedCode,
+        block_config: &BlockConfig,
+        context: ContextChargedForProgram,
+        balance: Value,
+    ) -> Vec<JournalNote> {
         let context = match core_processor::precharge_for_allocations(
             block_config,
             context,
@@ -278,8 +306,7 @@ impl ExtManager {
         ) {
             Ok(context) => context,
             Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
+                return journal;
             }
         };
 
@@ -287,22 +314,20 @@ impl ExtManager {
             match core_processor::precharge_for_code_length(block_config, context, actor_data) {
                 Ok(context) => context,
                 Err(journal) => {
-                    core_processor::handle_journal(journal, self);
-                    return;
+                    return journal;
                 }
             };
 
         let code_id = context.actor_data().code_id;
         let code_len_bytes = self
             .read_code(code_id)
-            .map(|code| code.len().try_into().expect("to big code len"))
+            .map(|code| code.len().try_into().expect("too big code len"))
             .unwrap_or_else(|| unreachable!("can't find code for the existing code id {code_id}"));
         let context =
             match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
                 Ok(context) => context,
                 Err(journal) => {
-                    core_processor::handle_journal(journal, self);
-                    return;
+                    return journal;
                 }
             };
 
@@ -314,30 +339,29 @@ impl ExtManager {
         ) {
             Ok(context) => context,
             Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
+                return journal;
             }
         };
 
-        let journal = core_processor::process::<Ext<LazyPagesNative>>(
+        core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
             (context, instrumented_code, balance).into(),
             self.random_data.clone(),
         )
-        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
-
-        core_processor::handle_journal(journal, self);
+        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }
 
-    fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
+    fn process_mock(
+        &self,
+        mock: &mut Box<dyn WasmProgram>,
+        context: ContextChargedForProgram,
+    ) -> Vec<JournalNote> {
         enum Mocked {
             Reply(Option<Vec<u8>>),
             Signal,
         }
 
-        let message_id = dispatch.id();
-        let source = dispatch.source();
-        let program_id = dispatch.destination();
+        let (dispatch, program_id, gas_counter) = context.into_inner();
         let payload = dispatch.payload_bytes().to_vec();
 
         let response = match dispatch.kind() {
@@ -349,86 +373,67 @@ impl ExtManager {
 
         match response {
             Ok(Mocked::Reply(reply)) => {
-                let maybe_reply_message = if let Some(payload) = reply {
-                    let id = MessageId::generate_reply(message_id);
-                    let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
-                    Some(ReplyMessage::from_packet(id, packet))
-                } else {
-                    (!dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal)
-                        .then_some(ReplyMessage::auto(message_id))
+                let kind = DispatchResultKind::Success;
+                let (generated_dispatches, reply_sent) = reply
+                    .map(|payload| {
+                        let reply_message = ReplyMessage::from_packet(
+                            MessageId::generate_reply(dispatch.id()),
+                            ReplyPacket::new(payload.try_into().expect("too big payload"), 0),
+                        );
+                        let dispatch = reply_message.into_dispatch(
+                            program_id,
+                            dispatch.source(),
+                            dispatch.id(),
+                        );
+
+                        (vec![(dispatch, 0, None)], true)
+                    })
+                    .unwrap_or_default();
+                let dispatch_result = DispatchResult {
+                    kind,
+                    dispatch,
+                    program_id,
+                    generated_dispatches,
+                    gas_amount: gas_counter.to_amount(),
+                    reply_sent,
+                    ..default_dispatch_result()
                 };
 
-                if let Some(reply_message) = maybe_reply_message {
-                    <Self as JournalHandler>::send_dispatch(
-                        self,
-                        message_id,
-                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                        0,
-                        None,
-                    );
-                }
-
-                if let DispatchKind::Init = dispatch.kind() {
-                    self.message_dispatched(
-                        message_id,
-                        source,
-                        DispatchOutcome::InitSuccess { program_id },
-                    );
-                }
+                core_processor::process_success(
+                    SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                )
             }
-            Ok(Mocked::Signal) => {}
+            Ok(Mocked::Signal) => {
+                let kind = DispatchResultKind::Success;
+                let dispatch_result = DispatchResult {
+                    kind,
+                    dispatch,
+                    program_id,
+                    gas_amount: gas_counter.to_amount(),
+                    ..default_dispatch_result()
+                };
+
+                core_processor::process_success(
+                    SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                )
+            }
             Err(expl) => {
                 mock.debug(expl);
 
-                if let DispatchKind::Init = dispatch.kind() {
-                    self.message_dispatched(
-                        message_id,
-                        source,
-                        DispatchOutcome::InitFailure {
-                            program_id,
-                            origin: source,
-                            reason: expl.to_string(),
-                        },
-                    );
-                } else {
-                    self.message_dispatched(
-                        message_id,
-                        source,
-                        DispatchOutcome::MessageTrap {
-                            program_id,
-                            trap: expl.to_string(),
-                        },
-                    )
-                }
-
-                if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-                    let err = ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic);
-                    let err_payload = expl
-                        .as_bytes()
-                        .to_vec()
-                        .try_into()
-                        .unwrap_or_else(|_| unreachable!("Error message is too large"));
-
-                    let reply_message = ReplyMessage::system(message_id, err_payload, err);
-
-                    <Self as JournalHandler>::send_dispatch(
-                        self,
-                        message_id,
-                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                        0,
-                        None,
-                    );
-                }
+                let err_reply_reason = ActorExecutionErrorReplyReason::Trap(
+                    TrapExplanation::Panic(LimitedStr::from_small_str(expl)),
+                );
+                core_processor::process_execution_error(
+                    dispatch,
+                    program_id,
+                    gas_counter.burned(),
+                    Default::default(),
+                    err_reply_reason,
+                )
             }
         }
-
-        // After run either `init_success` is called or `init_failed`.
-        // So only active (init success) program can be modified
-        Actors::modify(program_id, |actor| {
-            if let Some(TestActor::Initialized(old_mock)) = actor {
-                *old_mock = Program::Mock(Some(mock));
-            }
-        })
     }
 
     fn block_config(&self) -> BlockConfig {
@@ -447,5 +452,24 @@ impl ExtManager {
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }
+    }
+}
+
+fn default_dispatch_result() -> DispatchResult {
+    DispatchResult {
+        kind: DispatchResultKind::Success,
+        dispatch: Default::default(),
+        program_id: Default::default(),
+        context_store: Default::default(),
+        generated_dispatches: Default::default(),
+        awakening: Default::default(),
+        reply_deposits: Default::default(),
+        program_candidates: Default::default(),
+        gas_amount: GasCounter::new(0).to_amount(),
+        gas_reserver: Default::default(),
+        system_reservation_context: Default::default(),
+        page_update: Default::default(),
+        allocations: Default::default(),
+        reply_sent: Default::default(),
     }
 }

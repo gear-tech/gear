@@ -311,6 +311,20 @@ impl System {
         Actors::is_active_program(program_id)
     }
 
+    /// Saves code to the storage and returns its code hash
+    ///
+    /// Same as ['submit_code_file'], but the path is provided as relative to
+    /// the current directory.
+    #[track_caller]
+    pub fn submit_local_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(code_path)
+            .clean();
+
+        self.submit_code_file(path)
+    }
+
     /// Saves code from file to the storage and returns its code hash
     ///
     /// See also [`System::submit_code`]
@@ -339,20 +353,6 @@ impl System {
         self.0.borrow_mut().store_new_code(code_id, code);
 
         code_id
-    }
-
-    /// Saves code to the storage and returns its code hash
-    ///
-    /// Same as ['submit_code_file'], but the path is provided as relative to
-    /// the current directory.
-    #[track_caller]
-    pub fn submit_local_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
-        let path = env::current_dir()
-            .expect("Unable to get root directory of the project")
-            .join(code_path)
-            .clean();
-
-        self.submit_code_file(path)
     }
 
     /// Returns previously submitted code by its code hash.
