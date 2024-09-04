@@ -44,7 +44,6 @@ struct Balance {
 }
 
 impl Balance {
-    #[track_caller]
     fn new(amount: Value) -> Self {
         if amount < EXISTENTIAL_DEPOSIT {
             panic!(
