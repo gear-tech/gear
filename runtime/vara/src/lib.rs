@@ -80,7 +80,9 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
 };
-use runtime_common::constants::BANK_ADDRESS;
+#[cfg(feature = "dev")]
+use runtime_common::EthBridgeActor;
+use runtime_common::{constants::BANK_ADDRESS, Bls12_381Actor, StakingActor};
 pub use runtime_common::{
     constants::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
@@ -1178,16 +1180,16 @@ impl pallet_gear_messenger::Config for Runtime {
 /// Builtin actors arranged in a tuple.
 #[cfg(not(feature = "dev"))]
 pub type BuiltinActors = (
-    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
-    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
+    ActorWithId<Bls12_381Actor, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
+    ActorWithId<StakingActor, pallet_gear_builtin::staking::Actor<Runtime>>,
 );
 
 /// Builtin actors arranged in a tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
-    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
-    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
+    ActorWithId<Bls12_381Actor, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
+    ActorWithId<StakingActor, pallet_gear_builtin::staking::Actor<Runtime>>,
+    ActorWithId<EthBridgeActor, pallet_gear_eth_bridge::Actor<Runtime>>,
 );
 
 impl pallet_gear_builtin::Config for Runtime {

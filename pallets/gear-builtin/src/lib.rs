@@ -45,6 +45,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+use gprimitives::builtin;
+use sp_core::Get;
 pub use weights::WeightInfo;
 
 use alloc::{
@@ -60,7 +62,7 @@ use core_processor::{
 };
 use gear_core::{
     gas::GasCounter,
-    ids::{hash, ProgramId},
+    ids::ProgramId,
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
     },
@@ -116,43 +118,37 @@ pub trait BuiltinActor {
 }
 
 /// A marker struct to associate a builtin actor with its unique ID.
-pub struct ActorWithId<const ID: u64, A: BuiltinActor>(PhantomData<A>);
+pub struct ActorWithId<Actor: Get<builtin::BuiltinActor>, A: BuiltinActor>(PhantomData<(Actor, A)>);
 
 /// Glue trait to implement `BuiltinCollection` for a tuple of `ActorWithId`.
 trait BuiltinActorWithId {
-    const ID: u64;
-
     type Error;
+    type ID: Get<builtin::BuiltinActor>;
     type Actor: BuiltinActor<Error = Self::Error>;
 }
 
-impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
-    const ID: u64 = ID;
-
+impl<Actor: Get<builtin::BuiltinActor>, A: BuiltinActor> BuiltinActorWithId
+    for ActorWithId<Actor, A>
+{
     type Error = A::Error;
+    type ID = Actor;
     type Actor = A;
 }
 
 /// A trait defining a method to convert a tuple of `BuiltinActor` types into
 /// a in-memory collection of builtin actors.
 pub trait BuiltinCollection<E> {
-    fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
-        id_converter: &dyn Fn(u64) -> ProgramId,
-    );
+    fn collect(registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>);
 }
 
 // Assuming as many as 16 builtin actors for the meantime
 #[impl_for_tuples(16)]
 #[tuple_types_custom_trait_bound(BuiltinActorWithId<Error = E> + 'static)]
 impl<E> BuiltinCollection<E> for Tuple {
-    fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
-        id_converter: &dyn Fn(u64) -> ProgramId,
-    ) {
+    fn collect(registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>) {
         for_tuples!(
             #(
-                let actor_id = id_converter(Tuple::ID);
+                let actor_id = Tuple::ID::get().actor_id();
                 if let Entry::Vacant(e) = registry.entry(actor_id) {
                     e.insert(Box::new(Tuple::Actor::handle));
                 } else {
@@ -209,7 +205,7 @@ pub mod pallet {
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
         pub fn generate_actor_id(builtin_id: u64) -> ProgramId {
-            hash((builtin::SEED, builtin_id).encode().as_slice()).into()
+            builtin::to_actor_id(builtin_id)
         }
     }
 }
@@ -233,7 +229,7 @@ pub struct BuiltinRegistry<T: Config> {
 impl<T: Config> BuiltinRegistry<T> {
     fn new() -> Self {
         let mut registry = BTreeMap::new();
-        <T as Config>::Builtins::collect(&mut registry, &Pallet::<T>::generate_actor_id);
+        <T as Config>::Builtins::collect(&mut registry);
 
         Self {
             registry,

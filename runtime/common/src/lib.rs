@@ -22,8 +22,6 @@ mod apis;
 pub mod constants;
 pub mod weights;
 
-use sp_runtime::traits::Get;
-
 use frame_support::{
     pallet_prelude::DispatchClass,
     parameter_types,
@@ -34,8 +32,9 @@ use frame_support::{
     },
 };
 use frame_system::limits::BlockWeights;
+use gprimitives::builtin::BuiltinActor;
 use runtime_primitives::{AccountId, BlockNumber};
-use sp_runtime::Perbill;
+use sp_runtime::{traits::Get, Perbill};
 
 /// We assume that ~3% of the block weight is consumed by `on_initialize` handlers.
 /// This is used to limit the maximal weight of a single extrinsic.
@@ -79,6 +78,9 @@ pub fn block_weights_for(maximum_block_weight: Weight) -> BlockWeights {
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
+    pub const StakingActor: BuiltinActor = BuiltinActor::Staking;
+    pub const Bls12_381Actor: BuiltinActor = BuiltinActor::Bls12_381;
+    pub const EthBridgeActor: BuiltinActor = BuiltinActor::EthBridge;
 }
 
 pub const VALUE_PER_GAS: u128 = 6;

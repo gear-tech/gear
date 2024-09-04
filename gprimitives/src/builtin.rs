@@ -23,8 +23,48 @@ use crate::ActorId;
 /// Seed for generating builtin actor ids
 pub const SEED: [u8; 8] = *b"built/in";
 
-/// Index of builtin library [`gbuiltin_bls318`]
-pub const BLS12_381_ID: u64 = 1;
+/// Gear builtin actor
+#[derive(Clone, Copy)]
+#[repr(u64)]
+pub enum BuiltinActor {
+    /// Librar [`gbuiltin_bls318`]
+    Bls12_381,
+    /// library [`gbuiltin_eth_bridge`]
+    EthBridge,
+    /// library [`gbuiltin_staking`]
+    Staking,
+}
+
+impl BuiltinActor {
+    // /// Convert index to actor id
+    // pub fn to_actor_id(idx: u64) -> ActorId {
+    //     idx as
+    // }
+
+    /// Get the library index
+    pub const fn id(&self) -> u64 {
+        *self as u64
+    }
+
+    /// Get actor id
+    pub fn actor_id(&self) -> ActorId {
+        match self {
+            Self::Bls12_381 => BLS12_381,
+            Self::EthBridge => ETH_BRIDGE,
+            Self::Staking => STAKING,
+        }
+    }
+}
+
+/// Convert library index to actor ID
+pub fn to_actor_id(idx: u64) -> ActorId {
+    match idx {
+        b if b == BuiltinActor::Bls12_381.id() => BLS12_381,
+        b if b == BuiltinActor::EthBridge.id() => ETH_BRIDGE,
+        b if b == BuiltinActor::Staking.id() => STAKING,
+        _ => panic!("Unsupported builtin library"),
+    }
+}
 
 /// Actor ID of builtin library [`gbuiltin_bls318`]
 pub const BLS12_381: ActorId = ActorId([
@@ -33,16 +73,10 @@ pub const BLS12_381: ActorId = ActorId([
 ]);
 
 /// Actor ID of builtin library [`gbuiltin_eth_bridge`]
-pub const ETH_BRIDGE_ID: u64 = 2;
-
-/// Actor ID of builtin library [`gbuiltin_eth_bridge`]
 pub const ETH_BRIDGE: ActorId = ActorId([
     119, 246, 94, 241, 144, 225, 27, 254, 203, 143, 200, 151, 15, 211, 116, 158, 148, 190, 214,
     106, 35, 236, 47, 122, 54, 35, 231, 133, 208, 129, 103, 97,
 ]);
-
-/// Actor ID of builtin library [`gbuiltin_staking`]
-pub const STAKING_ID: u64 = 3;
 
 /// Actor ID of builtin library [`gbuiltin_staking`]
 pub const STAKING: ActorId = ActorId([
@@ -50,22 +84,10 @@ pub const STAKING: ActorId = ActorId([
     179, 182, 21, 55, 57, 242, 24, 21, 27, 122, 205, 191,
 ]);
 
-/// Resolve actor id from the input index
-pub fn to_actor_id(idx: u64) -> ActorId {
-    match idx {
-        BLS12_381_ID => BLS12_381,
-        ETH_BRIDGE_ID => ETH_BRIDGE,
-        STAKING_ID => STAKING,
-        _ => panic!("Unsupported builtin id: {idx}"),
-    }
-}
-
 #[cfg(feature = "codec")]
 #[cfg(test)]
 mod tests {
-    use crate::builtin::{
-        BLS12_381, BLS12_381_ID, ETH_BRIDGE, ETH_BRIDGE_ID, SEED, STAKING, STAKING_ID,
-    };
+    use crate::builtin::{BuiltinActor, BLS12_381, ETH_BRIDGE, SEED, STAKING};
     use blake2::{digest::typenum::U32, Blake2b, Digest};
     use parity_scale_codec::Encode;
 
@@ -78,11 +100,17 @@ mod tests {
 
     #[test]
     fn actor_ids_matched() {
-        assert_eq!(hash((SEED, BLS12_381_ID).encode().as_slice()), BLS12_381.0);
+        assert_eq!(
+            hash((SEED, BLS12_381_ID).encode().as_slice()),
+            BuiltinActor::Bls12_381.actor_id().0
+        );
         assert_eq!(
             hash((SEED, ETH_BRIDGE_ID).encode().as_slice()),
-            ETH_BRIDGE.0
+            BuiltinActor::EthBridge.actor_id().0
         );
-        assert_eq!(hash((SEED, STAKING_ID).encode().as_slice()), STAKING.0);
+        assert_eq!(
+            hash((SEED, STAKING_ID).encode().as_slice()),
+            BuiltinActor::Staking.actor_id().0
+        );
     }
 }

@@ -35,6 +35,7 @@ pallet-gear.workspace = true
 pallet-gear-gas.workspace = true
 pallet-gear-bank.workspace = true
 pallet-gear-messenger.workspace = true
+gprimitives.workspace = true
 
 # Utils
 log.workspace = true
