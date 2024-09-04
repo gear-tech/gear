@@ -99,12 +99,7 @@ impl Query {
         to_block: u32,
     ) -> Result<HashMap<H256, BlockHeader>> {
         let total_blocks = to_block.saturating_sub(from_block) + 1;
-        log::info!(
-            "Starting to load {} blocks from {} to {}",
-            total_blocks,
-            from_block,
-            to_block
-        );
+        log::info!("Starting to load {total_blocks} blocks from {from_block} to {to_block}");
 
         let fetches = (from_block..=to_block).map(|block_number| {
             let provider = self.provider.clone();
@@ -114,17 +109,12 @@ impl Query {
                     .get_block_by_number(BlockNumberOrTag::Number(block_number as u64), false)
                     .await?;
                 let block = block
-                    .ok_or_else(|| anyhow!("Block not found for block number {}", block_number))?;
+                    .ok_or_else(|| anyhow!("Block not found for block number {block_number}"))?;
 
-                let height = u32::try_from(block.header.number.ok_or_else(|| {
-                    anyhow!(
-                        "Block number not found for block hash {}",
-                        block.header.hash.unwrap()
-                    )
-                })?)
-                .map_err(|err| anyhow!("Ethereum block number not fit in u32: {}", err))?;
+                let height = u32::try_from(block.header.number)
+                    .map_err(|err| anyhow!("Ethereum block number not fit in u32: {err}"))?;
                 let timestamp = block.header.timestamp;
-                let block_hash = H256(block.header.hash.unwrap().0);
+                let block_hash = H256(block.header.hash.0);
                 let parent_hash = H256(block.header.parent_hash.0);
 
                 let header = BlockHeader {
@@ -316,13 +306,9 @@ impl Query {
                     .await?
                     .ok_or_else(|| anyhow!("Block not found"))?;
 
-                let height = u32::try_from(
-                    block
-                        .header
-                        .number
-                        .ok_or_else(|| anyhow!("Block number not found"))?,
-                )
-                .unwrap_or_else(|err| unreachable!("Ethereum block number not fit in u32: {err}"));
+                let height = u32::try_from(block.header.number).unwrap_or_else(|err| {
+                    unreachable!("Ethereum block number not fit in u32: {err}")
+                });
                 let timestamp = block.header.timestamp;
                 let parent_hash = H256(block.header.parent_hash.0);
 

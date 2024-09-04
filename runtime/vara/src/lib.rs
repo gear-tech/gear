@@ -701,7 +701,7 @@ parameter_types! {
     pub const BondingDuration: sp_staking::EraIndex = 14;
     // 41 eras during which slashes can be cancelled (slightly less than 7 days)
     pub const SlashDeferDuration: sp_staking::EraIndex = 13;
-    pub const MaxExposurePageSize: u32 = 512;
+    pub const MaxExposurePageSize: u32 = 256;
     // Note: this is not really correct as Max Nominators is (MaxExposurePageSize * page_count) but
     // this is an unbounded number. We just set it to a reasonably high value, 1 full page
     // of nominators.

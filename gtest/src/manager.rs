@@ -41,13 +41,12 @@ use crate::{
         waitlist::WaitlistManager,
     },
     Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAILBOX_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    RESERVE_FOR, VALUE_PER_GAS,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
     common::*,
     configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
-    ContextChargedForInstrumentation, Ext,
+    ContextChargedForInstrumentation, ContextChargedForProgram, Ext,
 };
 use gear_common::{
     auxiliary::{
@@ -61,7 +60,7 @@ use gear_common::{
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
-    gas_metering::{RentWeights, Schedule},
+    gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -70,7 +69,6 @@ use gear_core::{
     },
     pages::{num_traits::Zero, GearPage},
 };
-use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
@@ -106,7 +104,7 @@ pub(crate) struct ExtManager {
     pub(crate) gas_allowance: Gas,
     pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
     pub(crate) messages_processing_enabled: bool,
-
+    pub(crate) first_incomplete_tasks_block: Option<u32>,
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
     pub(crate) failed: BTreeSet<MessageId>,
@@ -232,6 +230,11 @@ impl ExtManager {
         Accounts::override_balance(id, balance);
     }
 
+    pub(crate) fn on_task_pool_change(&mut self) {
+        let write = DbWeights::default().write.ref_time;
+        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(write));
+    }
+
     #[track_caller]
     fn init_success(&mut self, program_id: ProgramId) {
         Actors::modify(program_id, |actor| {
@@ -281,10 +284,15 @@ impl ExtManager {
 
         self.bank.transfer_value(from, user_id, message.value());
 
-        let _ = self.task_pool.delete(
-            expected,
-            ScheduledTask::RemoveFromMailbox(user_id, message.id()),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expected,
+                ScheduledTask::RemoveFromMailbox(user_id, message.id()),
+            )
+            .map(|_| {
+                self.on_task_pool_change();
+            });
 
         Ok(message)
     }
