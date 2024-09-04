@@ -608,6 +608,7 @@ mod util {
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
     pub(super) use gear_core::ids::{prelude::*, CodeId, ProgramId};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+    use gprimitives::builtin;
     use pallet_session::historical::{self as pallet_session_historical};
     pub(super) use parity_scale_codec::Encode;
     use sp_core::{crypto::key_types, H256};
@@ -757,9 +758,13 @@ mod util {
         BuiltinDispatcherFactory = GearBuiltin,
     );
 
+    parameter_types! {
+        pub const StakingActor: builtin::BuiltinActor = builtin::BuiltinActor::Staking;
+    }
+
     impl pallet_gear_builtin::Config for Test {
         type RuntimeCall = RuntimeCall;
-        type Builtins = (ActorWithId<2, StakingBuiltin<Self>>,);
+        type Builtins = (ActorWithId<StakingActor, StakingBuiltin<Self>>,);
         type WeightInfo = ();
     }
 

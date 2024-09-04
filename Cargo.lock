@@ -18858,7 +18858,6 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "gprimitives",
  "gwasm-instrument",
  "hex-literal",
  "log",

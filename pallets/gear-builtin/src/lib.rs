@@ -46,7 +46,6 @@ mod mock;
 mod tests;
 
 use gprimitives::builtin;
-use sp_core::Get;
 pub use weights::WeightInfo;
 
 use alloc::{
@@ -71,6 +70,7 @@ use gear_core::{
 use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
 use parity_scale_codec::{Decode, Encode};
+use sp_runtime::traits::Get;
 use sp_std::prelude::*;
 
 pub use pallet::*;

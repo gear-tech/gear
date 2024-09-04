@@ -27,6 +27,7 @@ use gear_core::{
     ids::ProgramId,
     message::{Payload, StoredDispatch},
 };
+use gprimitives::builtin;
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -111,13 +112,19 @@ impl BuiltinActor for SomeBuiltinActor {
     }
 }
 
+parameter_types! {
+    pub const ActorA: builtin::BuiltinActor = builtin::BuiltinActor::Other(1);
+    pub const ActorB: builtin::BuiltinActor = builtin::BuiltinActor::Other(2);
+    pub const ActorC: builtin::BuiltinActor = builtin::BuiltinActor::Other(3);
+}
+
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (
-        ActorWithId<1, SomeBuiltinActor>,
-        ActorWithId<2, SomeBuiltinActor>,
-        ActorWithId<3, SomeBuiltinActor>,
-        ActorWithId<2, SomeBuiltinActor>, // 2 already exists
+        ActorWithId<ActorA, SomeBuiltinActor>,
+        ActorWithId<ActorB, SomeBuiltinActor>,
+        ActorWithId<ActorC, SomeBuiltinActor>,
+        ActorWithId<ActorB, SomeBuiltinActor>, // 2 already exists
     );
     type WeightInfo = ();
 }

@@ -29,6 +29,7 @@ use gear_core::{
     ids::ProgramId,
     message::{Payload, StoredDispatch},
 };
+use gprimitives::builtin;
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -215,13 +216,20 @@ const HONEST_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/hon");
 const SUCCESS_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/suc");
 const ERROR_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/err");
 
+parameter_types! {
+    pub const HonestActor: builtin::BuiltinActor = builtin::BuiltinActor::Other(u64::from_le_bytes(*b"bltn/hon"));
+    pub const SuccessActor: builtin::BuiltinActor = builtin::BuiltinActor::Other(u64::from_le_bytes(*b"bltn/suc"));
+    pub const ErrorActor: builtin::BuiltinActor = builtin::BuiltinActor::Other(u64::from_le_bytes(*b"bltn/err"));
+    pub const Bls12_381Actor: builtin::BuiltinActor = builtin::BuiltinActor::Bls12_381;
+}
+
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (
-        ActorWithId<SUCCESS_ACTOR_ID, SuccessBuiltinActor>,
-        ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
-        ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
-        ActorWithId<1, bls12_381::Actor<Self>>,
+        ActorWithId<SuccessActor, SuccessBuiltinActor>,
+        ActorWithId<ErrorActor, ErrorBuiltinActor>,
+        ActorWithId<HonestActor, HonestBuiltinActor>,
+        ActorWithId<Bls12_381Actor, bls12_381::Actor<Self>>,
     );
     type WeightInfo = ();
 }

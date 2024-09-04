@@ -39,7 +39,6 @@ frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-std.workspace = true
-sp-core = { workspace = true }
 sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
 pallet-staking.workspace = true
@@ -47,7 +46,7 @@ pallet-staking.workspace = true
 [dev-dependencies]
 demo-waiting-proxy.workspace = true
 demo-staking-broker.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["testing"] }
 sp-core = { workspace = true, features = ["std"] }
 sp-externalities = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }

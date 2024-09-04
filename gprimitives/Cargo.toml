@@ -11,15 +11,16 @@ rust-version.workspace = true
 [dependencies]
 derive_more.workspace = true
 primitive-types = { workspace = true, features = ["scale-info", "rustc-hex"] }
-parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
+parity-scale-codec = { workspace = true, features = [
+    "derive",
+], optional = true }
 scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
+blake2 = { workspace = true, optional = true }
 hex.workspace = true
 gear-ss58.workspace = true
 
-[dev-dependencies]
-blake2.workspace = true
-
 [features]
-codec = ["parity-scale-codec", "scale-info"]
+codec = ["dep:parity-scale-codec", "scale-info"]
 serde = ["dep:serde", "primitive-types/serde_no_std"]
+testing = ["dep:blake2", "dep:serde", "dep:parity-scale-codec"]

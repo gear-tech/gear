@@ -541,7 +541,7 @@ mod utils {
     use gprimitives::{ActorId, MessageId};
 
     pub(crate) fn builtin_id() -> ActorId {
-        GearBuiltin::generate_actor_id(BUILTIN_ID)
+        gprimitives::builtin::ETH_BRIDGE
     }
 
     #[track_caller]

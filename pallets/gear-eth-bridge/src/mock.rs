@@ -23,7 +23,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gprimitives::ActorId;
+use gprimitives::{builtin, ActorId};
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
 use sp_core::{ed25519::Public, H256};
@@ -175,11 +175,13 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub const BUILTIN_ID: u64 = 1;
+parameter_types! {
+    pub const EthBridgeActor: builtin::BuiltinActor = builtin::BuiltinActor::EthBridge;
+}
 
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
-    type Builtins = (ActorWithId<BUILTIN_ID, crate::builtin::Actor<Test>>,);
+    type Builtins = (ActorWithId<EthBridgeActor, crate::builtin::Actor<Test>>,);
     type WeightInfo = ();
 }
 
