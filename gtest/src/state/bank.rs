@@ -36,7 +36,7 @@ pub(crate) struct Bank {
 
 impl Bank {
     // Create a new bank.
-    #[track_caller]
+
     pub(crate) fn deposit_value(&mut self, id: ProgramId, value: Value, keep_alive: bool) {
         Accounts::decrease(id, value, keep_alive);
         self.accounts
@@ -46,7 +46,6 @@ impl Bank {
     }
 
     // Deposit gas.
-    #[track_caller]
     pub(crate) fn deposit_gas(&mut self, id: ProgramId, gas: Gas, keep_alive: bool) {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas);
         Accounts::decrease(id, gas_value, keep_alive);
@@ -57,7 +56,6 @@ impl Bank {
     }
 
     // Withdraw gas.
-    #[track_caller]
     pub(crate) fn spend_gas(
         &mut self,
         id: ProgramId,
@@ -72,7 +70,6 @@ impl Bank {
     }
 
     // Withdraw gas.
-    #[track_caller]
     pub(crate) fn withdraw_gas(
         &mut self,
         id: ProgramId,
@@ -95,7 +92,6 @@ impl Bank {
     }
 
     // Transfer value.
-    #[track_caller]
     pub(crate) fn transfer_value(&mut self, from: ProgramId, to: ProgramId, value: Value) {
         self.accounts
             .get_mut(&from)

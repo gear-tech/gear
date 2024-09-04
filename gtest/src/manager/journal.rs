@@ -252,7 +252,6 @@ impl JournalHandler for ExtManager {
         );
     }
 
-    #[track_caller]
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
@@ -261,7 +260,6 @@ impl JournalHandler for ExtManager {
         self.update_storage_pages(&program_id, pages_data);
     }
 
-    #[track_caller]
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         self.update_genuine_program(program_id, |program| {
             program
@@ -277,7 +275,6 @@ impl JournalHandler for ExtManager {
         .expect("no genuine program was found");
     }
 
-    #[track_caller]
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
         if value.is_zero() {
             // Nothing to do
@@ -288,7 +285,6 @@ impl JournalHandler for ExtManager {
         self.bank.transfer_value(from, to, value);
     }
 
-    #[track_caller]
     fn store_new_programs(
         &mut self,
         program_id: ProgramId,
@@ -324,7 +320,6 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    #[track_caller]
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
         log::debug!(
             "Not enough gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
@@ -424,7 +419,6 @@ impl JournalHandler for ExtManager {
             });
     }
 
-    #[track_caller]
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
         let block_height = self.block_height();
         self.update_genuine_program(program_id, |program| {

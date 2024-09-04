@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    error::user_panic,
     program::{Gas, ProgramIdWrapper},
     Value, GAS_MULTIPLIER,
 };
@@ -227,11 +228,11 @@ impl Log {
     /// Set the payload of the log with bytes.
     pub fn payload_bytes(mut self, payload: impl AsRef<[u8]>) -> Self {
         if self.payload.is_some() {
-            panic!("Payload was already set for this log");
+            user_panic!("Payload was already set for this log");
         }
 
         if let Some(ReplyCode::Success(SuccessReplyReason::Auto)) = self.reply_code {
-            panic!("Cannot set payload for auto reply");
+            user_panic!("Cannot set payload for auto reply");
         }
 
         self.payload = Some(payload.as_ref().to_vec().try_into().unwrap());
@@ -242,7 +243,7 @@ impl Log {
     /// Set the source of the log.
     pub fn source(mut self, source: impl Into<ProgramIdWrapper>) -> Self {
         if self.source.is_some() {
-            panic!("Source was already set for this log");
+            user_panic!("Source was already set for this log");
         }
 
         self.source = Some(source.into().0);
@@ -253,7 +254,7 @@ impl Log {
     /// Set the destination of the log.
     pub fn dest(mut self, dest: impl Into<ProgramIdWrapper>) -> Self {
         if self.destination.is_some() {
-            panic!("Destination was already set for this log");
+            user_panic!("Destination was already set for this log");
         }
         self.destination = Some(dest.into().0);
 
@@ -263,10 +264,10 @@ impl Log {
     /// Set the reply code for this log.
     pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
         if self.reply_code.is_some() {
-            panic!("Reply code was already set for this log");
+            user_panic!("Reply code was already set for this log");
         }
         if self.payload.is_some() && reply_code == ReplyCode::Success(SuccessReplyReason::Auto) {
-            panic!("Cannot set auto reply for log with payload");
+            user_panic!("Cannot set auto reply for log with payload");
         }
 
         self.reply_code = Some(reply_code);
@@ -277,7 +278,7 @@ impl Log {
     /// Set the reply destination for this log.
     pub fn reply_to(mut self, reply_to: MessageId) -> Self {
         if self.reply_to.is_some() {
-            panic!("Reply destination was already set for this log");
+            user_panic!("Reply destination was already set for this log");
         }
 
         self.reply_to = Some(reply_to);
