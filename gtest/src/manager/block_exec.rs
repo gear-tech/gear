@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::SuccessfulDispatchResultKind;
-use gear_core::str::LimitedStr;
+use gear_core::{gas::GasCounter, str::LimitedStr};
 
 use super::*;
 
@@ -392,14 +392,7 @@ impl ExtManager {
                     generated_dispatches,
                     gas_amount: gas_counter.to_amount(),
                     reply_sent,
-                    context_store: Default::default(),
-                    awakening: Default::default(),
-                    reply_deposits: Default::default(),
-                    program_candidates: Default::default(),
-                    gas_reserver: Default::default(),
-                    system_reservation_context: Default::default(),
-                    page_update: Default::default(),
-                    allocations: Default::default(),
+                    ..default_dispatch_result()
                 };
 
                 core_processor::process_success(
@@ -414,16 +407,7 @@ impl ExtManager {
                     dispatch,
                     program_id,
                     gas_amount: gas_counter.to_amount(),
-                    context_store: Default::default(),
-                    awakening: Default::default(),
-                    generated_dispatches: Default::default(),
-                    reply_deposits: Default::default(),
-                    program_candidates: Default::default(),
-                    gas_reserver: Default::default(),
-                    system_reservation_context: Default::default(),
-                    page_update: Default::default(),
-                    allocations: Default::default(),
-                    reply_sent: Default::default(),
+                    ..default_dispatch_result()
                 };
 
                 core_processor::process_success(
@@ -464,5 +448,24 @@ impl ExtManager {
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }
+    }
+}
+
+fn default_dispatch_result() -> DispatchResult {
+    DispatchResult {
+        kind: DispatchResultKind::Success,
+        dispatch: Default::default(),
+        program_id: Default::default(),
+        context_store: Default::default(),
+        generated_dispatches: Default::default(),
+        awakening: Default::default(),
+        reply_deposits: Default::default(),
+        program_candidates: Default::default(),
+        gas_amount: GasCounter::new(0).to_amount(),
+        gas_reserver: Default::default(),
+        system_reservation_context: Default::default(),
+        page_update: Default::default(),
+        allocations: Default::default(),
+        reply_sent: Default::default(),
     }
 }
