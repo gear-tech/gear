@@ -166,6 +166,7 @@ async fn subscription_stream<C: SubscriptionClientT>(
 pub struct Rpc {
     rpc: SubxtRpcClient,
     methods: LegacyRpcMethods<GearConfig>,
+    retries: u16,
 }
 
 impl Rpc {
@@ -173,10 +174,15 @@ impl Rpc {
     pub async fn new(
         url: impl Into<Option<&str>>,
         timeout: impl Into<Option<u64>>,
+        retries: u16,
     ) -> Result<Self> {
         let rpc = SubxtRpcClient::new(RpcClient::new(url, timeout).await?);
         let methods = LegacyRpcMethods::new(rpc.clone());
-        Ok(Self { rpc, methods })
+        Ok(Self {
+            rpc,
+            methods,
+            retries,
+        })
     }
 
     /// Get RPC client.
@@ -190,7 +196,21 @@ impl Rpc {
         method: &str,
         params: RpcParams,
     ) -> Result<Res> {
-        self.rpc.request(method, params).await.map_err(Into::into)
+        let mut retries = 0;
+
+        loop {
+            let r = self
+                .rpc
+                .request(method, params.clone())
+                .await
+                .map_err(Into::into);
+
+            if retries == self.retries || r.is_ok() {
+                return r;
+            }
+
+            retries += 1;
+        }
     }
 }
 

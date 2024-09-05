@@ -26,8 +26,7 @@ use subxt::OnlineClient;
 /// Gear api wrapper.
 #[derive(Clone)]
 pub struct Api {
-    /// How many times we'll retry when rpc requests failed.
-    pub retry: u16,
+    /// Substrate client
     client: OnlineClient<GearConfig>,
 
     /// Gear RPC client
@@ -50,20 +49,12 @@ impl Api {
         url: impl Into<Option<&str>>,
         timeout: impl Into<Option<u64>>,
     ) -> Result<Self> {
-        let rpc = Rpc::new(url, timeout).await?;
+        let rpc = Rpc::new(url, timeout, 3).await?;
 
         Ok(Self {
-            // Retry our failed RPC requests for 5 times by default.
-            retry: 5,
             client: OnlineClient::from_rpc_client(rpc.client()).await?,
             rpc,
         })
-    }
-
-    /// Setup retry times and return the API instance.
-    pub fn with_retry(mut self, retry: u16) -> Self {
-        self.retry = retry;
-        self
     }
 
     /// Subscribe all blocks
