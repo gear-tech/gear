@@ -115,7 +115,6 @@ pub(crate) struct ExtManager {
 }
 
 impl ExtManager {
-    #[track_caller]
     pub(crate) fn new() -> Self {
         Self {
             msg_nonce: 1,
@@ -193,7 +192,6 @@ impl ExtManager {
         }
     }
 
-    #[track_caller]
     pub(crate) fn update_storage_pages(
         &mut self,
         program_id: &ProgramId,
@@ -219,7 +217,6 @@ impl ExtManager {
         Accounts::balance(*id)
     }
 
-    #[track_caller]
     pub(crate) fn override_balance(&mut self, &id: &ProgramId, balance: Value) {
         if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             user_panic!(
@@ -237,7 +234,6 @@ impl ExtManager {
         self.gas_allowance = self.gas_allowance.saturating_sub(Gas(write));
     }
 
-    #[track_caller]
     fn init_success(&mut self, program_id: ProgramId) {
         Actors::modify(program_id, |actor| {
             actor
@@ -246,7 +242,6 @@ impl ExtManager {
         });
     }
 
-    #[track_caller]
     fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
         Actors::modify(program_id, |actor| {
             let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));

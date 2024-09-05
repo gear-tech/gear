@@ -39,7 +39,6 @@ impl ExtManager {
         self.route_dispatch(dispatch)
     }
 
-    #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
         let source = dispatch.source();
         let destination = dispatch.destination();
@@ -111,7 +110,6 @@ impl ExtManager {
 
     // TODO #4120 Charge for task pool processing the gas from gas allowance
     // TODO #4121
-    #[track_caller]
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
         self.gas_allowance = allowance;
         self.blocks_manager.next_block();
@@ -139,7 +137,6 @@ impl ExtManager {
         }
     }
 
-    #[track_caller]
     pub(crate) fn process_tasks(&mut self, current_bn: u32) {
         let db_weights = DbWeights::default();
 
@@ -245,7 +242,6 @@ impl ExtManager {
         }
     }
 
-    #[track_caller]
     fn process_messages(&mut self) -> u32 {
         self.messages_processing_enabled = true;
 
