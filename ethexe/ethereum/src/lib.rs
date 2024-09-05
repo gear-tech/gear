@@ -26,11 +26,12 @@ use abi::{
 };
 use alloy::{
     consensus::{self as alloy_consensus, SignableTransaction},
-    network::{Ethereum as AlloyEthereum, EthereumWallet, TxSigner},
+    network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
-        Provider, ProviderBuilder, RootProvider,
+        PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
+        RootProvider,
     },
     rpc::types::eth::Log,
     signers::{
@@ -38,14 +39,14 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::{SolCall, SolEvent},
-    transports::BoxTransport,
+    transports::{BoxTransport, RpcError, Transport},
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;
 use router::{Router, RouterQuery};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 mod abi;
 mod eip1167;
@@ -157,7 +158,7 @@ impl Ethereum {
         let mirror_proxy = IMirrorProxy::deploy(provider.clone(), router_address).await?;
 
         let builder = wrapped_vara.approve(router_address, U256::MAX);
-        builder.send().await?.get_receipt().await?;
+        builder.send().await?.try_get_receipt().await?;
 
         assert_eq!(router.mirror().call().await?._0, *mirror.address());
         assert_eq!(
@@ -268,5 +269,42 @@ impl SignerSync for Sender {
 
     fn chain_id_sync(&self) -> Option<ChainId> {
         self.chain_id
+    }
+}
+
+// TODO: Maybe better to append solution like this to alloy.
+trait TryGetReceipt<T: Transport + Clone, N: Network> {
+    /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
+    async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
+}
+
+impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<'_, T, N> {
+    async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
+        let tx_hash = *self.tx_hash();
+        let provider = self.provider().clone();
+
+        let mut err = match self.get_receipt().await {
+            Ok(r) => return Ok(r),
+            Err(err) => err,
+        };
+
+        for _ in 0..3 {
+            match err {
+                PendingTransactionError::TransportError(RpcError::NullResp) => {}
+                _ => break,
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            match provider.get_transaction_receipt(tx_hash).await {
+                Ok(Some(r)) => return Ok(r),
+                Ok(None) => {}
+                Err(e) => err = e.into(),
+            }
+        }
+
+        Err(anyhow!(
+            "Failed to get transaction receipt for {tx_hash}: {err}"
+        ))
     }
 }
