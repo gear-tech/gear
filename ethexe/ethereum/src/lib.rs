@@ -26,7 +26,7 @@ use abi::{
 };
 use alloy::{
     consensus::{self as alloy_consensus, SignableTransaction},
-    network::{self, Ethereum as AlloyEthereum, EthereumWallet, TxSigner},
+    network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
@@ -39,7 +39,7 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::{SolCall, SolEvent},
-    transports::{self, BoxTransport, RpcError},
+    transports::{BoxTransport, RpcError, Transport},
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -158,7 +158,7 @@ impl Ethereum {
         let mirror_proxy = IMirrorProxy::deploy(provider.clone(), router_address).await?;
 
         let builder = wrapped_vara.approve(router_address, U256::MAX);
-        get_transaction_receipt(builder.send().await?).await?;
+        builder.send().await?.try_get_receipt().await?;
 
         assert_eq!(router.mirror().call().await?._0, *mirror.address());
         assert_eq!(
@@ -273,34 +273,38 @@ impl SignerSync for Sender {
 }
 
 // TODO: Maybe better to append solution like this to alloy.
-/// Works like `tx.get_receipt().await`, but retries a few times if rpc returns a null response.
-async fn get_transaction_receipt<T: transports::Transport + Clone, N: network::Network>(
-    tx: PendingTransactionBuilder<'_, T, N>,
-) -> Result<N::ReceiptResponse> {
-    let tx_hash = *tx.tx_hash();
-    let provider = tx.provider().clone();
+trait TryGetReceipt<T: Transport + Clone, N: Network> {
+    /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
+    async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
+}
 
-    let mut err = match tx.get_receipt().await {
-        Ok(r) => return Ok(r),
-        Err(err) => err,
-    };
+impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<'_, T, N> {
+    async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
+        let tx_hash = *self.tx_hash();
+        let provider = self.provider().clone();
 
-    for _ in 0..3 {
-        match err {
-            PendingTransactionError::TransportError(RpcError::NullResp) => {}
-            _ => break,
+        let mut err = match self.get_receipt().await {
+            Ok(r) => return Ok(r),
+            Err(err) => err,
+        };
+
+        for _ in 0..3 {
+            match err {
+                PendingTransactionError::TransportError(RpcError::NullResp) => {}
+                _ => break,
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            match provider.get_transaction_receipt(tx_hash).await {
+                Ok(Some(r)) => return Ok(r),
+                Ok(None) => {}
+                Err(e) => err = e.into(),
+            }
         }
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        match provider.get_transaction_receipt(tx_hash).await {
-            Ok(Some(r)) => return Ok(r),
-            Ok(None) => {}
-            Err(e) => err = e.into(),
-        }
+        Err(anyhow!(
+            "Failed to get transaction receipt for {tx_hash}: {err}"
+        ))
     }
-
-    Err(anyhow!(
-        "Failed to get transaction receipt for {tx_hash}: {err}"
-    ))
 }

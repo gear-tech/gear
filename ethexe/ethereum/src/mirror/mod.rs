@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IMirror, AlloyProvider, AlloyTransport};
+use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
     primitives::Address,
     providers::{Provider, ProviderBuilder, RootProvider},
@@ -59,9 +59,7 @@ impl Mirror {
         value: u128,
     ) -> Result<(H256, MessageId)> {
         let builder = self.0.sendMessage(payload.as_ref().to_vec().into(), value);
-        let tx = builder.send().await?;
-
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut message_id = None;
@@ -95,17 +93,14 @@ impl Mirror {
             payload.as_ref().to_vec().into(),
             value,
         );
-        let tx = builder.send().await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
-        let receipt = crate::get_transaction_receipt(tx).await?;
         Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
         let builder = self.0.claimValue(claimed_id.into_bytes().into());
-        let tx = builder.send().await?;
-
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())
     }

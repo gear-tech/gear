@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IRouter, wvara::WVara, AlloyProvider, AlloyTransport};
+use crate::{abi::IRouter, wvara::WVara, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     primitives::{Address, Bytes, B256},
@@ -81,9 +81,7 @@ impl Router {
             .collect();
 
         let builder = self.instance.updateValidators(validators);
-        let tx = builder.send().await?;
-
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())
     }
@@ -97,9 +95,7 @@ impl Router {
             code_id.into_bytes().into(),
             blob_tx_hash.to_fixed_bytes().into(),
         );
-        let tx = builder.send().await?;
-
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())
     }
@@ -114,9 +110,7 @@ impl Router {
             .instance
             .requestCodeValidation(code_id.into_bytes().into(), B256::ZERO)
             .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
-        let tx = builder.send().await?;
-
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok(((*receipt.transaction_hash).into(), code_id))
     }
@@ -161,9 +155,7 @@ impl Router {
             payload.as_ref().to_vec().into(),
             value,
         );
-        let tx = builder.send().await?;
-
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
@@ -195,8 +187,7 @@ impl Router {
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
-        let tx = builder.send().await?;
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 
@@ -215,8 +206,7 @@ impl Router {
                     .collect(),
             )
             .gas(10_000_000);
-        let tx = builder.send().await?;
-        let receipt = crate::get_transaction_receipt(tx).await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 }
