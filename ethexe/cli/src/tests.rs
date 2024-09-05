@@ -18,7 +18,7 @@
 
 //! Integration tests.
 
-use crate::service::Service;
+use crate::service::{Service, Status};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
@@ -35,10 +35,13 @@ use ethexe_processor::Processor;
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
-use futures::StreamExt;
+use futures::{lock::Mutex, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 use tokio::{
     sync::{
         mpsc::{self, Receiver},
@@ -154,6 +157,7 @@ struct TestEnv {
     sender_address: ActorId,
     block_time: Duration,
     running_service_handle: Option<JoinHandle<Result<()>>>,
+    service_status: Option<Arc<Mutex<Status>>>,
 }
 
 impl TestEnv {
@@ -233,6 +237,7 @@ impl TestEnv {
             sender_address: ActorId::from(H160::from(sender_address.0)),
             block_time,
             running_service_handle: None,
+            service_status: None,
         };
 
         Ok(env)
@@ -290,13 +295,11 @@ impl TestEnv {
             None,
         );
 
+        self.service_status = Some(service.status());
+
         let handle = task::spawn(service.run());
         self.running_service_handle = Some(handle);
-
-        // Sleep to wait for the new service to start
-        // TODO: find a better way to wait for the service to start #4099
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
+        self.service_initialized().await?;
         Ok(())
     }
 
@@ -324,6 +327,26 @@ impl TestEnv {
             .await?;
 
         Ok((tx_hash, code_id))
+    }
+
+    /// Wait for service initialized
+    pub async fn service_initialized(&self) -> Result<()> {
+        let Some(status) = &self.service_status else {
+            return Err(anyhow!("Service not start"));
+        };
+
+        let now = SystemTime::now();
+        loop {
+            if status.lock().await.active() {
+                return Ok(());
+            }
+
+            if now.elapsed()? > self.block_time {
+                break;
+            }
+        }
+
+        Err(anyhow!("Service initialization timed out."))
     }
 }
 
@@ -664,9 +687,9 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(env.block_time).await;
+    env.service_initialized()
+        .await
+        .expect("service uninitalized");
 
     log::info!("📗 Reverting to the program creation snapshot");
     provider
@@ -748,10 +771,9 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
+    env.service_initialized()
+        .await
+        .expect("service uninitalized");
     log::info!("📗 Done");
 }
 
