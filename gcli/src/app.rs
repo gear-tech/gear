@@ -110,8 +110,9 @@ pub trait App: Parser + Sync {
     /// Get gear api without signing in with password.
     async fn api(&self) -> anyhow::Result<GearApi> {
         let endpoint = self.endpoint().clone();
-        let timeout = self.timeout();
-        Api::new_with_timeout(endpoint.as_deref(), timeout)
+        Api::builder()
+            .timeout(self.timeout())
+            .build(endpoint.as_deref())
             .await
             .map(Into::into)
             .map_err(Into::into)
@@ -119,11 +120,12 @@ pub trait App: Parser + Sync {
 
     /// Get signer.
     async fn signer(&self) -> anyhow::Result<GearApi> {
-        let endpoint = self.endpoint().clone();
-        let timeout = self.timeout();
         let passwd = self.passwd();
 
-        let api = Api::new_with_timeout(endpoint.as_deref(), timeout).await?;
+        let api = Api::builder()
+            .timeout(self.timeout())
+            .build(self.endpoint().as_deref())
+            .await?;
         let pair = Keyring::load(gring::cmd::Command::store()?)?
             .primary()?
             .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
