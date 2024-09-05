@@ -130,6 +130,9 @@ pub struct Schedule<T: Config> {
     /// The weights for database access.
     pub db_weights: DbWeights<T>,
 
+    /// The weights for executing tasks.
+    pub task_weights: TaskWeights<T>,
+
     /// The weights for instantiation of the module.
     pub instantiation_weights: InstantiationWeights<T>,
 
@@ -671,6 +674,10 @@ pub struct RentWeights<T: Config> {
     pub dispatch_stash: Weight,
     /// Holding reservation weight.
     pub reservation: Weight,
+    /// Holding message in mailbox weight.
+    pub mailbox: Weight,
+    /// The minimal gas amount for message to be inserted in mailbox.
+    pub mailbox_threshold: Weight,
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
@@ -690,6 +697,42 @@ pub struct DbWeights<T: Config> {
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
+}
+
+/// Describes weights for running tasks.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct TaskWeights<T: Config> {
+    pub remove_gas_reservation: Weight,
+    pub send_user_message_to_mailbox: Weight,
+    pub send_user_message: Weight,
+    pub send_dispatch: Weight,
+    pub wake_message: Weight,
+    pub wake_message_no_wake: Weight,
+    pub remove_from_waitlist: Weight,
+    pub remove_from_mailbox: Weight,
+    /// The type parameter is used in the default implementation.
+    #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
+    pub _phantom: PhantomData<T>,
+}
+impl<T: Config> Default for TaskWeights<T> {
+    fn default() -> Self {
+        type W<T> = <T as Config>::WeightInfo;
+
+        Self {
+            remove_gas_reservation: W::<T>::tasks_remove_gas_reservation(),
+            send_user_message_to_mailbox: W::<T>::tasks_send_user_message_to_mailbox(),
+            send_user_message: W::<T>::tasks_send_user_message(),
+            send_dispatch: W::<T>::tasks_send_dispatch(),
+            wake_message: W::<T>::tasks_wake_message(),
+            wake_message_no_wake: W::<T>::tasks_wake_message_no_wake(),
+            remove_from_waitlist: W::<T>::tasks_remove_from_waitlist(),
+            remove_from_mailbox: W::<T>::tasks_remove_from_mailbox(),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 #[inline]
@@ -768,6 +811,7 @@ impl<T: Config> Default for Schedule<T> {
             memory_weights: Default::default(),
             rent_weights: Default::default(),
             db_weights: Default::default(),
+            task_weights: Default::default(),
             instantiation_weights: Default::default(),
             code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
             code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
@@ -1297,6 +1341,8 @@ impl<T: Config> Default for RentWeights<T> {
             waitlist: Weight::from_parts(CostsPerBlockOf::<T>::waitlist(), 0),
             dispatch_stash: Weight::from_parts(CostsPerBlockOf::<T>::dispatch_stash(), 0),
             reservation: Weight::from_parts(CostsPerBlockOf::<T>::reservation(), 0),
+            mailbox: Weight::from_parts(CostsPerBlockOf::<T>::mailbox(), 0),
+            mailbox_threshold: Weight::from_parts(T::MailboxThreshold::get(), 0),
             _phantom: PhantomData,
         }
     }

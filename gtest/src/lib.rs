@@ -551,16 +551,8 @@ pub mod constants {
     pub const EPOCH_DURATION_IN_BLOCKS: Block = 600;
 
     /* Storage-related constants */
-
-    /// Minimal amount of gas required to be inserted into Mailbox.
-    pub const MAILBOX_THRESHOLD: Gas = 3_000;
     /// Extra amount of blocks must be reserved for storing in storage.
     pub const RESERVE_FOR: Block = 1;
-
-    /* Rent-related constants */
-
-    /// Cost of storing message in mailbox
-    pub const MAILBOX_COST: Gas = 100;
 
     /* Execution-related constants */
 

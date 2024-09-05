@@ -251,7 +251,7 @@ macro_rules! impl_pallet_staking_inner {
             // 8 eras for unbonding
             pub const BondingDuration: u32 = 8;
             pub const SlashDeferDuration: u32 = 7;
-            pub const MaxExposurePageSize: u32 = 512;
+            pub const MaxExposurePageSize: u32 = 256;
             pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
             pub const HistoryDepth: u32 = 84;
             pub const MaxNominations: u32 = 16;

@@ -47,6 +47,14 @@ impl ExtManager {
         self.bank.spend_gas(external.cast(), amount, multiplier)
     }
 
+    pub(crate) fn spend_burned(&mut self, id: MessageId, amount: u64) {
+        self.gas_burned
+            .entry(id)
+            .and_modify(|v| *v = v.saturating_sub(Gas(amount)))
+            .or_insert(Gas(amount));
+        self.spend_gas(id, amount);
+    }
+
     pub(crate) fn cost_by_storage_type(storage_type: StorageType) -> u64 {
         // Cost per block based on the storage used for holding
         let schedule = Schedule::default();
@@ -54,11 +62,13 @@ impl ExtManager {
             waitlist,
             dispatch_stash,
             reservation,
+            mailbox,
+            ..
         } = schedule.rent_weights;
         match storage_type {
             StorageType::Code => todo!("#646"),
             StorageType::Waitlist => waitlist.ref_time,
-            StorageType::Mailbox => MAILBOX_COST,
+            StorageType::Mailbox => mailbox.ref_time,
             StorageType::DispatchStash => dispatch_stash.ref_time,
             StorageType::Program => todo!("#646"),
             StorageType::Reservation => reservation.ref_time,

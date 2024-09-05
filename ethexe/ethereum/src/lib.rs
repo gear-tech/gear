@@ -25,15 +25,12 @@ use abi::{
     IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
 };
 use alloy::{
-    consensus::SignableTransaction,
-    network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TransactionBuilder, TxSigner},
+    consensus::{self as alloy_consensus, SignableTransaction},
+    network::{Ethereum as AlloyEthereum, EthereumWallet, TxSigner},
     primitives::{Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
-        fillers::{
-            ChainIdFiller, FillProvider, FillerControlFlow, GasFiller, JoinFill, TxFiller,
-            WalletFiller,
-        },
-        Identity, Provider, ProviderBuilder, RootProvider, SendableTx,
+        fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
+        Provider, ProviderBuilder, RootProvider,
     },
     rpc::types::eth::Log,
     signers::{
@@ -41,7 +38,7 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::{SolCall, SolEvent},
-    transports::{BoxTransport, Transport, TransportResult},
+    transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -60,10 +57,7 @@ pub(crate) type AlloyTransport = BoxTransport;
 type AlloyProvider =
     FillProvider<ExeFiller, RootProvider<AlloyTransport>, AlloyTransport, AlloyEthereum>;
 
-pub(crate) type ExeFiller = JoinFill<
-    JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>,
-    WalletFiller<EthereumWallet>,
->;
+pub(crate) type ExeFiller = JoinFill<RecommendedFiller, WalletFiller<EthereumWallet>>;
 
 pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
     E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
@@ -202,56 +196,11 @@ async fn create_provider(
 ) -> Result<Arc<AlloyProvider>> {
     Ok(Arc::new(
         ProviderBuilder::new()
-            .filler(GasFiller)
-            .filler(NonceFiller)
-            .filler(ChainIdFiller::default())
+            .with_recommended_fillers()
             .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
             .on_builtin(rpc_url)
             .await?,
     ))
-}
-
-#[derive(Debug, Clone)]
-pub struct NonceFiller;
-
-impl<N: Network> TxFiller<N> for NonceFiller {
-    type Fillable = u64;
-
-    fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
-        if tx.nonce().is_some() {
-            return FillerControlFlow::Finished;
-        }
-        if tx.from().is_none() {
-            return FillerControlFlow::missing("NonceManager", vec!["from"]);
-        }
-        FillerControlFlow::Ready
-    }
-
-    fn fill_sync(&self, _tx: &mut SendableTx<N>) {}
-
-    async fn prepare<P, T>(
-        &self,
-        provider: &P,
-        tx: &N::TransactionRequest,
-    ) -> TransportResult<Self::Fillable>
-    where
-        P: Provider<T, N>,
-        T: Transport + Clone,
-    {
-        let from = tx.from().expect("checked by 'ready()'");
-        provider.get_transaction_count(from).await
-    }
-
-    async fn fill(
-        &self,
-        nonce: Self::Fillable,
-        mut tx: SendableTx<N>,
-    ) -> TransportResult<SendableTx<N>> {
-        if let Some(builder) = tx.as_mut_builder() {
-            builder.set_nonce(nonce);
-        }
-        Ok(tx)
-    }
 }
 
 #[derive(Debug, Clone)]

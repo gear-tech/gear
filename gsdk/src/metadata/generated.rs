@@ -2565,6 +2565,8 @@ pub mod runtime_types {
                     pub waitlist: runtime_types::sp_weights::weight_v2::Weight,
                     pub dispatch_stash: runtime_types::sp_weights::weight_v2::Weight,
                     pub reservation: runtime_types::sp_weights::weight_v2::Weight,
+                    pub mailbox: runtime_types::sp_weights::weight_v2::Weight,
+                    pub mailbox_threshold: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Schedule {
@@ -2575,6 +2577,7 @@ pub mod runtime_types {
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
                     pub rent_weights: runtime_types::pallet_gear::schedule::RentWeights,
                     pub db_weights: runtime_types::pallet_gear::schedule::DbWeights,
+                    pub task_weights: runtime_types::pallet_gear::schedule::TaskWeights,
                     pub instantiation_weights:
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
@@ -2658,6 +2661,17 @@ pub mod runtime_types {
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_create_program_wgas_salt_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct TaskWeights {
+                    pub remove_gas_reservation: runtime_types::sp_weights::weight_v2::Weight,
+                    pub send_user_message_to_mailbox: runtime_types::sp_weights::weight_v2::Weight,
+                    pub send_user_message: runtime_types::sp_weights::weight_v2::Weight,
+                    pub send_dispatch: runtime_types::sp_weights::weight_v2::Weight,
+                    pub wake_message: runtime_types::sp_weights::weight_v2::Weight,
+                    pub wake_message_no_wake: runtime_types::sp_weights::weight_v2::Weight,
+                    pub remove_from_waitlist: runtime_types::sp_weights::weight_v2::Weight,
+                    pub remove_from_mailbox: runtime_types::sp_weights::weight_v2::Weight,
                 }
             }
         }
