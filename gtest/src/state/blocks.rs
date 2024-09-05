@@ -18,14 +18,14 @@
 
 //! Block timestamp and height management.
 
+use crate::BLOCK_DURATION_IN_MSECS;
 use core_processor::configs::BlockInfo;
+use gear_common::{auxiliary::BlockNumber, storage::GetCallback};
 use std::{
     cell::RefCell,
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
-
-use crate::BLOCK_DURATION_IN_MSECS;
 
 type BlockInfoStorageInner = Rc<RefCell<Option<BlockInfo>>>;
 
@@ -113,6 +113,18 @@ fn now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
         .as_millis() as u64
+}
+
+/// Block number getter.
+///
+/// Used to get block number for auxiliary complex storage managers,
+/// like auxiliary mailbox, waitlist and etc.
+pub(crate) struct GetBlockNumberImpl;
+
+impl GetCallback<BlockNumber> for GetBlockNumberImpl {
+    fn call() -> BlockNumber {
+        BlocksManager::new().get().height
+    }
 }
 
 #[cfg(test)]

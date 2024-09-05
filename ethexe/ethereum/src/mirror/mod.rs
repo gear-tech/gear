@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IMirror, AlloyProvider, AlloyTransport};
+use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
     primitives::Address,
-    providers::{ProviderBuilder, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
@@ -46,15 +46,20 @@ impl Mirror {
         LocalAddress(*self.0.address().0)
     }
 
+    pub fn query(&self) -> MirrorQuery {
+        MirrorQuery(QueryInstance::new(
+            *self.0.address(),
+            Arc::new(self.0.provider().root().clone()),
+        ))
+    }
+
     pub async fn send_message(
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<(H256, MessageId)> {
         let builder = self.0.sendMessage(payload.as_ref().to_vec().into(), value);
-        let tx = builder.send().await?;
-
-        let receipt = tx.get_receipt().await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut message_id = None;
@@ -63,7 +68,7 @@ impl Mirror {
             if log.topic0().map(|v| v.0)
                 == Some(signatures::MESSAGE_QUEUEING_REQUESTED.to_fixed_bytes())
             {
-                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log.clone())?;
+                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log)?;
 
                 message_id = Some((*event.id).into());
 
@@ -72,7 +77,7 @@ impl Mirror {
         }
 
         let message_id =
-            message_id.ok_or(anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
+            message_id.ok_or_else(|| anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
 
         Ok((tx_hash, message_id))
     }
@@ -88,17 +93,14 @@ impl Mirror {
             payload.as_ref().to_vec().into(),
             value,
         );
-        let tx = builder.send().await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
-        let receipt = tx.get_receipt().await?;
         Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
         let builder = self.0.claimValue(claimed_id.into_bytes().into());
-        let tx = builder.send().await?;
-
-        let receipt = tx.get_receipt().await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())
     }

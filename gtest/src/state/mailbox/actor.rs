@@ -16,17 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, Log, GAS_ALLOWANCE};
+use crate::{
+    manager::ExtManager,
+    state::{accounts::Accounts, actors::Actors},
+    Log, Value, GAS_ALLOWANCE,
+};
 use codec::Encode;
 use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
     storage::Interval,
 };
 use gear_core::{
-    ids::{prelude::MessageIdExt, MessageId, ProgramId},
+    ids::{prelude::MessageIdExt as _, MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket},
 };
-use std::{cell::RefCell, convert::TryInto};
+use std::cell::RefCell;
 
 /// Interface to a particular user mailbox.
 ///
@@ -56,7 +60,7 @@ impl<'a> ActorMailbox<'a> {
         &self,
         log: Log,
         payload: impl Encode,
-        value: u128,
+        value: Value,
     ) -> Result<MessageId, MailboxErrorImpl> {
         self.reply_bytes(log, payload.encode(), value)
     }
@@ -67,30 +71,47 @@ impl<'a> ActorMailbox<'a> {
         &self,
         log: Log,
         raw_payload: impl AsRef<[u8]>,
-        value: u128,
+        value: Value,
     ) -> Result<MessageId, MailboxErrorImpl> {
-        let mailboxed_msg = self
+        let reply_to_id = self
             .find_message_by_log(&log)
-            .ok_or(MailboxErrorImpl::ElementNotFound)?;
-        self.manager
-            .borrow()
-            .mailbox
-            .remove(self.user_id, mailboxed_msg.id())?;
+            .ok_or(MailboxErrorImpl::ElementNotFound)?
+            .id();
 
+        let mailboxed = self
+            .manager
+            .borrow_mut()
+            .read_mailbox_message(self.user_id, reply_to_id)?;
+
+        let destination = mailboxed.source();
+        let reply_id = MessageId::generate_reply(mailboxed.id());
+
+        // Set zero gas limit if reply deposit exists.
+        let gas_limit = if self
+            .manager
+            .borrow_mut()
+            .gas_tree
+            .exists_and_deposit(reply_id)
+        {
+            0
+        } else {
+            GAS_ALLOWANCE
+        };
+
+        // Build a reply message
         let dispatch = {
-            let packet = ReplyPacket::new_with_gas(
-                raw_payload
-                    .as_ref()
-                    .to_vec()
-                    .try_into()
-                    .unwrap_or_else(|err| panic!("Can't send reply with such payload: {err:?}")),
-                GAS_ALLOWANCE,
-                value,
-            );
-            let reply_message =
-                ReplyMessage::from_packet(MessageId::generate_reply(mailboxed_msg.id()), packet);
+            let payload = raw_payload
+                .as_ref()
+                .to_vec()
+                .try_into()
+                .unwrap_or_else(|err| unreachable!("Can't send reply with such payload: {err:?}"));
 
-            reply_message.into_dispatch(self.user_id, mailboxed_msg.source(), mailboxed_msg.id())
+            let message = ReplyMessage::from_packet(
+                reply_id,
+                ReplyPacket::new_with_gas(payload, gas_limit, value),
+            );
+
+            message.into_dispatch(self.user_id, destination, mailboxed.id())
         };
 
         Ok(self
@@ -104,13 +125,38 @@ impl<'a> ActorMailbox<'a> {
     /// If message with traits defined in `log` is not found, an error is
     /// returned.
     pub fn claim_value<T: Into<Log>>(&self, log: T) -> Result<(), MailboxErrorImpl> {
-        let mailboxed_msg = self
+        let message_id = self
             .find_message_by_log(&log.into())
-            .ok_or(MailboxErrorImpl::ElementNotFound)?;
-        self.manager
+            .ok_or(MailboxErrorImpl::ElementNotFound)?
+            .id();
+
+        // User must exist
+        if !Accounts::exists(self.user_id) {
+            panic!(
+                "User's {} balance is zero; mint value to it first.",
+                self.user_id
+            );
+        }
+
+        let mailboxed = self
+            .manager
             .borrow_mut()
-            .claim_value_from_mailbox(self.user_id, mailboxed_msg.id())
-            .unwrap_or_else(|e| unreachable!("Unexpected mailbox error: {e:?}"));
+            .read_mailbox_message(self.user_id, message_id)?;
+
+        if Actors::is_active_program(mailboxed.source()) {
+            let message = ReplyMessage::auto(mailboxed.id());
+
+            self.manager
+                .borrow_mut()
+                .gas_tree
+                .create(self.user_id, message.id(), 0, true)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            let dispatch =
+                message.into_stored_dispatch(self.user_id, mailboxed.source(), mailboxed.id());
+
+            self.manager.borrow_mut().dispatches.push_back(dispatch);
+        }
 
         Ok(())
     }
@@ -127,15 +173,15 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Log, Program, System, EXISTENTIAL_DEPOSIT};
+    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
-    use gear_core::ids::ProgramId;
+    use gear_core::{gas_metering::RentWeights, ids::ProgramId};
 
     fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
         let program = Program::from_binary_with_id(system, 121, WASM_BINARY);
 
-        let sender = ProgramId::from(42).into_bytes();
+        let sender = ProgramId::from(DEFAULT_USER_ALICE).into_bytes();
         let payload = b"sup!".to_vec();
         let log = Log::builder().dest(sender).payload_bytes(payload.clone());
 
@@ -151,8 +197,7 @@ mod tests {
         let system = System::new();
         let (program, (sender, payload, log)) = prepare_program(&system);
 
-        let original_balance = 20 * EXISTENTIAL_DEPOSIT;
-        system.mint_to(sender, original_balance);
+        let original_balance = system.balance_of(sender);
 
         let value_send = 2 * EXISTENTIAL_DEPOSIT;
         let handle = Calls::builder().send_value(sender, payload, value_send);
@@ -160,12 +205,22 @@ mod tests {
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
         assert!(res.contains(&log));
-        assert_eq!(system.balance_of(sender), original_balance - value_send);
+
+        assert_eq!(
+            system.balance_of(sender),
+            original_balance
+                - value_send
+                - res.spent_value()
+                - GAS_MULTIPLIER.gas_to_value(RentWeights::default().mailbox_threshold.ref_time)
+        );
 
         let mailbox = system.get_mailbox(sender);
         assert!(mailbox.contains(&log));
         assert!(mailbox.claim_value(log).is_ok());
-        assert_eq!(system.balance_of(sender), original_balance);
+        assert_eq!(
+            system.balance_of(sender),
+            original_balance - res.spent_value()
+        );
     }
 
     #[test]

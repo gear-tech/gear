@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use libp2p::{
-    core::{ConnectedPoint, Endpoint},
+    core::{transport::PortUse, ConnectedPoint, Endpoint},
     swarm::{
         dummy, ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour,
         THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
@@ -184,6 +184,7 @@ impl NetworkBehaviour for Behaviour {
         peer: PeerId,
         _addr: &Multiaddr,
         _role_override: Endpoint,
+        _port_use: PortUse,
     ) -> Result<THandler<Self>, ConnectionDenied> {
         self.established_outbound_per_peer
             .add_connection(peer, connection_id)?;
@@ -231,6 +232,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tests::init_logger;
     use libp2p::{
         futures::{stream, StreamExt},
         swarm::{
@@ -240,10 +242,6 @@ mod tests {
         Swarm,
     };
     use libp2p_swarm_test::SwarmExt;
-
-    fn init_logger() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
 
     fn new_swarm(limits: Limits) -> Swarm<Behaviour> {
         SwarmExt::new_ephemeral(|_keypair| Behaviour::new(limits))

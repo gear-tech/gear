@@ -18,7 +18,7 @@
 
 //! Integration tests.
 
-use crate::service::Service;
+use crate::service::{Service, Status};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
@@ -35,10 +35,13 @@ use ethexe_processor::Processor;
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
-use futures::StreamExt;
+use futures::{lock::Mutex, StreamExt};
 use gear_core::ids::prelude::*;
-use gprimitives::{ActorId, CodeId, MessageId, H256};
-use std::{sync::Arc, time::Duration};
+use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 use tokio::{
     sync::{
         mpsc::{self, Receiver},
@@ -73,7 +76,10 @@ impl Listener {
     }
 
     pub async fn next_event(&mut self) -> Result<Event> {
-        self.receiver.recv().await.ok_or(anyhow!("No more events"))
+        self.receiver
+            .recv()
+            .await
+            .ok_or_else(|| anyhow!("No more events"))
     }
 
     pub async fn apply_until<R: Sized>(
@@ -148,8 +154,10 @@ struct TestEnv {
     validator_private_key: ethexe_signer::PrivateKey,
     validator_public_key: ethexe_signer::PublicKey,
     router_address: ethexe_signer::Address,
+    sender_address: ActorId,
     block_time: Duration,
     running_service_handle: Option<JoinHandle<Result<()>>>,
+    service_status: Option<Arc<Mutex<Status>>>,
 }
 
 impl TestEnv {
@@ -190,12 +198,14 @@ impl TestEnv {
             Ethereum::deploy(&rpc_url, validators, signer.clone(), sender_address).await?
         };
 
-        let router_address = ethereum.router().address();
+        let router = ethereum.router();
+        let router_query = router.query();
 
-        let router_query = RouterQuery::new(&rpc_url, router_address).await?;
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         let blob_reader = blob_reader.unwrap_or_else(|| Arc::new(MockBlobReader::new(block_time)));
+
+        let router_address = router.address();
 
         let query = Query::new(
             Arc::new(db.clone()),
@@ -224,8 +234,10 @@ impl TestEnv {
             validator_private_key,
             validator_public_key,
             router_address,
+            sender_address: ActorId::from(H160::from(sender_address.0)),
             block_time,
             running_service_handle: None,
+            service_status: None,
         };
 
         Ok(env)
@@ -254,6 +266,8 @@ impl TestEnv {
                 ethereum_rpc: self.rpc_url.clone(),
                 sign_tx_public: self.sequencer_public_key,
                 router_address: self.router_address,
+                validators: vec![self.validator_public_key.to_address()],
+                threshold: 1,
             },
             self.signer.clone(),
         )
@@ -281,13 +295,11 @@ impl TestEnv {
             None,
         );
 
+        self.service_status = Some(service.status());
+
         let handle = task::spawn(service.run());
         self.running_service_handle = Some(handle);
-
-        // Sleep to wait for the new service to start
-        // TODO: find a better way to wait for the service to start #4099
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
+        self.service_initialized().await?;
         Ok(())
     }
 
@@ -316,6 +328,26 @@ impl TestEnv {
 
         Ok((tx_hash, code_id))
     }
+
+    /// Wait for service initialized
+    pub async fn service_initialized(&self) -> Result<()> {
+        let Some(status) = &self.service_status else {
+            return Err(anyhow!("Service not start"));
+        };
+
+        let now = SystemTime::now();
+        loop {
+            if status.lock().await.active() {
+                return Ok(());
+            }
+
+            if now.elapsed()? > self.block_time {
+                break;
+            }
+        }
+
+        Err(anyhow!("Service initialization timed out."))
+    }
 }
 
 impl Drop for TestEnv {
@@ -325,6 +357,7 @@ impl Drop for TestEnv {
         }
     }
 }
+
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
@@ -412,9 +445,12 @@ async fn ping() {
                     if address == program_id {
                         match event {
                             MirrorEvent::MessageQueueingRequested {
-                                id, payload, value, ..
+                                id,
+                                source,
+                                payload,
+                                value,
                             } => {
-                                // TODO (breathx): assert source.
+                                assert_eq!(source, env.sender_address);
                                 assert_eq!(payload, b"PING");
                                 assert_eq!(value, 0);
                                 init_message_id = id;
@@ -449,7 +485,7 @@ async fn ping() {
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
@@ -480,7 +516,7 @@ async fn ping() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn ping_reorg() {
     gear_utils::init_default_logger();
 
@@ -581,9 +617,12 @@ async fn ping_reorg() {
                     if address == program_id {
                         match event {
                             MirrorEvent::MessageQueueingRequested {
-                                id, payload, value, ..
+                                id,
+                                source,
+                                payload,
+                                value,
                             } => {
-                                // TODO (breathx): assert source.
+                                assert_eq!(source, env.sender_address);
                                 assert_eq!(payload, b"PING");
                                 assert_eq!(value, 0);
                                 init_message_id = id;
@@ -613,7 +652,7 @@ async fn ping_reorg() {
 
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();
@@ -648,9 +687,9 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(env.block_time).await;
+    env.service_initialized()
+        .await
+        .expect("service uninitalized");
 
     log::info!("📗 Reverting to the program creation snapshot");
     provider
@@ -732,10 +771,9 @@ async fn ping_reorg() {
         .await
         .unwrap();
 
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
+    env.service_initialized()
+        .await
+        .expect("service uninitalized");
     log::info!("📗 Done");
 }
 
@@ -827,9 +865,13 @@ async fn ping_deep_sync() {
                     if address == program_id {
                         match event {
                             MirrorEvent::MessageQueueingRequested {
-                                id, payload, value, ..
+                                id,
+                                source,
+                                payload,
+                                value,
+                                ..
                             } => {
-                                // TODO (breathx): assert source.
+                                assert_eq!(source, env.sender_address);
                                 assert_eq!(payload, b"PING");
                                 assert_eq!(value, 0);
                                 init_message_id = id;
@@ -874,7 +916,7 @@ async fn ping_deep_sync() {
     // Send message in between.
     let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
 
-    let wvara = env.ethereum.wvara();
+    let wvara = env.ethereum.router().wvara();
 
     log::info!("📗 Approving WVara to mirror");
     wvara.approve_all(program_address.0.into()).await.unwrap();

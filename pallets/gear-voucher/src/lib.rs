@@ -57,8 +57,6 @@ use frame_support::{
 };
 use gear_core::ids::{MessageId, ProgramId};
 pub use primitive_types::H256;
-use sp_io::hashing::blake2_256;
-use sp_runtime::traits::TrailingZeroInput;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
 
@@ -557,34 +555,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Legacy call for using irrevocable vouchers.
-        #[pallet::call_index(4)]
-        #[pallet::weight(T::CallsDispatcher::weight(call).saturating_add(T::DbWeight::get().reads(1)))]
-        pub fn call_deprecated(
-            origin: OriginFor<T>,
-            call: PrepaidCall<BalanceOf<T>>,
-        ) -> DispatchResultWithPostInfo {
-            // Ensuring origin.
-            let origin = ensure_signed(origin)?;
-
-            // Validating the call for legacy implementation.
-            match call {
-                PrepaidCall::UploadCode { .. } => {
-                    return Err(Error::<T>::CodeUploadingDisabled.into())
-                }
-                PrepaidCall::DeclineVoucher => return Err(Error::<T>::InexistentVoucher.into()),
-                PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => (),
-            };
-
-            // Looking for sponsor synthetic account.
-            #[allow(deprecated)]
-            let sponsor = Self::call_deprecated_sponsor(&origin, &call)
-                .ok_or(Error::<T>::UnknownDestination)?;
-
-            // Dispatching call.
-            T::CallsDispatcher::dispatch(origin, sponsor.clone(), sponsor.cast(), call)
-        }
-
         /// Decline existing and not expired voucher.
         ///
         /// This extrinsic expires voucher of the caller, if it's still active,
@@ -592,7 +562,7 @@ pub mod pallet {
         ///
         /// Arguments:
         /// * voucher_id:   voucher id to be declined.
-        #[pallet::call_index(5)]
+        #[pallet::call_index(4)]
         #[pallet::weight(T::WeightInfo::decline())]
         pub fn decline(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
             // Ensuring origin.

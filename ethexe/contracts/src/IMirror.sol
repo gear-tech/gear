@@ -61,7 +61,6 @@ interface IMirror {
     event Reply(bytes payload, uint128 value, bytes32 replyTo, bytes4 indexed replyCode);
 
     // TODO (breathx): should we deposit it? should we notify about successful reply sending?
-    // TODO (breathx): `value` could be removed from event.
     /**
      * @dev Emitted when a user succeed in claiming value request and receives balance.
      *
@@ -79,6 +78,8 @@ interface IMirror {
     function nonce() external view returns (uint256);
 
     function router() external view returns (address);
+
+    function decoder() external view returns (address);
 
     /* Primary Gear logic */
 
@@ -103,6 +104,8 @@ interface IMirror {
     function valueClaimed(bytes32 claimedId, address destination, uint128 value) external;
 
     function executableBalanceBurned(uint128 value) external;
+
+    function createDecoder(address implementation, bytes32 salt) external;
 
     // TODO (breathx): consider removal of this in favor of separated creation and init.
     function initMessage(address source, bytes calldata payload, uint128 value, uint128 executableBalance) external;

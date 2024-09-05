@@ -69,7 +69,7 @@ mod wasm;
 mod tests {
     use crate::InitAction;
     use alloc::vec;
-    use gtest::{Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
@@ -79,7 +79,7 @@ mod tests {
         let program = Program::current(&system);
 
         let msg_id = program.send(
-            0,
+            DEFAULT_USER_ALICE,
             InitAction::Normal(vec![
                 // orphan reservation; will be removed automatically
                 (50_000, 3),

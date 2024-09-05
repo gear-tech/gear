@@ -42,11 +42,9 @@ impl RpcModule {
 impl RpcApiServer for RpcModule {
     async fn block_header(&self, hash: H256) -> RpcResult<BlockHeader> {
         // let db = db.lock().await;
-        self.db.block_header(hash).ok_or(ErrorObject::borrowed(
-            ErrorCode::InvalidParams.code(),
-            "Block not found",
-            None,
-        ))
+        self.db.block_header(hash).ok_or_else(|| {
+            ErrorObject::borrowed(ErrorCode::InvalidParams.code(), "Block not found", None)
+        })
     }
 }
 

@@ -18,11 +18,18 @@
 
 //! Signer library for ethexe.
 
-use anyhow::{anyhow, Context as _, Result};
+mod digest;
+mod signature;
+
+pub use digest::{Digest, ToDigest};
+pub use sha3;
+pub use signature::Signature;
+
+use anyhow::{anyhow, Result};
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
-use secp256k1::Message;
 use sha3::Digest as _;
+use signature::RawSignature;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -41,7 +48,7 @@ impl From<PrivateKey> for PublicKey {
     }
 }
 
-#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Address(pub [u8; 20]);
 
 impl TryFrom<ActorId> for Address {
@@ -53,25 +60,8 @@ impl TryFrom<ActorId> for Address {
             .take(12)
             .all(|&byte| byte == 0)
             .then_some(Address(id.to_address_lossy().0))
-            .ok_or(anyhow!(
-                "First 12 bytes are not 0, it is not ethereum address"
-            ))
+            .ok_or_else(|| anyhow!("First 12 bytes are not 0, it is not ethereum address"))
     }
-}
-
-#[derive(Clone, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct Signature(pub [u8; 65]);
-
-pub struct Hash([u8; 32]);
-
-impl From<Hash> for gprimitives::H256 {
-    fn from(source: Hash) -> gprimitives::H256 {
-        gprimitives::H256::from_slice(&source.0)
-    }
-}
-
-pub fn hash(data: &[u8]) -> gprimitives::H256 {
-    Hash(<[u8; 32]>::from(sha3::Keccak256::digest(data))).into()
 }
 
 fn strip_prefix(s: &str) -> &str {
@@ -147,24 +137,6 @@ impl fmt::Debug for Address {
     }
 }
 
-impl fmt::Debug for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", self.to_hex())
-    }
-}
-
-impl Signature {
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.0)
-    }
-}
-
-impl From<[u8; 65]> for Signature {
-    fn from(bytes: [u8; 65]) -> Self {
-        Self(bytes)
-    }
-}
-
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_hex())
@@ -174,18 +146,6 @@ impl fmt::Display for PublicKey {
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "0x{}", self.to_hex())
-    }
-}
-
-impl fmt::Display for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_hex())
-    }
-}
-
-impl Default for Signature {
-    fn default() -> Self {
-        Signature([0u8; 65])
     }
 }
 
@@ -201,34 +161,27 @@ impl Signer {
         Ok(Self { key_store })
     }
 
-    pub fn raw_sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
-        let secret_key = self.get_private_key(public_key)?;
-
-        let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
-            .with_context(|| "Invalid secret key format for {:?}")?;
-
-        let message = Message::from_digest(digest);
-
-        let recsig =
-            secp256k1::global::SECP256K1.sign_ecdsa_recoverable(&message, &secp_secret_key);
-
-        let mut r = Signature::default();
-        let (recid, sig) = recsig.serialize_compact();
-        r.0[..64].copy_from_slice(&sig);
-        r.0[64] = recid.to_i32() as u8;
-
-        Ok(r)
+    pub fn tmp() -> Self {
+        let temp_dir = tempfile::tempdir().expect("Cannot create temp dir for keys");
+        Self {
+            key_store: temp_dir.into_path(),
+        }
     }
 
-    pub fn sign_digest(&self, public_key: PublicKey, digest: [u8; 32]) -> Result<Signature> {
-        let mut r = self.raw_sign_digest(public_key, digest)?;
-        r.0[64] += 27;
+    pub fn raw_sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<RawSignature> {
+        let private_key = self.get_private_key(public_key)?;
 
-        Ok(r)
+        RawSignature::create_for_digest(private_key, digest)
+    }
+
+    pub fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature> {
+        let private_key = self.get_private_key(public_key)?;
+
+        Signature::create_for_digest(private_key, digest)
     }
 
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
-        self.sign_digest(public_key, sha3::Keccak256::digest(data).into())
+        self.sign_digest(public_key, data.to_digest())
     }
 
     pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {
@@ -325,6 +278,8 @@ impl Signer {
 
 #[cfg(test)]
 mod tests {
+    use std::env::temp_dir;
+
     use super::*;
 
     use ethers::utils::keccak256;
@@ -356,7 +311,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let ethers_sig = ethers::core::types::Signature::try_from(&signature.0[..])
+        let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
             .expect("failed to parse sig");
 
         let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
@@ -393,7 +348,8 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let ethers_sig = ethers::core::types::Signature::try_from(&signature.0[..])
+        // TODO: remove the deprecated ethers crate in favor of alloy #4197
+        let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
             .expect("failed to parse sig");
 
         let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
@@ -419,5 +375,29 @@ mod tests {
             ActorId::from_str("0x1111111111111111111111116e4c403878dbcb0dadcbe562346e8387f9542829")
                 .unwrap();
         Address::try_from(id).expect_err("Must be incorrect ethereum address");
+    }
+
+    #[test]
+    fn recover_digest() {
+        let private_key_hex = "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f";
+        let message = b"hello world";
+
+        let key_store = temp_dir().join("signer-tests");
+        let signer = Signer::new(key_store).expect("Failed to create signer");
+
+        let private_key = PrivateKey::from_str(private_key_hex).expect("Invalid private key hex");
+        let public_key = signer.add_key(private_key).expect("Failed to add key");
+
+        let signature = signer
+            .sign(public_key, message)
+            .expect("Failed to sign message");
+
+        let hash = keccak256(message);
+
+        let recovered_public_key = signature
+            .recover_from_digest(hash.into())
+            .expect("Failed to recover public key");
+
+        assert_eq!(recovered_public_key, public_key);
     }
 }

@@ -60,6 +60,18 @@ impl KVDatabase for MemDb {
     fn put(&self, key: &[u8], value: Vec<u8>) {
         self.inner.insert(key.to_vec(), value);
     }
+
+    fn iter_prefix<'a>(
+        &'a self,
+        prefix: &'a [u8],
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_> {
+        Box::new(
+            self.inner
+                .iter()
+                .filter(move |refs| refs.key().starts_with(prefix))
+                .map(|refs| (refs.key().clone(), refs.value().clone())),
+        )
+    }
 }
 
 // TODO: Join tests for MemDb and RocksDb, making general tests for dyn CASDatabase.
@@ -81,6 +93,11 @@ mod tests {
     #[test]
     fn kv_read_write() {
         tests::kv_read_write(MemDb::default());
+    }
+
+    #[test]
+    fn kv_iter_prefix() {
+        tests::kv_iter_prefix(MemDb::default());
     }
 
     #[test]

@@ -47,6 +47,18 @@ impl Sandboxes {
 
         &mut self.store
     }
+
+    // Clears the underlying store if the counter exceeds the limit.
+    #[cfg(feature = "runtime-benchmarks")]
+    pub fn clear(&mut self) {
+        BENCH_SANDBOX_RESET_COUNTER.with_borrow_mut(|c| {
+            if *c >= BENCH_SANDBOX_RESET_COUNTER_LIMIT {
+                *c = 0;
+                self.store.clear();
+            }
+            *c += 1;
+        });
+    }
 }
 
 thread_local! {
@@ -453,6 +465,14 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
+            // The usual method to clear the store doesn't work for benchmarks (see `Sanboxes::get`).
+            // This issue is more prominent in so-called "onetime syscall" benchmarks because
+            // they run with minimal steps and a large number of repeats, leading to significant slowdowns.
+            // Therefore, we have to clear it manually if the `BENCH_SANDBOX_RESET_COUNTER` exceeds the limit.
+            // Otherwise, the store becomes too big and will slow down the benchmarks.
+            #[cfg(feature = "runtime-benchmarks")]
+            sandboxes.borrow_mut().clear();
+
             sandboxes
                 .borrow_mut()
                 .get(data_ptr as usize)
@@ -576,4 +596,12 @@ pub fn set_global_val(
     });
 
     method_result
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+const BENCH_SANDBOX_RESET_COUNTER_LIMIT: u32 = 100;
+
+#[cfg(feature = "runtime-benchmarks")]
+thread_local! {
+    static BENCH_SANDBOX_RESET_COUNTER: RefCell<u32> = const { RefCell::new(0) };
 }

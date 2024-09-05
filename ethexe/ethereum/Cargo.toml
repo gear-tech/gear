@@ -32,3 +32,7 @@ alloy = { workspace = true, features = [
 futures.workspace = true
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+tokio.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

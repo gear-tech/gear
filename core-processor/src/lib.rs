@@ -35,8 +35,8 @@ mod precharge;
 mod processing;
 
 pub use context::{
-    ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
-    SystemReservationContext,
+    ContextChargedForCode, ContextChargedForInstrumentation, ContextChargedForProgram,
+    ProcessExecutionContext, SystemReservationContext,
 };
 pub use ext::{
     AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,

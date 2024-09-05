@@ -18,7 +18,7 @@
 
 //! Database for ethexe.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::{CASDatabase, KVDatabase};
 use ethexe_common::{
@@ -52,11 +52,16 @@ enum KeyPrefix {
     CodeUpload = 7,
     LatestValidBlock = 8,
     BlockHeader = 9,
+    CodeValid = 10,
 }
 
 impl KeyPrefix {
+    fn prefix(self) -> [u8; 32] {
+        H256::from_low_u64_be(self as u64).0
+    }
+
     fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
-        [H256::from_low_u64_be(self as u64).as_bytes(), key.as_ref()].concat()
+        [self.prefix().as_ref(), key.as_ref()].concat()
     }
 
     fn two(self, key1: impl AsRef<[u8]>, key2: impl AsRef<[u8]>) -> Vec<u8> {
@@ -289,6 +294,25 @@ impl CodesStorage for Database {
         );
     }
 
+    fn program_ids(&self) -> BTreeSet<ProgramId> {
+        let key_prefix = KeyPrefix::ProgramToCodeId.prefix();
+
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|#[allow(unused_variables)] (key, code_id)| {
+                let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(splitted_key_prefix, key_prefix);
+                let program_id =
+                    ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
+
+                #[cfg(debug_assertions)]
+                CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
+
+                program_id
+            })
+            .collect()
+    }
+
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
             .get(&KeyPrefix::InstrumentedCode.three(
@@ -324,6 +348,17 @@ impl CodesStorage for Database {
     fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
         self.kv
             .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
+    }
+
+    fn code_valid(&self, code_id: CodeId) -> Option<bool> {
+        self.kv.get(&KeyPrefix::CodeValid.one(code_id)).map(|data| {
+            bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
+        })
+    }
+
+    fn set_code_valid(&self, code_id: CodeId, approved: bool) {
+        self.kv
+            .put(&KeyPrefix::CodeValid.one(code_id), approved.encode());
     }
 }
 
@@ -378,14 +413,23 @@ impl Database {
 // TODO: consider to change decode panics to Results.
 impl Storage for Database {
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
+        if hash.is_zero() {
+            return Some(ProgramState::zero());
+        }
+
         let data = self.cas.read(&hash)?;
-        Some(
-            ProgramState::decode(&mut &data[..])
-                .expect("Failed to decode data into `ProgramState`"),
-        )
+
+        let state = ProgramState::decode(&mut &data[..])
+            .expect("Failed to decode data into `ProgramState`");
+
+        Some(state)
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
+        if state.is_zero() {
+            return H256::zero();
+        }
+
         self.cas.write(&state.encode())
     }
 

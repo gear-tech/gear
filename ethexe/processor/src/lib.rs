@@ -19,20 +19,17 @@
 //! Program's execution service for eGPU.
 
 use anyhow::Result;
-use core_processor::common::JournalNote;
 use ethexe_common::{
     mirror::Event as MirrorEvent,
     router::{Event as RouterEvent, StateTransition},
+    wvara::Event as WVaraEvent,
     BlockEvent,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::{
-    self, ActiveProgram, Dispatch, MaybeHash, ProgramState, Storage,
-};
+use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
 use gear_core::{
-    ids::{prelude::CodeIdExt, ActorId, MessageId, ProgramId},
+    ids::{prelude::CodeIdExt, ProgramId},
     message::{DispatchKind, Payload},
-    program::MemoryInfix,
 };
 use gprimitives::{CodeId, H256};
 use host::InstanceCreator;
@@ -45,28 +42,19 @@ mod run;
 #[cfg(test)]
 mod tests;
 
-pub struct UserMessage {
-    id: MessageId,
-    kind: DispatchKind,
-    source: ActorId,
-    payload: Vec<u8>,
-    value: u128,
-}
-
 pub struct Processor {
     db: Database,
     creator: InstanceCreator,
 }
 
-// TODO (breathx): rename outcomes accordingly to events.
 /// Local changes that can be committed to the network or local signer.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum LocalOutcome {
-    /// Produced when code with specific id is recorded and available in database.
-    CodeApproved(CodeId),
-
-    // TODO: add docs
-    CodeRejected(CodeId),
+    /// Produced when code with specific id is recorded and validated.
+    CodeValidated {
+        id: CodeId,
+        valid: bool,
+    },
 
     Transition(StateTransition),
 }
@@ -121,8 +109,7 @@ impl Processor {
         Ok(true)
     }
 
-    // TODO: deal with params on smart contract side.
-    pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<H256> {
+    pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {
         if self.db.original_code(code_id).is_none() {
             anyhow::bail!("code existence should be checked on smart contract side");
         }
@@ -133,26 +120,7 @@ impl Processor {
 
         self.db.set_program_code_id(program_id, code_id);
 
-        // TODO (breathx): state here is non-zero (?!).
-
-        let active_program = ActiveProgram {
-            allocations_hash: MaybeHash::Empty,
-            pages_hash: MaybeHash::Empty,
-            memory_infix: MemoryInfix::new(0),
-            initialized: false,
-        };
-
-        // TODO: on program creation send message to it.
-        let program_state = ProgramState {
-            state: state::Program::Active(active_program),
-            queue_hash: MaybeHash::Empty,
-            waitlist_hash: MaybeHash::Empty,
-            balance: 0,
-            executable_balance: 10_000_000_000_000, // TODO: remove this minting
-        };
-
-        // TODO: not write zero state, but just register it (or support default on get)
-        Ok(self.db.write_state(program_state))
+        Ok(())
     }
 
     pub fn handle_executable_balance_top_up(
@@ -165,89 +133,67 @@ impl Processor {
             .read_state(state_hash)
             .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
 
-        // TODO (breathx): mutate exec balance after #4067.
-        state.balance += value;
+        state.executable_balance += value;
 
         Ok(self.db.write_state(state))
     }
 
-    pub fn handle_user_message(
-        &mut self,
-        program_hash: H256,
-        messages: Vec<UserMessage>,
-    ) -> Result<H256> {
-        if messages.is_empty() {
-            return Ok(program_hash);
-        }
+    pub fn handle_payload(&mut self, payload: Vec<u8>) -> Result<MaybeHash> {
+        let payload = Payload::try_from(payload)
+            .map_err(|_| anyhow::anyhow!("payload should be checked on eth side"))?;
 
-        let mut dispatches = Vec::with_capacity(messages.len());
+        let hash = payload
+            .inner()
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.db.write_payload(payload).into());
 
-        for message in messages {
-            let payload = Payload::try_from(message.payload)
-                .map_err(|_| anyhow::anyhow!("payload should be checked on eth side"))?;
-
-            let payload_hash = payload
-                .inner()
-                .is_empty()
-                .then_some(MaybeHash::Empty)
-                .unwrap_or_else(|| self.db.write_payload(payload).into());
-
-            let dispatch = Dispatch {
-                id: message.id,
-                kind: message.kind,
-                source: message.source,
-                payload_hash,
-                value: message.value,
-                // TODO: handle replies.
-                details: None,
-                context: None,
-            };
-
-            dispatches.push(dispatch);
-        }
-
-        // TODO: on zero hash return default avoiding db.
-        let mut program_state = self
-            .db
-            .read_state(program_hash)
-            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
-
-        let mut queue = if let MaybeHash::Hash(queue_hash_and_len) = program_state.queue_hash {
-            self.db
-                .read_queue(queue_hash_and_len.hash)
-                .ok_or_else(|| anyhow::anyhow!("queue should exist if hash present"))?
-        } else {
-            VecDeque::with_capacity(dispatches.len())
-        };
-
-        queue.extend(dispatches);
-
-        let queue_hash = self.db.write_queue(queue);
-
-        program_state.queue_hash = MaybeHash::Hash(queue_hash.into());
-
-        Ok(self.db.write_state(program_state))
+        Ok(hash)
     }
 
-    pub fn run_on_host(
+    pub fn handle_message_queueing(
         &mut self,
-        program_id: ProgramId,
-        program_state: H256,
-    ) -> Result<Vec<JournalNote>> {
-        let original_code_id = self.db.program_code_id(program_id).unwrap();
+        state_hash: H256,
+        dispatch: Dispatch,
+    ) -> Result<H256> {
+        self.handle_messages_queueing(state_hash, vec![dispatch])
+    }
 
-        let maybe_instrumented_code = self
+    pub fn handle_messages_queueing(
+        &mut self,
+        state_hash: H256,
+        dispatches: Vec<Dispatch>,
+    ) -> Result<H256> {
+        if dispatches.is_empty() {
+            return Ok(state_hash);
+        }
+
+        let mut state = self
             .db
-            .instrumented_code(ethexe_runtime::VERSION, original_code_id);
+            .read_state(state_hash)
+            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
 
-        let mut executor = self.creator.instantiate()?;
+        anyhow::ensure!(state.program.is_active(), "program should be active");
 
-        executor.run(
-            program_id,
-            original_code_id,
-            program_state,
-            maybe_instrumented_code,
-        )
+        let queue = if let MaybeHash::Hash(HashAndLen {
+            hash: queue_hash, ..
+        }) = state.queue_hash
+        {
+            let mut queue = self
+                .db
+                .read_queue(queue_hash)
+                .ok_or_else(|| anyhow::anyhow!("queue should exist if hash present"))?;
+
+            queue.extend(dispatches);
+
+            queue
+        } else {
+            VecDeque::from(dispatches)
+        };
+
+        state.queue_hash = self.db.write_queue(queue).into();
+
+        Ok(self.db.write_state(state))
     }
 
     // TODO: replace LocalOutcome with Transition struct.
@@ -272,11 +218,10 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing upload code {code_id:?}");
 
-        if code_id != CodeId::generate(code) || self.handle_new_code(code)?.is_none() {
-            Ok(vec![LocalOutcome::CodeRejected(code_id)])
-        } else {
-            Ok(vec![LocalOutcome::CodeApproved(code_id)])
-        }
+        let valid = code_id == CodeId::generate(code) && self.handle_new_code(code)?.is_some();
+
+        self.db.set_code_valid(code_id, valid);
+        Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
     }
 
     pub fn process_block_events(
@@ -285,85 +230,142 @@ impl Processor {
         // TODO (breathx): accept not ref?
         events: &[BlockEvent],
     ) -> Result<Vec<LocalOutcome>> {
-        log::debug!("Processing events for {block_hash:?}: {events:?}");
+        log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
-        let mut outcomes = vec![];
-
-        let initial_program_states = self
+        let mut states = self
             .db
             .block_start_program_states(block_hash)
             .unwrap_or_default();
 
-        let mut programs = initial_program_states.clone();
-
         for event in events {
             match event {
-                BlockEvent::Router(event) => match event.clone() {
-                    RouterEvent::ProgramCreated { actor_id, code_id } => {
-                        // TODO (breathx): set this zero like start of the block data.
-                        let state_hash = self.handle_new_program(actor_id, code_id)?;
-
-                        programs.insert(actor_id, state_hash);
-                    }
-                    _ => {
-                        log::debug!(
-                            "Handling for router event {event:?} is not yet implemented; noop"
-                        );
-                        continue;
-                    }
-                },
+                BlockEvent::Router(event) => {
+                    self.process_router_event(&mut states, event.clone())?;
+                }
                 BlockEvent::Mirror { address, event } => {
-                    // TODO (breathx): handle if not (program from another router / incorrect event order ).
-                    let state_hash = *programs.get(address).expect("should exist");
-
-                    let state_hash = match event.clone() {
-                        MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
-                            self.handle_executable_balance_top_up(state_hash, value)?
-                        }
-                        MirrorEvent::MessageQueueingRequested {
-                            id,
-                            source,
-                            payload,
-                            value,
-                        } => {
-                            // TODO (breathx): replace with state_hash.is_zero();
-                            let kind = if !initial_program_states.contains_key(address) {
-                                DispatchKind::Init
-                            } else {
-                                DispatchKind::Handle
-                            };
-
-                            self.handle_user_message(
-                                state_hash,
-                                vec![UserMessage {
-                                    id,
-                                    kind,
-                                    source,
-                                    payload,
-                                    // TODO (breathx): mutate exec balance after #4067.
-                                    value,
-                                }],
-                            )?
-                        }
-                        _ => {
-                            log::debug!(
-                                "Handling for mirror event {event:?} is not yet implemented; noop"
-                            );
-                            continue;
-                        }
-                    };
-
-                    programs.insert(*address, state_hash);
+                    self.process_mirror_event(&mut states, *address, event.clone())?;
+                }
+                BlockEvent::WVara(event) => {
+                    self.process_wvara_event(&mut states, event.clone())?;
                 }
             }
         }
 
-        let current_outcomes = self.run(block_hash, &mut programs)?;
+        let outcomes = self.run(block_hash, &mut states)?;
 
-        outcomes.extend(current_outcomes);
-
-        self.db.set_block_end_program_states(block_hash, programs);
+        self.db.set_block_end_program_states(block_hash, states);
 
         Ok(outcomes)
+    }
+
+    fn process_router_event(
+        &mut self,
+        states: &mut BTreeMap<ProgramId, H256>,
+        event: RouterEvent,
+    ) -> Result<()> {
+        match event {
+            RouterEvent::ProgramCreated { actor_id, code_id } => {
+                self.handle_new_program(actor_id, code_id)?;
+
+                states.insert(actor_id, H256::zero());
+            }
+            RouterEvent::CodeValidationRequested { .. }
+            | RouterEvent::BaseWeightChanged { .. }
+            | RouterEvent::StorageSlotChanged
+            | RouterEvent::ValidatorsSetChanged
+            | RouterEvent::ValuePerWeightChanged { .. } => {
+                log::debug!("Handler not yet implemented: {event:?}");
+                return Ok(());
+            }
+            RouterEvent::BlockCommitted { .. } | RouterEvent::CodeGotValidated { .. } => {
+                log::debug!("Informational events are noop for processing: {event:?}");
+                return Ok(());
+            }
+        };
+
+        Ok(())
+    }
+
+    fn process_mirror_event(
+        &mut self,
+        states: &mut BTreeMap<ProgramId, H256>,
+        actor_id: ProgramId,
+        event: MirrorEvent,
+    ) -> Result<()> {
+        let Some(&state_hash) = states.get(&actor_id) else {
+            log::debug!("Received event from unrecognized mirror ({actor_id}): {event:?}");
+
+            return Ok(());
+        };
+
+        let new_state_hash = match event {
+            MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
+                self.handle_executable_balance_top_up(state_hash, value)?
+            }
+            MirrorEvent::MessageQueueingRequested {
+                id,
+                source,
+                payload,
+                value,
+            } => {
+                let payload_hash = self.handle_payload(payload)?;
+
+                let state = self
+                    .db
+                    .read_state(state_hash)
+                    .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+
+                let kind = if state.requires_init_message() {
+                    DispatchKind::Init
+                } else {
+                    DispatchKind::Handle
+                };
+
+                let dispatch = Dispatch {
+                    id,
+                    kind,
+                    source,
+                    payload_hash,
+                    value,
+                    details: None,
+                    context: None,
+                };
+
+                self.handle_message_queueing(state_hash, dispatch)?
+            }
+            MirrorEvent::ReplyQueueingRequested { .. }
+            | MirrorEvent::ValueClaimingRequested { .. } => {
+                log::debug!("Handler not yet implemented: {event:?}");
+                return Ok(());
+            }
+            MirrorEvent::StateChanged { .. }
+            | MirrorEvent::ValueClaimed { .. }
+            | MirrorEvent::Message { .. }
+            | MirrorEvent::Reply { .. } => {
+                log::debug!("Informational events are noop for processing: {event:?}");
+                return Ok(());
+            }
+        };
+
+        states.insert(actor_id, new_state_hash);
+
+        Ok(())
+    }
+
+    fn process_wvara_event(
+        &mut self,
+        _states: &mut BTreeMap<ProgramId, H256>,
+        event: WVaraEvent,
+    ) -> Result<()> {
+        match event {
+            WVaraEvent::Transfer { .. } => {
+                log::debug!("Handler not yet implemented: {event:?}");
+                Ok(())
+            }
+            WVaraEvent::Approval { .. } => {
+                log::debug!("Informational events are noop for processing: {event:?}");
+                Ok(())
+            }
+        }
     }
 }

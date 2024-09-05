@@ -18,13 +18,16 @@
 
 use super::*;
 use crate::Runtime;
-use frame_support::traits::StorageInstance;
-use gear_lazy_pages_common::LazyPagesCosts;
+use frame_support::{dispatch::GetDispatchInfo, traits::StorageInstance};
+use frame_system::limits::WeightsPerClass;
+use gear_core::costs::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
+use pallet_staking::WeightInfo as _;
 use runtime_common::weights::{
     check_instructions_weights, check_lazy_pages_costs, check_pages_costs, check_syscall_weights,
     PagesCosts,
 };
+use sp_runtime::AccountId32;
 
 #[cfg(feature = "dev")]
 #[test]
@@ -72,6 +75,52 @@ fn bridge_session_timer_is_correct() {
 }
 
 #[test]
+fn payout_stakers_fits_in_block() {
+    let expected_weight =
+        <Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
+            <Runtime as pallet_staking::Config>::MaxExposurePageSize::get(),
+        );
+
+    let call: <Runtime as frame_system::Config>::RuntimeCall =
+        RuntimeCall::Staking(pallet_staking::Call::payout_stakers {
+            validator_stash: AccountId32::new(Default::default()),
+            era: Default::default(),
+        });
+
+    let dispatch_info = call.get_dispatch_info();
+
+    assert_eq!(dispatch_info.class, DispatchClass::Normal);
+    assert_eq!(dispatch_info.weight, expected_weight);
+
+    let block_weights = <Runtime as frame_system::Config>::BlockWeights::get();
+
+    let normal_class_weights: WeightsPerClass =
+        block_weights.per_class.get(DispatchClass::Normal).clone();
+
+    let normal_ref_time = normal_class_weights
+        .max_extrinsic
+        .unwrap_or(Weight::MAX)
+        .ref_time();
+    let base_weight = normal_class_weights.base_extrinsic.ref_time();
+
+    assert!(normal_ref_time - base_weight > expected_weight.ref_time());
+}
+
+#[test]
+fn normal_dispatch_length_suits_minimal() {
+    const MB: u32 = 1024 * 1024;
+
+    let block_length = <Runtime as frame_system::Config>::BlockLength::get();
+
+    // Normal dispatch class is bigger than 2 MB.
+    assert!(*block_length.max.get(DispatchClass::Normal) > 2 * MB);
+
+    // Others are on maximum.
+    assert_eq!(*block_length.max.get(DispatchClass::Operational), 5 * MB);
+    assert_eq!(*block_length.max.get(DispatchClass::Mandatory), 5 * MB);
+}
+
+#[test]
 fn instruction_weights_heuristics_test() {
     let weights = InstructionWeights::<Runtime>::default();
 
@@ -111,14 +160,14 @@ fn instruction_weights_heuristics_test() {
         i32popcnt: 350,
         i64eqz: 1_300,
         i32eqz: 1_200,
-        i32extend8s: 400,
-        i32extend16s: 400,
+        i32extend8s: 200,
+        i32extend16s: 200,
         i64extend8s: 400,
         i64extend16s: 400,
         i64extend32s: 400,
-        i64extendsi32: 350,
-        i64extendui32: 400,
-        i32wrapi64: 10,
+        i64extendsi32: 200,
+        i64extendui32: 200,
+        i32wrapi64: 200,
         i64eq: 1_800,
         i32eq: 1_100,
         i64ne: 1_700,
@@ -144,7 +193,7 @@ fn instruction_weights_heuristics_test() {
         i64add: 1_300,
         i32add: 500,
         i64sub: 1_300,
-        i32sub: 250,
+        i32sub: 500,
         i64mul: 2_000,
         i32mul: 1_000,
         i64divs: 3_500,
@@ -217,21 +266,21 @@ fn syscall_weights_test() {
         gr_reservation_send_per_byte: 500.into(),
         gr_reservation_send_commit: 2_900_000.into(),
         gr_reply_commit: 12_000_000.into(),
-        gr_reply_commit_wgas: 12_100_000.into(),
-        gr_reservation_reply: 8_300_000.into(),
+        gr_reply_commit_wgas: 12_000_000.into(),
+        gr_reservation_reply: 8_500_000.into(),
         gr_reservation_reply_per_byte: 675_000.into(),
-        gr_reservation_reply_commit: 7_800_000.into(),
+        gr_reservation_reply_commit: 8_000_000.into(),
         gr_reply_push: 1_700_000.into(),
-        gr_reply: 13_600_000.into(),
+        gr_reply: 12_500_000.into(),
         gr_reply_per_byte: 650.into(),
-        gr_reply_wgas: 11_900_000.into(),
+        gr_reply_wgas: 12_500_000.into(),
         gr_reply_wgas_per_byte: 650.into(),
         gr_reply_push_per_byte: 640.into(),
         gr_reply_to: 950_200.into(),
         gr_signal_code: 962_500.into(),
         gr_signal_from: 941_500.into(),
-        gr_reply_input: 13_300_000.into(),
-        gr_reply_input_wgas: 10_600_000.into(),
+        gr_reply_input: 13_500_000.into(),
+        gr_reply_input_wgas: 8_000_000.into(),
         gr_reply_push_input: 1_200_000.into(),
         gr_reply_push_input_per_byte: 146.into(),
         gr_send_input: 3_100_000.into(),
@@ -241,11 +290,11 @@ fn syscall_weights_test() {
         gr_debug: 1_200_000.into(),
         gr_debug_per_byte: 450.into(),
         gr_reply_code: 919_800.into(),
-        gr_exit: 96_500_000.into(),
-        gr_leave: 130_300_000.into(),
-        gr_wait: 112_500_000.into(),
-        gr_wait_for: 92_000_000.into(),
-        gr_wait_up_to: 127_000_000.into(),
+        gr_exit: 18_000_000.into(),
+        gr_leave: 14_000_000.into(),
+        gr_wait: 14_000_000.into(),
+        gr_wait_for: 14_000_000.into(),
+        gr_wait_up_to: 14_500_000.into(),
         gr_wake: 3_000_000.into(),
         gr_create_program: 4_100_000.into(),
         gr_create_program_payload_per_byte: 120.into(),

@@ -94,8 +94,8 @@ jobs:
           cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
           cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32-unknown-unknown
 
-      - name: "Check: crates-io packages"
-        run: cargo +stable run --release -p crates-io check
+      - name: "Check: crates-io packages publishing"
+        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
@@ -110,6 +110,11 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "Install deps"
+        run: |
+          sudo apt update
+          sudo apt install -y xxd
 
       - name: "MOUNT: Logs path"
         run: |

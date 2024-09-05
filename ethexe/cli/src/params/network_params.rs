@@ -19,7 +19,7 @@
 use anyhow::Context;
 use clap::Args;
 use ethexe_network::{
-    utils::{Multiaddr, Protocol},
+    export::{Multiaddr, Protocol},
     NetworkEventLoopConfig,
 };
 use serde::Deserialize;
@@ -101,6 +101,7 @@ impl NetworkParams {
             external_addresses,
             bootstrap_addresses,
             listen_addresses,
+            transport_type: Default::default(),
         })
     }
 }

@@ -42,11 +42,6 @@ where
     ///                            determined destination;
     ///     * For codes uploading: The voucher allows code uploading.
     ///
-    /// * Call is [`Self::call_deprecated`]:
-    ///     * For messaging calls: The destination program of the given prepaid
-    ///                            call can be determined.
-    ///     * For codes uploading: NEVER.
-    ///
     /// Returns [`None`] for other cases.
     pub fn get_sponsor(&self, caller: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
         match self {
@@ -56,11 +51,6 @@ where
             } => Pallet::<T>::validate_prepaid(caller, *voucher_id, prepaid_call)
                 .map(|_| (*voucher_id).cast())
                 .ok(),
-
-            #[allow(deprecated)]
-            Self::call_deprecated { call: prepaid_call } => {
-                Pallet::<T>::call_deprecated_sponsor(&caller, prepaid_call)
-            }
 
             _ => None,
         }
@@ -82,22 +72,6 @@ impl<T: Config> Pallet<T> {
         );
 
         Ok(voucher)
-    }
-
-    /// Return the account id of a synthetical account used to sponsor gas
-    /// and transaction fee for legacy vouchers implementation.
-    #[deprecated = "Legacy voucher issuing logic is deprecated, and this and \
-    `call_deprecated` extrinsic exist only for backward support"]
-    pub fn call_deprecated_sponsor(
-        who: &T::AccountId,
-        call: &PrepaidCall<BalanceOf<T>>,
-    ) -> Option<T::AccountId> {
-        #[allow(deprecated)]
-        Self::prepaid_call_destination(who, call).map(|program_id| {
-            let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
-            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
-                .expect("infinite length input; no invalid inputs for type; qed")
-        })
     }
 
     /// Validate prepaid call with related params of voucher: origin, expiration.
@@ -173,6 +147,7 @@ pub trait PrepaidCallsDispatcher {
     PartialOrd,
     Eq,
     derive_more::From,
+    derive_more::AsRef,
     TypeInfo,
     Encode,
     Decode,
