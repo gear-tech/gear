@@ -20,7 +20,7 @@
 
 use crate::ActorId;
 #[cfg(feature = "testing")]
-pub use tests::generate_actor_id;
+pub use testing::generate_actor_id;
 
 /// Seed for generating builtin actor ids
 pub const SEED: [u8; 8] = *b"built/in";
@@ -102,7 +102,7 @@ pub const ETH_BRIDGE: ActorId = ActorId([
 ]);
 
 #[cfg(feature = "testing")]
-mod tests {
+mod testing {
     use crate::{builtin::SEED, ActorId};
     use blake2::{digest::typenum::U32, Blake2b, Digest};
     use parity_scale_codec::Encode;

@@ -34,25 +34,20 @@
 //!
 //! ```ignore
 //! use gstd::{msg, ActorId};
-//! use gbuiltins::staking::{Request, RewardAccount};
+//! use gbuiltins::staking::{Request, RewardAccount, ACTOR_ID};
 //! use parity_scale_codec::Encode;
-//!
-//! const BUILTIN_ADDRESS: ActorId = ActorId::new(hex_literal::hex!(
-//!     "77f65ef190e11bfecb8fc8970fd3749e94bed66a23ec2f7a3623e785d0816761"
-//! ));
 //!
 //! #[gstd::async_main]
 //! async fn main() {
 //!     let value = msg::value();
 //!     let payee: RewardAccount = RewardAccount::Program;
 //!     let payload = Request::Bond { value, payee }.encode();
-//!     let _ = msg::send_bytes_for_reply(BUILTIN_ADDRESS, &payload[..], 0, 0)
+//!     let _ = msg::send_bytes_for_reply(ACTOR_ID, &payload[..], 0, 0)
 //!         .expect("Error sending message")
 //!         .await;
 //! }
 //! # fn main() {}
 //! ```
-//!
 
 #![no_std]
 

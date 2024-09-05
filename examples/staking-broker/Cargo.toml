@@ -12,7 +12,6 @@ gbuiltin-staking.workspace = true
 gstd.workspace = true
 hashbrown.workspace = true
 hex.workspace = true
-hex-literal.workspace = true
 parity-scale-codec.workspace = true
 
 [build-dependencies]
