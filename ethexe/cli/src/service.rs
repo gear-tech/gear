@@ -46,6 +46,9 @@ use std::{
 };
 use utils::*;
 
+#[cfg(test)]
+pub use {futures::lock::Mutex, tests::Status};
+
 /// ethexe service.
 pub struct Service {
     db: Database,
@@ -61,6 +64,10 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
     rpc: Option<ethexe_rpc::RpcService>,
+
+    // service status
+    #[cfg(test)]
+    status: Arc<Mutex<Status>>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -191,6 +198,8 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.block_time,
+            #[cfg(test)]
+            status: Default::default(),
         })
     }
 
@@ -229,6 +238,8 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            #[cfg(test)]
+            status: Default::default(),
         }
     }
 
@@ -416,6 +427,8 @@ impl Service {
             metrics_service,
             rpc,
             block_time,
+            #[cfg(test)]
+            status,
         } = self;
 
         if let Some(metrics_service) = metrics_service {
@@ -458,6 +471,11 @@ impl Service {
 
         let mut collection_round_timer = StoppableTimer::new(block_time / 4);
         let mut validation_round_timer = StoppableTimer::new(block_time / 4);
+
+        #[cfg(test)]
+        {
+            *status.lock().await = Status::Active;
+        }
 
         loop {
             tokio::select! {
@@ -542,6 +560,10 @@ impl Service {
             }
         }
 
+        #[cfg(test)]
+        {
+            *status.lock().await = Status::Terminated;
+        }
         Ok(())
     }
 
@@ -782,6 +804,12 @@ impl Service {
             }
         }
     }
+
+    #[cfg(test)]
+    /// Get the pointer of service status
+    pub fn status(&self) -> Arc<Mutex<Status>> {
+        self.status.clone()
+    }
 }
 
 mod utils {
@@ -842,6 +870,22 @@ mod tests {
         time::Duration,
     };
     use tempfile::tempdir;
+
+    /// Service status
+    #[derive(Default, PartialEq)]
+    pub enum Status {
+        #[default]
+        Pending,
+        Active,
+        Terminated,
+    }
+
+    impl Status {
+        /// If the service is active
+        pub fn active(&self) -> bool {
+            *self == Status::Active
+        }
+    }
 
     #[tokio::test]
     async fn basics() {
