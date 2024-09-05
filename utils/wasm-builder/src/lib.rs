@@ -26,7 +26,7 @@ use crate::wasm_project::WasmProject;
 use anyhow::Result;
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
-use std::{env, process};
+use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
 
 mod builder_error;
