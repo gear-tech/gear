@@ -44,9 +44,8 @@ use subxt::{
     },
     error::RpcError,
 };
+use url::Url;
 
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
-const DEFAULT_TIMEOUT: u64 = 60_000;
 const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 
 struct Params(Option<Box<RawValue>>);
@@ -65,17 +64,12 @@ pub enum RpcClient {
 
 impl RpcClient {
     /// Create RPC client from url and timeout.
-    pub async fn new(
-        url: impl Into<Option<&str>>,
-        timeout: impl Into<Option<u64>>,
-    ) -> Result<Self> {
-        let (url, timeout) = (
-            url.into().unwrap_or(DEFAULT_GEAR_ENDPOINT),
-            timeout.into().unwrap_or(DEFAULT_TIMEOUT),
-        );
+    pub async fn new(uri: Url, timeout: u64) -> Result<Self> {
+        log::info!("Connecting to {uri} ...");
 
-        log::info!("Connecting to {url} ...");
-        if url.starts_with("ws") {
+        let scheme = uri.scheme();
+        let uri: String = uri.clone().into();
+        if scheme.starts_with("ws") {
             Ok(Self::Ws(
                 WsClientBuilder::default()
                     // Actually that stand for the response too.
@@ -85,15 +79,15 @@ impl RpcClient {
                     .max_request_body_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
-                    .build(url)
+                    .build(uri)
                     .await
                     .map_err(Error::SubxtRpc)?,
             ))
-        } else if url.starts_with("http") {
+        } else if scheme.starts_with("http") {
             Ok(Self::Http(
                 HttpClientBuilder::default()
                     .request_timeout(Duration::from_millis(timeout))
-                    .build(url)
+                    .build(uri)
                     .map_err(Error::SubxtRpc)?,
             ))
         } else {
@@ -166,17 +160,13 @@ async fn subscription_stream<C: SubscriptionClientT>(
 pub struct Rpc {
     rpc: SubxtRpcClient,
     methods: LegacyRpcMethods<GearConfig>,
-    retries: u16,
+    retries: u8,
 }
 
 impl Rpc {
     /// Create RPC client from url and timeout.
-    pub async fn new(
-        url: impl Into<Option<&str>>,
-        timeout: impl Into<Option<u64>>,
-        retries: u16,
-    ) -> Result<Self> {
-        let rpc = SubxtRpcClient::new(RpcClient::new(url, timeout).await?);
+    pub async fn new(uri: Url, timeout: u64, retries: u8) -> Result<Self> {
+        let rpc = SubxtRpcClient::new(RpcClient::new(uri, timeout).await?);
         let methods = LegacyRpcMethods::new(rpc.clone());
         Ok(Self {
             rpc,

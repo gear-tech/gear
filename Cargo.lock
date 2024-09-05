@@ -7413,6 +7413,7 @@ dependencies = [
  "subxt",
  "thiserror",
  "tokio",
+ "url",
 ]
 
 [[package]]
