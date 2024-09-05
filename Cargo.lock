@@ -6254,6 +6254,7 @@ dependencies = [
  "ark-scale 0.0.12",
  "ark-serialize 0.4.2",
  "derive_more 0.99.18",
+ "gprimitives",
  "parity-scale-codec",
 ]
 

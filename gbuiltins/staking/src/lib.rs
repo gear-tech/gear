@@ -59,8 +59,11 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use gprimitives::ActorId;
+use gprimitives::{builtin, ActorId};
 use scale_info::scale::{self, Decode, Encode};
+
+/// Actor ID of [`gbuiltin_staking`]
+pub const ACTOR_ID: ActorId = builtin::STAKING;
 
 /// Type that should be used to create a message to the staking built-in actor.
 ///

@@ -14,3 +14,4 @@ ark-ec.workspace = true
 ark-ff.workspace = true
 ark-scale = { workspace = true, features = ["hazmat"] }
 ark-serialize = { workspace = true, features = ["derive"] }
+gprimitives.workspace = true

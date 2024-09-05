@@ -21,9 +21,12 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use gprimitives::{H160, H256, U256};
+use gprimitives::{builtin, ActorId, H160, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+
+/// Actor ID of [`gbuiltin_eth_bridge`]
+pub const ACTOR_ID: ActorId = builtin::ETH_BRIDGE;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
 pub enum Request {

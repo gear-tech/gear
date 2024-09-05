@@ -31,10 +31,10 @@ pub const SEED: [u8; 8] = *b"built/in";
 pub enum BuiltinActor {
     /// Librar [`gbuiltin_bls318`]
     Bls12_381,
-    /// library [`gbuiltin_eth_bridge`]
-    EthBridge,
     /// library [`gbuiltin_staking`]
     Staking,
+    /// library [`gbuiltin_eth_bridge`]
+    EthBridge,
     /// Customized ids
     #[cfg(feature = "testing")]
     Other(u64),
@@ -44,7 +44,7 @@ impl BuiltinActor {
     /// Get the library index
     #[cfg(not(feature = "testing"))]
     pub const fn id(&self) -> u64 {
-        *self as u64
+        *self as u64 + 1
     }
 
     /// Get the library index
@@ -52,8 +52,8 @@ impl BuiltinActor {
     pub const fn id(&self) -> u64 {
         match self {
             Self::Bls12_381 => 1,
-            Self::EthBridge => 2,
-            Self::Staking => 3,
+            Self::Staking => 2,
+            Self::EthBridge => 3,
             Self::Other(id) => *id,
         }
     }
@@ -62,8 +62,8 @@ impl BuiltinActor {
     pub fn actor_id(&self) -> ActorId {
         match self {
             Self::Bls12_381 => BLS12_381,
-            Self::EthBridge => ETH_BRIDGE,
             Self::Staking => STAKING,
+            Self::EthBridge => ETH_BRIDGE,
             #[cfg(feature = "testing")]
             Self::Other(id) => generate_actor_id(*id),
         }
@@ -89,14 +89,14 @@ pub const BLS12_381: ActorId = ActorId([
     174, 96, 117, 196, 111, 144, 149, 225, 187, 236, 220, 55,
 ]);
 
-/// Actor ID of builtin library [`gbuiltin_eth_bridge`]
-pub const ETH_BRIDGE: ActorId = ActorId([
+/// Actor ID of builtin library [`gbuiltin_staking`]
+pub const STAKING: ActorId = ActorId([
     119, 246, 94, 241, 144, 225, 27, 254, 203, 143, 200, 151, 15, 211, 116, 158, 148, 190, 214,
     106, 35, 236, 47, 122, 54, 35, 231, 133, 208, 129, 103, 97,
 ]);
 
-/// Actor ID of builtin library [`gbuiltin_staking`]
-pub const STAKING: ActorId = ActorId([
+/// Actor ID of builtin library [`gbuiltin_eth_bridge`]
+pub const ETH_BRIDGE: ActorId = ActorId([
     242, 129, 108, 237, 11, 21, 116, 149, 149, 57, 45, 58, 24, 181, 162, 54, 61, 111, 239, 229,
     179, 182, 21, 55, 57, 242, 24, 21, 27, 122, 205, 191,
 ]);

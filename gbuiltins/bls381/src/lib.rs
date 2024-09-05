@@ -22,12 +22,16 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
+use gprimitives::{builtin, ActorId};
 
 pub use ark_bls12_381;
 pub use ark_ec;
 pub use ark_ff;
 pub use ark_scale;
 pub use ark_serialize;
+
+/// Actor ID of [`gbuiltin_bls12_381`]
+pub const ACTOR_ID: ActorId = builtin::BLS12_381;
 
 /// Constant defines codec index of [`Request::MultiMillerLoop`].
 pub const REQUEST_MULTI_MILLER_LOOP: u8 = 0;
