@@ -89,12 +89,12 @@ pub enum TestError {
     GbuildArtifactNotFound(String),
 }
 
-macro_rules! _user_panic {
+macro_rules! user_panic {
     ($($arg:tt)*) => {{
-        use colored::Colorize;
+        use colored::Colorize as _;
         let panic_msg = format!($($arg)*).red().bold();
         panic!("{}", panic_msg);
     }};
 }
 
-pub(crate) use _user_panic as user_panic;
+pub(crate) use user_panic;
