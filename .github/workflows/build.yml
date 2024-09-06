@@ -78,7 +78,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: "nightly-de596a4db781933f0c95805bd1c8c05e65f03d4f" # https://github.com/foundry-rs/foundry/releases/tag/nightly-de596a4db781933f0c95805bd1c8c05e65f03d4f
+          version: "nightly-d75318c9c7a1c6af5404fe96f63ca890dcdd588d" # https://github.com/foundry-rs/foundry/releases/tag/nightly-d75318c9c7a1c6af5404fe96f63ca890dcdd588d
 
       - name: "Show: Versioning"
         run: |
