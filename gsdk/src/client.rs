@@ -200,6 +200,7 @@ impl Rpc {
             }
 
             retries += 1;
+            log::warn!("Failed to send request: {:?}, retires: {reties}", r.err());
         }
     }
 }

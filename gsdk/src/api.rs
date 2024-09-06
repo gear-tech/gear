@@ -24,8 +24,8 @@ use core::ops::{Deref, DerefMut};
 use subxt::OnlineClient;
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
-const DEFAULT_TIMEOUT: u64 = 60_000;
-const DEFAULT_RETRIES: u8 = 3;
+const DEFAULT_TIMEOUT_MILLISECS: u64 = 60_000;
+const DEFAULT_RETRIES: u8 = 1;
 
 /// Gear api wrapper.
 #[derive(Clone)]
@@ -168,7 +168,7 @@ impl Default for ApiBuilder {
     fn default() -> Self {
         Self {
             retries: DEFAULT_RETRIES,
-            timeout: DEFAULT_TIMEOUT,
+            timeout: DEFAULT_TIMEOUT_MILLISECS,
         }
     }
 }
