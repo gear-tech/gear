@@ -44,7 +44,6 @@ use subxt::{
     },
     error::RpcError,
 };
-use url::Url;
 
 const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 
@@ -64,12 +63,10 @@ pub enum RpcClient {
 
 impl RpcClient {
     /// Create RPC client from url and timeout.
-    pub async fn new(uri: Url, timeout: u64) -> Result<Self> {
+    pub async fn new(uri: &str, timeout: u64) -> Result<Self> {
         log::info!("Connecting to {uri} ...");
 
-        let scheme = uri.scheme();
-        let uri: String = uri.clone().into();
-        if scheme.starts_with("ws") {
+        if uri.starts_with("ws") {
             Ok(Self::Ws(
                 WsClientBuilder::default()
                     // Actually that stand for the response too.
@@ -83,7 +80,7 @@ impl RpcClient {
                     .await
                     .map_err(Error::SubxtRpc)?,
             ))
-        } else if scheme.starts_with("http") {
+        } else if uri.starts_with("http") {
             Ok(Self::Http(
                 HttpClientBuilder::default()
                     .request_timeout(Duration::from_millis(timeout))
@@ -165,7 +162,7 @@ pub struct Rpc {
 
 impl Rpc {
     /// Create RPC client from url and timeout.
-    pub async fn new(uri: Url, timeout: u64, retries: u8) -> Result<Self> {
+    pub async fn new(uri: &str, timeout: u64, retries: u8) -> Result<Self> {
         let rpc = SubxtRpcClient::new(RpcClient::new(uri, timeout).await?);
         let methods = LegacyRpcMethods::new(rpc.clone());
         Ok(Self {

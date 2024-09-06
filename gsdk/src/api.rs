@@ -139,7 +139,7 @@ impl ApiBuilder {
     pub async fn build(self, uri: impl Into<Option<&str>>) -> Result<Api> {
         let uri: Option<&str> = uri.into();
         let rpc = Rpc::new(
-            uri.unwrap_or(DEFAULT_GEAR_ENDPOINT).parse()?,
+            uri.unwrap_or(DEFAULT_GEAR_ENDPOINT),
             self.timeout,
             self.retries,
         )
