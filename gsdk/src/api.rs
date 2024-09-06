@@ -25,7 +25,7 @@ use subxt::OnlineClient;
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
 const DEFAULT_TIMEOUT_MILLISECS: u64 = 60_000;
-const DEFAULT_RETRIES: u8 = 1;
+const DEFAULT_RETRIES: u8 = 0;
 
 /// Gear api wrapper.
 #[derive(Clone)]
