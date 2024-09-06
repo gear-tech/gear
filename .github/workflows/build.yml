@@ -78,7 +78,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: "2.0.0"
 
       - name: "Show: Versioning"
         run: |
