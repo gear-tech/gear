@@ -26,10 +26,10 @@ use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
 use core::{any::Any, fmt::Debug};
 use gear_core::{
-    costs::CostOf,
+    costs::LazyPagesCosts,
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
-    pages::{GearPage, GearPagesAmount, WasmPage, WasmPagesAmount},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     str::LimitedStr,
 };
@@ -55,25 +55,6 @@ pub enum GlobalsAccessMod {
     WasmRuntime,
     /// Is native runtime.
     NativeRuntime,
-}
-
-/// Memory pages lazy access costs.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct LazyPagesCosts {
-    /// First read page access cost.
-    pub signal_read: CostOf<GearPagesAmount>,
-    /// First write page access cost.
-    pub signal_write: CostOf<GearPagesAmount>,
-    /// First write access cost for page, which has been already read accessed.
-    pub signal_write_after_read: CostOf<GearPagesAmount>,
-    /// First read page access cost from host function call.
-    pub host_func_read: CostOf<GearPagesAmount>,
-    /// First write page access cost from host function call.
-    pub host_func_write: CostOf<GearPagesAmount>,
-    /// First write page access cost from host function call.
-    pub host_func_write_after_read: CostOf<GearPagesAmount>,
-    /// Loading page data from storage cost.
-    pub load_page_storage_data: CostOf<GearPagesAmount>,
 }
 
 /// Globals ctx for lazy-pages initialization for program.

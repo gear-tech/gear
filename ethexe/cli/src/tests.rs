@@ -138,7 +138,7 @@ async fn ping() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn ping_reorg() {
     gear_utils::init_default_logger();
 

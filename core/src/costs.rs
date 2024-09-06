@@ -18,7 +18,7 @@
 
 //! Costs module.
 
-use crate::pages::WasmPagesAmount;
+use crate::pages::{GearPagesAmount, WasmPagesAmount};
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 
@@ -76,7 +76,7 @@ impl<T> Default for CostOf<T> {
 }
 
 /// Some actions or calls amount.
-#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
 pub struct CallsAmount(u32);
 
 impl CostOf<CallsAmount> {
@@ -88,15 +88,15 @@ impl CostOf<CallsAmount> {
 }
 
 /// Bytes amount.
-#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
 pub struct BytesAmount(u32);
 
 /// Chain blocks amount.
-#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
 pub struct BlocksAmount(u32);
 
 /// Program imported function call (syscall) costs.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyscallCosts {
     /// Cost of calling `alloc`.
     pub alloc: CostOf<CallsAmount>,
@@ -500,4 +500,87 @@ impl SyscallCosts {
             .cost_for_with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
         }
     }
+}
+
+/// Memory pages lazy access costs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct LazyPagesCosts {
+    /// First read page access cost.
+    pub signal_read: CostOf<GearPagesAmount>,
+    /// First write page access cost.
+    pub signal_write: CostOf<GearPagesAmount>,
+    /// First write access cost for page, which has been already read accessed.
+    pub signal_write_after_read: CostOf<GearPagesAmount>,
+    /// First read page access cost from host function call.
+    pub host_func_read: CostOf<GearPagesAmount>,
+    /// First write page access cost from host function call.
+    pub host_func_write: CostOf<GearPagesAmount>,
+    /// First write page access cost from host function call.
+    pub host_func_write_after_read: CostOf<GearPagesAmount>,
+    /// Loading page data from storage cost.
+    pub load_page_storage_data: CostOf<GearPagesAmount>,
+}
+
+/// Holding in storages rent costs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct RentCosts {
+    /// Holding message in waitlist cost per block.
+    pub waitlist: CostOf<BlocksAmount>,
+    /// Holding message in dispatch stash cost per block.
+    pub dispatch_stash: CostOf<BlocksAmount>,
+    /// Holding reservation cost per block.
+    pub reservation: CostOf<BlocksAmount>,
+}
+
+/// Execution externalities costs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ExtCosts {
+    /// Syscalls costs.
+    pub syscalls: SyscallCosts,
+    /// Rent costs.
+    pub rent: RentCosts,
+    /// Memory grow cost.
+    pub mem_grow: CostOf<CallsAmount>,
+    /// Memory grow per page cost.
+    pub mem_grow_per_page: CostOf<WasmPagesAmount>,
+}
+
+/// Module instantiation costs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct InstantiationCosts {
+    /// WASM module code section instantiation per byte cost.
+    pub code_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module data section instantiation per byte cost.
+    pub data_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module global section instantiation per byte cost.
+    pub global_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module table section instantiation per byte cost.
+    pub table_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module element section instantiation per byte cost.
+    pub element_section_per_byte: CostOf<BytesAmount>,
+    /// WASM module type section instantiation per byte cost.
+    pub type_section_per_byte: CostOf<BytesAmount>,
+}
+
+/// Costs for message processing
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProcessCosts {
+    /// Execution externalities costs.
+    pub ext: ExtCosts,
+    /// Lazy pages costs.
+    pub lazy_pages: LazyPagesCosts,
+    /// Storage read cost.
+    pub read: CostOf<CallsAmount>,
+    /// Storage read per byte cost.
+    pub read_per_byte: CostOf<BytesAmount>,
+    /// Storage write cost.
+    pub write: CostOf<CallsAmount>,
+    /// Code instrumentation cost.
+    pub instrumentation: CostOf<CallsAmount>,
+    /// Code instrumentation per byte cost.
+    pub instrumentation_per_byte: CostOf<BytesAmount>,
+    /// Module instantiation costs.
+    pub instantiation_costs: InstantiationCosts,
+    /// Load program allocations cost per interval.
+    pub load_allocations_per_interval: CostOf<u32>,
 }

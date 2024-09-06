@@ -19,13 +19,13 @@
 //! Module for checked code.
 
 use crate::{
+    gas_metering::{CustomConstantCostRules, Rules},
     ids::{prelude::*, CodeId},
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
-    gas_metering::{CustomConstantCostRules, Rules},
     parity_wasm::{self, elements::Module},
     InstrumentationBuilder,
 };
@@ -431,12 +431,15 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use crate::code::{
-        utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
-        StackEndError, TableSectionError, GENERIC_OS_PAGE_SIZE,
+    use crate::{
+        code::{
+            utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
+            StackEndError, TableSectionError, GENERIC_OS_PAGE_SIZE,
+        },
+        gas_metering::CustomConstantCostRules,
     };
     use alloc::{format, vec::Vec};
-    use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+    use gear_wasm_instrument::{InstrumentationError, STACK_END_EXPORT_NAME};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
         wabt::Wat2Wasm::new()
@@ -1165,5 +1168,55 @@ mod tests {
                 .type_section,
             50,
         );
+    }
+
+    #[test]
+    fn unsupported_instruction() {
+        // floats
+        let res = try_new_code_from_wat(
+            r#"
+            (module
+                (import "env" "memory" (memory 0 1))
+                (func (result f64)
+                    f64.const 10
+                    f64.const 3
+                    f64.div)
+                (global i32 (i32.const 42))
+                (func $init)
+                (export "init" (func $init))
+            )
+            "#,
+            Some(1024),
+        );
+
+        assert!(matches!(
+            res,
+            Err(CodeError::Instrumentation(
+                InstrumentationError::GasInjection
+            )),
+        ),);
+
+        // memory grow
+        let res = try_new_code_from_wat(
+            r#"
+            (module
+                (import "env" "memory" (memory 0 1))
+                (func (result i32)
+                    global.get 0
+                    memory.grow
+                )
+                (global i32 (i32.const 42))
+                (func $init)
+                (export "init" (func $init))
+        )"#,
+            Some(1024),
+        );
+
+        assert!(matches!(
+            res,
+            Err(CodeError::Instrumentation(
+                InstrumentationError::GasInjection
+            ))
+        ));
     }
 }

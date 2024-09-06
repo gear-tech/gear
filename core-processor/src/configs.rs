@@ -20,10 +20,9 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::{BlocksAmount, BytesAmount, CallsAmount, CostOf, SyscallCosts},
+    costs::{ExtCosts, LazyPagesCosts, ProcessCosts},
     pages::WasmPagesAmount,
 };
-use gear_lazy_pages_common::LazyPagesCosts;
 
 pub use gear_wasm_instrument::syscalls::SyscallName;
 
@@ -37,70 +36,6 @@ pub struct BlockInfo {
     pub height: u32,
     /// Timestamp.
     pub timestamp: u64,
-}
-
-/// Holding in storages rent costs.
-#[derive(Debug, Default, Clone)]
-pub struct RentCosts {
-    /// Holding message in waitlist cost per block.
-    pub waitlist: CostOf<BlocksAmount>,
-    /// Holding message in dispatch stash cost per block.
-    pub dispatch_stash: CostOf<BlocksAmount>,
-    /// Holding reservation cost per block.
-    pub reservation: CostOf<BlocksAmount>,
-}
-
-/// Execution externalities costs.
-#[derive(Debug, Default, Clone)]
-pub struct ExtCosts {
-    /// Syscalls costs.
-    pub syscalls: SyscallCosts,
-    /// Rent costs.
-    pub rent: RentCosts,
-    /// Memory grow cost.
-    pub mem_grow: CostOf<CallsAmount>,
-    /// Memory grow per page cost.
-    pub mem_grow_per_page: CostOf<WasmPagesAmount>,
-}
-
-/// Module instantiation costs.
-#[derive(Debug, Default, Clone)]
-pub struct InstantiationCosts {
-    /// WASM module code section instantiation per byte cost.
-    pub code_section_per_byte: CostOf<BytesAmount>,
-    /// WASM module data section instantiation per byte cost.
-    pub data_section_per_byte: CostOf<BytesAmount>,
-    /// WASM module global section instantiation per byte cost.
-    pub global_section_per_byte: CostOf<BytesAmount>,
-    /// WASM module table section instantiation per byte cost.
-    pub table_section_per_byte: CostOf<BytesAmount>,
-    /// WASM module element section instantiation per byte cost.
-    pub element_section_per_byte: CostOf<BytesAmount>,
-    /// WASM module type section instantiation per byte cost.
-    pub type_section_per_byte: CostOf<BytesAmount>,
-}
-
-/// Costs for message processing
-#[derive(Clone, Debug, Default)]
-pub struct ProcessCosts {
-    /// Execution externalities costs.
-    pub ext: ExtCosts,
-    /// Lazy pages costs.
-    pub lazy_pages: LazyPagesCosts,
-    /// Storage read cost.
-    pub read: CostOf<CallsAmount>,
-    /// Storage read per byte cost.
-    pub read_per_byte: CostOf<BytesAmount>,
-    /// Storage write cost.
-    pub write: CostOf<CallsAmount>,
-    /// Code instrumentation cost.
-    pub instrumentation: CostOf<CallsAmount>,
-    /// Code instrumentation per byte cost.
-    pub instrumentation_per_byte: CostOf<BytesAmount>,
-    /// Module instantiation costs.
-    pub instantiation_costs: InstantiationCosts,
-    /// Load program allocations cost per interval.
-    pub load_allocations_per_interval: CostOf<u32>,
 }
 
 /// Execution settings for handling messages.

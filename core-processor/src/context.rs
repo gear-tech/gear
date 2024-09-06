@@ -38,6 +38,14 @@ pub struct ContextChargedForProgram {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
 }
 
+impl ContextChargedForProgram {
+    /// Unwraps into inner data.
+    #[cfg(feature = "gtest")]
+    pub fn into_inner(self) -> (IncomingDispatch, ProgramId, GasCounter) {
+        (self.dispatch, self.destination_id, self.gas_counter)
+    }
+}
+
 pub struct ContextChargedForAllocations(pub(crate) ContextChargedForProgram);
 
 pub(crate) struct ContextData {
