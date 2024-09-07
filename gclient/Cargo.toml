@@ -16,6 +16,7 @@ gsdk = { workspace = true, features = ["testing"] }
 gear-node-wrapper.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
+gprimitives.workspace = true
 
 futures.workspace = true
 anyhow.workspace = true

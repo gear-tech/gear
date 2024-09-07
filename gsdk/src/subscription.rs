@@ -55,6 +55,15 @@ impl Blocks {
 
         Ok(Some(BlockEvents::new(next?).await?))
     }
+
+    /// Wait for the next block from the subscription.
+    pub async fn next(&mut self) -> Result<Option<SubxtBlock>> {
+        if let Some(block) = StreamExt::next(self).await {
+            Ok(Some(block?))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl From<BlockSubscription> for Blocks {
@@ -64,6 +73,8 @@ impl From<BlockSubscription> for Blocks {
 }
 
 /// Subscription of events.
+///
+/// TODO: refactor the subscription methods after #4087
 pub struct Events(Blocks);
 
 impl Events {

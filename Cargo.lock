@@ -6351,6 +6351,7 @@ dependencies = [
  "gear-node-wrapper",
  "gear-utils",
  "gmeta",
+ "gprimitives",
  "gsdk",
  "gstd",
  "hex",
@@ -7334,6 +7335,22 @@ dependencies = [
  "quote",
  "scale-info",
  "syn 2.0.71",
+]
+
+[[package]]
+name = "gnc"
+version = "1.5.0"
+dependencies = [
+ "anyhow",
+ "demo-proxy",
+ "gclient",
+ "gear-core",
+ "gprimitives",
+ "gsdk",
+ "gtest",
+ "parity-scale-codec",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

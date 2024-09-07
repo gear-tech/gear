@@ -4,7 +4,6 @@ use crate::{
     cmd::Opt,
     result::{Error, Result},
 };
-use futures::StreamExt;
 use gsdk::{
     ext::{
         sp_core::crypto::{PublicError, Ss58Codec},
@@ -59,8 +58,8 @@ impl Listener {
 
         let now = Instant::now();
         let mut blocks = self.listen_finalized().await?;
-        while let Some(maybe_block) = blocks.next().await {
-            if blocks_production.check(&maybe_block?) {
+        while let Some(maybe_block) = blocks.next().await? {
+            if blocks_production.check(&maybe_block) {
                 break;
             }
 

@@ -108,7 +108,7 @@ members = [
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/fuzz",
     "ethexe/*",
-    "ethexe/runtime/common",
+    "ethexe/runtime/common", "gnc",
 ]
 
 [workspace.dependencies]
