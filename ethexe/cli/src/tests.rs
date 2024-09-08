@@ -239,9 +239,8 @@ impl TestEnv {
     }
 
     pub fn start_anvil() -> AnvilInstance {
-        let mut anvil = Anvil::new().try_spawn().unwrap();
+        let anvil = Anvil::new().try_spawn().unwrap();
         log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
-        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
         anvil
     }
 
