@@ -185,7 +185,7 @@ pub trait GearRI {
         lazy_pages_detail::write_accessed_pages()
     }
 
-    /* Bellow goes deprecated runtime interface functions. */
+    /* Below goes deprecated runtime interface functions. */
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
