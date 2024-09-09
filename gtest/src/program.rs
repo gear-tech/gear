@@ -18,6 +18,7 @@
 
 use crate::{
     default_users_list,
+    error::usage_panic,
     manager::ExtManager,
     state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
@@ -154,7 +155,6 @@ impl From<[u8; 32]> for ProgramIdWrapper {
 }
 
 impl From<&[u8]> for ProgramIdWrapper {
-    #[track_caller]
     fn from(other: &[u8]) -> Self {
         ProgramId::try_from(other)
             .expect("invalid identifier")
@@ -181,7 +181,6 @@ impl From<String> for ProgramIdWrapper {
 }
 
 impl From<&str> for ProgramIdWrapper {
-    #[track_caller]
     fn from(other: &str) -> Self {
         ProgramId::from_str(other)
             .expect("invalid identifier")
@@ -249,7 +248,6 @@ impl ProgramBuilder {
     }
 
     /// Create a program instance from wasm file.
-    #[track_caller]
     pub fn from_file(path: impl AsRef<Path>) -> Self {
         Self::from_binary(fs::read(path).expect("Failed to read WASM file"))
     }
@@ -297,7 +295,6 @@ impl ProgramBuilder {
     /// It looks up the wasm binary of the root crate that contains
     /// the current test, uploads it to the testing system, then
     /// returns the program instance.
-    #[track_caller]
     pub fn current() -> Self {
         Self::inner_current(false)
     }
@@ -305,7 +302,6 @@ impl ProgramBuilder {
     /// Get optimized program of the root crate with provided `system`,
     ///
     /// See also [`ProgramBuilder::current`].
-    #[track_caller]
     pub fn current_opt() -> Self {
         Self::inner_current(true)
     }
@@ -325,13 +321,11 @@ impl ProgramBuilder {
     /// Set metadata for future program from file.
     ///
     /// See also [`ProgramBuilder::with_meta`].
-    #[track_caller]
     pub fn with_meta_file(self, path: impl AsRef<Path>) -> Self {
         self.with_meta(fs::read(path).expect("Failed to read metadata file"))
     }
 
     /// Build program with set parameters.
-    #[track_caller]
     pub fn build(self, system: &System) -> Program {
         let id = self
             .id
@@ -407,7 +401,10 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
-            panic!("Can't create program with id {id:?}, because it's reserved for default users")
+            usage_panic!(
+                "Can't create program with id {id:?}, because it's reserved for default users.\
+                Please, use another id."
+            )
         }
 
         if system
@@ -416,9 +413,9 @@ impl<'a> Program<'a> {
             .store_new_actor(program_id, program, None)
             .is_some()
         {
-            panic!(
-                "Can't create program with id {:?}, because Program with this id already exists",
-                id
+            usage_panic!(
+                "Can't create program with id {id:?}, because Program with this id already exists. \
+                Please, use another id."
             )
         }
 
@@ -537,7 +534,6 @@ impl<'a> Program<'a> {
     }
 
     /// Send the message to the program with bytes payload and value.
-    #[track_caller]
     pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
@@ -800,7 +796,10 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 
 /// `cargo-gbuild` utils
 pub mod gbuild {
-    use crate::{error::TestError as Error, Result};
+    use crate::{
+        error::{usage_panic, TestError as Error},
+        Result,
+    };
     use cargo_toml::Manifest;
     use std::{path::PathBuf, process::Command};
 
@@ -856,7 +855,10 @@ pub mod gbuild {
                 .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
                 .success()
             {
-                panic!("Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, manifest path: {manifest:?}")
+                usage_panic!(
+                    "Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, \
+                    manifest path: {manifest:?}"
+                )
             }
         }
     }
@@ -1134,7 +1136,6 @@ mod tests {
     }
 
     impl Drop for CleanupFolderOnDrop {
-        #[track_caller]
         fn drop(&mut self) {
             std::fs::remove_dir_all(&self.path).expect("Failed to cleanup after test")
         }

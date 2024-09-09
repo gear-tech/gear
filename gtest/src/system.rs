@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    error::usage_panic,
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
@@ -207,7 +208,10 @@ impl System {
     /// allowance.
     pub fn run_next_block_with_allowance(&self, allowance: Gas) -> BlockRunResult {
         if allowance > Gas(GAS_ALLOWANCE) {
-            panic!("Provided allowance more than allowed limit of {GAS_ALLOWANCE}.");
+            usage_panic!(
+                "Provided allowance more than allowed limit of {GAS_ALLOWANCE}. \
+                Please, provide an allowance less than or equal to the limit."
+            );
         }
 
         self.0.borrow_mut().run_new_block(allowance)
@@ -220,7 +224,7 @@ impl System {
 
         let mut current_block = manager.block_height();
         if current_block > bn {
-            panic!("Can't run blocks until bn {bn}, as current bn is {current_block}");
+            usage_panic!("Can't run blocks until bn {bn}, as current bn is {current_block}");
         }
 
         let mut ret = Vec::with_capacity((bn - current_block) as usize);
@@ -315,7 +319,7 @@ impl System {
     ///
     /// Same as ['submit_code_file'], but the path is provided as relative to
     /// the current directory.
-    #[track_caller]
+
     pub fn submit_local_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
@@ -328,10 +332,9 @@ impl System {
     /// Saves code from file to the storage and returns its code hash
     ///
     /// See also [`System::submit_code`]
-    #[track_caller]
     pub fn submit_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let code = fs::read(&code_path).unwrap_or_else(|_| {
-            panic!(
+            usage_panic!(
                 "Failed to read file {}",
                 code_path.as_ref().to_string_lossy()
             )
@@ -364,11 +367,10 @@ impl System {
     ///
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
-    #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
         let program_id = id.into().0;
         if !Actors::is_user(program_id) {
-            panic!("Mailbox available only for users");
+            usage_panic!("Mailbox available only for users. Please, provide a user id.");
         }
         ActorMailbox::new(program_id, &self.0)
     }
@@ -378,8 +380,8 @@ impl System {
         let id = id.into().0;
 
         if Actors::is_program(id) {
-            panic!(
-                "Attempt to mint value to a program {id:?}, please use `System::transfer` instead"
+            usage_panic!(
+                "Attempt to mint value to a program {id:?}. Please, use `System::transfer` instead"
             );
         }
 
@@ -399,7 +401,9 @@ impl System {
         let to = to.into().0;
 
         if Actors::is_program(from) {
-            panic!("Attempt to transfer from a program {from:?}");
+            usage_panic!(
+                "Attempt to transfer from a program {from:?}. Please, provide `from` user id."
+            );
         }
 
         Accounts::transfer(from, to, value, keep_alive);
