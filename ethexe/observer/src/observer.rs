@@ -319,8 +319,7 @@ mod tests {
     async fn test_deployment() -> Result<()> {
         gear_utils::init_default_logger();
 
-        let mut anvil = Anvil::new().try_spawn()?;
-        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+        let anvil = Anvil::new().try_spawn()?;
 
         let ethereum_rpc = anvil.ws_endpoint();
 
