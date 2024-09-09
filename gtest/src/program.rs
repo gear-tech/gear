@@ -18,7 +18,7 @@
 
 use crate::{
     default_users_list,
-    error::user_panic,
+    error::usage_panic,
     manager::ExtManager,
     state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
@@ -401,7 +401,7 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
-            user_panic!(
+            usage_panic!(
                 "Can't create program with id {id:?}, because it's reserved for default users.\
                 Please, use another id."
             )
@@ -413,7 +413,7 @@ impl<'a> Program<'a> {
             .store_new_actor(program_id, program, None)
             .is_some()
         {
-            user_panic!(
+            usage_panic!(
                 "Can't create program with id {id:?}, because Program with this id already exists. \
                 Please, use another id."
             )
@@ -797,7 +797,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 /// `cargo-gbuild` utils
 pub mod gbuild {
     use crate::{
-        error::{user_panic, TestError as Error},
+        error::{usage_panic, TestError as Error},
         Result,
     };
     use cargo_toml::Manifest;
@@ -855,7 +855,7 @@ pub mod gbuild {
                 .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
                 .success()
             {
-                user_panic!(
+                usage_panic!(
                     "Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, \
                     manifest path: {manifest:?}"
                 )

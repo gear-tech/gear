@@ -44,18 +44,18 @@ impl ExtManager {
         let destination = dispatch.destination();
 
         if Actors::is_program(source) {
-            user_panic!(
+            usage_panic!(
                 "Sending messages allowed only from users id. Please, provide user id as source."
             );
         }
 
         // User must exist
         if !Accounts::exists(source) {
-            user_panic!("User's {source} balance is zero; mint value to it first.");
+            usage_panic!("User's {source} balance is zero; mint value to it first.");
         }
 
         if !Actors::is_active_program(destination) {
-            user_panic!("User message can't be sent to non active program");
+            usage_panic!("User message can't be sent to non active program");
         }
 
         let is_init_msg = dispatch.kind().is_init();
@@ -70,7 +70,7 @@ impl ExtManager {
 
         // Check sender has enough balance to cover dispatch costs
         if balance < { dispatch.value() + gas_value + maybe_ed } {
-            user_panic!(
+            usage_panic!(
                 "Insufficient balance: user ({}) tries to send \
                 ({}) value, ({}) gas and ED ({}), while his balance ({:?}). \
                 Please, mint more balance to the user.",

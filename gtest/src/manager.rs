@@ -28,7 +28,7 @@ mod wait_wake;
 
 use crate::{
     constants::Value,
-    error::user_panic,
+    error::usage_panic,
     log::{BlockRunResult, CoreLog},
     program::{Gas, WasmProgram},
     state::{
@@ -219,7 +219,7 @@ impl ExtManager {
 
     pub(crate) fn override_balance(&mut self, &id: &ProgramId, balance: Value) {
         if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
-            user_panic!(
+            usage_panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({}. \
                 Please try to use bigger balance value",
                 balance,
