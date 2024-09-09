@@ -19,17 +19,43 @@
 //! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
 use super::ExtManager;
-use crate::state::actors::Actors;
+use crate::{state::actors::Actors, Gas};
 use core_processor::common::JournalHandler;
 use gear_common::{
-    scheduler::{StorageType, TaskHandler},
+    scheduler::{ScheduledTask, StorageType, TaskHandler},
     Gas as GearCommonGas,
 };
 use gear_core::{
+    gas_metering::TaskWeights,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
+
+pub(crate) fn get_maximum_task_gas(task: &ScheduledTask<ProgramId>) -> Gas {
+    use ScheduledTask::*;
+    let weights = TaskWeights::default();
+    match task {
+        PauseProgram(_) => Gas(0),
+        #[allow(deprecated)]
+        RemoveResumeSession(_) => Gas(0),
+
+        RemoveFromMailbox(_, _) => Gas(weights.remove_from_mailbox.ref_time),
+        RemoveFromWaitlist(_, _) => Gas(weights.remove_from_waitlist.ref_time),
+        RemovePausedProgram(_) => todo!("#646"),
+        RemoveCode(_) => todo!("#646"),
+        WakeMessage(_, _) => Gas(weights
+            .wake_message
+            .ref_time
+            .max(weights.wake_message_no_wake.ref_time)),
+        SendDispatch(_) => Gas(weights.send_dispatch.ref_time),
+        SendUserMessage { .. } => Gas(weights
+            .send_user_message_to_mailbox
+            .ref_time
+            .max(weights.send_user_message.ref_time)),
+        RemoveGasReservation(_, _) => Gas(weights.remove_gas_reservation.ref_time),
+    }
+}
 
 impl TaskHandler<ProgramId> for ExtManager {
     fn pause_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
@@ -61,7 +87,7 @@ impl TaskHandler<ProgramId> for ExtManager {
 
         self.dispatches.push_back(dispatch);
 
-        GearCommonGas::MIN
+        TaskWeights::default().remove_from_mailbox.ref_time
     }
 
     fn remove_from_waitlist(
@@ -122,7 +148,7 @@ impl TaskHandler<ProgramId> for ExtManager {
             self.init_failure(program_id, origin);
         }
 
-        GearCommonGas::MIN
+        TaskWeights::default().remove_from_waitlist.ref_time
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
@@ -132,9 +158,10 @@ impl TaskHandler<ProgramId> for ExtManager {
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> GearCommonGas {
         if let Ok(dispatch) = self.wake_dispatch_impl(program_id, message_id) {
             self.dispatches.push_back(dispatch);
+            TaskWeights::default().wake_message.ref_time
+        } else {
+            TaskWeights::default().wake_message_no_wake.ref_time
         }
-
-        GearCommonGas::MIN
     }
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> GearCommonGas {
@@ -146,7 +173,7 @@ impl TaskHandler<ProgramId> for ExtManager {
         self.charge_for_hold(dispatch.id(), hold_interval, StorageType::DispatchStash);
 
         self.dispatches.push_back(dispatch.into());
-        GearCommonGas::MIN
+        TaskWeights::default().send_dispatch.ref_time
     }
 
     fn send_user_message(
@@ -167,8 +194,11 @@ impl TaskHandler<ProgramId> for ExtManager {
         });
 
         self.send_user_message_after_delay(mailbox_message, to_mailbox);
-
-        GearCommonGas::MIN
+        if to_mailbox {
+            TaskWeights::default().send_user_message_to_mailbox.ref_time
+        } else {
+            TaskWeights::default().send_user_message.ref_time
+        }
     }
 
     fn remove_gas_reservation(
@@ -177,7 +207,7 @@ impl TaskHandler<ProgramId> for ExtManager {
         reservation_id: ReservationId,
     ) -> GearCommonGas {
         let _slot = self.remove_gas_reservation_impl(program_id, reservation_id);
-        GearCommonGas::MIN
+        TaskWeights::default().remove_gas_reservation.ref_time
     }
 
     fn remove_resume_session(&mut self, _session_id: u32) -> GearCommonGas {

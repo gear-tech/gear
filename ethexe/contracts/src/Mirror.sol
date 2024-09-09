@@ -122,6 +122,8 @@ contract Mirror is IMirror {
         require(decoder == address(0), "decoder could only be created once");
 
         decoder = Clones.cloneDeterministic(implementation, salt);
+
+        IMirrorDecoder(decoder).initialize();
     }
 
     function initMessage(address source, bytes calldata payload, uint128 value, uint128 executableBalance)

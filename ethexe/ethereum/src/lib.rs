@@ -25,15 +25,13 @@ use abi::{
     IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
 };
 use alloy::{
-    consensus::SignableTransaction,
-    network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TransactionBuilder, TxSigner},
+    consensus::{self as alloy_consensus, SignableTransaction},
+    network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
-        fillers::{
-            ChainIdFiller, FillProvider, FillerControlFlow, GasFiller, JoinFill, TxFiller,
-            WalletFiller,
-        },
-        Identity, Provider, ProviderBuilder, RootProvider, SendableTx,
+        fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
+        PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
+        RootProvider,
     },
     rpc::types::eth::Log,
     signers::{
@@ -41,14 +39,14 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::{SolCall, SolEvent},
-    transports::{BoxTransport, Transport, TransportResult},
+    transports::{BoxTransport, RpcError, Transport},
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;
 use router::{Router, RouterQuery};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 mod abi;
 mod eip1167;
@@ -60,10 +58,7 @@ pub(crate) type AlloyTransport = BoxTransport;
 type AlloyProvider =
     FillProvider<ExeFiller, RootProvider<AlloyTransport>, AlloyTransport, AlloyEthereum>;
 
-pub(crate) type ExeFiller = JoinFill<
-    JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>,
-    WalletFiller<EthereumWallet>,
->;
+pub(crate) type ExeFiller = JoinFill<RecommendedFiller, WalletFiller<EthereumWallet>>;
 
 pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
     E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
@@ -163,7 +158,7 @@ impl Ethereum {
         let mirror_proxy = IMirrorProxy::deploy(provider.clone(), router_address).await?;
 
         let builder = wrapped_vara.approve(router_address, U256::MAX);
-        builder.send().await?.get_receipt().await?;
+        builder.send().await?.try_get_receipt().await?;
 
         assert_eq!(router.mirror().call().await?._0, *mirror.address());
         assert_eq!(
@@ -202,56 +197,11 @@ async fn create_provider(
 ) -> Result<Arc<AlloyProvider>> {
     Ok(Arc::new(
         ProviderBuilder::new()
-            .filler(GasFiller)
-            .filler(NonceFiller)
-            .filler(ChainIdFiller::default())
+            .with_recommended_fillers()
             .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
             .on_builtin(rpc_url)
             .await?,
     ))
-}
-
-#[derive(Debug, Clone)]
-pub struct NonceFiller;
-
-impl<N: Network> TxFiller<N> for NonceFiller {
-    type Fillable = u64;
-
-    fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
-        if tx.nonce().is_some() {
-            return FillerControlFlow::Finished;
-        }
-        if tx.from().is_none() {
-            return FillerControlFlow::missing("NonceManager", vec!["from"]);
-        }
-        FillerControlFlow::Ready
-    }
-
-    fn fill_sync(&self, _tx: &mut SendableTx<N>) {}
-
-    async fn prepare<P, T>(
-        &self,
-        provider: &P,
-        tx: &N::TransactionRequest,
-    ) -> TransportResult<Self::Fillable>
-    where
-        P: Provider<T, N>,
-        T: Transport + Clone,
-    {
-        let from = tx.from().expect("checked by 'ready()'");
-        provider.get_transaction_count(from).await
-    }
-
-    async fn fill(
-        &self,
-        nonce: Self::Fillable,
-        mut tx: SendableTx<N>,
-    ) -> TransportResult<SendableTx<N>> {
-        if let Some(builder) = tx.as_mut_builder() {
-            builder.set_nonce(nonce);
-        }
-        Ok(tx)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -312,12 +262,49 @@ impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
         let signature = self
             .signer
-            .raw_sign_digest(self.sender, hash.0)
+            .raw_sign_digest(self.sender, hash.0.into())
             .map_err(|err| SignerError::Other(err.into()))?;
-        Ok(Signature::try_from(&signature.0[..])?)
+        Ok(Signature::try_from(signature.as_ref())?)
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
         self.chain_id
+    }
+}
+
+// TODO: Maybe better to append solution like this to alloy.
+trait TryGetReceipt<T: Transport + Clone, N: Network> {
+    /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
+    async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
+}
+
+impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<'_, T, N> {
+    async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
+        let tx_hash = *self.tx_hash();
+        let provider = self.provider().clone();
+
+        let mut err = match self.get_receipt().await {
+            Ok(r) => return Ok(r),
+            Err(err) => err,
+        };
+
+        for _ in 0..3 {
+            match err {
+                PendingTransactionError::TransportError(RpcError::NullResp) => {}
+                _ => break,
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            match provider.get_transaction_receipt(tx_hash).await {
+                Ok(Some(r)) => return Ok(r),
+                Ok(None) => {}
+                Err(e) => err = e.into(),
+            }
+        }
+
+        Err(anyhow!(
+            "Failed to get transaction receipt for {tx_hash}: {err}"
+        ))
     }
 }

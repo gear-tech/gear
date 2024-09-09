@@ -91,9 +91,9 @@ impl Observer {
 
                         log::trace!("Received block: {:?}", block.header.hash);
 
-                        let block_hash = (*block.header.hash.expect("failed to get block hash")).into();
+                        let block_hash = (*block.header.hash).into();
                         let parent_hash = (*block.header.parent_hash).into();
-                        let block_number = block.header.number.expect("failed to get block number");
+                        let block_number = block.header.number;
                         let block_timestamp = block.header.timestamp;
 
                         let events = match read_block_events(block_hash, &self.provider, self.router_address).await {
@@ -255,7 +255,7 @@ async fn read_events_impl(
     let block_hash_of = |log: &alloy::rpc::types::Log| -> Result<H256> {
         log.block_hash
             .map(|v| v.0.into())
-            .ok_or(anyhow!("Block hash is missing"))
+            .ok_or_else(|| anyhow!("Block hash is missing"))
     };
 
     let mut res: HashMap<_, Vec<_>> = HashMap::new();

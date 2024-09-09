@@ -25,7 +25,10 @@ use gear_common::{
     auxiliary::{waitlist::*, BlockNumber},
     storage::{Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::{
+    ids::{MessageId, ProgramId},
+    message::StoredDispatch,
+};
 
 /// Waitlist manager which operates under the hood over
 /// [`gear_common::auxiliary::waitlist::AuxiliaryWaitlist`].
@@ -64,6 +67,16 @@ impl WaitlistManager {
     /// when the owner is dropped.
     pub(crate) fn reset(&self) {
         <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::clear();
+    }
+
+    pub(crate) fn drain_key(
+        &self,
+        program_id: ProgramId,
+    ) -> impl Iterator<Item = (StoredDispatch, Interval<BlockNumber>)> {
+        <AuxiliaryWaitlist<WaitlistCallbacksImpl> as IterableByKeyMap<(
+            StoredDispatch,
+            Interval<BlockNumber>,
+        )>>::drain_key(program_id)
     }
 }
 

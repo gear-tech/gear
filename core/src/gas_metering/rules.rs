@@ -16,11 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    gas_metering::{ConstantCostRules, MemoryGrowCost, Rules, Schedule},
+use super::Schedule;
+use alloc::vec::Vec;
+use gwasm_instrument::{
+    gas_metering::{ConstantCostRules, MemoryGrowCost, Rules},
     parity_wasm::elements::{self, Instruction, Module, SignExtInstruction, Type},
 };
-use alloc::vec::Vec;
 
 /// This type provides the functionality of [`ConstantCostRules`].
 ///

@@ -19,8 +19,8 @@
 use super::*;
 
 impl ExtManager {
-    pub(crate) fn wait_dipatch_impl(
-        &self,
+    pub(crate) fn wait_dispatch_impl(
+        &mut self,
         dispatch: StoredDispatch,
         duration: Option<BlockNumber>,
         reason: MessageWaitedReason,
@@ -94,6 +94,7 @@ impl ExtManager {
 
                         unreachable!("{err_msg}");
                     });
+                    self.on_task_pool_change();
                 }
             }
             MessageWaitedReason::Runtime(WaitCalled | WaitUpToCalled) => {
@@ -110,6 +111,7 @@ impl ExtManager {
 
                     unreachable!("{err_msg}");
                 });
+                self.on_task_pool_change();
             }
             MessageWaitedReason::System(reason) => match reason {},
         }
@@ -131,16 +133,29 @@ impl ExtManager {
         program_id: ProgramId,
         message_id: MessageId,
     ) -> Result<StoredDispatch, WaitlistErrorImpl> {
-        let (waitlisted, hold_interval) = self.waitlist.remove(program_id, message_id)?;
-        let expected_bn = hold_interval.finish;
+        self.waitlist
+            .remove(program_id, message_id)
+            .map(|waitlisted_message| self.wake_dispatch_requirements(waitlisted_message))
+    }
+
+    pub(crate) fn wake_dispatch_requirements(
+        &mut self,
+        (waitlisted, hold_interval): (StoredDispatch, Interval<BlockNumber>),
+    ) -> StoredDispatch {
+        let expected = hold_interval.finish;
 
         self.charge_for_hold(waitlisted.id(), hold_interval, StorageType::Waitlist);
 
-        let _ = self.task_pool.delete(
-            expected_bn,
-            ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expected,
+                ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
+            )
+            .map(|_| {
+                self.on_task_pool_change();
+            });
 
-        Ok(waitlisted)
+        waitlisted
     }
 }
