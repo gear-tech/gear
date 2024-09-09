@@ -24,7 +24,7 @@ use crate::{CASDatabase, KVDatabase};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage},
     router::StateTransition,
-    BlockEvent,
+    BlockRequestEvent,
 };
 use ethexe_runtime_common::state::{
     Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
@@ -221,16 +221,16 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
+    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockRequestEvent>> {
         self.kv
             .get(&KeyPrefix::BlockEvents.two(self.router_address, block_hash))
             .map(|data| {
-                Vec::<BlockEvent>::decode(&mut data.as_slice())
+                Vec::<BlockRequestEvent>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<BlockEvent>`")
             })
     }
 
-    fn set_block_events(&self, block_hash: H256, events: Vec<BlockEvent>) {
+    fn set_block_events(&self, block_hash: H256, events: Vec<BlockRequestEvent>) {
         self.kv.put(
             &KeyPrefix::BlockEvents.two(self.router_address, block_hash),
             events.encode(),
@@ -300,8 +300,8 @@ impl CodesStorage for Database {
         self.kv
             .iter_prefix(&key_prefix)
             .map(|#[allow(unused_variables)] (key, code_id)| {
-                let (splitted_key_prefix, program_id) = key.split_at(key_prefix.len());
-                debug_assert_eq!(splitted_key_prefix, key_prefix);
+                let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(split_key_prefix, key_prefix);
                 let program_id =
                     ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
 
