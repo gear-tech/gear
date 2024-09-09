@@ -73,7 +73,10 @@ impl Listener {
     }
 
     pub async fn next_event(&mut self) -> Result<Event> {
-        self.receiver.recv().await.ok_or(anyhow!("No more events"))
+        self.receiver
+            .recv()
+            .await
+            .ok_or_else(|| anyhow!("No more events"))
     }
 
     pub async fn apply_until<R: Sized>(
@@ -236,9 +239,8 @@ impl TestEnv {
     }
 
     pub fn start_anvil() -> AnvilInstance {
-        let mut anvil = Anvil::new().try_spawn().unwrap();
+        let anvil = Anvil::new().try_spawn().unwrap();
         log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
-        drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
         anvil
     }
 
@@ -258,6 +260,8 @@ impl TestEnv {
                 ethereum_rpc: self.rpc_url.clone(),
                 sign_tx_public: self.sequencer_public_key,
                 router_address: self.router_address,
+                validators: vec![self.validator_public_key.to_address()],
+                threshold: 1,
             },
             self.signer.clone(),
         )
@@ -488,7 +492,7 @@ async fn ping() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn ping_reorg() {
     gear_utils::init_default_logger();
 

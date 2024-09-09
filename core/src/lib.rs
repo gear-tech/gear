@@ -32,6 +32,7 @@ pub mod costs;
 pub mod env;
 pub mod env_vars;
 pub mod gas;
+pub mod gas_metering;
 pub mod ids;
 pub mod memory;
 pub mod message;

@@ -38,7 +38,7 @@ pub(crate) struct Actors;
 
 impl Actors {
     // Accesses actor by program id.
-    #[track_caller]
+
     pub(crate) fn access<R>(
         program_id: ProgramId,
         access: impl FnOnce(Option<&TestActor>) -> R,
@@ -47,7 +47,6 @@ impl Actors {
     }
 
     // Modifies actor by program id.
-    #[track_caller]
     pub(crate) fn modify<R>(
         program_id: ProgramId,
         modify: impl FnOnce(Option<&mut TestActor>) -> R,
@@ -120,7 +119,6 @@ impl TestActor {
 
     // # Panics
     // If actor is initialized or dormant
-    #[track_caller]
     pub(crate) fn set_initialized(&mut self) {
         assert!(
             self.is_uninitialized(),
@@ -136,14 +134,19 @@ impl TestActor {
         }
     }
 
-    // Checks if actor is dormant.
-    pub(crate) fn is_dormant(&self) -> bool {
-        matches!(self, TestActor::Dormant)
+    // Checks if actor is uninitialized.
+    pub(crate) fn is_uninitialized(&self) -> bool {
+        matches!(self, TestActor::Uninitialized(..))
     }
 
     // Checks if actor is initialized.
-    pub(crate) fn is_uninitialized(&self) -> bool {
-        matches!(self, TestActor::Uninitialized(..))
+    pub(crate) fn is_initialized(&self) -> bool {
+        matches!(self, TestActor::Initialized(..))
+    }
+
+    // Checks if actor is dormant.
+    pub(crate) fn is_dormant(&self) -> bool {
+        matches!(self, TestActor::Dormant)
     }
 
     // Returns `Some` if actor contains genuine program.
@@ -184,33 +187,48 @@ impl TestActor {
         }
     }
 
+    pub(crate) fn set_mock(&mut self, mock: Box<dyn WasmProgram>) {
+        match self {
+            TestActor::Initialized(Program::Mock(maybe_mock_none))
+            | TestActor::Uninitialized(_, Some(Program::Mock(maybe_mock_none))) => {
+                *maybe_mock_none = Some(mock);
+            }
+            _ => {}
+        }
+    }
+
     // Gets a new executable actor derived from the inner program.
     pub(crate) fn get_executable_actor_data(
         &self,
     ) -> Option<(ExecutableActorData, InstrumentedCode)> {
-        self.genuine_program().map(|program| {
-            (
-                ExecutableActorData {
-                    allocations: program.allocations.clone(),
-                    code_id: program.code_id,
-                    code_exports: program.code.exports().clone(),
-                    static_pages: program.code.static_pages(),
-                    gas_reservation_map: program.gas_reservation_map.clone(),
-                    memory_infix: Default::default(),
-                },
-                program.code.clone(),
-            )
-        })
+        self.genuine_program()
+            .map(GenuineProgram::executable_actor_data)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct GenuineProgram {
     pub code_id: CodeId,
     pub code: InstrumentedCode,
     pub allocations: IntervalsTree<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub gas_reservation_map: GasReservationMap,
+}
+
+impl GenuineProgram {
+    pub(crate) fn executable_actor_data(&self) -> (ExecutableActorData, InstrumentedCode) {
+        (
+            ExecutableActorData {
+                allocations: self.allocations.clone(),
+                code_id: self.code_id,
+                code_exports: self.code.exports().clone(),
+                static_pages: self.code.static_pages(),
+                gas_reservation_map: self.gas_reservation_map.clone(),
+                memory_infix: Default::default(),
+            },
+            self.code.clone(),
+        )
+    }
 }
 
 #[derive(Debug)]

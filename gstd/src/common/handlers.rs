@@ -152,7 +152,7 @@ mod panic_handler {
                 }
 
                 if !self.found_delimiter {
-                    if s == ":\n" {
+                    if s == ":\n" || s == "\n" {
                         self.found_delimiter = true;
                         return Ok(());
                     }

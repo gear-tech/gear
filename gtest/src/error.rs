@@ -88,3 +88,13 @@ pub enum TestError {
     #[display(fmt = "Reading of program state failed: `{_0}`")]
     GbuildArtifactNotFound(String),
 }
+
+macro_rules! usage_panic {
+    ($($arg:tt)*) => {{
+        use colored::Colorize as _;
+        let panic_msg = format!($($arg)*).red().bold();
+        panic!("{}", panic_msg);
+    }};
+}
+
+pub(crate) use usage_panic;
