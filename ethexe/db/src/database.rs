@@ -24,7 +24,7 @@ use crate::{CASDatabase, KVDatabase};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage},
     router::StateTransition,
-    BlockEventForHandling,
+    BlockRequestEvent,
 };
 use ethexe_runtime_common::state::{
     Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
@@ -221,16 +221,16 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEventForHandling>> {
+    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockRequestEvent>> {
         self.kv
             .get(&KeyPrefix::BlockEvents.two(self.router_address, block_hash))
             .map(|data| {
-                Vec::<BlockEventForHandling>::decode(&mut data.as_slice())
+                Vec::<BlockRequestEvent>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<BlockEvent>`")
             })
     }
 
-    fn set_block_events(&self, block_hash: H256, events: Vec<BlockEventForHandling>) {
+    fn set_block_events(&self, block_hash: H256, events: Vec<BlockRequestEvent>) {
         self.kv.put(
             &KeyPrefix::BlockEvents.two(self.router_address, block_hash),
             events.encode(),

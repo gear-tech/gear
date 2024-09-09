@@ -20,10 +20,10 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    mirror::EventForHandling as MirrorEvent,
-    router::{EventForHandling as RouterEvent, StateTransition},
-    wvara::EventForHandling as WVaraEvent,
-    BlockEventForHandling,
+    mirror::RequestEvent as MirrorEvent,
+    router::{RequestEvent as RouterEvent, StateTransition},
+    wvara::RequestEvent as WVaraEvent,
+    BlockRequestEvent,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
@@ -227,7 +227,7 @@ impl Processor {
     pub fn process_block_events(
         &mut self,
         block_hash: H256,
-        events: Vec<BlockEventForHandling>,
+        events: Vec<BlockRequestEvent>,
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
@@ -238,13 +238,13 @@ impl Processor {
 
         for event in events {
             match event {
-                BlockEventForHandling::Router(event) => {
+                BlockRequestEvent::Router(event) => {
                     self.handle_router_event(&mut states, event)?;
                 }
-                BlockEventForHandling::Mirror { address, event } => {
+                BlockRequestEvent::Mirror { address, event } => {
                     self.handle_mirror_event(&mut states, address, event)?;
                 }
-                BlockEventForHandling::WVara(event) => {
+                BlockRequestEvent::WVara(event) => {
                     self.handle_wvara_event(&mut states, event)?;
                 }
             }

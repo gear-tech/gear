@@ -20,7 +20,7 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
     router::Event as RouterEvent,
-    BlockEvent, BlockEventForHandling,
+    BlockEvent, BlockRequestEvent,
 };
 use ethexe_signer::Address;
 use gprimitives::{CodeId, H256};
@@ -348,7 +348,7 @@ impl Query {
     pub async fn get_block_events_for_handling(
         &mut self,
         block_hash: H256,
-    ) -> Result<Vec<BlockEventForHandling>> {
+    ) -> Result<Vec<BlockRequestEvent>> {
         if let Some(events) = self.database.block_events(block_hash) {
             return Ok(events);
         }

@@ -37,7 +37,7 @@ pub mod signatures {
         VALUE_PER_WEIGHT_CHANGED: ValuePerWeightChanged,
     }
 
-    pub const FOR_HANDLING: &[B256] = &[
+    pub const REQUESTS: &[B256] = &[
         BASE_WEIGHT_CHANGED,
         CODE_VALIDATION_REQUESTED,
         PROGRAM_CREATED,
@@ -79,13 +79,13 @@ pub fn try_extract_event(log: &Log) -> Result<Option<router::Event>> {
     Ok(Some(event))
 }
 
-pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<router::EventForHandling>> {
-    if log.topic0().filter(|&v| FOR_HANDLING.contains(v)).is_none() {
+pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<router::RequestEvent>> {
+    if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
         return Ok(None);
     }
 
     let event_for_handling = try_extract_event(log)?
-        .and_then(|v| v.as_for_handling())
+        .and_then(|v| v.as_request())
         .expect("filtered above");
 
     Ok(Some(event_for_handling))

@@ -66,17 +66,17 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_for_handling(self) -> Option<EventForHandling> {
+    pub fn as_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::ExecutableBalanceTopUpRequested { value } => {
-                EventForHandling::ExecutableBalanceTopUpRequested { value }
+                RequestEvent::ExecutableBalanceTopUpRequested { value }
             }
             Self::MessageQueueingRequested {
                 id,
                 source,
                 payload,
                 value,
-            } => EventForHandling::MessageQueueingRequested {
+            } => RequestEvent::MessageQueueingRequested {
                 id,
                 source,
                 payload,
@@ -87,14 +87,14 @@ impl Event {
                 source,
                 payload,
                 value,
-            } => EventForHandling::ReplyQueueingRequested {
+            } => RequestEvent::ReplyQueueingRequested {
                 replied_to,
                 source,
                 payload,
                 value,
             },
             Self::ValueClaimingRequested { claimed_id, source } => {
-                EventForHandling::ValueClaimingRequested { claimed_id, source }
+                RequestEvent::ValueClaimingRequested { claimed_id, source }
             }
             Self::StateChanged { .. }
             | Self::ValueClaimed { .. }
@@ -105,7 +105,7 @@ impl Event {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
-pub enum EventForHandling {
+pub enum RequestEvent {
     ExecutableBalanceTopUpRequested {
         value: u128,
     },

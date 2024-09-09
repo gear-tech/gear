@@ -18,8 +18,7 @@
 
 use crate::*;
 use ethexe_common::{
-    mirror::EventForHandling as MirrorEvent, router::EventForHandling as RouterEvent,
-    BlockEventForHandling,
+    mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
@@ -87,14 +86,14 @@ fn process_observer_event() {
     let actor_id = ActorId::from(42);
 
     let create_program_events = vec![
-        BlockEventForHandling::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
-        BlockEventForHandling::mirror(
+        BlockRequestEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
+        BlockRequestEvent::mirror(
             actor_id,
             MirrorEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
         ),
-        BlockEventForHandling::mirror(
+        BlockRequestEvent::mirror(
             actor_id,
             MirrorEvent::MessageQueueingRequested {
                 id: H256::random().0.into(),
@@ -113,7 +112,7 @@ fn process_observer_event() {
 
     let ch2 = init_new_block_from_parent(&mut processor, ch1);
 
-    let send_message_event = BlockEventForHandling::mirror(
+    let send_message_event = BlockRequestEvent::mirror(
         actor_id,
         MirrorEvent::MessageQueueingRequested {
             id: H256::random().0.into(),

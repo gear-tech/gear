@@ -37,7 +37,7 @@ pub mod signatures {
         VALUE_CLAIMING_REQUESTED: ValueClaimingRequested,
     }
 
-    pub const FOR_HANDLING: &[B256] = &[
+    pub const REQUESTS: &[B256] = &[
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED,
         MESSAGE_QUEUEING_REQUESTED,
         REPLY_QUEUEING_REQUESTED,
@@ -67,13 +67,13 @@ pub fn try_extract_event(log: &Log) -> Result<Option<mirror::Event>> {
     Ok(Some(event))
 }
 
-pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<mirror::EventForHandling>> {
-    if log.topic0().filter(|&v| FOR_HANDLING.contains(v)).is_none() {
+pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<mirror::RequestEvent>> {
+    if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
         return Ok(None);
     }
 
     let event_for_handling = try_extract_event(log)?
-        .and_then(|v| v.as_for_handling())
+        .and_then(|v| v.as_request())
         .expect("filtered above");
 
     Ok(Some(event_for_handling))

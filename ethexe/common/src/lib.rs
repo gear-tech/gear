@@ -62,29 +62,29 @@ impl From<wvara::Event> for BlockEvent {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
-pub enum BlockEventForHandling {
-    Router(router::EventForHandling),
+pub enum BlockRequestEvent {
+    Router(router::RequestEvent),
     Mirror {
         address: ActorId,
-        event: mirror::EventForHandling,
+        event: mirror::RequestEvent,
     },
-    WVara(wvara::EventForHandling),
+    WVara(wvara::RequestEvent),
 }
 
-impl BlockEventForHandling {
-    pub fn mirror(address: ActorId, event: mirror::EventForHandling) -> Self {
+impl BlockRequestEvent {
+    pub fn mirror(address: ActorId, event: mirror::RequestEvent) -> Self {
         Self::Mirror { address, event }
     }
 }
 
-impl From<router::EventForHandling> for BlockEventForHandling {
-    fn from(value: router::EventForHandling) -> Self {
+impl From<router::RequestEvent> for BlockRequestEvent {
+    fn from(value: router::RequestEvent) -> Self {
         Self::Router(value)
     }
 }
 
-impl From<wvara::EventForHandling> for BlockEventForHandling {
-    fn from(value: wvara::EventForHandling) -> Self {
+impl From<wvara::RequestEvent> for BlockRequestEvent {
+    fn from(value: wvara::RequestEvent) -> Self {
         Self::WVara(value)
     }
 }

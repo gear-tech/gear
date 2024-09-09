@@ -1,5 +1,5 @@
 use crate::{
-    event::{BlockData, BlockDataForHandling, Event, EventForHandling},
+    event::{BlockData, Event, RequestBlockData, RequestEvent},
     BlobReader,
 };
 use alloy::{
@@ -10,8 +10,8 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    router::{Event as RouterEvent, EventForHandling as RouterEventForHandling},
-    BlockEvent, BlockEventForHandling,
+    router::{Event as RouterEvent, RequestEvent as RouterRequestEvent},
+    BlockEvent, BlockRequestEvent,
 };
 use ethexe_ethereum::{
     mirror,
@@ -165,7 +165,7 @@ impl Observer {
         }
     }
 
-    pub fn events_for_handling(&mut self) -> impl Stream<Item = EventForHandling> + '_ {
+    pub fn events_for_handling(&mut self) -> impl Stream<Item = RequestEvent> + '_ {
         async_stream::stream! {
             let block_subscription = self
                 .provider
@@ -203,7 +203,7 @@ impl Observer {
                         // Create futures to load codes
                         // TODO (breathx): remove me from here mb
                         for event in events.iter() {
-                            if let BlockEventForHandling::Router(RouterEventForHandling::CodeValidationRequested { code_id, blob_tx_hash }) = event {
+                            if let BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
                                 codes_len += 1;
 
                                 let blob_reader = self.blob_reader.clone();
@@ -232,7 +232,7 @@ impl Observer {
                             status.pending_upload_code = codes_len as u64;
                         });
 
-                        let block_data = BlockDataForHandling {
+                        let block_data = RequestBlockData {
                             block_hash,
                             parent_hash,
                             block_number,
@@ -240,11 +240,11 @@ impl Observer {
                             events,
                         };
 
-                        yield EventForHandling::Block(block_data);
+                        yield RequestEvent::Block(block_data);
                     },
                     future = futures.next(), if !futures.is_empty() => {
                         match future {
-                            Some(Ok((code_id, code))) => yield EventForHandling::CodeLoaded { code_id, code },
+                            Some(Ok((code_id, code))) => yield RequestEvent::CodeLoaded { code_id, code },
                             Some(Err(err)) => log::error!("failed to handle upload code event: {err}"),
                             None => continue,
                         }
@@ -394,7 +394,7 @@ pub(crate) async fn read_block_events_for_handling(
     block_hash: H256,
     provider: &ObserverProvider,
     router_address: AlloyAddress,
-) -> Result<Vec<BlockEventForHandling>> {
+) -> Result<Vec<BlockRequestEvent>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
     let wvara_address = router_query.wvara_address().await?;
 
@@ -410,7 +410,7 @@ pub(crate) async fn read_block_events_for_handling_batch(
     to_block: u32,
     provider: &ObserverProvider,
     router_address: AlloyAddress,
-) -> Result<HashMap<H256, Vec<BlockEventForHandling>>> {
+) -> Result<HashMap<H256, Vec<BlockRequestEvent>>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
     let wvara_address = router_query.wvara_address().await?;
 
@@ -440,11 +440,11 @@ async fn read_events_for_handling_impl(
     wvara_address: AlloyAddress,
     provider: &ObserverProvider,
     filter: Filter,
-) -> Result<HashMap<H256, Vec<BlockEventForHandling>>> {
+) -> Result<HashMap<H256, Vec<BlockRequestEvent>>> {
     let router_and_wvara_topic = Topic::from_iter(
-        router::events::signatures::FOR_HANDLING
+        router::events::signatures::REQUESTS
             .iter()
-            .chain(wvara::events::signatures::FOR_HANDLING)
+            .chain(wvara::events::signatures::REQUESTS)
             .cloned(),
     );
 
@@ -454,7 +454,7 @@ async fn read_events_for_handling_impl(
         .event_signature(router_and_wvara_topic);
 
     let mirror_filter = filter.event_signature(Topic::from_iter(
-        mirror::events::signatures::FOR_HANDLING.iter().cloned(),
+        mirror::events::signatures::REQUESTS.iter().cloned(),
     ));
 
     let (router_and_wvara_logs, mirrors_logs) = future::try_join(
@@ -507,7 +507,7 @@ async fn read_events_for_handling_impl(
         {
             res.entry(block_hash)
                 .or_default()
-                .push(BlockEventForHandling::mirror(address, event_for_handling));
+                .push(BlockRequestEvent::mirror(address, event_for_handling));
         }
     }
 

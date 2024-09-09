@@ -33,7 +33,7 @@ pub mod signatures {
         APPROVAL: Approval,
     }
 
-    pub const FOR_HANDLING: &[B256] = &[TRANSFER];
+    pub const REQUESTS: &[B256] = &[TRANSFER];
 }
 
 pub fn try_extract_event(log: &Log) -> Result<Option<wvara::Event>> {
@@ -50,13 +50,13 @@ pub fn try_extract_event(log: &Log) -> Result<Option<wvara::Event>> {
     Ok(Some(event))
 }
 
-pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<wvara::EventForHandling>> {
-    if log.topic0().filter(|&v| FOR_HANDLING.contains(v)).is_none() {
+pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<wvara::RequestEvent>> {
+    if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
         return Ok(None);
     }
 
     let event_for_handling = try_extract_event(log)?
-        .and_then(|v| v.as_for_handling())
+        .and_then(|v| v.as_request())
         .expect("filtered above");
 
     Ok(Some(event_for_handling))

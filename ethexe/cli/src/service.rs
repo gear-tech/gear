@@ -25,15 +25,14 @@ use crate::{
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
     router::{
-        BlockCommitment, CodeCommitment, EventForHandling as RouterEventForHandling,
-        StateTransition,
+        BlockCommitment, CodeCommitment, RequestEvent as RouterRequestEvent, StateTransition,
     },
-    BlockEventForHandling,
+    BlockRequestEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::NetworkReceiverEvent;
-use ethexe_observer::{BlockDataForHandling, EventForHandling};
+use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
@@ -247,17 +246,14 @@ impl Service {
 
         for event in events {
             match event {
-                BlockEventForHandling::Router(
-                    RouterEventForHandling::CodeValidationRequested {
-                        code_id,
-                        blob_tx_hash,
-                    },
-                ) => {
+                BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
+                    code_id,
+                    blob_tx_hash,
+                }) => {
                     db.set_code_blob_tx(code_id, blob_tx_hash);
                 }
-                BlockEventForHandling::Router(RouterEventForHandling::ProgramCreated {
-                    code_id,
-                    ..
+                BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
+                    code_id, ..
                 }) => {
                     if db.original_code(code_id).is_some() {
                         continue;
@@ -336,7 +332,7 @@ impl Service {
         db: &Database,
         query: &mut ethexe_observer::Query,
         processor: &mut ethexe_processor::Processor,
-        block_data: BlockDataForHandling,
+        block_data: RequestBlockData,
     ) -> Result<Vec<BlockCommitment>> {
         db.set_block_events(block_data.block_hash, block_data.events);
         db.set_block_header(
@@ -378,14 +374,14 @@ impl Service {
         query: &mut ethexe_observer::Query,
         processor: &mut ethexe_processor::Processor,
         maybe_sequencer: &mut Option<ethexe_sequencer::Sequencer>,
-        observer_event: EventForHandling,
+        observer_event: RequestEvent,
     ) -> Result<(Vec<CodeCommitment>, Vec<BlockCommitment>)> {
         if let Some(sequencer) = maybe_sequencer {
             sequencer.process_observer_event(&observer_event)?;
         }
 
         match observer_event {
-            EventForHandling::Block(block_data) => {
+            RequestEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
                     block_data.block_number,
@@ -398,7 +394,7 @@ impl Service {
 
                 Ok((Vec::new(), commitments))
             }
-            EventForHandling::CodeLoaded { code_id, code } => {
+            RequestEvent::CodeLoaded { code_id, code } => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
                 let commitments: Vec<_> = outcomes
                     .into_iter()
@@ -476,7 +472,7 @@ impl Service {
                         break;
                     };
 
-                    let is_block_event = matches!(observer_event, EventForHandling::Block(_));
+                    let is_block_event = matches!(observer_event, RequestEvent::Block(_));
 
                     let (code_commitments, block_commitments) = Self::process_observer_event(
                         &db,

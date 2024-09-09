@@ -36,16 +36,16 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_for_handling(self) -> Option<EventForHandling> {
+    pub fn as_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::Transfer { from, to, value } => EventForHandling::Transfer { from, to, value },
+            Self::Transfer { from, to, value } => RequestEvent::Transfer { from, to, value },
             Self::Approval { .. } => return None,
         })
     }
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
-pub enum EventForHandling {
+pub enum RequestEvent {
     Transfer {
         /// Never router, wvara or zero address.
         from: ActorId,
@@ -55,7 +55,7 @@ pub enum EventForHandling {
     },
 }
 
-impl EventForHandling {
+impl RequestEvent {
     pub fn involves_address(&self, address: &ActorId) -> bool {
         match self {
             Self::Transfer { from, to, .. } => from == address || to == address,
