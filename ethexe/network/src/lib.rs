@@ -18,6 +18,7 @@
 
 mod custom_connection_limits;
 pub mod db_sync;
+pub mod peer_score;
 mod utils;
 
 pub mod export {
@@ -150,6 +151,7 @@ pub enum NetworkReceiverEvent {
         data: Vec<u8>,
     },
     DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
+    PeerBlocked(PeerId),
 }
 
 pub struct NetworkReceiver {
@@ -249,8 +251,12 @@ impl NetworkEventLoop {
         Ok(identity::Keypair::from(pair))
     }
 
-    pub fn local_peer_id(&self) -> &PeerId {
-        self.swarm.local_peer_id()
+    pub fn local_peer_id(&self) -> PeerId {
+        *self.swarm.local_peer_id()
+    }
+
+    pub fn score_handle(&self) -> peer_score::Handle {
+        self.swarm.behaviour().peer_score.handle()
     }
 
     fn create_swarm(
@@ -318,25 +324,39 @@ impl NetworkEventLoop {
             //
             BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
             //
+            BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
+                peer_id,
+                last_reason: _,
+            }) => {
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::PeerBlocked(peer_id));
+            }
+            BehaviourEvent::PeerScore(_) => {}
+            //
             BehaviourEvent::Ping(ping::Event {
                 peer,
                 connection: _,
                 result,
             }) => {
                 if let Err(e) = result {
-                    log::debug!("Ping to {peer} failed: {e}. Disconnecting...");
+                    log::debug!("ping to {peer} failed: {e}. Disconnecting...");
                     let _res = self.swarm.disconnect_peer_id(peer);
                 }
             }
             //
             BehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+                let behaviour = self.swarm.behaviour_mut();
+
                 if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
                 {
-                    log::debug!("{peer_id} is not supported with `{}` protocol and `{}` agent. Disconnecting...", info.protocol_version, info.agent_version);
-                    let _res = self.swarm.disconnect_peer_id(peer_id);
+                    log::debug!(
+                        "{peer_id} is not supported with `{}` protocol and `{}` agent",
+                        info.protocol_version,
+                        info.agent_version
+                    );
+                    behaviour.peer_score.handle().unsupported_protocol(peer_id);
                 }
-
-                let behaviour = self.swarm.behaviour_mut();
 
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
@@ -345,8 +365,12 @@ impl NetworkEventLoop {
                 }
             }
             BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
-                log::debug!("{peer_id} is not identified: {error}. Disconnecting...");
-                let _res = self.swarm.disconnect_peer_id(peer_id);
+                log::debug!("{peer_id} is not identified: {error}");
+                self.swarm
+                    .behaviour()
+                    .peer_score
+                    .handle()
+                    .unsupported_protocol(peer_id);
             }
             BehaviourEvent::Identify(_) => {}
             //
@@ -395,8 +419,12 @@ impl NetworkEventLoop {
                     .send(NetworkReceiverEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
-                log::debug!("`gossipsub` protocol is not supported. Disconnecting...");
-                let _res = self.swarm.disconnect_peer_id(peer_id);
+                log::debug!("`gossipsub` protocol is not supported");
+                self.swarm
+                    .behaviour()
+                    .peer_score
+                    .handle()
+                    .unsupported_protocol(peer_id);
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
@@ -445,6 +473,8 @@ pub(crate) struct Behaviour {
     pub custom_connection_limits: custom_connection_limits::Behaviour,
     // limit connections
     pub connection_limits: connection_limits::Behaviour,
+    // peer scoring system
+    pub peer_score: peer_score::Behaviour,
     // fast peer liveliness check
     pub ping: ping::Behaviour,
     // friend or foe system
@@ -486,6 +516,9 @@ impl Behaviour {
             .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
+        let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
+        let peer_score_handle = peer_score.handle();
+
         let ping = ping::Behaviour::default();
 
         let identify_config = identify::Config::new(PROTOCOL_VERSION.to_string(), keypair.public())
@@ -520,11 +553,12 @@ impl Behaviour {
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 
-        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), db);
+        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
 
         Ok(Self {
             custom_connection_limits,
             connection_limits,
+            peer_score,
             ping,
             identify,
             mdns4,
@@ -573,7 +607,6 @@ mod tests {
         config2.bootstrap_addresses = [multiaddr].into();
 
         let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
-
         tokio::spawn(service2.event_loop.run());
 
         // Wait for the connection to be established
@@ -650,6 +683,48 @@ mod tests {
             NetworkReceiverEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
                 [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
             )))
+        );
+    }
+
+    #[tokio::test]
+    async fn peer_blocked_by_score() {
+        init_logger();
+
+        let tmp_dir1 = tempfile::tempdir().unwrap();
+        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/5");
+        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
+
+        let peer_id = service1.event_loop.local_peer_id();
+        let multiaddr: Multiaddr = format!("/memory/3/p2p/{peer_id}").parse().unwrap();
+
+        let peer_score_handle = service1.event_loop.score_handle();
+
+        tokio::spawn(service1.event_loop.run());
+
+        // second service
+        let tmp_dir2 = tempfile::tempdir().unwrap();
+        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
+        let mut config2 =
+            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/6");
+        config2.bootstrap_addresses = [multiaddr].into();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
+
+        let service2_peer_id = service2.event_loop.local_peer_id();
+
+        tokio::spawn(service2.event_loop.run());
+
+        // Wait for the connection to be established
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        peer_score_handle.unsupported_protocol(service2_peer_id);
+
+        let event = service1.receiver.recv().await;
+        assert_eq!(
+            event,
+            Some(NetworkReceiverEvent::PeerBlocked(service2_peer_id))
         );
     }
 }
