@@ -242,7 +242,7 @@ impl Service {
         processor: &mut ethexe_processor::Processor,
         block_hash: H256,
     ) -> Result<()> {
-        let events = query.get_block_events_for_handling(block_hash).await?;
+        let events = query.get_block_request_events(block_hash).await?;
 
         for event in events {
             match event {
@@ -290,10 +290,9 @@ impl Service {
 
         Self::process_upload_codes(db, query, processor, block_hash).await?;
 
-        let block_events_for_handling = query.get_block_events_for_handling(block_hash).await?;
+        let block_request_events = query.get_block_request_events(block_hash).await?;
 
-        let block_outcomes =
-            processor.process_block_events(block_hash, block_events_for_handling)?;
+        let block_outcomes = processor.process_block_events(block_hash, block_request_events)?;
 
         let transition_outcomes: Vec<_> = block_outcomes
             .into_iter()
@@ -430,7 +429,7 @@ impl Service {
             ));
         }
 
-        let observer_events = observer.events_for_handling();
+        let observer_events = observer.request_events();
         futures::pin_mut!(observer_events);
 
         let (mut network_sender, mut network_receiver, mut network_handle) =

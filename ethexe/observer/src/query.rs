@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     observer::{
-        read_block_events, read_block_events_for_handling, read_block_events_for_handling_batch,
+        read_block_events, read_block_request_events, read_block_request_events_batch,
         read_code_from_tx_hash, ObserverProvider,
     },
     BlobReader,
@@ -132,7 +132,7 @@ impl Query {
         });
 
         // Fetch events in block range.
-        let mut blocks_events = read_block_events_for_handling_batch(
+        let mut blocks_events = read_block_request_events_batch(
             from_block,
             to_block,
             &self.provider,
@@ -328,7 +328,7 @@ impl Query {
 
                 // Populate block events in db.
                 let events =
-                    read_block_events_for_handling(block_hash, &self.provider, self.router_address)
+                    read_block_request_events(block_hash, &self.provider, self.router_address)
                         .await?;
                 self.database.set_block_events(block_hash, events);
 
@@ -345,7 +345,7 @@ impl Query {
         read_block_events(block_hash, &self.provider, self.router_address).await
     }
 
-    pub async fn get_block_events_for_handling(
+    pub async fn get_block_request_events(
         &mut self,
         block_hash: H256,
     ) -> Result<Vec<BlockRequestEvent>> {
@@ -354,7 +354,7 @@ impl Query {
         }
 
         let events =
-            read_block_events_for_handling(block_hash, &self.provider, self.router_address).await?;
+            read_block_request_events(block_hash, &self.provider, self.router_address).await?;
         self.database.set_block_events(block_hash, events.clone());
 
         Ok(events)

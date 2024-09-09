@@ -79,14 +79,14 @@ pub fn try_extract_event(log: &Log) -> Result<Option<router::Event>> {
     Ok(Some(event))
 }
 
-pub fn try_extract_event_for_handling(log: &Log) -> Result<Option<router::RequestEvent>> {
+pub fn try_extract_request_event(log: &Log) -> Result<Option<router::RequestEvent>> {
     if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
         return Ok(None);
     }
 
-    let event_for_handling = try_extract_event(log)?
+    let request_event = try_extract_event(log)?
         .and_then(|v| v.as_request())
         .expect("filtered above");
 
-    Ok(Some(event_for_handling))
+    Ok(Some(request_event))
 }

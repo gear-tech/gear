@@ -165,7 +165,7 @@ impl Observer {
         }
     }
 
-    pub fn events_for_handling(&mut self) -> impl Stream<Item = RequestEvent> + '_ {
+    pub fn request_events(&mut self) -> impl Stream<Item = RequestEvent> + '_ {
         async_stream::stream! {
             let block_subscription = self
                 .provider
@@ -190,7 +190,7 @@ impl Observer {
                         let block_number = block.header.number;
                         let block_timestamp = block.header.timestamp;
 
-                        let events = match read_block_events_for_handling(block_hash, &self.provider, self.router_address).await {
+                        let events = match read_block_request_events(block_hash, &self.provider, self.router_address).await {
                             Ok(events) => events,
                             Err(err) => {
                                 log::error!("failed to read events: {err}");
@@ -390,7 +390,7 @@ async fn read_events_impl(
 
 // TODO (breathx): only read events that require some activity.
 // TODO (breathx): don't store not our events.
-pub(crate) async fn read_block_events_for_handling(
+pub(crate) async fn read_block_request_events(
     block_hash: H256,
     provider: &ObserverProvider,
     router_address: AlloyAddress,
@@ -400,12 +400,12 @@ pub(crate) async fn read_block_events_for_handling(
 
     let filter = Filter::new().at_block_hash(block_hash.to_fixed_bytes());
 
-    read_events_for_handling_impl(router_address, wvara_address, provider, filter)
+    read_request_events_impl(router_address, wvara_address, provider, filter)
         .await
         .map(|v| v.into_values().next().unwrap_or_default())
 }
 
-pub(crate) async fn read_block_events_for_handling_batch(
+pub(crate) async fn read_block_request_events_batch(
     from_block: u32,
     to_block: u32,
     provider: &ObserverProvider,
@@ -425,7 +425,7 @@ pub(crate) async fn read_block_events_for_handling_batch(
         let filter = Filter::new().from_block(start_block).to_block(end_block);
 
         let iter_res =
-            read_events_for_handling_impl(router_address, wvara_address, provider, filter).await?;
+            read_request_events_impl(router_address, wvara_address, provider, filter).await?;
 
         res.extend(iter_res.into_iter());
 
@@ -435,7 +435,7 @@ pub(crate) async fn read_block_events_for_handling_batch(
     Ok(res)
 }
 
-async fn read_events_for_handling_impl(
+async fn read_request_events_impl(
     router_address: AlloyAddress,
     wvara_address: AlloyAddress,
     provider: &ObserverProvider,
@@ -480,18 +480,16 @@ async fn read_events_for_handling_impl(
     for router_or_wvara_log in router_and_wvara_logs {
         let block_hash = block_hash_of(&router_or_wvara_log)?;
 
-        let maybe_block_event_for_handling = if router_or_wvara_log.address() == router_address {
-            router::events::try_extract_event_for_handling(&router_or_wvara_log)?.map(Into::into)
+        let maybe_block_request_event = if router_or_wvara_log.address() == router_address {
+            router::events::try_extract_request_event(&router_or_wvara_log)?.map(Into::into)
         } else {
-            wvara::events::try_extract_event_for_handling(&router_or_wvara_log)?
+            wvara::events::try_extract_request_event(&router_or_wvara_log)?
                 .filter(|v| !v.involves_addresses(&out_of_scope_addresses))
                 .map(Into::into)
         };
 
-        if let Some(block_event_for_handling) = maybe_block_event_for_handling {
-            res.entry(block_hash)
-                .or_default()
-                .push(block_event_for_handling);
+        if let Some(block_request_event) = maybe_block_request_event {
+            res.entry(block_hash).or_default().push(block_request_event);
         }
     }
 
@@ -502,12 +500,10 @@ async fn read_events_for_handling_impl(
 
         // TODO (breathx): if address is unknown, then continue.
 
-        if let Some(event_for_handling) =
-            mirror::events::try_extract_event_for_handling(&mirror_log)?
-        {
+        if let Some(request_event) = mirror::events::try_extract_request_event(&mirror_log)? {
             res.entry(block_hash)
                 .or_default()
-                .push(BlockRequestEvent::mirror(address, event_for_handling));
+                .push(BlockRequestEvent::mirror(address, request_event));
         }
     }
 
