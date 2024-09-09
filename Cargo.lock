@@ -7039,7 +7039,6 @@ dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
  "chrono",
- "dirs 4.0.0",
  "gear-core",
  "gear-pwasm-utils",
  "gear-wasm-instrument",

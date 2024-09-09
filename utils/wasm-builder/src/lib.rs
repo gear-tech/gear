@@ -23,7 +23,7 @@ pub use gear_wasm_optimizer::{self as optimize, CargoCommand};
 pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 use crate::wasm_project::WasmProject;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
@@ -132,9 +132,6 @@ impl WasmBuilder {
         let profile = if profile == "debug" { "dev" } else { profile };
         self.cargo.set_profile(profile.to_string());
         self.cargo.set_features(&self.enabled_features()?);
-        if env::var("GEAR_WASM_BUILDER_PATH_REMAPPING").is_ok() {
-            self.cargo.set_paths_to_remap(&self.paths_to_remap()?);
-        }
 
         self.cargo.run()?;
         self.wasm_project.postprocess()
@@ -202,25 +199,6 @@ impl WasmBuilder {
             .into_iter()
             .filter(|feature| feature != "gcli")
             .collect())
-    }
-
-    fn paths_to_remap(&self) -> Result<Vec<(PathBuf, &'static str)>> {
-        let home_dir = dirs::home_dir().context("unable to get home directory")?;
-
-        let project_dir = self.wasm_project.original_dir();
-
-        let cargo_dir = std::env::var_os("CARGO_HOME")
-            .map(PathBuf::from)
-            .context("unable to get cargo home directory")?;
-
-        let cargo_checkouts_dir = cargo_dir.join("git").join("checkouts");
-
-        Ok(vec![
-            (home_dir, "/home"),
-            (project_dir, "/code"),
-            (cargo_dir, "/cargo"),
-            (cargo_checkouts_dir, "/deps"),
-        ])
     }
 }
 
