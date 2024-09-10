@@ -108,8 +108,6 @@ impl ExtManager {
         message_id
     }
 
-    // TODO #4120 Charge for task pool processing the gas from gas allowance
-    // TODO #4121
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
         self.gas_allowance = allowance;
         self.blocks_manager.next_block();
