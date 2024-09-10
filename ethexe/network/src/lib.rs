@@ -28,9 +28,10 @@ pub mod export {
 use anyhow::Context;
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
+use futures::future::Either;
 use libp2p::{
     connection_limits,
-    core::upgrade,
+    core::{muxing::StreamMuxerBox, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
@@ -39,7 +40,7 @@ use libp2p::{
         dial_opts::{DialOpts, PeerCondition},
         Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
     },
-    Multiaddr, PeerId, Swarm, SwarmBuilder, Transport,
+    yamux, Multiaddr, PeerId, Swarm, Transport,
 };
 use std::{
     collections::HashSet,
@@ -47,6 +48,7 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
     str::FromStr,
+    time::Duration,
 };
 use tokio::{select, sync::mpsc};
 
@@ -172,7 +174,7 @@ impl NetworkReceiver {
 #[derive(Default, Debug, Clone)]
 pub enum TransportType {
     #[default]
-    Quic,
+    QuicOrTcp,
     Memory,
 }
 
@@ -194,7 +196,7 @@ impl NetworkEventLoopConfig {
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
-            transport_type: TransportType::Quic,
+            transport_type: TransportType::QuicOrTcp,
         }
     }
 
@@ -264,31 +266,36 @@ impl NetworkEventLoop {
         db: Database,
         transport_type: TransportType,
     ) -> anyhow::Result<Swarm<Behaviour>> {
-        match transport_type {
-            TransportType::Quic => Ok(SwarmBuilder::with_existing_identity(keypair)
-                .with_tokio()
-                .with_quic()
-                .with_behaviour(move |keypair| Behaviour::new(keypair, db))?
-                .build()),
+        let transport = match transport_type {
+            TransportType::QuicOrTcp => {
+                let tcp = libp2p::tcp::tokio::Transport::default()
+                    .upgrade(upgrade::Version::V1Lazy)
+                    .authenticate(libp2p::tls::Config::new(&keypair)?)
+                    .multiplex(yamux::Config::default());
 
-            TransportType::Memory => {
-                let transport = libp2p::core::transport::MemoryTransport::default()
-                    .upgrade(upgrade::Version::V1)
-                    .authenticate(libp2p::plaintext::Config::new(&keypair))
-                    .multiplex(libp2p::yamux::Config::default())
-                    .boxed();
-                let behaviour = Behaviour::new(&keypair, db).map_err(|err| anyhow::anyhow!(err))?;
-                let config = SwarmConfig::with_tokio_executor()
-                    .with_substream_upgrade_protocol_override(upgrade::Version::V1);
+                let quic_config = libp2p::quic::Config::new(&keypair);
+                let quic = libp2p::quic::tokio::Transport::new(quic_config);
 
-                Ok(Swarm::new(
-                    transport,
-                    behaviour,
-                    keypair.public().to_peer_id(),
-                    config,
-                ))
+                quic.or_transport(tcp)
+                    .map(|either_output, _| match either_output {
+                        Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+                        Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+                    })
+                    .boxed()
             }
-        }
+            TransportType::Memory => libp2p::core::transport::MemoryTransport::default()
+                .upgrade(upgrade::Version::V1Lazy)
+                .authenticate(libp2p::plaintext::Config::new(&keypair))
+                .multiplex(yamux::Config::default())
+                .timeout(Duration::from_secs(60))
+                .boxed(),
+        };
+
+        let behaviour = Behaviour::new(&keypair, db)?;
+        let local_peer_id = keypair.public().to_peer_id();
+        let config = SwarmConfig::with_tokio_executor();
+
+        Ok(Swarm::new(transport, behaviour, local_peer_id, config))
     }
 
     pub async fn run(mut self) {
@@ -491,10 +498,7 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    fn new(
-        keypair: &identity::Keypair,
-        db: Database,
-    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    fn new(keypair: &identity::Keypair, db: Database) -> anyhow::Result<Self> {
         let peer_id = keypair.public().to_peer_id();
 
         // we use custom behaviour because
