@@ -271,7 +271,8 @@ impl NetworkEventLoop {
                 let tcp = libp2p::tcp::tokio::Transport::default()
                     .upgrade(upgrade::Version::V1Lazy)
                     .authenticate(libp2p::tls::Config::new(&keypair)?)
-                    .multiplex(yamux::Config::default());
+                    .multiplex(yamux::Config::default())
+                    .timeout(Duration::from_secs(20));
 
                 let quic_config = libp2p::quic::Config::new(&keypair);
                 let quic = libp2p::quic::tokio::Transport::new(quic_config);
@@ -287,7 +288,6 @@ impl NetworkEventLoop {
                 .upgrade(upgrade::Version::V1Lazy)
                 .authenticate(libp2p::plaintext::Config::new(&keypair))
                 .multiplex(yamux::Config::default())
-                .timeout(Duration::from_secs(60))
                 .boxed(),
         };
 
