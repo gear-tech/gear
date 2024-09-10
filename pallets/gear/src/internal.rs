@@ -1072,7 +1072,6 @@ where
             // Permanently transferring funds.
             // Note that we have no guarantees of the user account to exist. Since no minimum
             // transfer value is enforced, the transfer can fail. Handle it gracefully.
-            // TODO #4018 Introduce a safer way to handle this.
             GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
                 // errors are ruled out by the protocol guarantees.
                 let err_msg =

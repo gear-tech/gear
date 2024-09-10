@@ -15707,7 +15707,8 @@ fn dust_in_message_to_user_handled_ok() {
 
         run_to_block(3, None);
 
-        // USER_1 account doesn't receive the funds; instead, the dust handler kicks in.
+        // USER_1 account doesn't receive the funds; instead, the value is below ED so
+        // account dies and value goes to UnusedValue
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
         assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
 
