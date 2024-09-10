@@ -49,6 +49,7 @@ use gear_core::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
+    gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -64,7 +65,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
@@ -116,7 +117,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 333_333_333, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 600_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -6510,7 +6511,8 @@ fn terminated_locking_funds() {
         let gas_for_code_len = read_cost;
         let gas_for_program = read_cost;
         let gas_for_code = schedule
-            .db_read_per_byte
+            .db_weights
+            .read_per_byte
             .ref_time()
             .saturating_mul(code_length)
             .saturating_add(read_cost);
@@ -8012,7 +8014,8 @@ fn gas_spent_precalculated() {
             let instrumented_prog = get_program_code(pid);
             let code_len = instrumented_prog.code().len() as u64;
             let gas_for_code_read = schedule
-                .db_read_per_byte
+                .db_weights
+                .read_per_byte
                 .ref_time()
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
@@ -13524,20 +13527,6 @@ fn relay_messages() {
                     destination: USER_3.into(),
                     start: Some(2),
                     end: Some((0, true)),
-                },
-            ]),
-            Expected {
-                user: USER_3,
-                payload: vec![],
-            },
-        ),
-        (
-            RelayCall::ResendPush(vec![
-                // invalid range
-                ResendPushData {
-                    destination: USER_3.into(),
-                    start: Some(payload.len() as u32),
-                    end: Some((0, false)),
                 },
             ]),
             Expected {

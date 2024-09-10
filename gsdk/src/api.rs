@@ -17,18 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, Result,
-    TxInBlock,
+    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, TxInBlock,
 };
+use anyhow::Result;
 use core::ops::{Deref, DerefMut};
-use std::result::Result as StdResult;
-use subxt::{Error, OnlineClient};
+use subxt::OnlineClient;
+
+const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
+const DEFAULT_TIMEOUT_MILLISECS: u64 = 60_000;
+const DEFAULT_RETRIES: u8 = 0;
 
 /// Gear api wrapper.
 #[derive(Clone)]
 pub struct Api {
-    /// How many times we'll retry when rpc requests failed.
-    pub retry: u16,
+    /// Substrate client
     client: OnlineClient<GearConfig>,
 
     /// Gear RPC client
@@ -37,34 +39,18 @@ pub struct Api {
 
 impl Api {
     /// Create new API client.
-    pub async fn new(url: impl Into<Option<&str>>) -> Result<Self> {
-        Self::new_with_timeout(url.into(), None).await
+    pub async fn new(uri: impl Into<Option<&str>>) -> Result<Self> {
+        Self::builder().build(uri).await
+    }
+
+    /// Resolve api builder
+    pub fn builder() -> ApiBuilder {
+        ApiBuilder::default()
     }
 
     /// Gear RPC Client
     pub fn rpc(&self) -> Rpc {
         self.rpc.clone()
-    }
-
-    /// Create new API client with timeout.
-    pub async fn new_with_timeout(
-        url: impl Into<Option<&str>>,
-        timeout: impl Into<Option<u64>>,
-    ) -> Result<Self> {
-        let rpc = Rpc::new(url, timeout).await?;
-
-        Ok(Self {
-            // Retry our failed RPC requests for 5 times by default.
-            retry: 5,
-            client: OnlineClient::from_rpc_client(rpc.client()).await?,
-            rpc,
-        })
-    }
-
-    /// Setup retry times and return the API instance.
-    pub fn with_retry(mut self, retry: u16) -> Self {
-        self.retry = retry;
-        self
     }
 
     /// Subscribe all blocks
@@ -108,8 +94,8 @@ impl Api {
         tx.fetch_events()
             .await?
             .iter()
-            .map(|e| -> StdResult<Event, Error> { e?.as_root_event::<Event>() })
-            .collect::<StdResult<Vec<Event>, Error>>()
+            .map(|e| -> Result<Event> { e?.as_root_event::<Event>().map_err(Into::into) })
+            .collect::<Result<Vec<Event>>>()
             .map_err(Into::into)
     }
 
@@ -122,7 +108,7 @@ impl Api {
 
     /// New signer from api
     pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd)
+        Signer::new(self, suri, passwd).map_err(Into::into)
     }
 }
 
@@ -137,5 +123,52 @@ impl Deref for Api {
 impl DerefMut for Api {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.client
+    }
+}
+
+/// gsdk api builder
+pub struct ApiBuilder {
+    /// RPC retries
+    retries: u8,
+    /// RPC timeout
+    timeout: u64,
+}
+
+impl ApiBuilder {
+    /// Build api from the provided config
+    pub async fn build(self, uri: impl Into<Option<&str>>) -> Result<Api> {
+        let uri: Option<&str> = uri.into();
+        let rpc = Rpc::new(
+            uri.unwrap_or(DEFAULT_GEAR_ENDPOINT),
+            self.timeout,
+            self.retries,
+        )
+        .await?;
+
+        Ok(Api {
+            client: OnlineClient::from_rpc_client(rpc.client()).await?,
+            rpc,
+        })
+    }
+
+    /// Set rpc retries
+    pub fn retries(mut self, retries: u8) -> Self {
+        self.retries = retries;
+        self
+    }
+
+    /// Set rpc timeout in milliseconds
+    pub fn timeout(mut self, timeout: u64) -> Self {
+        self.timeout = timeout;
+        self
+    }
+}
+
+impl Default for ApiBuilder {
+    fn default() -> Self {
+        Self {
+            retries: DEFAULT_RETRIES,
+            timeout: DEFAULT_TIMEOUT_MILLISECS,
+        }
     }
 }

@@ -20,7 +20,7 @@ use gsdk::Api;
 
 #[tokio::test]
 async fn timeout() {
-    let error = Api::new_with_timeout(None, 0).await.err();
+    let error = Api::builder().timeout(0).build(None).await.err();
     // NOTE:
     //
     // There are two kinds of timeout error provided by subxt:

@@ -21,12 +21,13 @@ use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstU32, FindAuthor},
     weights::constants::RocksDbWeight,
+    PalletId,
 };
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage,
+    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 
 pub type AccountId = u8;
@@ -64,6 +65,9 @@ parameter_types! {
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
+    // TODO: Issue #4058
+    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
+    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 construct_runtime!(

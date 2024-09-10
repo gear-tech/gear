@@ -21,6 +21,7 @@ pub mod error;
 pub mod listener;
 mod rpc;
 pub mod storage;
+pub mod voucher;
 
 use crate::{ws::WSAddress, EventListener};
 use error::*;
@@ -28,7 +29,7 @@ use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
-    Api,
+    Api, ApiBuilder,
 };
 use std::{ffi::OsStr, sync::Arc};
 
@@ -37,6 +38,11 @@ use std::{ffi::OsStr, sync::Arc};
 pub struct GearApi(Signer, Option<Arc<NodeInstance>>);
 
 impl GearApi {
+    /// Create api builder
+    pub fn builder() -> GearApiBuilder {
+        GearApiBuilder::default()
+    }
+
     /// Create and init a new `GearApi` specified by its `address` on behalf of
     /// the default `Alice` user.
     pub async fn init(address: WSAddress) -> Result<Self> {
@@ -50,17 +56,7 @@ impl GearApi {
     /// etc.). The password for URI should be specified in the same `suri`,
     /// separated by the `':'` char.
     pub async fn init_with(address: WSAddress, suri: impl AsRef<str>) -> Result<Self> {
-        let mut suri = suri.as_ref().splitn(2, ':');
-
-        Api::new(address.url().as_str())
-            .await
-            .and_then(|api| {
-                Ok(Self(
-                    api.signer(suri.next().expect("Infallible"), suri.next())?,
-                    None,
-                ))
-            })
-            .map_err(Into::into)
+        Self::builder().suri(suri).build(address).await
     }
 
     /// Change SURI to the provided `suri` and return `Self`.
@@ -198,5 +194,53 @@ impl From<(Api, sr25519::Pair)> for GearApi {
 impl From<GearApi> for Signer {
     fn from(api: GearApi) -> Self {
         api.0
+    }
+}
+
+/// Gear API builder
+pub struct GearApiBuilder {
+    /// gsdk api builder
+    inner: ApiBuilder,
+    /// suri for keypair
+    suri: String,
+}
+
+impl GearApiBuilder {
+    /// Set retries of rpc client
+    pub fn retries(mut self, retries: u8) -> Self {
+        self.inner = self.inner.retries(retries);
+        self
+    }
+
+    /// Set timeout of rpc client ( in milliseconds )
+    pub fn timeout(mut self, timeout: u64) -> Self {
+        self.inner = self.inner.timeout(timeout);
+        self
+    }
+
+    /// Set initial suri for keypiar
+    pub fn suri(mut self, suri: impl AsRef<str>) -> Self {
+        self.suri = suri.as_ref().into();
+        self
+    }
+
+    /// Build gear api
+    pub async fn build(self, address: WSAddress) -> Result<GearApi> {
+        let mut suri = self.suri.splitn(2, ':');
+        let api = self.inner.build(address.url().as_str()).await?;
+
+        Ok(GearApi(
+            api.signer(suri.next().expect("Infallible"), suri.next())?,
+            None,
+        ))
+    }
+}
+
+impl Default for GearApiBuilder {
+    fn default() -> Self {
+        Self {
+            suri: "//Alice".into(),
+            inner: ApiBuilder::default(),
+        }
     }
 }

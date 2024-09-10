@@ -4,14 +4,13 @@ description = "Gear programs standard library"
 documentation = "https://docs.rs/gstd"
 keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
 categories = ["api-bindings"]
-# Stable version of Rust >=1.73 is required due to new format of panic message.
-rust-version = "1.73"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false, optional = true }
@@ -53,27 +52,26 @@ panic-message = ["panic-handler", "arrayvec"]
 ## because it displays the code path.
 panic-location = ["panic-message"]
 
-#! ## Nightly features
-#!
-#! The `panic-message` and `panic-location` features gets additional
-#! optimizations when using the nightly compiler.
-#!
 #! For example, if you don't use the `panic-location` feature, the compiler
 #! will remove all locations such as `/home/username/dapp/src/lib.rs:1:2`
 #! from the binary. The size of program will be reduced and
 #! `/home/username/...` information will not be included in the binary.
 
+#! ## Nightly features
+#!
+#! The final binary gets additional optimizations when using the nightly compiler.
+
 ## Enables all features below.
 ## These features depend on unstable Rust API and require nightly toolchain.
-nightly = ["panic-info-message", "oom-handler"]
-## When enabled, a panic handler will use a more efficient implementation.
-## Relies on [`panic_info_message`][rust-66745].
-panic-info-message = []
+nightly = ["oom-handler"]
 ## When enabled, an OOM error handler is provided.
-## Relies on [`alloc_error_handler`][rust-51540],
+## Relies on [`alloc_error_handler`][rust-51540].
 oom-handler = []
 
 #! ## Additional features
+
+## Disables unsupported syscalls and their calls for executing on ethexe.
+ethexe = ["gcore/ethexe", "gstd-codegen/ethexe"]
 
 ## Enables debug logging; this heavily impacts gas cost
 ## and is therefore disabled by default.

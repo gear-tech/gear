@@ -65,13 +65,13 @@ macro_rules! impl_pallet_balances_inner {
     };
 }
 
-pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+pub const NORMAL_DISPATCH_WEIGHT_RATIO: Perbill = Perbill::from_percent(75);
 pub const MAX_BLOCK: u64 = 250_000_000_000;
 
 frame_support::parameter_types! {
     pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
         Weight::from_parts(MAX_BLOCK, u64::MAX),
-        NORMAL_DISPATCH_RATIO,
+        NORMAL_DISPATCH_WEIGHT_RATIO,
     );
     pub const SS58Prefix: u8 = 42;
     pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1_110, write: 2_300 };
@@ -251,7 +251,7 @@ macro_rules! impl_pallet_staking_inner {
             // 8 eras for unbonding
             pub const BondingDuration: u32 = 8;
             pub const SlashDeferDuration: u32 = 7;
-            pub const MaxExposurePageSize: u32 = 512;
+            pub const MaxExposurePageSize: u32 = 256;
             pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
             pub const HistoryDepth: u32 = 84;
             pub const MaxNominations: u32 = 16;

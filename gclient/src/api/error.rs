@@ -42,6 +42,9 @@ pub enum Error {
     /// A wrapper around [`subxt::error::Error`].
     #[error(transparent)]
     Subxt(SubxtError),
+    /// Subxt core error
+    #[error(transparent)]
+    SubxtCore(#[from] subxt::ext::subxt_core::Error),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,

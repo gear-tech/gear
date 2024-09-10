@@ -18,9 +18,9 @@
 
 //! ethexe common db types and traits.
 
-use crate::{events::BlockEvent, StateTransition};
+use crate::{router::StateTransition, BlockRequestEvent};
 use alloc::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
 };
 use gear_core::{
@@ -65,11 +65,14 @@ pub trait BlockMetaStorage: Send + Sync {
     fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
 
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
-    fn set_block_events(&self, block_hash: H256, events: Vec<BlockEvent>);
+    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockRequestEvent>>;
+    fn set_block_events(&self, block_hash: H256, events: Vec<BlockRequestEvent>);
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
+
+    fn latest_valid_block_height(&self) -> Option<u32>;
+    fn set_latest_valid_block_height(&self, block_height: u32);
 }
 
 pub trait CodesStorage: Send + Sync {
@@ -78,10 +81,14 @@ pub trait CodesStorage: Send + Sync {
 
     fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId>;
     fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId);
+    fn program_ids(&self) -> BTreeSet<ProgramId>;
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 
-    fn code_upload_info(&self, code_id: CodeId) -> Option<CodeUploadInfo>;
-    fn set_code_upload_info(&self, code_id: CodeId, info: CodeUploadInfo);
+    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256>;
+    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256);
+
+    fn code_valid(&self, code_id: CodeId) -> Option<bool>;
+    fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }

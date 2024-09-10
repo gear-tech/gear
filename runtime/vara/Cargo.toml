@@ -46,7 +46,7 @@ pallet-proxy.workspace = true
 pallet-ranked-collective.workspace = true
 pallet-referenda.workspace = true
 pallet-scheduler.workspace = true
-pallet-session = { workspace = true, features = [ "historical" ] }
+pallet-session = { workspace = true, features = ["historical"] }
 pallet-staking.workspace = true
 pallet-staking-runtime-api.workspace = true
 pallet-sudo = { workspace = true, optional = true }
@@ -97,11 +97,13 @@ pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
 pallet-gear-payment.workspace = true
 pallet-gear-builtin.workspace = true
+pallet-gear-eth-bridge = { workspace = true, optional = true }
 pallet-gear-staking-rewards.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 pallet-gear-builtin-rpc-runtime-api.workspace = true
+pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 gbuiltin-staking.workspace = true
 
@@ -110,8 +112,10 @@ sp-io.workspace = true
 sp-keyring.workspace = true
 env_logger.workspace = true
 wat.workspace = true
+gear-core.workspace = true
 gear-core-processor.workspace = true
-gear-lazy-pages-common.workspace = true
+gwasm-instrument.workspace = true
+wabt.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -122,9 +126,9 @@ default = ["std"]
 std = [
 	"parity-scale-codec/std",
 	"common/std",
- 	"frame-try-runtime?/std",
- 	"frame-system-benchmarking?/std",
- 	"frame-benchmarking?/std",
+	"frame-try-runtime?/std",
+	"frame-system-benchmarking?/std",
+	"frame-benchmarking?/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-election-provider-support/std",
@@ -148,10 +152,12 @@ std = [
 	"pallet-gear-payment/std",
 	"pallet-gear-program/std",
 	"pallet-gear-builtin/std",
+	"pallet-gear-eth-bridge?/std",
 	"pallet-gear-staking-rewards/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"pallet-gear-staking-rewards-rpc-runtime-api/std",
 	"pallet-gear-builtin-rpc-runtime-api/std",
+	"pallet-gear-eth-bridge-rpc-runtime-api/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",
@@ -205,10 +211,11 @@ runtime-benchmarks = [
 	"hex-literal",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
-  	"pallet-utility/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-voucher/runtime-benchmarks",
 	"pallet-gear-builtin/runtime-benchmarks",
+	"pallet-gear-eth-bridge?/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
@@ -216,9 +223,7 @@ runtime-benchmarks = [
 	"pallet-ranked-collective/runtime-benchmarks",
 	"pallet-referenda/runtime-benchmarks",
 ]
-runtime-benchmarks-checkers = [
-	"pallet-gear/runtime-benchmarks-checkers",
-]
+runtime-benchmarks-checkers = ["pallet-gear/runtime-benchmarks-checkers"]
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
@@ -233,6 +238,7 @@ try-runtime = [
 	"pallet-gear-bank/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
 	"pallet-gear-builtin/try-runtime",
+	"pallet-gear-eth-bridge?/try-runtime",
 	"pallet-gear-voucher/try-runtime",
 	"pallet-gear-debug?/try-runtime",
 	"pallet-authority-discovery/try-runtime",
@@ -268,12 +274,5 @@ try-runtime = [
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
-fuzz = [
-	"common/fuzz",
-	"pallet-gear/fuzz",
-	"pallet-gear-gas/fuzz"
-]
-dev = [
-	"pallet-gear-debug",
-	"pallet-sudo",
-]
+fuzz = ["common/fuzz", "pallet-gear/fuzz", "pallet-gear-gas/fuzz"]
+dev = ["pallet-gear-debug", "pallet-gear-eth-bridge", "pallet-sudo"]

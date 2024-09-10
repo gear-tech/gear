@@ -35,7 +35,7 @@ mod wasm;
 mod tests {
     use alloc::vec::Vec;
     use gstd::ActorId;
-    use gtest::{Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
     #[test]
     fn auto_reply_received() {
@@ -45,20 +45,22 @@ mod tests {
         let prog1 = Program::current(&system);
         let prog1_id = ActorId::try_from(prog1.id().as_ref()).unwrap();
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
         // Init Program-1
-        let res = prog1.send(from, ActorId::zero());
-        assert!(!res.main_failed());
+        let init_msg1 = prog1.send(from, ActorId::zero());
 
         // Init Program-2 with Program-1 as destination
         let prog2 = Program::current(&system);
-        let res = prog2.send(from, prog1_id);
-        assert!(!res.main_failed());
+        let init_msg2 = prog2.send(from, prog1_id);
 
         // Send a message from Program-2 to Program-1
-        let res = prog2.send_bytes(from, b"Let's go!");
-        assert!(!res.main_failed());
+        let msg3 = prog2.send_bytes(from, b"Let's go!");
+
+        let res = system.run_next_block();
+        for msg in [init_msg1, init_msg2, msg3] {
+            assert!(res.succeed.contains(&msg));
+        }
 
         // Check whether the auto-reply was received
         let reply_received: bool = prog2

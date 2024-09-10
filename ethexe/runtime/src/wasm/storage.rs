@@ -23,9 +23,7 @@ use ethexe_runtime_common::{
     state::{Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist},
     RuntimeInterface,
 };
-use gear_core::{
-    memory::PageBuf, message::Payload, pages::GearPage, reservation::GasReservationMap,
-};
+use gear_core::{memory::PageBuf, message::Payload, pages::GearPage};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
@@ -34,10 +32,6 @@ pub struct RuntimeInterfaceStorage;
 
 impl Storage for RuntimeInterfaceStorage {
     fn read_allocations(&self, hash: H256) -> Option<Allocations> {
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn read_gas_reservation_map(&self, hash: H256) -> Option<GasReservationMap> {
         database_ri::read_unwrapping(&hash)
     }
 
@@ -59,6 +53,10 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
+        if hash.is_zero() {
+            return Some(ProgramState::zero());
+        }
+
         database_ri::read_unwrapping(&hash)
     }
 
@@ -68,10 +66,6 @@ impl Storage for RuntimeInterfaceStorage {
 
     fn write_allocations(&self, allocations: Allocations) -> H256 {
         database_ri::write(allocations)
-    }
-
-    fn write_gas_reservation_map(&self, gas_reservation_map: GasReservationMap) -> H256 {
-        database_ri::write(gas_reservation_map)
     }
 
     fn write_page_data(&self, data: PageBuf) -> H256 {
@@ -91,6 +85,10 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
+        if state.is_zero() {
+            return H256::zero();
+        }
+
         database_ri::write(state)
     }
 

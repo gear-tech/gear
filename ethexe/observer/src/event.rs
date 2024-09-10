@@ -1,11 +1,26 @@
-use ethexe_common::events::BlockEvent;
-use gprimitives::{ActorId, CodeId, H256};
+use ethexe_common::{BlockEvent, BlockRequestEvent};
+use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Debug, Clone, Encode, Decode)]
+pub enum RequestEvent {
+    Block(RequestBlockData),
+    CodeLoaded { code_id: CodeId, code: Vec<u8> },
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum Event {
-    CodeLoaded(CodeLoadedData),
     Block(BlockData),
+    CodeLoaded { code_id: CodeId, code: Vec<u8> },
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct RequestBlockData {
+    pub parent_hash: H256,
+    pub block_hash: H256,
+    pub block_number: u64,
+    pub block_timestamp: u64,
+    pub events: Vec<BlockRequestEvent>,
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
@@ -15,11 +30,4 @@ pub struct BlockData {
     pub block_number: u64,
     pub block_timestamp: u64,
     pub events: Vec<BlockEvent>,
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct CodeLoadedData {
-    pub origin: ActorId,
-    pub code_id: CodeId,
-    pub code: Vec<u8>,
 }

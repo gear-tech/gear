@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
-use gear_core::code::{Code, CodeError, InstrumentedCode};
-use gear_wasm_instrument::gas_metering::Schedule;
+use gear_core::{
+    code::{Code, CodeError, InstrumentedCode},
+    gas_metering::Schedule,
+};
 
 // TODO: impl Codec for CodeError, so could be thrown to host via memory.
 pub fn instrument_code(original_code: Vec<u8>) -> Option<InstrumentedCode> {

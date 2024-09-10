@@ -24,7 +24,7 @@ pub struct Handler<'a, S: Storage> {
     pub storage: &'a S,
     pub block_info: BlockInfo,
     // TODO: replace with something reasonable.
-    pub results: BTreeMap<ActorId, (H256, H256)>,
+    pub results: BTreeMap<ActorId, H256>,
     pub to_users_messages: Vec<Message>,
 }
 
@@ -39,20 +39,16 @@ impl<S: Storage> Handler<'_, S> {
             .program_states
             .get_mut(&program_id)
             .expect("Program does not exist");
+
         let program_state = self
             .storage
             .read_state(*state_hash)
             .expect("Failed to read state");
 
-        let initial_state = *state_hash;
-
         if let Some(program_new_state) = f(program_state, self.storage) {
             *state_hash = self.storage.write_state(program_new_state);
 
-            self.results
-                .entry(program_id)
-                .and_modify(|v| v.1 = *state_hash)
-                .or_insert_with(|| (initial_state, *state_hash));
+            self.results.insert(program_id, *state_hash);
         }
     }
 
@@ -82,7 +78,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             DispatchOutcome::Exit { .. } => todo!(),
             DispatchOutcome::InitSuccess { program_id } => {
                 log::trace!("Dispatch {message_id} init success for program {program_id}");
-                self.update_program(program_id, |mut state, _| match &mut state.state {
+                self.update_program(program_id, |mut state, _| match &mut state.program {
                     state::Program::Active(program) => {
                         program.initialized = true;
                         Some(state)
@@ -100,13 +96,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 );
                 self.update_program(program_id, |state, _| {
                     Some(ProgramState {
-                        state: state::Program::Terminated(origin),
+                        program: state::Program::Terminated(origin),
                         ..state
                     })
                 });
                 // TODO: return gas reservations
             }
-            DispatchOutcome::MessageTrap { .. } => todo!(),
+            DispatchOutcome::MessageTrap { trap, .. } => {
+                todo!("message trap handling is not yet implemented, but got: {trap}")
+            }
             DispatchOutcome::Success => {
                 // TODO: Implement
             }
@@ -124,7 +122,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         self.update_program(id_exited, |state, _| {
             Some(ProgramState {
-                state: state::Program::Exited(value_destination),
+                program: state::Program::Exited(value_destination),
                 ..state
             })
         });
@@ -156,11 +154,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         reservation: Option<ReservationId>,
     ) {
         if reservation.is_some() {
-            todo!()
+            unreachable!("deprecated");
         }
 
         if delay != 0 {
-            todo!()
+            todo!("delayed sending isn't supported yet");
         }
 
         if !self.program_states.contains_key(&dispatch.destination()) {
@@ -170,6 +168,10 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         let (kind, message) = dispatch.into_parts();
         let (id, source, destination, payload, gas_limit, value, details) = message.into_parts();
+
+        if gas_limit.is_some() {
+            unreachable!("gas limit should always be None for ethexe");
+        }
 
         let payload_hash = self.storage.write_payload(payload).into();
 
@@ -182,7 +184,6 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 kind,
                 source,
                 payload_hash,
-                gas_limit: gas_limit.unwrap_or(100_000_000_000), // TODO
                 value,
                 details,
                 context: None,
@@ -217,7 +218,6 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             kind,
             source,
             payload_hash,
-            gas_limit: 100_000_000_000, // TODO
             value,
             details,
             context,
@@ -325,7 +325,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         }
 
         self.update_program(program_id, |state, storage| {
-            let state::Program::Active(mut active_state) = state.state else {
+            let state::Program::Active(mut active_state) = state.program else {
                 return None;
             };
 
@@ -343,7 +343,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             };
 
             Some(ProgramState {
-                state: state::Program::Active(changed_active_state),
+                program: state::Program::Active(changed_active_state),
                 ..state
             })
         });
@@ -370,45 +370,31 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         todo!()
     }
 
-    fn reserve_gas(
-        &mut self,
-        message_id: MessageId,
-        reservation_id: ReservationId,
-        program_id: ProgramId,
-        amount: u64,
-        bn: u32,
-    ) {
-        todo!()
+    fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ProgramId, _: u64, _: u32) {
+        unreachable!("deprecated");
     }
 
-    fn unreserve_gas(
-        &mut self,
-        reservation_id: ReservationId,
-        program_id: ProgramId,
-        expiration: u32,
-    ) {
-        todo!()
+    fn unreserve_gas(&mut self, _: ReservationId, _: ProgramId, _: u32) {
+        unreachable!("deprecated");
     }
 
-    fn update_gas_reservation(&mut self, _program_id: ProgramId, _reserver: GasReserver) {
-        // TODO: Implement
+    fn update_gas_reservation(&mut self, _: ProgramId, _: GasReserver) {
+        unreachable!("deprecated");
     }
 
-    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        log::trace!("System reserve gas {amount} for {message_id}")
-        // TODO: Implement
+    fn system_reserve_gas(&mut self, _: MessageId, _: u64) {
+        unreachable!("deprecated");
     }
 
-    fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        log::trace!("System unreserve gas for {message_id}")
-        // TODO: Implement
+    fn system_unreserve_gas(&mut self, _: MessageId) {
+        unreachable!("deprecated");
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
-        todo!()
+    fn send_signal(&mut self, _: MessageId, _: ProgramId, _: SignalCode) {
+        unreachable!("deprecated");
     }
 
-    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
-        todo!()
+    fn reply_deposit(&mut self, _: MessageId, _: MessageId, _: u64) {
+        unreachable!("deprecated");
     }
 }

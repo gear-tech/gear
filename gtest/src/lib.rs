@@ -113,6 +113,9 @@
 //! mod tests {
 //!     use gtest::{Log, Program, System};
 //!
+//!     // Alternatively, you can use the default users from `gtest::constants`:
+//!     // `DEFAULT_USER_ALICE`, `DEFAULT_USER_BOB`, `DEFAULT_USER_CHARLIE`, `DEFAULT_USER_EVE`.
+//!     // The full list of default users can be obtained with `gtest::constants::default_users_list`.
 //!     const USER_ID: u64 = 100001;
 //!
 //!     #[test]
@@ -123,14 +126,21 @@
 //!         // Initialization of the current program structure.
 //!         let prog = Program::current(&sys);
 //!
+//!         // Provide user with some balance.
+//!         sys.mint_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
+//!
 //!         // Send an init message to the program.
-//!         let res = prog.send_bytes(USER_ID, b"Doesn't matter");
+//!         let init_message_id = prog.send_bytes(USER_ID, b"Doesn't matter");
+//!
+//!         // Run execution of the block which will contain `init_message_id`
+//!         let block_run_result = sys.run_next_block();
 //!
 //!         // Check whether the program was initialized successfully.
-//!         assert!(!res.main_failed());
+//!         assert!(block_run_result.succeed.contains(&init_message_id));
 //!
 //!         // Send a handle message to the program.
-//!         let res = prog.send_bytes(USER_ID, b"PING");
+//!         let handle_message_id = prog.send_bytes(USER_ID, b"PING");
+//!         let block_run_result = sys.run_next_block();
 //!
 //!         // Check the result of the program execution.
 //!         // 1. Create a log pattern with the expected result.
@@ -140,10 +150,10 @@
 //!             .payload_bytes(b"PONG");
 //!
 //!         // 2. Check whether the program was executed successfully.
-//!         assert!(!res.main_failed());
+//!         assert!(block_run_result.succeed.contains(&handle_message_id));
 //!
 //!         // 3. Make sure the log entry is in the result.
-//!         assert!(res.contains(&log));
+//!         assert!(block_run_result.contains(&log));
 //!     }
 //! }
 //! ```
@@ -247,6 +257,30 @@
 //! RUST_LOG="target_1=logging_level,target_2=logging_level" cargo test
 //! ```
 //!
+//! ## Pre-requisites for sending a message
+//!
+//! Prior to sending a message, it is necessary to mint sufficient balance for
+//! the sender to ensure coverage of the existential deposit and gas costs.
+//!
+//! ```no_run
+//! # use gtest::constants::EXISTENTIAL_DEPOSIT;
+//! # let sys = gtest::System::new();
+//! let user_id = 42;
+//! sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 1000);
+//! ```
+//!
+//! Alternatively, you can use the default users from `gtest::constants`, which
+//! have a preallocated balance, as the message sender.
+//!
+//! ```no_run
+//! # use gtest::constants::DEFAULT_USERS_INITIAL_BALANCE;
+//! # let sys = gtest::System::new();
+//! assert_eq!(
+//!     sys.balance_of(gtest::constants::DEFAULT_USER_ALICE),
+//!     DEFAULT_USERS_INITIAL_BALANCE
+//! );
+//! ```
+//!
 //! ## Sending messages
 //!
 //! To send message to the program need to call one of two program's functions:
@@ -279,22 +313,29 @@
 //!
 //! ## Processing the result of the program execution
 //!
-//! Any sending functions in the lib returns [`RunResult`] structure.
+//! Any sending functions in the lib returns an id of the sent message.
+//!
+//! In order to actually get the result of the program execution the block
+//! execution should be triggered (see "Block execution model" section).
+//! Block execution function returns the result of the block run
+//! ([`BlockRunResult`])
 //!
 //! It contains the final result of the processing message and others, which
 //! were created during the execution.
 //!
-//! It has 4 main functions:
+//! It has 2 main functions:
 //!
-//! - [`RunResult::log`] — returns the reference to the Vec produced to users
-//!   messages. You may assert them as you wish, iterating through them.
-//! - [`RunResult::main_failed`] — returns bool which shows that there was panic
-//!   during the execution of the main message.
-//! - [`RunResult::others_failed`] — returns bool which shows that there was
-//!   panic during the execution of the created messages during the main
-//!   execution. Equals false if no others were called.
-//! - [`RunResult::contains`] — returns bool which shows that logs contain a
-//!   given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
+//! - [`BlockRunResult::log`] — returns the reference to the Vec produced to
+//!   users messages. You may assert them as you wish, iterating through them.
+//! - [`BlockRunResult::contains`] — returns bool which shows that logs contain
+//!   a given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
+//!
+//! Fields of the type are public, and some of them can be really useful:
+//!
+//! - field `succeed` is a set of ids of messages that were successfully
+//!   executed.
+//! - field `failed` is a set of ids of messages that failed during the
+//!   execution.
 //!
 //! To build a log for assertion you need to use [`Log`] structure with its
 //! builders. All fields here are optional. Assertion with `Log`s from core are
@@ -332,18 +373,31 @@
 //! assert_eq!(y, y_from);
 //! ```
 //!
-//! ## Spending blocks
+//! ## Blocks execution model
 //!
-//! You may control time in the system by spending blocks.
+//! Block execution has 2 main step:
+//! - tasks processing
+//! - messages processing
 //!
-//! It adds the amount of blocks passed as arguments to the current block of the
-//! system. Same for the timestamp. Note, that for now 1 block in Gear-based
-//! network is 3 sec duration.
+//! Tasks processing is a step, when all scheduled for the current block number
+//! tasks are tried to be processed. This includes processing delayed
+//! dispatches, waking waited messages and etc.
+//!
+//! Messages processing is a step, when messages from the queue are processed
+//! until either the queue is empty or the block gas allowance is not enough for
+//! the execution.
+//!
+//! Blocks can't be "spent" without their execution except for use the
+//! [`System::run_scheduled_tasks`] method, which doesn't process the message
+//! queue, but only processes scheduled tasks triggering blocks info
+//! adjustments, which can be used to "spend" blocks.
+//!
+//! Note, that for now 1 block in Gear-based network is 3 sec duration.
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();
-//! // Spend 150 blocks (7.5 mins for 3 sec block).
-//! sys.spend_blocks(150);
+//! // Spend 150 blocks by running only the task pool (7.5 mins for 3 sec block).
+//! sys.run_scheduled_tasks(150);
 //! ```
 //!
 //! Note that processing messages (e.g. by using
@@ -351,7 +405,25 @@
 //! changes the timestamp. If you write time dependent logic, you should spend
 //! blocks manually.
 //!
-//! ## Balance:
+//! ## Balance
+//!
+//! There are certain invariants in `gtest` regarding user and program balances:
+//!
+//! * For a user to successfully send a message to the program, they must have
+//!   sufficient balance to cover the existential deposit and gas costs.
+//! * The program charges the existential deposit from the user upon receiving
+//!   the initial message.
+//!
+//! As previously mentioned [here](#Pre-requisites-for-Sending-a-Message),
+//! a balance for the user must be minted before sending a message. This balance
+//! should be sufficient to cover the following: the user's existential deposit,
+//! the existential deposit of the initialized program (the first message to the
+//! program charges the program's existential deposit from the sender), and the
+//! message's gas costs.
+//!
+//! The [`System::mint_to`] method can be utilized to allocate a balance to the
+//! user or the program. The [`System::balance_of`] method may be used to verify
+//! the current balance.
 //!
 //! ```no_run
 //! # use gtest::Program;
@@ -361,9 +433,9 @@
 //! sys.mint_to(user_id, 5000);
 //! assert_eq!(sys.balance_of(user_id), 5000);
 //!
-//! // To give the balance to the program you should use `mint` method:
+//! // To give the balance to the program you should use [`System::transfer`] method:
 //! let mut prog = Program::current(&sys);
-//! prog.mint(1000);
+//! sys.transfer(user_id, prog.id(), 1000, true);
 //! assert_eq!(prog.balance(), 1000);
 //! ```
 //!
@@ -420,25 +492,24 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-mod blocks;
 mod error;
-mod gas_tree;
 mod log;
-mod mailbox;
 mod manager;
 mod program;
+mod state;
 mod system;
 
-pub use crate::log::{CoreLog, Log, RunResult};
+pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use codec;
 pub use error::{Result, TestError};
-pub use mailbox::ActorMailbox;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,
 };
+pub use state::mailbox::ActorMailbox;
 pub use system::System;
 
+pub use constants::Value;
 pub(crate) use constants::*;
 
 /// Module containing constants of Gear protocol.
@@ -480,59 +551,37 @@ pub mod constants {
     pub const EPOCH_DURATION_IN_BLOCKS: Block = 600;
 
     /* Storage-related constants */
-    // TODO: use proper weights of db accesses (#3509).
-
-    /// Minimal amount of gas required to be inserted into Mailbox.
-    pub const MAILBOX_THRESHOLD: Gas = 3_000;
     /// Extra amount of blocks must be reserved for storing in storage.
     pub const RESERVE_FOR: Block = 1;
-    /// Cost of read access into storage.
-    pub const READ_COST: Gas = 25;
-    /// Per-byte extra cost of read access into storage.
-    pub const READ_PER_BYTE_COST: Gas = 10;
-    /// Cost of write access into storage.
-    pub const WRITE_COST: Gas = 100;
-    /// Per-byte extra cost of write access into storage.
-    pub const WRITE_PER_BYTE_COST: Gas = 10;
-
-    /* Rent-related constants */
-
-    /// Cost of storing waitlisted message per block.
-    pub const WAITLIST_COST: Gas = 100;
-    /// Cost of storing reservation per block.
-    pub const RESERVATION_COST: Gas = 100;
-    /// Cost of storing delayed message per block.
-    pub const DISPATCH_HOLD_COST: Gas = 100;
 
     /* Execution-related constants */
-    // TODO: use proper weights of instantiation and instrumentation (#3509).
 
-    /// Cost of loading allocations per interval.
-    pub const LOAD_ALLOCATIONS_PER_INTERVAL: Gas = 20_000;
     /// Maximal amount of reservations program may have.
     pub const MAX_RESERVATIONS: u64 = 256;
-    /// Cost of wasm module code section instantiation before execution per byte
-    /// of code.
-    pub const MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST: Gas = 192;
-    /// Cost of wasm module data section instantiation before execution per byte
-    /// of code.
-    pub const MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST: Gas = 452;
-    /// Cost of wasm module global section instantiation before execution per
-    /// byte of code.
-    pub const MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST: Gas = 2360;
-    /// Cost of wasm module table section instantiation before execution per
-    /// byte of code.
-    pub const MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST: Gas = 350;
-    /// Cost of wasm module element section instantiation before execution per
-    /// byte of code.
-    pub const MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST: Gas = 18492;
-    /// Cost of wasm module type section instantiation before execution per byte
-    /// of code.
-    pub const MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST: Gas = 254;
-    /// Cost of instrumenting wasm code on upload.
-    pub const MODULE_INSTRUMENTATION_COST: Gas = 297;
-    /// Cost of instrumenting wasm code on upload per byte of code.
-    pub const MODULE_INSTRUMENTATION_BYTE_COST: Gas = 13;
     /// Initial random seed for testing environment.
     pub const INITIAL_RANDOM_SEED: u64 = 42;
+
+    /* Default users constants with initial balance */
+
+    /// Default user id for Alice.
+    pub const DEFAULT_USER_ALICE: u64 = u64::MAX - 1;
+    /// Default user id for Bob.
+    pub const DEFAULT_USER_BOB: u64 = u64::MAX - 2;
+    /// Default user id for Charlie.
+    pub const DEFAULT_USER_CHARLIE: u64 = u64::MAX - 3;
+    /// Default user id for Eve.
+    pub const DEFAULT_USER_EVE: u64 = u64::MAX - 4;
+
+    /// Default list of users.
+    pub const fn default_users_list() -> &'static [u64] {
+        &[
+            DEFAULT_USER_ALICE,
+            DEFAULT_USER_BOB,
+            DEFAULT_USER_CHARLIE,
+            DEFAULT_USER_EVE,
+        ]
+    }
+
+    /// Default initial balance for users.
+    pub const DEFAULT_USERS_INITIAL_BALANCE: Value = EXISTENTIAL_DEPOSIT * 100_000;
 }

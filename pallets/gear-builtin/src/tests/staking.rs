@@ -592,7 +592,7 @@ mod util {
         BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER, UNITS,
         VAL_1_STASH, VAL_2_STASH, VAL_3_STASH,
     };
-    use crate::{self as pallet_gear_builtin, staking::Actor as StakingBuiltin};
+    use crate::{self as pallet_gear_builtin, staking::Actor as StakingBuiltin, ActorWithId};
     pub(super) use common::Origin;
     pub(super) use demo_staking_broker::WASM_BINARY;
     use frame_election_provider_support::{
@@ -704,6 +704,8 @@ mod util {
         pub const PerformanceMultiplier: u32 = 100;
         pub const BankAddress: AccountId = 15082001;
         pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+        pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
+        pub SplitTxFeeRatio: Option<u32> = None;
     }
 
     pub struct TestSessionHandler;
@@ -757,7 +759,7 @@ mod util {
 
     impl pallet_gear_builtin::Config for Test {
         type RuntimeCall = RuntimeCall;
-        type Builtins = (StakingBuiltin<Self>,);
+        type Builtins = (ActorWithId<2, StakingBuiltin<Self>>,);
         type WeightInfo = ();
     }
 

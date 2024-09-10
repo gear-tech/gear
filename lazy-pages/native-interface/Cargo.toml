@@ -8,9 +8,11 @@ edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages.workspace = true
 gear-wasm-instrument.workspace = true
+log.workspace = true

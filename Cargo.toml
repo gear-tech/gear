@@ -1,17 +1,18 @@
 [workspace.package]
-version = "1.4.2"
+version = "1.5.0"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
+rust-version = "1.81"
 
 [workspace]
 resolver = "2"
 
 default-members = ["node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker"]
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
     "common",
@@ -82,8 +83,7 @@ members = [
     "examples/waiting-proxy",
     "examples/wat",
     "galloc",
-    "gbuiltins/bls381",
-    "gbuiltins/staking",
+    "gbuiltins/*",
     "gcli",
     "gclient",
     "gcore",
@@ -112,7 +112,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "0.1.4"
+alloy = "0.3.1"
 anyhow = "1.0.86"
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
@@ -166,9 +166,9 @@ serde = { version = "^1", default-features = false }
 serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
-subxt = "0.32.1"
-subxt-metadata = "0.32.1"
-subxt-codegen = "0.32.1"
+subxt = "0.37.0"
+subxt-metadata = "0.37.0"
+subxt-codegen = "0.37.0"
 syn = "2.0.71"
 thiserror = "1.0.62"
 tokio = { version = "1.38.0" }
@@ -211,6 +211,7 @@ common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
+gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
 gbuiltin-staking = { path = "gbuiltins/staking" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
@@ -251,6 +252,7 @@ gear-stack-buffer = { path = "stack-buffer" }
 gear-ss58 = { path = "utils/ss58", default-features = false }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
+gear-wasm-optimizer = { path = "utils/wasm-optimizer", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
@@ -258,6 +260,9 @@ actor-system-error = { path = "utils/actor-system-error" }
 calc-stack-height = { path = "utils/calc-stack-height" }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
+pallet-gear-eth-bridge = { path = "pallets/gear-eth-bridge", default-features = false }
+pallet-gear-eth-bridge-rpc = { path = "pallets/gear-eth-bridge/rpc", default-features = false }
+pallet-gear-eth-bridge-rpc-runtime-api = { path = "pallets/gear-eth-bridge/rpc/runtime-api", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }
 pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
 pallet-gear-payment = { path = "pallets/payment", default-features = false }
@@ -298,11 +303,16 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
-sandbox-wasmer = { package = "wasmer", version = "4.3.4", features = ["singlepass"] }
+sandbox-wasmer = { package = "wasmer", version = "4.3.4", features = [
+    "singlepass",
+] }
 sandbox-wasmer-types = { package = "wasmer-types", version = "4.3.4" }
-sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
+sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = [
+    "virtual_memory",
+] }
 
 # Substrate deps
+binary-merkle-tree = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0" }
 frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
@@ -492,10 +502,12 @@ demo-wat = { path = "examples/wat" }
 # TODO: remove these dependencies (from this file?) or add more docs.
 
 cfg-if = "1.0.0"                                             # gear-lazy-pages
+cargo-http-registry = "0.1.6"                                # crates-io
 errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 indexmap = "2.2.6"                                           # utils/weight-diff
 indicatif = "*"                                              # utils/wasm-gen
+itertools = "0.13"                                           # utils/wasm-builder
 keyring = "1.2.1"                                            # gcli
 libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.43", default-features = false }  # node/cli
@@ -519,11 +531,11 @@ wasm-opt = "0.116"                                           # utils/wasm-builde
 wasmprinter = "0.2"                                          # utils/wasm-gen
 whoami = "1.5.1"                                             # gcli
 fail = "0.5"                                                 # gear-common
-scale-value = "^0.12"                                        # gsdk
+scale-value = "^0.16"                                        # gsdk
 heck = "0.5.0"                                               # gsdk-api-gen
 etc = "0.1.19"                                               # gcli
 toml_edit = "0.22.12"                                        # crates-io
-scale-decode = "0.9.0"                                       # gsdk
+scale-decode = "0.13.0"                                      # gsdk
 directories = "5.0.1"                                        # utils/key-finder
 num-traits = { version = "0.2", default-features = false }   # gear-core
 glob = "0.3.1"                                               # cargo-gbuild

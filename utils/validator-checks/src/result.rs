@@ -4,12 +4,18 @@ use std::result::Result as StdResult;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Any error
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
     /// Some errors happens in gprogram.
     #[error(transparent)]
     GSdk(#[from] gsdk::Error),
     /// Some errors happens in subxt.
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
+    /// Subxt core error
+    #[error(transparent)]
+    SubxtCore(#[from] subxt::ext::subxt_core::Error),
     /// Failed to setup logger.
     #[error(transparent)]
     EnvLogger(#[from] log::SetLoggerError),

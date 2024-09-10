@@ -21,6 +21,7 @@ use arbitrary::Unstructured;
 use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
+    gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, ProgramId},
     memory::Memory,
     message::{
@@ -37,10 +38,7 @@ use gear_lazy_pages::LazyPagesVersion;
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::{
-    gas_metering::CustomConstantCostRules,
-    parity_wasm::{self, elements::Module},
-};
+use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 use nonempty::nonempty;
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -519,6 +517,8 @@ fn test_msg_value_ptr_dest() {
         let params_config = SyscallsParamsConfig::new()
             .with_default_regular_config()
             .with_rule(RegularParamType::Gas, (0..=0).into())
+            .with_rule(RegularParamType::Offset, (0..=0).into())
+            .with_rule(RegularParamType::Length, (0..=1).into())
             .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
                 actor_kind: dest_var.clone(),
                 range: REPLY_VALUE..=REPLY_VALUE,
@@ -896,7 +896,9 @@ fn precise_syscalls_works() {
 
         let param_config = SyscallsParamsConfig::new()
             .with_default_regular_config()
-            .with_rule(RegularParamType::Gas, (0..=0).into());
+            .with_rule(RegularParamType::Gas, (0..=0).into())
+            .with_rule(RegularParamType::Offset, (0..=0).into())
+            .with_rule(RegularParamType::Length, (0..=1).into());
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -1036,7 +1038,7 @@ fn execute_wasm_with_custom_configs(
     let incoming_message = IncomingMessage::new(
         message_id.into(),
         message_sender(),
-        Default::default(),
+        vec![1, 2, 3].try_into().unwrap(),
         Default::default(),
         Default::default(),
         Default::default(),

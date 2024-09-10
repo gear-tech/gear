@@ -94,7 +94,7 @@ mod tests {
     use super::{Reply, Request};
     use crate::InitMessage;
     use alloc::vec;
-    use gtest::{Log, Program, System};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
@@ -103,9 +103,10 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
-        let res = program.send(from, InitMessage::BTree);
+        program.send(from, InitMessage::BTree);
+        let res = system.run_next_block();
         let log = Log::builder().source(program.id()).dest(from);
         assert!(res.contains(&log));
     }
@@ -117,10 +118,9 @@ mod tests {
 
         let program = Program::current_opt(&system);
 
-        let from = 42;
+        let from = DEFAULT_USER_ALICE;
 
-        let _res = program.send(from, InitMessage::BTree);
-
+        program.send(from, InitMessage::BTree);
         IntoIterator::into_iter([
             Request::Insert(0, 1),
             Request::Insert(0, 2),
@@ -131,7 +131,10 @@ mod tests {
             Request::Clear,
             Request::List,
         ])
-        .map(|r| program.send(from, r))
+        .map(|r| {
+            program.send(from, r);
+            system.run_next_block()
+        })
         .zip(IntoIterator::into_iter([
             Reply::Value(None),
             Reply::Value(Some(1)),
