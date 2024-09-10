@@ -293,6 +293,7 @@ impl Code {
     ///      <-- stack limit decrease -->
     ///   )
     /// )
+    /// ```
     pub fn try_new<R, GetRulesFn>(
         original_code: Vec<u8>,
         version: u32,
