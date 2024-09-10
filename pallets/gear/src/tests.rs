@@ -24,7 +24,7 @@ use crate::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
-        DUST_TRAP_TARGET, LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
+        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
@@ -15666,8 +15666,6 @@ fn dust_in_message_to_user_handled_ok() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let ed = CurrencyOf::<Test>::minimum_balance();
-
         let pid = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -15698,9 +15696,10 @@ fn dust_in_message_to_user_handled_ok() {
 
         run_to_block(3, None);
 
-        // USER_1 account doesn't receive the funds; instead, the dust handler kicks in.
+        // USER_1 account doesn't receive the funds; instead, the value is below ED so
+        // account dies and value goes to UnusedValue
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
-        assert_eq!(CurrencyOf::<Test>::free_balance(DUST_TRAP_TARGET), ed + 300);
+        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
 
         // Test case 2: Make the program send a message to USER_1 with the value below the ED
         // and gas sufficient for a message to be placed into the mailbox (for 30 blocks).
@@ -15718,7 +15717,7 @@ fn dust_in_message_to_user_handled_ok() {
         // USER_1 account doesn't receive the funds again; instead, the value is stored as the
         // `UnusedValue` in Gear Bank.
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
-        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
+        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 600);
     });
 }
 
