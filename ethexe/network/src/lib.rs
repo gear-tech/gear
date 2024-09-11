@@ -200,7 +200,6 @@ impl NetworkEventLoopConfig {
         }
     }
 
-    #[cfg(test)]
     pub fn new_memory(config_path: PathBuf, addr: &str) -> Self {
         Self {
             config_dir: config_path,

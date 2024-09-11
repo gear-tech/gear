@@ -208,6 +208,7 @@ impl Router {
     }
 }
 
+#[derive(Clone)]
 pub struct RouterQuery {
     instance: QueryInstance,
 }
