@@ -64,3 +64,65 @@ pub enum Event {
         source: ActorId,
     },
 }
+
+impl Event {
+    pub fn as_request(self) -> Option<RequestEvent> {
+        Some(match self {
+            Self::ExecutableBalanceTopUpRequested { value } => {
+                RequestEvent::ExecutableBalanceTopUpRequested { value }
+            }
+            Self::MessageQueueingRequested {
+                id,
+                source,
+                payload,
+                value,
+            } => RequestEvent::MessageQueueingRequested {
+                id,
+                source,
+                payload,
+                value,
+            },
+            Self::ReplyQueueingRequested {
+                replied_to,
+                source,
+                payload,
+                value,
+            } => RequestEvent::ReplyQueueingRequested {
+                replied_to,
+                source,
+                payload,
+                value,
+            },
+            Self::ValueClaimingRequested { claimed_id, source } => {
+                RequestEvent::ValueClaimingRequested { claimed_id, source }
+            }
+            Self::StateChanged { .. }
+            | Self::ValueClaimed { .. }
+            | Self::Message { .. }
+            | Self::Reply { .. } => return None,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub enum RequestEvent {
+    ExecutableBalanceTopUpRequested {
+        value: u128,
+    },
+    MessageQueueingRequested {
+        id: MessageId,
+        source: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    },
+    ReplyQueueingRequested {
+        replied_to: MessageId,
+        source: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    },
+    ValueClaimingRequested {
+        claimed_id: MessageId,
+        source: ActorId,
+    },
+}

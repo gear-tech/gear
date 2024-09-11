@@ -39,26 +39,23 @@ impl ExtManager {
         self.route_dispatch(dispatch)
     }
 
-    #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
         let source = dispatch.source();
         let destination = dispatch.destination();
 
         if Actors::is_program(source) {
-            panic!("Sending messages allowed only from users id");
-        }
-
-        if dispatch.is_reply() && !Actors::is_active_program(destination) {
-            panic!("Can't send reply to a non-active program {destination:?}");
+            usage_panic!(
+                "Sending messages allowed only from users id. Please, provide user id as source."
+            );
         }
 
         // User must exist
         if !Accounts::exists(source) {
-            panic!("User's {source} balance is zero; mint value to it first.");
+            usage_panic!("User's {source} balance is zero; mint value to it first.");
         }
 
         if !Actors::is_active_program(destination) {
-            panic!("User message can't be sent to non active program");
+            usage_panic!("User message can't be sent to non active program");
         }
 
         let is_init_msg = dispatch.kind().is_init();
@@ -73,9 +70,10 @@ impl ExtManager {
 
         // Check sender has enough balance to cover dispatch costs
         if balance < { dispatch.value() + gas_value + maybe_ed } {
-            panic!(
+            usage_panic!(
                 "Insufficient balance: user ({}) tries to send \
-                ({}) value, ({}) gas and ED ({}), while his balance ({:?})",
+                ({}) value, ({}) gas and ED ({}), while his balance ({:?}). \
+                Please, mint more balance to the user.",
                 source,
                 dispatch.value(),
                 gas_value,
@@ -112,7 +110,6 @@ impl ExtManager {
 
     // TODO #4120 Charge for task pool processing the gas from gas allowance
     // TODO #4121
-    #[track_caller]
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
         self.gas_allowance = allowance;
         self.blocks_manager.next_block();
@@ -140,7 +137,6 @@ impl ExtManager {
         }
     }
 
-    #[track_caller]
     pub(crate) fn process_tasks(&mut self, current_bn: u32) {
         let db_weights = DbWeights::default();
 
@@ -246,7 +242,6 @@ impl ExtManager {
         }
     }
 
-    #[track_caller]
     fn process_messages(&mut self) -> u32 {
         self.messages_processing_enabled = true;
 

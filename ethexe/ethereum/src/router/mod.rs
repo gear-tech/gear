@@ -127,15 +127,12 @@ impl Router {
         let code_id = code_id.into_bytes();
 
         while let Some(log) = router_events.next().await {
-            match log.topic0().map(|v| H256(v.0)) {
-                Some(b) if b == signatures::CODE_GOT_VALIDATED => {
-                    let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
+            if let Some(signatures::CODE_GOT_VALIDATED) = log.topic0().cloned() {
+                let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
 
-                    if event.id == code_id {
-                        return Ok(event.valid);
-                    }
+                if event.id == code_id {
+                    return Ok(event.valid);
                 }
-                _ => (),
             }
         }
 
@@ -161,7 +158,7 @@ impl Router {
         let mut actor_id = None;
 
         for log in receipt.inner.logs() {
-            if log.topic0().map(|v| v.0) == Some(signatures::PROGRAM_CREATED.to_fixed_bytes()) {
+            if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
                 let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
 
                 actor_id = Some((*event.actorId.into_word()).into());

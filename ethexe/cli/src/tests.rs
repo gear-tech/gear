@@ -35,7 +35,6 @@ use ethexe_processor::Processor;
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
-use futures::StreamExt;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -499,6 +498,7 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
+    use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use tokio::sync::{broadcast::Sender, Mutex};
 
@@ -580,7 +580,7 @@ mod utils {
                 let (send_subscription_created, receive_subscription_created) =
                     oneshot::channel::<()>();
                 let handle = task::spawn(async move {
-                    let observer_events = observer.events();
+                    let observer_events = observer.events_all();
                     futures::pin_mut!(observer_events);
 
                     send_subscription_created.send(()).unwrap();

@@ -438,7 +438,7 @@ impl MessageContext {
             return Err(Error::OutOfBoundsInputSliceOffset);
         }
 
-        // Check `len` for the current `offset` doesn't refer to the slice out of intput bounds.
+        // Check `len` for the current `offset` doesn't refer to the slice out of input bounds.
         let available_len = input.len() - offset;
         if len > available_len {
             return Err(Error::OutOfBoundsInputSliceLength);

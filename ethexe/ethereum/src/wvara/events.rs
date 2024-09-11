@@ -18,35 +18,46 @@
 
 #![allow(unused)]
 
-use crate::IWrappedVara;
-use alloy::{rpc::types::eth::Log, sol_types::SolEvent};
+use crate::{decode_log, IWrappedVara};
+use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::{anyhow, Result};
 use ethexe_common::wvara;
-use gprimitives::H256;
+use signatures::*;
 
 pub mod signatures {
-    use super::{IWrappedVara, SolEvent, H256};
+    use super::*;
 
-    pub const TRANSFER: H256 = H256(IWrappedVara::Transfer::SIGNATURE_HASH.0);
-    pub const APPROVAL: H256 = H256(IWrappedVara::Approval::SIGNATURE_HASH.0);
+    crate::signatures_consts! {
+        IWrappedVara;
+        TRANSFER: Transfer,
+        APPROVAL: Approval,
+    }
 
-    pub const ALL: [H256; 2] = [TRANSFER, APPROVAL];
+    pub const REQUESTS: &[B256] = &[TRANSFER];
 }
 
 pub fn try_extract_event(log: &Log) -> Result<Option<wvara::Event>> {
-    use crate::decode_log;
-    use signatures::*;
-
-    let Some(topic0) = log.topic0().map(|v| H256(v.0)) else {
+    let Some(topic0) = log.topic0().filter(|&v| ALL.contains(v)) else {
         return Ok(None);
     };
 
-    // TODO (breathx): pattern matching issue for primitive_types::H256... ????
-    let event = match topic0 {
-        b if b == TRANSFER => decode_log::<IWrappedVara::Transfer>(log)?.into(),
-        b if b == APPROVAL => decode_log::<IWrappedVara::Approval>(log)?.into(),
-        _ => return Ok(None),
+    let event = match *topic0 {
+        TRANSFER => decode_log::<IWrappedVara::Transfer>(log)?.into(),
+        APPROVAL => decode_log::<IWrappedVara::Approval>(log)?.into(),
+        _ => unreachable!("filtered above"),
     };
 
     Ok(Some(event))
+}
+
+pub fn try_extract_request_event(log: &Log) -> Result<Option<wvara::RequestEvent>> {
+    if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
+        return Ok(None);
+    }
+
+    let request_event = try_extract_event(log)?
+        .and_then(|v| v.as_request())
+        .expect("filtered above");
+
+    Ok(Some(request_event))
 }

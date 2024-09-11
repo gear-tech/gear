@@ -101,3 +101,51 @@ pub enum Event {
         value_per_weight: u128,
     },
 }
+
+impl Event {
+    pub fn as_request(self) -> Option<RequestEvent> {
+        Some(match self {
+            Self::BaseWeightChanged { base_weight } => {
+                RequestEvent::BaseWeightChanged { base_weight }
+            }
+            Self::CodeValidationRequested {
+                code_id,
+                blob_tx_hash,
+            } => RequestEvent::CodeValidationRequested {
+                code_id,
+                blob_tx_hash,
+            },
+            Self::ProgramCreated { actor_id, code_id } => {
+                RequestEvent::ProgramCreated { actor_id, code_id }
+            }
+            Self::StorageSlotChanged => RequestEvent::StorageSlotChanged,
+            Self::ValidatorsSetChanged => RequestEvent::ValidatorsSetChanged,
+            Self::ValuePerWeightChanged { value_per_weight } => {
+                RequestEvent::ValuePerWeightChanged { value_per_weight }
+            }
+            Self::BlockCommitted { .. } | Self::CodeGotValidated { .. } => return None,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+pub enum RequestEvent {
+    BaseWeightChanged {
+        base_weight: u64,
+    },
+    CodeValidationRequested {
+        code_id: CodeId,
+        // TODO (breathx): replace with `code: Vec<u8>`
+        /// This field is replaced with tx hash in case of zero.
+        blob_tx_hash: H256,
+    },
+    ProgramCreated {
+        actor_id: ActorId,
+        code_id: CodeId,
+    },
+    StorageSlotChanged,
+    ValidatorsSetChanged,
+    ValuePerWeightChanged {
+        value_per_weight: u128,
+    },
+}

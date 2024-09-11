@@ -5,7 +5,8 @@ use std::{
 
 use crate::{
     observer::{
-        read_block_events, read_block_events_batch, read_code_from_tx_hash, ObserverProvider,
+        read_block_events, read_block_request_events, read_block_request_events_batch,
+        read_code_from_tx_hash, ObserverProvider,
     },
     BlobReader,
 };
@@ -19,7 +20,7 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
     router::Event as RouterEvent,
-    BlockEvent,
+    BlockEvent, BlockRequestEvent,
 };
 use ethexe_signer::Address;
 use gprimitives::{CodeId, H256};
@@ -81,6 +82,7 @@ impl Query {
     }
 
     async fn get_committed_blocks(&mut self, block_hash: H256) -> Result<BTreeSet<H256>> {
+        // TODO (breathx): optimize me ASAP.
         Ok(self
             .get_block_events(block_hash)
             .await?
@@ -130,9 +132,13 @@ impl Query {
         });
 
         // Fetch events in block range.
-        let mut blocks_events =
-            read_block_events_batch(from_block, to_block, &self.provider, self.router_address)
-                .await?;
+        let mut blocks_events = read_block_request_events_batch(
+            from_block,
+            to_block,
+            &self.provider,
+            self.router_address,
+        )
+        .await?;
 
         // Collect results
         let mut block_headers = HashMap::new();
@@ -322,8 +328,9 @@ impl Query {
 
                 // Populate block events in db.
                 let events =
-                    read_block_events(block_hash, &self.provider, self.router_address).await?;
-                self.database.set_block_events(block_hash, events.clone());
+                    read_block_request_events(block_hash, &self.provider, self.router_address)
+                        .await?;
+                self.database.set_block_events(block_hash, events);
 
                 Ok(meta)
             }
@@ -335,11 +342,19 @@ impl Query {
     }
 
     pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
+        read_block_events(block_hash, &self.provider, self.router_address).await
+    }
+
+    pub async fn get_block_request_events(
+        &mut self,
+        block_hash: H256,
+    ) -> Result<Vec<BlockRequestEvent>> {
         if let Some(events) = self.database.block_events(block_hash) {
             return Ok(events);
         }
 
-        let events = read_block_events(block_hash, &self.provider, self.router_address).await?;
+        let events =
+            read_block_request_events(block_hash, &self.provider, self.router_address).await?;
         self.database.set_block_events(block_hash, events.clone());
 
         Ok(events)

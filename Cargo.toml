@@ -5,7 +5,7 @@ edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.80"
+rust-version = "1.81"
 
 [workspace]
 resolver = "2"
@@ -585,6 +585,3 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-c
 
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
-
-# TODO: remove after https://github.com/alloy-rs/core/pull/718
-alloy-sol-type-parser = { git = "https://github.com/gear-tech/alloy-core", branch = "custom-error" }

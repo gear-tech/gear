@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    error::usage_panic,
     manager::ExtManager,
     state::{accounts::Accounts, actors::Actors},
     Log, Value, GAS_ALLOWANCE,
@@ -132,7 +133,7 @@ impl<'a> ActorMailbox<'a> {
 
         // User must exist
         if !Accounts::exists(self.user_id) {
-            panic!(
+            usage_panic!(
                 "User's {} balance is zero; mint value to it first.",
                 self.user_id
             );

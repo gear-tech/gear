@@ -38,7 +38,7 @@ pub(crate) struct Actors;
 
 impl Actors {
     // Accesses actor by program id.
-    #[track_caller]
+
     pub(crate) fn access<R>(
         program_id: ProgramId,
         access: impl FnOnce(Option<&TestActor>) -> R,
@@ -47,7 +47,6 @@ impl Actors {
     }
 
     // Modifies actor by program id.
-    #[track_caller]
     pub(crate) fn modify<R>(
         program_id: ProgramId,
         modify: impl FnOnce(Option<&mut TestActor>) -> R,
@@ -120,7 +119,6 @@ impl TestActor {
 
     // # Panics
     // If actor is initialized or dormant
-    #[track_caller]
     pub(crate) fn set_initialized(&mut self) {
         assert!(
             self.is_uninitialized(),

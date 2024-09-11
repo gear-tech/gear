@@ -24,7 +24,7 @@ use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommi
 use anyhow::{anyhow, Result};
 use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::Event;
+use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use indexmap::IndexSet;
@@ -105,8 +105,8 @@ impl Sequencer {
     }
 
     // This function should never block.
-    pub fn process_observer_event(&mut self, event: &Event) -> Result<()> {
-        if let Event::Block(block_data) = event {
+    pub fn process_observer_event(&mut self, event: &RequestEvent) -> Result<()> {
+        if let RequestEvent::Block(RequestBlockData { block_hash, .. }) = event {
             // Reset status, candidates and chain-head each block event
 
             self.update_status(|status| {
@@ -115,7 +115,7 @@ impl Sequencer {
 
             self.codes_candidate = None;
             self.blocks_candidate = None;
-            self.chain_head = Some(block_data.block_hash);
+            self.chain_head = Some(*block_hash);
         }
 
         Ok(())

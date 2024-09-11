@@ -90,7 +90,6 @@ impl ExtManager {
         .map_err(TestError::ReadStateError)
     }
 
-    #[track_caller]
     pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> BTreeMap<GearPage, PageBuf> {
         Actors::access(*program_id, |actor| {
             let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
