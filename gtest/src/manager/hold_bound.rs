@@ -116,11 +116,7 @@ impl HoldBoundBuilder {
             // `saturated_into` conversion: try_into + unwrap_or(MAX)
             .try_into()
             .unwrap_or(u32::MAX);
-        let deadline = manager
-            .blocks_manager
-            .get()
-            .height
-            .saturating_add(deadline_duration);
+        let deadline = manager.block_height().saturating_add(deadline_duration);
 
         self.deadline(deadline)
     }

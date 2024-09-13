@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod exec;
+mod block_exec;
 mod expend;
 mod hold_bound;
 mod journal;
@@ -28,6 +28,7 @@ mod wait_wake;
 
 use crate::{
     constants::Value,
+    error::usage_panic,
     log::{BlockRunResult, CoreLog},
     program::{Gas, WasmProgram},
     state::{
@@ -40,23 +41,13 @@ use crate::{
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    GAS_ALLOWANCE, GAS_MULTIPLIER, HOST_FUNC_READ_COST, HOST_FUNC_WRITE_AFTER_READ_COST,
-    HOST_FUNC_WRITE_COST, INITIAL_RANDOM_SEED, LOAD_ALLOCATIONS_PER_INTERVAL,
-    LOAD_PAGE_STORAGE_DATA_COST, MAILBOX_COST, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST, MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
-    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST, MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST,
-    READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, SIGNAL_READ_COST,
-    SIGNAL_WRITE_AFTER_READ_COST, SIGNAL_WRITE_COST, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
     common::*,
-    configs::{
-        BlockConfig, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER,
-    },
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext,
+    configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
+    ContextChargedForInstrumentation, ContextChargedForProgram, Ext,
 };
 use gear_common::{
     auxiliary::{
@@ -70,6 +61,7 @@ use gear_common::{
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -78,8 +70,6 @@ use gear_core::{
     },
     pages::{num_traits::Zero, GearPage},
 };
-use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
-use gear_lazy_pages_common::LazyPagesCosts;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
@@ -105,7 +95,7 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) bank: Bank,
-    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) opt_binaries: BTreeMap<CodeId, InstrumentedCode>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
@@ -115,7 +105,7 @@ pub(crate) struct ExtManager {
     pub(crate) gas_allowance: Gas,
     pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
     pub(crate) messages_processing_enabled: bool,
-
+    pub(crate) first_incomplete_tasks_block: Option<u32>,
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
     pub(crate) failed: BTreeSet<MessageId>,
@@ -125,7 +115,6 @@ pub(crate) struct ExtManager {
 }
 
 impl ExtManager {
-    #[track_caller]
     pub(crate) fn new() -> Self {
         Self {
             msg_nonce: 1,
@@ -156,20 +145,23 @@ impl ExtManager {
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<TestActor> {
-        if let Program::Genuine(GenuineProgram { code, .. }) = &program {
-            self.store_new_code(code.code().to_vec());
+        if let Program::Genuine(GenuineProgram {
+            ref code, code_id, ..
+        }) = program
+        {
+            if self.read_code(code_id).is_none() {
+                self.store_new_code(code_id, code.clone());
+            }
         }
         Actors::insert(program_id, TestActor::new(init_message_id, program))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
-        let code_id = CodeId::generate(&code);
+    pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: InstrumentedCode) {
         self.opt_binaries.insert(code_id, code);
-        code_id
     }
 
     pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
-        self.opt_binaries.get(&code_id).map(Vec::as_slice)
+        self.opt_binaries.get(&code_id).map(|code| code.code())
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -200,7 +192,6 @@ impl ExtManager {
         }
     }
 
-    #[track_caller]
     pub(crate) fn update_storage_pages(
         &mut self,
         program_id: &ProgramId,
@@ -226,11 +217,11 @@ impl ExtManager {
         Accounts::balance(*id)
     }
 
-    #[track_caller]
     pub(crate) fn override_balance(&mut self, &id: &ProgramId, balance: Value) {
         if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
-            panic!(
-                "An attempt to override balance with value ({}) less than existential deposit ({})",
+            usage_panic!(
+                "An attempt to override balance with value ({}) less than existential deposit ({}. \
+                Please try to use bigger balance value",
                 balance,
                 crate::EXISTENTIAL_DEPOSIT
             );
@@ -238,7 +229,11 @@ impl ExtManager {
         Accounts::override_balance(id, balance);
     }
 
-    #[track_caller]
+    pub(crate) fn on_task_pool_change(&mut self) {
+        let write = DbWeights::default().write.ref_time;
+        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(write));
+    }
+
     fn init_success(&mut self, program_id: ProgramId) {
         Actors::modify(program_id, |actor| {
             actor
@@ -247,7 +242,6 @@ impl ExtManager {
         });
     }
 
-    #[track_caller]
     fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
         Actors::modify(program_id, |actor| {
             let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));
@@ -287,10 +281,15 @@ impl ExtManager {
 
         self.bank.transfer_value(from, user_id, message.value());
 
-        let _ = self.task_pool.delete(
-            expected,
-            ScheduledTask::RemoveFromMailbox(user_id, message.id()),
-        );
+        let _ = self
+            .task_pool
+            .delete(
+                expected,
+                ScheduledTask::RemoveFromMailbox(user_id, message.id()),
+            )
+            .map(|_| {
+                self.on_task_pool_change();
+            });
 
         Ok(message)
     }

@@ -24,7 +24,7 @@ use crate::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
-        DUST_TRAP_TARGET, LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
+        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
@@ -49,6 +49,7 @@ use gear_core::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
+    gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -64,7 +65,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
@@ -6510,7 +6511,8 @@ fn terminated_locking_funds() {
         let gas_for_code_len = read_cost;
         let gas_for_program = read_cost;
         let gas_for_code = schedule
-            .db_read_per_byte
+            .db_weights
+            .read_per_byte
             .ref_time()
             .saturating_mul(code_length)
             .saturating_add(read_cost);
@@ -8012,7 +8014,8 @@ fn gas_spent_precalculated() {
             let instrumented_prog = get_program_code(pid);
             let code_len = instrumented_prog.code().len() as u64;
             let gas_for_code_read = schedule
-                .db_read_per_byte
+                .db_weights
+                .read_per_byte
                 .ref_time()
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
@@ -15663,8 +15666,6 @@ fn dust_in_message_to_user_handled_ok() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let ed = CurrencyOf::<Test>::minimum_balance();
-
         let pid = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -15695,9 +15696,10 @@ fn dust_in_message_to_user_handled_ok() {
 
         run_to_block(3, None);
 
-        // USER_1 account doesn't receive the funds; instead, the dust handler kicks in.
+        // USER_1 account doesn't receive the funds; instead, the value is below ED so
+        // account dies and value goes to UnusedValue
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
-        assert_eq!(CurrencyOf::<Test>::free_balance(DUST_TRAP_TARGET), ed + 300);
+        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
 
         // Test case 2: Make the program send a message to USER_1 with the value below the ED
         // and gas sufficient for a message to be placed into the mailbox (for 30 blocks).
@@ -15715,7 +15717,7 @@ fn dust_in_message_to_user_handled_ok() {
         // USER_1 account doesn't receive the funds again; instead, the value is stored as the
         // `UnusedValue` in Gear Bank.
         assert_eq!(CurrencyOf::<Test>::free_balance(USER_1), 0);
-        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 300);
+        assert_eq!(pallet_gear_bank::UnusedValue::<Test>::get(), 600);
     });
 }
 

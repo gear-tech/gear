@@ -32,7 +32,7 @@ pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails}
 pub use context::{
     ContextOutcome, ContextOutcomeDrain, ContextSettings, ContextStore, MessageContext,
 };
-pub use gear_core_errors::ReplyCode;
+pub use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};

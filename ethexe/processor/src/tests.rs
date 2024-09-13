@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
-use ethexe_common::{mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent};
+use ethexe_common::{
+    mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
+};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
@@ -84,14 +86,14 @@ fn process_observer_event() {
     let actor_id = ActorId::from(42);
 
     let create_program_events = vec![
-        BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
-        BlockEvent::mirror(
+        BlockRequestEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
+        BlockRequestEvent::mirror(
             actor_id,
             MirrorEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
         ),
-        BlockEvent::mirror(
+        BlockRequestEvent::mirror(
             actor_id,
             MirrorEvent::MessageQueueingRequested {
                 id: H256::random().0.into(),
@@ -103,14 +105,14 @@ fn process_observer_event() {
     ];
 
     let outcomes = processor
-        .process_block_events(ch1, create_program_events.as_slice())
+        .process_block_events(ch1, create_program_events)
         .expect("failed to process create program");
 
     log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
 
     let ch2 = init_new_block_from_parent(&mut processor, ch1);
 
-    let send_message_event = BlockEvent::mirror(
+    let send_message_event = BlockRequestEvent::mirror(
         actor_id,
         MirrorEvent::MessageQueueingRequested {
             id: H256::random().0.into(),
@@ -121,7 +123,7 @@ fn process_observer_event() {
     );
 
     let outcomes = processor
-        .process_block_events(ch2, &[send_message_event])
+        .process_block_events(ch2, vec![send_message_event])
         .expect("failed to process send message");
 
     log::debug!("\n\nSend message outcomes: {outcomes:?}\n\n");

@@ -18,6 +18,7 @@
 
 use crate::{
     default_users_list,
+    error::usage_panic,
     manager::ExtManager,
     state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
@@ -25,12 +26,12 @@ use crate::{
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
-use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -154,7 +155,6 @@ impl From<[u8; 32]> for ProgramIdWrapper {
 }
 
 impl From<&[u8]> for ProgramIdWrapper {
-    #[track_caller]
     fn from(other: &[u8]) -> Self {
         ProgramId::try_from(other)
             .expect("invalid identifier")
@@ -181,7 +181,6 @@ impl From<String> for ProgramIdWrapper {
 }
 
 impl From<&str> for ProgramIdWrapper {
-    #[track_caller]
     fn from(other: &str) -> Self {
         ProgramId::from_str(other)
             .expect("invalid identifier")
@@ -249,7 +248,6 @@ impl ProgramBuilder {
     }
 
     /// Create a program instance from wasm file.
-    #[track_caller]
     pub fn from_file(path: impl AsRef<Path>) -> Self {
         Self::from_binary(fs::read(path).expect("Failed to read WASM file"))
     }
@@ -297,7 +295,6 @@ impl ProgramBuilder {
     /// It looks up the wasm binary of the root crate that contains
     /// the current test, uploads it to the testing system, then
     /// returns the program instance.
-    #[track_caller]
     pub fn current() -> Self {
         Self::inner_current(false)
     }
@@ -305,7 +302,6 @@ impl ProgramBuilder {
     /// Get optimized program of the root crate with provided `system`,
     ///
     /// See also [`ProgramBuilder::current`].
-    #[track_caller]
     pub fn current_opt() -> Self {
         Self::inner_current(true)
     }
@@ -325,31 +321,17 @@ impl ProgramBuilder {
     /// Set metadata for future program from file.
     ///
     /// See also [`ProgramBuilder::with_meta`].
-    #[track_caller]
     pub fn with_meta_file(self, path: impl AsRef<Path>) -> Self {
         self.with_meta(fs::read(path).expect("Failed to read metadata file"))
     }
 
     /// Build program with set parameters.
-    #[track_caller]
     pub fn build(self, system: &System) -> Program {
         let id = self
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let schedule = Schedule::default();
-        let code = Code::try_new(
-            self.code,
-            schedule.instruction_weights.version,
-            |module| schedule.rules(module),
-            schedule.limits.stack_height,
-            schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
-        )
-        .expect("Failed to create Program from code");
-
-        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
-        let (code, code_id) = code_and_id.into_parts();
+        let (code, code_id) = Self::build_instrumented_code_and_id(self.code);
 
         if let Some(metadata) = self.meta {
             system
@@ -370,6 +352,24 @@ impl ProgramBuilder {
                 gas_reservation_map: Default::default(),
             }),
         )
+    }
+
+    pub(crate) fn build_instrumented_code_and_id(
+        original_code: Vec<u8>,
+    ) -> (InstrumentedCode, CodeId) {
+        let schedule = Schedule::default();
+        let code = Code::try_new(
+            original_code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
+        )
+        .expect("Failed to create Program from provided code");
+
+        let c: InstrumentedCodeAndId = CodeAndId::new(code).into();
+        c.into_parts()
     }
 }
 
@@ -401,7 +401,10 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
-            panic!("Can't create program with id {id:?}, because it's reserved for default users")
+            usage_panic!(
+                "Can't create program with id {id:?}, because it's reserved for default users.\
+                Please, use another id."
+            )
         }
 
         if system
@@ -410,9 +413,9 @@ impl<'a> Program<'a> {
             .store_new_actor(program_id, program, None)
             .is_some()
         {
-            panic!(
-                "Can't create program with id {:?}, because Program with this id already exists",
-                id
+            usage_panic!(
+                "Can't create program with id {id:?}, because Program with this id already exists. \
+                Please, use another id."
             )
         }
 
@@ -531,7 +534,6 @@ impl<'a> Program<'a> {
     }
 
     /// Send the message to the program with bytes payload and value.
-    #[track_caller]
     pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> MessageId
     where
         ID: Into<ProgramIdWrapper>,
@@ -570,9 +572,14 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
+        // The current block number is always a block number of the "executed" block.
+        // So before sending any messages and triggering a block run the block number
+        // equals to 0 (curr). So any new message sent by user goes to a new block,
+        // that will be executed, i.e. block with number curr + 1.
+        let block_number = system.block_height() + 1;
         let message = Message::new(
             MessageId::generate_from_user(
-                system.block_height(),
+                block_number,
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
@@ -789,7 +796,10 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 
 /// `cargo-gbuild` utils
 pub mod gbuild {
-    use crate::{error::TestError as Error, Result};
+    use crate::{
+        error::{usage_panic, TestError as Error},
+        Result,
+    };
     use cargo_toml::Manifest;
     use std::{path::PathBuf, process::Command};
 
@@ -845,7 +855,10 @@ pub mod gbuild {
                 .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
                 .success()
             {
-                panic!("Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, manifest path: {manifest:?}")
+                usage_panic!(
+                    "Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, \
+                    manifest path: {manifest:?}"
+                )
             }
         }
     }
@@ -892,11 +905,11 @@ mod tests {
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
-        assert!(value.is_ok());
+        assert!(value.is_ok(), "not okay: {:?}", value);
     }
 
     #[test]
-    fn test_handle_messages_to_failing_program() {
+    fn test_queued_message_to_failed_program() {
         let sys = System::new();
         sys.init_logger();
 
@@ -905,22 +918,37 @@ mod tests {
         let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
         let init_msg_payload = String::from("InvalidInput");
-        let msg_id = prog.send(user_id, init_msg_payload);
+        let failed_mid = prog.send(user_id, init_msg_payload);
+        let skipped_mid = prog.send(user_id, String::from("should_be_skipped"));
 
         let res = sys.run_next_block();
 
-        res.assert_panicked_with(msg_id, "Failed to load destination: Decode(Error)");
-
-        let msg_id = prog.send(user_id, String::from("should_be_skipped"));
-
-        let res = sys.run_next_block();
+        res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
         let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
             .source(prog.id())
             .dest(user_id);
 
-        assert!(res.not_executed.contains(&msg_id));
+        assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_new_message_to_failed_program() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = DEFAULT_USER_ALICE;
+
+        let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
+
+        let init_msg_payload = String::from("InvalidInput");
+        let failed_mid = prog.send(user_id, init_msg_payload);
+        let res = sys.run_next_block();
+        res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
+
+        let _panic = prog.send_bytes(user_id, b"");
     }
 
     #[test]
@@ -1126,7 +1154,6 @@ mod tests {
     }
 
     impl Drop for CleanupFolderOnDrop {
-        #[track_caller]
         fn drop(&mut self) {
             std::fs::remove_dir_all(&self.path).expect("Failed to cleanup after test")
         }
@@ -1260,7 +1287,7 @@ mod tests {
         assert_eq!(sys.balance_of(prog_id), 0);
         let prog = Program::from_binary_with_id(&sys, prog_id, WASM_BINARY);
 
-        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 1_000_000_000, 0);
+        let msg_id = prog.send_with_gas(user_id, demo_exit_handle::scheme(), 10_000_000_000, 0);
         let result = sys.run_next_block();
         user_balance -= result.spent_value() + EXISTENTIAL_DEPOSIT;
 
@@ -1268,7 +1295,7 @@ mod tests {
         assert_eq!(sys.balance_of(prog_id), EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), user_balance);
 
-        let msg_id = prog.send_bytes_with_gas(user_id, [], 1_000_000_000, 0);
+        let msg_id = prog.send_bytes_with_gas(user_id, [], 10_000_000_000, 0);
         let result = sys.run_next_block();
         user_balance -= result.spent_value();
 

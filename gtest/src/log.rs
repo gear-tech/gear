@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    error::usage_panic,
     program::{Gas, ProgramIdWrapper},
     Value, GAS_MULTIPLIER,
 };
@@ -120,6 +121,30 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
             reply_code: log.reply_code,
             reply_to: log.reply_to,
         })
+    }
+
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
+
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    pub fn destination(&self) -> ProgramId {
+        self.destination
+    }
+
+    pub fn payload(&self) -> &T {
+        &self.payload
+    }
+
+    pub fn reply_code(&self) -> Option<ReplyCode> {
+        self.reply_code
+    }
+
+    pub fn reply_to(&self) -> Option<MessageId> {
+        self.reply_to
     }
 }
 
@@ -225,14 +250,13 @@ impl Log {
     }
 
     /// Set the payload of the log with bytes.
-    #[track_caller]
     pub fn payload_bytes(mut self, payload: impl AsRef<[u8]>) -> Self {
         if self.payload.is_some() {
-            panic!("Payload was already set for this log");
+            usage_panic!("Payload was already set for this log");
         }
 
         if let Some(ReplyCode::Success(SuccessReplyReason::Auto)) = self.reply_code {
-            panic!("Cannot set payload for auto reply");
+            usage_panic!("Cannot set payload for auto reply");
         }
 
         self.payload = Some(payload.as_ref().to_vec().try_into().unwrap());
@@ -241,10 +265,9 @@ impl Log {
     }
 
     /// Set the source of the log.
-    #[track_caller]
     pub fn source(mut self, source: impl Into<ProgramIdWrapper>) -> Self {
         if self.source.is_some() {
-            panic!("Source was already set for this log");
+            usage_panic!("Source was already set for this log");
         }
 
         self.source = Some(source.into().0);
@@ -253,10 +276,9 @@ impl Log {
     }
 
     /// Set the destination of the log.
-    #[track_caller]
     pub fn dest(mut self, dest: impl Into<ProgramIdWrapper>) -> Self {
         if self.destination.is_some() {
-            panic!("Destination was already set for this log");
+            usage_panic!("Destination was already set for this log");
         }
         self.destination = Some(dest.into().0);
 
@@ -264,13 +286,12 @@ impl Log {
     }
 
     /// Set the reply code for this log.
-    #[track_caller]
     pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
         if self.reply_code.is_some() {
-            panic!("Reply code was already set for this log");
+            usage_panic!("Reply code was already set for this log");
         }
         if self.payload.is_some() && reply_code == ReplyCode::Success(SuccessReplyReason::Auto) {
-            panic!("Cannot set auto reply for log with payload");
+            usage_panic!("Cannot set auto reply for log with payload");
         }
 
         self.reply_code = Some(reply_code);
@@ -279,10 +300,9 @@ impl Log {
     }
 
     /// Set the reply destination for this log.
-    #[track_caller]
     pub fn reply_to(mut self, reply_to: MessageId) -> Self {
         if self.reply_to.is_some() {
-            panic!("Reply destination was already set for this log");
+            usage_panic!("Reply destination was already set for this log");
         }
 
         self.reply_to = Some(reply_to);
@@ -399,8 +419,7 @@ pub struct BlockRunResult {
     /// Total messages processed during the current
     /// execution.
     pub total_processed: u32,
-    // TODO #4122
-    /// Logs created during the current execution.
+    /// User message logs (events) created during the current execution.
     pub log: Vec<CoreLog>,
     /// Mapping gas burned for each message during
     /// the current block execution.
@@ -431,7 +450,6 @@ impl BlockRunResult {
 
     /// Asserts that the message panicked and that the panic contained a
     /// given message.
-    #[track_caller]
     pub fn assert_panicked_with(&self, message_id: MessageId, msg: impl Into<String>) {
         let panic_log = self.message_panic_log(message_id);
         assert!(panic_log.is_some(), "Program did not panic");

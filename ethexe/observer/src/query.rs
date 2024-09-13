@@ -5,7 +5,8 @@ use std::{
 
 use crate::{
     observer::{
-        read_block_events, read_block_events_batch, read_code_from_tx_hash, ObserverProvider,
+        read_block_events, read_block_request_events, read_block_request_events_batch,
+        read_code_from_tx_hash, ObserverProvider,
     },
     BlobReader,
 };
@@ -19,7 +20,7 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
     router::Event as RouterEvent,
-    BlockEvent,
+    BlockEvent, BlockRequestEvent,
 };
 use ethexe_signer::Address;
 use gprimitives::{CodeId, H256};
@@ -80,6 +81,7 @@ impl Query {
     }
 
     async fn get_committed_blocks(&mut self, block_hash: H256) -> Result<BTreeSet<H256>> {
+        // TODO (breathx): optimize me ASAP.
         Ok(self
             .get_block_events(block_hash)
             .await?
@@ -98,12 +100,7 @@ impl Query {
         to_block: u32,
     ) -> Result<HashMap<H256, BlockHeader>> {
         let total_blocks = to_block.saturating_sub(from_block) + 1;
-        log::info!(
-            "Starting to load {} blocks from {} to {}",
-            total_blocks,
-            from_block,
-            to_block
-        );
+        log::info!("Starting to load {total_blocks} blocks from {from_block} to {to_block}");
 
         let fetches = (from_block..=to_block).map(|block_number| {
             let provider = self.provider.clone();
@@ -113,17 +110,12 @@ impl Query {
                     .get_block_by_number(BlockNumberOrTag::Number(block_number as u64), false)
                     .await?;
                 let block = block
-                    .ok_or_else(|| anyhow!("Block not found for block number {}", block_number))?;
+                    .ok_or_else(|| anyhow!("Block not found for block number {block_number}"))?;
 
-                let height = u32::try_from(block.header.number.ok_or_else(|| {
-                    anyhow!(
-                        "Block number not found for block hash {}",
-                        block.header.hash.unwrap()
-                    )
-                })?)
-                .map_err(|err| anyhow!("Ethereum block number not fit in u32: {}", err))?;
+                let height = u32::try_from(block.header.number)
+                    .map_err(|err| anyhow!("Ethereum block number not fit in u32: {err}"))?;
                 let timestamp = block.header.timestamp;
-                let block_hash = H256(block.header.hash.unwrap().0);
+                let block_hash = H256(block.header.hash.0);
                 let parent_hash = H256(block.header.parent_hash.0);
 
                 let header = BlockHeader {
@@ -139,9 +131,13 @@ impl Query {
         });
 
         // Fetch events in block range.
-        let mut blocks_events =
-            read_block_events_batch(from_block, to_block, &self.provider, self.router_address)
-                .await?;
+        let mut blocks_events = read_block_request_events_batch(
+            from_block,
+            to_block,
+            &self.provider,
+            self.router_address,
+        )
+        .await?;
 
         // Collect results
         let mut block_headers = HashMap::new();
@@ -233,9 +229,11 @@ impl Query {
         let mut actual_commitment_queue: VecDeque<H256> = self
             .database
             .block_commitment_queue(hash)
-            .ok_or(anyhow!(
-                "Commitment queue not found for block {hash}, possible database inconsistency."
-            ))?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Commitment queue not found for block {hash}, possible database inconsistency."
+                )
+            })?
             .into_iter()
             .filter(|hash| !committed_blocks.contains(hash))
             .collect();
@@ -273,7 +271,7 @@ impl Query {
         let program_state_hashes = self
             .database
             .block_end_program_states(parent)
-            .ok_or(anyhow!("parent block end states not found"))?;
+            .ok_or_else(|| anyhow!("parent block end states not found"))?;
         self.database
             .set_block_start_program_states(block_hash, program_state_hashes);
 
@@ -281,7 +279,7 @@ impl Query {
         let queue = self
             .database
             .block_commitment_queue(parent)
-            .ok_or(anyhow!("parent block commitment queue not found"))?;
+            .ok_or_else(|| anyhow!("parent block commitment queue not found"))?;
         let committed_blocks = self.get_committed_blocks(block_hash).await?;
         let current_queue = queue
             .into_iter()
@@ -294,12 +292,12 @@ impl Query {
         if self
             .database
             .block_is_empty(parent)
-            .ok_or(anyhow!("Cannot identify whether parent is empty"))?
+            .ok_or_else(|| anyhow!("Cannot identify whether parent is empty"))?
         {
             let parent_prev_commitment = self
                 .database
                 .block_prev_commitment(parent)
-                .ok_or(anyhow!("parent block prev commitment not found"))?;
+                .ok_or_else(|| anyhow!("parent block prev commitment not found"))?;
             self.database
                 .set_block_prev_commitment(block_hash, parent_prev_commitment);
         } else {
@@ -317,15 +315,11 @@ impl Query {
                     .provider
                     .get_block_by_hash(block_hash.0.into(), BlockTransactionsKind::Hashes)
                     .await?
-                    .ok_or(anyhow!("Block not found"))?;
+                    .ok_or_else(|| anyhow!("Block not found"))?;
 
-                let height = u32::try_from(
-                    block
-                        .header
-                        .number
-                        .ok_or(anyhow!("Block number not found"))?,
-                )
-                .unwrap_or_else(|err| unreachable!("Ethereum block number not fit in u32: {err}"));
+                let height = u32::try_from(block.header.number).unwrap_or_else(|err| {
+                    unreachable!("Ethereum block number not fit in u32: {err}")
+                });
                 let timestamp = block.header.timestamp;
                 let parent_hash = H256(block.header.parent_hash.0);
 
@@ -339,8 +333,9 @@ impl Query {
 
                 // Populate block events in db.
                 let events =
-                    read_block_events(block_hash, &self.provider, self.router_address).await?;
-                self.database.set_block_events(block_hash, events.clone());
+                    read_block_request_events(block_hash, &self.provider, self.router_address)
+                        .await?;
+                self.database.set_block_events(block_hash, events);
 
                 Ok(meta)
             }
@@ -352,11 +347,19 @@ impl Query {
     }
 
     pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
+        read_block_events(block_hash, &self.provider, self.router_address).await
+    }
+
+    pub async fn get_block_request_events(
+        &mut self,
+        block_hash: H256,
+    ) -> Result<Vec<BlockRequestEvent>> {
         if let Some(events) = self.database.block_events(block_hash) {
             return Ok(events);
         }
 
-        let events = read_block_events(block_hash, &self.provider, self.router_address).await?;
+        let events =
+            read_block_request_events(block_hash, &self.provider, self.router_address).await?;
         self.database.set_block_events(block_hash, events.clone());
 
         Ok(events)

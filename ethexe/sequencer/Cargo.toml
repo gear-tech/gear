@@ -23,3 +23,4 @@ log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 tokio.workspace = true
+indexmap.workspace = true

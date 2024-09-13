@@ -1,5 +1,7 @@
-use gear_core::{costs::CostOf, pages::GearPagesAmount};
-use gear_lazy_pages_common::LazyPagesCosts;
+use gear_core::{
+    costs::{CostOf, LazyPagesCosts},
+    pages::GearPagesAmount,
+};
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 
 const INSTRUCTIONS_SPREAD: u8 = 50;

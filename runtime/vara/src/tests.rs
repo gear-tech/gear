@@ -18,13 +18,16 @@
 
 use super::*;
 use crate::Runtime;
-use frame_support::traits::StorageInstance;
-use gear_lazy_pages_common::LazyPagesCosts;
+use frame_support::{dispatch::GetDispatchInfo, traits::StorageInstance};
+use frame_system::limits::WeightsPerClass;
+use gear_core::costs::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
+use pallet_staking::WeightInfo as _;
 use runtime_common::weights::{
     check_instructions_weights, check_lazy_pages_costs, check_pages_costs, check_syscall_weights,
     PagesCosts,
 };
+use sp_runtime::AccountId32;
 
 #[cfg(feature = "dev")]
 #[test]
@@ -69,6 +72,38 @@ fn bridge_session_timer_is_correct() {
         <Runtime as pallet_staking::Config>::SessionsPerEra::get(),
         6
     );
+}
+
+#[test]
+fn payout_stakers_fits_in_block() {
+    let expected_weight =
+        <Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
+            <Runtime as pallet_staking::Config>::MaxExposurePageSize::get(),
+        );
+
+    let call: <Runtime as frame_system::Config>::RuntimeCall =
+        RuntimeCall::Staking(pallet_staking::Call::payout_stakers {
+            validator_stash: AccountId32::new(Default::default()),
+            era: Default::default(),
+        });
+
+    let dispatch_info = call.get_dispatch_info();
+
+    assert_eq!(dispatch_info.class, DispatchClass::Normal);
+    assert_eq!(dispatch_info.weight, expected_weight);
+
+    let block_weights = <Runtime as frame_system::Config>::BlockWeights::get();
+
+    let normal_class_weights: WeightsPerClass =
+        block_weights.per_class.get(DispatchClass::Normal).clone();
+
+    let normal_ref_time = normal_class_weights
+        .max_extrinsic
+        .unwrap_or(Weight::MAX)
+        .ref_time();
+    let base_weight = normal_class_weights.base_extrinsic.ref_time();
+
+    assert!(normal_ref_time - base_weight > expected_weight.ref_time());
 }
 
 #[test]
@@ -125,14 +160,14 @@ fn instruction_weights_heuristics_test() {
         i32popcnt: 350,
         i64eqz: 1_300,
         i32eqz: 1_200,
-        i32extend8s: 400,
-        i32extend16s: 400,
+        i32extend8s: 200,
+        i32extend16s: 200,
         i64extend8s: 400,
         i64extend16s: 400,
         i64extend32s: 400,
-        i64extendsi32: 350,
-        i64extendui32: 400,
-        i32wrapi64: 10,
+        i64extendsi32: 200,
+        i64extendui32: 200,
+        i32wrapi64: 200,
         i64eq: 1_800,
         i32eq: 1_100,
         i64ne: 1_700,
@@ -158,7 +193,7 @@ fn instruction_weights_heuristics_test() {
         i64add: 1_300,
         i32add: 500,
         i64sub: 1_300,
-        i32sub: 250,
+        i32sub: 500,
         i64mul: 2_000,
         i32mul: 1_000,
         i64divs: 3_500,

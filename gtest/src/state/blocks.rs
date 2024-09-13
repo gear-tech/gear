@@ -118,7 +118,7 @@ fn now() -> u64 {
 /// Block number getter.
 ///
 /// Used to get block number for auxiliary complex storage managers,
-/// like auxiliary maibox, waitlist and etc.
+/// like auxiliary mailbox, waitlist and etc.
 pub(crate) struct GetBlockNumberImpl;
 
 impl GetCallback<BlockNumber> for GetBlockNumberImpl {

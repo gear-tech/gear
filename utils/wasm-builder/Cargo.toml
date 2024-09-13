@@ -20,7 +20,6 @@ pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
 log.workspace = true
 pathdiff.workspace = true
-dirs.workspace = true
 gmeta.workspace = true
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true

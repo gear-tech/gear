@@ -28,13 +28,14 @@ use alloc::format;
 use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
 use gear_core::{
+    costs::LazyPagesCosts,
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
 };
 use gear_lazy_pages_common::{
-    GlobalsAccessConfig, LazyPagesCosts, LazyPagesInitContext, ProcessAccessError, Status,
+    GlobalsAccessConfig, LazyPagesInitContext, ProcessAccessError, Status,
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::vec::Vec;

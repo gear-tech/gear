@@ -47,20 +47,37 @@ impl ExtManager {
         self.bank.spend_gas(external.cast(), amount, multiplier)
     }
 
+    pub(crate) fn spend_burned(&mut self, id: MessageId, amount: u64) {
+        self.gas_burned
+            .entry(id)
+            .and_modify(|v| *v = v.saturating_sub(Gas(amount)))
+            .or_insert(Gas(amount));
+        self.spend_gas(id, amount);
+    }
+
     pub(crate) fn cost_by_storage_type(storage_type: StorageType) -> u64 {
         // Cost per block based on the storage used for holding
+        let schedule = Schedule::default();
+        let RentWeights {
+            waitlist,
+            dispatch_stash,
+            reservation,
+            mailbox,
+            ..
+        } = schedule.rent_weights;
         match storage_type {
             StorageType::Code => todo!("#646"),
-            StorageType::Waitlist => WAITLIST_COST,
-            StorageType::Mailbox => MAILBOX_COST,
-            StorageType::DispatchStash => DISPATCH_HOLD_COST,
+            StorageType::Waitlist => waitlist.ref_time,
+            StorageType::Mailbox => mailbox.ref_time,
+            StorageType::DispatchStash => dispatch_stash.ref_time,
             StorageType::Program => todo!("#646"),
-            StorageType::Reservation => RESERVATION_COST,
+            StorageType::Reservation => reservation.ref_time,
         }
     }
 
     pub(crate) fn consume_and_retrieve(&mut self, id: impl Origin) {
-        let outcome = self.gas_tree.consume(id).unwrap_or_else(|e| {
+        let id_origin = id.into_origin();
+        let outcome = self.gas_tree.consume(id_origin).unwrap_or_else(|e| {
             let err_msg = format!(
                 "consume_and_retrieve: failed consuming the rest of gas. Got error - {e:?}"
             );
@@ -70,6 +87,9 @@ impl ExtManager {
 
         if let Some((imbalance, multiplier, external)) = outcome {
             let gas_left = imbalance.peek();
+            log::debug!(
+                "Consumed message {id_origin}. Unreserving {gas_left} (gas) from {external:?}",
+            );
 
             if !gas_left.is_zero() {
                 self.bank

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IMirror, AlloyProvider, AlloyTransport};
+use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
     primitives::Address,
     providers::{Provider, ProviderBuilder, RootProvider},
@@ -59,17 +59,13 @@ impl Mirror {
         value: u128,
     ) -> Result<(H256, MessageId)> {
         let builder = self.0.sendMessage(payload.as_ref().to_vec().into(), value);
-        let tx = builder.send().await?;
-
-        let receipt = tx.get_receipt().await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut message_id = None;
 
         for log in receipt.inner.logs() {
-            if log.topic0().map(|v| v.0)
-                == Some(signatures::MESSAGE_QUEUEING_REQUESTED.to_fixed_bytes())
-            {
+            if log.topic0() == Some(&signatures::MESSAGE_QUEUEING_REQUESTED) {
                 let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log)?;
 
                 message_id = Some((*event.id).into());
@@ -79,7 +75,7 @@ impl Mirror {
         }
 
         let message_id =
-            message_id.ok_or(anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
+            message_id.ok_or_else(|| anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
 
         Ok((tx_hash, message_id))
     }
@@ -95,17 +91,14 @@ impl Mirror {
             payload.as_ref().to_vec().into(),
             value,
         );
-        let tx = builder.send().await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
-        let receipt = tx.get_receipt().await?;
         Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
         let builder = self.0.claimValue(claimed_id.into_bytes().into());
-        let tx = builder.send().await?;
-
-        let receipt = tx.get_receipt().await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())
     }
