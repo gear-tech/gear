@@ -909,7 +909,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_messages_to_failing_program() {
+    fn test_queued_message_to_failed_program() {
         let sys = System::new();
         sys.init_logger();
 
@@ -931,6 +931,24 @@ mod tests {
 
         assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_new_message_to_failed_program() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = DEFAULT_USER_ALICE;
+
+        let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
+
+        let init_msg_payload = String::from("InvalidInput");
+        let failed_mid = prog.send(user_id, init_msg_payload);
+        let res = sys.run_next_block();
+        res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
+
+        let _panic = prog.send_bytes(user_id, b"");
     }
 
     #[test]
