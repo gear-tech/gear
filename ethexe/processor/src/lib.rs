@@ -64,7 +64,7 @@ pub enum LocalOutcome {
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
     pub fn new(db: Database) -> Result<Self> {
-        let creator = InstanceCreator::new(db.clone(), host::runtime())?;
+        let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self { db, creator })
     }
 
@@ -212,7 +212,7 @@ impl Processor {
 
         log::debug!("{programs:?}");
 
-        let messages_and_outcomes = run::run(8, self.creator.clone(), programs);
+        let messages_and_outcomes = run::run(8, self.db.clone(), self.creator.clone(), programs);
 
         Ok(messages_and_outcomes.1)
     }
