@@ -1,7 +1,7 @@
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
 use ethexe_processor::Processor;
 use futures::FutureExt;
-use gprimitives::H256;
+use gprimitives::{ActorId, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -29,7 +29,11 @@ pub trait RpcApi {
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;
 
     #[method(name = "calculateReplyForHandle")]
-    async fn calculate_reply_for_handle(&self, at: Option<H256>) -> RpcResult<Vec<u8>>;
+    async fn calculate_reply_for_handle(
+        &self,
+        at: Option<H256>,
+        program_id: ActorId,
+    ) -> RpcResult<Vec<u8>>;
 }
 
 pub struct RpcModule {
@@ -64,15 +68,21 @@ impl RpcApiServer for RpcModule {
         self.block_header_at_or_latest(hash)
     }
 
-    async fn calculate_reply_for_handle(&self, at: Option<H256>) -> RpcResult<Vec<u8>> {
+    async fn calculate_reply_for_handle(
+        &self,
+        at: Option<H256>,
+        program_id: ActorId,
+    ) -> RpcResult<Vec<u8>> {
         let block_hash = self.block_header_at_or_latest(at)?.0;
 
-        let db_overlay = unsafe { self.db.clone().overlaid() };
-
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let mut processor = Processor::new(db_overlay).map_err(runtime_err)?;
+        let mut overlaid_processor = Processor::new(self.db.clone())
+            .map_err(|_| internal())?
+            .overlaid();
 
-        processor.execute_for_reply(block_hash).map_err(runtime_err)
+        overlaid_processor
+            .execute_for_reply(block_hash, program_id)
+            .map_err(runtime_err)
     }
 }
 
@@ -82,6 +92,10 @@ fn db_err(err: &'static str) -> ErrorObject<'static> {
 
 fn runtime_err(err: anyhow::Error) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
+}
+
+fn internal() -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Internal error", None::<&str>)
 }
 
 pub struct RpcConfig {

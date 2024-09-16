@@ -31,7 +31,7 @@ use gear_core::{
     ids::{prelude::CodeIdExt, ProgramId},
     message::{DispatchKind, Payload},
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use host::InstanceCreator;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, VecDeque};
@@ -46,6 +46,16 @@ mod tests;
 pub struct Processor {
     db: Database,
     creator: InstanceCreator,
+}
+
+#[derive(Clone)]
+pub struct OverlaidProcessor(Processor);
+
+impl OverlaidProcessor {
+    pub fn execute_for_reply(&mut self, block_hash: H256, _program_id: ActorId) -> Result<Vec<u8>> {
+        self.0.creator.set_chain_head(block_hash);
+        Ok(Default::default())
+    }
 }
 
 /// Local changes that can be committed to the network or local signer.
@@ -66,6 +76,12 @@ impl Processor {
     pub fn new(db: Database) -> Result<Self> {
         let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self { db, creator })
+    }
+
+    pub fn overlaid(mut self) -> OverlaidProcessor {
+        self.db = unsafe { self.db.overlaid() };
+
+        OverlaidProcessor(self)
     }
 
     /// Returns some CodeId in case of settlement and new code accepting.
@@ -108,11 +124,6 @@ impl Processor {
         );
 
         Ok(true)
-    }
-
-    pub fn execute_for_reply(&mut self, block_hash: H256) -> Result<Vec<u8>> {
-        self.creator.set_chain_head(block_hash);
-        Ok(Default::default())
     }
 
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {
