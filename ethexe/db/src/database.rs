@@ -20,7 +20,10 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use crate::{CASDatabase, KVDatabase};
+use crate::{
+    overlay::{CASOverlay, KVOverlay},
+    CASDatabase, KVDatabase,
+};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage},
     router::StateTransition,
@@ -381,6 +384,16 @@ impl Database {
             cas: CASDatabase::clone_boxed(db),
             kv: KVDatabase::clone_boxed_kv(db),
             router_address,
+        }
+    }
+
+    /// # Safety
+    /// Not ready for using in prod. Intended to be for rpc calls only.
+    pub unsafe fn overlaid(self) -> Self {
+        Self {
+            cas: Box::new(CASOverlay::new(self.cas)),
+            kv: Box::new(KVOverlay::new(self.kv)),
+            router_address: self.router_address,
         }
     }
 
