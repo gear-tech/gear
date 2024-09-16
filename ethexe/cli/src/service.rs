@@ -179,7 +179,7 @@ impl Service {
 
         let rpc = config
             .rpc_port
-            .map(|port| ethexe_rpc::RpcService::new(port, db.clone(), processor.clone()));
+            .map(|port| ethexe_rpc::RpcService::new(port, db.clone()));
 
         Ok(Self {
             db,

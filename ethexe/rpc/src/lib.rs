@@ -34,12 +34,11 @@ pub trait RpcApi {
 
 pub struct RpcModule {
     db: Database,
-    processor: Processor,
 }
 
 impl RpcModule {
-    pub fn new(db: Database, processor: Processor) -> Self {
-        Self { db, processor }
+    pub fn new(db: Database) -> Self {
+        Self { db }
     }
 
     pub fn block_header_at_or_latest(
@@ -68,7 +67,10 @@ impl RpcApiServer for RpcModule {
     async fn calculate_reply_for_handle(&self, at: Option<H256>) -> RpcResult<Vec<u8>> {
         let block_hash = self.block_header_at_or_latest(at)?.0;
 
-        let mut processor = self.processor.clone();
+        let db_overlay = unsafe { self.db.clone().overlaid() };
+
+        // TODO (breathx): optimize here instantiation if matches actual runtime.
+        let mut processor = Processor::new(db_overlay).map_err(runtime_err)?;
 
         processor.execute_for_reply(block_hash).map_err(runtime_err)
     }
@@ -89,14 +91,12 @@ pub struct RpcConfig {
 
 pub struct RpcService {
     config: RpcConfig,
-    processor: Processor,
 }
 
 impl RpcService {
-    pub fn new(port: u16, db: Database, processor: Processor) -> Self {
+    pub fn new(port: u16, db: Database) -> Self {
         Self {
             config: RpcConfig { port, db },
-            processor,
         }
     }
 
@@ -105,7 +105,7 @@ impl RpcService {
             TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], self.config.port))).await?;
 
         let service_builder = Server::builder().to_service_builder();
-        let module = RpcApiServer::into_rpc(RpcModule::new(self.config.db, self.processor));
+        let module = RpcApiServer::into_rpc(RpcModule::new(self.config.db));
 
         let (stop_handle, server_handle) = stop_channel();
 
