@@ -19,7 +19,6 @@
 use alloc::{boxed::Box, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
-mod calculate;
 mod instrument;
 mod run;
 
@@ -53,22 +52,6 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
         state_root,
         maybe_instrumented_code,
     );
-
-    return_val(res)
-}
-
-#[cfg(target_arch = "wasm32")]
-#[no_mangle]
-extern "C" fn calculate_reply_for_handle(arg_ptr: i32, arg_len: i32) -> i64 {
-    _calculate_reply_for_handle(arg_ptr, arg_len)
-}
-
-#[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
-fn _calculate_reply_for_handle(arg_ptr: i32, arg_len: i32) -> i64 {
-    let (program_id, state_root, instrumented_code, payload) =
-        Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
-
-    let res = calculate::reply_for_handle(program_id, state_root, instrumented_code, payload);
 
     return_val(res)
 }
