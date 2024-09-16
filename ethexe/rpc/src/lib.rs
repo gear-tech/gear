@@ -32,7 +32,10 @@ pub trait RpcApi {
     async fn calculate_reply_for_handle(
         &self,
         at: Option<H256>,
+        source: ActorId,
         program_id: ActorId,
+        payload: Vec<u8>,
+        value: u128,
     ) -> RpcResult<Vec<u8>>;
 }
 
@@ -71,17 +74,21 @@ impl RpcApiServer for RpcModule {
     async fn calculate_reply_for_handle(
         &self,
         at: Option<H256>,
+        source: ActorId,
         program_id: ActorId,
+        payload: Vec<u8>,
+        value: u128,
     ) -> RpcResult<Vec<u8>> {
         let block_hash = self.block_header_at_or_latest(at)?.0;
 
+        // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let mut overlaid_processor = Processor::new(self.db.clone())
-            .map_err(|_| internal())?
-            .overlaid();
+        let processor = Processor::new(self.db.clone()).map_err(|_| internal())?;
+
+        let mut overlaid_processor = processor.overlaid();
 
         overlaid_processor
-            .execute_for_reply(block_hash, program_id)
+            .execute_for_reply(block_hash, source, program_id, payload, value)
             .map_err(runtime_err)
     }
 }

@@ -31,7 +31,7 @@ use gear_core::{
     ids::{prelude::CodeIdExt, ProgramId},
     message::{DispatchKind, Payload},
 };
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H256};
 use host::InstanceCreator;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, VecDeque};
@@ -52,9 +52,58 @@ pub struct Processor {
 pub struct OverlaidProcessor(Processor);
 
 impl OverlaidProcessor {
-    pub fn execute_for_reply(&mut self, block_hash: H256, _program_id: ActorId) -> Result<Vec<u8>> {
-        self.0.creator.set_chain_head(block_hash);
-        Ok(Default::default())
+    // TODO (breathx): optimize for one single program.
+    pub fn execute_for_reply(
+        &mut self,
+        block_hash: H256,
+        source: ActorId,
+        program_id: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    ) -> Result<Vec<u8>> {
+        let mut states = self
+            .0
+            .db
+            .block_start_program_states(block_hash)
+            .unwrap_or_default();
+
+        let Some(&state_hash) = states.get(&program_id) else {
+            return Err(anyhow::anyhow!("unknown program at specified block hash"));
+        };
+
+        let state =
+            self.0.db.read_state(state_hash).ok_or_else(|| {
+                anyhow::anyhow!("unreachable: state partially presents in storage")
+            })?;
+
+        anyhow::ensure!(
+            !state.requires_init_message(),
+            "program isn't yet initialized"
+        );
+
+        self.0.handle_mirror_event(
+            &mut states,
+            program_id,
+            MirrorEvent::MessageQueueingRequested {
+                id: MessageId::zero(),
+                source,
+                payload,
+                value,
+            },
+        )?;
+
+        let (messages, _) = run::run(8, self.0.db.clone(), self.0.creator.clone(), &mut states);
+
+        let res = messages
+            .into_iter()
+            .find_map(|v| {
+                v.reply_details().and_then(|d| {
+                    (d.to_message_id() == MessageId::zero()).then_some(v.into_parts().3.into_vec())
+                })
+            })
+            .ok_or_else(|| anyhow::anyhow!("reply wasn't found"))?;
+
+        Ok(res)
     }
 }
 
