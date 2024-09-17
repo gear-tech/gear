@@ -6534,6 +6534,7 @@ dependencies = [
  "gwasm-instrument",
  "hashbrown 0.14.5",
  "hex",
+ "impl-serde",
  "log",
  "num-traits",
  "numerated",

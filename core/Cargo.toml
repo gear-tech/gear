@@ -38,6 +38,7 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }
+impl-serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -49,4 +50,4 @@ numerated = { workspace = true, features = ["mock"] }
 [features]
 default = []
 strict = []
-std = ["serde/std", "wasmparser/std", "gear-core-errors/serde"]
+std = ["serde/std", "dep:impl-serde", "wasmparser/std", "gear-core-errors/serde"]
