@@ -1497,4 +1497,30 @@ mod tests {
         // lower than ED
         assert_eq!(sys.balance_of(user), 0)
     }
+
+    #[test]
+    fn tests_self_sent_delayed_message() {
+        use demo_delayed_sender::DELAY;
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user = DEFAULT_USER_ALICE;
+        let program_id = 69;
+
+        let prog = Program::from_binary_with_id(&sys, program_id, demo_delayed_sender::WASM_BINARY);
+
+        // Init message starts sequence of self-sent messages
+        prog.send_bytes(user, "self".as_bytes());
+        let res = sys.run_next_block();
+        assert_eq!(res.succeed.len(), 1);
+
+        let mut target_block_nb = sys.block_height() + DELAY;
+        let res = sys.run_to_block(target_block_nb);
+        assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
+
+        target_block_nb += DELAY;
+        let res = sys.run_to_block(target_block_nb);
+        assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
+    }
 }
