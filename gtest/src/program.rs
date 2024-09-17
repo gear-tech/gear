@@ -1484,7 +1484,7 @@ mod tests {
     #[test]
     fn tests_unused_gas_value_not_transferred() {
         let sys = System::new();
-        sys.init_verbose_logger();
+        sys.init_logger();
 
         let user = 42;
         sys.mint_to(user, 2 * EXISTENTIAL_DEPOSIT);
