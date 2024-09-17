@@ -29,7 +29,7 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
 use gear_core::{
     ids::{prelude::CodeIdExt, ProgramId},
-    message::{DispatchKind, Payload},
+    message::{DispatchKind, Payload, ReplyInfo},
 };
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use host::InstanceCreator;
@@ -60,7 +60,7 @@ impl OverlaidProcessor {
         program_id: ActorId,
         payload: Vec<u8>,
         value: u128,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
         let mut states = self
@@ -100,7 +100,15 @@ impl OverlaidProcessor {
             .into_iter()
             .find_map(|v| {
                 v.reply_details().and_then(|d| {
-                    (d.to_message_id() == MessageId::zero()).then_some(v.into_parts().3.into_vec())
+                    (d.to_message_id() == MessageId::zero()).then(|| {
+                        let parts = v.into_parts();
+
+                        ReplyInfo {
+                            payload: parts.3.into_vec(),
+                            value: parts.5,
+                            code: d.to_reply_code(),
+                        }
+                    })
                 })
             })
             .ok_or_else(|| anyhow::anyhow!("reply wasn't found"))?;

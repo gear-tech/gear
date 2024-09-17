@@ -1,7 +1,8 @@
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
 use ethexe_processor::Processor;
 use futures::FutureExt;
-use gprimitives::{ActorId, H256};
+use gear_core::message::ReplyInfo;
+use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -12,6 +13,7 @@ use jsonrpsee::{
     types::ErrorObject,
     Methods,
 };
+use sp_core::Bytes;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower::Service;
@@ -32,11 +34,11 @@ pub trait RpcApi {
     async fn calculate_reply_for_handle(
         &self,
         at: Option<H256>,
-        source: ActorId,
-        program_id: ActorId,
-        payload: Vec<u8>,
+        source: H160,
+        program_id: H160,
+        payload: Bytes,
         value: u128,
-    ) -> RpcResult<Vec<u8>>;
+    ) -> RpcResult<ReplyInfo>;
 }
 
 pub struct RpcModule {
@@ -74,11 +76,11 @@ impl RpcApiServer for RpcModule {
     async fn calculate_reply_for_handle(
         &self,
         at: Option<H256>,
-        source: ActorId,
-        program_id: ActorId,
-        payload: Vec<u8>,
+        source: H160,
+        program_id: H160,
+        payload: Bytes,
         value: u128,
-    ) -> RpcResult<Vec<u8>> {
+    ) -> RpcResult<ReplyInfo> {
         let block_hash = self.block_header_at_or_latest(at)?.0;
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
@@ -88,7 +90,13 @@ impl RpcApiServer for RpcModule {
         let mut overlaid_processor = processor.overlaid();
 
         overlaid_processor
-            .execute_for_reply(block_hash, source, program_id, payload, value)
+            .execute_for_reply(
+                block_hash,
+                source.into(),
+                program_id.into(),
+                payload.0,
+                value,
+            )
             .map_err(runtime_err)
     }
 }
