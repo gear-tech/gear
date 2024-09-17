@@ -61,6 +61,8 @@ impl OverlaidProcessor {
         payload: Vec<u8>,
         value: u128,
     ) -> Result<Vec<u8>> {
+        self.0.creator.set_chain_head(block_hash);
+
         let mut states = self
             .0
             .db
