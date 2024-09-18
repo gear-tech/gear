@@ -46,23 +46,18 @@ pub(crate) struct SendRequestError {
 #[derive(Debug)]
 pub(crate) enum SendRequestErrorKind {
     OutOfRounds,
-    Pending,
+    NoPeers,
 }
 
-#[derive(Debug, derive_more::From)]
-pub(crate) enum PeerResponse {
+pub enum PeerResponse {
+    Success {
+        request_id: RequestId,
+        response: Response,
+    },
     NewRound {
         peer_id: PeerId,
         request_id: RequestId,
     },
-    #[from]
-    SendRequest(SendRequestError),
-}
-
-#[derive(Debug, derive_more::From)]
-pub(crate) enum PeerFailed {
-    #[from]
-    SendRequest(SendRequestError),
 }
 
 #[derive(Debug)]
@@ -269,7 +264,7 @@ impl OngoingRequests {
             self.pending_requests.push_back(ongoing_request);
             Err(SendRequestError {
                 request_id,
-                kind: SendRequestErrorKind::Pending,
+                kind: SendRequestErrorKind::NoPeers,
             })
         }
     }
@@ -293,7 +288,7 @@ impl OngoingRequests {
         peer: PeerId,
         request_id: OutboundRequestId,
         response: Response,
-    ) -> Result<(RequestId, Response), PeerResponse> {
+    ) -> Result<PeerResponse, SendRequestError> {
         let ongoing_request = self
             .active_requests
             .remove(&request_id)
@@ -301,12 +296,17 @@ impl OngoingRequests {
         let request_id = ongoing_request.request_id;
 
         let new_ongoing_request = match ongoing_request.try_complete(peer, response) {
-            Ok(response) => return Ok((request_id, response)),
+            Ok(response) => {
+                return Ok(PeerResponse::Success {
+                    request_id,
+                    response,
+                })
+            }
             Err(new_ongoing_request) => new_ongoing_request,
         };
 
         let peer_id = self.send_request(behaviour, new_ongoing_request)?;
-        Err(PeerResponse::NewRound {
+        Ok(PeerResponse::NewRound {
             peer_id,
             request_id,
         })
@@ -317,7 +317,7 @@ impl OngoingRequests {
         behaviour: &mut InnerBehaviour,
         peer: PeerId,
         request_id: OutboundRequestId,
-    ) -> Result<(PeerId, RequestId), PeerFailed> {
+    ) -> Result<(PeerId, RequestId), SendRequestError> {
         let ongoing_request = self
             .active_requests
             .remove(&request_id)

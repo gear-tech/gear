@@ -20,8 +20,7 @@ mod ongoing;
 
 use crate::{
     db_sync::ongoing::{
-        OngoingRequests, OngoingResponses, PeerFailed, PeerResponse, SendRequestError,
-        SendRequestErrorKind,
+        OngoingRequests, OngoingResponses, PeerResponse, SendRequestError, SendRequestErrorKind,
     },
     export::{Multiaddr, PeerId},
     peer_score,
@@ -327,11 +326,14 @@ impl Behaviour {
                     request_id,
                     response,
                 ) {
-                    Ok((request_id, response)) => Event::RequestSucceed {
+                    Ok(PeerResponse::Success {
+                        request_id,
+                        response,
+                    }) => Event::RequestSucceed {
                         request_id,
                         response,
                     },
-                    Err(PeerResponse::NewRound {
+                    Ok(PeerResponse::NewRound {
                         peer_id,
                         request_id,
                     }) => Event::NewRequestRound {
@@ -339,17 +341,17 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PartialData,
                     },
-                    Err(PeerResponse::SendRequest(SendRequestError {
+                    Err(SendRequestError {
                         request_id,
                         kind: SendRequestErrorKind::OutOfRounds,
-                    })) => Event::RequestFailed {
+                    }) => Event::RequestFailed {
                         request_id,
                         error: RequestFailure::OutOfRounds,
                     },
-                    Err(PeerResponse::SendRequest(SendRequestError {
+                    Err(SendRequestError {
                         request_id,
-                        kind: SendRequestErrorKind::Pending,
-                    })) => Event::PendingStateRequest { request_id },
+                        kind: SendRequestErrorKind::NoPeers,
+                    }) => Event::PendingStateRequest { request_id },
                 };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -376,17 +378,17 @@ impl Behaviour {
                             peer_id,
                             reason: NewRequestRoundReason::PeerFailed,
                         },
-                        Err(PeerFailed::SendRequest(SendRequestError {
+                        Err(SendRequestError {
                             request_id,
                             kind: SendRequestErrorKind::OutOfRounds,
-                        })) => Event::RequestFailed {
+                        }) => Event::RequestFailed {
                             request_id,
                             error: RequestFailure::OutOfRounds,
                         },
-                        Err(PeerFailed::SendRequest(SendRequestError {
+                        Err(SendRequestError {
                             request_id,
-                            kind: SendRequestErrorKind::Pending,
-                        })) => Event::PendingStateRequest { request_id },
+                            kind: SendRequestErrorKind::NoPeers,
+                        }) => Event::PendingStateRequest { request_id },
                     };
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
@@ -510,7 +512,7 @@ impl NetworkBehaviour for Behaviour {
             }),
             Err(SendRequestError {
                 request_id: _,
-                kind: SendRequestErrorKind::Pending,
+                kind: SendRequestErrorKind::NoPeers,
             }) => None,
         };
         if let Some(event) = event {
