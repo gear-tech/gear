@@ -22,8 +22,8 @@ contract TestStructScaleCodec is Test {
     }
 
     function decodeMyStruct(bytes memory _value) internal pure returns (MyStruct memory) {
-        ScaleCodec.DecodedString memory name = ScaleCodec.decodeString(_value);
-        uint8 age = ScaleCodec.decodeUint8(ScaleCodec.sliceBytes(_value, name.offset, _value.length));
+        ScaleCodec.DecodedString memory name = ScaleCodec.decodeString(_value, 0);
+        uint8 age = ScaleCodec.decodeUint8(_value, name.offset);
 
         return MyStruct(name.value, age);
     }

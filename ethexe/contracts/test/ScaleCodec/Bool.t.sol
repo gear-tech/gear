@@ -14,10 +14,10 @@ contract TestBoolScaleCodec is Test {
     }
 
     function test_boolDecodeTrue() public pure {
-        assertEq(ScaleCodec.decodeBool(hex"01"), true);
+        assertEq(ScaleCodec.decodeBool(hex"01", 0), true);
     }
 
     function test_boolDecodeFalse() public pure {
-        assertEq(ScaleCodec.decodeBool(hex"00"), false);
+        assertEq(ScaleCodec.decodeBool(hex"00", 0), false);
     }
 }

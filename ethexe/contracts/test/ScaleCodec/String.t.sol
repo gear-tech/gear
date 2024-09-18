@@ -10,6 +10,6 @@ contract TestStringScaleCodec is Test {
     }
 
     function test_stringDecode() public pure {
-        assertEq(ScaleCodec.decodeString(hex"1468656c6c6f").value, "hello");
+        assertEq(ScaleCodec.decodeString(hex"1468656c6c6f", 0).value, "hello");
     }
 }

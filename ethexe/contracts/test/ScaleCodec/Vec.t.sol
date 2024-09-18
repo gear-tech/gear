@@ -16,12 +16,12 @@ contract TestVecScaleCodec is Test {
     }
 
     function decodeVecU8(bytes memory _value) internal pure returns (uint8[] memory) {
-        bytes[] memory vec = ScaleCodec.decodeVec(_value, 1, false);
+        bytes[] memory vec = ScaleCodec.decodeVec(_value, 1, false, 0);
 
         uint8[] memory result = new uint8[](vec.length);
 
         for (uint256 i = 0; i < vec.length; i++) {
-            result[i] = ScaleCodec.decodeUint8(vec[i]);
+            result[i] = ScaleCodec.decodeUint8(vec[i], 0);
         }
 
         return result;
@@ -38,12 +38,12 @@ contract TestVecScaleCodec is Test {
     }
 
     function decodeVecString(bytes memory _value) internal pure returns (string[] memory) {
-        bytes[] memory vec = ScaleCodec.decodeVec(_value, 0, true);
+        bytes[] memory vec = ScaleCodec.decodeVec(_value, 0, true, 0);
 
         string[] memory result = new string[](vec.length);
 
         for (uint256 i = 0; i < vec.length; i++) {
-            result[i] = ScaleCodec.decodeString(vec[i]).value;
+            result[i] = ScaleCodec.decodeString(vec[i], 0).value;
         }
 
         return result;

@@ -25,12 +25,13 @@ contract TestResultScaleCodec is Test {
     }
 
     function decodeResultStringU8(bytes memory _value) public pure returns (ResultStringU8 memory) {
-        ScaleCodec.Result memory decoded = ScaleCodec.decodeResult(_value);
+        ScaleCodec.Result memory decoded = ScaleCodec.decodeResult(_value, 0);
 
         if (decoded.isOk) {
-            return ResultStringU8({isOk: true, isErr: false, ok: ScaleCodec.decodeString(decoded.value).value, err: 0});
+            return
+                ResultStringU8({isOk: true, isErr: false, ok: ScaleCodec.decodeString(decoded.value, 0).value, err: 0});
         } else {
-            return ResultStringU8({isOk: false, isErr: true, ok: "", err: ScaleCodec.decodeUint8(decoded.value)});
+            return ResultStringU8({isOk: false, isErr: true, ok: "", err: ScaleCodec.decodeUint8(decoded.value, 0)});
         }
     }
 

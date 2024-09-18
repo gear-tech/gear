@@ -20,10 +20,9 @@ contract TestArrayScaleCodec is Test {
         uint256 offset = 0;
 
         for (uint256 i = 0; i < 5; i++) {
-            ScaleCodec.DecodedString memory item =
-                ScaleCodec.decodeString(ScaleCodec.sliceBytes(_value, offset, _value.length));
+            ScaleCodec.DecodedString memory item = ScaleCodec.decodeString(_value, offset);
             result[i] = item.value;
-            offset += item.offset;
+            offset = item.offset;
         }
 
         return [result[0], result[1], result[2], result[3], result[4]];

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-function bytesToUint(bytes memory data, uint256 byte_length) pure returns (uint256) {
+function bytesToUint(bytes memory data, uint256 byte_length, uint256 offset) pure returns (uint256) {
     uint256 result = 0;
 
-    for (uint256 i = 0; i < byte_length; i++) {
-        result = result | (uint256(uint8(data[i])) << (i * 8));
+    assembly {
+        let data_ptr := add(data, 0x20)
+        for { let i := offset } lt(i, byte_length) { i := add(i, 1) } {
+            let byte_value := byte(0, mload(add(add(data_ptr, i), offset)))
+            result := or(result, shl(mul(i, 8), byte_value))
+        }
     }
 
     return result;
@@ -116,224 +120,294 @@ library ScaleCodec {
         return result;
     }
 
-    function decodeBool(bytes memory _bytes) public pure returns (bool) {
-        return _bytes[0] == 0x01;
+    function decodeBool(bytes memory _bytes, uint256 offset) public pure returns (bool) {
+        return _bytes[offset] == 0x01;
     }
 
     function encodeUint8(uint8 value) public pure returns (bytes memory) {
         bytes memory result = new bytes(1);
-        result[0] = bytes1(value);
+        encodeUint8To(value, result, 0);
         return result;
     }
 
-    function decodeUint8(bytes memory _bytes) public pure returns (uint8) {
-        return uint8(_bytes[0]);
+    function encodeUint8To(uint8 value, bytes memory destination, uint256 offset) public pure {
+        assembly {
+            let dest := add(add(destination, 0x20), offset)
+            mstore8(dest, value)
+        }
+    }
+
+    function decodeUint8(bytes memory _bytes, uint256 offset) public pure returns (uint8) {
+        return uint8(_bytes[offset]);
     }
 
     function encodeInt8(int8 value) public pure returns (bytes memory) {
         return encodeUint8(uint8(value));
     }
 
-    function decodeInt8(bytes memory _bytes) public pure returns (int8) {
-        return int8(uint8(_bytes[0]));
+    function encodeInt8To(int8 value, bytes memory destination, uint256 offset) public pure {
+        encodeUint8To(uint8(value), destination, offset);
+    }
+
+    function decodeInt8(bytes memory _bytes, uint256 offset) public pure returns (int8) {
+        return int8(uint8(_bytes[offset]));
     }
 
     function encodeUint16(uint16 value) public pure returns (bytes memory) {
         bytes memory result = new bytes(2);
-        result[0] = bytes2(value)[1];
-        result[1] = bytes2(value)[0];
+        encodeUint16To(value, result, 0);
         return result;
     }
 
-    function decodeUint16(bytes memory _bytes) public pure returns (uint16) {
-        return uint16(bytesToUint(_bytes, 2));
+    function encodeUint16To(uint16 value, bytes memory destination, uint256 offset) public pure {
+        assembly {
+            let dest := add(add(destination, 0x20), offset)
+            mstore8(dest, and(value, 0xff))
+            mstore8(add(dest, 1), shr(0x08, value))
+        }
+    }
+
+    function decodeUint16(bytes memory _bytes, uint256 offset) public pure returns (uint16) {
+        return uint16(bytesToUint(_bytes, 2, offset));
     }
 
     function encodeInt16(int16 value) public pure returns (bytes memory) {
         return encodeUint16(uint16(value));
     }
 
-    function decodeInt16(bytes memory _bytes) public pure returns (int16) {
-        return int16(decodeUint16(_bytes));
+    function encodeInt16To(int16 value, bytes memory destination, uint256 offset) public pure {
+        encodeUint16To(uint16(value), destination, offset);
+    }
+
+    function decodeInt16(bytes memory _bytes, uint256 offset) public pure returns (int16) {
+        return int16(decodeUint16(_bytes, offset));
     }
 
     function encodeUint32(uint32 value) public pure returns (bytes memory) {
         bytes memory result = new bytes(4);
-
-        bytes4 _value = bytes4(value);
-
-        for (uint8 i = 0; i < 4; i++) {
-            result[i] = _value[3 - i];
-        }
+        encodeUint32To(value, result, 0);
         return result;
     }
 
-    function decodeUint32(bytes memory _bytes) public pure returns (uint32) {
-        return uint32(bytesToUint(_bytes, 4));
+    function encodeUint32To(uint32 value, bytes memory destination, uint256 offset) public pure {
+        assembly {
+            let dest := add(add(destination, 0x20), offset)
+            mstore8(dest, and(value, 0xff))
+            mstore8(add(dest, 1), shr(0x08, value))
+            mstore8(add(dest, 2), shr(0x10, value))
+            mstore8(add(dest, 3), shr(0x18, value))
+        }
+    }
+
+    function decodeUint32(bytes memory _bytes, uint256 offset) public pure returns (uint32) {
+        return uint32(bytesToUint(_bytes, 4, offset));
     }
 
     function encodeInt32(int32 value) public pure returns (bytes memory) {
         return encodeUint32(uint32(value));
     }
 
-    function decodeInt32(bytes memory _bytes) public pure returns (int32) {
-        return int32(decodeUint32(_bytes));
+    function encodeInt32To(int32 value, bytes memory destination, uint256 offset) public pure {
+        encodeUint32To(uint32(value), destination, offset);
+    }
+
+    function decodeInt32(bytes memory _bytes, uint256 offset) public pure returns (int32) {
+        return int32(decodeUint32(_bytes, offset));
     }
 
     function encodeUint64(uint64 value) public pure returns (bytes memory) {
         bytes memory result = new bytes(8);
-        bytes8 _value = bytes8(value);
-
-        for (uint8 i = 0; i < 8; i++) {
-            result[i] = _value[7 - i];
-        }
+        encodeUint64To(value, result, 0);
         return result;
     }
 
-    function decodeUint64(bytes memory _bytes) public pure returns (uint64) {
-        return uint64(bytesToUint(_bytes, 8));
+    function encodeUint64To(uint64 value, bytes memory destination, uint256 offset) public pure {
+        assembly {
+            let dest := add(add(destination, 0x20), offset)
+            mstore8(dest, and(value, 0xff))
+            for { let i := 1 } lt(i, 8) { i := add(i, 1) } { mstore8(add(dest, i), shr(mul(i, 8), value)) }
+        }
+    }
+
+    function decodeUint64(bytes memory _bytes, uint256 offset) public pure returns (uint64) {
+        return uint64(bytesToUint(_bytes, 8, offset));
     }
 
     function encodeInt64(int64 value) public pure returns (bytes memory) {
         return encodeUint64(uint64(value));
     }
 
-    function decodeInt64(bytes memory _bytes) public pure returns (int64) {
-        return int64(decodeUint64(_bytes));
+    function encodeInt64To(int64 value, bytes memory destination, uint256 offset) public pure {
+        encodeUint64To(uint64(value), destination, offset);
+    }
+
+    function decodeInt64(bytes memory _bytes, uint256 offset) public pure returns (int64) {
+        return int64(decodeUint64(_bytes, offset));
     }
 
     function encodeUint128(uint128 value) public pure returns (bytes memory) {
         bytes memory result = new bytes(16);
-        bytes16 _value = bytes16(value);
-        for (uint8 i = 0; i < 16; i++) {
-            result[i] = _value[15 - i];
-        }
+        encodeUint128To(value, result, 0);
         return result;
     }
 
-    function decodeUint128(bytes memory _bytes) public pure returns (uint128) {
-        return uint128(bytesToUint(_bytes, 16));
+    function encodeUint128To(uint128 value, bytes memory destination, uint256 offset) public pure {
+        assembly {
+            let dest := add(add(destination, 0x20), offset)
+            mstore8(dest, and(value, 0xff))
+            for { let i := 1 } lt(i, 16) { i := add(i, 1) } { mstore8(add(dest, i), shr(mul(i, 8), value)) }
+        }
+    }
+
+    function decodeUint128(bytes memory _bytes, uint256 offset) public pure returns (uint128) {
+        return uint128(bytesToUint(_bytes, 16, offset));
     }
 
     function encodeInt128(int128 value) public pure returns (bytes memory) {
         return encodeUint128(uint128(value));
     }
 
-    function decodeInt128(bytes memory _bytes) public pure returns (int128) {
-        return int128(decodeUint128(_bytes));
+    function encodeInt128To(int128 value, bytes memory destination, uint256 offset) public pure {
+        encodeUint128To(uint128(value), destination, offset);
+    }
+
+    function decodeInt128(bytes memory _bytes, uint256 offset) public pure returns (int128) {
+        return int128(decodeUint128(_bytes, offset));
     }
 
     function encodeUint256(uint256 value) public pure returns (bytes memory) {
         bytes memory result = new bytes(32);
-        bytes32 _value = bytes32(value);
-        for (uint8 i = 0; i < 32; i++) {
-            result[i] = _value[31 - i];
-        }
+        encodeUint256To(value, result, 0);
         return result;
     }
 
-    function decodeUint256(bytes memory _bytes) public pure returns (uint256) {
-        return bytesToUint(_bytes, 32);
-    }
-
-    function encodeCompactInt(uint256 value) public pure returns (bytes memory) {
-        if (value < 1 << 6) {
-            uint8 v = uint8(value << 2);
-            bytes memory result = new bytes(1);
-            result[0] = bytes1(v);
-            return result;
-        } else if (value < 1 << 14) {
-            uint16 v = uint16((value << 2) + 1);
-            bytes memory result = new bytes(2);
-            result[0] = bytes2(v)[1];
-            result[1] = bytes2(v)[0];
-            return result;
-        } else if (value < 1 << 30) {
-            uint32 v = uint32((value << 2) + 2);
-            bytes memory result = new bytes(4);
-            result[0] = bytes4(v)[3];
-            result[1] = bytes4(v)[2];
-            result[2] = bytes4(v)[1];
-            result[3] = bytes4(v)[0];
-            return result;
-        } else {
-            bytes memory _value = new bytes(32);
-
-            bytes32 v = bytes32(uint256(value));
-
-            for (uint256 i = 0; i < 32; i++) {
-                _value[i] = v[31 - i];
-            }
-
-            uint8 bytes_len = uint8(_value.length);
-
-            while (_value[bytes_len - 1] == 0) {
-                bytes_len--;
-            }
-
-            bytes1 _len = bytes1(((bytes_len - 4) << 2) + 3);
-
-            bytes memory result = new bytes(bytes_len + 1);
-
-            result[0] = _len;
-
-            for (uint256 i = 0; i < bytes_len; i++) {
-                result[i + 1] = _value[i];
-            }
-
-            return result;
+    function encodeUint256To(uint256 value, bytes memory destination, uint256 offset) public pure {
+        assembly {
+            let dest := add(add(destination, 0x20), offset)
+            mstore8(dest, and(value, 0xff))
+            for { let i := 1 } lt(i, 32) { i := add(i, 1) } { mstore8(add(dest, i), shr(mul(i, 8), value)) }
         }
     }
 
-    function decodeCompactInt(bytes memory _bytes) public pure returns (CompactInt memory) {
-        uint8 mode = uint8(_bytes[0]) & 0x03;
+    function decodeUint256(bytes memory _bytes, uint256 offset) public pure returns (uint256) {
+        return bytesToUint(_bytes, 32, offset);
+    }
+
+    function encodeCompactInt(uint256 value) public pure returns (bytes memory) {
+        uint8 bytesLen = compactIntLen(value);
+        bytes memory result = new bytes(bytesLen);
+        encodeCompactIntTo(value, bytesLen, result, 0);
+        return result;
+    }
+
+    function compactIntLen(uint256 value) public pure returns (uint8) {
+        if (value < 1 << 6) {
+            return 1;
+        } else if (value < 1 << 14) {
+            return 2;
+        } else if (value < 1 << 30) {
+            return 4;
+        } else {
+            uint8 bytes_len = 1;
+            assembly {
+                let v := value
+                for {} gt(v, 0) { v := shr(8, v) } { bytes_len := add(bytes_len, 1) }
+                if gt(bytes_len, 32) { revert(0, 0) }
+            }
+            return bytes_len;
+        }
+    }
+
+    function encodeCompactIntTo(uint256 value, uint8 bytesLen, bytes memory destination, uint256 offset) public pure {
+        assembly {
+            let dest := add(add(destination, 0x20), offset)
+            if lt(value, shl(6, 1)) { mstore8(dest, shl(2, value)) }
+            if and(lt(value, shl(14, 1)), iszero(lt(value, shl(6, 1)))) {
+                let v := add(shl(2, value), 1)
+                mstore8(dest, v)
+                mstore8(add(dest, 1), shr(8, v))
+            }
+            if and(lt(value, shl(30, 1)), iszero(lt(value, shl(14, 1)))) {
+                let v := add(shl(2, value), 2)
+                mstore8(dest, v)
+                mstore8(add(dest, 1), shr(8, v))
+                mstore8(add(dest, 2), shr(16, v))
+                mstore8(add(dest, 3), shr(24, v))
+            }
+            if iszero(lt(value, shl(30, 1))) {
+                let bytes_len := sub(bytesLen, 1)
+                let first_byte := add(shl(2, sub(bytes_len, 4)), 3)
+                mstore8(dest, first_byte)
+                for { let i := 0 } lt(i, bytes_len) { i := add(i, 1) } {
+                    mstore8(add(dest, add(i, 1)), shr(mul(i, 8), value))
+                }
+            }
+        }
+    }
+
+    function decodeCompactInt(bytes memory _bytes, uint256 offset) public pure returns (CompactInt memory) {
+        uint8 mode = uint8(_bytes[offset]) & 0x03;
 
         if (mode == 0x00) {
-            return CompactInt(uint8(_bytes[0]) >> 2, 1);
+            return CompactInt(uint8(_bytes[offset]) >> 2, 1);
         } else if (mode == 0x01) {
-            bytes memory _value = new bytes(2);
-            _value[0] = _bytes[1];
-            _value[1] = _bytes[0];
-            return CompactInt(uint16(bytes2(_value)) >> 2, 2);
-        } else if (mode == 0x02) {
-            bytes memory _value = new bytes(4);
-            _value[0] = _bytes[3];
-            _value[1] = _bytes[2];
-            _value[2] = _bytes[1];
-            _value[3] = _bytes[0];
-            return CompactInt(uint32(bytes4(_value)) >> 2, 4);
-        } else {
-            uint8 bytes_len = (uint8(_bytes[0]) >> 2) + 4;
-
-            bytes memory _value = new bytes(bytes_len + 1);
-
-            for (uint256 i = 0; i < bytes_len + 1; i++) {
-                _value[i] = _bytes[i];
+            uint16 _value;
+            assembly {
+                let src_ptr := add(add(_bytes, 0x20), offset)
+                let v := byte(0, mload(add(src_ptr, 1)))
+                _value := or(_value, shl(8, v))
+                v := byte(0, mload(src_ptr))
+                _value := or(_value, v)
             }
+            return CompactInt(_value >> 2, 2);
+        } else if (mode == 0x02) {
+            uint32 _value;
+            assembly {
+                let src_ptr := add(add(_bytes, 0x20), offset)
+                for { let i := 3 } gt(i, 0) { i := sub(i, 1) } {
+                    let v := byte(0, mload(add(src_ptr, i)))
+                    _value := or(_value, shl(mul(i, 8), v))
+                }
+                let v := byte(0, mload(src_ptr))
+                _value := or(_value, v)
+
+            }
+            return CompactInt(_value >> 2, 4);
+        } else {
+            uint8 bytes_len = (uint8(_bytes[offset]) >> 2) + 4;
+
+            uint8 size = 0;
 
             if (bytes_len <= 8) {
-                bytes_len = 8;
+                size = 8;
             } else if (bytes_len <= 16) {
-                bytes_len = 16;
+                size = 16;
             } else if (bytes_len <= 32) {
-                bytes_len = 32;
+                size = 32;
             } else {
-                bytes_len = 64;
+                size = 64;
             }
 
-            bytes memory _result = new bytes(bytes_len);
+            bytes memory _result = new bytes(size);
 
-            for (uint256 i = 0; i < bytes_len - _value.length; i++) {
-                _result[i] = bytes1(0);
+            assembly {
+                let res := add(_result, 0x20)
+                let src_ptr := add(add(_bytes, 0x20), offset)
+
+                for { let i := 0 } lt(i, size) { i := add(i, 1) } {
+                    if lt(bytes_len, sub(size, i)) {
+                        mstore8(add(res, i), 0x00)
+                    }
+                    if iszero(lt(bytes_len, sub(size, i))) {
+                        let v := byte(0, mload(add(src_ptr, sub(size, i))))
+                        mstore8(add(res, i), v)
+                    }
+                }
             }
 
-            for (uint256 i = bytes_len - _value.length + 1; i < bytes_len; i++) {
-                _result[i] = _value[bytes_len - i];
-            }
-
-            if (bytes_len == 8) {
+            if (size == 8) {
                 return CompactInt(uint64(bytes8(_result)), 8);
-            } else if (bytes_len == 16) {
+            } else if (size == 16) {
                 return CompactInt(uint128(bytes16(_result)), 16);
             } else {
                 return CompactInt(uint256(bytes32(_result)), 32);
@@ -345,28 +419,22 @@ library ScaleCodec {
         bytes memory result = bytes(value);
         bytes memory len = encodeCompactInt(result.length);
 
-        bytes memory res = new bytes(len.length + result.length);
-
-        for (uint256 i = 0; i < len.length; i++) {
-            res[i] = len[i];
-        }
-
-        for (uint256 i = 0; i < result.length; i++) {
-            res[i + len.length] = result[i];
-        }
-
-        return res;
+        return bytes.concat(len, result);
     }
 
-    function decodeString(bytes memory _bytes) public pure returns (DecodedString memory) {
-        CompactInt memory len = decodeCompactInt(_bytes);
-        bytes memory result = new bytes(len.value);
+    function decodeString(bytes memory _bytes, uint256 offset) public pure returns (DecodedString memory) {
+        CompactInt memory len = decodeCompactInt(_bytes, offset);
 
+        offset += len.offset;
+
+        bytes memory result = new bytes(len.value);
         for (uint256 i = 0; i < len.value; i++) {
-            result[i] = _bytes[i + 1];
+            result[i] = _bytes[i + offset];
         }
 
-        return DecodedString(string(result), len.offset + result.length);
+        offset += len.value;
+
+        return DecodedString(string(result), offset);
     }
 
     function encodeVec(bytes[] memory value) public pure returns (bytes memory) {
@@ -395,19 +463,20 @@ library ScaleCodec {
         return res;
     }
 
-    function decodeVec(bytes memory _bytes, uint256 item_len, bool unknown_len) public pure returns (bytes[] memory) {
-        CompactInt memory prefix = decodeCompactInt(_bytes);
+    function decodeVec(bytes memory _bytes, uint256 item_len, bool unknown_len, uint256 offset)
+        public
+        pure
+        returns (bytes[] memory)
+    {
+        CompactInt memory prefix = decodeCompactInt(_bytes, offset);
         bytes[] memory result = new bytes[](prefix.value);
 
-        uint256 offset = prefix.offset;
-
-        bytes memory _value = sliceBytes(_bytes, offset, _bytes.length);
+        uint256 _offset = offset + prefix.offset;
 
         for (uint256 i = 0; i < prefix.value; i++) {
             uint256 item_prefix_len = 0;
             if (unknown_len) {
-                // item_len = decodeCompactInt(value[offset]).len;
-                CompactInt memory item_prefix = decodeCompactInt(_value);
+                CompactInt memory item_prefix = decodeCompactInt(_bytes, _offset);
                 item_len = item_prefix.value;
                 item_prefix_len = item_prefix.offset;
             }
@@ -415,16 +484,15 @@ library ScaleCodec {
             bytes memory item = new bytes(item_len + item_prefix_len);
 
             for (uint256 j = 0; j < item_len + item_prefix_len; j++) {
-                item[j] = _bytes[offset + j];
+                item[j] = _bytes[_offset + j];
             }
 
             result[i] = item;
-            offset += item_len + item_prefix_len;
+            _offset += item_len + item_prefix_len;
 
-            if (offset >= _bytes.length) {
+            if (_offset >= _bytes.length) {
                 break;
             }
-            _value = sliceBytes(_bytes, offset, _bytes.length - 1);
         }
 
         return result;
@@ -448,29 +516,25 @@ library ScaleCodec {
         }
     }
 
-    function decodeOptional(bytes memory _bytes) public pure returns (Optional memory) {
-        if (_bytes[0] == 0x00) {
+    function decodeOptional(bytes memory _bytes, uint256 offset) public pure returns (Optional memory) {
+        if (_bytes[offset] == 0x00) {
             return Optional(false, new bytes(0));
         } else {
-            return Optional(true, sliceBytes(_bytes, 1, _bytes.length));
+            return Optional(true, sliceBytes(_bytes, 1 + offset, _bytes.length));
         }
     }
 
     function encodeResult(Result memory value) public pure returns (bytes memory) {
-        bytes[] memory result = new bytes[](2);
-        result[0] = new bytes(1);
-        result[1] = value.value;
         if (value.isOk) {
-            result[0][0] = 0x00;
+            return bytes.concat(hex"00", value.value);
         } else {
-            result[0][0] = 0x01;
+            return bytes.concat(hex"01", value.value);
         }
-        return concatBytes(result);
     }
 
-    function decodeResult(bytes memory _bytes) public pure returns (Result memory) {
-        bytes memory value = sliceBytes(_bytes, 1, _bytes.length);
-        if (_bytes[0] == 0x00) {
+    function decodeResult(bytes memory _bytes, uint256 offset) public pure returns (Result memory) {
+        bytes memory value = sliceBytes(_bytes, 1 + offset, _bytes.length);
+        if (_bytes[offset] == 0x00) {
             return Result(true, false, value);
         } else {
             return Result(false, true, value);
