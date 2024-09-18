@@ -18,9 +18,12 @@
 
 mod ongoing;
 
+pub use ongoing::ValidatingResponse;
+
 use crate::{
     db_sync::ongoing::{
-        OngoingRequests, OngoingResponses, PeerResponse, SendRequestError, SendRequestErrorKind,
+        ExternalValidation, OngoingRequests, OngoingResponses, PeerResponse, SendRequestError,
+        SendRequestErrorKind,
     },
     export::{Multiaddr, PeerId},
     peer_score,
@@ -41,7 +44,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     task::{Context, Poll},
     time::Duration,
 };
@@ -110,7 +113,10 @@ impl Response {
         }
     }
 
-    fn validate(&self, request: &Request) -> Result<(), ResponseValidationError> {
+    /// Validates response against request.
+    ///
+    /// Returns `false` if external validation is required.
+    fn validate(&self, request: &Request) -> Result<bool, ResponseValidationError> {
         match (request, self) {
             (Request::DataForHashes(_requested_hashes), Response::DataForHashes(hashes)) => {
                 for (hash, data) in hashes {
@@ -119,9 +125,9 @@ impl Response {
                     }
                 }
 
-                Ok(())
+                Ok(true)
             }
-            (Request::ProgramIds, Response::ProgramIds(_ids)) => Ok(()),
+            (Request::ProgramIds, Response::ProgramIds(_ids)) => Ok(false),
             (_, _) => Err(ResponseValidationError::TypeMismatch),
         }
     }
@@ -183,6 +189,8 @@ pub enum Event {
         //// The ID of request
         request_id: RequestId,
     },
+    /// External validation is mandatory for response
+    ExternalValidation(ValidatingResponse),
     /// Request completion done
     RequestSucceed {
         /// The ID of request
@@ -260,6 +268,7 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
+    pending_events: VecDeque<Event>,
     peer_score_handle: peer_score::Handle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
@@ -273,6 +282,7 @@ impl Behaviour {
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
             ),
+            pending_events: VecDeque::new(),
             peer_score_handle: peer_score_handle.clone(),
             ongoing_requests: OngoingRequests::new(&config, peer_score_handle),
             ongoing_responses: OngoingResponses::new(db, &config),
@@ -281,6 +291,44 @@ impl Behaviour {
 
     pub(crate) fn request(&mut self, request: Request) -> RequestId {
         self.ongoing_requests.push_pending_request(request)
+    }
+
+    pub(crate) fn request_validated(
+        &mut self,
+        res: Result<ValidatingResponse, ValidatingResponse>,
+    ) {
+        let res = self
+            .ongoing_requests
+            .on_external_validation(res, &mut self.inner);
+        let event = match res {
+            Ok(ExternalValidation::Success {
+                request_id,
+                response,
+            }) => Event::RequestSucceed {
+                request_id,
+                response,
+            },
+            Ok(ExternalValidation::NewRound {
+                peer_id,
+                request_id,
+            }) => Event::NewRequestRound {
+                request_id,
+                peer_id,
+                reason: NewRequestRoundReason::PartialData,
+            },
+            Err(SendRequestError {
+                request_id,
+                kind: SendRequestErrorKind::OutOfRounds,
+            }) => Event::RequestFailed {
+                request_id,
+                error: RequestFailure::OutOfRounds,
+            },
+            Err(SendRequestError {
+                request_id,
+                kind: SendRequestErrorKind::NoPeers,
+            }) => Event::PendingStateRequest { request_id },
+        };
+        self.pending_events.push_back(event);
     }
 
     fn handle_inner_event(
@@ -341,6 +389,9 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PartialData,
                     },
+                    Ok(PeerResponse::ExternalValidation(validating_response)) => {
+                        Event::ExternalValidation(validating_response)
+                    }
                     Err(SendRequestError {
                         request_id,
                         kind: SendRequestErrorKind::OutOfRounds,
@@ -494,6 +545,10 @@ impl NetworkBehaviour for Behaviour {
                 request_id,
                 error: RequestFailure::Timeout,
             }));
+        }
+
+        if let Some(event) = self.pending_events.pop_front() {
+            return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
         let event = match self.ongoing_requests.send_pending_request(&mut self.inner) {

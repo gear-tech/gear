@@ -122,6 +122,7 @@ impl NetworkService {
 enum NetworkSenderEvent {
     PublishMessage { data: Vec<u8> },
     RequestDbData(db_sync::Request),
+    RequestValidated(Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>),
 }
 
 #[derive(Debug, Clone)]
@@ -144,6 +145,13 @@ impl NetworkSender {
     pub fn request_db_data(&self, request: db_sync::Request) {
         let _res = self.tx.send(NetworkSenderEvent::RequestDbData(request));
     }
+
+    pub fn request_validated(
+        &self,
+        res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
+    ) {
+        let _res = self.tx.send(NetworkSenderEvent::RequestValidated(res));
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -154,6 +162,7 @@ pub enum NetworkReceiverEvent {
     },
     DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
     PeerBlocked(PeerId),
+    ExternalValidation(db_sync::ValidatingResponse),
 }
 
 pub struct NetworkReceiver {
@@ -434,6 +443,13 @@ impl NetworkEventLoop {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
+            BehaviourEvent::DbSync(db_sync::Event::ExternalValidation(validating_response)) => {
+                let _res = self
+                    .external_tx
+                    .send(NetworkReceiverEvent::ExternalValidation(
+                        validating_response,
+                    ));
+            }
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
                 request_id: _,
                 response,
@@ -468,6 +484,9 @@ impl NetworkEventLoop {
             }
             NetworkSenderEvent::RequestDbData(request) => {
                 self.swarm.behaviour_mut().db_sync.request(request);
+            }
+            NetworkSenderEvent::RequestValidated(res) => {
+                self.swarm.behaviour_mut().db_sync.request_validated(res);
             }
         }
     }

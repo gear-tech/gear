@@ -49,7 +49,8 @@ pub(crate) enum SendRequestErrorKind {
     NoPeers,
 }
 
-pub enum PeerResponse {
+#[derive(Debug)]
+pub(crate) enum PeerResponse {
     Success {
         request_id: RequestId,
         response: Response,
@@ -58,6 +59,36 @@ pub enum PeerResponse {
         peer_id: PeerId,
         request_id: RequestId,
     },
+    ExternalValidation(ValidatingResponse),
+}
+
+#[derive(Debug)]
+pub(crate) enum ExternalValidation {
+    Success {
+        request_id: RequestId,
+        response: Response,
+    },
+    NewRound {
+        peer_id: PeerId,
+        request_id: RequestId,
+    },
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ValidatingResponse {
+    ongoing_request: OngoingRequest,
+    peer_id: PeerId,
+    response: Response,
+}
+
+impl ValidatingResponse {
+    pub fn request(&self) -> &Request {
+        &self.ongoing_request.request
+    }
+
+    pub fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
 #[derive(Debug)]
@@ -70,6 +101,14 @@ pub(crate) struct OngoingRequest {
     timeout: Pin<Box<Sleep>>,
     peer_score_handle: Handle,
 }
+
+impl PartialEq for OngoingRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.request_id == other.request_id
+    }
+}
+
+impl Eq for OngoingRequest {}
 
 impl OngoingRequest {
     pub(crate) fn new(
@@ -89,7 +128,7 @@ impl OngoingRequest {
         }
     }
 
-    fn inner_complete(&mut self, peer: PeerId, new_response: Response) -> Response {
+    fn merge_and_strip(&mut self, peer: PeerId, new_response: Response) -> Response {
         let mut response = if let Some(mut response) = self.response.take() {
             response.merge(new_response);
             response
@@ -108,25 +147,52 @@ impl OngoingRequest {
         response
     }
 
+    fn inner_complete(
+        mut self,
+        peer: PeerId,
+        response: Response,
+    ) -> Result<(RequestId, Response), Self> {
+        if let Some(new_request) = self.request.difference(&response) {
+            self.request = new_request;
+            self.response = Some(self.merge_and_strip(peer, response));
+            Err(self)
+        } else {
+            let request_id = self.request_id;
+            let response = self.merge_and_strip(peer, response);
+            Ok((request_id, response))
+        }
+    }
+
     /// Try to bring the request to the complete state.
     ///
     /// Returns `Err(self)` if response validation is failed or response is incomplete.
-    fn try_complete(mut self, peer: PeerId, response: Response) -> Result<Response, Self> {
+    fn try_complete(mut self, peer: PeerId, response: Response) -> Result<PeerResponse, Self> {
         self.tried_peers.insert(peer);
 
-        if let Err(error) = response.validate(&self.request) {
-            let request_id = self.request_id;
-            log::trace!(
-                "response validation failed for request {request_id:?} from {peer}: {error:?}",
-            );
-            Err(self)
-        } else if let Some(new_request) = self.request.difference(&response) {
-            self.request = new_request;
-            self.response = Some(self.inner_complete(peer, response));
-            Err(self)
-        } else {
-            let response = self.inner_complete(peer, response);
-            Ok(response)
+        let request_id = self.request_id;
+
+        match response.validate(&self.request) {
+            Ok(true) => self
+                .inner_complete(peer, response)
+                .map(|(request_id, response)| PeerResponse::Success {
+                    request_id,
+                    response,
+                }),
+            Ok(false) => {
+                let validating_response = ValidatingResponse {
+                    ongoing_request: self,
+                    peer_id: peer,
+                    response,
+                };
+                Ok(PeerResponse::ExternalValidation(validating_response))
+            }
+            Err(error) => {
+                log::trace!(
+                    "response validation failed for request {request_id:?} from {peer}: {error:?}",
+                );
+
+                Err(self)
+            }
         }
     }
 
@@ -296,17 +362,46 @@ impl OngoingRequests {
         let request_id = ongoing_request.request_id;
 
         let new_ongoing_request = match ongoing_request.try_complete(peer, response) {
-            Ok(response) => {
-                return Ok(PeerResponse::Success {
-                    request_id,
-                    response,
-                })
-            }
+            Ok(peer_response) => return Ok(peer_response),
             Err(new_ongoing_request) => new_ongoing_request,
         };
 
         let peer_id = self.send_request(behaviour, new_ongoing_request)?;
         Ok(PeerResponse::NewRound {
+            peer_id,
+            request_id,
+        })
+    }
+
+    pub(crate) fn on_external_validation(
+        &mut self,
+        res: Result<ValidatingResponse, ValidatingResponse>,
+        behaviour: &mut InnerBehaviour,
+    ) -> Result<ExternalValidation, SendRequestError> {
+        let new_ongoing_request = match res {
+            Ok(validating_response) => {
+                let ValidatingResponse {
+                    ongoing_request,
+                    peer_id,
+                    response,
+                } = validating_response;
+
+                match ongoing_request.inner_complete(peer_id, response) {
+                    Ok((request_id, response)) => {
+                        return Ok(ExternalValidation::Success {
+                            request_id,
+                            response,
+                        })
+                    }
+                    Err(new_ongoing_request) => new_ongoing_request,
+                }
+            }
+            Err(validating_response) => validating_response.ongoing_request,
+        };
+
+        let request_id = new_ongoing_request.request_id;
+        let peer_id = self.send_request(behaviour, new_ongoing_request)?;
+        Ok(ExternalValidation::NewRound {
             peer_id,
             request_id,
         })
