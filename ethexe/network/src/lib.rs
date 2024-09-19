@@ -719,7 +719,7 @@ mod tests {
         let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
 
         let peer_id = service1.event_loop.local_peer_id();
-        let multiaddr: Multiaddr = format!("/memory/3/p2p/{peer_id}").parse().unwrap();
+        let multiaddr: Multiaddr = format!("/memory/5/p2p/{peer_id}").parse().unwrap();
 
         let peer_score_handle = service1.event_loop.score_handle();
 
@@ -747,6 +747,58 @@ mod tests {
         assert_eq!(
             event,
             Some(NetworkReceiverEvent::PeerBlocked(service2_peer_id))
+        );
+    }
+
+    #[tokio::test]
+    async fn external_validation() {
+        init_logger();
+
+        let tmp_dir1 = tempfile::tempdir().unwrap();
+        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/7");
+        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
+
+        let peer_id = service1.event_loop.local_peer_id();
+        let multiaddr: Multiaddr = format!("/memory/7/p2p/{peer_id}").parse().unwrap();
+
+        tokio::spawn(service1.event_loop.run());
+
+        // second service
+        let tmp_dir2 = tempfile::tempdir().unwrap();
+        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
+        let mut config2 =
+            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/8");
+        config2.bootstrap_addresses = [multiaddr].into();
+        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
+        tokio::spawn(service2.event_loop.run());
+
+        // Wait for the connection to be established
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        service1
+            .sender
+            .request_db_data(db_sync::Request::ProgramIds);
+
+        let event = timeout(Duration::from_secs(5), service1.receiver.recv())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        if let NetworkReceiverEvent::ExternalValidation(validating_response) = event {
+            service1.sender.request_validated(Ok(validating_response));
+        } else {
+            unreachable!();
+        }
+
+        let event = timeout(Duration::from_secs(5), service1.receiver.recv())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        assert_eq!(
+            event,
+            NetworkReceiverEvent::DbResponse(Ok(db_sync::Response::ProgramIds([].into())))
         );
     }
 }
