@@ -601,8 +601,7 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use ethexe_db::{CodesStorage, MemDb};
-    use gprimitives::CodeId;
+    use ethexe_db::MemDb;
     use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
@@ -655,17 +654,14 @@ mod tests {
 
     #[tokio::test]
     async fn smoke() {
-        const PID1: ProgramId = ProgramId::new([1; 32]);
-        const PID2: ProgramId = ProgramId::new([2; 32]);
-
         init_logger();
 
         let (mut alice, _alice_db) = new_swarm().await;
         let (mut bob, bob_db) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
-        bob_db.set_program_code_id(PID1, CodeId::zero());
-        bob_db.set_program_code_id(PID2, CodeId::zero());
+        let hello_hash = bob_db.write(b"hello");
+        let world_hash = bob_db.write(b"world");
 
         alice.connect(&mut bob).await;
         tokio::spawn(async move {
@@ -697,7 +693,9 @@ mod tests {
             }
         });
 
-        let request_id = alice.behaviour_mut().request(Request::ProgramIds);
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::DataForHashes([hello_hash, world_hash].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -714,7 +712,13 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response::ProgramIds([PID1, PID2].into())
+                response: Response::DataForHashes(
+                    [
+                        (hello_hash, b"hello".to_vec()),
+                        (world_hash, b"world".to_vec())
+                    ]
+                    .into()
+                )
             }
         )
     }
