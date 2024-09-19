@@ -90,6 +90,7 @@ impl ValidatingResponse {
         &self.response
     }
 
+    #[cfg(test)]
     pub(crate) fn peer_id(&self) -> PeerId {
         self.peer_id
     }
