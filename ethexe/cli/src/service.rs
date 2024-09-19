@@ -22,7 +22,7 @@ use crate::{
     config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{anyhow, Result};
 use ethexe_common::{
     router::{
         BlockCommitment, CodeCommitment, RequestEvent as RouterRequestEvent, StateTransition,
@@ -30,8 +30,8 @@ use ethexe_common::{
     BlockRequestEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
-use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::NetworkReceiverEvent;
+use ethexe_ethereum::{primitives::U256, router::RouterQuery};
+use ethexe_network::{db_sync, NetworkReceiverEvent};
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_sequencer::agro::AggregatedCommitments;
@@ -53,6 +53,7 @@ pub struct Service {
     db: Database,
     observer: ethexe_observer::Observer,
     query: ethexe_observer::Query,
+    router_query: RouterQuery,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
@@ -186,6 +187,7 @@ impl Service {
             network,
             observer,
             query,
+            router_query,
             processor,
             sequencer,
             signer,
@@ -210,6 +212,7 @@ impl Service {
         db: Database,
         observer: ethexe_observer::Observer,
         query: ethexe_observer::Query,
+        router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
         block_time: Duration,
@@ -223,6 +226,7 @@ impl Service {
             db,
             observer,
             query,
+            router_query,
             processor,
             signer,
             block_time,
@@ -413,6 +417,7 @@ impl Service {
             network,
             mut observer,
             mut query,
+            mut router_query,
             mut processor,
             mut sequencer,
             signer: _signer,
@@ -514,25 +519,39 @@ impl Service {
 
                     validation_round_timer.stop();
                 }
-                event = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
-                    let Some(NetworkReceiverEvent::Message { source, data }) = event else {
-                        continue;
-                    };
+                Some(event) = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
+                    match event {
+                        NetworkReceiverEvent::Message { source, data } => {
+                            log::debug!("Received a network message from peer {source:?}");
 
-                    log::debug!("Received a network message from peer {source:?}");
+                            let result = Self::process_network_message(
+                                data.as_slice(),
+                                &db,
+                                validator.as_mut(),
+                                sequencer.as_mut(),
+                                network_sender.as_mut(),
+                            );
 
-                    let result = Self::process_network_message(
-                        data.as_slice(),
-                        &db,
-                        validator.as_mut(),
-                        sequencer.as_mut(),
-                        network_sender.as_mut(),
-                    );
+                            if let Err(err) = result {
+                                // TODO: slash peer/validator in case of error #4175
+                                // TODO: consider error log as temporary solution #4175
+                                log::warn!("Failed to process network message: {err}");
+                            }
+                        }
+                        NetworkReceiverEvent::ExternalValidation(validating_response) => {
+                            let validated = Self::process_response_validation(&validating_response, &mut router_query).await?;
+                            let res = if validated {
+                                Ok(validating_response)
+                            } else {
+                                Err(validating_response)
+                            };
 
-                    if let Err(err) = result {
-                        // TODO: slash peer/validator in case of error #4175
-                        // TODO: consider error log as temporary solution #4175
-                        log::warn!("Failed to process network message: {err}");
+                            network_sender
+                                .as_mut()
+                                .expect("if network receiver is `Some()` so does sender")
+                                .request_validated(res);
+                        }
+                        _ => {}
                     }
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
@@ -785,6 +804,29 @@ impl Service {
                 Ok(())
             }
         }
+    }
+
+    async fn process_response_validation(
+        validating_response: &db_sync::ValidatingResponse,
+        router_query: &mut RouterQuery,
+    ) -> Result<bool> {
+        let response = validating_response.response();
+
+        if let db_sync::Response::ProgramIds(ids) = response {
+            let ethereum_programs = router_query.programs_count().await?;
+            if ethereum_programs != U256::from(ids.len()) {
+                return Ok(false);
+            }
+
+            for &id in ids {
+                let code_id = router_query.program_code_id(id).await?;
+                if code_id.is_none() {
+                    return Ok(false);
+                }
+            }
+        }
+
+        Ok(true)
     }
 }
 

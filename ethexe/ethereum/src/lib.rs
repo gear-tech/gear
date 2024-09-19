@@ -54,6 +54,10 @@ pub mod mirror;
 pub mod router;
 pub mod wvara;
 
+pub mod primitives {
+    pub use alloy::primitives::*;
+}
+
 pub(crate) type AlloyTransport = BoxTransport;
 type AlloyProvider =
     FillProvider<ExeFiller, RootProvider<AlloyTransport>, AlloyTransport, AlloyEthereum>;
