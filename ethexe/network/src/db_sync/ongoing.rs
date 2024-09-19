@@ -190,6 +190,7 @@ impl OngoingRequest {
                 log::trace!(
                     "response validation failed for request {request_id:?} from {peer}: {error:?}",
                 );
+                self.peer_score_handle.invalid_data(peer);
 
                 Err(self)
             }
@@ -396,7 +397,11 @@ impl OngoingRequests {
                     Err(new_ongoing_request) => new_ongoing_request,
                 }
             }
-            Err(validating_response) => validating_response.ongoing_request,
+            Err(validating_response) => {
+                self.peer_score_handle
+                    .invalid_data(validating_response.peer_id);
+                validating_response.ongoing_request
+            }
         };
 
         let request_id = new_ongoing_request.request_id;
