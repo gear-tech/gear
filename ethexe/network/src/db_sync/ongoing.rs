@@ -89,6 +89,10 @@ impl ValidatingResponse {
     pub fn response(&self) -> &Response {
         &self.response
     }
+
+    pub(crate) fn peer_id(&self) -> PeerId {
+        self.peer_id
+    }
 }
 
 #[derive(Debug)]

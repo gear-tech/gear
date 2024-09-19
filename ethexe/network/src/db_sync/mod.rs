@@ -1112,9 +1112,7 @@ mod tests {
         let charlie_peer_id = *charlie.local_peer_id();
 
         alice.connect(&mut bob).await;
-        alice.connect(&mut charlie).await;
         tokio::spawn(bob.loop_on_next());
-        tokio::spawn(charlie.loop_on_next());
 
         charlie_db.set_program_code_id(PID1, CodeId::zero());
         charlie_db.set_program_code_id(PID2, CodeId::zero());
@@ -1133,6 +1131,7 @@ mod tests {
 
         let event = alice.next_behaviour_event().await;
         if let Event::ExternalValidation(validating_response) = event {
+            assert_eq!(validating_response.peer_id(), bob_peer_id);
             let response = validating_response.response();
             assert_eq!(*response, Response::ProgramIds([].into()));
             alice
@@ -1142,18 +1141,14 @@ mod tests {
             unreachable!();
         }
 
-        let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: charlie_peer_id,
-                reason: NewRequestRoundReason::PartialData,
-            }
-        );
+        alice.connect(&mut charlie).await;
+        tokio::spawn(charlie.loop_on_next());
+
+        // `Event::NewRequestRound` skipped by `connect()` above
 
         let event = alice.next_behaviour_event().await;
         if let Event::ExternalValidation(validating_response) = event {
+            assert_eq!(validating_response.peer_id(), charlie_peer_id);
             let response = validating_response.response();
             assert_eq!(*response, Response::ProgramIds([PID1, PID2].into()));
             alice
