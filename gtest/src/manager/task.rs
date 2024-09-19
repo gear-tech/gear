@@ -137,7 +137,9 @@ impl TaskHandler<ProgramId> for ExtManager {
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted: {e:?}"));
                 self.dispatches.push_back(trap_dispatch);
             } else {
-                // TODO #4122
+                let trap_message =
+                    trap_reply.into_stored(program_id, waitlisted.source(), message_id);
+                self.log.push(trap_message);
             }
         }
 

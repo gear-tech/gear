@@ -122,6 +122,30 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
             reply_to: log.reply_to,
         })
     }
+
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
+
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    pub fn destination(&self) -> ProgramId {
+        self.destination
+    }
+
+    pub fn payload(&self) -> &T {
+        &self.payload
+    }
+
+    pub fn reply_code(&self) -> Option<ReplyCode> {
+        self.reply_code
+    }
+
+    pub fn reply_to(&self) -> Option<MessageId> {
+        self.reply_to
+    }
 }
 
 /// A log that can be emitted by a program.
@@ -395,8 +419,7 @@ pub struct BlockRunResult {
     /// Total messages processed during the current
     /// execution.
     pub total_processed: u32,
-    // TODO #4122
-    /// Logs created during the current execution.
+    /// User message logs (events) created during the current execution.
     pub log: Vec<CoreLog>,
     /// Mapping gas burned for each message during
     /// the current block execution.

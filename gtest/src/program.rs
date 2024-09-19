@@ -909,7 +909,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_messages_to_failing_program() {
+    fn test_queued_message_to_failed_program() {
         let sys = System::new();
         sys.init_logger();
 
@@ -931,6 +931,24 @@ mod tests {
 
         assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_new_message_to_failed_program() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = DEFAULT_USER_ALICE;
+
+        let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
+
+        let init_msg_payload = String::from("InvalidInput");
+        let failed_mid = prog.send(user_id, init_msg_payload);
+        let res = sys.run_next_block();
+        res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
+
+        let _panic = prog.send_bytes(user_id, b"");
     }
 
     #[test]
@@ -1466,7 +1484,7 @@ mod tests {
     #[test]
     fn tests_unused_gas_value_not_transferred() {
         let sys = System::new();
-        sys.init_verbose_logger();
+        sys.init_logger();
 
         let user = 42;
         sys.mint_to(user, 2 * EXISTENTIAL_DEPOSIT);
@@ -1478,5 +1496,31 @@ mod tests {
         // Unspent gas is not returned to the user's balance when the sum of these is
         // lower than ED
         assert_eq!(sys.balance_of(user), 0)
+    }
+
+    #[test]
+    fn tests_self_sent_delayed_message() {
+        use demo_delayed_sender::DELAY;
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user = DEFAULT_USER_ALICE;
+        let program_id = 69;
+
+        let prog = Program::from_binary_with_id(&sys, program_id, demo_delayed_sender::WASM_BINARY);
+
+        // Init message starts sequence of self-sent messages
+        prog.send_bytes(user, "self".as_bytes());
+        let res = sys.run_next_block();
+        assert_eq!(res.succeed.len(), 1);
+
+        let mut target_block_nb = sys.block_height() + DELAY;
+        let res = sys.run_to_block(target_block_nb);
+        assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
+
+        target_block_nb += DELAY;
+        let res = sys.run_to_block(target_block_nb);
+        assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
     }
 }
