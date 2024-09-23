@@ -7494,6 +7494,7 @@ dependencies = [
  "colored",
  "demo-constructor",
  "demo-custom",
+ "demo-delayed-sender",
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
