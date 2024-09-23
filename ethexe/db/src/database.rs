@@ -20,7 +20,10 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use crate::{CASDatabase, KVDatabase};
+use crate::{
+    overlay::{CASOverlay, KVOverlay},
+    CASDatabase, KVDatabase,
+};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage},
     router::StateTransition,
@@ -253,18 +256,19 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn latest_valid_block_height(&self) -> Option<u32> {
+    fn latest_valid_block(&self) -> Option<(H256, BlockHeader)> {
         self.kv
             .get(&KeyPrefix::LatestValidBlock.one(self.router_address))
-            .map(|block_height| {
-                u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
+            .map(|data| {
+                <(H256, BlockHeader)>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `(H256, BlockHeader)`")
             })
     }
 
-    fn set_latest_valid_block_height(&self, block_height: u32) {
+    fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader) {
         self.kv.put(
             &KeyPrefix::LatestValidBlock.one(self.router_address),
-            block_height.to_le_bytes().to_vec(),
+            (block_hash, header).encode(),
         );
     }
 }
@@ -380,6 +384,16 @@ impl Database {
             cas: CASDatabase::clone_boxed(db),
             kv: KVDatabase::clone_boxed_kv(db),
             router_address,
+        }
+    }
+
+    /// # Safety
+    /// Not ready for using in prod. Intended to be for rpc calls only.
+    pub unsafe fn overlaid(self) -> Self {
+        Self {
+            cas: Box::new(CASOverlay::new(self.cas)),
+            kv: Box::new(KVOverlay::new(self.kv)),
+            router_address: self.router_address,
         }
     }
 

@@ -22,7 +22,7 @@ use crate::{
 };
 use core_processor::common::JournalNote;
 use ethexe_common::router::{OutgoingMessage, StateTransition};
-use ethexe_db::CodesStorage;
+use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::Handler;
 use gear_core::{
     ids::{ActorId, ProgramId},
@@ -47,6 +47,7 @@ enum Task {
 
 pub fn run(
     threads_amount: usize,
+    db: Database,
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
 ) -> (Vec<Message>, Vec<LocalOutcome>) {
@@ -57,13 +58,14 @@ pub fn run(
             .build()
             .unwrap();
 
-        rt.block_on(async { run_in_async(instance_creator, programs).await })
+        rt.block_on(async { run_in_async(db, instance_creator, programs).await })
     })
 }
 
 // TODO: Returning Vec<LocalOutcome> is a temporary solution.
 // In future need to send all messages to users and all state hashes changes to sequencer.
 async fn run_in_async(
+    db: Database,
     instance_creator: InstanceCreator,
     programs: &mut BTreeMap<ProgramId, H256>,
 ) -> (Vec<Message>, Vec<LocalOutcome>) {
@@ -79,7 +81,12 @@ async fn run_in_async(
     for id in 0..num_workers {
         let (task_sender, task_receiver) = mpsc::channel(100);
         task_senders.push(task_sender);
-        let handle = tokio::spawn(worker(id, instance_creator.clone(), task_receiver));
+        let handle = tokio::spawn(worker(
+            id,
+            db.clone(),
+            instance_creator.clone(),
+            task_receiver,
+        ));
         handles.push(handle);
     }
 
@@ -105,7 +112,7 @@ async fn run_in_async(
                 let mut handler = Handler {
                     program_id,
                     program_states: programs,
-                    storage: instance_creator.db(),
+                    storage: &db,
                     block_info: Default::default(),
                     results: Default::default(),
                     to_users_messages: Default::default(),
@@ -175,24 +182,19 @@ async fn run_in_async(
     (to_users_messages, outcomes)
 }
 
-async fn run_task(executor: &mut InstanceWrapper, task: Task) {
+async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
     match task {
         Task::Run {
             program_id,
             state_hash,
             result_sender,
         } => {
-            let code_id = executor
-                .db()
-                .program_code_id(program_id)
-                .expect("Code ID must be set");
+            let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
-            let instrumented_code = executor
-                .db()
-                .instrumented_code(ethexe_runtime::VERSION, code_id);
+            let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
 
             let journal = executor
-                .run(program_id, code_id, state_hash, instrumented_code)
+                .run(db, program_id, code_id, state_hash, instrumented_code)
                 .expect("Some error occurs while running program in instance");
 
             result_sender.send(journal).unwrap();
@@ -203,7 +205,7 @@ async fn run_task(executor: &mut InstanceWrapper, task: Task) {
             result_sender,
         } => {
             let new_state_hash = executor
-                .wake_messages(program_id, state_hash)
+                .wake_messages(db, program_id, state_hash)
                 .expect("Some error occurs while waking messages");
             result_sender.send(new_state_hash).unwrap();
         }
@@ -212,6 +214,7 @@ async fn run_task(executor: &mut InstanceWrapper, task: Task) {
 
 async fn worker(
     id: usize,
+    db: Database,
     instance_creator: InstanceCreator,
     mut task_receiver: mpsc::Receiver<Task>,
 ) {
@@ -222,7 +225,7 @@ async fn worker(
         .expect("Failed to instantiate executor");
 
     while let Some(task) = task_receiver.recv().await {
-        run_task(&mut executor, task).await;
+        run_task(db.clone(), &mut executor, task).await;
     }
 }
 

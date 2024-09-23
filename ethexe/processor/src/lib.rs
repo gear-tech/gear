@@ -29,9 +29,9 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
 use gear_core::{
     ids::{prelude::CodeIdExt, ProgramId},
-    message::{DispatchKind, Payload},
+    message::{DispatchKind, Payload, ReplyInfo},
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H256};
 use host::InstanceCreator;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, VecDeque};
@@ -42,9 +42,79 @@ mod run;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone)]
 pub struct Processor {
     db: Database,
     creator: InstanceCreator,
+}
+
+#[derive(Clone)]
+pub struct OverlaidProcessor(Processor);
+
+impl OverlaidProcessor {
+    // TODO (breathx): optimize for one single program.
+    pub fn execute_for_reply(
+        &mut self,
+        block_hash: H256,
+        source: ActorId,
+        program_id: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    ) -> Result<ReplyInfo> {
+        self.0.creator.set_chain_head(block_hash);
+
+        let mut states = self
+            .0
+            .db
+            .block_start_program_states(block_hash)
+            .unwrap_or_default();
+
+        let Some(&state_hash) = states.get(&program_id) else {
+            return Err(anyhow::anyhow!("unknown program at specified block hash"));
+        };
+
+        let state =
+            self.0.db.read_state(state_hash).ok_or_else(|| {
+                anyhow::anyhow!("unreachable: state partially presents in storage")
+            })?;
+
+        anyhow::ensure!(
+            !state.requires_init_message(),
+            "program isn't yet initialized"
+        );
+
+        self.0.handle_mirror_event(
+            &mut states,
+            program_id,
+            MirrorEvent::MessageQueueingRequested {
+                id: MessageId::zero(),
+                source,
+                payload,
+                value,
+            },
+        )?;
+
+        let (messages, _) = run::run(8, self.0.db.clone(), self.0.creator.clone(), &mut states);
+
+        let res = messages
+            .into_iter()
+            .find_map(|message| {
+                message.reply_details().and_then(|details| {
+                    (details.to_message_id() == MessageId::zero()).then(|| {
+                        let parts = message.into_parts();
+
+                        ReplyInfo {
+                            payload: parts.3.into_vec(),
+                            value: parts.5,
+                            code: details.to_reply_code(),
+                        }
+                    })
+                })
+            })
+            .ok_or_else(|| anyhow::anyhow!("reply wasn't found"))?;
+
+        Ok(res)
+    }
 }
 
 /// Local changes that can be committed to the network or local signer.
@@ -63,8 +133,14 @@ pub enum LocalOutcome {
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
     pub fn new(db: Database) -> Result<Self> {
-        let creator = InstanceCreator::new(db.clone(), host::runtime())?;
+        let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self { db, creator })
+    }
+
+    pub fn overlaid(mut self) -> OverlaidProcessor {
+        self.db = unsafe { self.db.overlaid() };
+
+        OverlaidProcessor(self)
     }
 
     /// Returns some CodeId in case of settlement and new code accepting.
@@ -206,7 +282,7 @@ impl Processor {
 
         log::debug!("{programs:?}");
 
-        let messages_and_outcomes = run::run(8, self.creator.clone(), programs);
+        let messages_and_outcomes = run::run(8, self.db.clone(), self.creator.clone(), programs);
 
         Ok(messages_and_outcomes.1)
     }

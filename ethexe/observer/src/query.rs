@@ -72,10 +72,9 @@ impl Query {
             .set_block_end_program_states(hash, Default::default());
 
         // set latest valid if empty.
-        if self.database.latest_valid_block_height().is_none() {
+        if self.database.latest_valid_block().is_none() {
             let genesis_header = self.get_block_header_meta(hash).await?;
-            self.database
-                .set_latest_valid_block_height(genesis_header.height);
+            self.database.set_latest_valid_block(hash, genesis_header);
         }
 
         Ok(())
@@ -160,7 +159,8 @@ impl Query {
         let current_block = self.get_block_header_meta(block_hash).await?;
         let latest_valid_block_height = self
             .database
-            .latest_valid_block_height()
+            .latest_valid_block()
+            .map(|(_, header)| header.height)
             .expect("genesis by default; qed");
 
         if current_block.height >= latest_valid_block_height
@@ -196,7 +196,7 @@ impl Query {
 
         // Continue loading chain by parent hashes from the current block to the latest valid block.
         let mut hash = block_hash;
-        let mut height = current_block.height;
+
         while hash != self.genesis_block_hash {
             // If the block's end state is valid, set it as the latest valid block
             if self
@@ -204,7 +204,13 @@ impl Query {
                 .block_end_state_is_valid(hash)
                 .unwrap_or(false)
             {
-                self.database.set_latest_valid_block_height(height);
+                let header = match headers_map.get(&hash) {
+                    Some(header) => header.clone(),
+                    None => self.get_block_header_meta(hash).await?,
+                };
+
+                self.database.set_latest_valid_block(hash, header);
+
                 log::trace!("Nearest valid in db block found: {hash}");
                 break;
             }
@@ -218,7 +224,6 @@ impl Query {
                 Some(header) => header.parent_hash,
                 None => self.get_block_parent_hash(hash).await?,
             };
-            height -= 1;
         }
 
         let mut actual_commitment_queue: VecDeque<H256> = self

@@ -322,7 +322,7 @@ impl Service {
         db.set_block_end_state_is_valid(block_hash, true);
 
         let header = db.block_header(block_hash).expect("must be set; qed");
-        db.set_latest_valid_block_height(header.height);
+        db.set_latest_valid_block(block_hash, header);
 
         Ok(transition_outcomes)
     }

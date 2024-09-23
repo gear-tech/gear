@@ -71,8 +71,8 @@ pub trait BlockMetaStorage: Send + Sync {
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
 
-    fn latest_valid_block_height(&self) -> Option<u32>;
-    fn set_latest_valid_block_height(&self, block_height: u32);
+    fn latest_valid_block(&self) -> Option<(H256, BlockHeader)>;
+    fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader);
 }
 
 pub trait CodesStorage: Send + Sync {
