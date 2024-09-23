@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-function bytesToUint(bytes memory data, uint256 byte_length, uint256 offset) pure returns (uint256) {
+function bytesToUint(bytes memory data, uint256 byteLength, uint256 offset) pure returns (uint256) {
     uint256 result = 0;
 
     assembly {
-        let data_ptr := add(data, 0x20)
-        for { let i := offset } lt(i, byte_length) { i := add(i, 1) } {
-            let byte_value := byte(0, mload(add(add(data_ptr, i), offset)))
+        let src_ptr := add(add(data, 0x20), offset)
+        for { let i := 0 } lt(i, byteLength) { i := add(i, 1) } {
+            let byte_value := byte(0, mload(add(src_ptr, i)))
             result := or(result, shl(mul(i, 8), byte_value))
         }
     }
@@ -271,7 +271,8 @@ library ScaleCodec {
         encodeUint128To(uint128(value), destination, offset);
     }
 
-    function decodeInt128(bytes memory _bytes, uint256 offset) public pure returns (int128) {
+    function decodeInt128(bytes memory
+        _bytes, uint256 offset) public pure returns (int128) {
         return int128(decodeUint128(_bytes, offset));
     }
 
@@ -308,13 +309,13 @@ library ScaleCodec {
         } else if (value < 1 << 30) {
             return 4;
         } else {
-            uint8 bytes_len = 1;
+            uint8 bytesLen = 1;
             assembly {
                 let v := value
-                for {} gt(v, 0) { v := shr(8, v) } { bytes_len := add(bytes_len, 1) }
-                if gt(bytes_len, 32) { revert(0, 0) }
+                for {} gt(v, 0) { v := shr(8, v) } { bytesLen := add(bytesLen, 1) }
+                if gt(bytesLen, 32) { revert(0, 0) }
             }
-            return bytes_len;
+            return bytesLen;
         }
     }
 
@@ -351,68 +352,38 @@ library ScaleCodec {
         if (mode == 0x00) {
             return CompactInt(uint8(_bytes[offset]) >> 2, 1);
         } else if (mode == 0x01) {
-            uint16 _value;
+            uint16 value;
             assembly {
                 let src_ptr := add(add(_bytes, 0x20), offset)
                 let v := byte(0, mload(add(src_ptr, 1)))
-                _value := or(_value, shl(8, v))
+                value := or(value, shl(8, v))
                 v := byte(0, mload(src_ptr))
-                _value := or(_value, v)
+                value := or(value, v)
             }
-            return CompactInt(_value >> 2, 2);
+            return CompactInt(value >> 2, 2);
         } else if (mode == 0x02) {
-            uint32 _value;
+            uint32 value;
             assembly {
                 let src_ptr := add(add(_bytes, 0x20), offset)
                 for { let i := 3 } gt(i, 0) { i := sub(i, 1) } {
                     let v := byte(0, mload(add(src_ptr, i)))
-                    _value := or(_value, shl(mul(i, 8), v))
+                    value := or(value, shl(mul(i, 8), v))
                 }
                 let v := byte(0, mload(src_ptr))
-                _value := or(_value, v)
-
+                value := or(value, v)
             }
-            return CompactInt(_value >> 2, 4);
+            return CompactInt(value >> 2, 4);
         } else {
-            uint8 bytes_len = (uint8(_bytes[offset]) >> 2) + 4;
+            uint8 bytesLen = (uint8(_bytes[offset]) >> 2) + 4;
 
-            uint8 size = 0;
+            uint256 value = bytesToUint(_bytes, bytesLen, offset + 1);
 
-            if (bytes_len <= 8) {
-                size = 8;
-            } else if (bytes_len <= 16) {
-                size = 16;
-            } else if (bytes_len <= 32) {
-                size = 32;
-            } else {
-                size = 64;
-            }
-
-            bytes memory _result = new bytes(size);
-
-            assembly {
-                let res := add(_result, 0x20)
-                let src_ptr := add(add(_bytes, 0x20), offset)
-
-                for { let i := 0 } lt(i, size) { i := add(i, 1) } {
-                    if lt(bytes_len, sub(size, i)) {
-                        mstore8(add(res, i), 0x00)
-                    }
-                    if iszero(lt(bytes_len, sub(size, i))) {
-                        let v := byte(0, mload(add(src_ptr, sub(size, i))))
-                        mstore8(add(res, i), v)
-                    }
-                }
-            }
-
-            if (size == 8) {
-                return CompactInt(uint64(bytes8(_result)), 8);
-            } else if (size == 16) {
-                return CompactInt(uint128(bytes16(_result)), 16);
-            } else {
-                return CompactInt(uint256(bytes32(_result)), 32);
-            }
+            return CompactInt(value, bytesLen + 1);
         }
+    }
+
+    function stringLen(string memory value) public pure returns (uint256) {
+        return bytes(value).length;
     }
 
     function encodeString(string memory value) public pure returns (bytes memory) {
@@ -420,6 +391,14 @@ library ScaleCodec {
         bytes memory len = encodeCompactInt(result.length);
 
         return bytes.concat(len, result);
+    }
+
+    function encodeStringTo(string memory value, bytes memory destination, uint256 offset) public pure {
+        bytes memory _value = bytes(value);
+
+        for (uint256 i = 0; i < _value.length; i++) {
+            destination[i + offset] = _value[i];
+        }
     }
 
     function decodeString(bytes memory _bytes, uint256 offset) public pure returns (DecodedString memory) {
@@ -439,13 +418,13 @@ library ScaleCodec {
 
     function encodeVec(bytes[] memory value) public pure returns (bytes memory) {
         bytes memory len = encodeCompactInt(value.length);
-        uint256 total_len = len.length;
+        uint256 totalLen = len.length;
 
         for (uint256 i = 0; i < value.length; i++) {
-            total_len += value[i].length;
+            totalLen += value[i].length;
         }
 
-        bytes memory res = new bytes(total_len);
+        bytes memory res = new bytes(totalLen);
 
         for (uint256 i = 0; i < len.length; i++) {
             res[i] = len[i];
@@ -463,7 +442,7 @@ library ScaleCodec {
         return res;
     }
 
-    function decodeVec(bytes memory _bytes, uint256 item_len, bool unknown_len, uint256 offset)
+    function decodeVec(bytes memory _bytes, uint256 itemLen, bool unknownLen, uint256 offset)
         public
         pure
         returns (bytes[] memory)
@@ -474,21 +453,21 @@ library ScaleCodec {
         uint256 _offset = offset + prefix.offset;
 
         for (uint256 i = 0; i < prefix.value; i++) {
-            uint256 item_prefix_len = 0;
-            if (unknown_len) {
+            uint256 itemPrefixLen = 0;
+            if (unknownLen) {
                 CompactInt memory item_prefix = decodeCompactInt(_bytes, _offset);
-                item_len = item_prefix.value;
-                item_prefix_len = item_prefix.offset;
+                itemLen = item_prefix.value;
+                itemPrefixLen = item_prefix.offset;
             }
 
-            bytes memory item = new bytes(item_len + item_prefix_len);
+            bytes memory item = new bytes(itemLen + itemPrefixLen);
 
-            for (uint256 j = 0; j < item_len + item_prefix_len; j++) {
+            for (uint256 j = 0; j < itemLen + itemPrefixLen; j++) {
                 item[j] = _bytes[_offset + j];
             }
 
             result[i] = item;
-            _offset += item_len + item_prefix_len;
+            _offset += itemLen + itemPrefixLen;
 
             if (_offset >= _bytes.length) {
                 break;
