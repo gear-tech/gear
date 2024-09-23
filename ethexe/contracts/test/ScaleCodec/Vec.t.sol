@@ -5,96 +5,98 @@ import {ScaleCodec} from "src/ScaleCodec.sol";
 import "forge-std/Test.sol";
 
 contract TestVecScaleCodec is Test {
-    function encodeVecU8(uint8[] memory _value) internal pure returns (bytes memory) {
-        bytes[] memory vec = new bytes[](_value.length);
+    function test_encodeVecUint8() public pure {
+        uint8[] memory data = new uint8[](3);
+        data[0] = 1;
+        data[1] = 2;
+        data[2] = 3;
 
-        for (uint256 i = 0; i < _value.length; i++) {
-            vec[i] = ScaleCodec.encodeUint8(_value[i]);
+        uint8 vecPrefixLen = ScaleCodec.compactIntLen(data.length);
+        uint256 totalLen = data.length + vecPrefixLen;
+
+        bytes memory _bytes = new bytes(totalLen);
+
+        uint256 offset = 0;
+
+        ScaleCodec.encodeCompactIntTo(data.length, vecPrefixLen, _bytes, offset);
+
+        offset += vecPrefixLen;
+
+        for (uint256 i = 0; i < data.length; i++) {
+            ScaleCodec.encodeUint8To(data[i], _bytes, offset);
+            offset += 1;
         }
 
-        return ScaleCodec.encodeVec(vec);
+        assertEq(_bytes, hex"0c010203");
     }
 
-    function decodeVecU8(bytes memory _value) internal pure returns (uint8[] memory) {
-        bytes[] memory vec = ScaleCodec.decodeVec(_value, 1, false, 0);
+    function test_encodeVecString() public pure {
+        string[] memory data = new string[](2);
+        data[0] = "hello";
+        data[1] = "world";
 
-        uint8[] memory result = new uint8[](vec.length);
+        uint256 bytesLen = 0;
+
+        uint8 vecPrefixLen = ScaleCodec.compactIntLen(data.length);
+
+        for (uint256 i = 0; i < data.length; i++) {
+            uint256 strLen = ScaleCodec.stringLen(data[i]);
+            bytesLen += strLen;
+            bytesLen += ScaleCodec.compactIntLen(strLen);
+        }
+
+        bytes memory _bytes = new bytes(bytesLen + vecPrefixLen);
+
+        uint256 offset = 0;
+
+        ScaleCodec.encodeCompactIntTo(data.length, vecPrefixLen, _bytes, offset);
+        offset += vecPrefixLen;
+
+        for (uint256 i = 0; i < data.length; i++) {
+            uint256 strLen = ScaleCodec.stringLen(data[i]);
+            uint256 prefixLen = ScaleCodec.compactIntLen(strLen);
+            ScaleCodec.encodeCompactIntTo(strLen, vecPrefixLen, _bytes, offset);
+            offset += prefixLen;
+            ScaleCodec.encodeStringTo(data[i], strLen, _bytes, offset);
+            offset += strLen;
+        }
+
+        assertEq(_bytes, hex"081468656c6c6f14776f726c64");
+    }
+
+    function test_decodeVecUint8() public pure {
+        bytes memory data = hex"0c010203";
+
+        ScaleCodec.CompactInt memory vecLen = ScaleCodec.decodeCompactInt(data, 0);
+        uint256 offset = vecLen.offset;
+
+        uint8[] memory vec = new uint8[](vecLen.value);
 
         for (uint256 i = 0; i < vec.length; i++) {
-            result[i] = ScaleCodec.decodeUint8(vec[i], 0);
+            vec[i] = ScaleCodec.decodeUint8(data, offset);
+            offset++;
         }
 
-        return result;
+        assertEq(vec[0], 1);
+        assertEq(vec[1], 2);
+        assertEq(vec[2], 3);
     }
 
-    function encodeVecString(string[] memory _value) internal pure returns (bytes memory) {
-        bytes[] memory vec = new bytes[](_value.length);
+    function test_decodeVecString() public pure {
+        bytes memory data = hex"081468656c6c6f14776f726c64";
 
-        for (uint256 i = 0; i < _value.length; i++) {
-            vec[i] = ScaleCodec.encodeString(_value[i]);
-        }
+        ScaleCodec.CompactInt memory vecLen = ScaleCodec.decodeCompactInt(data, 0);
+        uint256 offset = vecLen.offset;
 
-        return ScaleCodec.encodeVec(vec);
-    }
-
-    function decodeVecString(bytes memory _value) internal pure returns (string[] memory) {
-        bytes[] memory vec = ScaleCodec.decodeVec(_value, 0, true, 0);
-
-        string[] memory result = new string[](vec.length);
+        string[] memory vec = new string[](vecLen.value);
 
         for (uint256 i = 0; i < vec.length; i++) {
-            result[i] = ScaleCodec.decodeString(vec[i], 0).value;
+            ScaleCodec.DecodedString memory str = ScaleCodec.decodeString(data, offset);
+            offset = str.offset;
+            vec[i] = str.value;
         }
 
-        return result;
-    }
-
-    function encodeVecVecU16(uint16[][] memory _value) public pure returns (bytes memory) {
-        bytes[] memory vec = new bytes[](_value.length);
-
-        for (uint256 i = 0; i < _value.length; i++) {
-            bytes[] memory inner_vec = new bytes[](_value[i].length);
-            for (uint256 j = 0; j < _value[i].length; j++) {
-                inner_vec[j] = ScaleCodec.encodeUint16(_value[i][j]);
-            }
-            vec[i] = ScaleCodec.encodeVec(inner_vec);
-        }
-
-        return ScaleCodec.encodeVec(vec);
-    }
-
-    function test_encodeVec() public pure {
-        uint8[] memory _vecUint8 = new uint8[](3);
-        _vecUint8[0] = 1;
-        _vecUint8[1] = 2;
-        _vecUint8[2] = 3;
-        assertEq(encodeVecU8(_vecUint8), hex"0c010203");
-
-        string[] memory _vecString = new string[](2);
-        _vecString[0] = "hello";
-        _vecString[1] = "world";
-        assertEq(encodeVecString(_vecString), hex"081468656c6c6f14776f726c64");
-
-        uint16[][] memory _vecVecUint16 = new uint16[][](2);
-        _vecVecUint16[0] = new uint16[](3);
-        _vecVecUint16[0][0] = 1;
-        _vecVecUint16[0][1] = 2;
-        _vecVecUint16[0][2] = 3;
-        _vecVecUint16[1] = new uint16[](3);
-        _vecVecUint16[1][0] = 100;
-        _vecVecUint16[1][1] = 200;
-        _vecVecUint16[1][2] = 300;
-        assertEq(encodeVecVecU16(_vecVecUint16), hex"080c0100020003000c6400c8002c01");
-    }
-
-    function test_decodeVec() public pure {
-        uint8[] memory _decodedUint8 = decodeVecU8(hex"0c010203");
-        assertEq(_decodedUint8[0], 1);
-        assertEq(_decodedUint8[1], 2);
-        assertEq(_decodedUint8[2], 3);
-
-        string[] memory _decodedString = decodeVecString(hex"081468656c6c6f14776f726c64");
-        assertEq(_decodedString[0], "hello");
-        assertEq(_decodedString[1], "world");
+        assertEq(vec[0], "hello");
+        assertEq(vec[1], "world");
     }
 }

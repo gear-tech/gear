@@ -20,7 +20,7 @@ contract TestUintScaleCodec is Test {
         assertEq(ScaleCodec.decodeUint8(hex"0145", 1), uint8(69));
     }
 
-    function test_uint16Encode() public pure {
+    function test_uint16Encode() public {
         assertEq(ScaleCodec.encodeUint16(uint16(42)), hex"2a00");
 
         // Encode to
@@ -82,7 +82,8 @@ contract TestUintScaleCodec is Test {
             ScaleCodec.decodeUint128(hex"4754408bb92ca5b509fa824b04000000", 0), uint128(340282366920938463463374607431)
         );
         assertEq(
-            ScaleCodec.decodeUint128(hex"014754408bb92ca5b509fa824b04000000", 1), uint128(340282366920938463463374607431)
+            ScaleCodec.decodeUint128(hex"014754408bb92ca5b509fa824b04000000", 1),
+            uint128(340282366920938463463374607431)
         );
     }
 

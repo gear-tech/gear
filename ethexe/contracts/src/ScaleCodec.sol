@@ -112,12 +112,16 @@ library ScaleCodec {
 
     function encodeBool(bool value) public pure returns (bytes memory) {
         bytes memory result = new bytes(1);
-        if (value) {
-            result[0] = 0x01;
-        } else {
-            result[0] = 0x00;
-        }
+        encodeBoolTo(value, result, 0);
         return result;
+    }
+
+    function encodeBoolTo(bool value, bytes memory destination, uint256 offset) internal pure {
+        if (value) {
+            destination[offset] = 0x01;
+        } else {
+            destination[offset] = 0x00;
+        }
     }
 
     function decodeBool(bytes memory _bytes, uint256 offset) public pure returns (bool) {
@@ -125,12 +129,12 @@ library ScaleCodec {
     }
 
     function encodeUint8(uint8 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(1);
-        encodeUint8To(value, result, 0);
-        return result;
+        bytes memory destination = new bytes(1);
+        encodeUint8To(value, destination, 0);
+        return destination;
     }
 
-    function encodeUint8To(uint8 value, bytes memory destination, uint256 offset) public pure {
+    function encodeUint8To(uint8 value, bytes memory destination, uint256 offset) internal pure {
         assembly {
             let dest := add(add(destination, 0x20), offset)
             mstore8(dest, value)
@@ -145,7 +149,7 @@ library ScaleCodec {
         return encodeUint8(uint8(value));
     }
 
-    function encodeInt8To(int8 value, bytes memory destination, uint256 offset) public pure {
+    function encodeInt8To(int8 value, bytes memory destination, uint256 offset) internal pure {
         encodeUint8To(uint8(value), destination, offset);
     }
 
@@ -159,7 +163,7 @@ library ScaleCodec {
         return result;
     }
 
-    function encodeUint16To(uint16 value, bytes memory destination, uint256 offset) public pure {
+    function encodeUint16To(uint16 value, bytes memory destination, uint256 offset) internal pure {
         assembly {
             let dest := add(add(destination, 0x20), offset)
             mstore8(dest, and(value, 0xff))
@@ -175,7 +179,7 @@ library ScaleCodec {
         return encodeUint16(uint16(value));
     }
 
-    function encodeInt16To(int16 value, bytes memory destination, uint256 offset) public pure {
+    function encodeInt16To(int16 value, bytes memory destination, uint256 offset) internal pure {
         encodeUint16To(uint16(value), destination, offset);
     }
 
@@ -184,12 +188,12 @@ library ScaleCodec {
     }
 
     function encodeUint32(uint32 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(4);
-        encodeUint32To(value, result, 0);
-        return result;
+        bytes memory destination = new bytes(4);
+        encodeUint32To(value, destination, 0);
+        return destination;
     }
 
-    function encodeUint32To(uint32 value, bytes memory destination, uint256 offset) public pure {
+    function encodeUint32To(uint32 value, bytes memory destination, uint256 offset) internal pure {
         assembly {
             let dest := add(add(destination, 0x20), offset)
             mstore8(dest, and(value, 0xff))
@@ -207,7 +211,7 @@ library ScaleCodec {
         return encodeUint32(uint32(value));
     }
 
-    function encodeInt32To(int32 value, bytes memory destination, uint256 offset) public pure {
+    function encodeInt32To(int32 value, bytes memory destination, uint256 offset) internal pure {
         encodeUint32To(uint32(value), destination, offset);
     }
 
@@ -221,7 +225,7 @@ library ScaleCodec {
         return result;
     }
 
-    function encodeUint64To(uint64 value, bytes memory destination, uint256 offset) public pure {
+    function encodeUint64To(uint64 value, bytes memory destination, uint256 offset) internal pure {
         assembly {
             let dest := add(add(destination, 0x20), offset)
             mstore8(dest, and(value, 0xff))
@@ -237,7 +241,7 @@ library ScaleCodec {
         return encodeUint64(uint64(value));
     }
 
-    function encodeInt64To(int64 value, bytes memory destination, uint256 offset) public pure {
+    function encodeInt64To(int64 value, bytes memory destination, uint256 offset) internal pure {
         encodeUint64To(uint64(value), destination, offset);
     }
 
@@ -251,7 +255,7 @@ library ScaleCodec {
         return result;
     }
 
-    function encodeUint128To(uint128 value, bytes memory destination, uint256 offset) public pure {
+    function encodeUint128To(uint128 value, bytes memory destination, uint256 offset) internal pure {
         assembly {
             let dest := add(add(destination, 0x20), offset)
             mstore8(dest, and(value, 0xff))
@@ -267,12 +271,11 @@ library ScaleCodec {
         return encodeUint128(uint128(value));
     }
 
-    function encodeInt128To(int128 value, bytes memory destination, uint256 offset) public pure {
+    function encodeInt128To(int128 value, bytes memory destination, uint256 offset) internal pure {
         encodeUint128To(uint128(value), destination, offset);
     }
 
-    function decodeInt128(bytes memory
-        _bytes, uint256 offset) public pure returns (int128) {
+    function decodeInt128(bytes memory _bytes, uint256 offset) public pure returns (int128) {
         return int128(decodeUint128(_bytes, offset));
     }
 
@@ -282,7 +285,7 @@ library ScaleCodec {
         return result;
     }
 
-    function encodeUint256To(uint256 value, bytes memory destination, uint256 offset) public pure {
+    function encodeUint256To(uint256 value, bytes memory destination, uint256 offset) internal pure {
         assembly {
             let dest := add(add(destination, 0x20), offset)
             mstore8(dest, and(value, 0xff))
@@ -301,7 +304,7 @@ library ScaleCodec {
         return result;
     }
 
-    function compactIntLen(uint256 value) public pure returns (uint8) {
+    function compactIntLen(uint256 value) public pure returns (uint8 length) {
         if (value < 1 << 6) {
             return 1;
         } else if (value < 1 << 14) {
@@ -319,7 +322,10 @@ library ScaleCodec {
         }
     }
 
-    function encodeCompactIntTo(uint256 value, uint8 bytesLen, bytes memory destination, uint256 offset) public pure {
+    function encodeCompactIntTo(uint256 value, uint8 bytesLen, bytes memory destination, uint256 offset)
+        internal
+        pure
+    {
         assembly {
             let dest := add(add(destination, 0x20), offset)
             if lt(value, shl(6, 1)) { mstore8(dest, shl(2, value)) }
@@ -358,9 +364,9 @@ library ScaleCodec {
                 let v := byte(0, mload(add(src_ptr, 1)))
                 value := or(value, shl(8, v))
                 v := byte(0, mload(src_ptr))
-                value := or(value, v)
+                value := shr(2, or(value, v))
             }
-            return CompactInt(value >> 2, 2);
+            return CompactInt(value, 2);
         } else if (mode == 0x02) {
             uint32 value;
             assembly {
@@ -370,9 +376,9 @@ library ScaleCodec {
                     value := or(value, shl(mul(i, 8), v))
                 }
                 let v := byte(0, mload(src_ptr))
-                value := or(value, v)
+                value := shr(2, or(value, v))
             }
-            return CompactInt(value >> 2, 4);
+            return CompactInt(value, 4);
         } else {
             uint8 bytesLen = (uint8(_bytes[offset]) >> 2) + 4;
 
@@ -382,8 +388,10 @@ library ScaleCodec {
         }
     }
 
-    function stringLen(string memory value) public pure returns (uint256) {
-        return bytes(value).length;
+    function stringLen(string memory value) public pure returns (uint256 length) {
+        assembly {
+            length := mload(value)
+        }
     }
 
     function encodeString(string memory value) public pure returns (bytes memory) {
@@ -393,11 +401,17 @@ library ScaleCodec {
         return bytes.concat(len, result);
     }
 
-    function encodeStringTo(string memory value, bytes memory destination, uint256 offset) public pure {
-        bytes memory _value = bytes(value);
-
-        for (uint256 i = 0; i < _value.length; i++) {
-            destination[i + offset] = _value[i];
+    function encodeStringTo(string memory value, uint256 strLen, bytes memory destination, uint256 offset)
+        internal
+        pure
+    {
+        assembly {
+            let src_ptr := add(value, 0x20)
+            let dest_ptr := add(add(destination, 0x20), offset)
+            for { let i := 0 } lt(i, strLen) { i := add(i, 1) } {
+                let v := mload(add(src_ptr, i))
+                mstore(add(dest_ptr, i), v)
+            }
         }
     }
 
@@ -407,74 +421,20 @@ library ScaleCodec {
         offset += len.offset;
 
         bytes memory result = new bytes(len.value);
-        for (uint256 i = 0; i < len.value; i++) {
-            result[i] = _bytes[i + offset];
+
+        assembly {
+            let src_ptr := add(add(_bytes, 0x20), offset)
+            let dest_ptr := add(result, 0x20)
+            let len_bytes := mload(len)
+            for { let i := 0 } lt(i, len_bytes) { i := add(i, 1) } {
+                let v := mload(add(src_ptr, i))
+                mstore(add(dest_ptr, i), v)
+            }
         }
 
         offset += len.value;
 
         return DecodedString(string(result), offset);
-    }
-
-    function encodeVec(bytes[] memory value) public pure returns (bytes memory) {
-        bytes memory len = encodeCompactInt(value.length);
-        uint256 totalLen = len.length;
-
-        for (uint256 i = 0; i < value.length; i++) {
-            totalLen += value[i].length;
-        }
-
-        bytes memory res = new bytes(totalLen);
-
-        for (uint256 i = 0; i < len.length; i++) {
-            res[i] = len[i];
-        }
-
-        uint256 offset = len.length;
-
-        for (uint256 i = 0; i < value.length; i++) {
-            for (uint256 j = 0; j < value[i].length; j++) {
-                res[offset + j] = value[i][j];
-            }
-            offset += value[i].length;
-        }
-
-        return res;
-    }
-
-    function decodeVec(bytes memory _bytes, uint256 itemLen, bool unknownLen, uint256 offset)
-        public
-        pure
-        returns (bytes[] memory)
-    {
-        CompactInt memory prefix = decodeCompactInt(_bytes, offset);
-        bytes[] memory result = new bytes[](prefix.value);
-
-        uint256 _offset = offset + prefix.offset;
-
-        for (uint256 i = 0; i < prefix.value; i++) {
-            uint256 itemPrefixLen = 0;
-            if (unknownLen) {
-                CompactInt memory item_prefix = decodeCompactInt(_bytes, _offset);
-                itemLen = item_prefix.value;
-                itemPrefixLen = item_prefix.offset;
-            }
-
-            bytes memory item = new bytes(itemLen + itemPrefixLen);
-
-            for (uint256 j = 0; j < itemLen + itemPrefixLen; j++) {
-                item[j] = _bytes[_offset + j];
-            }
-
-            result[i] = item;
-            _offset += itemLen + itemPrefixLen;
-
-            if (_offset >= _bytes.length) {
-                break;
-            }
-        }
-
-        return result;
     }
 
     function encodeOptional(Optional memory value) public pure returns (bytes memory) {

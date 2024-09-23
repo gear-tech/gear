@@ -10,9 +10,15 @@ contract TestStringScaleCodec is Test {
     }
 
     function test_stringEncodeTo() public pure {
-        bytes memory _bytes = new bytes(6);
+        bytes memory _bytes = new bytes(7);
         _bytes[0] = 0x01;
-        ScaleCodec.encodeStringTo("hello", _bytes, 1);
+
+        string memory _str = "hello";
+        uint256 strLen = ScaleCodec.stringLen(_str);
+        uint8 strLenPrefixLen = ScaleCodec.compactIntLen(strLen);
+        ScaleCodec.encodeCompactIntTo(strLen, strLenPrefixLen, _bytes, 1);
+
+        ScaleCodec.encodeStringTo("hello", strLen, _bytes, 1 + strLenPrefixLen);
         assertEq(_bytes, hex"011468656c6c6f");
     }
 
