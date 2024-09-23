@@ -18,7 +18,6 @@
 
 //! Block timestamp and height management.
 
-use crate::BLOCK_DURATION_IN_MSECS;
 use core_processor::configs::BlockInfo;
 use gear_common::{auxiliary::BlockNumber, storage::GetCallback};
 use std::{
