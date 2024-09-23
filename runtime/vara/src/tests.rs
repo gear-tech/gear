@@ -224,7 +224,9 @@ fn instruction_weights_heuristics_test() {
         i32rotr: 300,
     };
 
-    check_instructions_weights(weights, expected_weights);
+    let result = check_instructions_weights(weights, expected_weights);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
 }
 
 #[test]
@@ -305,7 +307,9 @@ fn syscall_weights_test() {
         _phantom: Default::default(),
     };
 
-    check_syscall_weights(weights, expected);
+    let result = check_syscall_weights(weights, expected);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
 }
 
 #[test]
@@ -320,7 +324,9 @@ fn page_costs_heuristic_test() {
         parachain_read_heuristic: 0.into(),
     };
 
-    check_pages_costs(page_costs, expected_page_costs);
+    let result = check_pages_costs(page_costs, expected_page_costs);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
 }
 
 #[test]
@@ -337,7 +343,9 @@ fn lazy_page_costs_heuristic_test() {
         load_page_storage_data: 9_000_000.into(),
     };
 
-    check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
+    let result = check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
 }
 
 /// Check that it is not possible to write/change memory pages too cheaply,
