@@ -98,15 +98,15 @@ impl OverlaidProcessor {
 
         let res = messages
             .into_iter()
-            .find_map(|v| {
-                v.reply_details().and_then(|d| {
-                    (d.to_message_id() == MessageId::zero()).then(|| {
-                        let parts = v.into_parts();
+            .find_map(|message| {
+                message.reply_details().and_then(|details| {
+                    (details.to_message_id() == MessageId::zero()).then(|| {
+                        let parts = message.into_parts();
 
                         ReplyInfo {
                             payload: parts.3.into_vec(),
                             value: parts.5,
-                            code: d.to_reply_code(),
+                            code: details.to_reply_code(),
                         }
                     })
                 })
