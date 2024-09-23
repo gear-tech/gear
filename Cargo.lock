@@ -6271,6 +6271,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin-proxy"
+version = "1.5.0"
+dependencies = [
+ "derive_more 0.99.18",
+ "gprimitives",
+ "scale-info",
+]
+
+[[package]]
 name = "gbuiltin-staking"
 version = "1.5.0"
 dependencies = [
@@ -11531,6 +11540,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "gbuiltin-bls381",
+ "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
  "gear-core",
@@ -11549,6 +11559,7 @@ dependencies = [
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
+ "pallet-proxy",
  "pallet-session",
  "pallet-staking",
  "pallet-timestamp",
@@ -18855,6 +18866,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
  "gear-core",

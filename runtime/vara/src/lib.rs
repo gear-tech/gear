@@ -65,6 +65,7 @@ use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
+use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_gear_builtin::ActorWithId;
@@ -1000,6 +1001,19 @@ pub enum ProxyType {
 impl Default for ProxyType {
     fn default() -> Self {
         Self::Any
+    }
+}
+
+impl From<BuiltinProxyType> for ProxyType {
+    fn from(proxy_type: BuiltinProxyType) -> Self {
+        match proxy_type {
+            BuiltinProxyType::Any => ProxyType::Any,
+            BuiltinProxyType::NonTransfer => ProxyType::NonTransfer,
+            BuiltinProxyType::Governance => ProxyType::Governance,
+            BuiltinProxyType::Staking => ProxyType::Staking,
+            BuiltinProxyType::IdentityJudgement => ProxyType::IdentityJudgement,
+            BuiltinProxyType::CancelProxy => ProxyType::CancelProxy,
+        }
     }
 }
 
