@@ -11411,7 +11411,7 @@ fn system_reservation_panic_works() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -11424,7 +11424,7 @@ fn system_reservation_panic_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Panic.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -15028,7 +15028,7 @@ fn critical_hook_with_panic() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             vec![],
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -15043,7 +15043,7 @@ fn critical_hook_with_panic() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Panic.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -15059,7 +15059,7 @@ fn critical_hook_with_panic() {
             RuntimeOrigin::signed(USER_1),
             msg.id(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -16837,7 +16837,7 @@ pub(crate) mod utils {
         use crate::tests::new_test_ext;
         use demo_signal_entry::{HandleAction, WASM_BINARY};
 
-        const GAS_LIMIT: u64 = 10_000_000_000;
+        const GAS_LIMIT: u64 = 12_000_000_000;
 
         init_logger();
         new_test_ext().execute_with(|| {
