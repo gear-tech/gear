@@ -84,8 +84,7 @@ impl BlocksManager {
                 panic!("instance always initialized");
             };
             block_info.height += amount;
-            let duration = BLOCK_DURATION_IN_MSECS.saturating_mul(amount as u64);
-            block_info.timestamp += duration;
+            block_info.timestamp = now();
 
             *block_info
         })
