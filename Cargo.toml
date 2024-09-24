@@ -62,6 +62,7 @@ members = [
     "examples/program-factory",
     "examples/program-generator",
     "examples/proxy",
+    "examples/proxy-broker",
     "examples/proxy-relay",
     "examples/proxy-reservation-with-gas",
     "examples/read-big-state",
@@ -486,6 +487,7 @@ demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry", default-features = false }
 demo-staking-broker = { path = "examples/staking-broker" }
+demo-proxy-broker = { path = "examples/proxy-broker" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }

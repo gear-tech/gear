@@ -16,23 +16,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, bls12_381, ActorWithId, BuiltinActor, BuiltinActorError};
+use crate::{
+    self as pallet_gear_builtin, bls12_381, proxy, ActorWithId, BuiltinActor, BuiltinActorError,
+};
 use common::{GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, InstanceFilter, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use gear_core::{
     ids::ProgramId,
     message::{Payload, StoredDispatch},
 };
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill, Permill,
+    BuildStorage, Perbill, Permill, RuntimeDebug,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -79,6 +83,7 @@ construct_runtime!(
         Authorship: pallet_authorship,
         Timestamp: pallet_timestamp,
         Staking: pallet_staking,
+        Proxy: pallet_proxy,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
@@ -94,11 +99,106 @@ parameter_types! {
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
+#[derive(
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Encode,
+    Decode,
+    RuntimeDebug,
+    MaxEncodedLen,
+    scale_info::TypeInfo,
+)]
+pub enum ProxyType {
+    Any,
+    NonTransfer,
+    Governance,
+    Staking,
+    IdentityJudgement,
+    CancelProxy,
+}
+
+impl Default for ProxyType {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
+impl From<BuiltinProxyType> for ProxyType {
+    fn from(proxy_type: BuiltinProxyType) -> Self {
+        match proxy_type {
+            BuiltinProxyType::Any => ProxyType::Any,
+            BuiltinProxyType::NonTransfer => ProxyType::NonTransfer,
+            BuiltinProxyType::Governance => ProxyType::Governance,
+            BuiltinProxyType::Staking => ProxyType::Staking,
+            BuiltinProxyType::IdentityJudgement => ProxyType::IdentityJudgement,
+            BuiltinProxyType::CancelProxy => ProxyType::CancelProxy,
+        }
+    }
+}
+
+impl InstanceFilter<RuntimeCall> for ProxyType {
+    fn filter(&self, c: &RuntimeCall) -> bool {
+        match self {
+            ProxyType::Any => true,
+            ProxyType::NonTransfer => {
+                return !matches!(c, RuntimeCall::Balances(..));
+            }
+            ProxyType::CancelProxy => {
+                matches!(
+                    c,
+                    RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. })
+                )
+            }
+            ProxyType::Staking => matches!(c, RuntimeCall::Staking(..)),
+            ProxyType::Governance | ProxyType::IdentityJudgement => {
+                unimplemented!("No pallets defined in test runtime")
+            }
+        }
+    }
+    fn is_superset(&self, o: &Self) -> bool {
+        match (self, o) {
+            (x, y) if x == y => true,
+            (ProxyType::Any, _) => true,
+            (_, ProxyType::Any) => false,
+            (ProxyType::NonTransfer, _) => true,
+            _ => false,
+        }
+    }
+}
+
 common::impl_pallet_system!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
 common::impl_pallet_staking!(Test);
+
+parameter_types! {
+    pub const ProxyDepositBase: Balance = 1;
+    pub const ProxyDepositFactor: Balance = 1;
+    pub const MaxProxies: u32 = 100;
+    pub const MaxPending: u32 = 100;
+    pub const AnnouncementDepositBase: Balance = 1;
+    pub const AnnouncementDepositFactor: Balance = 1;
+}
+
+impl pallet_proxy::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type ProxyType = ProxyType;
+    type ProxyDepositBase = ProxyDepositBase;
+    type ProxyDepositFactor = ProxyDepositFactor;
+    type MaxProxies = MaxProxies;
+    type WeightInfo = ();
+    type MaxPending = MaxPending;
+    type CallHasher = BlakeTwo256;
+    type AnnouncementDepositBase = AnnouncementDepositBase;
+    type AnnouncementDepositFactor = AnnouncementDepositBase;
+}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
@@ -222,6 +322,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
         ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
         ActorWithId<1, bls12_381::Actor<Self>>,
+        ActorWithId<3, proxy::Actor<Self>>,
     );
     type WeightInfo = ();
 }

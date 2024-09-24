@@ -1,0 +1,85 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Proxy builtin tests.
+
+use super::basic::init_logger;
+use crate::mock::*;
+use common::Origin;
+use demo_proxy_broker::WASM_BINARY;
+use frame_support::assert_ok;
+use gbuiltin_proxy::{ProxyType, Request};
+use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use parity_scale_codec::Encode;
+
+#[test]
+fn add_proxy_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let proxy_pid = utils::upload_and_initialize_broker();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            proxy_pid,
+            Request::AddProxy {
+                delegate: SIGNER.cast(),
+                proxy_type: ProxyType::Any,
+                delay: 1
+            }
+            .encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        run_to_next_block();
+
+        log::debug!("EVENTS {:#?}", System::events());
+
+        // TODO check proxy added
+    })
+}
+
+mod utils {
+    use super::*;
+
+    pub(super) fn upload_and_initialize_broker() -> ProgramId {
+        let code = WASM_BINARY;
+        let salt = b"proxy_broker";
+        let pid = ProgramId::generate_from_user(CodeId::generate(code), salt);
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(SIGNER),
+            code.to_vec(),
+            salt.to_vec(),
+            Default::default(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        run_to_next_block();
+
+        // Top up program's account balance by 2000 to allow user claim 1000 from mailbox
+        assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
+            &1,
+            &pid.cast(),
+            2000,
+            frame_support::traits::ExistenceRequirement::AllowDeath
+        ));
+
+        pid
+    }
+}

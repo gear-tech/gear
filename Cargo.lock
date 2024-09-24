@@ -3840,6 +3840,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy-broker"
+version = "0.1.0"
+dependencies = [
+ "gbuiltin-proxy",
+ "gear-wasm-builder",
+ "gstd",
+ "hashbrown 0.14.5",
+ "hex",
+ "hex-literal",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-proxy-relay"
 version = "0.1.0"
 dependencies = [
@@ -11529,6 +11542,7 @@ dependencies = [
  "ark-scale 0.0.12",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+ "demo-proxy-broker",
  "demo-staking-broker",
  "demo-waiting-proxy",
  "derive_more 0.99.18",
