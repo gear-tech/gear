@@ -5355,6 +5355,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-txpool"
+version = "1.6.0"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "gprimitives",
+ "hex",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "ethexe-utils"
 version = "1.6.0"
 dependencies = [
