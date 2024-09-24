@@ -32,7 +32,7 @@ const INSTRUCTIONS_SPREAD: u8 = 50;
 const SYSCALL_SPREAD: u8 = 10;
 const PAGES_SPREAD: u8 = 10;
 
-#[derive(Clone, Copy)]
+/// Structure to hold weight expectation
 struct WeightExpectation {
     weight: u64,
     expected: u64,
@@ -81,8 +81,29 @@ fn check_expectations(expectations: &[WeightExpectation]) -> Result<(), Vec<Stri
     }
 }
 
+/// Memory pages access costs.
+struct PagesCosts {
+    pub load_page_data: CostOf<GearPagesAmount>,
+    pub upload_page_data: CostOf<GearPagesAmount>,
+    pub mem_grow: CostOf<GearPagesAmount>,
+    pub mem_grow_per_page: CostOf<GearPagesAmount>,
+    pub parachain_read_heuristic: CostOf<GearPagesAmount>,
+}
+
+impl<T: pallet_gear::Config> From<MemoryWeights<T>> for PagesCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            load_page_data: val.load_page_data.ref_time().into(),
+            upload_page_data: val.upload_page_data.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
+            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
+        }
+    }
+}
+
 /// Check that the weights of instructions are within the expected range
-pub fn check_instructions_weights<T: pallet_gear::Config>(
+fn check_instructions_weights<T: pallet_gear::Config>(
     weights: InstructionWeights<T>,
     expected: InstructionWeights<T>,
 ) -> Result<(), Vec<String>> {
@@ -191,7 +212,7 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
 }
 
 /// Check that the weights of syscalls are within the expected range
-pub fn check_syscall_weights<T: pallet_gear::Config>(
+fn check_syscall_weights<T: pallet_gear::Config>(
     weights: SyscallWeights<T>,
     expected: SyscallWeights<T>,
 ) -> Result<(), Vec<String>> {
@@ -283,7 +304,7 @@ pub fn check_syscall_weights<T: pallet_gear::Config>(
 }
 
 /// Check that the lazy-pages costs are within the expected range
-pub fn check_lazy_pages_costs(
+fn check_lazy_pages_costs(
     lazy_pages_costs: LazyPagesCosts,
     expected_lazy_pages_costs: LazyPagesCosts,
 ) -> Result<(), Vec<String>> {
@@ -311,29 +332,8 @@ pub fn check_lazy_pages_costs(
     check_expectations(&expectations)
 }
 
-/// Memory pages access costs.
-pub struct PagesCosts {
-    pub load_page_data: CostOf<GearPagesAmount>,
-    pub upload_page_data: CostOf<GearPagesAmount>,
-    pub mem_grow: CostOf<GearPagesAmount>,
-    pub mem_grow_per_page: CostOf<GearPagesAmount>,
-    pub parachain_read_heuristic: CostOf<GearPagesAmount>,
-}
-
-impl<T: pallet_gear::Config> From<MemoryWeights<T>> for PagesCosts {
-    fn from(val: MemoryWeights<T>) -> Self {
-        Self {
-            load_page_data: val.load_page_data.ref_time().into(),
-            upload_page_data: val.upload_page_data.ref_time().into(),
-            mem_grow: val.mem_grow.ref_time().into(),
-            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
-            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
-        }
-    }
-}
-
 /// Check that the pages costs are within the expected range
-pub fn check_pages_costs(
+fn check_pages_costs(
     page_costs: PagesCosts,
     expected_page_costs: PagesCosts,
 ) -> Result<(), Vec<String>> {
