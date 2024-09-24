@@ -106,8 +106,10 @@ library ScaleCodec {
         return result;
     }
 
-    function bytesToBytes32(bytes memory value) public pure returns (bytes32) {
-        return bytes32(value);
+    function bytesToBytes32(bytes memory value, uint256 offset) public pure returns (bytes32 result) {
+        assembly {
+            result := mload(add(add(value, 0x20), offset))
+        }
     }
 
     function insertBytes20To(bytes20 data, bytes memory destination, uint256 offset) internal pure {
