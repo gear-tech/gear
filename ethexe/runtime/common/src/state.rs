@@ -181,6 +181,7 @@ pub type MessageQueue = VecDeque<Dispatch>;
 
 pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
 
+// TODO (breathx): consider here LocalMailbox for each user.
 pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, (Value, BlockNumber)>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
