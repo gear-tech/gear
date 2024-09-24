@@ -11,4 +11,18 @@ contract TestBytesScaleCodec is Test {
             hex"0000000000000000000000000000000000000000000000000000000000000000"
         );
     }
+
+    function test_insertBytes32() public pure {
+        bytes memory _bytes = new bytes(33);
+        _bytes[0] = 0x05;
+        ScaleCodec.insertBytes32To(hex"0102030401020304010203040102030401020304010203040102030401020304", _bytes, 1);
+        assertEq(_bytes, hex"050102030401020304010203040102030401020304010203040102030401020304");
+    }
+
+    function test_insertBytes20() public pure {
+        bytes memory _bytes = new bytes(21);
+        _bytes[0] = 0x05;
+        ScaleCodec.insertBytes32To(hex"0102030401020304010203040102030401020304", _bytes, 1);
+        assertEq(_bytes, hex"050102030401020304010203040102030401020304");
+    }
 }

@@ -110,6 +110,30 @@ library ScaleCodec {
         return bytes32(value);
     }
 
+    function insertBytes20To(bytes20 data, bytes memory destination, uint256 offset) internal pure {
+        assembly {
+            mstore(add(add(destination, 0x20), offset), data)
+        }
+    }
+
+    function insertBytes32To(bytes32 data, bytes memory destination, uint256 offset) internal pure {
+        assembly {
+            mstore(add(add(destination, 0x20), offset), data)
+        }
+    }
+
+    function insertBytesTo(bytes memory data, bytes memory destination, uint256 offset) internal pure {
+        assembly {
+            let data_len := mload(data)
+            let dest_ptr := add(add(destination, 0x20), offset)
+            let data_ptr := add(data, 0x20)
+            for { let i := 0 } lt(i, data_len) { i := add(i, 1) } {
+                let v := mload(add(data_ptr, i))
+                mstore8(add(dest_ptr, i), v)
+            }
+        }
+    }
+
     function encodeBool(bool value) public pure returns (bytes memory) {
         bytes memory result = new bytes(1);
         encodeBoolTo(value, result, 0);

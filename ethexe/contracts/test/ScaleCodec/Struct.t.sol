@@ -13,12 +13,24 @@ contract TestStructScaleCodec is Test {
     function encodeMyStruct(string memory _name, uint8 _age) internal pure returns (bytes memory) {
         MyStruct memory myStruct = MyStruct(_name, _age);
 
-        bytes[] memory encoded_items = new bytes[](2);
+        uint totalLen = 0;
 
-        encoded_items[0] = ScaleCodec.encodeString(myStruct.name);
-        encoded_items[1] = ScaleCodec.encodeUint8(myStruct.age);
+        uint256 __nameLen = ScaleCodec.stringLen(myStruct.name);
+        uint8 __namePrefixLen = ScaleCodec.compactIntLen(__nameLen);
+        totalLen += __nameLen + __namePrefixLen;
 
-        return ScaleCodec.concatBytes(encoded_items);
+        totalLen += 1;
+
+        bytes memory _bytes = new bytes(totalLen);
+
+        uint offset = 0;
+        ScaleCodec.encodeCompactIntTo(__nameLen, __namePrefixLen, _bytes, 0);
+        offset += __namePrefixLen;
+        ScaleCodec.encodeStringTo(myStruct.name, __nameLen, _bytes, offset);
+        offset += __nameLen;
+        ScaleCodec.encodeUint8To(myStruct.age, _bytes, offset);
+
+        return _bytes;
     }
 
     function decodeMyStruct(bytes memory _value) internal pure returns (MyStruct memory) {
