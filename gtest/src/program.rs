@@ -331,8 +331,9 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (code, code_id) = Self::build_instrumented_code_and_id(self.code);
+        let (code, code_id) = Self::build_instrumented_code_and_id(self.code.clone());
 
+        system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
             system
                 .0
@@ -368,8 +369,7 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        let c: InstrumentedCodeAndId = CodeAndId::new(code).into();
-        c.into_parts()
+        InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts()
     }
 }
 
