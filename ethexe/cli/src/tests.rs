@@ -485,7 +485,8 @@ async fn multiple_validators() {
     let mut validator2 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[2])
-            .network(None, sequencer.multiaddr.clone()),
+            .network(None, sequencer.multiaddr.clone())
+            .db(validator2.db),
     );
     validator2.start_service().await;
 

@@ -195,6 +195,8 @@ impl Sequencer {
         &mut self,
         aggregated: AggregatedCommitments<CodeCommitment>,
     ) -> Result<()> {
+        log::debug!("Received code commitments: {aggregated:?}");
+
         Self::receive_commitments(
             aggregated,
             &self.validators,
@@ -207,6 +209,8 @@ impl Sequencer {
         &mut self,
         aggregated: AggregatedCommitments<BlockCommitment>,
     ) -> Result<()> {
+        log::debug!("Received block commitments: {aggregated:?}");
+
         Self::receive_commitments(
             aggregated,
             &self.validators,
