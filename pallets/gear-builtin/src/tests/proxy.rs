@@ -44,7 +44,7 @@ fn add_remove_proxy_works() {
             delegator: proxy_pid.cast(),
             delegatee: SIGNER,
             proxy_type: ProxyType::Any.into(),
-            delay: 0
+            delay: 0,
         }));
 
         System::reset_events();

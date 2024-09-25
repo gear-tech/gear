@@ -24,7 +24,7 @@ use scale_info::scale::{self, Decode, Encode};
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
 #[codec(crate = scale)]
 pub enum Request {
-    // todo currently with no delay
+    // todo add comment currently with no delay
     AddProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
@@ -32,7 +32,7 @@ pub enum Request {
     RemoveProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
-    }
+    },
 }
 
 /// Proxy type.

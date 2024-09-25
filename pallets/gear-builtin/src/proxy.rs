@@ -83,7 +83,6 @@ where
 
         let origin = dispatch.source().cast();
 
-        // todo spend gas
         match Self::cast(request) {
             Ok(call) => {
                 let (result, actual_gas) = Pallet::<T>::dispatch_call(origin, call, gas_limit);
