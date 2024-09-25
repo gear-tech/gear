@@ -18,20 +18,34 @@
 
 #![no_std]
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use gprimitives::ActorId;
 use scale_info::scale::{self, Decode, Encode};
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 #[codec(crate = scale)]
 pub enum Request {
+    // todo currently with no delay
     AddProxy {
+        delegate: ActorId,
+        proxy_type: ProxyType,
+    },
+    RemoveProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
         delay: u32,
     },
-    // Announce,
-    // Proxy,
-    // ProxyAnnounced
+    Proxy {
+        real: ActorId,
+        force_proxy_type: Option<ProxyType>,
+        encoded_call: Vec<u8>,
+    }, // RemoveProxies,
+       // Proxy,
+       // Announce,
+       // Proxy,
+       // ProxyAnnounced
 }
 
 /// Proxy type.

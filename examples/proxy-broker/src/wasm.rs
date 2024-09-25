@@ -35,26 +35,39 @@ async fn main() {
     match request {
         add_proxy @ Request::AddProxy { .. } => {
             debug!(
-                "[ProxyBroker]: Sending `add_proxy` request with data {:?}",
+                "handle: Sending `add_proxy` request with data {:?}",
                 add_proxy
             );
-            let res = msg::send_for_reply(BUILTIN_ADDRESS, add_proxy, 0, 0)
-                .expect("handle::add_proxy: failed sending message for reply")
-                .await;
-            match res {
-                Ok(_) => {
-                    debug!("[ProxyBroker] Success reply from builtin actor received");
-                    msg::reply_bytes(b"Success", 0).expect("Failed to send reply");
+
+            send_request(add_proxy).await;
+        }
+        remove_proxy @ Request::RemoveProxy { .. } => {
+            debug!(
+                "handle: Sending `remove_proxy` request with data {:?}",
+                remove_proxy
+            );
+
+            send_request(remove_proxy).await;
+        }
+    }
+}
+
+async fn send_request(req: Request) {
+    let res = msg::send_for_reply(BUILTIN_ADDRESS, req, 0, 0)
+        .expect("handle::send_request: failed sending message for reply")
+        .await;
+    match res {
+        Ok(_) => {
+            debug!("handle::send_request: Success reply from builtin actor received");
+            msg::reply_bytes(b"Success", 0).expect("Failed to send reply");
+        }
+        Err(e) => {
+            debug!("handle::send_request: Error reply from builtin actor received: {e:?}");
+            match e {
+                Error::ErrorReply(payload, _) => {
+                    panic!("{}", payload);
                 }
-                Err(e) => {
-                    debug!("[ProxyBroker] Error reply from builtin actor received: {e:?}");
-                    match e {
-                        Error::ErrorReply(payload, _) => {
-                            panic!("{}", payload);
-                        }
-                        _ => panic!("Error in upstream program"),
-                    }
-                }
+                _ => panic!("Error in upstream program"),
             }
         }
     }

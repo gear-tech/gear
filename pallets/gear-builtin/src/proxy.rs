@@ -33,9 +33,23 @@ where
     <T as ProxyConfig>::ProxyType: From<BuiltinProxyType>,
     CallOf<T>: From<pallet_proxy::Call<T>>,
 {
-    fn cast(request: Request) -> CallOf<T> {
-        match request {
+    fn cast(request: Request) -> Result<CallOf<T>, BuiltinActorError> {
+        Ok(match request {
             Request::AddProxy {
+                delegate,
+                proxy_type,
+            } => {
+                let delegate = T::Lookup::unlookup(delegate.cast());
+                let proxy_type = proxy_type.into();
+                let delay = 0u32.into();
+
+                pallet_proxy::Call::<T>::add_proxy {
+                    delegate,
+                    proxy_type,
+                    delay,
+                }
+            }
+            Request::RemoveProxy {
                 delegate,
                 proxy_type,
                 delay,
@@ -44,14 +58,31 @@ where
                 let proxy_type = proxy_type.into();
                 let delay = delay.into();
 
-                pallet_proxy::Call::<T>::add_proxy {
+                pallet_proxy::Call::<T>::remove_proxy {
                     delegate,
                     proxy_type,
                     delay,
                 }
             }
+            Request::Proxy {
+                real,
+                force_proxy_type,
+                encoded_call,
+            } => {
+                let real = T::Lookup::unlookup(real.cast());
+                let force_proxy_type = force_proxy_type.map(Into::into);
+                let runtime_call =
+                    <T as ProxyConfig>::RuntimeCall::decode(&mut encoded_call.as_ref())
+                        .map_err(|_| BuiltinActorError::DecodingError)?;
+
+                pallet_proxy::Call::<T>::proxy {
+                    real,
+                    force_proxy_type,
+                    call: Box::new(runtime_call),
+                }
+            }
         }
-        .into()
+        .into())
     }
 }
 
@@ -71,9 +102,12 @@ where
         let origin = dispatch.source().cast();
 
         // todo spend gas
-        let call = Self::cast(request);
-        let (result, actual_gas) = Pallet::<T>::dispatch_call(origin, call, gas_limit);
-
-        (result.map(|_| Default::default()), actual_gas)
+        match Self::cast(request) {
+            Ok(call) => {
+                let (result, actual_gas) = Pallet::<T>::dispatch_call(origin, call, gas_limit);
+                (result.map(|_| Default::default()), actual_gas)
+            }
+            Err(e) => (Err(e), gas_limit),
+        }
     }
 }

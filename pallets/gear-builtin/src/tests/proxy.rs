@@ -25,10 +25,11 @@ use demo_proxy_broker::WASM_BINARY;
 use frame_support::assert_ok;
 use gbuiltin_proxy::{ProxyType, Request};
 use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use pallet_proxy::Event as ProxyEvent;
 use parity_scale_codec::Encode;
 
 #[test]
-fn add_proxy_works() {
+fn add_remove_proxy_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let proxy_pid = utils::upload_and_initialize_broker();
@@ -48,9 +49,36 @@ fn add_proxy_works() {
         ));
         run_to_next_block();
 
-        log::debug!("EVENTS {:#?}", System::events());
+        System::assert_has_event(RuntimeEvent::Proxy(ProxyEvent::ProxyAdded {
+            delegator: proxy_pid.cast(),
+            delegatee: SIGNER,
+            proxy_type: ProxyType::Any.into(),
+            delay: 1,
+        }));
 
-        // TODO check proxy added
+        System::reset_events();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            proxy_pid,
+            Request::RemoveProxy {
+                delegate: SIGNER.cast(),
+                proxy_type: ProxyType::Any,
+                delay: 1
+            }
+            .encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        run_to_next_block();
+
+        System::assert_has_event(RuntimeEvent::Proxy(ProxyEvent::ProxyRemoved {
+            delegator: proxy_pid.cast(),
+            delegatee: SIGNER,
+            proxy_type: ProxyType::Any.into(),
+            delay: 1,
+        }));
     })
 }
 
@@ -72,7 +100,6 @@ mod utils {
         ));
         run_to_next_block();
 
-        // Top up program's account balance by 2000 to allow user claim 1000 from mailbox
         assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
             &1,
             &pid.cast(),
