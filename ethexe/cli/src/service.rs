@@ -666,6 +666,10 @@ impl Service {
             .map(BlockCommitmentValidationRequest::from)
             .collect();
 
+        if block_requests.is_empty() && code_requests.is_empty() {
+            return Ok(());
+        }
+
         if let Some(network_sender) = maybe_network_sender {
             log::debug!("Request validation of aggregated commitments...");
 
