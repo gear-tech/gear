@@ -21,6 +21,7 @@
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
+    program::ProgramBuilder,
     state::{accounts::Accounts, actors::Actors},
     Value, EXISTENTIAL_DEPOSIT,
 };
@@ -294,10 +295,12 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !Actors::contains_key(candidate_id) {
+                    let (instrumented, _) =
+                        ProgramBuilder::build_instrumented_code_and_id(code.clone());
                     self.store_new_actor(
                         candidate_id,
                         Program::Genuine(GenuineProgram {
-                            code: code.clone(),
+                            code: instrumented,
                             code_id,
                             allocations: Default::default(),
                             pages_data: Default::default(),

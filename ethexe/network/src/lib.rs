@@ -135,6 +135,9 @@ impl NetworkSender {
         (Self { tx }, rx)
     }
 
+    // TODO: consider to append salt here to be sure that message is unique.
+    // This is important for the cases of malfunctions in ethexe, when the same message
+    // needs to be sent again #4255
     pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
         let _res = self
             .tx
