@@ -52,11 +52,10 @@ where
             Request::RemoveProxy {
                 delegate,
                 proxy_type,
-                delay,
             } => {
                 let delegate = T::Lookup::unlookup(delegate.cast());
                 let proxy_type = proxy_type.into();
-                let delay = delay.into();
+                let delay = 0u32.into();
 
                 pallet_proxy::Call::<T>::remove_proxy {
                     delegate,

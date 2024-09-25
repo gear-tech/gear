@@ -35,7 +35,6 @@ pub enum Request {
     RemoveProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
-        delay: u32,
     },
     Proxy {
         real: ActorId,

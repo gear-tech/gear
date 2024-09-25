@@ -40,7 +40,6 @@ fn add_remove_proxy_works() {
             Request::AddProxy {
                 delegate: SIGNER.cast(),
                 proxy_type: ProxyType::Any,
-                delay: 1
             }
             .encode(),
             10_000_000_000,
@@ -53,7 +52,7 @@ fn add_remove_proxy_works() {
             delegator: proxy_pid.cast(),
             delegatee: SIGNER,
             proxy_type: ProxyType::Any.into(),
-            delay: 1,
+            delay: 0
         }));
 
         System::reset_events();
@@ -64,7 +63,6 @@ fn add_remove_proxy_works() {
             Request::RemoveProxy {
                 delegate: SIGNER.cast(),
                 proxy_type: ProxyType::Any,
-                delay: 1
             }
             .encode(),
             10_000_000_000,
@@ -77,8 +75,10 @@ fn add_remove_proxy_works() {
             delegator: proxy_pid.cast(),
             delegatee: SIGNER,
             proxy_type: ProxyType::Any.into(),
-            delay: 1,
+            delay: 0,
         }));
+
+        // todo add proxy call
     })
 }
 
