@@ -63,23 +63,6 @@ where
                     delay,
                 }
             }
-            Request::Proxy {
-                real,
-                force_proxy_type,
-                encoded_call,
-            } => {
-                let real = T::Lookup::unlookup(real.cast());
-                let force_proxy_type = force_proxy_type.map(Into::into);
-                let runtime_call =
-                    <T as ProxyConfig>::RuntimeCall::decode(&mut encoded_call.as_ref())
-                        .map_err(|_| BuiltinActorError::DecodingError)?;
-
-                pallet_proxy::Call::<T>::proxy {
-                    real,
-                    force_proxy_type,
-                    call: Box::new(runtime_call),
-                }
-            }
         }
         .into())
     }

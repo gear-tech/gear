@@ -18,13 +18,10 @@
 
 #![no_std]
 
-extern crate alloc;
-
-use alloc::vec::Vec;
 use gprimitives::ActorId;
 use scale_info::scale::{self, Decode, Encode};
 
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
 #[codec(crate = scale)]
 pub enum Request {
     // todo currently with no delay
@@ -35,22 +32,13 @@ pub enum Request {
     RemoveProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
-    },
-    Proxy {
-        real: ActorId,
-        force_proxy_type: Option<ProxyType>,
-        encoded_call: Vec<u8>,
-    }, // RemoveProxies,
-       // Proxy,
-       // Announce,
-       // Proxy,
-       // ProxyAnnounced
+    }
 }
 
 /// Proxy type.
 ///
 /// The mirror enum for the one defined in vara-runtime crate.
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
 #[codec(crate = scale)]
 pub enum ProxyType {
     Any,

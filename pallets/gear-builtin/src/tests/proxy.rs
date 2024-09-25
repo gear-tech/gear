@@ -34,19 +34,11 @@ fn add_remove_proxy_works() {
     new_test_ext().execute_with(|| {
         let proxy_pid = utils::upload_and_initialize_broker();
 
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(SIGNER),
-            proxy_pid,
-            Request::AddProxy {
-                delegate: SIGNER.cast(),
-                proxy_type: ProxyType::Any,
-            }
-            .encode(),
-            10_000_000_000,
-            0,
-            false,
-        ));
-        run_to_next_block();
+        let add_proxy_req = Request::AddProxy {
+            delegate: SIGNER.cast(),
+            proxy_type: ProxyType::Any,
+        };
+        utils::send_proxy_request(proxy_pid, add_proxy_req);
 
         System::assert_has_event(RuntimeEvent::Proxy(ProxyEvent::ProxyAdded {
             delegator: proxy_pid.cast(),
@@ -57,19 +49,11 @@ fn add_remove_proxy_works() {
 
         System::reset_events();
 
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(SIGNER),
-            proxy_pid,
-            Request::RemoveProxy {
-                delegate: SIGNER.cast(),
-                proxy_type: ProxyType::Any,
-            }
-            .encode(),
-            10_000_000_000,
-            0,
-            false,
-        ));
-        run_to_next_block();
+        let remove_proxy_req = Request::RemoveProxy {
+            delegate: SIGNER.cast(),
+            proxy_type: ProxyType::Any,
+        };
+        utils::send_proxy_request(proxy_pid, remove_proxy_req);
 
         System::assert_has_event(RuntimeEvent::Proxy(ProxyEvent::ProxyRemoved {
             delegator: proxy_pid.cast(),
@@ -77,8 +61,6 @@ fn add_remove_proxy_works() {
             proxy_type: ProxyType::Any.into(),
             delay: 0,
         }));
-
-        // todo add proxy call
     })
 }
 
@@ -100,6 +82,7 @@ mod utils {
         ));
         run_to_next_block();
 
+        // Top-up balance of the proxy so it can pay adding proxy deposit
         assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
             &1,
             &pid.cast(),
@@ -108,5 +91,17 @@ mod utils {
         ));
 
         pid
+    }
+
+    pub(super) fn send_proxy_request(proxy_pid: ProgramId, req: Request) {
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            proxy_pid,
+            req.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        run_to_next_block();
     }
 }
