@@ -336,6 +336,8 @@ impl Processor {
             return Ok(None);
         };
 
+        state.mailbox_hash = self.db.write_mailbox(mailbox).into();
+
         let claim = ValueClaim {
             message_id: mailboxed_id,
             destination: user_id,
