@@ -112,7 +112,7 @@ impl Workspace {
                 continue;
             }
 
-            dep["version"] = toml_edit::value(version.clone());
+            dep["version"] = toml_edit::value(format!("={version}"));
 
             if simulate {
                 dep["registry"] = toml_edit::value(CARGO_REGISTRY_NAME);
