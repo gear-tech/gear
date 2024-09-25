@@ -22,10 +22,11 @@ use super::basic::init_logger;
 use crate::mock::*;
 use common::Origin;
 use demo_proxy_broker::WASM_BINARY;
-use frame_support::assert_ok;
+use frame_support::{assert_err, assert_ok};
 use gbuiltin_proxy::{ProxyType, Request};
 use gear_core::ids::{prelude::*, CodeId, ProgramId};
-use pallet_proxy::Event as ProxyEvent;
+use pallet_balances::Call as BalancesCall;
+use pallet_proxy::{Error as ProxyError, Event as ProxyEvent};
 use parity_scale_codec::Encode;
 
 #[test]
@@ -34,6 +35,7 @@ fn add_remove_proxy_works() {
     new_test_ext().execute_with(|| {
         let proxy_pid = utils::upload_and_initialize_broker();
 
+        // Add proxy
         let add_proxy_req = Request::AddProxy {
             delegate: SIGNER.cast(),
             proxy_type: ProxyType::Any,
@@ -49,6 +51,7 @@ fn add_remove_proxy_works() {
 
         System::reset_events();
 
+        // Remove proxy
         let remove_proxy_req = Request::RemoveProxy {
             delegate: SIGNER.cast(),
             proxy_type: ProxyType::Any,
@@ -61,6 +64,56 @@ fn add_remove_proxy_works() {
             proxy_type: ProxyType::Any.into(),
             delay: 0,
         }));
+
+        // Execute proxy
+        let dest = 42;
+        let value = EXISTENTIAL_DEPOSIT * 3;
+        let call = RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest, value });
+
+        assert_err!(
+            Proxy::proxy(
+                RuntimeOrigin::signed(SIGNER),
+                proxy_pid.cast(),
+                None,
+                Box::new(call)
+            ),
+            ProxyError::<Test>::NotProxy,
+        );
+    })
+}
+
+#[test]
+fn add_execute_proxy_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let proxy_pid = utils::upload_and_initialize_broker();
+
+        // Add proxy
+        let add_proxy_req = Request::AddProxy {
+            delegate: SIGNER.cast(),
+            proxy_type: ProxyType::Any,
+        };
+        utils::send_proxy_request(proxy_pid, add_proxy_req);
+
+        System::assert_has_event(RuntimeEvent::Proxy(ProxyEvent::ProxyAdded {
+            delegator: proxy_pid.cast(),
+            delegatee: SIGNER,
+            proxy_type: ProxyType::Any.into(),
+            delay: 0,
+        }));
+
+        // Execute proxy
+        let dest = 42;
+        let value = EXISTENTIAL_DEPOSIT * 3;
+        let call = RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest, value });
+
+        assert_ok!(Proxy::proxy(
+            RuntimeOrigin::signed(SIGNER),
+            proxy_pid.cast(),
+            None,
+            Box::new(call)
+        ));
+        assert_eq!(Balances::free_balance(dest), value);
     })
 }
 
@@ -86,7 +139,7 @@ mod utils {
         assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
             &1,
             &pid.cast(),
-            2000,
+            10 * EXISTENTIAL_DEPOSIT,
             frame_support::traits::ExistenceRequirement::AllowDeath
         ));
 
