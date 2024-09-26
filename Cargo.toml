@@ -303,11 +303,7 @@ ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
 
-# Common executors between `sandbox-host` and `calc-stack-height`
-sandbox-wasmer = { package = "wasmer", version = "4.3.4", features = [
-    "singlepass",
-] }
-sandbox-wasmer-types = { package = "wasmer-types", version = "4.3.4" }
+# Common executor between `sandbox-host` and `calc-stack-height`
 sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = [
     "virtual_memory",
 ] }

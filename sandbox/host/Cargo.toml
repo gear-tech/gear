@@ -20,8 +20,8 @@ defer.workspace = true
 environmental.workspace = true
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
-sandbox-wasmer.workspace = true
-sandbox-wasmer-types.workspace = true
+wasmer = { workspace = true, features = ["singlepass"] }
+wasmer-types.workspace = true
 sandbox-wasmi = { workspace = true, features = ["virtual_memory"] }
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface-common = { workspace = true, features = ["std"] }
