@@ -569,6 +569,9 @@ pub struct SyscallWeights<T: Config> {
     /// Weight per salt byte by `create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: Weight,
 
+    /// Weight of calling `gr_permute`.
+    pub gr_permute: Weight,
+
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
@@ -1140,6 +1143,7 @@ impl<T: Config> Default for SyscallWeights<T> {
                 0,
                 1,
             ),
+            gr_permute: cost_batched(W::<T>::gr_permute),
             _phantom: PhantomData,
         }
     }
@@ -1227,6 +1231,7 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time()
                 .into(),
+            gr_permute: val.gr_permute.ref_time().into(),
         }
     }
 }

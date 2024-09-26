@@ -16,7 +16,7 @@ gear-lazy-pages = { workspace = true, optional = true }
 gear-sandbox-interface.workspace = true
 
 sp-io.workspace = true
-sp-runtime-interface = { workspace = true, default-features = false }
+sp-runtime-interface.workspace = true
 sp-std.workspace = true
 
 byteorder.workspace = true
@@ -28,6 +28,8 @@ ark-ec = { workspace = true, optional = true }
 ark-ff = { workspace = true, optional = true }
 ark-scale = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
+plonky2 = { workspace = true, optional = true }
+plonky2_field = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
@@ -45,14 +47,17 @@ std = [
 
 	"byteorder/std",
 	"codec/std",
-	"log",
+	"log/std",
 
 	"ark-bls12-381/std",
 	"ark-ec/std",
 	"ark-ff/std",
 	"ark-scale/std",
-	"sha2/std"
+	"sha2/std",
+
+	"plonky2/timing",
+	"plonky2_field",
 ]
 runtime-benchmarks = [
-	"gear-sandbox-interface/runtime-benchmarks"
+	"gear-sandbox-interface/runtime-benchmarks",
 ]

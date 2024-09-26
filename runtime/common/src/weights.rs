@@ -215,6 +215,7 @@ pub fn check_syscall_weights<T: pallet_gear::Config>(
     check!(gr_create_program_wgas);
     check!(gr_create_program_wgas_payload_per_byte);
     check!(gr_create_program_wgas_salt_per_byte);
+    check!(gr_permute);
 }
 
 /// Check that the lazy-pages costs are within the expected range
