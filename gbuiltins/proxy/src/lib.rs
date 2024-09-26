@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Types used to communicate with proxy built-in. 
+//! Types used to communicate with proxy built-in.
 
 #![no_std]
 
@@ -24,14 +24,14 @@ use gprimitives::ActorId;
 use scale_info::scale::{self, Decode, Encode};
 
 /// Request that can be handled by the proxy builtin.
-/// 
+///
 /// Currently all proxies aren't required to send announcement,
 /// i.e. no delays for the delegate actions.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
 #[codec(crate = scale)]
 pub enum Request {
     /// Add proxy request.
-    /// 
+    ///
     /// Requests to add `delegate` as a delegate for the actions
     /// defined by `proxy_type` to be done on behalf of the request
     /// sender.
@@ -40,9 +40,9 @@ pub enum Request {
         proxy_type: ProxyType,
     },
     /// Remove proxy request.
-    /// 
+    ///
     /// Request sender asks to remove `delegate` with set of allowed actions
-    /// defined in `proxy_type` from his list of proxies. 
+    /// defined in `proxy_type` from his list of proxies.
     RemoveProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
