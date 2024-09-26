@@ -63,7 +63,7 @@ fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
         }
     }
 
-    let instance = Instance::new(&mut store, &module, &imports).unwrap();
+    let instance = Instance::new(&mut store, &module, &imports)?;
     let metadata = instance
         .exports
         .get_function(method)
