@@ -72,6 +72,7 @@ ark-ec.workspace = true
 ark-ff.workspace = true
 ark-std.workspace = true
 sha2 = { workspace = true, features = ["std"] }
+hex.workspace = true
 
 [features]
 default = ["std"]

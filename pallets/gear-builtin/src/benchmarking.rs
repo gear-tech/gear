@@ -19,7 +19,6 @@
 //! Benchmarks for the `pallet-gear-builtin`
 
 #[allow(unused)]
-use crate::Pallet as BuiltinActorPallet;
 use crate::*;
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::{pairing::Pairing, short_weierstrass::SWCurveConfig, Group, ScalarMul};
@@ -29,7 +28,8 @@ use ark_std::{ops::Mul, UniformRand};
 use common::Origin;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use gear_core::message::MAX_PAYLOAD_SIZE;
-use parity_scale_codec::{Compact, Encode, Input};
+use pallet_gear::{BuiltinDispatcherFactory, Config as GearConfig};
+use parity_scale_codec::{Compact, Decode, Encode, Input};
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
@@ -49,7 +49,7 @@ fn naive_var_base_msm<G: ScalarMul>(bases: &[G::MulBase], scalars: &[G::ScalarFi
 benchmarks! {
     where_clause {
         where
-            T: pallet_gear::Config,
+            T: GearConfig,
             T::AccountId: Origin,
     }
 
@@ -63,7 +63,7 @@ benchmarks! {
 
     create_dispatcher {
     }: {
-        let _ = <T as pallet_gear::Config>::BuiltinDispatcherFactory::create();
+        let _ = <T as GearConfig>::BuiltinDispatcherFactory::create();
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }
@@ -290,8 +290,4 @@ benchmarks! {
     }
 }
 
-impl_benchmark_test_suite!(
-    BuiltinActorPallet,
-    crate::mock::new_test_ext(),
-    crate::mock::Test,
-);
+impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);

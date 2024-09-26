@@ -15832,6 +15832,145 @@ fn use_big_memory() {
     });
 }
 
+#[test]
+fn plonky2_proof_verification_works() {
+    use demo_plonky2_verifier::WASM_BINARY;
+
+    macro_rules! include_hex {
+        ($path:expr) => {{
+            const HEX_STR: &str = include_str!($path);
+            hex::decode(HEX_STR).expect("Failed to decode hex string")
+        }};
+    }
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+
+        run_to_block(2, None);
+
+        assert_ne!(pid, ProgramId::default());
+
+        // Check a recursive proof
+        let payload = include_hex!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/",
+            "src/test_data/recursive.hex",
+        ));
+
+        let gas_info = |payload: Vec<u8>| {
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                payload,
+                0,
+                true,
+                true,
+            )
+            .expect("calculate_gas_info failed")
+        };
+        let gas_burned = gas_info(payload.clone()).burned;
+        println!("Gas burned by recursive proof verification: {}", gas_burned);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            payload,
+            250_000_000_000,
+            0,
+            false,
+        ));
+
+        System::reset_events();
+        run_to_block(3, None);
+
+        // Ensure the response is correct
+        System::events().iter().for_each(|r| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent {
+                message,
+                expiration: None,
+            }) = &r.event
+            {
+                assert_eq!(message.payload_bytes(), b"Success");
+            }
+        });
+
+        // Check the factorial proof
+        let payload = include_hex!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/",
+            "src/test_data/factorial.hex",
+        ));
+
+        let gas_info = |payload: Vec<u8>| {
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                payload,
+                0,
+                true,
+                true,
+            )
+            .expect("calculate_gas_info failed")
+        };
+        let gas_burned = gas_info(payload.clone()).burned;
+        println!("Gas burned by factorial proof verification: {}", gas_burned);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            payload,
+            250_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        // Check the fibonacci proof verification
+        let payload = include_hex!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/",
+            "src/test_data/fibonacci.hex",
+        ));
+
+        let gas_info = |payload: Vec<u8>| {
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                payload,
+                0,
+                true,
+                true,
+            )
+            .expect("calculate_gas_info failed")
+        };
+        let gas_burned = gas_info(payload.clone()).burned;
+        println!("Gas burned by fibonacci proof verification: {}", gas_burned);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            payload,
+            250_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(5, None);
+    });
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 

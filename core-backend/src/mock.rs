@@ -275,6 +275,10 @@ impl Externalities for MockExt {
         Ok(MessageId::default())
     }
 
+    fn permute(&self, _input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
+        Ok([0u64; 12])
+    }
+
     fn signal_from(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
     }

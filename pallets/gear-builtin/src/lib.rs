@@ -100,6 +100,12 @@ pub enum BuiltinActorError {
     GasAllowanceExceeded,
 }
 
+impl From<&'static str> for BuiltinActorError {
+    fn from(e: &'static str) -> Self {
+        BuiltinActorError::Custom(LimitedStr::from_small_str(e))
+    }
+}
+
 impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
     /// Convert [`BuiltinActorError`] to [`core_processor::common::ActorExecutionErrorReplyReason`]
     fn from(err: BuiltinActorError) -> Self {

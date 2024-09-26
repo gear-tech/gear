@@ -56,7 +56,7 @@ use gear_wasm_instrument::SystemBreakCode;
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
     ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
-    TwoHashesWithValue,
+    PoseidonInOut, TwoHashesWithValue,
 };
 
 /// BLAKE2b-256 hasher state.
@@ -1423,6 +1423,21 @@ where
                 });
             ctx.set_termination_reason(termination_reason);
             Err(HostError)
+        })
+    }
+
+    pub fn permute(input_ptr: u32, output_ptr: u32) -> impl Syscall<Caller> {
+        InfallibleSyscall::new(CostToken::Permute, move |ctx: &mut CallerWrap<Caller>| {
+            let mut registry = MemoryAccessRegistry::default();
+            let input_reader = registry.register_read_decoded(input_ptr);
+            let output_writer = registry.register_write_as(output_ptr);
+            let mut io = registry.pre_process(ctx)?;
+
+            let input_data: PoseidonInOut = io.read_decoded(ctx, input_reader)?;
+            let hash_out = ctx.ext_mut().permute(&input_data)?;
+
+            io.write_as(ctx, output_writer, hash_out)
+                .map_err(Into::into)
         })
     }
 }
