@@ -20,8 +20,8 @@
 //! of gear programs, some of the host functions are missing logics that
 //! is because they are for the on-chain environment data.
 
-use anyhow::{anyhow, Result};
-use wasmi::{AsContextMut, Engine, Extern, Linker, Memory, MemoryType, Module, Store};
+use anyhow::{anyhow, Context, Result};
+use wasmer::{Engine, FunctionEnv, Imports, Instance, Memory, MemoryType, Module, Store};
 
 /// HostState for the WASM executor
 #[derive(Default)]
@@ -40,20 +40,20 @@ fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     let engine = Engine::default();
     let module = Module::new(&engine, wasm).unwrap();
 
-    let mut store = Store::new(&engine, HostState::default());
-    let mut linker = <Linker<HostState>>::new(&engine);
-    let memory = Memory::new(
-        store.as_context_mut(),
-        MemoryType::new(256, None).map_err(|_| anyhow!("failed to create memory type"))?,
-    )
-    .map_err(|_| anyhow!("failed to create memory"))?;
+    let mut store = Store::new(engine);
+    let memory_type = MemoryType::new(256, None, false);
+    let memory =
+        Memory::new(&mut store, memory_type).map_err(|_| anyhow!("failed to create memory"))?;
+    let mut imports = Imports::new();
+    let state = FunctionEnv::new(&mut store, HostState::default());
 
     // Execution environment
     //
     // TODO: refactor this after #3416.
     {
         let mut env = env::Env {
-            linker: &mut linker,
+            imports: &mut imports,
+            function_env: &state,
             store: &mut store,
             memory,
         };
@@ -63,33 +63,27 @@ fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
         }
     }
 
-    let instance = linker
-        .instantiate(&mut store, &module)
-        .unwrap()
-        .start(&mut store)?;
-
+    let instance = Instance::new(&mut store, &module, &imports).unwrap();
     let metadata = instance
-        .get_export(&store, method)
-        .and_then(Extern::into_func)
-        .ok_or_else(|| anyhow!("could not find function \"{}\"", method))?
-        .typed::<(), ()>(&mut store)?;
-
-    metadata.call(&mut store, ())?;
-    Ok(store.data().msg.clone())
+        .exports
+        .get_function(method)
+        .with_context(|| format!("could not find function \"{}\"", method))?
+        .typed::<(), ()>(&store)?;
+    metadata.call(&mut store)?;
+    Ok(state.as_ref(&store).msg.clone())
 }
 
 mod env {
     use super::HostState;
     use anyhow::{anyhow, Result};
-    use wasmi::{
-        core::{Pages, Trap, TrapCode},
-        AsContext, AsContextMut, Caller, Extern, Func, Linker, Memory, Store,
-    };
+    use wasmer::{Extern, Function, FunctionEnv, FunctionEnvMut, Imports, Memory, Pages, Store};
+    use wasmer_types::TrapCode;
 
     /// Environment for the wasm execution.
     pub struct Env<'e> {
-        pub linker: &'e mut Linker<HostState>,
-        pub store: &'e mut Store<HostState>,
+        pub imports: &'e mut Imports,
+        pub function_env: &'e FunctionEnv<HostState>,
+        pub store: &'e mut Store,
         pub memory: Memory,
     }
 
@@ -98,15 +92,15 @@ mod env {
             func!($store,)
         };
         ($store:tt, $($ty:tt),* ) => {
-            Extern::Func(Func::wrap(
+            Extern::Function(Function::new_typed(
                 $store,
-                move |_caller: Caller<'_, HostState>, $(_: $ty),*| { Ok(()) },
+                move |$(_: $ty),*| { },
             ))
         };
         (@result $store:tt, $($ty:tt),* ) => {
-            Extern::Func(Func::wrap(
+            Extern::Function(Function::new_typed(
                 $store,
-                move |_caller: Caller<'_, HostState>, $(_: $ty),*| { 0 },
+                move |$(_: $ty),*| { 0 },
             ))
         };
     }
@@ -118,17 +112,17 @@ mod env {
                 return Err(anyhow!("module \"{}\" not found", module));
             }
 
-            let memory = self.memory;
+            let memory = self.memory.clone();
             let store = &mut self.store;
 
             let external = match name {
                 "memory" => Extern::Memory(memory),
-                "alloc" => alloc(self.store, memory),
+                "alloc" => alloc(self.store, self.function_env, memory),
                 "gr_oom_panic" => gr_oom_panic(store),
-                "gr_read" => gr_read(store, memory),
-                "gr_reply" => gr_reply(store, memory),
-                "gr_panic" => gr_panic(store, memory),
-                "gr_size" => gr_size(store, memory),
+                "gr_read" => gr_read(store, self.function_env, memory),
+                "gr_reply" => gr_reply(store, self.function_env, memory),
+                "gr_panic" => gr_panic(store, self.function_env, memory),
+                "gr_size" => gr_size(store, self.function_env, memory),
                 // methods may be used by programs but not required by metadata.
                 "free" => func!(@result store, i32),
                 "free_range" => func!(@result store, i32, i32),
@@ -179,101 +173,102 @@ mod env {
                 _ => return Err(anyhow!("export \"{}\" not found in env", name,)),
             };
 
-            self.linker.define(module, name, external)?;
+            self.imports.define(module, name, external);
 
             Ok(())
         }
     }
 
-    fn alloc(store: &mut Store<HostState>, memory: Memory) -> Extern {
-        Extern::Func(Func::wrap(
+    fn alloc(store: &mut Store, env: &FunctionEnv<HostState>, memory: Memory) -> Extern {
+        Extern::Function(Function::new_typed_with_env(
             store,
-            move |mut caller: Caller<'_, HostState>, pages: u32| {
-                memory
-                    .clone()
-                    .grow(
-                        caller.as_context_mut(),
-                        Pages::new(pages).unwrap_or_default(),
-                    )
-                    .map_or_else(
-                        |err| {
-                            log::error!("{err:?}");
-                            u32::MAX as i32
-                        },
-                        |pages| pages.to_bytes().unwrap_or_default() as i32,
-                    )
+            env,
+            move |mut env: FunctionEnvMut<HostState>, pages: u32| {
+                memory.grow(&mut env, Pages::from(pages)).map_or_else(
+                    |err| {
+                        log::error!("{err:?}");
+                        u32::MAX as i32
+                    },
+                    |pages| pages.bytes().0 as u32 as i32,
+                )
             },
         ))
     }
 
-    fn gr_read(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
-        Extern::Func(Func::wrap(
+    fn gr_read(ctx: &mut Store, env: &FunctionEnv<HostState>, memory: Memory) -> Extern {
+        Extern::Function(Function::new_typed_with_env(
             ctx,
-            move |mut caller: Caller<'_, HostState>, at: u32, len: i32, buff: i32, err: i32| {
+            env,
+            move |mut env: FunctionEnvMut<HostState>, at: u32, len: i32, buff: i32, err: i32| {
+                let (data, store) = env.data_and_store_mut();
                 let (at, len, buff, err) = (at as _, len as usize, buff as _, err as _);
 
-                let msg = &caller.data().msg;
+                let msg = &data.msg;
                 let payload = if at + len <= msg.len() {
                     msg[at..(at + len)].to_vec()
                 } else {
-                    return Err(Trap::new(TrapCode::MemoryOutOfBounds.trap_message()));
+                    //return Err(Trap::new(TrapCode::MemoryOutOfBounds.trap_message()));
+                    return Err(TrapCode::HeapAccessOutOfBounds);
                 };
 
+                let memory = memory.view(&store);
+
                 let len: u32 = memory
-                    .clone()
-                    .write(caller.as_context_mut(), buff, &payload)
+                    .write(buff, &payload)
                     .map_err(|e| log::error!("{:?}", e))
                     .is_err()
                     .into();
 
-                memory
-                    .clone()
-                    .write(caller.as_context_mut(), err, &len.to_le_bytes())
-                    .map_err(|e| {
-                        log::error!("{:?}", e);
-                        Trap::new(TrapCode::MemoryOutOfBounds.trap_message())
-                    })?;
+                memory.write(err, &len.to_le_bytes()).map_err(|e| {
+                    log::error!("{:?}", e);
+                    //Trap::new(TrapCode::MemoryOutOfBounds.trap_message())
+                    TrapCode::HeapAccessOutOfBounds
+                })?;
 
                 Ok(())
             },
         ))
     }
 
-    fn gr_reply(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
-        Extern::Func(Func::wrap(
+    fn gr_reply(ctx: &mut Store, env: &FunctionEnv<HostState>, memory: Memory) -> Extern {
+        Extern::Function(Function::new_typed_with_env(
             ctx,
-            move |mut caller: Caller<'_, HostState>, ptr: u32, len: i32, _value: i32, _err: i32| {
+            env,
+            move |mut env: FunctionEnvMut<HostState>,
+                  ptr: u32,
+                  len: i32,
+                  _value: i32,
+                  _err: i32|
+                  -> Result<(), TrapCode> {
                 let mut result = vec![0; len as usize];
 
                 memory
-                    .read(caller.as_context(), ptr as usize, &mut result)
+                    .view(&env)
+                    .read(ptr as u64, &mut result)
                     .map_err(|e| {
                         log::error!("{:?}", e);
-                        Trap::new(TrapCode::MemoryOutOfBounds.trap_message())
+                        TrapCode::HeapAccessOutOfBounds
                     })?;
-                caller.data_mut().msg = result;
+                env.data_mut().msg = result;
 
                 Ok(())
             },
         ))
     }
 
-    fn gr_size(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
-        Extern::Func(Func::wrap(
+    fn gr_size(ctx: &mut Store, env: &FunctionEnv<HostState>, memory: Memory) -> Extern {
+        Extern::Function(Function::new_typed_with_env(
             ctx,
-            move |mut caller: Caller<'_, HostState>, size_ptr: u32| {
-                let size = caller.data().msg.len() as u32;
+            env,
+            move |env: FunctionEnvMut<HostState>, size_ptr: u32| -> Result<(), TrapCode> {
+                let size = env.data().msg.len() as u32;
 
                 memory
-                    .clone()
-                    .write(
-                        caller.as_context_mut(),
-                        size_ptr as usize,
-                        &size.to_le_bytes(),
-                    )
+                    .view(&env)
+                    .write(size_ptr as u64, &size.to_le_bytes())
                     .map_err(|e| {
                         log::error!("{:?}", e);
-                        Trap::new(TrapCode::MemoryOutOfBounds.trap_message())
+                        TrapCode::HeapAccessOutOfBounds
                     })?;
 
                 Ok(())
@@ -281,14 +276,15 @@ mod env {
         ))
     }
 
-    fn gr_panic(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
-        Extern::Func(Func::wrap(
+    fn gr_panic(ctx: &mut Store, env: &FunctionEnv<HostState>, memory: Memory) -> Extern {
+        Extern::Function(Function::new_typed_with_env(
             ctx,
-            move |caller: Caller<'_, HostState>, ptr: u32, len: i32| {
+            env,
+            move |env: FunctionEnvMut<HostState>, ptr: u32, len: i32| -> Result<(), TrapCode> {
                 let mut buff = Vec::with_capacity(len as usize);
-                memory.read(caller, ptr as usize, &mut buff).map_err(|e| {
+                memory.view(&env).read(ptr as u64, &mut buff).map_err(|e| {
                     log::error!("{e:?}");
-                    Trap::new(TrapCode::MemoryOutOfBounds.trap_message())
+                    TrapCode::HeapAccessOutOfBounds
                 })?;
 
                 log::error!("Panic: {}", String::from_utf8_lossy(&buff));
@@ -297,8 +293,8 @@ mod env {
         ))
     }
 
-    fn gr_oom_panic(ctx: impl AsContextMut) -> Extern {
-        Extern::Func(Func::wrap(ctx, || {
+    fn gr_oom_panic(ctx: &mut Store) -> Extern {
+        Extern::Function(Function::new_typed(ctx, || -> Result<(), TrapCode> {
             log::error!("OOM panic occurred");
             Ok(())
         }))

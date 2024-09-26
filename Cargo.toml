@@ -181,7 +181,6 @@ wabt = "0.10.0"
 wasmer = "4.3.4"
 wasmer-cache = "4.3.4"
 wasmer-types = "4.3.4"
-wasmi = { version = "0.14.0", default-features = false }
 wasmtime = "8.0.1"
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
 which = "4.4.2"
@@ -537,11 +536,6 @@ directories = "5.0.1"                                        # utils/key-finder
 num-traits = { version = "0.2", default-features = false }   # gear-core
 glob = "0.3.1"                                               # cargo-gbuild
 smallvec = "1.13.2"                                          # utils/node-wrapper
-
-# TODO: remove after wasmer bug is fixed:
-# `misaligned pointer dereference: address must be a multiple of 0x8 but is...`
-[profile.dev.package."wasmer-vm"]
-debug-assertions = false
 
 [profile.release]
 panic = "unwind"
