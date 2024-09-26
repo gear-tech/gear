@@ -59,6 +59,7 @@ use gear_core_errors::{
     ReplyCode, ReservationError, SignalCode,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInterface, ProcessAccessError, Status};
+use gear_runtime_interface::poseidon_hash::poseidon;
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Processor context.
@@ -1411,6 +1412,12 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                 .reply_deposit(message_id, amount)
                 .map_err(Into::into)
         })
+    }
+
+    fn permute(&self, input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
+        Ok(poseidon(input.to_vec())
+            .try_into()
+            .expect("poseidon always returns 12 elements"))
     }
 
     fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {

@@ -43,7 +43,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
-use rand::{seq::SliceRandom, SeedableRng};
+use rand::{seq::SliceRandom, Rng, SeedableRng};
 use rand_pcg::Pcg64;
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
@@ -64,6 +64,8 @@ const PID_SIZE: u32 = size_of::<ProgramId>() as u32;
 const MID_SIZE: u32 = size_of::<MessageId>() as u32;
 /// Random subject size
 const RANDOM_SUBJECT_SIZE: u32 = 32;
+/// Poseidon permutation input size (size_of::<u64> * 12)
+const PERMUTE_DATA_SIZE: u32 = 96_u32;
 
 /// Size of struct with fields: error len and handle
 const ERR_HANDLE_SIZE: u32 = ERR_LEN_SIZE + HANDLE_SIZE;
@@ -87,6 +89,9 @@ const COMMON_OFFSET: u32 = 1;
 const COMMON_PAYLOAD_LEN: u32 = 100;
 
 const MAX_REPETITIONS: u32 = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
+
+// Goldilocks base field order
+const GF_ORDER: u64 = 0xFFFFFFFF00000001;
 
 fn kb_to_bytes(size_in_kb: u32) -> u32 {
     size_in_kb.checked_mul(1024).unwrap()
@@ -1507,6 +1512,48 @@ where
                 value: cid_value.to_vec(),
             }],
             handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    pub fn gr_permute(r: u32) -> Result<Exec<T>, &'static str> {
+        let seed = 1000;
+        let sample_goldilocks_field = |n: usize| -> Vec<u8> {
+            let mut rng = Pcg64::seed_from_u64(seed);
+            (0..n)
+                .flat_map(|_| {
+                    (0..12)
+                        .map(|_| rng.gen_range(0..GF_ORDER))
+                        .flat_map(|value| value.to_le_bytes().to_vec())
+                        .collect::<Vec<u8>>()
+                })
+                .collect()
+        };
+
+        let inputs = sample_goldilocks_field(MAX_REPETITIONS as usize);
+
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let input_offset = COMMON_OFFSET;
+        let res_offset = input_offset + PERMUTE_DATA_SIZE * MAX_REPETITIONS;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE * 3)),
+            imported_functions: vec![SyscallName::Permute],
+            data_segments: vec![DataSegment {
+                offset: input_offset,
+                value: inputs,
+            }],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // data offset
+                    InstrI32Const(input_offset),
+                    // bn random offset
+                    InstrI32Const(res_offset),
+                ],
+            )),
             ..Default::default()
         };
 

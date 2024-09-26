@@ -1489,6 +1489,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_permute {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_permute(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     lazy_pages_signal_read {
         let p in 0 .. DEFAULT_MEM_SIZE as u32;
         let mut res = None;
