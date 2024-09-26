@@ -46,6 +46,11 @@ use {
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
     gear_lazy_pages::LazyPagesStorage,
+    plonky2::hash::poseidon::Poseidon,
+    plonky2_field::{
+        goldilocks_field::GoldilocksField,
+        types::{Field, PrimeField64},
+    },
 };
 
 pub use gear_sandbox_interface::sandbox;
@@ -410,5 +415,21 @@ pub trait GearBls12_381 {
             .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
 
         Ok(ArkScale::<G2Affine>::from(point).encode())
+    }
+}
+
+#[runtime_interface]
+pub trait PoseidonHash {
+    fn poseidon(input: Vec<u64>) -> Vec<u64> {
+        let data: [GoldilocksField; 12] = input
+            .into_iter()
+            .map(GoldilocksField::from_canonical_u64)
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("Expect input to be of length 12");
+
+        let hash = <GoldilocksField as Poseidon>::poseidon(data);
+
+        hash.iter().map(|x| x.to_canonical_u64()).collect()
     }
 }

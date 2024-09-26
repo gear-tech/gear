@@ -26,6 +26,10 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
 waker-fn = "1.2.0"
+num = { workspace = true, features = ["alloc"] }
+plonky2.workspace = true
+plonky2_field.workspace = true
+serde = { workspace = true, features = ["derive", "alloc"] }
 
 [features]
 #! ## Default features:
