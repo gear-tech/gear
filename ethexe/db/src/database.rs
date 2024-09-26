@@ -30,7 +30,7 @@ use ethexe_common::{
     BlockRequestEvent,
 };
 use ethexe_runtime_common::state::{
-    Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
+    Allocations, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -467,6 +467,16 @@ impl Storage for Database {
 
     fn write_waitlist(&self, waitlist: Waitlist) -> H256 {
         self.cas.write(&waitlist.encode())
+    }
+
+    fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
+        self.cas.read(&hash).map(|data| {
+            Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
+        })
+    }
+
+    fn write_mailbox(&self, mailbox: Mailbox) -> H256 {
+        self.cas.write(&mailbox.encode())
     }
 
     fn read_pages(&self, hash: H256) -> Option<MemoryPages> {

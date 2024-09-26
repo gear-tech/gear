@@ -1,6 +1,9 @@
 # Ethexe section
 .PHONY: ethexe-pre-commit
-ethexe-pre-commit: ethexe-contracts-pre-commit
+ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
+
+.PHONY: ethexe-pre-commit-no-contracts
+ethexe-pre-commit-no-contracts:
 	@ echo " > Formatting ethexe" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
 	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
 

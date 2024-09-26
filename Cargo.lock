@@ -5112,6 +5112,7 @@ dependencies = [
  "ethexe-processor",
  "ethexe-prometheus-endpoint",
  "ethexe-rpc",
+ "ethexe-runtime-common",
  "ethexe-sequencer",
  "ethexe-signer",
  "ethexe-utils",

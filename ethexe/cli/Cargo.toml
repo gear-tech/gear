@@ -23,6 +23,7 @@ ethexe-sequencer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-validator.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime-common.workspace = true
 ethexe-prometheus-endpoint.workspace = true
 ethexe-rpc.workspace = true
 ethexe-utils.workspace = true
