@@ -145,7 +145,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
         match self {
             ProxyType::Any => true,
             ProxyType::NonTransfer => {
-                return !matches!(c, RuntimeCall::Balances(..));
+                !matches!(c, RuntimeCall::Balances(..))
             }
             ProxyType::CancelProxy => {
                 matches!(

@@ -33,6 +33,7 @@ where
     <T as ProxyConfig>::ProxyType: From<BuiltinProxyType>,
     CallOf<T>: From<pallet_proxy::Call<T>>,
 {
+    /// Casts received request to a runtime call.
     fn cast(request: Request) -> Result<CallOf<T>, BuiltinActorError> {
         Ok(match request {
             Request::AddProxy {

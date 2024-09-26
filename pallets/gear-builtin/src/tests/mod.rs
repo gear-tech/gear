@@ -18,8 +18,8 @@
 
 //! Builtin actor pallet tests.
 
-pub mod bad_builtin_ids;
-pub mod basic;
-pub mod bls381;
+mod bad_builtin_ids;
+mod basic;
+mod bls381;
 mod proxy;
-pub mod staking;
+mod staking;

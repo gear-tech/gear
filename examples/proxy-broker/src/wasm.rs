@@ -19,15 +19,12 @@
 //! Basic implementation of the proxy-broker for demo purpose only.
 
 use gbuiltin_proxy::Request;
-use gstd::{debug, errors::Error, msg, ActorId};
-use hex_literal::hex;
+use gstd::{debug, errors::Error, msg, ActorId, actor_id};
 
 // Proxy builtin actor program id (hardcoded for all runtimes);
 //
 // Calculated as hash((b"built/in", 3u64).encode())
-const BUILTIN_ADDRESS: ActorId = ActorId::new(hex!(
-    "f2816ced0b15749595392d3a18b5a2363d6fefe5b3b6153739f218151b7acdbf"
-));
+const BUILTIN_ADDRESS: ActorId = actor_id!("0xf2816ced0b15749595392d3a18b5a2363d6fefe5b3b6153739f218151b7acdbf");
 
 #[gstd::async_main]
 async fn main() {
