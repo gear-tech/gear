@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.5.0"
+version = "1.6.1"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -144,6 +144,7 @@ hashbrown = "0.14.5"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 impl-trait-for-tuples = "0.2.2"
+impl-serde = "0.4.0"
 jsonrpsee = { version = "^0.16" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }

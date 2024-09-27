@@ -20,14 +20,17 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use crate::{CASDatabase, KVDatabase};
+use crate::{
+    overlay::{CASOverlay, KVOverlay},
+    CASDatabase, KVDatabase,
+};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage},
     router::StateTransition,
     BlockRequestEvent,
 };
 use ethexe_runtime_common::state::{
-    Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
+    Allocations, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -253,18 +256,19 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn latest_valid_block_height(&self) -> Option<u32> {
+    fn latest_valid_block(&self) -> Option<(H256, BlockHeader)> {
         self.kv
             .get(&KeyPrefix::LatestValidBlock.one(self.router_address))
-            .map(|block_height| {
-                u32::from_le_bytes(block_height.try_into().expect("must be correct; qed"))
+            .map(|data| {
+                <(H256, BlockHeader)>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `(H256, BlockHeader)`")
             })
     }
 
-    fn set_latest_valid_block_height(&self, block_height: u32) {
+    fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader) {
         self.kv.put(
             &KeyPrefix::LatestValidBlock.one(self.router_address),
-            block_height.to_le_bytes().to_vec(),
+            (block_hash, header).encode(),
         );
     }
 }
@@ -383,6 +387,16 @@ impl Database {
         }
     }
 
+    /// # Safety
+    /// Not ready for using in prod. Intended to be for rpc calls only.
+    pub unsafe fn overlaid(self) -> Self {
+        Self {
+            cas: Box::new(CASOverlay::new(self.cas)),
+            kv: Box::new(KVOverlay::new(self.kv)),
+            router_address: self.router_address,
+        }
+    }
+
     // TODO: temporary solution for MVP runtime-interfaces db access.
     pub fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
         self.cas.read(&hash)
@@ -453,6 +467,16 @@ impl Storage for Database {
 
     fn write_waitlist(&self, waitlist: Waitlist) -> H256 {
         self.cas.write(&waitlist.encode())
+    }
+
+    fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
+        self.cas.read(&hash).map(|data| {
+            Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
+        })
+    }
+
+    fn write_mailbox(&self, mailbox: Mailbox) -> H256 {
+        self.cas.write(&mailbox.encode())
     }
 
     fn read_pages(&self, hash: H256) -> Option<MemoryPages> {

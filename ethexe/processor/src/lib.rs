@@ -21,17 +21,20 @@
 use anyhow::Result;
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent,
-    router::{RequestEvent as RouterEvent, StateTransition},
+    router::{RequestEvent as RouterEvent, StateTransition, ValueClaim},
     wvara::RequestEvent as WVaraEvent,
     BlockRequestEvent,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::{Dispatch, HashAndLen, MaybeHash, Storage};
 use gear_core::{
-    ids::{prelude::CodeIdExt, ProgramId},
-    message::{DispatchKind, Payload},
+    ids::{
+        prelude::{CodeIdExt, MessageIdExt},
+        ProgramId,
+    },
+    message::{DispatchKind, Payload, ReplyDetails, ReplyInfo, SuccessReplyReason},
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H256};
 use host::InstanceCreator;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, VecDeque};
@@ -42,9 +45,82 @@ mod run;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone)]
 pub struct Processor {
     db: Database,
     creator: InstanceCreator,
+}
+
+#[derive(Clone)]
+pub struct OverlaidProcessor(Processor);
+
+impl OverlaidProcessor {
+    // TODO (breathx): optimize for one single program.
+    pub fn execute_for_reply(
+        &mut self,
+        block_hash: H256,
+        source: ActorId,
+        program_id: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    ) -> Result<ReplyInfo> {
+        self.0.creator.set_chain_head(block_hash);
+
+        let mut states = self
+            .0
+            .db
+            .block_start_program_states(block_hash)
+            .unwrap_or_default();
+
+        let mut value_claims = Default::default();
+
+        let Some(&state_hash) = states.get(&program_id) else {
+            return Err(anyhow::anyhow!("unknown program at specified block hash"));
+        };
+
+        let state =
+            self.0.db.read_state(state_hash).ok_or_else(|| {
+                anyhow::anyhow!("unreachable: state partially presents in storage")
+            })?;
+
+        anyhow::ensure!(
+            !state.requires_init_message(),
+            "program isn't yet initialized"
+        );
+
+        self.0.handle_mirror_event(
+            &mut states,
+            &mut value_claims,
+            program_id,
+            MirrorEvent::MessageQueueingRequested {
+                id: MessageId::zero(),
+                source,
+                payload,
+                value,
+            },
+        )?;
+
+        let (messages, _) = run::run(8, self.0.db.clone(), self.0.creator.clone(), &mut states);
+
+        let res = messages
+            .into_iter()
+            .find_map(|message| {
+                message.reply_details().and_then(|details| {
+                    (details.to_message_id() == MessageId::zero()).then(|| {
+                        let parts = message.into_parts();
+
+                        ReplyInfo {
+                            payload: parts.3.into_vec(),
+                            value: parts.5,
+                            code: details.to_reply_code(),
+                        }
+                    })
+                })
+            })
+            .ok_or_else(|| anyhow::anyhow!("reply wasn't found"))?;
+
+        Ok(res)
+    }
 }
 
 /// Local changes that can be committed to the network or local signer.
@@ -63,8 +139,14 @@ pub enum LocalOutcome {
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
     pub fn new(db: Database) -> Result<Self> {
-        let creator = InstanceCreator::new(db.clone(), host::runtime())?;
+        let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self { db, creator })
+    }
+
+    pub fn overlaid(mut self) -> OverlaidProcessor {
+        self.db = unsafe { self.db.overlaid() };
+
+        OverlaidProcessor(self)
     }
 
     /// Returns some CodeId in case of settlement and new code accepting.
@@ -196,6 +278,95 @@ impl Processor {
         Ok(self.db.write_state(state))
     }
 
+    fn handle_reply_queueing(
+        &mut self,
+        state_hash: H256,
+        mailboxed_id: MessageId,
+        user_id: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    ) -> Result<Option<(ValueClaim, H256)>> {
+        self.handle_mailboxed_message_impl(
+            state_hash,
+            mailboxed_id,
+            user_id,
+            payload,
+            value,
+            SuccessReplyReason::Manual,
+        )
+    }
+
+    fn handle_value_claiming(
+        &mut self,
+        state_hash: H256,
+        mailboxed_id: MessageId,
+        user_id: ActorId,
+    ) -> Result<Option<(ValueClaim, H256)>> {
+        self.handle_mailboxed_message_impl(
+            state_hash,
+            mailboxed_id,
+            user_id,
+            vec![],
+            0,
+            SuccessReplyReason::Auto,
+        )
+    }
+
+    fn handle_mailboxed_message_impl(
+        &mut self,
+        state_hash: H256,
+        mailboxed_id: MessageId,
+        user_id: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+        reply_reason: SuccessReplyReason,
+    ) -> Result<Option<(ValueClaim, H256)>> {
+        let mut state = self
+            .db
+            .read_state(state_hash)
+            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+
+        let mut mailbox = state.mailbox_hash.with_hash_or_default(|hash| {
+            self.db.read_mailbox(hash).expect("Failed to read mailbox")
+        });
+
+        let entry = mailbox.entry(user_id).or_default();
+
+        let Some((claimed_value, _expiration)) = entry.remove(&mailboxed_id) else {
+            return Ok(None);
+        };
+
+        state.mailbox_hash = self.db.write_mailbox(mailbox).into();
+
+        let claim = ValueClaim {
+            message_id: mailboxed_id,
+            destination: user_id,
+            value: claimed_value,
+        };
+
+        let mut queue = state
+            .queue_hash
+            .with_hash_or_default(|hash| self.db.read_queue(hash).expect("Failed to read queue"));
+
+        let payload_hash = self.handle_payload(payload)?;
+
+        let dispatch = Dispatch {
+            id: MessageId::generate_reply(mailboxed_id),
+            kind: DispatchKind::Reply,
+            source: user_id,
+            payload_hash,
+            value,
+            details: Some(ReplyDetails::new(mailboxed_id, reply_reason.into()).into()),
+            context: None,
+        };
+
+        queue.push_back(dispatch);
+
+        state.queue_hash = self.db.write_queue(queue).into();
+
+        Ok(Some((claim, self.db.write_state(state))))
+    }
+
     // TODO: replace LocalOutcome with Transition struct.
     pub fn run(
         &mut self,
@@ -206,7 +377,7 @@ impl Processor {
 
         log::debug!("{programs:?}");
 
-        let messages_and_outcomes = run::run(8, self.creator.clone(), programs);
+        let messages_and_outcomes = run::run(8, self.db.clone(), self.creator.clone(), programs);
 
         Ok(messages_and_outcomes.1)
     }
@@ -236,13 +407,15 @@ impl Processor {
             .block_start_program_states(block_hash)
             .unwrap_or_default();
 
+        let mut all_value_claims = Default::default();
+
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
                     self.handle_router_event(&mut states, event)?;
                 }
                 BlockRequestEvent::Mirror { address, event } => {
-                    self.handle_mirror_event(&mut states, address, event)?;
+                    self.handle_mirror_event(&mut states, &mut all_value_claims, address, event)?;
                 }
                 BlockRequestEvent::WVara(event) => {
                     self.handle_wvara_event(&mut states, event)?;
@@ -250,7 +423,18 @@ impl Processor {
             }
         }
 
-        let outcomes = self.run(block_hash, &mut states)?;
+        let mut outcomes = self.run(block_hash, &mut states)?;
+
+        for outcome in &mut outcomes {
+            if let LocalOutcome::Transition(StateTransition {
+                actor_id,
+                value_claims,
+                ..
+            }) = outcome
+            {
+                value_claims.extend(all_value_claims.remove(actor_id).unwrap_or_default());
+            }
+        }
 
         self.db.set_block_end_program_states(block_hash, states);
 
@@ -284,6 +468,7 @@ impl Processor {
     fn handle_mirror_event(
         &mut self,
         states: &mut BTreeMap<ProgramId, H256>,
+        value_claims: &mut BTreeMap<ProgramId, Vec<ValueClaim>>,
         actor_id: ProgramId,
         event: MirrorEvent,
     ) -> Result<()> {
@@ -328,10 +513,32 @@ impl Processor {
 
                 self.handle_message_queueing(state_hash, dispatch)?
             }
-            MirrorEvent::ReplyQueueingRequested { .. }
-            | MirrorEvent::ValueClaimingRequested { .. } => {
-                log::debug!("Handler not yet implemented: {event:?}");
-                return Ok(());
+            MirrorEvent::ReplyQueueingRequested {
+                replied_to,
+                source,
+                payload,
+                value,
+            } => {
+                let Some((value_claim, state_hash)) =
+                    self.handle_reply_queueing(state_hash, replied_to, source, payload, value)?
+                else {
+                    return Ok(());
+                };
+
+                value_claims.entry(actor_id).or_default().push(value_claim);
+
+                state_hash
+            }
+            MirrorEvent::ValueClaimingRequested { claimed_id, source } => {
+                let Some((value_claim, state_hash)) =
+                    self.handle_value_claiming(state_hash, claimed_id, source)?
+                else {
+                    return Ok(());
+                };
+
+                value_claims.entry(actor_id).or_default().push(value_claim);
+
+                state_hash
             }
         };
 

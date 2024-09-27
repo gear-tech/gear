@@ -33,7 +33,7 @@ use gear_core::{
     program::MemoryInfix,
     reservation::GasReservationMap,
 };
-use gprimitives::{CodeId, MessageId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, H256};
 use gsys::BlockNumber;
 use parity_scale_codec::{Decode, Encode};
 
@@ -115,6 +115,8 @@ pub struct ProgramState {
     pub queue_hash: MaybeHash,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHash,
+    /// Hash of mailboxed messages, see [`Mailbox`].
+    pub mailbox_hash: MaybeHash,
     /// Reducible balance.
     pub balance: Value,
     /// Executable balance.
@@ -132,6 +134,7 @@ impl ProgramState {
             }),
             queue_hash: MaybeHash::Empty,
             waitlist_hash: MaybeHash::Empty,
+            mailbox_hash: MaybeHash::Empty,
             balance: 0,
             executable_balance: 0,
         }
@@ -178,6 +181,9 @@ pub type MessageQueue = VecDeque<Dispatch>;
 
 pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
 
+// TODO (breathx): consider here LocalMailbox for each user.
+pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, (Value, BlockNumber)>>;
+
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 
 pub type Allocations = IntervalsTree<WasmPage>;
@@ -200,6 +206,12 @@ pub trait Storage {
 
     /// Writes waitlist and returns its hash.
     fn write_waitlist(&self, waitlist: Waitlist) -> H256;
+
+    /// Reads mailbox by mailbox hash.
+    fn read_mailbox(&self, hash: H256) -> Option<Mailbox>;
+
+    /// Writes mailbox and returns its hash.
+    fn write_mailbox(&self, mailbox: Mailbox) -> H256;
 
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: H256) -> Option<MemoryPages>;

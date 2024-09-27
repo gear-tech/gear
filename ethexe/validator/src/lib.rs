@@ -98,6 +98,7 @@ impl Validator {
     ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
         for request in requests {
+            log::debug!("Receive code commitment for validation: {:?}", request);
             commitment_digests.push(request.to_digest());
             Self::validate_code_commitment(db, request)?;
         }
@@ -119,6 +120,7 @@ impl Validator {
     ) -> Result<(Digest, Signature)> {
         let mut commitment_digests = Vec::new();
         for request in requests.into_iter() {
+            log::debug!("Receive block commitment for validation: {:?}", request);
             commitment_digests.push(request.to_digest());
             Self::validate_block_commitment(db, request)?;
         }

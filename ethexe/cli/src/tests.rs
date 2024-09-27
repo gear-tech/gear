@@ -32,6 +32,7 @@ use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
+use ethexe_runtime_common::state::Storage;
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
@@ -41,7 +42,7 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
@@ -134,6 +135,162 @@ async fn ping() {
     assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.reply_payload, b"");
     assert_eq!(res.reply_value, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn mailbox() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_async::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, &env.sender_id.encode(), 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let pid = res.program_id;
+
+    env.approve_wvara(pid).await;
+
+    let res = env
+        .send_message(pid, &demo_async::Command::Mutex.encode(), 0)
+        .await
+        .unwrap();
+
+    let mid_expected_message = MessageId::generate_outgoing(res.message_id, 0);
+    let ping_expected_message = MessageId::generate_outgoing(res.message_id, 1);
+
+    let mut listener = env.events_publisher().subscribe().await;
+    listener
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror { address, event } if address == pid => {
+                if let MirrorEvent::Message {
+                    id,
+                    destination,
+                    payload,
+                    ..
+                } = event
+                {
+                    assert_eq!(destination, env.sender_id);
+
+                    if id == mid_expected_message {
+                        assert_eq!(payload, res.message_id.encode());
+                        Ok(None)
+                    } else if id == ping_expected_message {
+                        assert_eq!(payload, b"PING");
+                        Ok(Some(()))
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Ok(None),
+        })
+        .await
+        .unwrap();
+
+    let expected_mailbox = BTreeMap::from_iter([(
+        env.sender_id,
+        BTreeMap::from_iter([
+            (mid_expected_message, (0, 0)),
+            (ping_expected_message, (0, 0)),
+        ]),
+    )]);
+    let mirror = env.ethereum.mirror(pid.try_into().unwrap());
+    let state_hash = mirror.query().state_hash().await.unwrap();
+
+    let state = node.db.read_state(state_hash).unwrap();
+    assert!(!state.mailbox_hash.is_empty());
+    let mailbox = state
+        .mailbox_hash
+        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+
+    assert_eq!(mailbox, expected_mailbox);
+
+    mirror
+        .send_reply(ping_expected_message, "PONG", 0)
+        .await
+        .unwrap();
+
+    let initial_message = res.message_id;
+    let reply_info = res.wait_for().await.unwrap();
+    assert_eq!(
+        reply_info.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(reply_info.reply_payload, initial_message.encode());
+
+    let state_hash = mirror.query().state_hash().await.unwrap();
+
+    let state = node.db.read_state(state_hash).unwrap();
+    assert!(!state.mailbox_hash.is_empty());
+    let mailbox = state
+        .mailbox_hash
+        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+
+    let expected_mailbox = BTreeMap::from_iter([(
+        env.sender_id,
+        BTreeMap::from_iter([(mid_expected_message, (0, 0))]),
+    )]);
+
+    assert_eq!(mailbox, expected_mailbox);
+
+    mirror.claim_value(mid_expected_message).await.unwrap();
+
+    listener
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror { address, event } if address == pid => match event {
+                MirrorEvent::ValueClaimed { claimed_id, .. }
+                    if claimed_id == mid_expected_message =>
+                {
+                    Ok(Some(()))
+                }
+                _ => Ok(None),
+            },
+            _ => Ok(None),
+        })
+        .await
+        .unwrap();
+
+    let state_hash = mirror.query().state_hash().await.unwrap();
+
+    let state = node.db.read_state(state_hash).unwrap();
+    assert!(!state.mailbox_hash.is_empty()); // could be empty
+    let mailbox = state
+        .mailbox_hash
+        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+
+    let expected_mailbox = BTreeMap::from_iter([(env.sender_id, BTreeMap::new())]);
+
+    assert_eq!(mailbox, expected_mailbox);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -485,7 +642,8 @@ async fn multiple_validators() {
     let mut validator2 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[2])
-            .network(None, sequencer.multiaddr.clone()),
+            .network(None, sequencer.multiaddr.clone())
+            .db(validator2.db),
     );
     validator2.start_service().await;
 

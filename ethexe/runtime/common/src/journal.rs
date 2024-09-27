@@ -162,6 +162,28 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         }
 
         if !self.program_states.contains_key(&dispatch.destination()) {
+            if !dispatch.is_reply() {
+                self.update_program(dispatch.source(), |state, storage| {
+                    let mut mailbox = state.mailbox_hash.with_hash_or_default(|hash| {
+                        storage.read_mailbox(hash).expect("Failed to read mailbox")
+                    });
+
+                    let entry = mailbox.entry(dispatch.destination()).or_default();
+
+                    // TODO (breathx): put some expiration instead of 0.
+                    let r = entry.insert(dispatch.id(), (dispatch.value(), 0));
+                    debug_assert!(r.is_none());
+                    let _ = r;
+
+                    let mailbox_hash = storage.write_mailbox(mailbox).into();
+
+                    Some(ProgramState {
+                        mailbox_hash,
+                        ..state
+                    })
+                });
+            }
+
             self.to_users_messages.push(dispatch.into_parts().1);
             return;
         }

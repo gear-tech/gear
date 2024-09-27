@@ -23,6 +23,7 @@ use gprimitives::H256;
 
 mod database;
 mod mem;
+mod overlay;
 mod rocks;
 
 pub use database::Database;

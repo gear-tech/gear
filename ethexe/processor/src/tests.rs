@@ -250,7 +250,12 @@ fn ping_pong() {
 
     let mut programs = BTreeMap::from_iter([(program_id, state_hash)]);
 
-    let (to_users, _) = run::run(8, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(
+        8,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut programs,
+    );
 
     assert_eq!(to_users.len(), 2);
 
@@ -376,7 +381,12 @@ fn async_and_ping() {
     let mut programs =
         BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
 
-    let (to_users, _) = run::run(8, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(
+        8,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut programs,
+    );
 
     assert_eq!(to_users.len(), 3);
 
@@ -457,7 +467,12 @@ fn many_waits() {
         programs.insert(program_id, state_hash);
     }
 
-    let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(
+        threads_amount,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut programs,
+    );
     assert_eq!(to_users.len(), amount as usize);
 
     for (_pid, state_hash) in programs.iter_mut() {
@@ -468,7 +483,12 @@ fn many_waits() {
         *state_hash = new_state_hash;
     }
 
-    let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(
+        threads_amount,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut programs,
+    );
     assert_eq!(to_users.len(), 0);
 
     init_new_block(
@@ -480,7 +500,12 @@ fn many_waits() {
         },
     );
 
-    let (to_users, _) = run::run(threads_amount, processor.creator.clone(), &mut programs);
+    let (to_users, _) = run::run(
+        threads_amount,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut programs,
+    );
 
     assert_eq!(to_users.len(), amount as usize);
 
