@@ -131,7 +131,7 @@ library ScaleCodec {
             let data_ptr := add(data, 0x20)
             for { let i := 0 } lt(i, data_len) { i := add(i, 1) } {
                 let v := mload(add(data_ptr, i))
-                mstore8(add(dest_ptr, i), v)
+                mstore(add(dest_ptr, i), v)
             }
         }
     }
