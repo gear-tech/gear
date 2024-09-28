@@ -18,21 +18,22 @@
 
 //! State-related data structures.
 
-use core::num::NonZeroU32;
-
 use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
+use anyhow::Result;
+use core::num::NonZeroU32;
 use gear_core::{
     code::InstrumentedCode,
-    ids::ProgramId,
+    ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
-    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, Value},
+    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, ReplyDetails, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
     reservation::GasReservationMap,
 };
+use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use gsys::BlockNumber;
 use parity_scale_codec::{Decode, Encode};
@@ -73,11 +74,23 @@ impl MaybeHash {
         matches!(self, MaybeHash::Empty)
     }
 
+    pub fn with_hash<T>(&self, f: impl FnOnce(H256) -> T) -> Option<T> {
+        let Self::Hash(HashAndLen { hash, .. }) = self else {
+            return None;
+        };
+
+        Some(f(*hash))
+    }
+
     pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(H256) -> T) -> T {
-        match &self {
-            Self::Hash(HashAndLen { hash, .. }) => f(*hash),
-            Self::Empty => Default::default(),
-        }
+        self.with_hash(f).unwrap_or_default()
+    }
+
+    pub fn with_hash_or_default_result<T: Default>(
+        &self,
+        f: impl FnOnce(H256) -> Result<T>,
+    ) -> Result<T> {
+        self.with_hash(f).unwrap_or_else(|| Ok(Default::default()))
     }
 }
 
@@ -177,12 +190,32 @@ pub struct Dispatch {
     pub context: Option<ContextStore>,
 }
 
+impl Dispatch {
+    pub fn reply(
+        reply_to: MessageId,
+        source: ActorId,
+        payload_hash: MaybeHash,
+        value: u128,
+        reply_code: impl Into<ReplyCode>,
+    ) -> Self {
+        Self {
+            id: MessageId::generate_reply(reply_to),
+            kind: DispatchKind::Reply,
+            source,
+            payload_hash,
+            value,
+            details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
+            context: None,
+        }
+    }
+}
+
 pub type MessageQueue = VecDeque<Dispatch>;
 
 pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
 
 // TODO (breathx): consider here LocalMailbox for each user.
-pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, (Value, BlockNumber)>>;
+pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, Value>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 

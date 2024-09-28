@@ -219,10 +219,7 @@ async fn mailbox() {
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([
-            (mid_expected_message, (0, 0)),
-            (ping_expected_message, (0, 0)),
-        ]),
+        BTreeMap::from_iter([(mid_expected_message, 0), (ping_expected_message, 0)]),
     )]);
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
@@ -258,7 +255,7 @@ async fn mailbox() {
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, (0, 0))]),
+        BTreeMap::from_iter([(mid_expected_message, 0)]),
     )]);
 
     assert_eq!(mailbox, expected_mailbox);

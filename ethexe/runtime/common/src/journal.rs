@@ -170,8 +170,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
                     let entry = mailbox.entry(dispatch.destination()).or_default();
 
-                    // TODO (breathx): put some expiration instead of 0.
-                    let r = entry.insert(dispatch.id(), (dispatch.value(), 0));
+                    let r = entry.insert(dispatch.id(), dispatch.value());
                     debug_assert!(r.is_none());
                     let _ = r;
 

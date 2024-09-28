@@ -7,8 +7,8 @@ use ethexe_common::{
 use ethexe_db::CodesStorage;
 use ethexe_runtime_common::state::{Dispatch, Storage};
 use gear_core::{
-    ids::{prelude::MessageIdExt, ProgramId},
-    message::{DispatchKind, ReplyDetails, SuccessReplyReason},
+    ids::ProgramId,
+    message::{DispatchKind, SuccessReplyReason},
 };
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use std::collections::BTreeMap;
@@ -140,14 +140,10 @@ impl Processor {
         state_hash: H256,
         value: u128,
     ) -> Result<H256> {
-        let mut state = self
-            .db
-            .read_state(state_hash)
-            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
-
-        state.executable_balance += value;
-
-        Ok(self.db.write_state(state))
+        self.mutate_state(state_hash, |_, state| {
+            state.executable_balance += value;
+            Ok(())
+        })
     }
 
     pub(crate) fn handle_reply_queueing(
@@ -193,60 +189,60 @@ impl Processor {
         value: u128,
         reply_reason: SuccessReplyReason,
     ) -> Result<Option<(ValueClaim, H256)>> {
-        let mut state = self
-            .db
-            .read_state(state_hash)
-            .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+        self.mutate_state_returning(state_hash, |processor, state| {
+            let mut maybe_claimed_value = None;
 
-        let mut mailbox = state.mailbox_hash.with_hash_or_default(|hash| {
-            self.db.read_mailbox(hash).expect("Failed to read mailbox")
-        });
+            // TODO (optimize): don't write to db if unchanged.
+            state.mailbox_hash =
+                processor.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
+                    let to_clean = if let Some(local_mailbox) = mailbox.get_mut(&user_id) {
+                        maybe_claimed_value = local_mailbox.remove(&mailboxed_id);
+                        local_mailbox.is_empty()
+                    } else {
+                        false
+                    };
 
-        let entry = mailbox.entry(user_id).or_default();
+                    if to_clean {
+                        let res = mailbox.remove(&user_id);
+                        debug_assert!(res.expect("must be non empty").is_empty());
+                        let _ = res;
+                    }
+                })?;
 
-        let Some((claimed_value, _expiration)) = entry.remove(&mailboxed_id) else {
-            return Ok(None);
-        };
+            let Some(claimed_value) = maybe_claimed_value else {
+                return Ok(None);
+            };
 
-        state.mailbox_hash = self.db.write_mailbox(mailbox).into();
+            let payload_hash = processor.handle_payload(payload)?;
+            let reply = Dispatch::reply(mailboxed_id, user_id, payload_hash, value, reply_reason);
 
-        let claim = ValueClaim {
-            message_id: mailboxed_id,
-            destination: user_id,
-            value: claimed_value,
-        };
+            state.queue_hash =
+                processor.modify_queue(state.queue_hash.clone(), |queue| queue.push_back(reply))?;
 
-        let mut queue = state
-            .queue_hash
-            .with_hash_or_default(|hash| self.db.read_queue(hash).expect("Failed to read queue"));
-
-        let payload_hash = self.handle_payload(payload)?;
-
-        let dispatch = Dispatch {
-            id: MessageId::generate_reply(mailboxed_id),
-            kind: DispatchKind::Reply,
-            source: user_id,
-            payload_hash,
-            value,
-            details: Some(ReplyDetails::new(mailboxed_id, reply_reason.into()).into()),
-            context: None,
-        };
-
-        queue.push_back(dispatch);
-
-        state.queue_hash = self.db.write_queue(queue).into();
-
-        Ok(Some((claim, self.db.write_state(state))))
+            Ok(Some(ValueClaim {
+                message_id: mailboxed_id,
+                destination: user_id,
+                value: claimed_value,
+            }))
+        })
+        .map(|(claim, hash)| {
+            if claim.is_none() {
+                debug_assert_eq!(hash, state_hash);
+            }
+            claim.map(|v| (v, hash))
+        })
     }
 
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {
-        if self.db.original_code(code_id).is_none() {
-            anyhow::bail!("code existence should be checked on smart contract side");
-        }
+        anyhow::ensure!(
+            self.db.original_code(code_id).is_some(),
+            "code existence must be checked on router"
+        );
 
-        if self.db.program_code_id(program_id).is_some() {
-            anyhow::bail!("program duplicates should be checked on smart contract side");
-        }
+        anyhow::ensure!(
+            self.db.program_code_id(program_id).is_none(),
+            "program duplicates must be checked on router"
+        );
 
         self.db.set_program_code_id(program_id, code_id);
 

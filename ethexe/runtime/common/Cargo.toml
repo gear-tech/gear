@@ -16,6 +16,7 @@ gprimitives.workspace = true
 gsys.workspace = true
 gear-core-errors.workspace = true
 
+anyhow.workspace = true
 parity-scale-codec.workspace = true
 log.workspace = true
 
