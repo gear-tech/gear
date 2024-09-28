@@ -95,24 +95,45 @@ impl Processor {
     }
 
     /// Usage: for optimized performance, please remove map entries if empty.
+    #[allow(unused)]
     pub(crate) fn modify_mailbox(
         &mut self,
         maybe_mailbox_hash: MaybeHash,
         f: impl FnOnce(&mut Mailbox),
     ) -> Result<MaybeHash> {
+        self.modify_mailbox_if_changed(maybe_mailbox_hash, |mailbox| {
+            f(mailbox);
+            Some(())
+        })
+        .map(|v| v.expect("`Some` passed above; infallible").1)
+    }
+
+    /// Usage: for optimized performance, please remove map entries if empty.
+    /// Mailbox is treated changed if f() returns Some.
+    pub(crate) fn modify_mailbox_if_changed<T>(
+        &mut self,
+        maybe_mailbox_hash: MaybeHash,
+        f: impl FnOnce(&mut Mailbox) -> Option<T>,
+    ) -> Result<Option<(T, MaybeHash)>> {
         let mut mailbox = maybe_mailbox_hash.with_hash_or_default_result(|mailbox_hash| {
             self.db
                 .read_mailbox(mailbox_hash)
                 .ok_or_else(|| anyhow::anyhow!("failed to read mailbox by its hash"))
         })?;
 
-        f(&mut mailbox);
+        let res = if let Some(v) = f(&mut mailbox) {
+            let maybe_hash = mailbox
+                .values()
+                .all(|v| v.is_empty())
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.db.write_mailbox(mailbox).into());
 
-        Ok(mailbox
-            .values()
-            .all(|v| v.is_empty())
-            .then_some(MaybeHash::Empty)
-            .unwrap_or_else(|| self.db.write_mailbox(mailbox).into()))
+            Some((v, maybe_hash))
+        } else {
+            None
+        };
+
+        Ok(res)
     }
 
     pub(crate) fn mutate_state(

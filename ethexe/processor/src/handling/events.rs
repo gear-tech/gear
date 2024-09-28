@@ -190,28 +190,22 @@ impl Processor {
         reply_reason: SuccessReplyReason,
     ) -> Result<Option<(ValueClaim, H256)>> {
         self.mutate_state_returning(state_hash, |processor, state| {
-            let mut maybe_claimed_value = None;
+            let Some((claimed_value, mailbox_hash)) =
+                processor.modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
+                    let local_mailbox = mailbox.get_mut(&user_id)?;
+                    let claimed_value = local_mailbox.remove(&mailboxed_id)?;
 
-            // TODO (optimize): don't write to db if unchanged.
-            state.mailbox_hash =
-                processor.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
-                    let to_clean = if let Some(local_mailbox) = mailbox.get_mut(&user_id) {
-                        maybe_claimed_value = local_mailbox.remove(&mailboxed_id);
-                        local_mailbox.is_empty()
-                    } else {
-                        false
-                    };
-
-                    if to_clean {
-                        let res = mailbox.remove(&user_id);
-                        debug_assert!(res.expect("must be non empty").is_empty());
-                        let _ = res;
+                    if local_mailbox.is_empty() {
+                        mailbox.remove(&user_id);
                     }
-                })?;
 
-            let Some(claimed_value) = maybe_claimed_value else {
+                    Some(claimed_value)
+                })?
+            else {
                 return Ok(None);
             };
+
+            state.mailbox_hash = mailbox_hash;
 
             let payload_hash = processor.handle_payload(payload)?;
             let reply = Dispatch::reply(mailboxed_id, user_id, payload_hash, value, reply_reason);
