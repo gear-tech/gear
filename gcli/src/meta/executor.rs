@@ -207,7 +207,6 @@ mod env {
                 let payload = if at + len <= msg.len() {
                     msg[at..(at + len)].to_vec()
                 } else {
-                    //return Err(Trap::new(TrapCode::MemoryOutOfBounds.trap_message()));
                     return Err(TrapCode::HeapAccessOutOfBounds);
                 };
 
@@ -221,7 +220,6 @@ mod env {
 
                 memory.write(err, &len.to_le_bytes()).map_err(|e| {
                     log::error!("{:?}", e);
-                    //Trap::new(TrapCode::MemoryOutOfBounds.trap_message())
                     TrapCode::HeapAccessOutOfBounds
                 })?;
 
