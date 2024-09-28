@@ -120,6 +120,16 @@ impl Program {
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Active(_))
     }
+
+    pub fn is_initialized(&self) -> bool {
+        matches!(
+            self,
+            Self::Active(ActiveProgram {
+                initialized: true,
+                ..
+            })
+        )
+    }
 }
 
 /// ethexe program state.
@@ -215,6 +225,7 @@ impl Dispatch {
 
 pub type MessageQueue = VecDeque<Dispatch>;
 
+// TODO (breathx): replace with Map<MId, Dispatch>;
 pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
 
 // TODO (breathx): consider here LocalMailbox for each user.
@@ -286,22 +297,82 @@ pub trait ComplexStorage: Storage {
             .unwrap_or_else(|| self.write_payload(payload).into()))
     }
 
+    fn store_pages(&self, pages: BTreeMap<GearPage, PageBuf>) -> BTreeMap<GearPage, H256> {
+        pages
+            .into_iter()
+            .map(|(k, v)| (k, self.write_page_data(v)))
+            .collect()
+    }
+
+    fn modify_memory_pages(
+        &self,
+        pages_hash: MaybeHash,
+        f: impl FnOnce(&mut MemoryPages),
+    ) -> Result<MaybeHash> {
+        let mut pages = pages_hash.with_hash_or_default_result(|pages_hash| {
+            self.read_pages(pages_hash)
+                .ok_or_else(|| anyhow::anyhow!("failed to read pages by their hash ({pages_hash})"))
+        })?;
+
+        f(&mut pages);
+
+        let pages_hash = pages
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_pages(pages).into());
+
+        Ok(pages_hash)
+    }
+
+    fn modify_allocations(
+        &self,
+        allocations_hash: MaybeHash,
+        f: impl FnOnce(&mut Allocations),
+    ) -> Result<MaybeHash> {
+        let mut allocations = allocations_hash.with_hash_or_default_result(|allocations_hash| {
+            self.read_allocations(allocations_hash).ok_or_else(|| {
+                anyhow::anyhow!("failed to read allocations by their hash ({allocations_hash})")
+            })
+        })?;
+
+        f(&mut allocations);
+
+        let allocations_hash = allocations
+            .intervals_amount()
+            .eq(&0)
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_allocations(allocations).into());
+
+        Ok(allocations_hash)
+    }
+
     fn modify_queue(
         &self,
         queue_hash: MaybeHash,
         f: impl FnOnce(&mut MessageQueue),
     ) -> Result<MaybeHash> {
+        self.modify_queue_returning(queue_hash, f)
+            .map(|((), queue_hash)| queue_hash)
+    }
+
+    fn modify_queue_returning<T>(
+        &self,
+        queue_hash: MaybeHash,
+        f: impl FnOnce(&mut MessageQueue) -> T,
+    ) -> Result<(T, MaybeHash)> {
         let mut queue = queue_hash.with_hash_or_default_result(|queue_hash| {
             self.read_queue(queue_hash)
                 .ok_or_else(|| anyhow::anyhow!("failed to read queue by its hash ({queue_hash})"))
         })?;
 
-        f(&mut queue);
+        let res = f(&mut queue);
 
-        Ok(queue
+        let queue_hash = queue
             .is_empty()
             .then_some(MaybeHash::Empty)
-            .unwrap_or_else(|| self.write_queue(queue).into()))
+            .unwrap_or_else(|| self.write_queue(queue).into());
+
+        Ok((res, queue_hash))
     }
 
     /// Usage: for optimized performance, please remove map entries if empty.

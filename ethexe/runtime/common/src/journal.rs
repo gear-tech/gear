@@ -1,5 +1,9 @@
-use crate::state::{self, Dispatch, HashAndLen, MaybeHash, ProgramState, Storage};
+use crate::state::{
+    self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program, ProgramState,
+    Storage,
+};
 use alloc::{collections::BTreeMap, vec::Vec};
+use anyhow::Result;
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
@@ -29,27 +33,30 @@ pub struct Handler<'a, S: Storage> {
 }
 
 impl<S: Storage> Handler<'_, S> {
-    #[track_caller]
-    pub fn update_program(
+    pub fn update_state(
         &mut self,
         program_id: ProgramId,
-        f: impl FnOnce(ProgramState, &S) -> Option<ProgramState>,
+        f: impl FnOnce(&mut ProgramState) -> Result<()>,
+    ) {
+        self.update_state_with_storage(program_id, |_s, state| f(state))
+    }
+
+    pub fn update_state_with_storage(
+        &mut self,
+        program_id: ProgramId,
+        f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
     ) {
         let state_hash = self
             .program_states
             .get_mut(&program_id)
-            .expect("Program does not exist");
+            .expect("failed to find program in known states");
 
-        let program_state = self
+        *state_hash = self
             .storage
-            .read_state(*state_hash)
-            .expect("Failed to read state");
+            .mutate_state(*state_hash, f)
+            .expect("failed to mutate state");
 
-        if let Some(program_new_state) = f(program_state, self.storage) {
-            *state_hash = self.storage.write_state(program_new_state);
-
-            self.results.insert(program_id, *state_hash);
-        }
+        self.results.insert(program_id, *state_hash);
     }
 
     fn pop_queue_message(state: &ProgramState, storage: &S) -> (H256, MessageId) {
@@ -75,42 +82,52 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         outcome: DispatchOutcome,
     ) {
         match outcome {
-            DispatchOutcome::Exit { .. } => todo!(),
+            DispatchOutcome::Exit { program_id } => {
+                log::trace!("Dispatch outcome exit: {message_id}")
+            }
+
             DispatchOutcome::InitSuccess { program_id } => {
-                log::trace!("Dispatch {message_id} init success for program {program_id}");
-                self.update_program(program_id, |mut state, _| match &mut state.program {
-                    state::Program::Active(program) => {
-                        program.initialized = true;
-                        Some(state)
-                    }
-                    _ => None,
+                log::trace!("Dispatch {message_id} successfully initialized program {program_id}");
+
+                self.update_state(program_id, |state| {
+                    match &mut state.program {
+                        Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
+                            anyhow::bail!("an attempt to initialize already initialized program")
+                        }
+                        Program::Active(ActiveProgram {
+                            ref mut initialized,
+                            ..
+                        }) => *initialized = true,
+                        _ => anyhow::bail!(
+                            "an attempt to dispatch init message for inactive program"
+                        ),
+                    };
+
+                    Ok(())
                 });
             }
+
             DispatchOutcome::InitFailure {
                 program_id,
                 origin,
                 reason,
             } => {
-                log::trace!(
-                    "Init failed for dispatch {message_id}, program {program_id}: {reason}"
-                );
-                self.update_program(program_id, |state, _| {
-                    Some(ProgramState {
-                        program: state::Program::Terminated(origin),
-                        ..state
-                    })
+                log::trace!("Dispatch {message_id} failed init of program {program_id}: {reason}");
+
+                self.update_state(program_id, |state| {
+                    state.program = Program::Terminated(origin);
+                    Ok(())
                 });
-                // TODO: return gas reservations
             }
-            DispatchOutcome::MessageTrap { trap, .. } => {
-                todo!("message trap handling is not yet implemented, but got: {trap}")
+
+            DispatchOutcome::MessageTrap { program_id, trap } => {
+                log::trace!("Dispatch {message_id} trapped");
+                log::debug!("🪤 Program {program_id} terminated with a trap: {trap}");
             }
-            DispatchOutcome::Success => {
-                // TODO: Implement
-            }
-            DispatchOutcome::NoExecution => {
-                todo!()
-            }
+
+            DispatchOutcome::Success => log::trace!("Dispatch {message_id} succeed"),
+
+            DispatchOutcome::NoExecution => log::trace!("Dispatch {message_id} wasn't executed"),
         }
     }
 
@@ -120,30 +137,28 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        self.update_program(id_exited, |state, _| {
-            Some(ProgramState {
-                program: state::Program::Exited(value_destination),
-                ..state
-            })
+        // TODO (breathx): upd contract on exit and send value.
+        self.update_state(id_exited, |state| {
+            state.program = Program::Exited(value_destination);
+            Ok(())
         });
-        // TODO: return gas reservations
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        self.update_program(self.program_id, |state, storage| {
-            let (queue_hash, pop_id) = Self::pop_queue_message(&state, storage);
+        self.update_state_with_storage(self.program_id, |storage, state| {
+            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
+                let queue_head = queue
+                    .pop_front()
+                    .expect("an attempt to consume message from empty queue");
 
-            if pop_id != message_id {
-                unreachable!("First message in queue is {pop_id}, but {message_id} was consumed",);
-            }
+                assert_eq!(
+                    queue_head.id, message_id,
+                    "queue head doesn't match processed message"
+                );
+            })?;
 
-            Some(ProgramState {
-                queue_hash: queue_hash.into(),
-                ..state
-            })
+            Ok(())
         });
-
-        // TODO: implement returning of system reservation and left gas
     }
 
     fn send_dispatch(
@@ -153,7 +168,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        if reservation.is_some() {
+        if reservation.is_some() || dispatch.gas_limit().is_some() {
             unreachable!("deprecated");
         }
 
@@ -163,23 +178,16 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         if !self.program_states.contains_key(&dispatch.destination()) {
             if !dispatch.is_reply() {
-                self.update_program(dispatch.source(), |state, storage| {
-                    let mut mailbox = state.mailbox_hash.with_hash_or_default(|hash| {
-                        storage.read_mailbox(hash).expect("Failed to read mailbox")
-                    });
+                self.update_state_with_storage(dispatch.source(), |storage, state| {
+                    state.mailbox_hash =
+                        storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
+                            mailbox
+                                .entry(dispatch.destination())
+                                .or_default()
+                                .insert(dispatch.id(), dispatch.value());
+                        })?;
 
-                    let entry = mailbox.entry(dispatch.destination()).or_default();
-
-                    let r = entry.insert(dispatch.id(), dispatch.value());
-                    debug_assert!(r.is_none());
-                    let _ = r;
-
-                    let mailbox_hash = storage.write_mailbox(mailbox).into();
-
-                    Some(ProgramState {
-                        mailbox_hash,
-                        ..state
-                    })
+                    Ok(())
                 });
             }
 
@@ -190,31 +198,23 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let (kind, message) = dispatch.into_parts();
         let (id, source, destination, payload, gas_limit, value, details) = message.into_parts();
 
-        if gas_limit.is_some() {
-            unreachable!("gas limit should always be None for ethexe");
-        }
-
         let payload_hash = self.storage.write_payload(payload).into();
 
-        self.update_program(destination, |state, storage| {
-            let mut queue = state.queue_hash.with_hash_or_default(|hash| {
-                storage.read_queue(hash).expect("Failed to read queue")
-            });
-            let dispatch = Dispatch {
-                id,
-                kind,
-                source,
-                payload_hash,
-                value,
-                details,
-                context: None,
-            };
-            queue.push_back(dispatch);
-            let queue_hash = storage.write_queue(queue).into();
-            Some(ProgramState {
-                queue_hash,
-                ..state
-            })
+        let dispatch = Dispatch {
+            id,
+            kind,
+            source,
+            payload_hash,
+            value,
+            details,
+            context: None,
+        };
+
+        self.update_state_with_storage(destination, |storage, state| {
+            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
+                queue.push_back(dispatch);
+            })?;
+            Ok(())
         });
     }
 
@@ -246,8 +246,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         log::trace!("{:?} was added to waitlist block {block}", dispatch);
 
-        self.update_program(destination, |state, storage| {
-            let (queue_hash, pop_id) = Self::pop_queue_message(&state, storage);
+        // TODO (breathx): FIX ME WITHIN THE PR.
+        self.update_state_with_storage(destination, |storage, state| {
+            let (queue_hash, pop_id) = Self::pop_queue_message(state, storage);
 
             if pop_id != dispatch.id {
                 unreachable!(
@@ -256,18 +257,17 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 );
             }
 
-            let mut waitlist = state.waitlist_hash.with_hash_or_default(|hash| {
+            let mut waitlist = state.waitlist_hash.clone().with_hash_or_default(|hash| {
                 storage
                     .read_waitlist(hash)
                     .expect("Failed to read waitlist")
             });
             waitlist.entry(block).or_default().push(dispatch);
 
-            Some(ProgramState {
-                waitlist_hash: storage.write_waitlist(waitlist).into(),
-                queue_hash: queue_hash.into(),
-                ..state
-            })
+            state.waitlist_hash = storage.write_waitlist(waitlist).into();
+            state.queue_hash = queue_hash.into();
+
+            Ok(())
         });
     }
 
@@ -284,14 +284,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             todo!("Delayed wake message");
         }
 
-        self.update_program(program_id, |state, storage| {
-            let mut waitlist = state.waitlist_hash.with_hash_or_default(|hash| {
+        // TODO (breathx): FIX ME WITHIN THE PR.
+        self.update_state_with_storage(program_id, |storage, state| {
+            let mut waitlist = state.waitlist_hash.clone().with_hash_or_default(|hash| {
                 storage
                     .read_waitlist(hash)
                     .expect("Failed to read waitlist")
             });
 
-            let mut queue = state.queue_hash.with_hash_or_default(|hash| {
+            let mut queue = state.queue_hash.clone().with_hash_or_default(|hash| {
                 storage.read_queue(hash).expect("Failed to read queue")
             });
 
@@ -322,15 +323,12 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 waitlist.remove(&block);
             }
 
-            changed.then(|| {
-                let queue_hash = storage.write_queue(queue).into();
-                let waitlist_hash = storage.write_waitlist(waitlist).into();
-                ProgramState {
-                    queue_hash,
-                    waitlist_hash,
-                    ..state
-                }
-            })
+            if changed {
+                state.queue_hash = storage.write_queue(queue).into();
+                state.waitlist_hash = storage.write_waitlist(waitlist).into();
+            }
+
+            Ok(())
         });
     }
 
@@ -339,39 +337,48 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         program_id: ProgramId,
         pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        let mut new_page_hashes = BTreeMap::new();
-        for (page, data) in pages_data {
-            let hash = self.storage.write_page_data(data);
-            new_page_hashes.insert(page, hash);
-        }
-
-        self.update_program(program_id, |state, storage| {
-            let state::Program::Active(mut active_state) = state.program else {
-                return None;
+        self.update_state_with_storage(program_id, |storage, state| {
+            let Program::Active(ActiveProgram {
+                ref mut pages_hash, ..
+            }) = state.program
+            else {
+                anyhow::bail!("an attempt to update pages data of inactive program");
             };
 
-            let mut pages_map = active_state.pages_hash.with_hash_or_default(|hash| {
-                storage.read_pages(hash).expect("Failed to read pages")
-            });
+            let new_pages = storage.store_pages(pages_data);
 
-            for (page, hash) in new_page_hashes {
-                pages_map.insert(page, hash);
-            }
+            *pages_hash = storage.modify_memory_pages(pages_hash.clone(), |pages| {
+                for (page, data) in new_pages {
+                    pages.insert(page, data);
+                }
+            })?;
 
-            let changed_active_state = state::ActiveProgram {
-                pages_hash: storage.write_pages(pages_map).into(),
-                ..active_state
-            };
-
-            Some(ProgramState {
-                program: state::Program::Active(changed_active_state),
-                ..state
-            })
+            Ok(())
         });
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        todo!()
+    fn update_allocations(
+        &mut self,
+        program_id: ProgramId,
+        new_allocations: IntervalsTree<WasmPage>,
+    ) {
+        self.update_state_with_storage(program_id, |storage, state| {
+            let Program::Active(ActiveProgram {
+                ref mut allocations_hash,
+                ..
+            }) = state.program
+            else {
+                anyhow::bail!("an attempt to update allocations of inactive program");
+            };
+
+            // TODO (breathx): remove data for difference pages.
+            *allocations_hash =
+                storage.modify_allocations(allocations_hash.clone(), |allocations| {
+                    *allocations = new_allocations;
+                })?;
+
+            Ok(())
+        });
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
