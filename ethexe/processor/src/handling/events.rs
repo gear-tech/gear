@@ -5,7 +5,7 @@ use ethexe_common::{
     wvara::RequestEvent as WVaraEvent,
 };
 use ethexe_db::CodesStorage;
-use ethexe_runtime_common::state::{Dispatch, Storage};
+use ethexe_runtime_common::state::{ComplexStorage as _, Dispatch, Storage};
 use gear_core::{
     ids::ProgramId,
     message::{DispatchKind, SuccessReplyReason},
@@ -63,7 +63,7 @@ impl Processor {
                 payload,
                 value,
             } => {
-                let payload_hash = self.handle_payload(payload)?;
+                let payload_hash = self.db.store_payload(payload)?;
 
                 let state = self
                     .db
@@ -140,7 +140,7 @@ impl Processor {
         state_hash: H256,
         value: u128,
     ) -> Result<H256> {
-        self.mutate_state(state_hash, |_, state| {
+        self.db.mutate_state(state_hash, |_, state| {
             state.executable_balance += value;
             Ok(())
         })
@@ -189,42 +189,44 @@ impl Processor {
         value: u128,
         reply_reason: SuccessReplyReason,
     ) -> Result<Option<(ValueClaim, H256)>> {
-        self.mutate_state_returning(state_hash, |processor, state| {
-            let Some((claimed_value, mailbox_hash)) =
-                processor.modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
-                    let local_mailbox = mailbox.get_mut(&user_id)?;
-                    let claimed_value = local_mailbox.remove(&mailboxed_id)?;
+        self.db
+            .mutate_state_returning(state_hash, |db, state| {
+                let Some((claimed_value, mailbox_hash)) =
+                    db.modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
+                        let local_mailbox = mailbox.get_mut(&user_id)?;
+                        let claimed_value = local_mailbox.remove(&mailboxed_id)?;
 
-                    if local_mailbox.is_empty() {
-                        mailbox.remove(&user_id);
-                    }
+                        if local_mailbox.is_empty() {
+                            mailbox.remove(&user_id);
+                        }
 
-                    Some(claimed_value)
-                })?
-            else {
-                return Ok(None);
-            };
+                        Some(claimed_value)
+                    })?
+                else {
+                    return Ok(None);
+                };
 
-            state.mailbox_hash = mailbox_hash;
+                state.mailbox_hash = mailbox_hash;
 
-            let payload_hash = processor.handle_payload(payload)?;
-            let reply = Dispatch::reply(mailboxed_id, user_id, payload_hash, value, reply_reason);
+                let payload_hash = db.store_payload(payload)?;
+                let reply =
+                    Dispatch::reply(mailboxed_id, user_id, payload_hash, value, reply_reason);
 
-            state.queue_hash =
-                processor.modify_queue(state.queue_hash.clone(), |queue| queue.push_back(reply))?;
+                state.queue_hash =
+                    db.modify_queue(state.queue_hash.clone(), |queue| queue.push_back(reply))?;
 
-            Ok(Some(ValueClaim {
-                message_id: mailboxed_id,
-                destination: user_id,
-                value: claimed_value,
-            }))
-        })
-        .map(|(claim, hash)| {
-            if claim.is_none() {
-                debug_assert_eq!(hash, state_hash);
-            }
-            claim.map(|v| (v, hash))
-        })
+                Ok(Some(ValueClaim {
+                    message_id: mailboxed_id,
+                    destination: user_id,
+                    value: claimed_value,
+                }))
+            })
+            .map(|(claim, hash)| {
+                if claim.is_none() {
+                    debug_assert_eq!(hash, state_hash);
+                }
+                claim.map(|v| (v, hash))
+            })
     }
 
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {

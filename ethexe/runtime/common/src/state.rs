@@ -28,7 +28,10 @@ use gear_core::{
     code::InstrumentedCode,
     ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
-    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, ReplyDetails, Value},
+    message::{
+        ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, ReplyDetails, Value,
+        MAX_PAYLOAD_SIZE,
+    },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
     reservation::GasReservationMap,
@@ -270,3 +273,101 @@ pub trait Storage {
     /// Writes page data and returns its hash.
     fn write_page_data(&self, data: PageBuf) -> H256;
 }
+
+pub trait ComplexStorage: Storage {
+    fn store_payload(&self, payload: Vec<u8>) -> Result<MaybeHash> {
+        let payload = Payload::try_from(payload)
+            .map_err(|_| anyhow::anyhow!("failed to save payload: too large"))?;
+
+        Ok(payload
+            .inner()
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_payload(payload).into()))
+    }
+
+    fn modify_queue(
+        &self,
+        queue_hash: MaybeHash,
+        f: impl FnOnce(&mut MessageQueue),
+    ) -> Result<MaybeHash> {
+        let mut queue = queue_hash.with_hash_or_default_result(|queue_hash| {
+            self.read_queue(queue_hash)
+                .ok_or_else(|| anyhow::anyhow!("failed to read queue by its hash ({queue_hash})"))
+        })?;
+
+        f(&mut queue);
+
+        Ok(queue
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_queue(queue).into()))
+    }
+
+    /// Usage: for optimized performance, please remove map entries if empty.
+    /// Always updates storage.
+    fn modify_mailbox(
+        &self,
+        mailbox_hash: MaybeHash,
+        f: impl FnOnce(&mut Mailbox),
+    ) -> Result<MaybeHash> {
+        self.modify_mailbox_if_changed(mailbox_hash, |mailbox| {
+            f(mailbox);
+            Some(())
+        })
+        .map(|v| v.expect("`Some` passed above; infallible").1)
+    }
+
+    /// Usage: for optimized performance, please remove map entries if empty.
+    /// Mailbox is treated changed if f() returns Some.
+    fn modify_mailbox_if_changed<T>(
+        &self,
+        mailbox_hash: MaybeHash,
+        f: impl FnOnce(&mut Mailbox) -> Option<T>,
+    ) -> Result<Option<(T, MaybeHash)>> {
+        let mut mailbox = mailbox_hash.with_hash_or_default_result(|mailbox_hash| {
+            self.read_mailbox(mailbox_hash).ok_or_else(|| {
+                anyhow::anyhow!("failed to read mailbox by its hash ({mailbox_hash})")
+            })
+        })?;
+
+        let res = if let Some(v) = f(&mut mailbox) {
+            let maybe_hash = mailbox
+                .values()
+                .all(|v| v.is_empty())
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.write_mailbox(mailbox).into());
+
+            Some((v, maybe_hash))
+        } else {
+            None
+        };
+
+        Ok(res)
+    }
+
+    fn mutate_state(
+        &self,
+        state_hash: H256,
+        f: impl FnOnce(&Self, &mut ProgramState) -> Result<()>,
+    ) -> Result<H256> {
+        self.mutate_state_returning(state_hash, f)
+            .map(|((), hash)| hash)
+    }
+
+    fn mutate_state_returning<T>(
+        &self,
+        state_hash: H256,
+        f: impl FnOnce(&Self, &mut ProgramState) -> Result<T>,
+    ) -> Result<(T, H256)> {
+        let mut state = self
+            .read_state(state_hash)
+            .ok_or_else(|| anyhow::anyhow!("failed to read state by its hash ({state_hash})"))?;
+
+        let res = f(self, &mut state)?;
+
+        Ok((res, self.write_state(state)))
+    }
+}
+
+impl<T: Storage> ComplexStorage for T {}

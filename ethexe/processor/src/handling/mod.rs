@@ -1,10 +1,7 @@
 use crate::Processor;
 use anyhow::Result;
 use ethexe_db::CodesStorage;
-use ethexe_runtime_common::state::{
-    Dispatch, Mailbox, MaybeHash, MessageQueue, ProgramState, Storage,
-};
-use gear_core::message::Payload;
+use ethexe_runtime_common::state::{ComplexStorage as _, Dispatch};
 use gprimitives::{CodeId, H256};
 
 pub(crate) mod events;
@@ -28,7 +25,7 @@ impl Processor {
             return Ok(state_hash);
         }
 
-        self.mutate_state(state_hash, |processor, state| {
+        self.db.mutate_state(state_hash, |processor, state| {
             anyhow::ensure!(state.program.is_active(), "program should be active");
 
             state.queue_hash = processor
@@ -36,19 +33,6 @@ impl Processor {
 
             Ok(())
         })
-    }
-
-    pub(crate) fn handle_payload(&mut self, payload: Vec<u8>) -> Result<MaybeHash> {
-        let payload = Payload::try_from(payload)
-            .map_err(|_| anyhow::anyhow!("payload should be checked on eth side"))?;
-
-        let hash = payload
-            .inner()
-            .is_empty()
-            .then_some(MaybeHash::Empty)
-            .unwrap_or_else(|| self.db.write_payload(payload).into());
-
-        Ok(hash)
     }
 
     /// Returns some CodeId in case of settlement and new code accepting.
@@ -73,89 +57,5 @@ impl Processor {
         );
 
         Ok(Some(code_id))
-    }
-
-    pub(crate) fn modify_queue(
-        &mut self,
-        maybe_queue_hash: MaybeHash,
-        f: impl FnOnce(&mut MessageQueue),
-    ) -> Result<MaybeHash> {
-        let mut queue = maybe_queue_hash.with_hash_or_default_result(|queue_hash| {
-            self.db
-                .read_queue(queue_hash)
-                .ok_or_else(|| anyhow::anyhow!("failed to read queue by its hash"))
-        })?;
-
-        f(&mut queue);
-
-        Ok(queue
-            .is_empty()
-            .then_some(MaybeHash::Empty)
-            .unwrap_or_else(|| self.db.write_queue(queue).into()))
-    }
-
-    /// Usage: for optimized performance, please remove map entries if empty.
-    #[allow(unused)]
-    pub(crate) fn modify_mailbox(
-        &mut self,
-        maybe_mailbox_hash: MaybeHash,
-        f: impl FnOnce(&mut Mailbox),
-    ) -> Result<MaybeHash> {
-        self.modify_mailbox_if_changed(maybe_mailbox_hash, |mailbox| {
-            f(mailbox);
-            Some(())
-        })
-        .map(|v| v.expect("`Some` passed above; infallible").1)
-    }
-
-    /// Usage: for optimized performance, please remove map entries if empty.
-    /// Mailbox is treated changed if f() returns Some.
-    pub(crate) fn modify_mailbox_if_changed<T>(
-        &mut self,
-        maybe_mailbox_hash: MaybeHash,
-        f: impl FnOnce(&mut Mailbox) -> Option<T>,
-    ) -> Result<Option<(T, MaybeHash)>> {
-        let mut mailbox = maybe_mailbox_hash.with_hash_or_default_result(|mailbox_hash| {
-            self.db
-                .read_mailbox(mailbox_hash)
-                .ok_or_else(|| anyhow::anyhow!("failed to read mailbox by its hash"))
-        })?;
-
-        let res = if let Some(v) = f(&mut mailbox) {
-            let maybe_hash = mailbox
-                .values()
-                .all(|v| v.is_empty())
-                .then_some(MaybeHash::Empty)
-                .unwrap_or_else(|| self.db.write_mailbox(mailbox).into());
-
-            Some((v, maybe_hash))
-        } else {
-            None
-        };
-
-        Ok(res)
-    }
-
-    pub(crate) fn mutate_state(
-        &mut self,
-        state_hash: H256,
-        f: impl FnOnce(&mut Processor, &mut ProgramState) -> Result<()>,
-    ) -> Result<H256> {
-        self.mutate_state_returning(state_hash, f)
-            .map(|((), hash)| hash)
-    }
-
-    pub(crate) fn mutate_state_returning<T>(
-        &mut self,
-        state_hash: H256,
-        f: impl FnOnce(&mut Processor, &mut ProgramState) -> Result<T>,
-    ) -> Result<(T, H256)> {
-        let mut state = self.db.read_state(state_hash).ok_or_else(|| {
-            anyhow::anyhow!("failed to find program state by hash ({state_hash})")
-        })?;
-
-        let res = f(self, &mut state)?;
-
-        Ok((res, self.db.write_state(state)))
     }
 }

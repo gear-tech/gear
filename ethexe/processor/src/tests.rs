@@ -21,7 +21,7 @@ use ethexe_common::{
     mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
-use ethexe_runtime_common::state::Dispatch;
+use ethexe_runtime_common::state::{ComplexStorage, Dispatch};
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
@@ -292,7 +292,7 @@ fn create_message_full(
     payload: impl AsRef<[u8]>,
 ) -> Dispatch {
     let payload = payload.as_ref().to_vec();
-    let payload_hash = processor.handle_payload(payload).unwrap();
+    let payload_hash = processor.db.store_payload(payload).unwrap();
 
     Dispatch {
         id,
