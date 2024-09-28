@@ -17,18 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    common::LocalOutcome,
     host::{InstanceCreator, InstanceWrapper},
-    LocalOutcome,
 };
 use core_processor::common::JournalNote;
 use ethexe_common::router::{OutgoingMessage, StateTransition};
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::Handler;
-use gear_core::{
-    ids::{ActorId, ProgramId},
-    message::Message,
-};
-use gprimitives::H256;
+use gear_core::{ids::ProgramId, message::Message};
+use gprimitives::{ActorId, H256};
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 

@@ -21,8 +21,10 @@ use ethexe_common::{
     mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
+use ethexe_runtime_common::state::Dispatch;
 use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
 use gprimitives::{ActorId, MessageId};
+use parity_scale_codec::Encode;
 use std::collections::BTreeMap;
 use utils::*;
 use wabt::wat2wasm;
