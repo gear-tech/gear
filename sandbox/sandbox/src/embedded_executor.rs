@@ -44,18 +44,10 @@ pub struct Store<T> {
 
 impl<T: fmt::Debug> fmt::Debug for Store<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        #[cfg(feature = "std")]
-        {
-            f.debug_struct("Store")
-                .field("inner", &self.inner)
-                .field("memories", &self.memories.len())
-                .finish()
-        }
-
-        #[cfg(not(feature = "std"))]
-        {
-            f.debug_tuple("Store").field("<wasm:stripped>").finish()
-        }
+        f.debug_struct("Store")
+            .field("inner", &self.inner)
+            .field("memories", &self.memories.len())
+            .finish()
     }
 }
 
