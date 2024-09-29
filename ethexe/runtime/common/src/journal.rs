@@ -168,8 +168,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        if reservation.is_some() || dispatch.gas_limit().is_some() {
-            unreachable!("deprecated");
+        if reservation.is_some() || dispatch.gas_limit().map(|v| v != 0).unwrap_or(false) {
+            unreachable!("deprecated: {dispatch:?}");
         }
 
         if delay != 0 {
