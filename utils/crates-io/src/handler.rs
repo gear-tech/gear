@@ -44,7 +44,6 @@ pub fn patch(pkg: &Package) -> Result<Manifest> {
 
     match manifest.name.as_str() {
         "gear-core-processor" => core_processor::patch(doc),
-        "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
         "gmeta" => gmeta::patch(doc),
@@ -137,22 +136,6 @@ mod gmeta_codegen {
     pub fn patch(manifest: &mut DocumentMut) {
         trim_dev_dep("gstd", manifest);
         trim_dev_dep("gmeta", manifest);
-    }
-}
-
-/// sandbox handler.
-mod sandbox {
-    use toml_edit::DocumentMut;
-
-    /// Replace the wasmi module to the crates-io version.
-    pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_table_like_mut() else {
-            return;
-        };
-        wasmi.insert("package", toml_edit::value("gwasmi"));
-        wasmi.insert("version", toml_edit::value("0.30.0"));
-        wasmi.remove("branch");
-        wasmi.remove("git");
     }
 }
 
