@@ -29,8 +29,8 @@ use gear_core::{
     ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
     message::{
-        ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, ReplyDetails, Value,
-        MAX_PAYLOAD_SIZE,
+        ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, ReplyDetails,
+        StoredDispatch, Value, MAX_PAYLOAD_SIZE,
     },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
@@ -221,12 +221,30 @@ impl Dispatch {
             context: None,
         }
     }
+
+    pub fn from_stored<S: Storage>(storage: &S, value: StoredDispatch) -> Self {
+        let (kind, message, context) = value.into_parts();
+        let (id, source, destination, payload, value, details) = message.into_parts();
+
+        let payload_hash = storage
+            .store_payload(payload.into_vec())
+            .expect("infallible due to recasts (only panics on len)");
+
+        Self {
+            id,
+            kind,
+            source,
+            payload_hash,
+            value,
+            details,
+            context,
+        }
+    }
 }
 
 pub type MessageQueue = VecDeque<Dispatch>;
 
-// TODO (breathx): replace with Map<MId, Dispatch>;
-pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
+pub type Waitlist = BTreeMap<MessageId, Dispatch>;
 
 // TODO (breathx): consider here LocalMailbox for each user.
 pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, Value>>;
@@ -344,6 +362,47 @@ pub trait ComplexStorage: Storage {
             .unwrap_or_else(|| self.write_allocations(allocations).into());
 
         Ok(allocations_hash)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// Always updates storage.
+    fn modify_waitlist(
+        &self,
+        waitlist_hash: MaybeHash,
+        f: impl FnOnce(&mut Waitlist),
+    ) -> Result<MaybeHash> {
+        self.modify_waitlist_if_changed(waitlist_hash, |waitlist| {
+            f(waitlist);
+            Some(())
+        })
+        .map(|v| v.expect("`Some` passed above; infallible").1)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// Waitlist is treated changed if f() returns Some.
+    fn modify_waitlist_if_changed<T>(
+        &self,
+        waitlist_hash: MaybeHash,
+        f: impl FnOnce(&mut Waitlist) -> Option<T>,
+    ) -> Result<Option<(T, MaybeHash)>> {
+        let mut waitlist = waitlist_hash.with_hash_or_default_result(|waitlist_hash| {
+            self.read_waitlist(waitlist_hash).ok_or_else(|| {
+                anyhow::anyhow!("failed to read waitlist by its hash ({waitlist_hash})")
+            })
+        })?;
+
+        let res = if let Some(v) = f(&mut waitlist) {
+            let maybe_hash = waitlist
+                .is_empty()
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.write_waitlist(waitlist).into());
+
+            Some((v, maybe_hash))
+        } else {
+            None
+        };
+
+        Ok(res)
     }
 
     fn modify_queue(

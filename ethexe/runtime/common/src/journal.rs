@@ -224,48 +224,35 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         duration: Option<u32>,
         waited_type: MessageWaitedType,
     ) {
-        let (kind, message, context) = dispatch.into_parts();
         let Some(duration) = duration else {
             todo!("Wait dispatch without specified duration");
         };
+
+        // TODO (breathx): support delays.
         let block = self.block_info.height.saturating_add(duration);
 
-        let (id, source, destination, payload, value, details) = message.into_parts();
-
-        let payload_hash = self.storage.write_payload(payload).into();
-
-        let dispatch = Dispatch {
-            id,
-            kind,
-            source,
-            payload_hash,
-            value,
-            details,
-            context,
-        };
+        let dispatch = Dispatch::from_stored(self.storage, dispatch);
 
         log::trace!("{:?} was added to waitlist block {block}", dispatch);
 
-        // TODO (breathx): FIX ME WITHIN THE PR.
-        self.update_state_with_storage(destination, |storage, state| {
-            let (queue_hash, pop_id) = Self::pop_queue_message(state, storage);
+        self.update_state_with_storage(self.program_id, |storage, state| {
+            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
+                let queue_head = queue
+                    .pop_front()
+                    .expect("an attempt to wait message from empty queue");
 
-            if pop_id != dispatch.id {
-                unreachable!(
-                    "First message in queue is {pop_id}, but {} was waited",
-                    dispatch.id
+                assert_eq!(
+                    queue_head.id, dispatch.id,
+                    "queue head doesn't match processed message"
                 );
-            }
+            })?;
 
-            let mut waitlist = state.waitlist_hash.clone().with_hash_or_default(|hash| {
-                storage
-                    .read_waitlist(hash)
-                    .expect("Failed to read waitlist")
-            });
-            waitlist.entry(block).or_default().push(dispatch);
-
-            state.waitlist_hash = storage.write_waitlist(waitlist).into();
-            state.queue_hash = queue_hash.into();
+            // TODO (breathx): impl Copy for MaybeHash?
+            state.waitlist_hash =
+                storage.modify_waitlist(state.waitlist_hash.clone(), |waitlist| {
+                    let r = waitlist.insert(dispatch.id, dispatch);
+                    debug_assert!(r.is_none());
+                })?;
 
             Ok(())
         });
@@ -278,55 +265,25 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         awakening_id: MessageId,
         delay: u32,
     ) {
-        log::trace!("Message {message_id} try to wake {awakening_id}");
-
         if delay != 0 {
             todo!("Delayed wake message");
         }
 
-        // TODO (breathx): FIX ME WITHIN THE PR.
+        log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
+
         self.update_state_with_storage(program_id, |storage, state| {
-            let mut waitlist = state.waitlist_hash.clone().with_hash_or_default(|hash| {
-                storage
-                    .read_waitlist(hash)
-                    .expect("Failed to read waitlist")
-            });
+            let Some((dispatch, new_waitlist_hash)) = storage
+                .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
+                    waitlist.remove(&awakening_id)
+                })?
+            else {
+                return Ok(());
+            };
 
-            let mut queue = state.queue_hash.clone().with_hash_or_default(|hash| {
-                storage.read_queue(hash).expect("Failed to read queue")
-            });
-
-            let mut changed = false;
-            let mut clear_for_block = None;
-            for (block, list) in waitlist.iter_mut() {
-                let Some(index) = list
-                    .iter()
-                    .enumerate()
-                    .find_map(|(index, dispatch)| (dispatch.id == awakening_id).then_some(index))
-                else {
-                    continue;
-                };
-
-                let dispatch = list.remove(index);
-                log::trace!("{dispatch:?} has been woken up by {message_id}");
-
+            state.waitlist_hash = new_waitlist_hash;
+            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
                 queue.push_back(dispatch);
-
-                if list.is_empty() {
-                    clear_for_block = Some(*block);
-                }
-                changed = true;
-                break;
-            }
-
-            if let Some(block) = clear_for_block {
-                waitlist.remove(&block);
-            }
-
-            if changed {
-                state.queue_hash = storage.write_queue(queue).into();
-                state.waitlist_hash = storage.write_waitlist(waitlist).into();
-            }
+            })?;
 
             Ok(())
         });

@@ -280,14 +280,7 @@ async fn mailbox() {
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.read_state(state_hash).unwrap();
-    assert!(!state.mailbox_hash.is_empty()); // could be empty
-    let mailbox = state
-        .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
-
-    let expected_mailbox = BTreeMap::from_iter([(env.sender_id, BTreeMap::new())]);
-
-    assert_eq!(mailbox, expected_mailbox);
+    assert!(state.mailbox_hash.is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread")]

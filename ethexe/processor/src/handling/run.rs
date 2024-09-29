@@ -35,6 +35,7 @@ enum Task {
         state_hash: H256,
         result_sender: oneshot::Sender<Vec<JournalNote>>,
     },
+    #[allow(unused)] // TODO (breathx)
     WakeMessages {
         program_id: ProgramId,
         state_hash: H256,
@@ -87,7 +88,8 @@ async fn run_in_async(
         handles.push(handle);
     }
 
-    wake_messages(&task_senders, programs).await;
+    // TODO (breathx): fix me ASAP.
+    // wake_messages(&task_senders, programs).await;
 
     loop {
         // Send tasks to process programs in workers, until all queues are empty.
@@ -252,6 +254,7 @@ async fn one_batch(
     result_receivers
 }
 
+#[allow(unused)] // TODO (breathx)
 async fn wake_messages(
     task_senders: &[mpsc::Sender<Task>],
     programs: &mut BTreeMap<ProgramId, H256>,
