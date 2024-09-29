@@ -22,4 +22,4 @@ log.workspace = true
 
 [features]
 default = ["std"]
-std = ["core-processor/std", "log/std"]
+std = ["anyhow/std", "core-processor/std", "log/std"]
