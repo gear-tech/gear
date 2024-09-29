@@ -11,7 +11,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true, features = ["std"] }
 gear-wasm-instrument.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
 wasm-opt = { workspace = true, optional = true }
