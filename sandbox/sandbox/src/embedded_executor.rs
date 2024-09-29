@@ -24,31 +24,50 @@ use crate::{
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
-use sp_core::RuntimeDebug;
-use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
+use region::Protection;
+use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, prelude::*};
 use sp_wasm_interface_common::HostPointer;
+use std::slice;
 use wasmi::{
-    core::{Pages, Trap, UntypedValue},
-    Config, Engine, ExternType, Linker, MemoryType, Module, StackLimits, StoreContext,
-    StoreContextMut, Value as RuntimeValue,
+    core::UntypedVal, Config, Engine, ExternType, Linker, MemoryType, Module, StackLimits,
+    StoreContext, StoreContextMut, Val as RuntimeValue,
 };
 
 /// [`AsContextExt`] extension.
 pub trait AsContext: wasmi::AsContext + wasmi::AsContextMut {}
 
 /// wasmi store wrapper.
-#[derive(RuntimeDebug)]
-pub struct Store<T>(wasmi::Store<T>);
+pub struct Store<T> {
+    inner: wasmi::Store<T>,
+    memories: Vec<region::Allocation>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for Store<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        #[cfg(feature = "std")]
+        {
+            f.debug_struct("Store")
+                .field("inner", &self.inner)
+                .field("memories", &self.memories.len())
+                .finish()
+        }
+
+        #[cfg(not(feature = "std"))]
+        {
+            f.debug_tuple("Store").field("<wasm:stripped>").finish()
+        }
+    }
+}
 
 impl<T> Store<T> {
     fn engine(&self) -> &Engine {
-        self.0.engine()
+        self.inner.engine()
     }
 }
 
 impl<T> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let register_len = size_of::<UntypedValue>();
+        let register_len = size_of::<UntypedVal>();
 
         const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
         const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
@@ -66,21 +85,24 @@ impl<T> SandboxStore for Store<T> {
 
         let engine = Engine::new(&config);
         let store = wasmi::Store::new(&engine, state);
-        Self(store)
+        Self {
+            inner: store,
+            memories: Vec::new(),
+        }
     }
 }
 
 impl<T> wasmi::AsContext for Store<T> {
-    type UserState = T;
+    type Data = T;
 
-    fn as_context(&self) -> StoreContext<Self::UserState> {
-        self.0.as_context()
+    fn as_context(&self) -> StoreContext<Self::Data> {
+        self.inner.as_context()
     }
 }
 
 impl<T> wasmi::AsContextMut for Store<T> {
-    fn as_context_mut(&mut self) -> StoreContextMut<Self::UserState> {
-        self.0.as_context_mut()
+    fn as_context_mut(&mut self) -> StoreContextMut<Self::Data> {
+        self.inner.as_context_mut()
     }
 }
 
@@ -88,7 +110,7 @@ impl<T> AsContextExt for Store<T> {
     type State = T;
 
     fn data_mut(&mut self) -> &mut Self::State {
-        self.0.data_mut()
+        self.inner.data_mut()
     }
 }
 
@@ -98,15 +120,15 @@ impl<T> AsContext for Store<T> {}
 pub struct Caller<'a, T>(wasmi::Caller<'a, T>);
 
 impl<T> wasmi::AsContext for Caller<'_, T> {
-    type UserState = T;
+    type Data = T;
 
-    fn as_context(&self) -> StoreContext<Self::UserState> {
+    fn as_context(&self) -> StoreContext<Self::Data> {
         self.0.as_context()
     }
 }
 
 impl<T> wasmi::AsContextMut for Caller<'_, T> {
-    fn as_context_mut(&mut self) -> StoreContextMut<Self::UserState> {
+    fn as_context_mut(&mut self) -> StoreContextMut<Self::Data> {
         self.0.as_context_mut()
     }
 }
@@ -130,7 +152,22 @@ pub struct Memory {
 impl<T> super::SandboxMemory<T> for Memory {
     fn new(store: &mut Store<T>, initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
         let ty = MemoryType::new(initial, maximum).map_err(|_| Error::Module)?;
-        let memref = wasmi::Memory::new(store, ty).map_err(|_| Error::Module)?;
+
+        let mut alloc = region::alloc(u32::MAX as usize, Protection::READ_WRITE)
+            .unwrap_or_else(|err| unreachable!("Failed to allocate memory: {err}"));
+        // # Safety:
+        //
+        // `wasmi::Memory::new_static()` requires static lifetime so we convert our buffer to it
+        // but actual lifetime of the buffer is lifetime of `Store<T>` itself,
+        // so memory will be deallocated when `Store<T>` is dropped.
+        //
+        // Also, according to Rust drop order semantics, `wasmi::Store<T>` will be dropped first and
+        // only then our allocated memories will be freed to ensure they are not used anymore.
+        let memref =
+            unsafe { slice::from_raw_parts_mut::<'static, u8>(alloc.as_mut_ptr(), alloc.len()) };
+        store.memories.push(alloc);
+
+        let memref = wasmi::Memory::new_static(store, ty, memref).map_err(|_| Error::Module)?;
         Ok(Memory { memref })
     }
 
@@ -164,7 +201,6 @@ impl<T> super::SandboxMemory<T> for Memory {
     where
         Context: AsContextExt<State = T>,
     {
-        let pages = Pages::new(pages).ok_or(Error::MemoryGrow)?;
         self.memref
             .grow(ctx, pages)
             .map(Into::into)
@@ -175,7 +211,7 @@ impl<T> super::SandboxMemory<T> for Memory {
     where
         Context: AsContextExt<State = T>,
     {
-        self.memref.current_pages(ctx).into()
+        self.memref.size(ctx)
     }
 
     unsafe fn get_buff<Context>(&self, ctx: &Context) -> u64
@@ -313,11 +349,13 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                             let gas = caller
                                 .get_export(GLOBAL_NAME_GAS)
                                 .ok_or_else(|| {
-                                    Trap::new(format!("failed to find `{GLOBAL_NAME_GAS}` export"))
+                                    wasmi::Error::new(format!(
+                                        "failed to find `{GLOBAL_NAME_GAS}` export"
+                                    ))
                                 })?
                                 .into_global()
                                 .ok_or_else(|| {
-                                    Trap::new(format!("{GLOBAL_NAME_GAS} is not global"))
+                                    wasmi::Error::new(format!("{GLOBAL_NAME_GAS} is not global"))
                                 })?;
 
                             let params: Vec<_> = Some(gas.get(&caller))
@@ -325,7 +363,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                                 .chain(params.iter().cloned())
                                 .map(to_interface)
                                 .map(|val| {
-                                    val.ok_or(Trap::new(
+                                    val.ok_or(wasmi::Error::new(
                                         "`externref` or `funcref` are not supported",
                                     ))
                                 })
@@ -333,7 +371,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
                             let mut caller = Caller(caller);
                             let val = (func_ptr)(&mut caller, &params)
-                                .map_err(|HostError| Trap::new("function error"))?;
+                                .map_err(|HostError| wasmi::Error::new("function error"))?;
 
                             match (val.inner, results) {
                                 (ReturnValue::Unit, []) => {}
@@ -341,7 +379,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                                     let val = to_wasmi(val);
 
                                     if val.ty() != ret.ty() {
-                                        return Err(Trap::new("mismatching return types"));
+                                        return Err(wasmi::Error::new("mismatching return types"));
                                     }
 
                                     *ret = val;
@@ -359,7 +397,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
                             gas.set(&mut caller.0, RuntimeValue::I64(val.gas))
                                 .map_err(|e| {
-                                    Trap::new(format!(
+                                    wasmi::Error::new(format!(
                                         "failed to set `{GLOBAL_NAME_GAS}` global: {e}"
                                     ))
                                 })?;
