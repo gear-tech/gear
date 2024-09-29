@@ -302,7 +302,7 @@ ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
 
-# Common executor between `sandbox-host` and `calc-stack-height`
+# Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = [
     "virtual_memory",
 ] }

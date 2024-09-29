@@ -67,7 +67,7 @@ fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     let metadata = instance
         .exports
         .get_function(method)
-        .with_context(|| format!("could not find function \"{}\"", method))?
+        .with_context(|| format!(r#"could not find function "{method}""#))?
         .typed::<(), ()>(&store)?;
     metadata.call(&mut store)?;
     Ok(state.as_ref(&store).msg.clone())
@@ -219,7 +219,7 @@ mod env {
                     .into();
 
                 memory.write(err, &len.to_le_bytes()).map_err(|e| {
-                    log::error!("{:?}", e);
+                    log::error!("{e:?}");
                     TrapCode::HeapAccessOutOfBounds
                 })?;
 
