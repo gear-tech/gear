@@ -1792,8 +1792,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93f2635620bf0b9d4576eb7bb9a38a55df78bd1205d26fa994b25911a69f212f"
 dependencies = [
  "bitcoin_hashes 0.11.0",
- "rand 0.7.3",
- "rand_core 0.5.1",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
 ]
@@ -6319,7 +6319,8 @@ dependencies = [
  "tokio",
  "toml 0.8.14",
  "url",
- "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer",
+ "wasmer-types",
  "which",
  "whoami",
 ]
@@ -6550,7 +6551,7 @@ dependencies = [
  "scale-info",
  "serde",
  "wabt",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
 ]
 
 [[package]]
@@ -6861,7 +6862,7 @@ dependencies = [
  "sp-core",
  "sp-std 8.0.0",
  "sp-wasm-interface-common",
- "wasmi 0.30.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
+ "wasmi 0.30.0",
  "wat",
 ]
 
@@ -7061,7 +7062,6 @@ dependencies = [
  "thiserror",
  "toml 0.8.14",
  "wabt",
- "wasmi 0.14.0",
 ]
 
 [[package]]
@@ -7086,7 +7086,7 @@ dependencies = [
  "rand 0.8.5",
  "thiserror",
  "wasm-smith",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
  "wasmprinter",
  "wat",
 ]
@@ -7098,7 +7098,7 @@ dependencies = [
  "derive_more 0.99.18",
  "enum-iterator 1.5.0",
  "gwasm-instrument",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
  "wat",
 ]
 
@@ -7115,8 +7115,8 @@ dependencies = [
  "rustc_version 0.4.0",
  "wabt",
  "wasm-opt",
- "wasmi 0.14.0",
- "wasmparser-nostd 0.100.1",
+ "wasmer",
+ "wasmparser-nostd",
  "which",
 ]
 
@@ -18655,7 +18655,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
@@ -19472,32 +19472,7 @@ source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b102
 dependencies = [
  "parity-wasm",
  "wasmi-validation",
- "wasmi_core 0.2.1 (git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext)",
-]
-
-[[package]]
-name = "wasmi"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae73f0dc2c05c94f30cb04498c67574b7588d0e674cc9255b96a05d21345528c"
-dependencies = [
- "spin 0.9.8",
- "wasmi_core 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser-nostd 0.83.0",
-]
-
-[[package]]
-name = "wasmi"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e51fb5c61993e71158abf5bb863df2674ca3ec39ed6471c64f07aeaf751d67b4"
-dependencies = [
- "intx",
- "smallvec",
- "spin 0.9.8",
- "wasmi_arena 0.4.1",
- "wasmi_core 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser-nostd 0.100.1",
+ "wasmi_core 0.2.1",
 ]
 
 [[package]]
@@ -19509,8 +19484,8 @@ dependencies = [
  "smallvec",
  "spin 0.9.8",
  "wasmi_arena 0.4.0",
- "wasmi_core 0.12.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
- "wasmparser-nostd 0.100.1",
+ "wasmi_core 0.12.0",
+ "wasmparser-nostd",
 ]
 
 [[package]]
@@ -19523,7 +19498,7 @@ dependencies = [
  "spin 0.9.8",
  "wasmi_arena 0.4.1",
  "wasmi_core 0.13.0",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
 ]
 
 [[package]]
@@ -19548,19 +19523,6 @@ checksum = "104a7f73be44570cac297b3035d76b169d6599637631cf37a1703326a0727073"
 [[package]]
 name = "wasmi_core"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d20cb3c59b788653d99541c646c561c9dd26506f25c0cebfe810659c54c6d7"
-dependencies = [
- "downcast-rs",
- "libm",
- "memory_units",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
-name = "wasmi_core"
-version = "0.2.1"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
  "downcast-rs",
@@ -19569,18 +19531,6 @@ dependencies = [
  "num-rational",
  "num-traits",
  "region",
-]
-
-[[package]]
-name = "wasmi_core"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "624e6333e861ef49095d2d678b76ebf30b06bf37effca845be7e5b87c90071b7"
-dependencies = [
- "downcast-rs",
- "libm",
- "num-traits",
- "paste",
 ]
 
 [[package]]
@@ -19649,15 +19599,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser-nostd"
-version = "0.83.0"
+version = "0.100.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58a45f1058fed5ce7ff3da64153d0537a1ae664d09855fbb1402c6472f09571b"
-
-[[package]]
-name = "wasmparser-nostd"
-version = "0.100.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9157cab83003221bfd385833ab587a039f5d6fa7304854042ba358a3b09e0724"
+checksum = "d5a015fe95f3504a94bb1462c717aae75253e39b9dd6c3fb1062c934535c64aa"
 dependencies = [
  "indexmap-nostd",
 ]
