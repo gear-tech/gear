@@ -48,13 +48,35 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
             parent_hash,
         },
     );
+
     let parent_out_program_hashes = processor
         .db
         .block_end_program_states(parent_hash)
-        .unwrap_or_default();
+        .unwrap_or_else(|| {
+            if parent_hash.is_zero() {
+                Default::default()
+            } else {
+                panic!("block end program states must present")
+            }
+        });
     processor
         .db
         .set_block_start_program_states(chain_head, parent_out_program_hashes);
+
+    let parent_out_schedule = processor
+        .db
+        .block_end_schedule(parent_hash)
+        .unwrap_or_else(|| {
+            if parent_hash.is_zero() {
+                Default::default()
+            } else {
+                panic!("block end schedule must present")
+            }
+        });
+    processor
+        .db
+        .set_block_start_schedule(chain_head, parent_out_schedule);
+
     chain_head
 }
 
