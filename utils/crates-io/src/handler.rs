@@ -82,11 +82,6 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
 //
 // issue: https://github.com/rust-lang/cargo/issues/4242
 fn trim_dev_dep(name: &str, manifest: &mut DocumentMut) {
-    if let Some(dep) = manifest["dev-dependencies"][name].as_inline_table_mut() {
-        dep.remove("workspace");
-        dep.insert("version", "~1".into());
-    }
-
     if let Some(dep) = manifest["dev-dependencies"][name].as_table_like_mut() {
         dep.remove("workspace");
         dep.insert("version", toml_edit::value("~1"));
@@ -151,11 +146,11 @@ mod sandbox {
 
     /// Replace the wasmi module to the crates-io version.
     pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_table_like_mut() else {
             return;
         };
-        wasmi.insert("package", "gwasmi".into());
-        wasmi.insert("version", "0.30.0".into());
+        wasmi.insert("package", toml_edit::value("gwasmi"));
+        wasmi.insert("version", toml_edit::value("0.30.0"));
         wasmi.remove("branch");
         wasmi.remove("git");
     }
@@ -172,7 +167,7 @@ mod sandbox_interface {
     /// `sp_runtime_interface_proc_macro` includes some hardcode
     /// that could not locate alias packages.
     pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_mut() else {
+        let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_like_mut() else {
             return;
         };
         wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
@@ -187,11 +182,11 @@ mod sandbox_host {
 
     /// Replace the wasmi module to the crates-io version.
     pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wasmi) = manifest["dependencies"]["sandbox-wasmi"].as_inline_table_mut() else {
+        let Some(wasmi) = manifest["dependencies"]["sandbox-wasmi"].as_table_like_mut() else {
             return;
         };
-        wasmi.insert("package", "wasmi".into());
-        wasmi.insert("version", "0.13.2".into());
+        wasmi.insert("package", toml_edit::value("wasmi"));
+        wasmi.insert("version", toml_edit::value("0.13.2"));
         wasmi.remove("workspace");
     }
 }

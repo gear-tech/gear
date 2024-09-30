@@ -17,7 +17,7 @@ path = "src/bin/gring.rs"
 required-features = ["cli"]
 
 [dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true, features = ["std"] }
 base64.workspace = true
 gear-ss58 = { workspace = true, features = ["std"] }
 nacl.workspace = true

@@ -25,9 +25,9 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-use sandbox_wasmer::Module;
 use tempfile::TempDir;
 use uluru::LRUCache;
+use wasmer::Module;
 use wasmer_cache::Hash;
 
 pub struct CacheMissErr {
@@ -65,10 +65,7 @@ fn fs_cache() -> FileSystemCache {
     FileSystemCache::new(cache_path)
 }
 
-pub fn get_cached_module(
-    wasm: &[u8],
-    store: &sandbox_wasmer::Store,
-) -> Result<Module, CacheMissErr> {
+pub fn get_cached_module(wasm: &[u8], store: &wasmer::Store) -> Result<Module, CacheMissErr> {
     let mut lru_lock = lru_cache().lock().expect("CACHED_MODULES lock fail");
 
     let maybe_module = lru_lock.find(|x| x.wasm == wasm);

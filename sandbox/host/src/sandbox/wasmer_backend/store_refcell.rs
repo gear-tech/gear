@@ -18,7 +18,7 @@
 
 //! # Description
 //!
-//! Custom implementation of `RefCell` for the `sandbox_wasmer::Store` type,
+//! Custom implementation of `RefCell` for the `wasmer::Store` type,
 //! enabling safe repeated mutable borrowing of `StoreRefCell` higher up the call stack
 //! when the mutable borrow of `StoreRefCell` still exists.
 //!
@@ -92,7 +92,7 @@ use std::{
 };
 
 use defer::defer;
-use sandbox_wasmer::{AsStoreMut, AsStoreRef, Store, StoreRef};
+use wasmer::{AsStoreMut, AsStoreRef, Store, StoreRef};
 
 #[derive(Debug, Clone, Copy)]
 enum BorrowState {
@@ -281,7 +281,7 @@ impl Drop for RefMut<'_> {
 mod tests {
     use std::rc::Rc;
 
-    use sandbox_wasmer::StoreMut;
+    use wasmer::StoreMut;
 
     use super::*;
 

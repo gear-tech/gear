@@ -99,7 +99,8 @@ impl Workspace {
             .ok_or_else(|| anyhow!("Could not find version in workspace manifest"))?
             .to_string();
 
-        let Some(deps) = self.mutable_manifest["workspace"]["dependencies"].as_table_mut() else {
+        let Some(deps) = self.mutable_manifest["workspace"]["dependencies"].as_table_like_mut()
+        else {
             return Err(anyhow!(
                 "Failed to parse dependencies from workspace {}",
                 self.path.display()

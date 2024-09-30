@@ -1,11 +1,11 @@
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
-use sandbox_wasmer::{
+use std::{env, fs};
+use wasmer::{
     Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,
     RuntimeError, Singlepass, Store,
 };
-use sandbox_wasmer_types::{FunctionType, TrapCode, Type};
-use std::{env, fs};
+use wasmer_types::{FunctionType, TrapCode, Type};
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
