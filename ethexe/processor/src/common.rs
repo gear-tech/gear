@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
 use ethexe_common::router::{OutgoingMessage, StateTransition, ValueClaim};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeMap;
+use std::collections::{btree_map::Iter, BTreeMap};
 
 /// Local changes that can be committed to the network or local signer.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -52,15 +51,23 @@ impl InBlockTransitions {
         self.states.get(actor_id).cloned()
     }
 
+    pub fn states_amount(&self) -> usize {
+        self.states.len()
+    }
+
+    pub fn states_iter(&self) -> Iter<ActorId, H256> {
+        self.states.iter()
+    }
+
     pub fn register_new(&mut self, actor_id: ActorId) {
         self.states.insert(actor_id, H256::zero());
         self.modifications.insert(actor_id, Default::default());
     }
 
-    pub fn modify_state(&mut self, actor_id: ActorId, new_state: H256) -> Option<()> {
+    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256) -> Option<()> {
         self.modify_state_with(
             actor_id,
-            new_state,
+            new_state_hash,
             0,
             Default::default(),
             Default::default(),
@@ -70,12 +77,12 @@ impl InBlockTransitions {
     pub fn modify_state_with(
         &mut self,
         actor_id: ActorId,
-        new_state: H256,
+        new_state_hash: H256,
         extra_value_to_receive: u128,
         extra_claims: Vec<ValueClaim>,
         extra_messages: Vec<OutgoingMessage>,
     ) -> Option<()> {
-        let initial_state = self.states.insert(actor_id, new_state)?;
+        let initial_state = self.states.insert(actor_id, new_state_hash)?;
 
         let transition = self
             .modifications
@@ -92,9 +99,9 @@ impl InBlockTransitions {
         Some(())
     }
 
-    pub fn finalize(self) -> Result<Vec<StateTransition>> {
+    pub fn finalize(self) -> (Vec<StateTransition>, BTreeMap<ActorId, H256>) {
         let Self {
-            mut states,
+            states,
             modifications,
         } = self;
 
@@ -102,8 +109,9 @@ impl InBlockTransitions {
 
         for (actor_id, modification) in modifications {
             let new_state_hash = states
-                .remove(&actor_id)
-                .ok_or_else(|| anyhow::anyhow!("failed to find state record for modified state"))?;
+                .get(&actor_id)
+                .cloned()
+                .expect("failed to find state record for modified state");
 
             if !modification.is_noop(new_state_hash) {
                 res.push(StateTransition {
@@ -116,7 +124,7 @@ impl InBlockTransitions {
             }
         }
 
-        Ok(res)
+        (res, states)
     }
 }
 

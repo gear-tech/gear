@@ -19,19 +19,14 @@
 //! Program's execution service for eGPU.
 
 use anyhow::Result;
-use ethexe_common::{
-    mirror::RequestEvent as MirrorEvent, router::StateTransition, BlockRequestEvent,
-};
+use common::InBlockTransitions;
+use ethexe_common::{mirror::RequestEvent as MirrorEvent, BlockRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::Storage;
-use gear_core::{
-    ids::{prelude::CodeIdExt, ProgramId},
-    message::ReplyInfo,
-};
+use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::run;
 use host::InstanceCreator;
-use std::collections::BTreeMap;
 
 pub use common::LocalOutcome;
 
@@ -83,48 +78,42 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
-        let mut states = self
+        let states = self
             .db
             .block_start_program_states(block_hash)
             .unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
 
-        let mut schedule = self.db.block_start_schedule(block_hash).unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
+        let mut in_block_transitions = InBlockTransitions::new(states);
 
-        let mut all_value_claims = Default::default();
+        let mut schedule = self.db.block_start_schedule(block_hash).unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
 
         // TODO (breathx): handle resulting addresses that were changed (e.g. top up balance wont be dumped as outcome).
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
-                    self.handle_router_event(&mut states, event)?;
+                    self.handle_router_event(&mut in_block_transitions, event)?;
                 }
                 BlockRequestEvent::Mirror { address, event } => {
-                    self.handle_mirror_event(&mut states, &mut all_value_claims, address, event)?;
+                    self.handle_mirror_event(&mut in_block_transitions, address, event)?;
                 }
                 BlockRequestEvent::WVara(event) => {
-                    self.handle_wvara_event(&mut states, event)?;
+                    self.handle_wvara_event(&mut in_block_transitions, event)?;
                 }
             }
         }
 
-        // TODO (breathx): handle outcomes.
-        let mut _task_outcomes = self.run_tasks(block_hash, &mut states, &mut schedule)?;
+        self.run_tasks(block_hash, &mut in_block_transitions, &mut schedule)?;
+        self.run(block_hash, &mut in_block_transitions)?;
 
-        let mut outcomes = self.run(block_hash, &mut states)?;
-
-        for outcome in &mut outcomes {
-            if let LocalOutcome::Transition(StateTransition {
-                actor_id,
-                value_claims,
-                ..
-            }) = outcome
-            {
-                value_claims.extend(all_value_claims.remove(actor_id).unwrap_or_default());
-            }
-        }
+        let (transitions, states) = in_block_transitions.finalize();
 
         self.db.set_block_end_program_states(block_hash, states);
         self.db.set_block_end_schedule(block_hash, schedule);
+
+        let outcomes = transitions
+            .into_iter()
+            .map(LocalOutcome::Transition)
+            .collect();
 
         Ok(outcomes)
     }
@@ -133,13 +122,16 @@ impl Processor {
     pub fn run(
         &mut self,
         chain_head: H256,
-        programs: &mut BTreeMap<ProgramId, H256>,
+        in_block_transitions: &mut InBlockTransitions,
     ) -> Result<Vec<LocalOutcome>> {
         self.creator.set_chain_head(chain_head);
 
-        log::debug!("{programs:?}");
-
-        let messages_and_outcomes = run::run(8, self.db.clone(), self.creator.clone(), programs);
+        let messages_and_outcomes = run::run(
+            8,
+            self.db.clone(),
+            self.creator.clone(),
+            in_block_transitions,
+        );
 
         Ok(messages_and_outcomes.1)
     }
@@ -160,17 +152,17 @@ impl OverlaidProcessor {
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
-        let mut states = self
+        let states = self
             .0
             .db
             .block_start_program_states(block_hash)
             .unwrap_or_default();
 
-        let mut value_claims = Default::default();
+        let mut in_block_transitions = InBlockTransitions::new(states);
 
-        let Some(&state_hash) = states.get(&program_id) else {
-            return Err(anyhow::anyhow!("unknown program at specified block hash"));
-        };
+        let state_hash = in_block_transitions
+            .state_of(&program_id)
+            .ok_or_else(|| anyhow::anyhow!("unknown program at specified block hash"))?;
 
         let state =
             self.0.db.read_state(state_hash).ok_or_else(|| {
@@ -183,8 +175,7 @@ impl OverlaidProcessor {
         );
 
         self.0.handle_mirror_event(
-            &mut states,
-            &mut value_claims,
+            &mut in_block_transitions,
             program_id,
             MirrorEvent::MessageQueueingRequested {
                 id: MessageId::zero(),
@@ -194,7 +185,12 @@ impl OverlaidProcessor {
             },
         )?;
 
-        let (messages, _) = run::run(8, self.0.db.clone(), self.0.creator.clone(), &mut states);
+        let (messages, _) = run::run(
+            8,
+            self.0.db.clone(),
+            self.0.creator.clone(),
+            &mut in_block_transitions,
+        );
 
         let res = messages
             .into_iter()

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::LocalOutcome,
+    common::{InBlockTransitions, LocalOutcome},
     host::{InstanceCreator, InstanceWrapper},
 };
 use core_processor::common::JournalNote;
@@ -25,7 +25,7 @@ use ethexe_common::router::{OutgoingMessage, StateTransition};
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::Handler;
 use gear_core::{ids::ProgramId, message::Message};
-use gprimitives::{ActorId, H256};
+use gprimitives::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 
@@ -47,7 +47,7 @@ pub fn run(
     threads_amount: usize,
     db: Database,
     instance_creator: InstanceCreator,
-    programs: &mut BTreeMap<ProgramId, H256>,
+    in_block_transitions: &mut InBlockTransitions,
 ) -> (Vec<Message>, Vec<LocalOutcome>) {
     tokio::task::block_in_place(|| {
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -56,7 +56,7 @@ pub fn run(
             .build()
             .unwrap();
 
-        rt.block_on(async { run_in_async(db, instance_creator, programs).await })
+        rt.block_on(async { run_in_async(db, instance_creator, in_block_transitions).await })
     })
 }
 
@@ -65,7 +65,7 @@ pub fn run(
 async fn run_in_async(
     db: Database,
     instance_creator: InstanceCreator,
-    programs: &mut BTreeMap<ProgramId, H256>,
+    in_block_transitions: &mut InBlockTransitions,
 ) -> (Vec<Message>, Vec<LocalOutcome>) {
     let mut to_users_messages = vec![];
     let mut results = BTreeMap::new();
@@ -95,8 +95,8 @@ async fn run_in_async(
         // Send tasks to process programs in workers, until all queues are empty.
 
         let mut no_more_to_do = true;
-        for index in (0..programs.len()).step_by(num_workers) {
-            let result_receivers = one_batch(index, &task_senders, programs).await;
+        for index in (0..in_block_transitions.states_amount()).step_by(num_workers) {
+            let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
 
             let mut super_journal = vec![];
             for (program_id, receiver) in result_receivers.into_iter() {
@@ -231,12 +231,13 @@ async fn worker(
 async fn one_batch(
     from_index: usize,
     task_senders: &[mpsc::Sender<Task>],
-    programs: &mut BTreeMap<ActorId, H256>,
+    in_block_transitions: &mut InBlockTransitions,
 ) -> BTreeMap<ProgramId, oneshot::Receiver<Vec<JournalNote>>> {
     let mut result_receivers = BTreeMap::new();
 
-    for (sender, (program_id, state_hash)) in
-        task_senders.iter().zip(programs.iter().skip(from_index))
+    for (sender, (program_id, state_hash)) in task_senders
+        .iter()
+        .zip(in_block_transitions.states_iter().skip(from_index))
     {
         let (result_sender, result_receiver) = oneshot::channel();
 
@@ -252,31 +253,4 @@ async fn one_batch(
     }
 
     result_receivers
-}
-
-#[allow(unused)] // TODO (breathx)
-async fn wake_messages(
-    task_senders: &[mpsc::Sender<Task>],
-    programs: &mut BTreeMap<ProgramId, H256>,
-) {
-    let mut result_receivers = vec![];
-    for (task_sender, (&program_id, &state_hash)) in
-        task_senders.iter().cycle().zip(programs.iter())
-    {
-        let (result_sender, result_receiver) = oneshot::channel();
-        task_sender
-            .send(Task::WakeMessages {
-                program_id,
-                state_hash,
-                result_sender,
-            })
-            .await
-            .unwrap();
-        result_receivers.push((program_id, result_receiver));
-    }
-
-    for (program_id, result_receiver) in result_receivers {
-        let new_state_hash = result_receiver.await;
-        programs.insert(program_id, new_state_hash.unwrap());
-    }
 }

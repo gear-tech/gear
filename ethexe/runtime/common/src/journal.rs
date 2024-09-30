@@ -37,7 +37,7 @@ impl<S: Storage> Handler<'_, S> {
         &mut self,
         program_id: ProgramId,
         f: impl FnOnce(&mut ProgramState) -> Result<()>,
-    ) {
+    ) -> H256 {
         self.update_state_with_storage(program_id, |_s, state| f(state))
     }
 
@@ -45,7 +45,7 @@ impl<S: Storage> Handler<'_, S> {
         &mut self,
         program_id: ProgramId,
         f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
-    ) {
+    ) -> H256 {
         let state_hash = self
             .program_states
             .get_mut(&program_id)
@@ -57,6 +57,8 @@ impl<S: Storage> Handler<'_, S> {
             .expect("failed to mutate state");
 
         self.results.insert(program_id, *state_hash);
+
+        *state_hash
     }
 
     fn pop_queue_message(state: &ProgramState, storage: &S) -> (H256, MessageId) {

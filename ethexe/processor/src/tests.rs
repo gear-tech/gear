@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
+use ::common::ProgramId;
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
@@ -274,13 +275,14 @@ fn ping_pong() {
         .handle_messages_queueing(state_hash, messages)
         .expect("failed to populate message queue");
 
-    let mut programs = BTreeMap::from_iter([(program_id, state_hash)]);
+    let states = BTreeMap::from_iter([(program_id, state_hash)]);
+    let mut in_block_transitions = InBlockTransitions::new(states);
 
     let (to_users, _) = run::run(
         8,
         processor.db.clone(),
         processor.creator.clone(),
-        &mut programs,
+        &mut in_block_transitions,
     );
 
     assert_eq!(to_users.len(), 2);
@@ -405,14 +407,14 @@ fn async_and_ping() {
         .handle_message_queueing(async_state_hash, message)
         .expect("failed to populate message queue");
 
-    let mut programs =
-        BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
+    let states = BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
+    let mut in_block_transitions = InBlockTransitions::new(states);
 
     let (to_users, _) = run::run(
         8,
         processor.db.clone(),
         processor.creator.clone(),
-        &mut programs,
+        &mut in_block_transitions,
     );
 
     assert_eq!(to_users.len(), 3);

@@ -16,14 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{LocalOutcome, Processor};
+use crate::{common::InBlockTransitions, LocalOutcome, Processor};
 use anyhow::Result;
 use common::{
     scheduler::{ScheduledTask, TaskHandler},
     CodeId, Gas, MessageId, ProgramId, ReservationId,
 };
 use ethexe_db::BlockMetaStorage;
-use gear_core::message::Message;
 use gprimitives::{ActorId, H256};
 use std::collections::BTreeMap;
 
@@ -31,13 +30,11 @@ impl Processor {
     pub fn run_tasks(
         &mut self,
         block_hash: H256,
-        states: &mut BTreeMap<ProgramId, H256>,
+        in_block_transitions: &mut InBlockTransitions,
         tasks: &mut BTreeMap<u32, Vec<ScheduledTask<ActorId>>>,
     ) -> Result<Vec<LocalOutcome>> {
         let mut handler = TasksHandler {
-            states,
-            results: Default::default(),
-            to_users_messages: Default::default(),
+            in_block_transitions,
         };
 
         let block_meta = self
@@ -57,9 +54,7 @@ impl Processor {
 
 #[allow(unused)]
 pub struct TasksHandler<'a> {
-    pub states: &'a mut BTreeMap<ProgramId, H256>,
-    pub results: BTreeMap<ActorId, H256>,
-    pub to_users_messages: Vec<Message>,
+    pub in_block_transitions: &'a mut InBlockTransitions,
 }
 
 impl<'a> TaskHandler<ActorId> for TasksHandler<'a> {

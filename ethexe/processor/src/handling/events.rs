@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{common::InBlockTransitions, Processor};
 use anyhow::Result;
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent,
@@ -29,21 +30,17 @@ use gear_core::{
     message::{DispatchKind, SuccessReplyReason},
 };
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use std::collections::BTreeMap;
-
-use crate::Processor;
 
 impl Processor {
     pub(crate) fn handle_router_event(
         &mut self,
-        states: &mut BTreeMap<ProgramId, H256>,
+        in_block_transitions: &mut InBlockTransitions,
         event: RouterEvent,
     ) -> Result<()> {
         match event {
             RouterEvent::ProgramCreated { actor_id, code_id } => {
                 self.handle_new_program(actor_id, code_id)?;
-
-                states.insert(actor_id, H256::zero());
+                in_block_transitions.register_new(actor_id);
             }
             RouterEvent::CodeValidationRequested { .. }
             | RouterEvent::BaseWeightChanged { .. }
@@ -60,20 +57,24 @@ impl Processor {
 
     pub(crate) fn handle_mirror_event(
         &mut self,
-        states: &mut BTreeMap<ProgramId, H256>,
-        value_claims: &mut BTreeMap<ProgramId, Vec<ValueClaim>>,
+        in_block_transitions: &mut InBlockTransitions,
         actor_id: ProgramId,
         event: MirrorEvent,
     ) -> Result<()> {
-        let Some(&state_hash) = states.get(&actor_id) else {
+        let Some(state_hash) = in_block_transitions.state_of(&actor_id) else {
             log::debug!("Received event from unrecognized mirror ({actor_id}): {event:?}");
 
             return Ok(());
         };
 
-        let new_state_hash = match event {
+        match event {
             MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
-                self.handle_executable_balance_top_up(state_hash, value)?
+                let new_state_hash = self.handle_executable_balance_top_up(state_hash, value)?;
+                in_block_transitions
+                    .modify_state(actor_id, new_state_hash)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("failed to modify state of recognized program")
+                    })?;
             }
             MirrorEvent::MessageQueueingRequested {
                 id,
@@ -104,7 +105,12 @@ impl Processor {
                     context: None,
                 };
 
-                self.handle_message_queueing(state_hash, dispatch)?
+                let new_state_hash = self.handle_message_queueing(state_hash, dispatch)?;
+                in_block_transitions
+                    .modify_state(actor_id, new_state_hash)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("failed to modify state of recognized program")
+                    })?;
             }
             MirrorEvent::ReplyQueueingRequested {
                 replied_to,
@@ -112,37 +118,35 @@ impl Processor {
                 payload,
                 value,
             } => {
-                let Some((value_claim, state_hash)) =
+                if let Some((value_claim, new_state_hash)) =
                     self.handle_reply_queueing(state_hash, replied_to, source, payload, value)?
-                else {
-                    return Ok(());
-                };
-
-                value_claims.entry(actor_id).or_default().push(value_claim);
-
-                state_hash
+                {
+                    in_block_transitions
+                        .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("failed to modify state of recognized program")
+                        })?;
+                }
             }
             MirrorEvent::ValueClaimingRequested { claimed_id, source } => {
-                let Some((value_claim, state_hash)) =
+                if let Some((value_claim, new_state_hash)) =
                     self.handle_value_claiming(state_hash, claimed_id, source)?
-                else {
-                    return Ok(());
-                };
-
-                value_claims.entry(actor_id).or_default().push(value_claim);
-
-                state_hash
+                {
+                    in_block_transitions
+                        .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("failed to modify state of recognized program")
+                        })?;
+                }
             }
         };
-
-        states.insert(actor_id, new_state_hash);
 
         Ok(())
     }
 
     pub(crate) fn handle_wvara_event(
         &mut self,
-        _states: &mut BTreeMap<ProgramId, H256>,
+        _in_block_transitions: &mut InBlockTransitions,
         event: WVaraEvent,
     ) -> Result<()> {
         match event {
