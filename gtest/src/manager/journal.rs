@@ -164,15 +164,15 @@ impl JournalHandler for ExtManager {
             match (gas_limit, reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
-                    .split_with_value(false, message_id, dispatch.id(), gas_limit)
+                    .split_with_value(dispatch.is_reply(), message_id, dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
                 (None, None) => self
                     .gas_tree
-                    .split(false, message_id, dispatch.id())
+                    .split(dispatch.is_reply(), message_id, dispatch.id())
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
                 (None, Some(reservation)) => {
                     self.gas_tree
-                        .split(false, reservation, dispatch.id())
+                        .split(dispatch.is_reply(), reservation, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
                     self.remove_gas_reservation_with_task(dispatch.source(), reservation);
                 }
