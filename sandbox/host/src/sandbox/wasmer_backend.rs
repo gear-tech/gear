@@ -35,7 +35,7 @@ use crate::{
     util::MemoryTransfer,
 };
 
-pub use store_refcell::StoreRefCell;
+pub type StoreRefCell = store_refcell::StoreRefCell<wasmer::Store>;
 mod store_refcell;
 
 #[cfg(feature = "wasmer-cache")]
