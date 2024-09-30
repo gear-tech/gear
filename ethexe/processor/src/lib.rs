@@ -104,6 +104,9 @@ impl Processor {
             }
         }
 
+        // TODO (breathx): handle outcomes.
+        let mut _outcomes = self.run_tasks(block_hash, &mut states)?;
+
         let mut outcomes = self.run(block_hash, &mut states)?;
 
         for outcome in &mut outcomes {
