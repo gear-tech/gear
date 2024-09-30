@@ -25,7 +25,7 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage},
+    db::{BlockHeader, BlockMetaStorage, CodesStorage, ScheduledTask},
     router::StateTransition,
     BlockRequestEvent,
 };
@@ -56,6 +56,8 @@ enum KeyPrefix {
     LatestValidBlock = 8,
     BlockHeader = 9,
     CodeValid = 10,
+    BlockStartSchedule = 11,
+    BlockEndSchedule = 12,
 }
 
 impl KeyPrefix {
@@ -269,6 +271,40 @@ impl BlockMetaStorage for Database {
         self.kv.put(
             &KeyPrefix::LatestValidBlock.one(self.router_address),
             (block_hash, header).encode(),
+        );
+    }
+
+    fn block_start_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, ScheduledTask>> {
+        self.kv
+            .get(&KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash))
+            .map(|data| {
+                BTreeMap::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
+    }
+
+    fn set_block_start_schedule(&self, block_hash: H256, map: BTreeMap<u32, ScheduledTask>) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set block start schedule: {map:?}");
+        self.kv.put(
+            &KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash),
+            map.encode(),
+        );
+    }
+
+    fn block_end_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, ScheduledTask>> {
+        self.kv
+            .get(&KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash))
+            .map(|data| {
+                BTreeMap::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
+    }
+
+    fn set_block_end_schedule(&self, block_hash: H256, map: BTreeMap<u32, ScheduledTask>) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set block end schedule: {map:?}");
+        self.kv.put(
+            &KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash),
+            map.encode(),
         );
     }
 }

@@ -30,6 +30,8 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
+pub type ScheduledTask = common::scheduler::ScheduledTask<ActorId>;
+
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct BlockHeader {
     pub height: u32,
@@ -73,6 +75,12 @@ pub trait BlockMetaStorage: Send + Sync {
 
     fn latest_valid_block(&self) -> Option<(H256, BlockHeader)>;
     fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader);
+
+    fn block_start_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, ScheduledTask>>;
+    fn set_block_start_schedule(&self, block_hash: H256, map: BTreeMap<u32, ScheduledTask>);
+
+    fn block_end_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, ScheduledTask>>;
+    fn set_block_end_schedule(&self, block_hash: H256, map: BTreeMap<u32, ScheduledTask>);
 }
 
 pub trait CodesStorage: Send + Sync {

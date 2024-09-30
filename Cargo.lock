@@ -5140,6 +5140,7 @@ version = "1.6.1"
 dependencies = [
  "anyhow",
  "derive_more 0.99.18",
+ "gear-common",
  "gear-core",
  "gprimitives",
  "hex",

@@ -18,12 +18,13 @@
 
 use crate::{LocalOutcome, Processor};
 use anyhow::Result;
-use common::{scheduler::TaskHandler, CodeId, Gas, MessageId, ProgramId, ReservationId};
+use common::{
+    scheduler::{ScheduledTask, TaskHandler},
+    CodeId, Gas, MessageId, ProgramId, ReservationId,
+};
 use gear_core::message::Message;
 use gprimitives::{ActorId, H256};
 use std::collections::BTreeMap;
-
-pub(crate) type ScheduledTask = common::scheduler::ScheduledTask<ActorId>;
 
 impl Processor {
     pub fn run_tasks(
@@ -37,7 +38,7 @@ impl Processor {
             to_users_messages: Default::default(),
         };
 
-        let tasks: Vec<ScheduledTask> = vec![];
+        let tasks: Vec<ScheduledTask<ActorId>> = vec![];
 
         for task in tasks {
             let _gas = task.process_with(&mut handler);
