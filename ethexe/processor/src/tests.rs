@@ -36,6 +36,7 @@ fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
     chain_head
 }
 
+#[track_caller]
 fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H256 {
     let parent_block_header = processor.db.block_header(parent_hash).unwrap_or_default();
     let height = parent_block_header.height + 1;
@@ -56,7 +57,7 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
             if parent_hash.is_zero() {
                 Default::default()
             } else {
-                panic!("block end program states must present")
+                panic!("process block events before new block; start states not found")
             }
         });
     processor
@@ -70,7 +71,7 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
             if parent_hash.is_zero() {
                 Default::default()
             } else {
-                panic!("block end schedule must present")
+                panic!("process block events before new block; start schedule not found")
             }
         });
     processor
@@ -105,6 +106,7 @@ fn process_observer_event() {
         }]
     );
 
+    let _ = processor.process_block_events(ch0, vec![]).unwrap();
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
     let actor_id = ActorId::from(42);

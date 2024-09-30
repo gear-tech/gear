@@ -22,6 +22,7 @@ use common::{
     scheduler::{ScheduledTask, TaskHandler},
     CodeId, Gas, MessageId, ProgramId, ReservationId,
 };
+use ethexe_db::BlockMetaStorage;
 use gear_core::message::Message;
 use gprimitives::{ActorId, H256};
 use std::collections::BTreeMap;
@@ -29,8 +30,9 @@ use std::collections::BTreeMap;
 impl Processor {
     pub fn run_tasks(
         &mut self,
-        _block_hash: H256,
+        block_hash: H256,
         states: &mut BTreeMap<ProgramId, H256>,
+        tasks: &mut BTreeMap<u32, Vec<ScheduledTask<ActorId>>>,
     ) -> Result<Vec<LocalOutcome>> {
         let mut handler = TasksHandler {
             states,
@@ -38,7 +40,12 @@ impl Processor {
             to_users_messages: Default::default(),
         };
 
-        let tasks: Vec<ScheduledTask<ActorId>> = vec![];
+        let block_meta = self
+            .db
+            .block_header(block_hash)
+            .ok_or_else(|| anyhow::anyhow!("block header for chain head wasn't found"))?;
+
+        let tasks = tasks.remove(&block_meta.height).unwrap_or_default();
 
         for task in tasks {
             let _gas = task.process_with(&mut handler);

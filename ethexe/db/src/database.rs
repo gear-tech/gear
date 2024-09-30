@@ -274,7 +274,7 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_start_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, ScheduledTask>> {
+    fn block_start_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, Vec<ScheduledTask>>> {
         self.kv
             .get(&KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash))
             .map(|data| {
@@ -283,7 +283,7 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_start_schedule(&self, block_hash: H256, map: BTreeMap<u32, ScheduledTask>) {
+    fn set_block_start_schedule(&self, block_hash: H256, map: BTreeMap<u32, Vec<ScheduledTask>>) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set block start schedule: {map:?}");
         self.kv.put(
             &KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash),
@@ -291,7 +291,7 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_end_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, ScheduledTask>> {
+    fn block_end_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, Vec<ScheduledTask>>> {
         self.kv
             .get(&KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash))
             .map(|data| {
@@ -300,7 +300,7 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_end_schedule(&self, block_hash: H256, map: BTreeMap<u32, ScheduledTask>) {
+    fn set_block_end_schedule(&self, block_hash: H256, map: BTreeMap<u32, Vec<ScheduledTask>>) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set block end schedule: {map:?}");
         self.kv.put(
             &KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash),
