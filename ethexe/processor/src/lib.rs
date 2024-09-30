@@ -92,6 +92,7 @@ impl Processor {
 
         let mut all_value_claims = Default::default();
 
+        // TODO (breathx): handle resulting addresses that were changed (e.g. top up balance wont be dumped as outcome).
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
@@ -107,7 +108,7 @@ impl Processor {
         }
 
         // TODO (breathx): handle outcomes.
-        let mut _outcomes = self.run_tasks(block_hash, &mut states, &mut schedule)?;
+        let mut _task_outcomes = self.run_tasks(block_hash, &mut states, &mut schedule)?;
 
         let mut outcomes = self.run(block_hash, &mut states)?;
 
