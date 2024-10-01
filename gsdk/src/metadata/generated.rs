@@ -646,9 +646,9 @@ pub mod runtime_types {
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
                             ::core::option::Option<runtime_types::gear_core::pages::Page>,
+                        pub instruction_weights_version: ::core::primitive::u32,
                         pub instantiated_section_sizes:
                             runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
-                        pub version: ::core::primitive::u32,
                     }
                 }
             }
