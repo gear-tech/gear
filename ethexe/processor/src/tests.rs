@@ -278,7 +278,7 @@ fn ping_pong() {
         .expect("failed to populate message queue");
 
     let states = BTreeMap::from_iter([(program_id, state_hash)]);
-    let mut in_block_transitions = InBlockTransitions::new(states);
+    let mut in_block_transitions = InBlockTransitions::new(0, states, Default::default());
 
     run::run(
         8,
@@ -412,7 +412,7 @@ fn async_and_ping() {
         .expect("failed to populate message queue");
 
     let states = BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
-    let mut in_block_transitions = InBlockTransitions::new(states);
+    let mut in_block_transitions = InBlockTransitions::new(0, states, Default::default());
 
     run::run(
         8,

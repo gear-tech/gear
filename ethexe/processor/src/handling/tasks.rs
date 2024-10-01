@@ -16,40 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{LocalOutcome, Processor};
-use anyhow::Result;
-use ethexe_db::BlockMetaStorage;
+use crate::Processor;
 use ethexe_runtime_common::InBlockTransitions;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    tasks::{ScheduledTask, TaskHandler},
+    tasks::TaskHandler,
 };
-use gprimitives::{ActorId, H256};
-use std::collections::BTreeMap;
+use gprimitives::ActorId;
 
 impl Processor {
-    pub fn run_tasks(
-        &mut self,
-        block_hash: H256,
-        in_block_transitions: &mut InBlockTransitions,
-        tasks: &mut BTreeMap<u32, Vec<ScheduledTask<ActorId>>>,
-    ) -> Result<Vec<LocalOutcome>> {
+    pub fn run_tasks(&mut self, in_block_transitions: &mut InBlockTransitions) {
+        let tasks = in_block_transitions.take_actual_tasks();
+
         let mut handler = TasksHandler {
             in_block_transitions,
         };
 
-        let block_meta = self
-            .db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow::anyhow!("block header for chain head wasn't found"))?;
-
-        let tasks = tasks.remove(&block_meta.height).unwrap_or_default();
-
         for task in tasks {
             let _gas = task.process_with(&mut handler);
         }
-
-        Ok(vec![])
     }
 }
 
