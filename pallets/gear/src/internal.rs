@@ -45,6 +45,7 @@ use gear_core::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,
     },
+    tasks::ScheduledTask,
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 

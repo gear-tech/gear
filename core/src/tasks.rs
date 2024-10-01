@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Gas;
-use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
-use sp_runtime::{
-    codec::{self, Decode, Encode, MaxEncodedLen},
-    scale_info::{self, TypeInfo},
-};
+//! The module provides primitives for all available regular or time-dependent tasks.
+
+use crate::ids::{CodeId, MessageId, ProgramId, ReservationId};
+use gsys::Gas;
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
 
 /// Scheduled task sense and required data for processing action.
 ///
@@ -29,8 +29,6 @@ use sp_runtime::{
 /// To avoid redundant migrations only append new variant(s) to the enum
 /// with an explicit corresponding scale codec index.
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo, MaxEncodedLen)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
 pub enum ScheduledTask<AccountId> {
     // Rent charging section.
     // -----
@@ -71,7 +69,9 @@ pub enum ScheduledTask<AccountId> {
     /// The message itself stored in DispatchStash.
     #[codec(index = 7)]
     SendUserMessage {
+        /// What message to send.
         message_id: MessageId,
+        /// Should it be inserted into users mailbox.
         to_mailbox: bool,
     },
 
@@ -86,6 +86,7 @@ pub enum ScheduledTask<AccountId> {
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
+    /// Processing function of current task with given handler.
     pub fn process_with(self, handler: &mut impl TaskHandler<AccountId>) -> Gas {
         use ScheduledTask::*;
 
@@ -134,10 +135,10 @@ pub trait TaskHandler<AccountId> {
     /// Wake message action.
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas;
 
-    // Send delayed message to program action.
+    /// Send delayed message to program action.
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas;
 
-    // Send delayed message to user action.
+    /// Send delayed message to user action.
     fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas;
 
     /// Remove gas reservation action.

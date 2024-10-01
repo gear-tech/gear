@@ -16,16 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    common::LocalOutcome,
-    host::{InstanceCreator, InstanceWrapper},
-};
+use crate::host::{InstanceCreator, InstanceWrapper};
 use core_processor::common::JournalNote;
-use ethexe_common::router::{OutgoingMessage, StateTransition};
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::Handler;
-use gear_core::{ids::ProgramId, message::Message};
-use gprimitives::{ActorId, H256};
+use ethexe_runtime_common::{Handler, InBlockTransitions};
+use gear_core::ids::ProgramId;
+use gprimitives::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 
@@ -47,8 +43,8 @@ pub fn run(
     threads_amount: usize,
     db: Database,
     instance_creator: InstanceCreator,
-    programs: &mut BTreeMap<ProgramId, H256>,
-) -> (Vec<Message>, Vec<LocalOutcome>) {
+    in_block_transitions: &mut InBlockTransitions,
+) {
     tokio::task::block_in_place(|| {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(threads_amount)
@@ -56,7 +52,7 @@ pub fn run(
             .build()
             .unwrap();
 
-        rt.block_on(async { run_in_async(db, instance_creator, programs).await })
+        rt.block_on(async { run_in_async(db, instance_creator, in_block_transitions).await })
     })
 }
 
@@ -65,11 +61,8 @@ pub fn run(
 async fn run_in_async(
     db: Database,
     instance_creator: InstanceCreator,
-    programs: &mut BTreeMap<ProgramId, H256>,
-) -> (Vec<Message>, Vec<LocalOutcome>) {
-    let mut to_users_messages = vec![];
-    let mut results = BTreeMap::new();
-
+    in_block_transitions: &mut InBlockTransitions,
+) {
     let num_workers = 4;
 
     let mut task_senders = vec![];
@@ -95,8 +88,8 @@ async fn run_in_async(
         // Send tasks to process programs in workers, until all queues are empty.
 
         let mut no_more_to_do = true;
-        for index in (0..programs.len()).step_by(num_workers) {
-            let result_receivers = one_batch(index, &task_senders, programs).await;
+        for index in (0..in_block_transitions.states_amount()).step_by(num_workers) {
+            let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
 
             let mut super_journal = vec![];
             for (program_id, receiver) in result_receivers.into_iter() {
@@ -110,24 +103,11 @@ async fn run_in_async(
             for (program_id, journal) in super_journal {
                 let mut handler = Handler {
                     program_id,
-                    program_states: programs,
+                    in_block_transitions,
                     storage: &db,
                     block_info: Default::default(),
-                    results: Default::default(),
-                    to_users_messages: Default::default(),
                 };
                 core_processor::handle_journal(journal, &mut handler);
-
-                for (id, new_hash) in handler.results {
-                    results.insert(id, (new_hash, vec![]));
-                }
-
-                for message in &handler.to_users_messages {
-                    let entry = results.get_mut(&message.source()).expect("should be");
-                    entry.1.push(message.clone());
-                }
-
-                to_users_messages.append(&mut handler.to_users_messages);
             }
         }
 
@@ -139,46 +119,6 @@ async fn run_in_async(
     for handle in handles {
         handle.abort();
     }
-
-    let outcomes = results
-        .into_iter()
-        .map(|(id, (new_state_hash, outgoing_messages))| {
-            LocalOutcome::Transition(StateTransition {
-                actor_id: id,
-                new_state_hash,
-                value_to_receive: 0,  // TODO (breathx): propose this
-                value_claims: vec![], // TODO (breathx): propose this
-                messages:
-                    outgoing_messages
-                        .into_iter()
-                        .map(|message| {
-                            let (
-                                id,
-                                _source,
-                                destination,
-                                payload,
-                                _gas_limit,
-                                value,
-                                message_details,
-                            ) = message.into_parts();
-
-                            let reply_details =
-                                message_details.and_then(|details| details.to_reply_details());
-
-                            OutgoingMessage {
-                                id,
-                                destination,
-                                payload: payload.into_vec(),
-                                value,
-                                reply_details,
-                            }
-                        })
-                        .collect(),
-            })
-        })
-        .collect();
-
-    (to_users_messages, outcomes)
 }
 
 async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
@@ -231,12 +171,13 @@ async fn worker(
 async fn one_batch(
     from_index: usize,
     task_senders: &[mpsc::Sender<Task>],
-    programs: &mut BTreeMap<ActorId, H256>,
+    in_block_transitions: &mut InBlockTransitions,
 ) -> BTreeMap<ProgramId, oneshot::Receiver<Vec<JournalNote>>> {
     let mut result_receivers = BTreeMap::new();
 
-    for (sender, (program_id, state_hash)) in
-        task_senders.iter().zip(programs.iter().skip(from_index))
+    for (sender, (program_id, state_hash)) in task_senders
+        .iter()
+        .zip(in_block_transitions.states_iter().skip(from_index))
     {
         let (result_sender, result_receiver) = oneshot::channel();
 
@@ -252,31 +193,4 @@ async fn one_batch(
     }
 
     result_receivers
-}
-
-#[allow(unused)] // TODO (breathx)
-async fn wake_messages(
-    task_senders: &[mpsc::Sender<Task>],
-    programs: &mut BTreeMap<ProgramId, H256>,
-) {
-    let mut result_receivers = vec![];
-    for (task_sender, (&program_id, &state_hash)) in
-        task_senders.iter().cycle().zip(programs.iter())
-    {
-        let (result_sender, result_receiver) = oneshot::channel();
-        task_sender
-            .send(Task::WakeMessages {
-                program_id,
-                state_hash,
-                result_sender,
-            })
-            .await
-            .unwrap();
-        result_receivers.push((program_id, result_receiver));
-    }
-
-    for (program_id, result_receiver) in result_receivers {
-        let new_state_hash = result_receiver.await;
-        programs.insert(program_id, new_state_hash.unwrap());
-    }
 }

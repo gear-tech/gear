@@ -30,7 +30,7 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-pub type ScheduledTask = common::scheduler::ScheduledTask<ActorId>;
+pub type ScheduledTask = gear_core::tasks::ScheduledTask<ActorId>;
 
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct BlockHeader {

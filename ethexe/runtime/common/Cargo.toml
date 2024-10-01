@@ -9,6 +9,8 @@ repository.workspace = true
 
 
 [dependencies]
+ethexe-common.workspace = true
+
 gear-lazy-pages-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true

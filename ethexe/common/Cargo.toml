@@ -12,7 +12,6 @@ repository.workspace = true
 [dependencies]
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["serde"] }
-common.workspace = true
 
 parity-scale-codec.workspace = true
 derive_more.workspace = true

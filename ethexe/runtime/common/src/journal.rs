@@ -1,13 +1,17 @@
-use crate::state::{
-    self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program, ProgramState,
-    Storage,
+use crate::{
+    state::{
+        self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program,
+        ProgramState, Storage,
+    },
+    InBlockTransitions,
 };
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::Result;
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
 };
+use ethexe_common::router::OutgoingMessage;
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
@@ -24,12 +28,9 @@ use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
 pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
-    pub program_states: &'a mut BTreeMap<ProgramId, H256>,
+    pub in_block_transitions: &'a mut InBlockTransitions,
     pub storage: &'a S,
     pub block_info: BlockInfo,
-    // TODO: replace with something reasonable.
-    pub results: BTreeMap<ActorId, H256>,
-    pub to_users_messages: Vec<Message>,
 }
 
 impl<S: Storage> Handler<'_, S> {
@@ -37,7 +38,7 @@ impl<S: Storage> Handler<'_, S> {
         &mut self,
         program_id: ProgramId,
         f: impl FnOnce(&mut ProgramState) -> Result<()>,
-    ) {
+    ) -> H256 {
         self.update_state_with_storage(program_id, |_s, state| f(state))
     }
 
@@ -45,18 +46,21 @@ impl<S: Storage> Handler<'_, S> {
         &mut self,
         program_id: ProgramId,
         f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
-    ) {
+    ) -> H256 {
         let state_hash = self
-            .program_states
-            .get_mut(&program_id)
+            .in_block_transitions
+            .state_of(&program_id)
             .expect("failed to find program in known states");
 
-        *state_hash = self
+        let new_state_hash = self
             .storage
-            .mutate_state(*state_hash, f)
+            .mutate_state(state_hash, f)
             .expect("failed to mutate state");
 
-        self.results.insert(program_id, *state_hash);
+        self.in_block_transitions
+            .modify_state(program_id, new_state_hash);
+
+        new_state_hash
     }
 
     fn pop_queue_message(state: &ProgramState, storage: &S) -> (H256, MessageId) {
@@ -176,7 +180,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             todo!("delayed sending isn't supported yet");
         }
 
-        if !self.program_states.contains_key(&dispatch.destination()) {
+        if self
+            .in_block_transitions
+            .state_of(&dispatch.destination())
+            .is_none()
+        {
             if !dispatch.is_reply() {
                 self.update_state_with_storage(dispatch.source(), |storage, state| {
                     state.mailbox_hash =
@@ -191,7 +199,23 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 });
             }
 
-            self.to_users_messages.push(dispatch.into_parts().1);
+            // TODO (breathx): send here to in_block_transitions.
+            let source = dispatch.source();
+            let message = dispatch.into_parts().1;
+
+            let source_state_hash = self
+                .in_block_transitions
+                .state_of(&source)
+                .expect("must exist");
+
+            self.in_block_transitions.modify_state_with(
+                source,
+                source_state_hash,
+                0,
+                vec![],
+                vec![OutgoingMessage::from(message)],
+            );
+
             return;
         }
 

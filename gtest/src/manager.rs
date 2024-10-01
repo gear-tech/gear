@@ -55,7 +55,7 @@ use gear_common::{
         BlockNumber,
     },
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
-    scheduler::{ScheduledTask, StorageType},
+    scheduler::StorageType,
     storage::Interval,
     LockId, Origin,
 };
@@ -69,6 +69,7 @@ use gear_core::{
         StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
+    tasks::ScheduledTask,
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;

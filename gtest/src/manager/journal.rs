@@ -28,7 +28,7 @@ use crate::{
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     event::{MessageWaitedRuntimeReason, RuntimeReason},
-    scheduler::{ScheduledTask, StorageType, TaskHandler},
+    scheduler::StorageType,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -40,6 +40,7 @@ use gear_core::{
         GearPage, WasmPage,
     },
     reservation::GasReserver,
+    tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::SignalCode;
 use std::collections::BTreeMap;

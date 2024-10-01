@@ -5140,7 +5140,6 @@ version = "1.6.1"
 dependencies = [
  "anyhow",
  "derive_more 0.99.18",
- "gear-common",
  "gear-core",
  "gprimitives",
  "hex",
@@ -5244,7 +5243,6 @@ dependencies = [
  "ethexe-db",
  "ethexe-runtime",
  "ethexe-runtime-common",
- "gear-common",
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages",
@@ -5313,6 +5311,7 @@ name = "ethexe-runtime-common"
 version = "1.6.1"
 dependencies = [
  "anyhow",
+ "ethexe-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
