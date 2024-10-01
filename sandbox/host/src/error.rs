@@ -107,7 +107,7 @@ pub enum Error {
     AbortedDueToTrap(MessageWithBacktrace),
 }
 
-impl sandbox_wasmi::HostError for Error {}
+impl sandbox_wasmi::core::HostError for Error {}
 
 impl From<&'static str> for Error {
     fn from(err: &'static str) -> Error {

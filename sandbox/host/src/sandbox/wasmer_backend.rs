@@ -32,11 +32,11 @@ use crate::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
         SupervisorContext, SupervisorFuncIndex,
     },
+    store_refcell,
     util::MemoryTransfer,
 };
 
 pub type StoreRefCell = store_refcell::StoreRefCell<wasmer::Store>;
-mod store_refcell;
 
 #[cfg(feature = "wasmer-cache")]
 mod cache;

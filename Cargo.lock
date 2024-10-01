@@ -6886,6 +6886,7 @@ dependencies = [
  "gear-sandbox-env",
  "log",
  "parity-scale-codec",
+ "region",
  "sp-allocator",
  "sp-wasm-interface-common",
  "tempfile",
@@ -6894,7 +6895,7 @@ dependencies = [
  "wasmer",
  "wasmer-cache",
  "wasmer-types",
- "wasmi 0.13.2",
+ "wasmi 0.36.2",
 ]
 
 [[package]]
