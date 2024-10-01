@@ -20,7 +20,7 @@ use crate::*;
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
 use ethexe_runtime_common::state::{ComplexStorage, Dispatch};
 use gear_core::{
     ids::{prelude::CodeIdExt, ProgramId},
@@ -570,6 +570,28 @@ fn many_waits() {
 
     let states = processor.db.block_start_program_states(ch11).unwrap();
     let schedule = processor.db.block_start_schedule(ch11).unwrap();
+
+    // Reproducibility test.
+    {
+        let mut expected_schedule = BTreeMap::<_, Vec<_>>::new();
+
+        for (pid, state_hash) in &states {
+            let state = processor.db.read_state(*state_hash).unwrap();
+            let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
+            let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
+
+            for (mid, (dispatch, expiry)) in waitlist {
+                assert_eq!(mid, dispatch.id);
+                expected_schedule
+                    .entry(expiry)
+                    .or_default()
+                    .push(ScheduledTask::WakeMessage(*pid, mid));
+            }
+        }
+
+        // This could fail in case of handling more scheduled ops: please, update test than.
+        assert_eq!(schedule, expected_schedule);
+    }
 
     let mut in_block_transitions = InBlockTransitions::new(11, states, schedule);
 
