@@ -41,7 +41,7 @@ impl<S: Storage> Handler<'_, S> {
         program_id: ProgramId,
         f: impl FnOnce(&mut ProgramState) -> Result<()>,
     ) -> H256 {
-        self.update_state_with_storage(program_id, |_s, state| f(state))
+        crate::update_state(self.in_block_transitions, self.storage, program_id, f)
     }
 
     pub fn update_state_with_storage(
@@ -49,20 +49,7 @@ impl<S: Storage> Handler<'_, S> {
         program_id: ProgramId,
         f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
     ) -> H256 {
-        let state_hash = self
-            .in_block_transitions
-            .state_of(&program_id)
-            .expect("failed to find program in known states");
-
-        let new_state_hash = self
-            .storage
-            .mutate_state(state_hash, f)
-            .expect("failed to mutate state");
-
-        self.in_block_transitions
-            .modify_state(program_id, new_state_hash);
-
-        new_state_hash
+        crate::update_state_with_storage(self.in_block_transitions, self.storage, program_id, f)
     }
 
     fn pop_queue_message(state: &ProgramState, storage: &S) -> (H256, MessageId) {

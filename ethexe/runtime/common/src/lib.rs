@@ -27,6 +27,7 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
+use anyhow::Result;
 use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
@@ -46,8 +47,8 @@ use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use state::{
-    ActiveProgram, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState,
-    Storage, Waitlist,
+    ActiveProgram, ComplexStorage, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue,
+    ProgramState, Storage, Waitlist,
 };
 
 pub use core_processor::configs::BlockInfo;
@@ -72,6 +73,36 @@ pub trait RuntimeInterface<S: Storage> {
     fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, H256>);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn storage(&self) -> &S;
+}
+
+pub(crate) fn update_state<S: Storage>(
+    in_block_transitions: &mut InBlockTransitions,
+    storage: &S,
+    program_id: ProgramId,
+    f: impl FnOnce(&mut ProgramState) -> Result<()>,
+) -> H256 {
+    update_state_with_storage(in_block_transitions, storage, program_id, |_s, state| {
+        f(state)
+    })
+}
+
+pub(crate) fn update_state_with_storage<S: Storage>(
+    in_block_transitions: &mut InBlockTransitions,
+    storage: &S,
+    program_id: ProgramId,
+    f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
+) -> H256 {
+    let state_hash = in_block_transitions
+        .state_of(&program_id)
+        .expect("failed to find program in known states");
+
+    let new_state_hash = storage
+        .mutate_state(state_hash, f)
+        .expect("failed to mutate state");
+
+    in_block_transitions.modify_state(program_id, new_state_hash);
+
+    new_state_hash
 }
 
 pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
