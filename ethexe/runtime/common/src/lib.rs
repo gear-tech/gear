@@ -21,6 +21,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(unused)]
 
+extern crate alloc;
+
 use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
@@ -48,17 +50,18 @@ use state::{
     Storage, Waitlist,
 };
 
-extern crate alloc;
-
-mod journal;
-pub mod state;
-
 pub use core_processor::configs::BlockInfo;
 pub use journal::Handler;
+pub use transitions::{InBlockTransitions, NonFinalTransition};
 
-const RUNTIME_ID: u32 = 0;
+pub mod state;
+
+mod journal;
+mod transitions;
 
 pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
+
+const RUNTIME_ID: u32 = 0;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
