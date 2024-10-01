@@ -64,7 +64,6 @@ use crate::{
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
     self, benchmarking,
-    scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
     CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
 };
@@ -73,6 +72,7 @@ use core_processor::{
     configs::BlockConfig,
     ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
+use gear_core::tasks::{ScheduledTask, TaskHandler};
 use parity_scale_codec::Encode;
 
 use frame_benchmarking::{benchmarks, whitelisted_caller};

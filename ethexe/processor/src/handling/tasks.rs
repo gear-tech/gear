@@ -18,12 +18,12 @@
 
 use crate::{LocalOutcome, Processor};
 use anyhow::Result;
-use common::{
-    scheduler::{ScheduledTask, TaskHandler},
-    CodeId, Gas, MessageId, ProgramId, ReservationId,
-};
 use ethexe_db::BlockMetaStorage;
 use ethexe_runtime_common::InBlockTransitions;
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    tasks::{ScheduledTask, TaskHandler},
+};
 use gprimitives::{ActorId, H256};
 use std::collections::BTreeMap;
 
@@ -59,37 +59,37 @@ pub struct TasksHandler<'a> {
 }
 
 impl<'a> TaskHandler<ActorId> for TasksHandler<'a> {
-    fn remove_from_mailbox(&mut self, _user_id: ActorId, _message_id: MessageId) -> Gas {
+    fn remove_from_mailbox(&mut self, _user_id: ActorId, _message_id: MessageId) -> u64 {
         unimplemented!("TODO (breathx)")
     }
-    fn remove_from_waitlist(&mut self, _program_id: ProgramId, _message_id: MessageId) -> Gas {
+    fn remove_from_waitlist(&mut self, _program_id: ProgramId, _message_id: MessageId) -> u64 {
         unimplemented!("TODO (breathx)")
     }
-    fn send_dispatch(&mut self, _stashed_message_id: MessageId) -> Gas {
+    fn send_dispatch(&mut self, _stashed_message_id: MessageId) -> u64 {
         unimplemented!("TODO (breathx)")
     }
-    fn send_user_message(&mut self, _stashed_message_id: MessageId, _to_mailbox: bool) -> Gas {
+    fn send_user_message(&mut self, _stashed_message_id: MessageId, _to_mailbox: bool) -> u64 {
         unimplemented!("TODO (breathx)")
     }
-    fn wake_message(&mut self, _program_id: ProgramId, _message_id: MessageId) -> Gas {
+    fn wake_message(&mut self, _program_id: ProgramId, _message_id: MessageId) -> u64 {
         // TODO (breathx): consider deprecation of delayed wakes + non-concrete waits.
         unimplemented!("TODO (breathx)")
     }
 
     /* Deprecated APIs */
-    fn pause_program(&mut self, _: ProgramId) -> Gas {
+    fn pause_program(&mut self, _: ProgramId) -> u64 {
         unreachable!("deprecated")
     }
-    fn remove_code(&mut self, _: CodeId) -> Gas {
+    fn remove_code(&mut self, _: CodeId) -> u64 {
         unreachable!("deprecated")
     }
-    fn remove_gas_reservation(&mut self, _: ProgramId, _: ReservationId) -> Gas {
+    fn remove_gas_reservation(&mut self, _: ProgramId, _: ReservationId) -> u64 {
         unreachable!("deprecated")
     }
-    fn remove_paused_program(&mut self, _: ProgramId) -> Gas {
+    fn remove_paused_program(&mut self, _: ProgramId) -> u64 {
         unreachable!("deprecated")
     }
-    fn remove_resume_session(&mut self, _: u32) -> Gas {
+    fn remove_resume_session(&mut self, _: u32) -> u64 {
         unreachable!("deprecated")
     }
 }

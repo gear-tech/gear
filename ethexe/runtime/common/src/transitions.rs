@@ -16,10 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alloc::{
+    collections::{btree_map::Iter, BTreeMap},
+    vec::Vec,
+};
 use ethexe_common::router::{OutgoingMessage, StateTransition, ValueClaim};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{btree_map::Iter, BTreeMap};
 
 #[derive(Default)]
 pub struct InBlockTransitions {

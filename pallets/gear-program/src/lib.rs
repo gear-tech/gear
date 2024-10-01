@@ -161,6 +161,7 @@ pub mod pallet {
         memory::PageBuf,
         pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, Program},
+        tasks::ScheduledTask,
     };
     use sp_runtime::DispatchError;
 

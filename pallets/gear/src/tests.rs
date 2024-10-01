@@ -60,6 +60,7 @@ use gear_core::{
         WasmPage,
     },
     program::ActiveProgram,
+    tasks::ScheduledTask,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,

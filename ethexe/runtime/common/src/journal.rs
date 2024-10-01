@@ -5,7 +5,7 @@ use crate::{
     },
     InBlockTransitions,
 };
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::Result;
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},

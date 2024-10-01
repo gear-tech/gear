@@ -19,8 +19,8 @@
 //! Auxiliary implementation of the task pool.
 
 use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
-use crate::scheduler::{ScheduledTask, TaskPoolImpl};
-use gear_core::ids::ProgramId;
+use crate::scheduler::TaskPoolImpl;
+use gear_core::{ids::ProgramId, tasks::ScheduledTask};
 use std::cell::RefCell;
 
 /// Task pool implementation that can be used in a native, non-wasm runtimes.

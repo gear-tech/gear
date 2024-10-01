@@ -25,7 +25,7 @@ use crate::{
 use alloc::format;
 use common::{
     event::*,
-    scheduler::{ScheduledTask, SchedulingCostsPerBlock, StorageType, TaskHandler, TaskPool},
+    scheduler::{SchedulingCostsPerBlock, StorageType, TaskPool},
     storage::*,
     CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
 };
@@ -42,6 +42,7 @@ use gear_core::{
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::{Program, ProgramState},
     reservation::GasReserver,
+    tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::SignalCode;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};

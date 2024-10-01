@@ -17,13 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
-use ::common::ProgramId;
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
 use ethexe_runtime_common::state::{ComplexStorage, Dispatch};
-use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
+use gear_core::{
+    ids::{prelude::CodeIdExt, ProgramId},
+    message::DispatchKind,
+};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use std::collections::BTreeMap;

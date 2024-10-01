@@ -5243,7 +5243,6 @@ dependencies = [
  "ethexe-db",
  "ethexe-runtime",
  "ethexe-runtime-common",
- "gear-common",
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages",
