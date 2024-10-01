@@ -31,12 +31,6 @@ enum Task {
         state_hash: H256,
         result_sender: oneshot::Sender<Vec<JournalNote>>,
     },
-    #[allow(unused)] // TODO (breathx)
-    WakeMessages {
-        program_id: ProgramId,
-        state_hash: H256,
-        result_sender: oneshot::Sender<H256>,
-    },
 }
 
 pub fn run(
@@ -80,9 +74,6 @@ async fn run_in_async(
         ));
         handles.push(handle);
     }
-
-    // TODO (breathx): fix me ASAP.
-    // wake_messages(&task_senders, programs).await;
 
     loop {
         // Send tasks to process programs in workers, until all queues are empty.
@@ -137,16 +128,6 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
                 .expect("Some error occurs while running program in instance");
 
             result_sender.send(journal).unwrap();
-        }
-        Task::WakeMessages {
-            program_id,
-            state_hash,
-            result_sender,
-        } => {
-            let new_state_hash = executor
-                .wake_messages(db, program_id, state_hash)
-                .expect("Some error occurs while waking messages");
-            result_sender.send(new_state_hash).unwrap();
         }
     }
 }
