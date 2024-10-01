@@ -86,7 +86,9 @@ impl Processor {
         let mut states = self
             .db
             .block_start_program_states(block_hash)
-            .unwrap_or_default();
+            .unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
+
+        let mut schedule = self.db.block_start_schedule(block_hash).unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
 
         let mut all_value_claims = Default::default();
 
@@ -104,6 +106,9 @@ impl Processor {
             }
         }
 
+        // TODO (breathx): handle outcomes.
+        let mut _outcomes = self.run_tasks(block_hash, &mut states, &mut schedule)?;
+
         let mut outcomes = self.run(block_hash, &mut states)?;
 
         for outcome in &mut outcomes {
@@ -118,6 +123,7 @@ impl Processor {
         }
 
         self.db.set_block_end_program_states(block_hash, states);
+        self.db.set_block_end_schedule(block_hash, schedule);
 
         Ok(outcomes)
     }
