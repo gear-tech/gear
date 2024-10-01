@@ -19,14 +19,29 @@
 use crate::Processor;
 use anyhow::Result;
 use ethexe_db::CodesStorage;
-use ethexe_runtime_common::state::{ComplexStorage as _, Dispatch};
+use ethexe_runtime_common::{
+    state::{ComplexStorage as _, Dispatch},
+    InBlockTransitions, ScheduleHandler,
+};
 use gprimitives::{CodeId, H256};
 
 pub(crate) mod events;
 pub(crate) mod run;
-pub(crate) mod tasks;
 
 impl Processor {
+    pub fn run_schedule(&mut self, in_block_transitions: &mut InBlockTransitions) {
+        let tasks = in_block_transitions.take_actual_tasks();
+
+        let mut handler = ScheduleHandler {
+            in_block_transitions,
+            storage: &self.db,
+        };
+
+        for task in tasks {
+            let _gas = task.process_with(&mut handler);
+        }
+    }
+
     pub(crate) fn handle_message_queueing(
         &mut self,
         state_hash: H256,

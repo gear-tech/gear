@@ -51,12 +51,14 @@ use state::{
 };
 
 pub use core_processor::configs::BlockInfo;
-pub use journal::Handler;
+pub use journal::Handler as JournalHandler;
+pub use schedule::Handler as ScheduleHandler;
 pub use transitions::{InBlockTransitions, NonFinalTransition};
 
 pub mod state;
 
 mod journal;
+mod schedule;
 mod transitions;
 
 pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;

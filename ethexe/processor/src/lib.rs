@@ -105,7 +105,7 @@ impl Processor {
             }
         }
 
-        self.run_tasks(&mut in_block_transitions);
+        self.run_schedule(&mut in_block_transitions);
         self.run(block_hash, &mut in_block_transitions);
 
         let (transitions, states, schedule) = in_block_transitions.finalize();
