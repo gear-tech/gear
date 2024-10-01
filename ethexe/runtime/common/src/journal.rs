@@ -1,3 +1,5 @@
+use core::num::NonZeroU32;
+
 use crate::{
     state::{
         self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program,
@@ -11,7 +13,7 @@ use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
 };
-use ethexe_common::router::OutgoingMessage;
+use ethexe_common::{db::ScheduledTask, router::OutgoingMessage};
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
@@ -252,12 +254,14 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             todo!("Wait dispatch without specified duration");
         };
 
-        // TODO (breathx): support delays.
-        let block = self.block_info.height.saturating_add(duration);
+        let in_blocks = NonZeroU32::try_from(duration).expect("must be checked on backend side");
+
+        self.in_block_transitions.schedule_task(
+            in_blocks,
+            ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
+        );
 
         let dispatch = Dispatch::from_stored(self.storage, dispatch);
-
-        log::trace!("{:?} was added to waitlist block {block}", dispatch);
 
         self.update_state_with_storage(self.program_id, |storage, state| {
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
