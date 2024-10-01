@@ -35,6 +35,12 @@ use wabt::wat2wasm;
 fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
     let chain_head = H256::random();
     processor.db.set_block_header(chain_head, meta);
+    processor
+        .db
+        .set_block_start_program_states(chain_head, Default::default());
+    processor
+        .db
+        .set_block_start_schedule(chain_head, Default::default());
     processor.creator.set_chain_head(chain_head);
     chain_head
 }
@@ -438,114 +444,145 @@ fn async_and_ping() {
     assert_eq!(message.payload, wait_for_reply_to.into_bytes().as_slice());
 }
 
-// TODO (breathx).
-// #[test]
-// fn many_waits() {
-//     init_logger();
+#[test]
+fn many_waits() {
+    init_logger();
 
-//     let threads_amount = 8;
+    let threads_amount = 8;
 
-//     let wat = r#"
-//         (module
-//             (import "env" "memory" (memory 1))
-//             (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
-//             (import "env" "gr_wait_for" (func $wait_for (param i32)))
-//             (export "handle" (func $handle))
-//             (func $handle
-//                 (if
-//                     (i32.eqz (i32.load (i32.const 0x200)))
-//                     (then
-//                         (i32.store (i32.const 0x200) (i32.const 1))
-//                         (call $wait_for (i32.const 10))
-//                     )
-//                     (else
-//                         (call $reply (i32.const 0) (i32.const 13) (i32.const 0x400) (i32.const 0x600))
-//                     )
-//                 )
-//             )
-//             (data (i32.const 0) "Hello, world!")
-//         )
-//     "#;
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (import "env" "gr_wait_for" (func $wait_for (param i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (if
+                    (i32.eqz (i32.load (i32.const 0x200)))
+                    (then
+                        (i32.store (i32.const 0x200) (i32.const 1))
+                        (call $wait_for (i32.const 10))
+                    )
+                    (else
+                        (call $reply (i32.const 0) (i32.const 13) (i32.const 0x400) (i32.const 0x600))
+                    )
+                )
+            )
+            (data (i32.const 0) "Hello, world!")
+        )
+    "#;
 
-//     let (_, code) = wat_to_wasm(wat);
+    let (_, code) = wat_to_wasm(wat);
 
-//     let db = MemDb::default();
-//     let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let db = MemDb::default();
+    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
-//     init_new_block(&mut processor, Default::default());
+    let ch0 = init_new_block(&mut processor, BlockHeader { height: 1, timestamp: 1, parent_hash: Default::default() });
 
-//     let code_id = processor
-//         .handle_new_code(code)
-//         .expect("failed to call runtime api")
-//         .expect("code failed verification or instrumentation");
+    let code_id = processor
+        .handle_new_code(code)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
 
-//     let amount = 10000;
-//     let mut programs = BTreeMap::new();
-//     for i in 0..amount {
-//         let program_id = ProgramId::from(i);
+    let amount = 10000;
+    let mut states = BTreeMap::new();
+    for i in 0..amount {
+        let program_id = ProgramId::from(i);
 
-//         processor
-//             .handle_new_program(program_id, code_id)
-//             .expect("failed to create new program");
+        processor
+            .handle_new_program(program_id, code_id)
+            .expect("failed to create new program");
 
-//         let state_hash = processor
-//             .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
-//             .expect("failed to top up balance");
+        let state_hash = processor
+            .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
+            .expect("failed to top up balance");
 
-//         let message = create_message(&mut processor, DispatchKind::Init, b"");
-//         let state_hash = processor
-//             .handle_message_queueing(state_hash, message)
-//             .expect("failed to populate message queue");
+        let message = create_message(&mut processor, DispatchKind::Init, b"");
+        let state_hash = processor
+            .handle_message_queueing(state_hash, message)
+            .expect("failed to populate message queue");
 
-//         programs.insert(program_id, state_hash);
-//     }
+        states.insert(program_id, state_hash);
+    }
 
-//     let (to_users, _) = run::run(
-//         threads_amount,
-//         processor.db.clone(),
-//         processor.creator.clone(),
-//         &mut programs,
-//     );
-//     assert_eq!(to_users.len(), amount as usize);
+    let mut in_block_transitions = InBlockTransitions::new(1, states, Default::default());
 
-//     for (_pid, state_hash) in programs.iter_mut() {
-//         let message = create_message(&mut processor, DispatchKind::Handle, b"");
-//         let new_state_hash = processor
-//             .handle_message_queueing(*state_hash, message)
-//             .expect("failed to populate message queue");
-//         *state_hash = new_state_hash;
-//     }
+    processor.run_schedule(&mut in_block_transitions);
+    run::run(
+        threads_amount,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut in_block_transitions,
+    );
+    assert_eq!(
+        in_block_transitions.current_messages().len(),
+        amount as usize
+    );
 
-//     let (to_users, _) = run::run(
-//         threads_amount,
-//         processor.db.clone(),
-//         processor.creator.clone(),
-//         &mut programs,
-//     );
-//     assert_eq!(to_users.len(), 0);
+    let mut changes = BTreeMap::new();
 
-//     init_new_block(
-//         &mut processor,
-//         BlockHeader {
-//             height: 11,
-//             timestamp: 11,
-//             ..Default::default()
-//         },
-//     );
+    for (pid, state_hash) in in_block_transitions.states_iter().clone() {
+        let message = create_message(&mut processor, DispatchKind::Handle, b"");
+        let new_state_hash = processor
+            .handle_message_queueing(*state_hash, message)
+            .expect("failed to populate message queue");
+        changes.insert(*pid, new_state_hash);
+    }
 
-//     let (to_users, _) = run::run(
-//         threads_amount,
-//         processor.db.clone(),
-//         processor.creator.clone(),
-//         &mut programs,
-//     );
+    for (pid, state_hash) in changes {
+        in_block_transitions.modify_state(pid, state_hash).unwrap();
+    }
 
-//     assert_eq!(to_users.len(), amount as usize);
+    processor.run_schedule(&mut in_block_transitions);
+    run::run(
+        threads_amount,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut in_block_transitions,
+    );
+    // unchanged
+    assert_eq!(
+        in_block_transitions.current_messages().len(),
+        amount as usize
+    );
 
-//     for message in to_users {
-//         assert_eq!(message.payload_bytes(), b"Hello, world!");
-//     }
-// }
+    let (_outcomes, states, schedule) = in_block_transitions.finalize();
+    processor.db.set_block_end_program_states(ch0, states);
+    processor.db.set_block_end_schedule(ch0, schedule);
+
+    let mut parent = ch0;
+    for _ in 0..10 {
+        parent = init_new_block_from_parent(&mut processor, parent);
+        let states = processor.db.block_start_program_states(parent).unwrap();
+        processor.db.set_block_end_program_states(parent, states);
+        let schedule = processor.db.block_start_schedule(parent).unwrap();
+        processor.db.set_block_end_schedule(parent, schedule);
+    }
+
+    let ch11 = init_new_block_from_parent(&mut processor, parent);
+
+    let states = processor.db.block_start_program_states(ch11).unwrap();
+    let schedule = processor.db.block_start_schedule(ch11).unwrap();
+
+    let mut in_block_transitions = InBlockTransitions::new(11, states, schedule);
+
+    processor.run_schedule(&mut in_block_transitions);
+    run::run(
+        threads_amount,
+        processor.db.clone(),
+        processor.creator.clone(),
+        &mut in_block_transitions,
+    );
+
+    assert_eq!(
+        in_block_transitions.current_messages().len(),
+        amount as usize
+    );
+
+    for (_pid, message) in in_block_transitions.current_messages() {
+        assert_eq!(message.payload, b"Hello, world!");
+    }
+}
 
 mod utils {
     use super::*;

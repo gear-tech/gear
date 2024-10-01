@@ -47,6 +47,10 @@ impl InBlockTransitions {
         }
     }
 
+    pub fn block_number(&self) -> u32 {
+        self.current_bn
+    }
+
     pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {
         self.states.get(actor_id).cloned()
     }

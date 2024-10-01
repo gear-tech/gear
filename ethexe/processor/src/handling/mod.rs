@@ -32,6 +32,8 @@ impl Processor {
     pub fn run_schedule(&mut self, in_block_transitions: &mut InBlockTransitions) {
         let tasks = in_block_transitions.take_actual_tasks();
 
+        log::debug!("Running schedule for #{}: tasks are {tasks:?}", in_block_transitions.block_number());
+
         let mut handler = ScheduleHandler {
             in_block_transitions,
             storage: &self.db,

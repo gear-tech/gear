@@ -41,6 +41,8 @@ impl<'a, S: Storage> TaskHandler<ActorId> for Handler<'a, S> {
     }
     // TODO (breathx): consider deprecation of delayed wakes + non-concrete waits.
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> u64 {
+        log::trace!("Running scheduled task wake message {message_id} to {program_id}");
+
         // TODO (breathx): don't update state if not changed?
         self.update_state_with_storage(program_id, |storage, state| {
             let Some((dispatch, new_waitlist_hash)) = storage
