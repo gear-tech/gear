@@ -47,7 +47,7 @@ impl Task {
         F: Future<Output = ()> + 'static,
     {
         Self {
-            waker: super::waker::empty(),
+            waker: waker_fn::waker_fn(|| {}),
             future: future.boxed_local(),
             lock_exceeded: false,
         }
