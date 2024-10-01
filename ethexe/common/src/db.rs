@@ -45,6 +45,8 @@ pub struct CodeUploadInfo {
     pub tx_hash: H256,
 }
 
+pub type Schedule = BTreeMap<u32, Vec<ScheduledTask>>;
+
 pub trait BlockMetaStorage: Send + Sync {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
@@ -76,11 +78,11 @@ pub trait BlockMetaStorage: Send + Sync {
     fn latest_valid_block(&self) -> Option<(H256, BlockHeader)>;
     fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader);
 
-    fn block_start_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, Vec<ScheduledTask>>>;
-    fn set_block_start_schedule(&self, block_hash: H256, map: BTreeMap<u32, Vec<ScheduledTask>>);
+    fn block_start_schedule(&self, block_hash: H256) -> Option<Schedule>;
+    fn set_block_start_schedule(&self, block_hash: H256, map: Schedule);
 
-    fn block_end_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, Vec<ScheduledTask>>>;
-    fn set_block_end_schedule(&self, block_hash: H256, map: BTreeMap<u32, Vec<ScheduledTask>>);
+    fn block_end_schedule(&self, block_hash: H256) -> Option<Schedule>;
+    fn set_block_end_schedule(&self, block_hash: H256, map: Schedule);
 }
 
 pub trait CodesStorage: Send + Sync {
