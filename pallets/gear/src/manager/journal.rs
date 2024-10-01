@@ -431,7 +431,7 @@ where
         code_id: CodeId,
         candidates: Vec<(MessageId, ProgramId)>,
     ) {
-        if let Some(code) = T::CodeStorage::get_code(code_id) {
+        if let Some(code) = T::CodeStorage::get_instrumented_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {

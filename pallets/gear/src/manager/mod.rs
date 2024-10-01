@@ -116,11 +116,11 @@ pub struct CodeInfo {
 }
 
 impl CodeInfo {
-    pub fn from_code_and_id(code: &CodeAndId) -> Self {
+    pub fn from_code_and_id(code_and_id: &CodeAndId) -> Self {
         Self {
-            id: code.code_id().into_origin(),
-            exports: code.code().exports().clone(),
-            static_pages: code.code().static_pages(),
+            id: code_and_id.code_id().into_origin(),
+            exports: code_and_id.code().instrumented_code().exports().clone(),
+            static_pages: code_and_id.code().instrumented_code().static_pages(),
         }
     }
 

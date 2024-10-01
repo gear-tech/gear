@@ -222,10 +222,11 @@ pub mod pallet {
                             }
                         }
                     };
-                    let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {
-                        Some(code) => code.static_pages(),
-                        None => 0.into(),
-                    };
+                    let static_pages =
+                        match T::CodeStorage::get_instrumented_code(active.code_hash.cast()) {
+                            Some(code) => code.static_pages(),
+                            None => 0.into(),
+                        };
                     let persistent_pages =
                         T::ProgramStorage::get_program_pages_data(id, active.memory_infix).unwrap();
 

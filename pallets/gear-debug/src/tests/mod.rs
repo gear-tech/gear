@@ -59,7 +59,7 @@ fn vec() {
 
         let code_id = CodeId::generate(WASM_BINARY);
 
-        let code = <Test as pallet_gear::Config>::CodeStorage::get_code(code_id)
+        let code = <Test as pallet_gear::Config>::CodeStorage::get_instrumented_code(code_id)
             .expect("code should be in the storage");
 
         let static_pages = code.static_pages();

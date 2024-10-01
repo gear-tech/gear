@@ -64,7 +64,7 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
                 counter += 1;
 
                 // The actual section sizes will be calculated on the next program re-instrumentation.
-                let section_sizes = InstantiatedSectionSizes::EMPTY;
+                let section_sizes = unsafe { InstantiatedSectionSizes::zero() };
 
                 let code = unsafe {
                     InstrumentedCode::new_unchecked(
@@ -240,7 +240,11 @@ mod test {
             assert_eq!(new_code.stack_end(), None);
 
             // The actual section sizes will be calculated on the program re-instrumentation
-            assert_eq!(new_code.instantiated_section_sizes(), &InstantiatedSectionSizes::EMPTY);
+            let section_sizes = unsafe {
+                InstantiatedSectionSizes::zero()
+            };
+
+            assert_eq!(new_code.instantiated_section_sizes(), &section_sizes);
         });
     }
 }

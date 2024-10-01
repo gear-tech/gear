@@ -132,16 +132,17 @@ where
 
         // Load correct code length value.
         let code_id = context.actor_data().code_id;
-        let code_len_bytes = T::CodeStorage::get_code_len(code_id).unwrap_or_else(|| {
-            // `Program` exists, so do code and code len.
-            let err_msg = format!(
-                "run_queue_step: failed to get code len for the existing program. \
+        let code_len_bytes =
+            T::CodeStorage::get_instrumented_code_len(code_id).unwrap_or_else(|| {
+                // `Program` exists, so do code and code len.
+                let err_msg = format!(
+                    "run_queue_step: failed to get code len for the existing program. \
                 Program id -'{destination_id:?}', Code id - '{code_id:?}'."
-            );
+                );
 
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
 
         // Adjust gas counters for fetching instrumented binary code.
         let context =
@@ -151,7 +152,7 @@ where
             };
 
         // Load instrumented binary code from storage.
-        let code = T::CodeStorage::get_code(code_id).unwrap_or_else(|| {
+        let code = T::CodeStorage::get_instrumented_code(code_id).unwrap_or_else(|| {
             // `Program` exists, so do code and code len.
             let err_msg = format!(
                 "run_queue_step: failed to get code for the existing program. \

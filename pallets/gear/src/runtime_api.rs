@@ -402,7 +402,9 @@ where
         )
         .map_err(|e| format!("Failed to construct program: {e:?}"))?;
 
-        if u32::try_from(code.code().len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
+        if u32::try_from(code.instrumented_code().code().len()).unwrap_or(u32::MAX)
+            > schedule.limits.code_len
+        {
             return Err("Wasm after instrumentation too big".into());
         }
 
@@ -528,7 +530,7 @@ where
         let code_id = program.code_hash.cast();
 
         // Load instrumented binary code from storage.
-        let mut code = T::CodeStorage::get_code(code_id).ok_or_else(|| {
+        let mut code = T::CodeStorage::get_instrumented_code(code_id).ok_or_else(|| {
             format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
         })?;
 
