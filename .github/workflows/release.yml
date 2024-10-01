@@ -1,8 +1,35 @@
 name: Release
 
 on:
-  push:
-    tags: [ "*" ]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag for release. Example: v1.0.0'
+        required: true
+      make_latest:
+        description: 'Mark this release as the latest'
+        required: true
+        type: choice
+        options:
+          - true
+          - false
+        default: 'true'
+      draft:
+        description: 'Publish as draft'
+        required: true
+        type: choice
+        options:
+          - true
+          - false
+        default: 'false'
+      prerelease:
+        description: 'Is this a pre-release'
+        required: true
+        type: choice
+        options:
+          - true
+          - false
+        default: 'false'
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,9 +46,8 @@ jobs:
     steps:
       - name: "Actions: Checkout"
         uses: actions/checkout@v4
-
-      - name: "Get tag"
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        with:
+          ref: ${{ github.event.inputs.tag_name }}
 
       - name: "Environment: Cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -75,10 +101,20 @@ jobs:
           cp target/production/gear artifact/gear
           strip artifact/gear || true
 
+      - name: Check SHA256 checksums
+        run: |
+          sha256sum artifact/production_vara_runtime_v$VARA_SPEC.wasm
+          sha256sum artifact/testnet_vara_runtime_v$VARA_SPEC.wasm
+
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
           files: artifact/*
+          tag_name: ${{ github.event.inputs.tag_name }}
+          make_latest: ${{ github.event.inputs.make_latest }}
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          token: ${{ env.GITHUB_TOKEN }}
 
   trigger-multiplatform-build:
     needs: build
@@ -95,8 +131,8 @@ jobs:
               workflow_id: 'nightly.yml',
               ref: 'master',
               inputs: {
-                release_version: '${{ env.TAG }}',
-                latest: 'true'
+                release_version: '${{ github.event.inputs.tag_name }}',
+                latest: '${{ github.event.inputs.make_latest }}'
               }
             });
 
@@ -115,8 +151,8 @@ jobs:
               workflow_id: 'CI-docker-gear.yml',
               ref: 'master',
               inputs: {
-                release_version: '${{ env.TAG }}',
-                latest: 'true'
+                release_version: '${{ github.event.inputs.tag_name }}',
+                latest: '${{ github.event.inputs.make_latest }}'
               }
             });
 
