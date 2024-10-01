@@ -19,10 +19,9 @@
 //! Program's execution service for eGPU.
 
 use anyhow::Result;
-use common::InBlockTransitions;
 use ethexe_common::{mirror::RequestEvent as MirrorEvent, BlockRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::Storage;
+use ethexe_runtime_common::{state::Storage, InBlockTransitions};
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::run;
@@ -103,7 +102,7 @@ impl Processor {
         }
 
         self.run_tasks(block_hash, &mut in_block_transitions, &mut schedule)?;
-        self.run(block_hash, &mut in_block_transitions)?;
+        self.run(block_hash, &mut in_block_transitions);
 
         let (transitions, states) = in_block_transitions.finalize();
 
@@ -118,22 +117,15 @@ impl Processor {
         Ok(outcomes)
     }
 
-    // TODO: replace LocalOutcome with Transition struct.
-    pub fn run(
-        &mut self,
-        chain_head: H256,
-        in_block_transitions: &mut InBlockTransitions,
-    ) -> Result<Vec<LocalOutcome>> {
+    pub fn run(&mut self, chain_head: H256, in_block_transitions: &mut InBlockTransitions) {
         self.creator.set_chain_head(chain_head);
 
-        let messages_and_outcomes = run::run(
+        run::run(
             8,
             self.db.clone(),
             self.creator.clone(),
             in_block_transitions,
         );
-
-        Ok(messages_and_outcomes.1)
     }
 }
 
@@ -185,25 +177,22 @@ impl OverlaidProcessor {
             },
         )?;
 
-        let (messages, _) = run::run(
+        run::run(
             8,
             self.0.db.clone(),
             self.0.creator.clone(),
             &mut in_block_transitions,
         );
 
-        let res = messages
+        let res = in_block_transitions
+            .current_messages()
             .into_iter()
-            .find_map(|message| {
-                message.reply_details().and_then(|details| {
-                    (details.to_message_id() == MessageId::zero()).then(|| {
-                        let parts = message.into_parts();
-
-                        ReplyInfo {
-                            payload: parts.3.into_vec(),
-                            value: parts.5,
-                            code: details.to_reply_code(),
-                        }
+            .find_map(|(_source, message)| {
+                message.reply_details.and_then(|details| {
+                    (details.to_message_id() == MessageId::zero()).then(|| ReplyInfo {
+                        payload: message.payload,
+                        value: message.value,
+                        code: details.to_reply_code(),
                     })
                 })
             })

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{common::InBlockTransitions, Processor};
+use crate::Processor;
 use anyhow::Result;
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent,
@@ -24,7 +24,10 @@ use ethexe_common::{
     wvara::RequestEvent as WVaraEvent,
 };
 use ethexe_db::CodesStorage;
-use ethexe_runtime_common::state::{ComplexStorage as _, Dispatch, Storage};
+use ethexe_runtime_common::{
+    state::{ComplexStorage as _, Dispatch, Storage},
+    InBlockTransitions,
+};
 use gear_core::{
     ids::ProgramId,
     message::{DispatchKind, SuccessReplyReason},

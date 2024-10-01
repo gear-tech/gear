@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{common::InBlockTransitions, LocalOutcome, Processor};
+use crate::{LocalOutcome, Processor};
 use anyhow::Result;
 use common::{
     scheduler::{ScheduledTask, TaskHandler},
     CodeId, Gas, MessageId, ProgramId, ReservationId,
 };
 use ethexe_db::BlockMetaStorage;
+use ethexe_runtime_common::InBlockTransitions;
 use gprimitives::{ActorId, H256};
 use std::collections::BTreeMap;
 

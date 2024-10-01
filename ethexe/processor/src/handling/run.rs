@@ -16,15 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    common::{InBlockTransitions, LocalOutcome},
-    host::{InstanceCreator, InstanceWrapper},
-};
+use crate::host::{InstanceCreator, InstanceWrapper};
 use core_processor::common::JournalNote;
-use ethexe_common::router::{OutgoingMessage, StateTransition};
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::Handler;
-use gear_core::{ids::ProgramId, message::Message};
+use ethexe_runtime_common::{Handler, InBlockTransitions};
+use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
@@ -48,7 +44,7 @@ pub fn run(
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
-) -> (Vec<Message>, Vec<LocalOutcome>) {
+) {
     tokio::task::block_in_place(|| {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(threads_amount)
@@ -66,10 +62,7 @@ async fn run_in_async(
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
-) -> (Vec<Message>, Vec<LocalOutcome>) {
-    let mut to_users_messages = vec![];
-    let mut results = BTreeMap::new();
-
+) {
     let num_workers = 4;
 
     let mut task_senders = vec![];
@@ -110,24 +103,11 @@ async fn run_in_async(
             for (program_id, journal) in super_journal {
                 let mut handler = Handler {
                     program_id,
-                    program_states: programs,
+                    in_block_transitions,
                     storage: &db,
                     block_info: Default::default(),
-                    results: Default::default(),
-                    to_users_messages: Default::default(),
                 };
                 core_processor::handle_journal(journal, &mut handler);
-
-                for (id, new_hash) in handler.results {
-                    results.insert(id, (new_hash, vec![]));
-                }
-
-                for message in &handler.to_users_messages {
-                    let entry = results.get_mut(&message.source()).expect("should be");
-                    entry.1.push(message.clone());
-                }
-
-                to_users_messages.append(&mut handler.to_users_messages);
             }
         }
 
@@ -139,46 +119,6 @@ async fn run_in_async(
     for handle in handles {
         handle.abort();
     }
-
-    let outcomes = results
-        .into_iter()
-        .map(|(id, (new_state_hash, outgoing_messages))| {
-            LocalOutcome::Transition(StateTransition {
-                actor_id: id,
-                new_state_hash,
-                value_to_receive: 0,  // TODO (breathx): propose this
-                value_claims: vec![], // TODO (breathx): propose this
-                messages:
-                    outgoing_messages
-                        .into_iter()
-                        .map(|message| {
-                            let (
-                                id,
-                                _source,
-                                destination,
-                                payload,
-                                _gas_limit,
-                                value,
-                                message_details,
-                            ) = message.into_parts();
-
-                            let reply_details =
-                                message_details.and_then(|details| details.to_reply_details());
-
-                            OutgoingMessage {
-                                id,
-                                destination,
-                                payload: payload.into_vec(),
-                                value,
-                                reply_details,
-                            }
-                        })
-                        .collect(),
-            })
-        })
-        .collect();
-
-    (to_users_messages, outcomes)
 }
 
 async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {

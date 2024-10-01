@@ -278,22 +278,24 @@ fn ping_pong() {
     let states = BTreeMap::from_iter([(program_id, state_hash)]);
     let mut in_block_transitions = InBlockTransitions::new(states);
 
-    let (to_users, _) = run::run(
+    run::run(
         8,
         processor.db.clone(),
         processor.creator.clone(),
         &mut in_block_transitions,
     );
 
+    let to_users = in_block_transitions.current_messages();
+
     assert_eq!(to_users.len(), 2);
 
-    let message = &to_users[0];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"PONG");
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
 
-    let message = &to_users[1];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"PONG");
+    let message = &to_users[1].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
 }
 
 #[allow(unused)]
@@ -410,29 +412,28 @@ fn async_and_ping() {
     let states = BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
     let mut in_block_transitions = InBlockTransitions::new(states);
 
-    let (to_users, _) = run::run(
+    run::run(
         8,
         processor.db.clone(),
         processor.creator.clone(),
         &mut in_block_transitions,
     );
 
+    let to_users = in_block_transitions.current_messages();
+
     assert_eq!(to_users.len(), 3);
 
-    let message = &to_users[0];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"PONG");
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
 
-    let message = &to_users[1];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"");
+    let message = &to_users[1].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"");
 
-    let message = &to_users[2];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(
-        message.payload_bytes(),
-        wait_for_reply_to.into_bytes().as_slice()
-    );
+    let message = &to_users[2].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, wait_for_reply_to.into_bytes().as_slice());
 }
 
 // TODO (breathx).

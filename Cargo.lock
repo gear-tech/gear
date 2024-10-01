@@ -5313,6 +5313,7 @@ name = "ethexe-runtime-common"
 version = "1.6.1"
 dependencies = [
  "anyhow",
+ "ethexe-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
