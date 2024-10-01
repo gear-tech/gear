@@ -243,7 +243,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         let in_blocks = NonZeroU32::try_from(duration).expect("must be checked on backend side");
 
-        self.in_block_transitions.schedule_task(
+        let expiry = self.in_block_transitions.schedule_task(
             in_blocks,
             ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
         );
@@ -265,7 +265,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             // TODO (breathx): impl Copy for MaybeHash?
             state.waitlist_hash =
                 storage.modify_waitlist(state.waitlist_hash.clone(), |waitlist| {
-                    let r = waitlist.insert(dispatch.id, dispatch);
+                    let r = waitlist.insert(dispatch.id, (dispatch, expiry));
                     debug_assert!(r.is_none());
                 })?;
 
@@ -287,7 +287,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
 
         self.update_state_with_storage(program_id, |storage, state| {
-            let Some((dispatch, new_waitlist_hash)) = storage
+            let Some(((dispatch, _expiry), new_waitlist_hash)) = storage
                 .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
                     waitlist.remove(&awakening_id)
                 })?

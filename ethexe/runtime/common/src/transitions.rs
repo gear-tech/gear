@@ -74,12 +74,14 @@ impl InBlockTransitions {
         self.schedule.remove(&self.current_bn).unwrap_or_default()
     }
 
-    pub fn schedule_task(&mut self, in_blocks: NonZeroU32, task: ScheduledTask) {
+    pub fn schedule_task(&mut self, in_blocks: NonZeroU32, task: ScheduledTask) -> u32 {
         let scheduled_block = self.current_bn + u32::from(in_blocks);
 
         let entry = self.schedule.entry(scheduled_block).or_default();
         debug_assert!(!entry.contains(&task));
         entry.push(task);
+
+        scheduled_block
     }
 
     pub fn register_new(&mut self, actor_id: ActorId) {

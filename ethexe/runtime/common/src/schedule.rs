@@ -45,7 +45,7 @@ impl<'a, S: Storage> TaskHandler<ActorId> for Handler<'a, S> {
 
         // TODO (breathx): don't update state if not changed?
         self.update_state_with_storage(program_id, |storage, state| {
-            let Some((dispatch, new_waitlist_hash)) = storage
+            let Some(((dispatch, _expiry), new_waitlist_hash)) = storage
                 .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
                     waitlist.remove(&message_id)
                 })?

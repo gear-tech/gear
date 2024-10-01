@@ -477,7 +477,14 @@ fn many_waits() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
-    let ch0 = init_new_block(&mut processor, BlockHeader { height: 1, timestamp: 1, parent_hash: Default::default() });
+    let ch0 = init_new_block(
+        &mut processor,
+        BlockHeader {
+            height: 1,
+            timestamp: 1,
+            parent_hash: Default::default(),
+        },
+    );
 
     let code_id = processor
         .handle_new_code(code)
