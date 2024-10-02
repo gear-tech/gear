@@ -310,80 +310,38 @@ pub fn instantiate(
                     .map_err(|_| InstantiationError::EnvironmentDefinitionCorrupted)?;
             }
             ExternType::Func(func_ty) => {
-                //let func_ptr = env_def_builder
-                //    .map
-                //    .get(&key)
-                //    .cloned()
-                //    .and_then(|val| val.host_func())
-                //    .ok_or(Error::Module)?;
+                let guest_func_index = guest_env
+                    .imports
+                    .func_by_name(import.module(), import.name());
 
-                //let func = wasmi::Func::new(
-                //    &mut store,
-                //    func_ty.clone(),
-                //    move |caller, params, results| {
-                //        let gas = caller
-                //            .get_export(GLOBAL_NAME_GAS)
-                //            .ok_or_else(|| {
-                //                wasmi::Error::new(format!(
-                //                    "failed to find `{GLOBAL_NAME_GAS}` export"
-                //                ))
-                //            })?
-                //            .into_global()
-                //            .ok_or_else(|| {
-                //                wasmi::Error::new(format!("{GLOBAL_NAME_GAS} is not global"))
-                //            })?;
+                let guest_func_index = if let Some(index) = guest_func_index {
+                    index
+                } else {
+                    // Missing import (should we abort here?)
+                    continue;
+                };
 
-                //        let params: Vec<_> = Some(gas.get(&caller))
-                //            .into_iter()
-                //            .chain(params.iter().cloned())
-                //            .map(to_interface)
-                //            .map(|val| {
-                //                val.ok_or(wasmi::Error::new(
-                //                    "`externref` or `funcref` are not supported",
-                //                ))
-                //            })
-                //            .collect::<Result<_, _>>()?;
+                let supervisor_func_index = guest_env
+                    .guest_to_supervisor_mapping
+                    .func_by_guest_index(guest_func_index)
+                    .ok_or(InstantiationError::ModuleDecoding)?;
 
-                //        let mut caller = Caller(caller);
-                //        let val = (func_ptr)(&mut caller, &params)
-                //            .map_err(|HostError| wasmi::Error::new("function error"))?;
+                let function = match version {
+                    Instantiate::Version1 => dispatch_function(
+                        supervisor_func_index,
+                        &mut context.store().borrow_mut(),
+                        func_ty,
+                    ),
+                    Instantiate::Version2 => dispatch_function_v2(
+                        supervisor_func_index,
+                        &mut context.store().borrow_mut(),
+                        func_ty,
+                    ),
+                };
 
-                //        match (val.inner, results) {
-                //            (ReturnValue::Unit, []) => {}
-                //            (ReturnValue::Value(val), [ret]) => {
-                //                let val = to_wasmi(val);
-
-                //                if val.ty() != ret.ty() {
-                //                    return Err(wasmi::Error::new("mismatching return types"));
-                //                }
-
-                //                *ret = val;
-                //            }
-                //            _results => {
-                //                let err_msg = format!(
-                //                    "Instance::new: embedded executor doesn't support multi-value return. \
-                //                    Function name - {key:?}, params - {params:?}, results - {_results:?}"
-                //                );
-
-                //                log::error!("{err_msg}");
-                //                unreachable!("{err_msg}")
-                //            }
-                //        }
-
-                //        gas.set(&mut caller.0, RuntimeValue::I64(val.gas))
-                //            .map_err(|e| {
-                //                wasmi::Error::new(format!(
-                //                    "failed to set `{GLOBAL_NAME_GAS}` global: {e}"
-                //                ))
-                //            })?;
-
-                //        Ok(())
-                //    },
-                //);
-                //let func = wasmi::Extern::Func(func);
-                //linker
-                //    .define(&module, &name, func)
-                //    .map_err(|_| Error::Module)?;
+                linker
+                    .define(&module, &name, function)
+                    .map_err(|_| InstantiationError::ModuleDecoding)?;
             }
         }
     }
@@ -407,11 +365,11 @@ pub fn instantiate(
 fn dispatch_function(
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
-    func_ty: sandbox_wasmi::FuncType,
+    func_ty: &sandbox_wasmi::FuncType,
 ) -> sandbox_wasmi::Func {
     sandbox_wasmi::Func::new(
         store,
-        func_ty,
+        func_ty.clone(),
         move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
             SupervisorContextStore::with(|supervisor_context| {
                 let func_env = caller.data_mut().as_mut().expect("func env should be set");
@@ -452,11 +410,11 @@ fn dispatch_function(
 fn dispatch_function_v2(
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
-    func_ty: sandbox_wasmi::FuncType,
+    func_ty: &sandbox_wasmi::FuncType,
 ) -> sandbox_wasmi::Func {
     sandbox_wasmi::Func::new(
         store,
-        func_ty,
+        func_ty.clone(),
         move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
             SupervisorContextStore::with(|supervisor_context| {
                 let func_env = caller.data().as_ref().expect("func env should be set");
@@ -585,5 +543,30 @@ pub fn invoke(
     args: &[Value],
     supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<Option<Value>, Error> {
-    todo!()
+    let function = instance
+        .get_func(&*store.borrow(), export_name)
+        .ok_or_else(|| Error::Sandbox("function export error".into()))?;
+
+    let args: Vec<sandbox_wasmi::Val> = args.into_iter().copied().map(into_wasmi_val).collect();
+    let func_ty = function.ty(&*store.borrow());
+
+    let mut outputs = vec![
+        sandbox_wasmi::Val::ExternRef(sandbox_wasmi::ExternRef::null());
+        func_ty.results().len()
+    ];
+
+    function
+        .call(&mut *store.borrow_mut(), &args, &mut outputs)
+        .map_err(|error| Error::Sandbox(error.to_string()))?;
+
+    match outputs.as_slice() {
+        [] => Ok(None),
+        [val] => match into_value(val) {
+            None => Err(Error::Sandbox(format!("Unsupported return value: {val:?}"))),
+            Some(v) => Ok(Some(v)),
+        },
+        _outputs => Err(Error::Sandbox(
+            "multiple return types are not supported yet".into(),
+        )),
+    }
 }
