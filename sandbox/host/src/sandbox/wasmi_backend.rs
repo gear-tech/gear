@@ -18,24 +18,23 @@
 
 //! Wasmi specific impls for sandbox
 
-use std::{fmt, rc::Rc, slice};
+use std::{rc::Rc, slice};
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue};
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use region::{Allocation, Protection};
 use sandbox_wasmi::{
-    core::{Pages, Trap, UntypedVal},
-    AsContext, AsContextMut, Config, Engine, ExternType, Linker, MemoryType, Module, StackLimits,
-    StoreContext, StoreContextMut, Val,
+    core::UntypedVal, AsContext, AsContextMut, Config, Engine, ExternType, Linker, MemoryType,
+    Module, StackLimits, Val,
 };
 
-use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
     error::{self, Error},
     sandbox::{
-        BackendInstanceBundle, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
-        InstantiationError, Memory, SandboxInstance, SupervisorContext,
+        BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
+        SupervisorContext,
     },
     store_refcell,
     util::MemoryTransfer,
@@ -54,29 +53,13 @@ pub struct FuncEnv {
 }
 
 impl FuncEnv {
-    pub fn new(
-        store: Rc<StoreRefCell>,
-        gas_global: sandbox_wasmi::Global,
-        supervisor_context: &mut dyn SupervisorContext,
-    ) -> Self {
+    pub fn new(store: Rc<StoreRefCell>, gas_global: sandbox_wasmi::Global) -> Self {
         Self { store, gas_global }
     }
 }
 
-//#[derive(Debug)]
-//struct CustomHostError(String);
-//
-//impl fmt::Display for CustomHostError {
-//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//        write!(f, "HostError: {}", self.0)
-//    }
-//}
-//
-//impl sandbox_wasmi::core::HostError for CustomHostError {}
-
 /// Construct trap error from specified message
 fn host_trap(msg: impl Into<error::Error>) -> sandbox_wasmi::Error {
-    //Trap::host(CustomHostError(msg.into()))
     sandbox_wasmi::Error::host(msg.into())
 }
 
@@ -192,7 +175,7 @@ impl std::fmt::Debug for MemoryWrapper {
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>, alloc: Allocation) -> Self {
+    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>, _alloc: Allocation) -> Self {
         Self {
             memory,
             store,
@@ -207,7 +190,7 @@ impl MemoryTransfer for MemoryWrapper {
         let ctx = self.store.borrow();
         self.memory
             .read(&*ctx, source_addr.into(), &mut buffer)
-            .map_err(|_| error::Error::Other("memory read is out of bounds".into()));
+            .map_err(|_| error::Error::Other("memory read is out of bounds".into()))?;
 
         Ok(buffer)
     }
@@ -216,7 +199,7 @@ impl MemoryTransfer for MemoryWrapper {
         let ctx = self.store.borrow();
         self.memory
             .read(&*ctx, source_addr.into(), destination)
-            .map_err(|_| error::Error::Other("memory read is out of bounds".into()));
+            .map_err(|_| error::Error::Other("memory read is out of bounds".into()))?;
 
         Ok(())
     }
@@ -225,7 +208,7 @@ impl MemoryTransfer for MemoryWrapper {
         let mut ctx = self.store.borrow_mut();
         self.memory
             .write(&mut *ctx, dest_addr.into(), source)
-            .map_err(|_| error::Error::Other("memory write is out of bounds".into()));
+            .map_err(|_| error::Error::Other("memory write is out of bounds".into()))?;
 
         Ok(())
     }
@@ -277,7 +260,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    supervisor_context: &mut dyn SupervisorContext,
+    _supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     let mut store = context.store().borrow_mut();
 
@@ -288,7 +271,6 @@ pub fn instantiate(
     for import in module.imports() {
         let module = import.module().to_string();
         let name = import.name().to_string();
-        let key = (module.clone(), name.clone());
 
         match import.ty() {
             ExternType::Global(_) | ExternType::Table(_) => {}
@@ -346,12 +328,14 @@ pub fn instantiate(
         }
     }
 
-    let instance_pre = linker
-        .instantiate(&mut *store, &module)
-        .map_err(|e| InstantiationError::Instantiation)?;
-    let instance = instance_pre
-        .start(&mut *store)
-        .map_err(|e| InstantiationError::StartTrapped)?;
+    let instance_pre = linker.instantiate(&mut *store, &module).map_err(|error| {
+        log::trace!("Failed to call wasmi instantiate: {error:?}");
+        InstantiationError::Instantiation
+    })?;
+    let instance = instance_pre.start(&mut *store).map_err(|error| {
+        log::trace!("Failed to call wasmi start: {error:?}");
+        InstantiationError::StartTrapped
+    })?;
 
     Ok(SandboxInstance {
         backend_instance: BackendInstanceBundle::Wasmi {
@@ -370,10 +354,8 @@ fn dispatch_function(
     sandbox_wasmi::Func::new(
         store,
         func_ty.clone(),
-        move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
+        move |_caller, params, results| -> Result<(), sandbox_wasmi::Error> {
             SupervisorContextStore::with(|supervisor_context| {
-                let func_env = caller.data_mut().as_mut().expect("func env should be set");
-
                 let invoke_args_data = params
                     .iter()
                     .map(|value| {
@@ -545,9 +527,9 @@ pub fn invoke(
 ) -> std::result::Result<Option<Value>, Error> {
     let function = instance
         .get_func(&*store.borrow(), export_name)
-        .ok_or_else(|| Error::Sandbox("function export error".into()))?;
+        .ok_or_else(|| Error::Sandbox(format!("function {export_name} export error")))?;
 
-    let args: Vec<sandbox_wasmi::Val> = args.into_iter().copied().map(into_wasmi_val).collect();
+    let args: Vec<sandbox_wasmi::Val> = args.iter().copied().map(into_wasmi_val).collect();
     let func_ty = function.ty(&*store.borrow());
 
     let mut outputs = vec![
@@ -555,9 +537,23 @@ pub fn invoke(
         func_ty.results().len()
     ];
 
-    function
-        .call(&mut *store.borrow_mut(), &args, &mut outputs)
-        .map_err(|error| Error::Sandbox(error.to_string()))?;
+    // Init func env
+    {
+        let gas_global = instance
+            .get_global(&*store.borrow(), GLOBAL_NAME_GAS)
+            .ok_or_else(|| Error::Sandbox("Failed to get gas global".into()))?;
+
+        store
+            .borrow_mut()
+            .data_mut()
+            .replace(FuncEnv::new(store.clone(), gas_global));
+    }
+
+    SupervisorContextStore::using(supervisor_context, || {
+        function
+            .call(&mut *store.borrow_mut(), &args, &mut outputs)
+            .map_err(|error| Error::Sandbox(error.to_string()))
+    })?;
 
     match outputs.as_slice() {
         [] => Ok(None),
