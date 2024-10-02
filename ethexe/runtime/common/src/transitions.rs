@@ -78,8 +78,10 @@ impl InBlockTransitions {
         let scheduled_block = self.current_bn + u32::from(in_blocks);
 
         let entry = self.schedule.entry(scheduled_block).or_default();
-        debug_assert!(!entry.contains(&task));
-        entry.push(task);
+
+        if !entry.contains(&task) {
+            entry.push(task);
+        }
 
         scheduled_block
     }
