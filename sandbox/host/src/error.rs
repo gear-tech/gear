@@ -109,8 +109,8 @@ pub enum Error {
 
 impl sandbox_wasmi::core::HostError for Error {}
 
-impl From<&'static str> for Error {
-    fn from(err: &'static str) -> Error {
+impl From<&'_ str> for Error {
+    fn from(err: &'_ str) -> Error {
         Error::Other(err.into())
     }
 }
