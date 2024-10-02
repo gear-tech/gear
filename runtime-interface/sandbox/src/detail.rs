@@ -35,7 +35,7 @@ impl Sandboxes {
     pub fn new() -> Self {
         Self {
             store_data_key: 0,
-            store: sandbox_env::SandboxComponents::new(sandbox_env::SandboxBackend::Wasmer),
+            store: sandbox_env::SandboxComponents::new(sandbox_env::SandboxBackend::Wasmi),
         }
     }
 
