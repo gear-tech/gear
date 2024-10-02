@@ -162,7 +162,7 @@ pub fn new_memory(
 pub struct MemoryWrapper {
     memory: sandbox_wasmi::Memory,
     store: Rc<StoreRefCell>,
-    //alloc: Allocation,
+    _alloc: Rc<Allocation>,
 }
 
 impl std::fmt::Debug for MemoryWrapper {
@@ -175,11 +175,11 @@ impl std::fmt::Debug for MemoryWrapper {
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>, _alloc: Allocation) -> Self {
+    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>, alloc: Allocation) -> Self {
         Self {
             memory,
             store,
-            //alloc,
+            _alloc: Rc::new(alloc),
         }
     }
 }

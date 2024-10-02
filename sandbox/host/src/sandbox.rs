@@ -165,15 +165,6 @@ pub trait SupervisorContext {
     fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> SandboxResult<()>;
 }
 
-/// Implementation of [`Externals`] that allows execution of guest module with
-/// [externals][`Externals`] that might refer functions defined by supervisor.
-///
-/// [`Externals`]: ../wasmi/trait.Externals.html
-pub struct GuestExternals<'a> {
-    /// Instance of sandboxed module to be dispatched
-    sandbox_instance: &'a SandboxInstance,
-}
-
 /// Module instance in terms of selected backend
 enum BackendInstanceBundle {
     /// Wasmi module instance
