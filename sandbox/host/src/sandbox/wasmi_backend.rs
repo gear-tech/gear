@@ -21,12 +21,12 @@
 use std::{fmt, rc::Rc, slice};
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::{HostError, Instantiate};
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue};
 use region::{Allocation, Protection};
 use sandbox_wasmi::{
     core::{Pages, Trap, UntypedVal},
-    Config, Engine, ExternType, Linker, MemoryType, Module, StackLimits, StoreContext,
-    StoreContextMut, Val,
+    AsContext, AsContextMut, Config, Engine, ExternType, Linker, MemoryType, Module, StackLimits,
+    StoreContext, StoreContextMut, Val,
 };
 
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
@@ -46,12 +46,11 @@ use super::SupervisorFuncIndex;
 type Store = sandbox_wasmi::Store<Option<FuncEnv>>;
 pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
 
-//environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
+environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
 pub struct FuncEnv {
     store: Rc<StoreRefCell>,
     gas_global: sandbox_wasmi::Global,
-    supervisor_context: &'static mut dyn SupervisorContext,
 }
 
 impl FuncEnv {
@@ -60,15 +59,7 @@ impl FuncEnv {
         gas_global: sandbox_wasmi::Global,
         supervisor_context: &mut dyn SupervisorContext,
     ) -> Self {
-        Self {
-            store,
-            gas_global,
-            supervisor_context: unsafe {
-                std::mem::transmute::<&mut dyn SupervisorContext, &'static mut dyn SupervisorContext>(
-                    supervisor_context,
-                )
-            },
-        }
+        Self { store, gas_global }
     }
 }
 
@@ -422,36 +413,38 @@ fn dispatch_function(
         store,
         func_ty,
         move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
-            let func_env = caller.data_mut().as_mut().expect("func env should be set");
-            let supervisor_context = &mut func_env.supervisor_context;
+            SupervisorContextStore::with(|supervisor_context| {
+                let func_env = caller.data_mut().as_mut().expect("func env should be set");
 
-            let invoke_args_data = params
-                .iter()
-                .map(|value| {
-                    into_value(value).ok_or_else(|| {
-                        host_trap(format!("Unsupported function argument: {:?}", value))
+                let invoke_args_data = params
+                    .iter()
+                    .map(|value| {
+                        into_value(value).ok_or_else(|| {
+                            host_trap(format!("Unsupported function argument: {:?}", value))
+                        })
                     })
-                })
-                .collect::<std::result::Result<Vec<_>, _>>()?
-                .encode();
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .encode();
 
-            let serialized_result_val =
-                dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
+                let serialized_result_val =
+                    dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
 
-            let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
-                &mut serialized_result_val.as_slice(),
-            )
-            .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
-            .map_err(|_| host_trap("Supervisor function returned sandbox::HostError"))?;
+                let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
+                    &mut serialized_result_val.as_slice(),
+                )
+                .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
+                .map_err(|_| host_trap("Supervisor function returned sandbox::HostError"))?;
 
-            for (idx, result_val) in into_wasmi_result(deserialized_result)
-                .into_iter()
-                .enumerate()
-            {
-                results[idx] = result_val;
-            }
+                for (idx, result_val) in into_wasmi_result(deserialized_result)
+                    .into_iter()
+                    .enumerate()
+                {
+                    results[idx] = result_val;
+                }
 
-            Ok(())
+                Ok(())
+            })
+            .expect("SupervisorContextStore is set when invoking sandboxed functions; qed")
         },
     )
 }
@@ -465,43 +458,62 @@ fn dispatch_function_v2(
         store,
         func_ty,
         move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
-            let func_env = caller.data_mut().as_mut().expect("func env should be set");
-            let supervisor_context = &mut func_env.supervisor_context;
+            SupervisorContextStore::with(|supervisor_context| {
+                let func_env = caller.data().as_ref().expect("func env should be set");
+                let store_ref_cell = func_env.store.clone();
+                let gas_global = func_env.gas_global;
 
-            let invoke_args_data = params
-                .iter()
-                .map(|value| {
-                    into_value(value).ok_or_else(|| {
-                        host_trap(format!("Unsupported function argument: {:?}", value))
+                let gas = gas_global.get(caller.as_context());
+                let store_ctx_mut = caller.as_context_mut();
+
+                let deserialized_result = store_ref_cell
+                    .borrow_scope(store_ctx_mut, move || {
+                        let invoke_args_data = [gas]
+                            .iter()
+                            .chain(params.iter())
+                            .map(|value| {
+                                into_value(value).ok_or_else(|| {
+                                    host_trap(format!("Unsupported function argument: {:?}", value))
+                                })
+                            })
+                            .collect::<std::result::Result<Vec<_>, _>>()?
+                            .encode();
+
+                        let serialized_result_val = dispatch_common(
+                            supervisor_func_index,
+                            supervisor_context,
+                            invoke_args_data,
+                        )?;
+
+                        std::result::Result::<WasmReturnValue, HostError>::decode(
+                            &mut serialized_result_val.as_slice(),
+                        )
+                        .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
+                        .map_err(|_| host_trap("Supervisor function returned sandbox::HostError"))
                     })
-                })
-                .collect::<std::result::Result<Vec<_>, _>>()?
-                .encode();
+                    .map_err(|_| host_trap("StoreRefCell borrow scope error"))??;
 
-            let serialized_result_val =
-                dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
+                for (idx, result_val) in into_wasmi_result(deserialized_result.inner)
+                    .into_iter()
+                    .enumerate()
+                {
+                    results[idx] = result_val;
+                }
 
-            let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
-                &mut serialized_result_val.as_slice(),
-            )
-            .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
-            .map_err(|_| host_trap("Supervisor function returned sandbox::HostError"))?;
+                gas_global
+                    .set(caller, Val::I64(deserialized_result.gas))
+                    .map_err(|e| host_trap(format!("Failed to set gas global: {:?}", e)))?;
 
-            for (idx, result_val) in into_wasmi_result(deserialized_result)
-                .into_iter()
-                .enumerate()
-            {
-                results[idx] = result_val;
-            }
-
-            Ok(())
+                Ok(())
+            })
+            .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
         },
     )
 }
 
 fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
-    supervisor_context: &mut &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContext,
     invoke_args_data: Vec<u8>,
 ) -> std::result::Result<Vec<u8>, sandbox_wasmi::Error> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
@@ -511,7 +523,7 @@ fn dispatch_common(
         .allocate_memory(invoke_args_len)
         .map_err(|_| host_trap("Can't allocate memory in supervisor for the arguments"))?;
 
-    let deallocate = |fe: &mut &mut dyn SupervisorContext, ptr, fail_msg| {
+    let deallocate = |fe: &mut dyn SupervisorContext, ptr, fail_msg| {
         fe.deallocate_memory(ptr).map_err(|_| host_trap(fail_msg))
     };
 

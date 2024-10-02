@@ -112,6 +112,7 @@ pub struct StoreRefCell<S> {
 trait GenericAsStoreMut {}
 
 impl<'r, 's> GenericAsStoreMut for &'r mut StoreMut<'s> {}
+impl<'s, T> GenericAsStoreMut for sandbox_wasmi::StoreContextMut<'s, T> {}
 
 #[derive(Debug)]
 pub struct BorrowScopeError;
