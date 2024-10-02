@@ -242,9 +242,11 @@ impl Dispatch {
     }
 }
 
+pub type ValueWithExpiry<T> = (T, u32);
+
 pub type MessageQueue = VecDeque<Dispatch>;
 
-pub type Waitlist = BTreeMap<MessageId, Dispatch>;
+pub type Waitlist = BTreeMap<MessageId, ValueWithExpiry<Dispatch>>;
 
 // TODO (breathx): consider here LocalMailbox for each user.
 pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, Value>>;
