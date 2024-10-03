@@ -278,7 +278,10 @@ impl<T> super::SandboxMemory<T> for Memory {
     fn new(store: &mut Store<T>, initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
         let ty = MemoryType::new(initial, maximum, false);
         let memory_style = store.engine().tunables().memory_style(&ty);
-        let memref = VMMemory::new(&ty, &memory_style).map_err(|_| Error::Module)?;
+        let memref = VMMemory::new(&ty, &memory_style).map_err(|e| {
+            log::trace!("Failed to create memory: {e}");
+            Error::Module
+        })?;
         // SAFETY: `vmmemory()` returns `NonNull` so pointer is valid
         let memory_definition = unsafe { memref.vmmemory().as_ref() };
         let base = memory_definition.base as usize;
@@ -437,7 +440,10 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                         .get(&key)
                         .cloned()
                         .and_then(|val| val.memory())
-                        .ok_or(Error::Module)?
+                        .ok_or_else(|| {
+                            log::trace!("Memory import for `{module}::{name}` not found");
+                            Error::Module
+                        })?
                         .memref;
                     imports.define(&module, &name, mem);
                 }
@@ -447,7 +453,10 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                         .get(&key)
                         .cloned()
                         .and_then(|val| val.host_func())
-                        .ok_or(Error::Module)?;
+                        .ok_or_else(|| {
+                            log::trace!("Function import for `{module}::{name}` not found");
+                            Error::Module
+                        })?;
 
                     let func_ty = func_ty.clone();
 
