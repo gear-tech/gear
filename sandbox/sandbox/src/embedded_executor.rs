@@ -24,17 +24,17 @@ use crate::{
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
+use gear_wasmer_cache::get_or_compile_with_cache;
 use sp_wasm_interface_common::HostPointer;
-use std::{collections::btree_map::BTreeMap, marker::PhantomData, ptr::NonNull};
+use std::{collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull};
 use wasmer::{
     sys::{BaseTunables, VMConfig},
     vm::{
         LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
         VMTableDefinition,
     },
-    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, Module,
-    NativeEngineExt, RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables,
-    Value as RuntimeValue,
+    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
 };
 use wasmer_types::{ExternType, Target};
 
@@ -42,6 +42,16 @@ use wasmer_types::{ExternType, Target};
 #[ctor::ctor]
 fn init_wasmer() {
     wasmer_vm::init_traps();
+}
+
+fn fs_cache() -> PathBuf {
+    const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+    assert!(MANIFEST_DIR.ends_with("sandbox/sandbox"));
+    let path = PathBuf::from(MANIFEST_DIR).join("../../target/wasmer-cache");
+    if !path.exists() {
+        fs::create_dir(&path).unwrap();
+    }
+    path
 }
 
 struct CustomTunables {
@@ -421,7 +431,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module = Module::new(store.engine(), code).map_err(|e| {
+        let module = get_or_compile_with_cache(code, store.engine(), fs_cache).map_err(|e| {
             log::trace!(target: TARGET, "Failed to create module: {e}");
             Error::Module
         })?;

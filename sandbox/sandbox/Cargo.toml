@@ -21,6 +21,7 @@ wasmer = { workspace = true, optional = true, features = ["singlepass"] }
 wasmer-types = { workspace = true, optional = true }
 wasmer-vm = { workspace = true, optional = true }
 wasmer-compiler = { workspace = true, optional = true }
+gear-wasmer-cache = { workspace = true, optional = true }
 ctor = { version = "0.2.8", optional = true }
 sp-core.workspace = true
 sp-std.workspace = true
@@ -46,6 +47,7 @@ std = [
 	"wasmer-types",
 	"wasmer-vm",
 	"wasmer-compiler",
+	"gear-wasmer-cache",
 	"ctor",
 ]
 strict = []

@@ -26,9 +26,9 @@ sandbox-wasmi.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface-common = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
-wasmer-cache = { workspace = true, optional = true }
-tempfile.workspace = true
-uluru = { workspace = true, optional = true }
+gear-wasmer-cache = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 
 [features]
-default = ["wasmer-cache", "uluru"]
+default = ["wasmer-cache"]
+wasmer-cache = ["gear-wasmer-cache", "tempfile"]
