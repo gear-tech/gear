@@ -115,11 +115,10 @@ mod tests {
         let values: BTreeSet<(Vec<u8>, Vec<u8>)> = db.iter_prefix(b"prefix_").collect();
         assert_eq!(
             values,
-            [
+            BTreeSet::from([
                 (b"prefix_foo".to_vec(), b"hello".to_vec()),
                 (b"prefix_bar".to_vec(), b"world".to_vec()),
-            ]
-            .into(),
+            ]),
         );
     }
 

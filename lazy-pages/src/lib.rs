@@ -43,7 +43,10 @@ mod sys;
 #[cfg(test)]
 mod tests;
 
-pub use crate::common::LazyPagesStorage;
+pub use common::{Error as LazyPagesError, LazyPagesStorage, LazyPagesVersion};
+pub use host_func::pre_process_memory_accesses;
+pub use signal::{ExceptionInfo, UserSignalHandler};
+
 use crate::{
     common::{ContextError, CostNo, Costs, LazyPagesContext, PagePrefix, PageSizes},
     globals::{GlobalNo, GlobalsContext},
@@ -52,16 +55,13 @@ use crate::{
         GearPagesAmount, GearSizeNo, PagesAmountTrait, SizeNumber, WasmPage, WasmPagesAmount,
         WasmSizeNo, SIZES_AMOUNT,
     },
+    signal::DefaultUserSignalHandler,
 };
-pub use common::{Error as LazyPagesError, LazyPagesVersion};
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
-pub use host_func::pre_process_memory_accesses;
 use mprotect::MprotectError;
 use numerated::iterators::IntervalIterator;
 use pages::GearPage;
-use signal::DefaultUserSignalHandler;
-pub use signal::{ExceptionInfo, UserSignalHandler};
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 
 /// Initialize lazy-pages once for process.

@@ -138,7 +138,10 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     instrumented_code: Option<InstrumentedCode>,
     code_id: CodeId,
     ri: &RI,
-) -> Vec<JournalNote> {
+) -> Vec<JournalNote>
+where
+    <RI as RuntimeInterface<S>>::LazyPages: Send,
+{
     let block_info = ri.block_info();
 
     log::trace!("Processing next message for program {program_id}");

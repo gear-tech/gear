@@ -44,22 +44,23 @@ extern crate alloc;
 
 #[cfg(feature = "std")]
 pub mod embedded_executor;
-pub use gear_sandbox_env as env;
+#[cfg(feature = "std")]
+pub use self::embedded_executor as default_executor;
+
 #[cfg(not(feature = "std"))]
 pub mod host_executor;
+#[cfg(not(feature = "std"))]
+pub use self::host_executor as default_executor;
+
+pub use gear_sandbox_env as env;
+pub use gear_sandbox_env::HostError;
+
+pub use sp_wasm_interface_common::{IntoValue, ReturnValue, TryFromValue, Value};
 
 use alloc::string::String;
 use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
 use sp_wasm_interface_common::HostPointer;
-
-pub use sp_wasm_interface_common::{IntoValue, ReturnValue, TryFromValue, Value};
-
-#[cfg(feature = "std")]
-pub use self::embedded_executor as default_executor;
-pub use self::env::HostError;
-#[cfg(not(feature = "std"))]
-pub use self::host_executor as default_executor;
 
 /// The target used for logging.
 const TARGET: &str = "runtime::sandbox";
@@ -249,7 +250,11 @@ pub trait SandboxInstance<State>: Sized {
     /// Get the value from a global with the given `name`.
     ///
     /// Returns `Some(_)` if the global could be found.
-    fn get_global_val(&self, store: &default_executor::Store<State>, name: &str) -> Option<Value>;
+    fn get_global_val(
+        &self,
+        store: &mut default_executor::Store<State>,
+        name: &str,
+    ) -> Option<Value>;
 
     /// Set the value of a global with the given `name`.
     fn set_global_val(

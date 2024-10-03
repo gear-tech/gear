@@ -380,7 +380,7 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         }
     }
 
-    fn get_global_val(&self, _store: &Store<T>, name: &str) -> Option<Value> {
+    fn get_global_val(&self, _store: &mut Store<State>, name: &str) -> Option<Value> {
         sandbox::get_global_val(*self.instance_idx, name)
     }
 

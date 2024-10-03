@@ -3187,6 +3187,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctor"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edb49164822f3ee45b17acd4a208cfc1251410cf0cad9a833234c9890774dd9f"
+dependencies = [
+ "quote",
+ "syn 2.0.71",
+]
+
+[[package]]
 name = "ctr"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6856,6 +6866,7 @@ name = "gear-sandbox"
 version = "1.6.1"
 dependencies = [
  "assert_matches",
+ "ctor",
  "gear-sandbox-env",
  "gear-sandbox-interface",
  "log",
@@ -6863,7 +6874,10 @@ dependencies = [
  "sp-core",
  "sp-std 8.0.0",
  "sp-wasm-interface-common",
- "wasmi 0.30.0",
+ "wasmer",
+ "wasmer-compiler",
+ "wasmer-types",
+ "wasmer-vm",
  "wat",
 ]
 
@@ -8312,12 +8326,6 @@ checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
 dependencies = [
  "num-traits",
 ]
-
-[[package]]
-name = "intx"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6f38a50a899dc47a6d0ed5508e7f601a2e34c3a85303514b5d137f3c10a0c75"
 
 [[package]]
 name = "io-lifetimes"
@@ -19478,26 +19486,13 @@ dependencies = [
 
 [[package]]
 name = "wasmi"
-version = "0.30.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
-dependencies = [
- "intx",
- "smallvec",
- "spin 0.9.8",
- "wasmi_arena 0.4.0",
- "wasmi_core 0.12.0",
- "wasmparser-nostd",
-]
-
-[[package]]
-name = "wasmi"
 version = "0.31.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77a8281d1d660cdf54c76a3efa9ddd0c270cada1383a995db3ccb43d166456c7"
 dependencies = [
  "smallvec",
  "spin 0.9.8",
- "wasmi_arena 0.4.1",
+ "wasmi_arena",
  "wasmi_core 0.13.0",
  "wasmparser-nostd",
 ]
@@ -19509,11 +19504,6 @@ source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b102
 dependencies = [
  "parity-wasm",
 ]
-
-[[package]]
-name = "wasmi_arena"
-version = "0.4.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
 
 [[package]]
 name = "wasmi_arena"
@@ -19531,18 +19521,6 @@ dependencies = [
  "memory_units",
  "num-rational",
  "num-traits",
- "region",
-]
-
-[[package]]
-name = "wasmi_core"
-version = "0.12.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
-dependencies = [
- "downcast-rs",
- "libm",
- "num-traits",
- "paste",
  "region",
 ]
 

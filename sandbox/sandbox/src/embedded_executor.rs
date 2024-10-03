@@ -24,98 +24,244 @@ use crate::{
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
-use sp_core::RuntimeDebug;
-use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 use sp_wasm_interface_common::HostPointer;
-use wasmi::{
-    core::{Pages, Trap, UntypedValue},
-    Config, Engine, ExternType, Linker, MemoryType, Module, StackLimits, StoreContext,
-    StoreContextMut, Value as RuntimeValue,
+use std::{collections::btree_map::BTreeMap, marker::PhantomData, ptr::NonNull};
+use wasmer::{
+    sys::{BaseTunables, VMConfig},
+    vm::{
+        LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
+        VMTableDefinition,
+    },
+    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, Module,
+    NativeEngineExt, RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables,
+    Value as RuntimeValue,
 };
+use wasmer_types::{ExternType, Target};
+
+// TODO: remove after usage of `wasmi::Store::set_trap_handler` for lazy-pages
+#[ctor::ctor]
+fn init_wasmer() {
+    wasmer_vm::init_traps();
+}
+
+struct CustomTunables {
+    inner: BaseTunables,
+    vmconfig: VMConfig,
+}
+
+impl CustomTunables {
+    fn for_target(target: &Target) -> Self {
+        Self {
+            inner: BaseTunables::for_target(target),
+            vmconfig: VMConfig {
+                wasm_stack_size: None,
+            },
+        }
+    }
+
+    fn with_wasm_stack_size(mut self, wasm_stack_size: impl Into<Option<usize>>) -> Self {
+        self.vmconfig.wasm_stack_size = wasm_stack_size.into();
+        self
+    }
+}
+
+impl Tunables for CustomTunables {
+    fn memory_style(&self, memory: &MemoryType) -> MemoryStyle {
+        self.inner.memory_style(memory)
+    }
+
+    fn table_style(&self, table: &TableType) -> TableStyle {
+        self.inner.table_style(table)
+    }
+
+    fn create_host_memory(
+        &self,
+        ty: &MemoryType,
+        style: &MemoryStyle,
+    ) -> Result<VMMemory, MemoryError> {
+        self.inner.create_host_memory(ty, style)
+    }
+
+    unsafe fn create_vm_memory(
+        &self,
+        ty: &MemoryType,
+        style: &MemoryStyle,
+        vm_definition_location: NonNull<VMMemoryDefinition>,
+    ) -> Result<VMMemory, MemoryError> {
+        self.inner
+            .create_vm_memory(ty, style, vm_definition_location)
+    }
+
+    fn create_host_table(&self, ty: &TableType, style: &TableStyle) -> Result<VMTable, String> {
+        self.inner.create_host_table(ty, style)
+    }
+
+    unsafe fn create_vm_table(
+        &self,
+        ty: &TableType,
+        style: &TableStyle,
+        vm_definition_location: NonNull<VMTableDefinition>,
+    ) -> Result<VMTable, String> {
+        self.inner
+            .create_vm_table(ty, style, vm_definition_location)
+    }
+
+    fn create_global(&self, ty: GlobalType) -> Result<VMGlobal, String> {
+        self.inner.create_global(ty)
+    }
+
+    unsafe fn create_memories(
+        &self,
+        context: &mut StoreObjects,
+        module: &wasmer_types::ModuleInfo,
+        memory_styles: &wasmer_types::entity::PrimaryMap<wasmer_types::MemoryIndex, MemoryStyle>,
+        memory_definition_locations: &[NonNull<VMMemoryDefinition>],
+    ) -> Result<
+        wasmer_types::entity::PrimaryMap<
+            wasmer_types::LocalMemoryIndex,
+            wasmer_vm::InternalStoreHandle<VMMemory>,
+        >,
+        wasmer_compiler::LinkError,
+    > {
+        self.inner
+            .create_memories(context, module, memory_styles, memory_definition_locations)
+    }
+
+    unsafe fn create_tables(
+        &self,
+        context: &mut StoreObjects,
+        module: &wasmer_types::ModuleInfo,
+        table_styles: &wasmer_types::entity::PrimaryMap<wasmer_types::TableIndex, TableStyle>,
+        table_definition_locations: &[NonNull<VMTableDefinition>],
+    ) -> Result<
+        wasmer_types::entity::PrimaryMap<
+            wasmer_types::LocalTableIndex,
+            wasmer_vm::InternalStoreHandle<VMTable>,
+        >,
+        wasmer_compiler::LinkError,
+    > {
+        self.inner
+            .create_tables(context, module, table_styles, table_definition_locations)
+    }
+
+    fn create_globals(
+        &self,
+        context: &mut StoreObjects,
+        module: &wasmer_types::ModuleInfo,
+    ) -> Result<
+        wasmer_types::entity::PrimaryMap<
+            wasmer_types::LocalGlobalIndex,
+            wasmer_vm::InternalStoreHandle<VMGlobal>,
+        >,
+        wasmer_compiler::LinkError,
+    > {
+        self.inner.create_globals(context, module)
+    }
+
+    fn vmconfig(&self) -> &VMConfig {
+        &self.vmconfig
+    }
+}
 
 /// [`AsContextExt`] extension.
-pub trait AsContext: wasmi::AsContext + wasmi::AsContextMut {}
+pub trait AsContext: wasmer::AsStoreRef + wasmer::AsStoreMut {}
 
-/// wasmi store wrapper.
-#[derive(RuntimeDebug)]
-pub struct Store<T>(wasmi::Store<T>);
+#[derive(Debug)]
+struct InnerState<T> {
+    inner: T,
+    gas_global: Option<Global>,
+}
+
+impl<T> InnerState<T> {
+    fn new(inner: T) -> Self {
+        Self {
+            inner,
+            gas_global: None,
+        }
+    }
+}
+
+/// wasmer store wrapper.
+#[derive(Debug)]
+pub struct Store<T> {
+    inner: wasmer::Store,
+    state: FunctionEnv<InnerState<T>>,
+}
 
 impl<T> Store<T> {
     fn engine(&self) -> &Engine {
-        self.0.engine()
+        self.inner.engine()
     }
 }
 
-impl<T> SandboxStore for Store<T> {
+impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let register_len = size_of::<UntypedValue>();
+        let mut engine = Engine::default();
+        let tunables = CustomTunables::for_target(engine.target())
+            // make stack size bigger for fuzzer
+            .with_wasm_stack_size(16 * 1024 * 1024);
+        engine.set_tunables(tunables);
+        let mut store = wasmer::Store::new(engine);
 
-        const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
-        const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
-        const DEFAULT_MAX_RECURSION_DEPTH: usize = 16384;
+        let state = FunctionEnv::new(&mut store, InnerState::new(state));
 
-        let mut config = Config::default();
-        config.set_stack_limits(
-            StackLimits::new(
-                DEFAULT_MIN_VALUE_STACK_HEIGHT / register_len,
-                DEFAULT_MAX_VALUE_STACK_HEIGHT / register_len,
-                DEFAULT_MAX_RECURSION_DEPTH,
-            )
-            .expect("infallible"),
-        );
-
-        let engine = Engine::new(&config);
-        let store = wasmi::Store::new(&engine, state);
-        Self(store)
+        Self {
+            inner: store,
+            state,
+        }
     }
 }
 
-impl<T> wasmi::AsContext for Store<T> {
-    type UserState = T;
-
-    fn as_context(&self) -> StoreContext<Self::UserState> {
-        self.0.as_context()
+impl<T> wasmer::AsStoreRef for Store<T> {
+    fn as_store_ref(&self) -> StoreRef<'_> {
+        self.inner.as_store_ref()
     }
 }
 
-impl<T> wasmi::AsContextMut for Store<T> {
-    fn as_context_mut(&mut self) -> StoreContextMut<Self::UserState> {
-        self.0.as_context_mut()
+impl<T> wasmer::AsStoreMut for Store<T> {
+    fn as_store_mut(&mut self) -> StoreMut<'_> {
+        self.inner.as_store_mut()
+    }
+
+    fn objects_mut(&mut self) -> &mut StoreObjects {
+        self.inner.objects_mut()
     }
 }
 
-impl<T> AsContextExt for Store<T> {
+impl<T: Send + 'static> AsContextExt for Store<T> {
     type State = T;
 
     fn data_mut(&mut self) -> &mut Self::State {
-        self.0.data_mut()
+        &mut self.state.as_mut(&mut self.inner).inner
     }
 }
 
 impl<T> AsContext for Store<T> {}
 
 /// wasmi caller wrapper.
-pub struct Caller<'a, T>(wasmi::Caller<'a, T>);
+pub struct Caller<'a, T>(wasmer::FunctionEnvMut<'a, InnerState<T>>);
 
-impl<T> wasmi::AsContext for Caller<'_, T> {
-    type UserState = T;
-
-    fn as_context(&self) -> StoreContext<Self::UserState> {
-        self.0.as_context()
+impl<T> wasmer::AsStoreRef for Caller<'_, T> {
+    fn as_store_ref(&self) -> StoreRef<'_> {
+        self.0.as_store_ref()
     }
 }
 
-impl<T> wasmi::AsContextMut for Caller<'_, T> {
-    fn as_context_mut(&mut self) -> StoreContextMut<Self::UserState> {
-        self.0.as_context_mut()
+impl<T> wasmer::AsStoreMut for Caller<'_, T> {
+    fn as_store_mut(&mut self) -> StoreMut<'_> {
+        self.0.as_store_mut()
+    }
+
+    fn objects_mut(&mut self) -> &mut StoreObjects {
+        self.0.objects_mut()
     }
 }
 
-impl<T> AsContextExt for Caller<'_, T> {
+impl<T: Send + 'static> AsContextExt for Caller<'_, T> {
     type State = T;
 
     fn data_mut(&mut self) -> &mut Self::State {
-        self.0.data_mut()
+        &mut self.0.data_mut().inner
     }
 }
 
@@ -124,26 +270,30 @@ impl<T> AsContext for Caller<'_, T> {}
 /// The linear memory used by the sandbox.
 #[derive(Clone)]
 pub struct Memory {
-    memref: wasmi::Memory,
+    memref: wasmer::Memory,
+    base: usize,
 }
 
 impl<T> super::SandboxMemory<T> for Memory {
     fn new(store: &mut Store<T>, initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
-        let ty = MemoryType::new(initial, maximum).map_err(|_| Error::Module)?;
-        let memref = wasmi::Memory::new(store, ty).map_err(|_| Error::Module)?;
-        Ok(Memory { memref })
+        let ty = MemoryType::new(initial, maximum, false);
+        let memory_style = store.engine().tunables().memory_style(&ty);
+        let memref = VMMemory::new(&ty, &memory_style).map_err(|_| Error::Module)?;
+        // SAFETY: `vmmemory()` returns `NonNull` so pointer is valid
+        let memory_definition = unsafe { memref.vmmemory().as_ref() };
+        let base = memory_definition.base as usize;
+        let memref = wasmer::Memory::new_from_existing(store, memref);
+        Ok(Memory { memref, base })
     }
 
     fn read<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
         Context: AsContextExt<State = T>,
     {
-        let data = self
-            .memref
-            .data(ctx)
-            .get((ptr as usize)..(ptr as usize + buf.len()))
-            .ok_or(Error::OutOfBounds)?;
-        buf[..].copy_from_slice(data);
+        self.memref
+            .view(ctx)
+            .read(ptr as u64, buf)
+            .map_err(|_| Error::OutOfBounds)?;
         Ok(())
     }
 
@@ -151,12 +301,10 @@ impl<T> super::SandboxMemory<T> for Memory {
     where
         Context: AsContextExt<State = T>,
     {
-        let data = self
-            .memref
-            .data_mut(ctx)
-            .get_mut((ptr as usize)..(ptr as usize + value.len()))
-            .ok_or(Error::OutOfBounds)?;
-        data[..].copy_from_slice(value);
+        self.memref
+            .view(ctx)
+            .write(ptr as u64, value)
+            .map_err(|_| Error::OutOfBounds)?;
         Ok(())
     }
 
@@ -164,10 +312,9 @@ impl<T> super::SandboxMemory<T> for Memory {
     where
         Context: AsContextExt<State = T>,
     {
-        let pages = Pages::new(pages).ok_or(Error::MemoryGrow)?;
         self.memref
             .grow(ctx, pages)
-            .map(Into::into)
+            .map(|pages| pages.0)
             .map_err(|_| Error::MemoryGrow)
     }
 
@@ -175,14 +322,14 @@ impl<T> super::SandboxMemory<T> for Memory {
     where
         Context: AsContextExt<State = T>,
     {
-        self.memref.current_pages(ctx).into()
+        self.memref.view(ctx).size().0
     }
 
-    unsafe fn get_buff<Context>(&self, ctx: &Context) -> u64
+    unsafe fn get_buff<Context>(&self, _ctx: &Context) -> u64
     where
         Context: AsContextExt<State = T>,
     {
-        self.memref.data(ctx).as_ptr() as usize as u64
+        self.base as u64
     }
 }
 
@@ -249,25 +396,25 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
 
 /// Sandboxed instance of a WASM module.
 pub struct Instance<State> {
-    instance: wasmi::Instance,
+    instance: wasmer::Instance,
     _marker: PhantomData<State>,
 }
 
 impl<State> Clone for Instance<State> {
     fn clone(&self) -> Self {
         Self {
-            instance: self.instance,
+            instance: self.instance.clone(),
             _marker: PhantomData,
         }
     }
 }
 
-impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
+impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
     type Memory = Memory;
     type EnvironmentBuilder = EnvironmentDefinitionBuilder<State>;
 
     fn new(
-        mut store: &mut Store<State>,
+        store: &mut Store<State>,
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
@@ -275,7 +422,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
             log::trace!(target: TARGET, "Failed to create module: {e}");
             Error::Module
         })?;
-        let mut linker = Linker::new(store.engine());
+        let mut imports = Imports::new();
 
         for import in module.imports() {
             let module = import.module().to_string();
@@ -292,13 +439,9 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                         .and_then(|val| val.memory())
                         .ok_or(Error::Module)?
                         .memref;
-
-                    let mem = wasmi::Extern::Memory(mem);
-                    linker
-                        .define(&module, &name, mem)
-                        .map_err(|_| Error::Module)?;
+                    imports.define(&module, &name, mem);
                 }
-                ExternType::Func(func_ty) => {
+                ExternType::Function(func_ty) => {
                     let func_ptr = env_def_builder
                         .map
                         .get(&key)
@@ -306,45 +449,49 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                         .and_then(|val| val.host_func())
                         .ok_or(Error::Module)?;
 
-                    let func = wasmi::Func::new(
-                        &mut store,
-                        func_ty.clone(),
-                        move |caller, params, results| {
-                            let gas = caller
-                                .get_export(GLOBAL_NAME_GAS)
-                                .ok_or_else(|| {
-                                    Trap::new(format!("failed to find `{GLOBAL_NAME_GAS}` export"))
-                                })?
-                                .into_global()
-                                .ok_or_else(|| {
-                                    Trap::new(format!("{GLOBAL_NAME_GAS} is not global"))
-                                })?;
+                    let func_ty = func_ty.clone();
 
-                            let params: Vec<_> = Some(gas.get(&caller))
+                    let func = wasmer::Function::new_with_env(
+                        &mut store.inner,
+                        &store.state,
+                        func_ty.clone(),
+                        move |mut env, params| {
+                            let (inner_state, mut store) = env.data_and_store_mut();
+                            let gas = inner_state
+                                .gas_global
+                                .as_ref()
+                                .unwrap_or_else(|| {
+                                    unreachable!(
+                                        "`{GLOBAL_NAME_GAS}` global should be set to `Some(...)`"
+                                    )
+                                })
+                                .clone();
+
+                            let params: Vec<_> = Some(gas.get(&mut store))
                                 .into_iter()
                                 .chain(params.iter().cloned())
                                 .map(to_interface)
                                 .map(|val| {
-                                    val.ok_or(Trap::new(
+                                    val.ok_or(RuntimeError::new(
                                         "`externref` or `funcref` are not supported",
                                     ))
                                 })
                                 .collect::<Result<_, _>>()?;
 
-                            let mut caller = Caller(caller);
+                            let mut caller = Caller(env);
                             let val = (func_ptr)(&mut caller, &params)
-                                .map_err(|HostError| Trap::new("function error"))?;
+                                .map_err(|HostError| RuntimeError::new("function error"))?;
 
-                            match (val.inner, results) {
-                                (ReturnValue::Unit, []) => {}
+                            let return_val = match (val.inner, func_ty.results()) {
+                                (ReturnValue::Unit, []) => None,
                                 (ReturnValue::Value(val), [ret]) => {
                                     let val = to_wasmi(val);
 
-                                    if val.ty() != ret.ty() {
-                                        return Err(Trap::new("mismatching return types"));
+                                    if val.ty() != *ret {
+                                        return Err(RuntimeError::new("mismatching return types"));
                                     }
 
-                                    *ret = val;
+                                    Some(val)
                                 }
                                 _results => {
                                     let err_msg = format!(
@@ -355,34 +502,34 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                                     log::error!("{err_msg}");
                                     unreachable!("{err_msg}")
                                 }
-                            }
+                            };
 
                             gas.set(&mut caller.0, RuntimeValue::I64(val.gas))
                                 .map_err(|e| {
-                                    Trap::new(format!(
+                                    RuntimeError::new(format!(
                                         "failed to set `{GLOBAL_NAME_GAS}` global: {e}"
                                     ))
                                 })?;
 
-                            Ok(())
+                            Ok(Vec::from_iter(return_val))
                         },
                     );
-                    let func = wasmi::Extern::Func(func);
-                    linker
-                        .define(&module, &name, func)
-                        .map_err(|_| Error::Module)?;
+                    imports.define(&module, &name, func);
                 }
             }
         }
 
-        let instance_pre = linker.instantiate(&mut store, &module).map_err(|e| {
+        let instance = wasmer::Instance::new(store, &module, &imports).map_err(|e| {
             log::trace!(target: TARGET, "Error instantiating module: {:?}", e);
             Error::Module
         })?;
-        let instance = instance_pre.start(&mut store).map_err(|e| {
-            log::trace!(target: TARGET, "Error starting module: {:?}", e);
-            Error::Module
-        })?;
+
+        store.state.as_mut(&mut store.inner).gas_global = instance
+            .exports
+            .get_global(GLOBAL_NAME_GAS)
+            // gas global is optional during some benchmarks
+            .ok()
+            .cloned();
 
         Ok(Instance {
             instance,
@@ -400,19 +547,16 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
         let func = self
             .instance
-            .get_func(&store, name)
-            .ok_or(Error::Execution)?;
+            .exports
+            .get_function(name)
+            .map_err(|_| Error::Execution)?;
 
-        let func_ty = func.ty(&store);
-        let mut results =
-            vec![RuntimeValue::ExternRef(wasmi::ExternRef::null()); func_ty.results().len()];
-
-        func.call(&mut store, &args, &mut results).map_err(|e| {
+        let results = func.call(&mut store, &args).map_err(|e| {
             log::trace!(target: TARGET, "invocation error: {e}");
             Error::Execution
         })?;
 
-        match results.as_slice() {
+        match results.as_ref() {
             [] => Ok(ReturnValue::Unit),
             [val] => {
                 let val = to_interface(val.clone()).ok_or(Error::Execution)?;
@@ -430,8 +574,8 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
         }
     }
 
-    fn get_global_val(&self, store: &Store<State>, name: &str) -> Option<Value> {
-        let global = self.instance.get_global(store, name)?;
+    fn get_global_val(&self, store: &mut Store<State>, name: &str) -> Option<Value> {
+        let global = self.instance.exports.get_global(name).ok()?;
         let global = global.get(store);
         to_interface(global)
     }
@@ -444,8 +588,9 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
     ) -> Result<(), GlobalsSetError> {
         let global = self
             .instance
-            .get_global(&store, name)
-            .ok_or(GlobalsSetError::NotFound)?;
+            .exports
+            .get_global(name)
+            .map_err(|_| GlobalsSetError::NotFound)?;
         global
             .set(&mut store, to_wasmi(value))
             .map_err(|_| GlobalsSetError::Other)?;
@@ -465,8 +610,8 @@ fn to_wasmi(value: Value) -> RuntimeValue {
     match value {
         Value::I32(val) => RuntimeValue::I32(val),
         Value::I64(val) => RuntimeValue::I64(val),
-        Value::F32(val) => RuntimeValue::F32(val.into()),
-        Value::F64(val) => RuntimeValue::F64(val.into()),
+        Value::F32(val) => RuntimeValue::F32(f32::from_bits(val)),
+        Value::F64(val) => RuntimeValue::F64(f64::from_bits(val)),
     }
 }
 
@@ -475,9 +620,9 @@ fn to_interface(value: RuntimeValue) -> Option<Value> {
     match value {
         RuntimeValue::I32(val) => Some(Value::I32(val)),
         RuntimeValue::I64(val) => Some(Value::I64(val)),
-        RuntimeValue::F32(val) => Some(Value::F32(val.into())),
-        RuntimeValue::F64(val) => Some(Value::F64(val.into())),
-        RuntimeValue::FuncRef(_) | RuntimeValue::ExternRef(_) => None,
+        RuntimeValue::F32(val) => Some(Value::F32(val.to_bits())),
+        RuntimeValue::F64(val) => Some(Value::F64(val.to_bits())),
+        RuntimeValue::V128(_) | RuntimeValue::FuncRef(_) | RuntimeValue::ExternRef(_) => None,
     }
 }
 
