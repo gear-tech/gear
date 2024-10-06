@@ -15,3 +15,5 @@ if [ "$1" = "--lldb" ]; then
 fi
 
 cargo xwin $@
+
+wineserver -k
