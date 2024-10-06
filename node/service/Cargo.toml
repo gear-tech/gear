@@ -96,7 +96,6 @@ frame-benchmarking = { workspace = true, features = ["std"] }
 frame-benchmarking-cli.workspace = true
 substrate-frame-rpc-system.workspace = true
 substrate-state-trie-migration-rpc.workspace = true
-try-runtime-cli = { workspace = true, optional = true }
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -118,5 +117,4 @@ runtime-benchmarks-checkers = [
 ]
 try-runtime = [
 	"vara-runtime?/try-runtime",
-	"try-runtime-cli",
 ]

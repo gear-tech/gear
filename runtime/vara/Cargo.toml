@@ -23,6 +23,7 @@ frame-system.workspace = true
 frame-try-runtime = { workspace = true, optional = true }
 frame-election-provider-support.workspace = true
 frame-executive.workspace = true
+frame-metadata-hash-extension.workspace = true
 
 # Substrate pallet deps
 pallet-authority-discovery.workspace = true
@@ -134,6 +135,7 @@ std = [
 	"frame-election-provider-support/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
+	"frame-metadata-hash-extension/std",
 	"runtime-primitives/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
@@ -201,6 +203,7 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
+	"substrate-wasm-builder/metadata-hash",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -276,3 +279,4 @@ try-runtime = [
 ]
 fuzz = ["common/fuzz", "pallet-gear/fuzz", "pallet-gear-gas/fuzz"]
 dev = ["pallet-gear-debug", "pallet-gear-eth-bridge", "pallet-sudo"]
+metadata-hash = ["substrate-wasm-builder?/metadata-hash"]

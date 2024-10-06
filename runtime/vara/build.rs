@@ -16,14 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(all(feature = "std", not(feature = "metadata-hash")))]
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
     #[cfg(all(feature = "std", not(feature = "fuzz")))]
     {
-        substrate_wasm_builder::WasmBuilder::new()
-            .with_current_project()
-            .export_heap_base()
-            .import_memory()
+        substrate_wasm_builder::WasmBuilder::build_using_defaults()
+    }
+}
+
+#[cfg(all(feature = "std", feature = "metadata-hash"))]
+fn main() {
+    substrate_build_script_utils::generate_cargo_keys();
+    #[cfg(all(feature = "std", not(feature = "fuzz")))]
+    {
+        substrate_wasm_builder::WasmBuilder::init_with_defaults()
+            .enable_metadata_hash("VARA", 12)
             .build()
     }
 }
+
+#[cfg(not(feature = "std"))]
+fn main() {}
