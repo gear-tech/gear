@@ -18,6 +18,8 @@
 
 //! An embedded WASM executor utilizing `wasmi`.
 
+pub use wasmer_vm::init_traps;
+
 use crate::{
     AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore,
     Value, TARGET,
@@ -37,12 +39,6 @@ use wasmer::{
     RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
 };
 use wasmer_types::{ExternType, Target};
-
-// TODO: remove after usage of `wasmi::Store::set_trap_handler` for lazy-pages
-#[ctor::ctor]
-fn init_wasmer() {
-    wasmer_vm::init_traps();
-}
 
 fn fs_cache() -> PathBuf {
     const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
@@ -202,6 +198,11 @@ impl<T> Store<T> {
     fn engine(&self) -> &Engine {
         self.inner.engine()
     }
+
+    fn trap_handler() -> bool {
+        log::trace!("`wasmer::Store::set_trap_handler` call");
+        false
+    }
 }
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
@@ -212,6 +213,11 @@ impl<T: Send + 'static> SandboxStore for Store<T> {
             .with_wasm_stack_size(16 * 1024 * 1024);
         engine.set_tunables(tunables);
         let mut store = wasmer::Store::new(engine);
+        #[cfg(unix)]
+        let trap_handler = |_, _, _| Self::trap_handler();
+        #[cfg(windows)]
+        let trap_handler = |_| Self::trap_handler();
+        store.set_trap_handler(Some(Box::new(trap_handler)));
 
         let state = FunctionEnv::new(&mut store, InnerState::new(state));
 
