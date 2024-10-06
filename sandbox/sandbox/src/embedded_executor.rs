@@ -18,8 +18,6 @@
 
 //! An embedded WASM executor utilizing `wasmi`.
 
-pub use wasmer_vm::init_traps;
-
 use crate::{
     AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore,
     Value, TARGET,
@@ -40,10 +38,19 @@ use wasmer::{
 };
 use wasmer_types::{ExternType, Target};
 
+/// Initialize wasmer traps
+pub fn init_traps() {
+    wasmer_vm::init_traps();
+    log::trace!("wasmer traps initialized");
+}
+
 fn fs_cache() -> PathBuf {
     const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
-    assert!(MANIFEST_DIR.ends_with("sandbox/sandbox"));
-    let path = PathBuf::from(MANIFEST_DIR).join("../../target/wasmer-cache");
+
+    let manifest_dir = PathBuf::from(MANIFEST_DIR);
+    assert!(manifest_dir.ends_with("sandbox/sandbox"));
+
+    let path = manifest_dir.join("../../target/wasmer-cache");
     if !path.exists() {
         fs::create_dir(&path).unwrap();
     }
