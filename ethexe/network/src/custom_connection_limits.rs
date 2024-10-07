@@ -323,7 +323,7 @@ mod tests {
 
         assert_eq!(
             map.inner.into_keys().collect::<HashSet<PeerId>>(),
-            Default::default()
+            HashSet::default()
         );
     }
 

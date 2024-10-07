@@ -28,6 +28,8 @@ use sp_core::RuntimeDebug;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface_common::HostPointer;
 
+pub fn init_traps() {}
+
 mod ffi {
     use super::HostFuncType;
     use sp_std::mem;
@@ -380,7 +382,7 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         }
     }
 
-    fn get_global_val(&self, _store: &Store<T>, name: &str) -> Option<Value> {
+    fn get_global_val(&self, _store: &mut Store<T>, name: &str) -> Option<Value> {
         sandbox::get_global_val(*self.instance_idx, name)
     }
 
