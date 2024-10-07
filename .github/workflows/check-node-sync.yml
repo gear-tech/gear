@@ -1,15 +1,8 @@
-name: Live check on Vara Network Validator machine
+name: Check node sync
 
 on:
   workflow_dispatch:
   workflow_call:
-    secrets:
-      VARA_VALIDATOR_8:
-        required: true
-      SSH_VARA_USERNAME:
-        required: true
-      VARA_SSH_PRIVATE_KEY:
-        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,9 +38,12 @@ jobs:
           image_name="ghcr.io/gear-tech/node:${{ env.branch_name }}-${{ env.sha_short }}"
           echo "image_name=$image_name" >> $GITHUB_OUTPUT
 
-  build-update-validator:
-    runs-on: [kuberunner]
-    needs: prepare
+  build-and-push-image:
+    needs: [prepare]
+    runs-on: kuberunner
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -66,19 +62,29 @@ jobs:
           push: true
           tags: ${{ needs.prepare.outputs.image_name }}
 
-      - name: SSH into VM
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          NEW_IMAGE: ${{ needs.prepare.outputs.image_name }}
-        with:
-          host: ${{ secrets.VARA_VALIDATOR_8 }}
-          username: ${{ secrets.SSH_VARA_USERNAME }}
-          key: ${{ secrets.VARA_SSH_PRIVATE_KEY }}
-          envs: NEW_IMAGE
-          script: |
-            sudo docker-compose -f /home/gear/docker-compose.yaml down
-            sudo sed -i "s|image:.*|image: ${NEW_IMAGE}|g" /home/gear/docker-compose.yaml
-            sudo docker-compose -f /home/gear/docker-compose.yaml up -d
+  check-mainnet:
+    needs: [prepare, build-and-push-image]
+    runs-on: kuberunner
+    timeout-minutes: 7200
+    steps:
+      - name: Run mainnet sync
+        run: |
+          docker run --name gear-node --rm ${{ needs.prepare.outputs.image_name }} \
+            gear --chain vara --sync full 2>&1 | tee -a ./sync.log &
+          while ! grep -q 'Imported' ./sync.log; do sleep 60; done
+          docker kill gear-node
+
+  check-testnet:
+    needs: [prepare, build-and-push-image]
+    runs-on: kuberunner
+    timeout-minutes: 7200
+    steps:
+      - name: Run testnet sync
+        run: |
+          docker run --name gear-node --rm ${{ needs.prepare.outputs.image_name }} \
+            gear --chain testnet --sync full 2>&1 | tee -a ./sync.log &
+          while ! grep -q 'Imported' ./sync.log; do sleep 60; done
+          docker kill gear-node
 
   notify:
     if: failure()
