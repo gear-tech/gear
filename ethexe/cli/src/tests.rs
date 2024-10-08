@@ -1026,7 +1026,8 @@ mod utils {
             &mut self,
             mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
         ) -> Result<R> {
-            self.apply_until_block_event_with_number(|e, _bn| f(e)).await
+            self.apply_until_block_event_with_number(|e, _bn| f(e))
+                .await
         }
 
         pub async fn apply_until_block_event_with_number<R: Sized>(

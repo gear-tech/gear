@@ -39,6 +39,16 @@ pub struct BlockHeader {
     pub parent_hash: H256,
 }
 
+impl BlockHeader {
+    pub fn dummy(height: u32) -> Self {
+        Self {
+            height,
+            timestamp: height as u64 * 12,
+            parent_hash: H256::random(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Encode, Decode)]
 pub struct CodeUploadInfo {
     pub origin: ActorId,

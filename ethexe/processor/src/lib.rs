@@ -88,7 +88,7 @@ impl Processor {
 
         let schedule = self.db.block_start_schedule(block_hash).unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
 
-        let mut in_block_transitions = InBlockTransitions::new(header.height, states, schedule);
+        let mut in_block_transitions = InBlockTransitions::new(header, states, schedule);
 
         // TODO (breathx): handle resulting addresses that were changed (e.g. top up balance wont be dumped as outcome).
         for event in events {
@@ -159,8 +159,7 @@ impl OverlaidProcessor {
             .block_start_program_states(block_hash)
             .unwrap_or_default();
 
-        let mut in_block_transitions =
-            InBlockTransitions::new(header.height, states, Default::default());
+        let mut in_block_transitions = InBlockTransitions::new(header, states, Default::default());
 
         let state_hash = in_block_transitions
             .state_of(&program_id)
