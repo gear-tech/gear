@@ -30,7 +30,8 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-pub type ScheduledTask = gear_core::tasks::ScheduledTask<ActorId>;
+/// NOTE: key for actor id is (program_id, user_id). only used for mailbox.
+pub type ScheduledTask = gear_core::tasks::ScheduledTask<(ProgramId, ActorId)>;
 
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct BlockHeader {

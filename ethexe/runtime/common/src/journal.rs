@@ -176,7 +176,10 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             if !dispatch.is_reply() {
                 let expiry = self.in_block_transitions.schedule_task(
                     state::MAILBOX_VALIDITY.try_into().expect("infallible"),
-                    // ScheduledTask::RemoveFromMailbox(dispatch.destination(), dispatch.id()),
+                    ScheduledTask::RemoveFromMailbox(
+                        (dispatch.source(), dispatch.destination()),
+                        dispatch.id(),
+                    ),
                 );
 
                 self.update_state_with_storage(dispatch.source(), |storage, state| {

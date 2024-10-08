@@ -29,8 +29,12 @@ impl<S: Storage> Handler<'_, S> {
     }
 }
 
-impl<'a, S: Storage> TaskHandler<ActorId> for Handler<'a, S> {
-    fn remove_from_mailbox(&mut self, _user_id: ActorId, _message_id: MessageId) -> u64 {
+impl<'a, S: Storage> TaskHandler<(ProgramId, ActorId)> for Handler<'a, S> {
+    fn remove_from_mailbox(
+        &mut self,
+        (_program_id, _user_id): (ProgramId, ActorId),
+        _message_id: MessageId,
+    ) -> u64 {
         unimplemented!("TODO (breathx)")
     }
     fn send_dispatch(&mut self, _stashed_message_id: MessageId) -> u64 {

@@ -217,6 +217,7 @@ async fn mailbox() {
         .await
         .unwrap();
 
+    // TODO (breathx): assert schedule; clean schedule on actions (claim etc).
     // -1 bcs execution took place in previous block, not the one that emits events.
     let expiry = bn - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
 
