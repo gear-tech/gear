@@ -96,8 +96,6 @@ async fn run_in_async(
                     program_id,
                     in_block_transitions,
                     storage: &db,
-                    // TODO (breathx): SET ME ASAP
-                    block_info: Default::default(),
                 };
                 core_processor::handle_journal(journal, &mut handler);
             }

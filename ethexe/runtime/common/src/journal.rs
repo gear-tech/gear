@@ -32,7 +32,6 @@ pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
     pub in_block_transitions: &'a mut InBlockTransitions,
     pub storage: &'a S,
-    pub block_info: BlockInfo,
 }
 
 impl<S: Storage> Handler<'_, S> {
@@ -175,7 +174,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .is_none()
         {
             if !dispatch.is_reply() {
-                let expiry = self.block_info.height + state::MAILBOX_VALIDITY;
+                let expiry = self.in_block_transitions.header().height + state::MAILBOX_VALIDITY;
 
                 self.update_state_with_storage(dispatch.source(), |storage, state| {
                     state.mailbox_hash =
