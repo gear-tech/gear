@@ -45,7 +45,7 @@ pub struct CodeUploadInfo {
     pub tx_hash: H256,
 }
 
-pub type Schedule = BTreeMap<u32, Vec<ScheduledTask>>;
+pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
 pub trait BlockMetaStorage: Send + Sync {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;

@@ -28,7 +28,7 @@ use gear_core::{
 };
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
 use wabt::wat2wasm;
 
@@ -573,7 +573,7 @@ fn many_waits() {
 
     // Reproducibility test.
     {
-        let mut expected_schedule = BTreeMap::<_, Vec<_>>::new();
+        let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
 
         for (pid, state_hash) in &states {
             let state = processor.db.read_state(*state_hash).unwrap();
@@ -585,7 +585,7 @@ fn many_waits() {
                 expected_schedule
                     .entry(expiry)
                     .or_default()
-                    .push(ScheduledTask::WakeMessage(*pid, mid));
+                    .insert(ScheduledTask::WakeMessage(*pid, mid));
             }
         }
 

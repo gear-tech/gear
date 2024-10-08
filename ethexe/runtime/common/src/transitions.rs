@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core::num::NonZeroU32;
+use std::collections::BTreeSet;
 
 use alloc::{
     collections::{btree_map::Iter, BTreeMap},
@@ -70,18 +71,17 @@ impl InBlockTransitions {
             .collect()
     }
 
-    pub fn take_actual_tasks(&mut self) -> Vec<ScheduledTask> {
+    pub fn take_actual_tasks(&mut self) -> BTreeSet<ScheduledTask> {
         self.schedule.remove(&self.current_bn).unwrap_or_default()
     }
 
     pub fn schedule_task(&mut self, in_blocks: NonZeroU32, task: ScheduledTask) -> u32 {
         let scheduled_block = self.current_bn + u32::from(in_blocks);
 
-        let entry = self.schedule.entry(scheduled_block).or_default();
-
-        if !entry.contains(&task) {
-            entry.push(task);
-        }
+        self.schedule
+            .entry(scheduled_block)
+            .or_default()
+            .insert(task);
 
         scheduled_block
     }
