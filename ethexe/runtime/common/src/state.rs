@@ -43,6 +43,9 @@ use parity_scale_codec::{Decode, Encode};
 
 pub use gear_core::program::ProgramState as InitStatus;
 
+/// 3h validity in mailbox for 12s blocks.
+pub const MAILBOX_VALIDITY: u32 = 54_000;
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct HashAndLen {
     pub hash: H256,
@@ -249,7 +252,7 @@ pub type MessageQueue = VecDeque<Dispatch>;
 pub type Waitlist = BTreeMap<MessageId, ValueWithExpiry<Dispatch>>;
 
 // TODO (breathx): consider here LocalMailbox for each user.
-pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, Value>>;
+pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 

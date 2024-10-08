@@ -187,8 +187,8 @@ async fn mailbox() {
     let ping_expected_message = MessageId::generate_outgoing(res.message_id, 1);
 
     let mut listener = env.events_publisher().subscribe().await;
-    listener
-        .apply_until_block_event(|event| match event {
+    let bn = listener
+        .apply_until_block_event_with_number(|event, bn| match event {
             BlockEvent::Mirror { address, event } if address == pid => {
                 if let MirrorEvent::Message {
                     id,
@@ -204,7 +204,7 @@ async fn mailbox() {
                         Ok(None)
                     } else if id == ping_expected_message {
                         assert_eq!(payload, b"PING");
-                        Ok(Some(()))
+                        Ok(Some(bn))
                     } else {
                         unreachable!()
                     }
@@ -217,9 +217,14 @@ async fn mailbox() {
         .await
         .unwrap();
 
+    let expiry = bn + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, 0), (ping_expected_message, 0)]),
+        BTreeMap::from_iter([
+            (mid_expected_message, (0, expiry)),
+            (ping_expected_message, (0, expiry)),
+        ]),
     )]);
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
@@ -255,7 +260,7 @@ async fn mailbox() {
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, 0)]),
+        BTreeMap::from_iter([(mid_expected_message, (0, expiry))]),
     )]);
 
     assert_eq!(mailbox, expected_mailbox);
@@ -1021,6 +1026,13 @@ mod utils {
             &mut self,
             mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
         ) -> Result<R> {
+            self.apply_until_block_event_with_number(|e, _bn| f(e)).await
+        }
+
+        pub async fn apply_until_block_event_with_number<R: Sized>(
+            &mut self,
+            mut f: impl FnMut(BlockEvent, u32) -> Result<Option<R>>,
+        ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
 
@@ -1029,7 +1041,7 @@ mod utils {
                 };
 
                 for event in block.events {
-                    if let Some(res) = f(event)? {
+                    if let Some(res) = f(event, block.block_number as u32)? {
                         return Ok(res);
                     }
                 }

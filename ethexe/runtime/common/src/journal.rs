@@ -175,13 +175,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .is_none()
         {
             if !dispatch.is_reply() {
+                let expiry = self.block_info.height + state::MAILBOX_VALIDITY;
+
                 self.update_state_with_storage(dispatch.source(), |storage, state| {
                     state.mailbox_hash =
                         storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
                             mailbox
                                 .entry(dispatch.destination())
                                 .or_default()
-                                .insert(dispatch.id(), dispatch.value());
+                                .insert(dispatch.id(), (dispatch.value(), expiry));
                         })?;
 
                     Ok(())

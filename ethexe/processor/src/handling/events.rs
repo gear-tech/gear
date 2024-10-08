@@ -216,7 +216,7 @@ impl Processor {
     ) -> Result<Option<(ValueClaim, H256)>> {
         self.db
             .mutate_state_returning(state_hash, |db, state| {
-                let Some((claimed_value, mailbox_hash)) =
+                let Some(((claimed_value, _expiry), mailbox_hash)) =
                     db.modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
                         let local_mailbox = mailbox.get_mut(&user_id)?;
                         let claimed_value = local_mailbox.remove(&mailboxed_id)?;

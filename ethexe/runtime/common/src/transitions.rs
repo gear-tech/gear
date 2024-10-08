@@ -17,10 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core::num::NonZeroU32;
-use std::collections::BTreeSet;
-
 use alloc::{
-    collections::{btree_map::Iter, BTreeMap},
+    collections::{btree_map::Iter, BTreeMap, BTreeSet},
     vec::Vec,
 };
 use ethexe_common::{
