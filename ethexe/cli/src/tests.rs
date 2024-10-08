@@ -217,7 +217,8 @@ async fn mailbox() {
         .await
         .unwrap();
 
-    let expiry = bn + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+    // -1 bcs execution took place in previous block, not the one that emits events.
+    let expiry = bn - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
