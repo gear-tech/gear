@@ -293,14 +293,18 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
 
+        let mut expiry_if_found = None;
+
         self.update_state_with_storage(program_id, |storage, state| {
-            let Some(((dispatch, _expiry), new_waitlist_hash)) = storage
+            let Some(((dispatch, expiry), new_waitlist_hash)) = storage
                 .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
                     waitlist.remove(&awakening_id)
                 })?
             else {
                 return Ok(());
             };
+
+            expiry_if_found = Some(expiry);
 
             state.waitlist_hash = new_waitlist_hash;
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
@@ -309,6 +313,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
             Ok(())
         });
+
+        if let Some(expiry) = expiry_if_found {
+            self.in_block_transitions
+                .remove_task(
+                    expiry,
+                    &ScheduledTask::WakeMessage(program_id, awakening_id),
+                )
+                .expect("failed to remove scheduled task");
+        }
     }
 
     fn update_pages_data(
