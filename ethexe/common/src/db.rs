@@ -42,10 +42,13 @@ pub struct BlockHeader {
 
 impl BlockHeader {
     pub fn dummy(height: u32) -> Self {
+        let mut parent_hash = [0; 32];
+        parent_hash[..4].copy_from_slice(&height.to_le_bytes());
+
         Self {
             height,
             timestamp: height as u64 * 12,
-            parent_hash: H256::random(),
+            parent_hash: parent_hash.into(),
         }
     }
 }
