@@ -222,7 +222,6 @@ async fn mailbox() {
         .await
         .unwrap();
 
-    // TODO (breathx): clean schedule on actions (claim etc).
     // -1 bcs execution took place in previous block, not the one that emits events.
     let wake_expiry = block_data.header.height - 1 + 100; // 100 is default wait for.
     let expiry = block_data.header.height - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
