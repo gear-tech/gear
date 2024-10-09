@@ -20,7 +20,7 @@ use alloc::{
     collections::{btree_map::Iter, BTreeMap, BTreeSet},
     vec::Vec,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use core::num::NonZeroU32;
 use ethexe_common::{
     db::{BlockHeader, Schedule, ScheduledTask},
@@ -91,11 +91,12 @@ impl InBlockTransitions {
         let block_tasks = self
             .schedule
             .get_mut(&expiry)
-            .ok_or_else(|| anyhow::anyhow!("No tasks found scheduled for a given block"))?;
+            .ok_or_else(|| anyhow!("No tasks found scheduled for a given block"))?;
 
-        block_tasks.remove(task).then_some(()).ok_or_else(|| {
-            anyhow::anyhow!("Requested task wasn't found scheduled for a given block")
-        })?;
+        block_tasks
+            .remove(task)
+            .then_some(())
+            .ok_or_else(|| anyhow!("Requested task wasn't found scheduled for a given block"))?;
 
         if block_tasks.is_empty() {
             self.schedule.remove(&expiry);

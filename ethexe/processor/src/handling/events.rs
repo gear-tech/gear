@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent,
     router::{RequestEvent as RouterEvent, ValueClaim},
@@ -75,9 +75,7 @@ impl Processor {
                 let new_state_hash = self.handle_executable_balance_top_up(state_hash, value)?;
                 in_block_transitions
                     .modify_state(actor_id, new_state_hash)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("failed to modify state of recognized program")
-                    })?;
+                    .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
             }
             MirrorEvent::MessageQueueingRequested {
                 id,
@@ -90,7 +88,7 @@ impl Processor {
                 let state = self
                     .db
                     .read_state(state_hash)
-                    .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+                    .ok_or_else(|| anyhow!("program should exist"))?;
 
                 let kind = if state.requires_init_message() {
                     DispatchKind::Init
@@ -111,9 +109,7 @@ impl Processor {
                 let new_state_hash = self.handle_message_queueing(state_hash, dispatch)?;
                 in_block_transitions
                     .modify_state(actor_id, new_state_hash)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("failed to modify state of recognized program")
-                    })?;
+                    .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
             }
             MirrorEvent::ReplyQueueingRequested {
                 replied_to,
@@ -126,9 +122,7 @@ impl Processor {
                 {
                     in_block_transitions
                         .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("failed to modify state of recognized program")
-                        })?;
+                        .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
 
                     in_block_transitions.remove_task(
                         expiry,
@@ -142,9 +136,7 @@ impl Processor {
                 {
                     in_block_transitions
                         .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("failed to modify state of recognized program")
-                        })?;
+                        .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
 
                     in_block_transitions.remove_task(
                         expiry,

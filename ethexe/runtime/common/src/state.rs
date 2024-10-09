@@ -22,7 +22,7 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use core::num::NonZeroU32;
 use gear_core::{
     code::InstrumentedCode,
@@ -310,8 +310,8 @@ pub trait Storage {
 
 pub trait ComplexStorage: Storage {
     fn store_payload(&self, payload: Vec<u8>) -> Result<MaybeHash> {
-        let payload = Payload::try_from(payload)
-            .map_err(|_| anyhow::anyhow!("failed to save payload: too large"))?;
+        let payload =
+            Payload::try_from(payload).map_err(|_| anyhow!("failed to save payload: too large"))?;
 
         Ok(payload
             .inner()
@@ -334,7 +334,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<MaybeHash> {
         let mut pages = pages_hash.with_hash_or_default_result(|pages_hash| {
             self.read_pages(pages_hash)
-                .ok_or_else(|| anyhow::anyhow!("failed to read pages by their hash ({pages_hash})"))
+                .ok_or_else(|| anyhow!("failed to read pages by their hash ({pages_hash})"))
         })?;
 
         f(&mut pages);
@@ -354,7 +354,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<MaybeHash> {
         let mut allocations = allocations_hash.with_hash_or_default_result(|allocations_hash| {
             self.read_allocations(allocations_hash).ok_or_else(|| {
-                anyhow::anyhow!("failed to read allocations by their hash ({allocations_hash})")
+                anyhow!("failed to read allocations by their hash ({allocations_hash})")
             })
         })?;
 
@@ -391,9 +391,8 @@ pub trait ComplexStorage: Storage {
         f: impl FnOnce(&mut Waitlist) -> Option<T>,
     ) -> Result<Option<(T, MaybeHash)>> {
         let mut waitlist = waitlist_hash.with_hash_or_default_result(|waitlist_hash| {
-            self.read_waitlist(waitlist_hash).ok_or_else(|| {
-                anyhow::anyhow!("failed to read waitlist by its hash ({waitlist_hash})")
-            })
+            self.read_waitlist(waitlist_hash)
+                .ok_or_else(|| anyhow!("failed to read waitlist by its hash ({waitlist_hash})"))
         })?;
 
         let res = if let Some(v) = f(&mut waitlist) {
@@ -426,7 +425,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<(T, MaybeHash)> {
         let mut queue = queue_hash.with_hash_or_default_result(|queue_hash| {
             self.read_queue(queue_hash)
-                .ok_or_else(|| anyhow::anyhow!("failed to read queue by its hash ({queue_hash})"))
+                .ok_or_else(|| anyhow!("failed to read queue by its hash ({queue_hash})"))
         })?;
 
         let res = f(&mut queue);
@@ -461,9 +460,8 @@ pub trait ComplexStorage: Storage {
         f: impl FnOnce(&mut Mailbox) -> Option<T>,
     ) -> Result<Option<(T, MaybeHash)>> {
         let mut mailbox = mailbox_hash.with_hash_or_default_result(|mailbox_hash| {
-            self.read_mailbox(mailbox_hash).ok_or_else(|| {
-                anyhow::anyhow!("failed to read mailbox by its hash ({mailbox_hash})")
-            })
+            self.read_mailbox(mailbox_hash)
+                .ok_or_else(|| anyhow!("failed to read mailbox by its hash ({mailbox_hash})"))
         })?;
 
         let res = if let Some(v) = f(&mut mailbox) {
@@ -497,7 +495,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<(T, H256)> {
         let mut state = self
             .read_state(state_hash)
-            .ok_or_else(|| anyhow::anyhow!("failed to read state by its hash ({state_hash})"))?;
+            .ok_or_else(|| anyhow!("failed to read state by its hash ({state_hash})"))?;
 
         let res = f(self, &mut state)?;
 
