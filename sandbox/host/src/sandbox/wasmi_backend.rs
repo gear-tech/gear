@@ -309,16 +309,12 @@ pub fn instantiate(
                     .ok_or(InstantiationError::ModuleDecoding)?;
 
                 let function = match version {
-                    Instantiate::Version1 => dispatch_function(
-                        supervisor_func_index,
-                        &mut context.store().borrow_mut(),
-                        func_ty,
-                    ),
-                    Instantiate::Version2 => dispatch_function_v2(
-                        supervisor_func_index,
-                        &mut context.store().borrow_mut(),
-                        func_ty,
-                    ),
+                    Instantiate::Version1 => {
+                        dispatch_function(supervisor_func_index, &mut store, func_ty)
+                    }
+                    Instantiate::Version2 => {
+                        dispatch_function_v2(supervisor_func_index, &mut store, func_ty)
+                    }
                 };
 
                 linker
