@@ -50,12 +50,6 @@ impl BlockHeader {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
-pub struct BlockHeaderWithHash {
-    pub hash: H256,
-    pub header: BlockHeader,
-}
-
 #[derive(Debug, Clone, Default, Encode, Decode)]
 pub struct CodeUploadInfo {
     pub origin: ActorId,

@@ -192,8 +192,8 @@ async fn mailbox() {
     let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
 
     let mut listener = env.events_publisher().subscribe().await;
-    let header = listener
-        .apply_until_block_event_with_header(|event, header| match event {
+    let block_data = listener
+        .apply_until_block_event_with_header(|event, block_data| match event {
             BlockEvent::Mirror { address, event } if address == pid => {
                 if let MirrorEvent::Message {
                     id,
@@ -209,7 +209,7 @@ async fn mailbox() {
                         Ok(None)
                     } else if id == ping_expected_message {
                         assert_eq!(payload, b"PING");
-                        Ok(Some(header.clone()))
+                        Ok(Some(block_data.clone()))
                     } else {
                         unreachable!()
                     }
@@ -224,8 +224,8 @@ async fn mailbox() {
 
     // TODO (breathx): clean schedule on actions (claim etc).
     // -1 bcs execution took place in previous block, not the one that emits events.
-    let wake_expiry = header.header.height - 1 + 100; // 100 is default wait for.
-    let expiry = header.header.height - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+    let wake_expiry = block_data.header.height - 1 + 100; // 100 is default wait for.
+    let expiry = block_data.header.height - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
 
     let expected_schedule = BTreeMap::from_iter([
         (
@@ -243,7 +243,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(header.header.parent_hash)
+        .block_end_schedule(block_data.header.parent_hash)
         .expect("must exist");
 
     assert_eq!(schedule, expected_schedule);
@@ -296,13 +296,13 @@ async fn mailbox() {
 
     mirror.claim_value(mid_expected_message).await.unwrap();
 
-    let header = listener
-        .apply_until_block_event_with_header(|event, header| match event {
+    let block_data = listener
+        .apply_until_block_event_with_header(|event, block_data| match event {
             BlockEvent::Mirror { address, event } if address == pid => match event {
                 MirrorEvent::ValueClaimed { claimed_id, .. }
                     if claimed_id == mid_expected_message =>
                 {
-                    Ok(Some(header.clone()))
+                    Ok(Some(block_data.clone()))
                 }
                 _ => Ok(None),
             },
@@ -318,7 +318,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(header.header.parent_hash)
+        .block_end_schedule(block_data.header.parent_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{:?}", schedule);
 }
@@ -686,7 +686,7 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
-    use ethexe_db::{BlockHeader, BlockHeaderWithHash};
+    use ethexe_observer::SimpleBlockData;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use tokio::sync::{broadcast::Sender, Mutex};
@@ -1067,7 +1067,7 @@ mod utils {
 
         pub async fn apply_until_block_event_with_header<R: Sized>(
             &mut self,
-            mut f: impl FnMut(BlockEvent, &BlockHeaderWithHash) -> Result<Option<R>>,
+            mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
         ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
@@ -1076,18 +1076,10 @@ mod utils {
                     continue;
                 };
 
-                // TODO (breathx): use BlockHeader in BlockData. WITHIN THE PR.
-                let header = BlockHeaderWithHash {
-                    hash: block.block_hash,
-                    header: BlockHeader {
-                        height: block.block_number as u32,
-                        timestamp: block.block_timestamp,
-                        parent_hash: block.parent_hash,
-                    },
-                };
+                let block_data = block.as_simple();
 
                 for event in block.events {
-                    if let Some(res) = f(event, &header)? {
+                    if let Some(res) = f(event, &block_data)? {
                         return Ok(res);
                     }
                 }
