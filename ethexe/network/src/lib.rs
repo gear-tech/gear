@@ -25,7 +25,7 @@ pub mod export {
     pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 }
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
 use futures::future::Either;
@@ -544,18 +544,18 @@ impl Behaviour {
                 gossipsub::MessageId::from(hasher.finish().to_be_bytes())
             })
             .build()
-            .map_err(|e| anyhow::anyhow!("`gossipsub::ConfigBuilder::build()` error: {e}"))?;
+            .map_err(|e| anyhow!("`gossipsub::ConfigBuilder::build()` error: {e}"))?;
         let mut gossipsub = gossipsub::Behaviour::new(
             gossipsub::MessageAuthenticity::Signed(keypair.clone()),
             gossip_config,
         )
-        .map_err(|e| anyhow::anyhow!("`gossipsub::Behaviour` error: {e}"))?;
+        .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
         gossipsub
             .with_peer_score(
                 gossipsub::PeerScoreParams::default(),
                 gossipsub::PeerScoreThresholds::default(),
             )
-            .map_err(|e| anyhow::anyhow!("`gossipsub` scoring parameters error: {e}"))?;
+            .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
 

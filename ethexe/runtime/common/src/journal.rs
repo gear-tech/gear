@@ -1,5 +1,3 @@
-use core::num::NonZeroU32;
-
 use crate::{
     state::{
         self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program,
@@ -9,6 +7,7 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::Result;
+use core::num::NonZero;
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
@@ -32,7 +31,6 @@ pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
     pub in_block_transitions: &'a mut InBlockTransitions,
     pub storage: &'a S,
-    pub block_info: BlockInfo,
 }
 
 impl<S: Storage> Handler<'_, S> {
@@ -175,13 +173,21 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .is_none()
         {
             if !dispatch.is_reply() {
+                let expiry = self.in_block_transitions.schedule_task(
+                    state::MAILBOX_VALIDITY.try_into().expect("infallible"),
+                    ScheduledTask::RemoveFromMailbox(
+                        (dispatch.source(), dispatch.destination()),
+                        dispatch.id(),
+                    ),
+                );
+
                 self.update_state_with_storage(dispatch.source(), |storage, state| {
                     state.mailbox_hash =
                         storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
                             mailbox
                                 .entry(dispatch.destination())
                                 .or_default()
-                                .insert(dispatch.id(), dispatch.value());
+                                .insert(dispatch.id(), (dispatch.value(), expiry));
                         })?;
 
                     Ok(())
@@ -241,7 +247,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             todo!("Wait dispatch without specified duration");
         };
 
-        let in_blocks = NonZeroU32::try_from(duration).expect("must be checked on backend side");
+        let in_blocks =
+            NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
         let expiry = self.in_block_transitions.schedule_task(
             in_blocks,
@@ -286,14 +293,18 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
 
+        let mut expiry_if_found = None;
+
         self.update_state_with_storage(program_id, |storage, state| {
-            let Some(((dispatch, _expiry), new_waitlist_hash)) = storage
+            let Some(((dispatch, expiry), new_waitlist_hash)) = storage
                 .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
                     waitlist.remove(&awakening_id)
                 })?
             else {
                 return Ok(());
             };
+
+            expiry_if_found = Some(expiry);
 
             state.waitlist_hash = new_waitlist_hash;
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
@@ -302,6 +313,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
             Ok(())
         });
+
+        if let Some(expiry) = expiry_if_found {
+            self.in_block_transitions
+                .remove_task(
+                    expiry,
+                    &ScheduledTask::WakeMessage(program_id, awakening_id),
+                )
+                .expect("failed to remove scheduled task");
+        }
     }
 
     fn update_pages_data(

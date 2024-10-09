@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent,
     router::{RequestEvent as RouterEvent, ValueClaim},
     wvara::RequestEvent as WVaraEvent,
 };
-use ethexe_db::CodesStorage;
+use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::{
     state::{ComplexStorage as _, Dispatch, Storage},
     InBlockTransitions,
@@ -75,9 +75,7 @@ impl Processor {
                 let new_state_hash = self.handle_executable_balance_top_up(state_hash, value)?;
                 in_block_transitions
                     .modify_state(actor_id, new_state_hash)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("failed to modify state of recognized program")
-                    })?;
+                    .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
             }
             MirrorEvent::MessageQueueingRequested {
                 id,
@@ -90,7 +88,7 @@ impl Processor {
                 let state = self
                     .db
                     .read_state(state_hash)
-                    .ok_or_else(|| anyhow::anyhow!("program should exist"))?;
+                    .ok_or_else(|| anyhow!("program should exist"))?;
 
                 let kind = if state.requires_init_message() {
                     DispatchKind::Init
@@ -111,9 +109,7 @@ impl Processor {
                 let new_state_hash = self.handle_message_queueing(state_hash, dispatch)?;
                 in_block_transitions
                     .modify_state(actor_id, new_state_hash)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("failed to modify state of recognized program")
-                    })?;
+                    .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
             }
             MirrorEvent::ReplyQueueingRequested {
                 replied_to,
@@ -121,25 +117,31 @@ impl Processor {
                 payload,
                 value,
             } => {
-                if let Some((value_claim, new_state_hash)) =
+                if let Some((value_claim, expiry, new_state_hash)) =
                     self.handle_reply_queueing(state_hash, replied_to, source, payload, value)?
                 {
                     in_block_transitions
                         .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("failed to modify state of recognized program")
-                        })?;
+                        .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
+
+                    in_block_transitions.remove_task(
+                        expiry,
+                        &ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to),
+                    )?;
                 }
             }
             MirrorEvent::ValueClaimingRequested { claimed_id, source } => {
-                if let Some((value_claim, new_state_hash)) =
+                if let Some((value_claim, expiry, new_state_hash)) =
                     self.handle_value_claiming(state_hash, claimed_id, source)?
                 {
                     in_block_transitions
                         .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("failed to modify state of recognized program")
-                        })?;
+                        .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
+
+                    in_block_transitions.remove_task(
+                        expiry,
+                        &ScheduledTask::RemoveFromMailbox((actor_id, source), claimed_id),
+                    )?;
                 }
             }
         };
@@ -178,7 +180,7 @@ impl Processor {
         user_id: ActorId,
         payload: Vec<u8>,
         value: u128,
-    ) -> Result<Option<(ValueClaim, H256)>> {
+    ) -> Result<Option<(ValueClaim, u32, H256)>> {
         self.handle_mailboxed_message_impl(
             state_hash,
             mailboxed_id,
@@ -194,7 +196,7 @@ impl Processor {
         state_hash: H256,
         mailboxed_id: MessageId,
         user_id: ActorId,
-    ) -> Result<Option<(ValueClaim, H256)>> {
+    ) -> Result<Option<(ValueClaim, u32, H256)>> {
         self.handle_mailboxed_message_impl(
             state_hash,
             mailboxed_id,
@@ -213,10 +215,10 @@ impl Processor {
         payload: Vec<u8>,
         value: u128,
         reply_reason: SuccessReplyReason,
-    ) -> Result<Option<(ValueClaim, H256)>> {
+    ) -> Result<Option<(ValueClaim, u32, H256)>> {
         self.db
             .mutate_state_returning(state_hash, |db, state| {
-                let Some((claimed_value, mailbox_hash)) =
+                let Some(((claimed_value, expiry), mailbox_hash)) =
                     db.modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
                         let local_mailbox = mailbox.get_mut(&user_id)?;
                         let claimed_value = local_mailbox.remove(&mailboxed_id)?;
@@ -240,17 +242,20 @@ impl Processor {
                 state.queue_hash =
                     db.modify_queue(state.queue_hash.clone(), |queue| queue.push_back(reply))?;
 
-                Ok(Some(ValueClaim {
-                    message_id: mailboxed_id,
-                    destination: user_id,
-                    value: claimed_value,
-                }))
+                Ok(Some((
+                    ValueClaim {
+                        message_id: mailboxed_id,
+                        destination: user_id,
+                        value: claimed_value,
+                    },
+                    expiry,
+                )))
             })
-            .map(|(claim, hash)| {
-                if claim.is_none() {
+            .map(|(claim_with_expiry, hash)| {
+                if claim_with_expiry.is_none() {
                     debug_assert_eq!(hash, state_hash);
                 }
-                claim.map(|v| (v, hash))
+                claim_with_expiry.map(|(claim, expiry)| (claim, expiry, hash))
             })
     }
 

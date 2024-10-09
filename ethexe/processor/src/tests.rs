@@ -28,7 +28,7 @@ use gear_core::{
 };
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
 use wabt::wat2wasm;
 
@@ -284,7 +284,8 @@ fn ping_pong() {
         .expect("failed to populate message queue");
 
     let states = BTreeMap::from_iter([(program_id, state_hash)]);
-    let mut in_block_transitions = InBlockTransitions::new(0, states, Default::default());
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(0), states, Default::default());
 
     run::run(
         8,
@@ -418,7 +419,8 @@ fn async_and_ping() {
         .expect("failed to populate message queue");
 
     let states = BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
-    let mut in_block_transitions = InBlockTransitions::new(0, states, Default::default());
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(0), states, Default::default());
 
     run::run(
         8,
@@ -512,7 +514,8 @@ fn many_waits() {
         states.insert(program_id, state_hash);
     }
 
-    let mut in_block_transitions = InBlockTransitions::new(1, states, Default::default());
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(1), states, Default::default());
 
     processor.run_schedule(&mut in_block_transitions);
     run::run(
@@ -573,7 +576,7 @@ fn many_waits() {
 
     // Reproducibility test.
     {
-        let mut expected_schedule = BTreeMap::<_, Vec<_>>::new();
+        let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
 
         for (pid, state_hash) in &states {
             let state = processor.db.read_state(*state_hash).unwrap();
@@ -585,7 +588,7 @@ fn many_waits() {
                 expected_schedule
                     .entry(expiry)
                     .or_default()
-                    .push(ScheduledTask::WakeMessage(*pid, mid));
+                    .insert(ScheduledTask::WakeMessage(*pid, mid));
             }
         }
 
@@ -593,7 +596,8 @@ fn many_waits() {
         assert_eq!(schedule, expected_schedule);
     }
 
-    let mut in_block_transitions = InBlockTransitions::new(11, states, schedule);
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(11), states, schedule);
 
     processor.run_schedule(&mut in_block_transitions);
     run::run(

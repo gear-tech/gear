@@ -34,7 +34,7 @@ impl Processor {
 
         log::debug!(
             "Running schedule for #{}: tasks are {tasks:?}",
-            in_block_transitions.block_number()
+            in_block_transitions.header().height
         );
 
         let mut handler = ScheduleHandler {

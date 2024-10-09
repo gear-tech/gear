@@ -108,7 +108,7 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill, Saturating,
 };
-use sp_std::{num::NonZeroU32, prelude::*};
+use sp_std::{num::NonZero, prelude::*};
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
@@ -626,7 +626,7 @@ benchmarks! {
         let program_id = inheritor;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), program_id, NonZeroU32::MAX)
+    }: _(RawOrigin::Signed(caller.clone()), program_id, NonZero::<u32>::MAX)
     verify {
         assert_eq!(
             CurrencyOf::<T>::free_balance(&caller),
