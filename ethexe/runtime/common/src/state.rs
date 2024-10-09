@@ -23,7 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{anyhow, Result};
-use core::num::NonZeroU32;
+use core::num::NonZero;
 use gear_core::{
     code::InstrumentedCode,
     ids::{prelude::MessageIdExt as _, ProgramId},
@@ -49,7 +49,7 @@ pub const MAILBOX_VALIDITY: u32 = 54_000;
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct HashAndLen {
     pub hash: H256,
-    pub len: NonZeroU32,
+    pub len: NonZero<u32>,
 }
 
 // TODO: temporary solution to avoid lengths taking in account
@@ -57,7 +57,7 @@ impl From<H256> for HashAndLen {
     fn from(value: H256) -> Self {
         Self {
             hash: value,
-            len: NonZeroU32::new(1).expect("impossible"),
+            len: NonZero::<u32>::new(1).expect("impossible"),
         }
     }
 }

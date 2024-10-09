@@ -24,7 +24,7 @@ use core::{
     fmt,
     hash::{Hash, Hasher},
     mem::transmute,
-    num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8},
+    num::NonZero,
 };
 #[cfg(feature = "codec")]
 use scale_info::{
@@ -364,11 +364,11 @@ macro_rules! impl_map_from {
     };
 }
 
-impl_map_from!(NonZeroU8);
-impl_map_from!(NonZeroU16);
-impl_map_from!(NonZeroU32);
-impl_map_from!(NonZeroU64);
-impl_map_from!(NonZeroU128);
+impl_map_from!(NonZero<u8>);
+impl_map_from!(NonZero<u16>);
+impl_map_from!(NonZero<u32>);
+impl_map_from!(NonZero<u64>);
+impl_map_from!(NonZero<u128>);
 
 macro_rules! impl_try_from {
     ($from:ty) => {
@@ -571,7 +571,7 @@ mod tests {
 
     #[test]
     fn nonzero_u256_from_nz64() {
-        let nzu64 = NonZeroU64::new(42u64).unwrap();
+        let nzu64 = NonZero::<u64>::new(42u64).unwrap();
         let nz: NonZeroU256 = nzu64.into();
         assert_eq!(U256::from(nzu64.get()), nz.get());
     }
@@ -601,7 +601,7 @@ mod tests {
 
     #[test]
     fn nonzero_u256_overflowing_mul() {
-        let mut nzu256 = NonZeroU256::from(NonZeroU128::MAX);
+        let mut nzu256 = NonZeroU256::from(NonZero::<u128>::MAX);
         nzu256 += 1;
         let result = nzu256.overflowing_mul(nzu256);
         assert_eq!((NonZeroU256::MAX, true), result);
@@ -609,7 +609,7 @@ mod tests {
 
     #[test]
     fn nonzero_u256_overflowing_pow() {
-        let mut nzu256 = NonZeroU256::from(NonZeroU128::MAX);
+        let mut nzu256 = NonZeroU256::from(NonZero::<u128>::MAX);
         nzu256 += 1;
         let result: (NonZeroU256, bool) = nzu256.overflowing_pow(2.into());
         assert_eq!((NonZeroU256::MAX, true), result);

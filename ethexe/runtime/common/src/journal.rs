@@ -1,5 +1,3 @@
-use core::num::NonZeroU32;
-
 use crate::{
     state::{
         self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program,
@@ -9,6 +7,7 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::Result;
+use core::num::NonZero;
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
@@ -248,7 +247,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             todo!("Wait dispatch without specified duration");
         };
 
-        let in_blocks = NonZeroU32::try_from(duration).expect("must be checked on backend side");
+        let in_blocks =
+            NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
         let expiry = self.in_block_transitions.schedule_task(
             in_blocks,

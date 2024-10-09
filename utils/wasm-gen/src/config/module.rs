@@ -23,12 +23,12 @@
 //! can be arbitrary, but some must be constantly set. That's implemented with [`ArbitraryParams`]
 //! and [`ConstantParams`].
 
-use std::num::NonZeroUsize;
-
 use crate::MemoryLayout;
 use arbitrary::{Arbitrary, Result, Unstructured};
-pub use wasm_smith::InstructionKind;
+use std::num::NonZero;
 use wasm_smith::{InstructionKind::*, InstructionKinds, SwarmConfig};
+
+pub use wasm_smith::InstructionKind;
 
 /// Wasm module generation config.
 ///
@@ -362,10 +362,10 @@ pub struct SelectableParams {
     pub max_instructions: usize,
     /// Minimum amount of functions `wasm-gen` will insert
     /// into generated wasm.
-    pub min_funcs: NonZeroUsize,
+    pub min_funcs: NonZero<usize>,
     /// Maximum amount of functions `wasm-gen` will insert
     /// into generated wasm.
-    pub max_funcs: NonZeroUsize,
+    pub max_funcs: NonZero<usize>,
 }
 
 impl Default for SelectableParams {
@@ -375,8 +375,8 @@ impl Default for SelectableParams {
                 Numeric, Reference, Parametric, Variable, Table, Memory, Control,
             ],
             max_instructions: 500,
-            min_funcs: NonZeroUsize::new(3).expect("from non zero value; qed."),
-            max_funcs: NonZeroUsize::new(5).expect("from non zero value; qed."),
+            min_funcs: NonZero::<usize>::new(3).expect("from non zero value; qed."),
+            max_funcs: NonZero::<usize>::new(5).expect("from non zero value; qed."),
         }
     }
 }

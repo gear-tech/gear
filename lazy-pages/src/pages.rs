@@ -19,7 +19,7 @@
 //! Module for pages which size can be different for different runtime versions.
 
 use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated, OptionBound};
-use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32};
+use std::{cmp::Ordering, marker::PhantomData, num::NonZero};
 
 /// Size number for dyn-size pages.
 pub trait SizeNumber: Copy + Ord + Eq {
@@ -56,13 +56,13 @@ impl SizeNumber for GearSizeNo {
 /// Context where dynamic size pages store their sizes
 pub trait SizeManager {
     /// Returns non-zero size of page.
-    fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32;
+    fn size_non_zero<S: SizeNumber>(&self) -> NonZero<u32>;
 }
 
 #[cfg(test)]
 impl SizeManager for u32 {
-    fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
-        NonZeroU32::new(*self).expect("Size cannot be zero")
+    fn size_non_zero<S: SizeNumber>(&self) -> NonZero<u32> {
+        NonZero::<u32>::new(*self).expect("Size cannot be zero")
     }
 }
 
@@ -250,8 +250,8 @@ pub(crate) mod tests {
     pub struct PageSizeManager(pub [u32; 2]);
 
     impl SizeManager for PageSizeManager {
-        fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
-            NonZeroU32::new(self.0[S::SIZE_NO]).expect("Size cannot be zero")
+        fn size_non_zero<S: SizeNumber>(&self) -> NonZero<u32> {
+            NonZero::<u32>::new(self.0[S::SIZE_NO]).expect("Size cannot be zero")
         }
     }
 

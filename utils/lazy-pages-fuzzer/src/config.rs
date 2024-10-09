@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::num::{NonZeroU32, NonZeroUsize};
-
 use gear_wasm_gen::{
     ConfigsBundle, GearWasmGeneratorConfig, InstructionKind, MemoryPagesConfig, SelectableParams,
     SyscallsConfigBuilder, SyscallsInjectionTypes,
@@ -25,6 +23,7 @@ use gear_wasm_gen::{
 use gear_wasm_instrument::{
     gas_metering::MemoryGrowCost, parity_wasm::elements::Instruction, Rules,
 };
+use std::num::NonZero;
 
 use crate::{
     generate::{InjectGlobalsConfig, InjectMemoryAccessesConfig},
@@ -57,8 +56,8 @@ impl ConfigsBundle for FuzzerConfigBundle {
                     Numeric, Reference, Parametric, Variable, Table, Memory, Control,
                 ],
                 max_instructions: 500,
-                min_funcs: NonZeroUsize::new(3).expect("non zero value"),
-                max_funcs: NonZeroUsize::new(5).expect("non zero value"),
+                min_funcs: NonZero::<usize>::new(3).expect("non zero value"),
+                max_funcs: NonZero::<usize>::new(5).expect("non zero value"),
             },
         )
     }
@@ -76,7 +75,7 @@ impl Rules for DummyCostRules {
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
         const DUMMY_MEMORY_GROW_COST: u32 = 1242;
-        MemoryGrowCost::Linear(NonZeroU32::new(DUMMY_MEMORY_GROW_COST).unwrap())
+        MemoryGrowCost::Linear(NonZero::<u32>::new(DUMMY_MEMORY_GROW_COST).unwrap())
     }
 
     fn call_per_local_cost(&self) -> u32 {

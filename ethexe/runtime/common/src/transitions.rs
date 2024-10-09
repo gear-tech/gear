@@ -21,7 +21,7 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{anyhow, Result};
-use core::num::NonZeroU32;
+use core::num::NonZero;
 use ethexe_common::{
     db::{BlockHeader, Schedule, ScheduledTask},
     router::{OutgoingMessage, StateTransition, ValueClaim},
@@ -76,7 +76,7 @@ impl InBlockTransitions {
             .unwrap_or_default()
     }
 
-    pub fn schedule_task(&mut self, in_blocks: NonZeroU32, task: ScheduledTask) -> u32 {
+    pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
         let scheduled_block = self.header.height + u32::from(in_blocks);
 
         self.schedule
