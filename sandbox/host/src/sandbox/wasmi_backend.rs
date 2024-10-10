@@ -18,393 +18,548 @@
 
 //! Wasmi specific impls for sandbox
 
-use std::fmt;
+use std::{rc::Rc, slice};
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::HostError;
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
+use region::{Allocation, Protection};
 use sandbox_wasmi::{
-    memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
-    RuntimeValue, Trap, TrapCode,
+    core::UntypedVal, AsContext, AsContextMut, Config, Engine, ExternType, Linker, MemoryType,
+    Module, StackLimits, Val,
 };
-use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
+
+use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
     error::{self, Error},
     sandbox::{
-        BackendInstanceBundle, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
-        InstantiationError, Memory, SandboxInstance, SupervisorContext,
+        BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
+        SupervisorContext,
     },
+    store_refcell,
     util::MemoryTransfer,
 };
 
+use super::SupervisorFuncIndex;
+
+type Store = sandbox_wasmi::Store<Option<FuncEnv>>;
+pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
+
 environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
-#[derive(Debug)]
-struct CustomHostError(String);
-
-impl fmt::Display for CustomHostError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HostError: {}", self.0)
-    }
+pub struct FuncEnv {
+    store: Rc<StoreRefCell>,
+    gas_global: sandbox_wasmi::Global,
 }
 
-impl sandbox_wasmi::HostError for CustomHostError {}
+impl FuncEnv {
+    pub fn new(store: Rc<StoreRefCell>, gas_global: sandbox_wasmi::Global) -> Self {
+        Self { store, gas_global }
+    }
+}
 
 /// Construct trap error from specified message
-fn trap(msg: &'static str) -> Trap {
-    Trap::host(CustomHostError(msg.into()))
+fn host_trap(msg: impl Into<error::Error>) -> sandbox_wasmi::Error {
+    sandbox_wasmi::Error::host(msg.into())
 }
 
-impl ImportResolver for Imports {
-    fn resolve_func(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        signature: &sandbox_wasmi::Signature,
-    ) -> std::result::Result<sandbox_wasmi::FuncRef, sandbox_wasmi::Error> {
-        let idx = self.func_by_name(module_name, field_name).ok_or_else(|| {
-            sandbox_wasmi::Error::Instantiation(format!(
-                "Export {}:{} not found",
-                module_name, field_name
-            ))
-        })?;
+fn into_wasmi_val(value: Value) -> sandbox_wasmi::Val {
+    match value {
+        Value::I32(val) => sandbox_wasmi::Val::I32(val),
+        Value::I64(val) => sandbox_wasmi::Val::I64(val),
+        Value::F32(val) => sandbox_wasmi::Val::F32(val.into()),
+        Value::F64(val) => sandbox_wasmi::Val::F64(val.into()),
+    }
+}
 
-        Ok(sandbox_wasmi::FuncInstance::alloc_host(
-            signature.clone(),
-            idx.0,
-        ))
+fn into_wasmi_result(value: ReturnValue) -> Vec<sandbox_wasmi::Val> {
+    match value {
+        ReturnValue::Value(v) => vec![into_wasmi_val(v)],
+        ReturnValue::Unit => vec![],
+    }
+}
+
+fn into_value(value: &sandbox_wasmi::Val) -> Option<Value> {
+    match value {
+        sandbox_wasmi::Val::I32(val) => Some(Value::I32(*val)),
+        sandbox_wasmi::Val::I64(val) => Some(Value::I64(*val)),
+        sandbox_wasmi::Val::F32(val) => Some(Value::F32((*val).into())),
+        sandbox_wasmi::Val::F64(val) => Some(Value::F64((*val).into())),
+        _ => None,
+    }
+}
+
+/// Wasmi specific context
+pub struct Backend {
+    store: Rc<StoreRefCell>,
+}
+
+impl Default for Backend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Backend {
+    pub fn new() -> Self {
+        let register_len = size_of::<UntypedVal>();
+
+        const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
+        const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
+        const DEFAULT_MAX_RECURSION_DEPTH: usize = 16384;
+
+        let mut config = Config::default();
+        config.set_stack_limits(
+            StackLimits::new(
+                DEFAULT_MIN_VALUE_STACK_HEIGHT / register_len,
+                DEFAULT_MAX_VALUE_STACK_HEIGHT / register_len,
+                DEFAULT_MAX_RECURSION_DEPTH,
+            )
+            .expect("infallible"),
+        );
+
+        let engine = Engine::new(&config);
+        let store = Store::new(&engine, None);
+        Backend {
+            store: Rc::new(StoreRefCell::new(store)),
+        }
     }
 
-    fn resolve_memory(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        _memory_type: &sandbox_wasmi::MemoryDescriptor,
-    ) -> std::result::Result<sandbox_wasmi::MemoryRef, sandbox_wasmi::Error> {
-        let mem = self
-            .memory_by_name(module_name, field_name)
-            .ok_or_else(|| {
-                sandbox_wasmi::Error::Instantiation(format!(
-                    "Export {}:{} not found",
-                    module_name, field_name
-                ))
-            })?;
-
-        let wrapper = mem.as_wasmi().ok_or_else(|| {
-            sandbox_wasmi::Error::Instantiation(format!(
-                "Unsupported non-wasmi export {}:{}",
-                module_name, field_name
-            ))
-        })?;
-
-        // Here we use inner memory reference only to resolve the imports
-        // without accessing the memory contents. All subsequent memory accesses
-        // should happen through the wrapper, that enforces the memory access protocol.
-        let mem = wrapper.0;
-
-        Ok(mem)
-    }
-
-    fn resolve_global(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        _global_type: &sandbox_wasmi::GlobalDescriptor,
-    ) -> std::result::Result<sandbox_wasmi::GlobalRef, sandbox_wasmi::Error> {
-        Err(sandbox_wasmi::Error::Instantiation(format!(
-            "Export {}:{} not found",
-            module_name, field_name
-        )))
-    }
-
-    fn resolve_table(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        _table_type: &sandbox_wasmi::TableDescriptor,
-    ) -> std::result::Result<sandbox_wasmi::TableRef, sandbox_wasmi::Error> {
-        Err(sandbox_wasmi::Error::Instantiation(format!(
-            "Export {}:{} not found",
-            module_name, field_name
-        )))
+    pub fn store(&self) -> &Rc<StoreRefCell> {
+        &self.store
     }
 }
 
 /// Allocate new memory region
-pub fn new_memory(initial: u32, maximum: Option<u32>) -> crate::error::Result<Memory> {
-    let memory = Memory::Wasmi(MemoryWrapper::new(
-        MemoryInstance::alloc(Pages(initial as usize), maximum.map(|m| Pages(m as usize)))
-            .map_err(|error| Error::Sandbox(error.to_string()))?,
-    ));
+pub fn new_memory(
+    store: Rc<StoreRefCell>,
+    initial: u32,
+    maximum: Option<u32>,
+) -> crate::error::Result<Memory> {
+    let ty =
+        MemoryType::new(initial, maximum).map_err(|error| Error::Sandbox(error.to_string()))?;
+    let mut alloc = region::alloc(u32::MAX as usize, Protection::READ_WRITE)
+        .unwrap_or_else(|err| unreachable!("Failed to allocate memory: {err}"));
+    // # Safety:
+    //
+    // `wasmi::Memory::new_static()` requires static lifetime so we convert our buffer to it
+    // but actual lifetime of the buffer is lifetime of `Store<T>` itself,
+    // so memory will be deallocated when `Store<T>` is dropped.
+    //
+    // Also, according to Rust drop order semantics, `wasmi::Store<T>` will be dropped first and
+    // only then our allocated memories will be freed to ensure they are not used anymore.
+    let raw = unsafe { slice::from_raw_parts_mut::<'static, u8>(alloc.as_mut_ptr(), alloc.len()) };
+    let memory = sandbox_wasmi::Memory::new_static(&mut *store.borrow_mut(), ty, raw)
+        .map_err(|error| Error::Sandbox(error.to_string()))?;
 
-    Ok(memory)
+    Ok(Memory::Wasmi(MemoryWrapper::new(memory, store, alloc)))
 }
 
 /// Wasmi provides direct access to its memory using slices.
 ///
 /// This wrapper limits the scope where the slice can be taken to
-#[derive(Debug, Clone)]
-pub struct MemoryWrapper(sandbox_wasmi::MemoryRef);
+#[derive(Clone)]
+pub struct MemoryWrapper {
+    memory: sandbox_wasmi::Memory,
+    store: Rc<StoreRefCell>,
+    _alloc: Rc<Allocation>,
+}
+
+impl std::fmt::Debug for MemoryWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemoryWrapper")
+            .field("memory", &self.memory)
+            .finish()
+    }
+}
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    fn new(memory: sandbox_wasmi::MemoryRef) -> Self {
-        Self(memory)
+    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>, alloc: Allocation) -> Self {
+        Self {
+            memory,
+            store,
+            _alloc: Rc::new(alloc),
+        }
     }
 }
 
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
-        self.0.with_direct_access(|source| {
-            let range = util::checked_range(source_addr.into(), size, source.len())
-                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+        let mut buffer = Vec::with_capacity(size);
+        unsafe { buffer.set_len(size) };
+        let ctx = self.store.borrow();
+        self.memory
+            .read(&*ctx, source_addr.into(), &mut buffer)
+            .map_err(|_| error::Error::Other("memory read is out of bounds".into()))?;
 
-            Ok(Vec::from(&source[range]))
-        })
+        Ok(buffer)
     }
 
     fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
-        self.0.with_direct_access(|source| {
-            let range = util::checked_range(source_addr.into(), destination.len(), source.len())
-                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+        let ctx = self.store.borrow();
+        self.memory
+            .read(&*ctx, source_addr.into(), destination)
+            .map_err(|_| error::Error::Other("memory read is out of bounds".into()))?;
 
-            destination.copy_from_slice(&source[range]);
-            Ok(())
-        })
+        Ok(())
     }
 
     fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
-        self.0.with_direct_access_mut(|destination| {
-            let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
-                .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
+        let mut ctx = self.store.borrow_mut();
+        self.memory
+            .write(&mut *ctx, dest_addr.into(), source)
+            .map_err(|_| error::Error::Other("memory write is out of bounds".into()))?;
 
-            destination[range].copy_from_slice(source);
-            Ok(())
-        })
+        Ok(())
     }
 
     fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
-        self.0
-            .grow(Pages(pages as usize))
-            .map_err(|e| {
-                Error::Sandbox(format!(
-                    "Cannot grow memory in masmi sandbox executor: {}",
-                    e
-                ))
-            })
-            .map(|p| p.0 as u32)
+        let mut ctx = self.store.borrow_mut();
+        self.memory.grow(&mut *ctx, pages).map_err(|e| {
+            Error::Sandbox(format!("Cannot grow memory in wasmi sandbox executor: {e}",))
+        })
     }
 
     fn memory_size(&mut self) -> u32 {
-        self.0.current_size().0 as u32
+        let ctx = self.store.borrow();
+        self.memory.size(&*ctx)
     }
 
     fn get_buff(&mut self) -> *mut u8 {
-        self.0.direct_access_mut().as_mut().as_mut_ptr()
+        let ctx = self.store.borrow_mut();
+        self.memory.data_ptr(&*ctx)
     }
-}
-
-impl<'a> sandbox_wasmi::Externals for GuestExternals<'a> {
-    fn invoke_index(
-        &mut self,
-        index: usize,
-        args: RuntimeArgs,
-    ) -> std::result::Result<Option<RuntimeValue>, Trap> {
-        SupervisorContextStore::with(|supervisor_context| {
-			// Make `index` typesafe again.
-			let index = GuestFuncIndex(index);
-
-			// Convert function index from guest to supervisor space
-			let func_idx = self.sandbox_instance
-				.guest_to_supervisor_mapping
-				.func_by_guest_index(index)
-				.expect(
-					"`invoke_index` is called with indexes registered via `FuncInstance::alloc_host`;
-					`FuncInstance::alloc_host` is called with indexes that were obtained from `guest_to_supervisor_mapping`;
-					`func_by_guest_index` called with `index` can't return `None`;
-					qed"
-				);
-
-			// Serialize arguments into a byte vector.
-			let invoke_args_data: Vec<u8> = args
-				.as_ref()
-				.iter()
-				.cloned()
-				.map(Value::from)
-				.collect::<Vec<_>>()
-				.encode();
-
-			// Move serialized arguments inside the memory, invoke dispatch thunk and
-			// then free allocated memory.
-			let invoke_args_len = invoke_args_data.len() as WordSize;
-			let invoke_args_ptr = supervisor_context
-				.allocate_memory(invoke_args_len)
-				.map_err(|_| trap("Can't allocate memory in supervisor for the arguments"))?;
-
-			let deallocate = |supervisor_context: &mut dyn SupervisorContext, ptr, fail_msg| {
-				supervisor_context.deallocate_memory(ptr).map_err(|_| trap(fail_msg))
-			};
-
-			if supervisor_context
-				.write_memory(invoke_args_ptr, &invoke_args_data)
-				.is_err()
-			{
-				deallocate(
-					supervisor_context,
-					invoke_args_ptr,
-					"Failed deallocation after failed write of invoke arguments",
-				)?;
-				return Err(trap("Can't write invoke args into memory"))
-			}
-
-			let result = supervisor_context.invoke(
-				invoke_args_ptr,
-				invoke_args_len,
-				func_idx,
-			);
-
-			deallocate(
-				supervisor_context,
-				invoke_args_ptr,
-				"Can't deallocate memory for dispatch thunk's invoke arguments",
-			)?;
-			let result = result?;
-
-			// dispatch_thunk returns pointer to serialized arguments.
-			// Unpack pointer and len of the serialized result data.
-			let (serialized_result_val_ptr, serialized_result_val_len) = {
-				// Cast to u64 to use zero-extension.
-				let v = result as u64;
-				let ptr = (v >> 32) as u32;
-				let len = (v & 0xFFFFFFFF) as u32;
-				(Pointer::new(ptr), len)
-			};
-
-			let serialized_result_val = supervisor_context
-				.read_memory(serialized_result_val_ptr, serialized_result_val_len)
-				.map_err(|_| trap("Can't read the serialized result from dispatch thunk"));
-
-			deallocate(
-				supervisor_context,
-				serialized_result_val_ptr,
-				"Can't deallocate memory for dispatch thunk's result",
-			)
-			.and(serialized_result_val)
-			.and_then(|serialized_result_val| {
-				let result_val = std::result::Result::<ReturnValue, HostError>::decode(&mut serialized_result_val.as_slice())
-					.map_err(|_| trap("Decoding Result<ReturnValue, HostError> failed!"))?;
-
-				match result_val {
-					Ok(return_value) => Ok(match return_value {
-						ReturnValue::Unit => None,
-						ReturnValue::Value(typed_value) => Some(From::from(typed_value)),
-					}),
-					Err(HostError) => Err(trap("Supervisor function returned sandbox::HostError")),
-				}
-			})
-		}).expect("SandboxContextStore is set when invoking sandboxed functions; qed")
-    }
-}
-
-fn with_guest_externals<R, F>(sandbox_instance: &SandboxInstance, f: F) -> R
-where
-    F: FnOnce(&mut GuestExternals) -> R,
-{
-    f(&mut GuestExternals { sandbox_instance })
-}
-
-/// Instantiate a module within a sandbox context
-pub fn instantiate(
-    wasm: &[u8],
-    guest_env: GuestEnvironment,
-    supervisor_context: &mut dyn SupervisorContext,
-) -> std::result::Result<SandboxInstance, InstantiationError> {
-    let wasmi_module = Module::from_buffer(wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
-    let wasmi_instance = ModuleInstance::new(&wasmi_module, &guest_env.imports)
-        .map_err(|_| InstantiationError::Instantiation)?;
-
-    let sandbox_instance = SandboxInstance {
-        // In general, it's not a very good idea to use `.not_started_instance()` for
-        // anything but for extracting memory and tables. But in this particular case, we
-        // are extracting for the purpose of running `start` function which should be ok.
-        backend_instance: BackendInstanceBundle::Wasmi(
-            wasmi_instance.not_started_instance().clone(),
-        ),
-        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
-    };
-
-    with_guest_externals(&sandbox_instance, |guest_externals| {
-        SupervisorContextStore::using(supervisor_context, || {
-            wasmi_instance
-                .run_start(guest_externals)
-                .map_err(|_| InstantiationError::StartTrapped)
-        })
-    })?;
-
-    Ok(sandbox_instance)
-}
-
-/// Invoke a function within a sandboxed module
-pub fn invoke(
-    instance: &SandboxInstance,
-    module: &sandbox_wasmi::ModuleRef,
-    export_name: &str,
-    args: &[Value],
-    supervisor_context: &mut dyn SupervisorContext,
-) -> std::result::Result<Option<Value>, error::Error> {
-    with_guest_externals(instance, |guest_externals| {
-        SupervisorContextStore::using(supervisor_context, || {
-            let args = args.iter().cloned().map(From::from).collect::<Vec<_>>();
-
-            module
-                .invoke_export(export_name, &args, guest_externals)
-                .map(|result| result.map(Into::into))
-                .map_err(|error| {
-                    if matches!(error, sandbox_wasmi::Error::Trap(Trap::Code(TrapCode::StackOverflow))) {
-                        // Panic stops process queue execution in that case.
-                        // This allows to avoid error lead to consensus failures, that must be handled
-                        // in node binaries forever. If this panic occur, then we must increase stack memory size,
-                        // or tune stack limit injection.
-                        // see also https://github.com/wasmerio/wasmer/issues/4181
-                        let err_msg = format!(
-                            "invoke: Suppose that this can not happen, because we have a stack limit instrumentation in programs. \
-                            Export name - {export_name}, args - {args:?}",
-                        );
-
-                        log::error!("{err_msg}");
-                        unreachable!("{err_msg}")
-                    }
-                    error::Error::Sandbox(error.to_string())
-                })
-        })
-    })
 }
 
 /// Get global value by name
-pub fn get_global(instance: &sandbox_wasmi::ModuleRef, name: &str) -> Option<Value> {
-    Some(Into::into(
-        instance.export_by_name(name)?.as_global()?.get(),
-    ))
+pub fn get_global(instance: &sandbox_wasmi::Instance, store: &Store, name: &str) -> Option<Value> {
+    into_value(&instance.get_global(store, name)?.get(store))
 }
 
 /// Set global value by name
 pub fn set_global(
-    instance: &sandbox_wasmi::ModuleRef,
+    instance: &sandbox_wasmi::Instance,
+    store: &mut Store,
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {
-    let export = match instance.export_by_name(name) {
+    let global = match instance.get_global(&*store, name) {
         Some(e) => e,
         None => return Ok(None),
     };
 
-    let global = match export.as_global() {
-        Some(g) => g,
-        None => return Ok(None),
+    global
+        .set(store, into_wasmi_val(value))
+        .map(Some)
+        .map_err(|e| Error::Sandbox(e.to_string()))
+}
+
+/// Instantiate a module within a sandbox context
+pub fn instantiate(
+    version: Instantiate,
+    context: &Backend,
+    wasm: &[u8],
+    guest_env: GuestEnvironment,
+    _supervisor_context: &mut dyn SupervisorContext,
+) -> std::result::Result<SandboxInstance, InstantiationError> {
+    let mut store = context.store().borrow_mut();
+
+    let module =
+        Module::new(store.engine(), wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
+    let mut linker = Linker::new(store.engine());
+
+    for import in module.imports() {
+        let module = import.module().to_string();
+        let name = import.name().to_string();
+
+        match import.ty() {
+            ExternType::Global(_) | ExternType::Table(_) => {}
+            ExternType::Memory(_mem_ty) => {
+                let memory = guest_env
+                    .imports
+                    .memory_by_name(&module, &name)
+                    .ok_or(InstantiationError::ModuleDecoding)?;
+
+                let wasmi_memory = memory.as_wasmi().expect(
+                    "memory is created by wasmi; \
+                    exported by the same module and backend; \
+                    thus the operation can't fail; \
+                    qed",
+                );
+
+                linker
+                    .define(&module, &name, wasmi_memory.memory)
+                    .map_err(|_| InstantiationError::EnvironmentDefinitionCorrupted)?;
+            }
+            ExternType::Func(func_ty) => {
+                let guest_func_index = guest_env
+                    .imports
+                    .func_by_name(import.module(), import.name());
+
+                let guest_func_index = if let Some(index) = guest_func_index {
+                    index
+                } else {
+                    // Missing import (should we abort here?)
+                    continue;
+                };
+
+                let supervisor_func_index = guest_env
+                    .guest_to_supervisor_mapping
+                    .func_by_guest_index(guest_func_index)
+                    .ok_or(InstantiationError::ModuleDecoding)?;
+
+                let function = match version {
+                    Instantiate::Version1 => {
+                        dispatch_function(supervisor_func_index, &mut store, func_ty)
+                    }
+                    Instantiate::Version2 => {
+                        dispatch_function_v2(supervisor_func_index, &mut store, func_ty)
+                    }
+                };
+
+                linker
+                    .define(&module, &name, function)
+                    .map_err(|_| InstantiationError::ModuleDecoding)?;
+            }
+        }
+    }
+
+    let instance_pre = linker.instantiate(&mut *store, &module).map_err(|error| {
+        log::trace!("Failed to call wasmi instantiate: {error:?}");
+        InstantiationError::Instantiation
+    })?;
+    let instance = instance_pre.start(&mut *store).map_err(|error| {
+        log::trace!("Failed to call wasmi start: {error:?}");
+        InstantiationError::StartTrapped
+    })?;
+
+    Ok(SandboxInstance {
+        backend_instance: BackendInstanceBundle::Wasmi {
+            instance,
+            store: context.store().clone(),
+        },
+        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
+    })
+}
+
+fn dispatch_function(
+    supervisor_func_index: SupervisorFuncIndex,
+    store: &mut Store,
+    func_ty: &sandbox_wasmi::FuncType,
+) -> sandbox_wasmi::Func {
+    sandbox_wasmi::Func::new(
+        store,
+        func_ty.clone(),
+        move |_caller, params, results| -> Result<(), sandbox_wasmi::Error> {
+            SupervisorContextStore::with(|supervisor_context| {
+                let invoke_args_data = params
+                    .iter()
+                    .map(|value| {
+                        into_value(value).ok_or_else(|| {
+                            host_trap(format!("Unsupported function argument: {:?}", value))
+                        })
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .encode();
+
+                let serialized_result_val =
+                    dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
+
+                let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
+                    &mut serialized_result_val.as_slice(),
+                )
+                .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
+                .map_err(|_| host_trap("Supervisor function returned sandbox::HostError"))?;
+
+                for (idx, result_val) in into_wasmi_result(deserialized_result)
+                    .into_iter()
+                    .enumerate()
+                {
+                    results[idx] = result_val;
+                }
+
+                Ok(())
+            })
+            .expect("SupervisorContextStore is set when invoking sandboxed functions; qed")
+        },
+    )
+}
+
+fn dispatch_function_v2(
+    supervisor_func_index: SupervisorFuncIndex,
+    store: &mut Store,
+    func_ty: &sandbox_wasmi::FuncType,
+) -> sandbox_wasmi::Func {
+    sandbox_wasmi::Func::new(
+        store,
+        func_ty.clone(),
+        move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
+            SupervisorContextStore::with(|supervisor_context| {
+                let func_env = caller.data().as_ref().expect("func env should be set");
+                let store_ref_cell = func_env.store.clone();
+                let gas_global = func_env.gas_global;
+
+                let gas = gas_global.get(caller.as_context());
+                let store_ctx_mut = caller.as_context_mut();
+
+                let deserialized_result = store_ref_cell
+                    .borrow_scope(store_ctx_mut, move || {
+                        let invoke_args_data = [gas]
+                            .iter()
+                            .chain(params.iter())
+                            .map(|value| {
+                                into_value(value).ok_or_else(|| {
+                                    host_trap(format!("Unsupported function argument: {:?}", value))
+                                })
+                            })
+                            .collect::<std::result::Result<Vec<_>, _>>()?
+                            .encode();
+
+                        let serialized_result_val = dispatch_common(
+                            supervisor_func_index,
+                            supervisor_context,
+                            invoke_args_data,
+                        )?;
+
+                        std::result::Result::<WasmReturnValue, HostError>::decode(
+                            &mut serialized_result_val.as_slice(),
+                        )
+                        .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
+                        .map_err(|_| host_trap("Supervisor function returned sandbox::HostError"))
+                    })
+                    .map_err(|_| host_trap("StoreRefCell borrow scope error"))??;
+
+                for (idx, result_val) in into_wasmi_result(deserialized_result.inner)
+                    .into_iter()
+                    .enumerate()
+                {
+                    results[idx] = result_val;
+                }
+
+                gas_global
+                    .set(caller, Val::I64(deserialized_result.gas))
+                    .map_err(|e| host_trap(format!("Failed to set gas global: {:?}", e)))?;
+
+                Ok(())
+            })
+            .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
+        },
+    )
+}
+
+fn dispatch_common(
+    supervisor_func_index: SupervisorFuncIndex,
+    supervisor_context: &mut dyn SupervisorContext,
+    invoke_args_data: Vec<u8>,
+) -> std::result::Result<Vec<u8>, sandbox_wasmi::Error> {
+    // Move serialized arguments inside the memory, invoke dispatch thunk and
+    // then free allocated memory.
+    let invoke_args_len = invoke_args_data.len() as WordSize;
+    let invoke_args_ptr = supervisor_context
+        .allocate_memory(invoke_args_len)
+        .map_err(|_| host_trap("Can't allocate memory in supervisor for the arguments"))?;
+
+    let deallocate = |fe: &mut dyn SupervisorContext, ptr, fail_msg| {
+        fe.deallocate_memory(ptr).map_err(|_| host_trap(fail_msg))
     };
 
-    global
-        .set(From::from(value))
-        .map(|_| Some(()))
-        .map_err(error::Error::Wasmi)
+    if supervisor_context
+        .write_memory(invoke_args_ptr, &invoke_args_data)
+        .is_err()
+    {
+        deallocate(
+            supervisor_context,
+            invoke_args_ptr,
+            "Failed deallocation after failed write of invoke arguments",
+        )?;
+
+        return Err(host_trap("Can't write invoke args into memory"));
+    }
+
+    // Perform the actual call
+    let serialized_result = supervisor_context
+        .invoke(invoke_args_ptr, invoke_args_len, supervisor_func_index)
+        .map_err(|e| host_trap(e.to_string()));
+
+    deallocate(
+        supervisor_context,
+        invoke_args_ptr,
+        "Failed deallocation after invoke",
+    )?;
+
+    let serialized_result = serialized_result?;
+
+    // TODO #3038
+    // dispatch_thunk returns pointer to serialized arguments.
+    // Unpack pointer and len of the serialized result data.
+    let (serialized_result_val_ptr, serialized_result_val_len) = {
+        // Cast to u64 to use zero-extension.
+        let v = serialized_result as u64;
+        let ptr = (v >> 32) as u32;
+        let len = (v & 0xFFFFFFFF) as u32;
+        (Pointer::new(ptr), len)
+    };
+
+    let serialized_result_val = supervisor_context
+        .read_memory(serialized_result_val_ptr, serialized_result_val_len)
+        .map_err(|_| host_trap("Can't read the serialized result from dispatch thunk"));
+
+    deallocate(
+        supervisor_context,
+        serialized_result_val_ptr,
+        "Can't deallocate memory for dispatch thunk's result",
+    )?;
+
+    serialized_result_val
+}
+
+/// Invoke a function within a sandboxed module
+pub fn invoke(
+    instance: &sandbox_wasmi::Instance,
+    store: &Rc<StoreRefCell>,
+    export_name: &str,
+    args: &[Value],
+    supervisor_context: &mut dyn SupervisorContext,
+) -> std::result::Result<Option<Value>, Error> {
+    let function = instance
+        .get_func(&*store.borrow(), export_name)
+        .ok_or_else(|| Error::Sandbox(format!("function {export_name} export error")))?;
+
+    let args: Vec<sandbox_wasmi::Val> = args.iter().copied().map(into_wasmi_val).collect();
+    let func_ty = function.ty(&*store.borrow());
+
+    let mut outputs = vec![
+        sandbox_wasmi::Val::ExternRef(sandbox_wasmi::ExternRef::null());
+        func_ty.results().len()
+    ];
+
+    // Init func env
+    {
+        let gas_global = instance
+            .get_global(&*store.borrow(), GLOBAL_NAME_GAS)
+            .ok_or_else(|| Error::Sandbox("Failed to get gas global".into()))?;
+
+        store
+            .borrow_mut()
+            .data_mut()
+            .replace(FuncEnv::new(store.clone(), gas_global));
+    }
+
+    SupervisorContextStore::using(supervisor_context, || {
+        function
+            .call(&mut *store.borrow_mut(), &args, &mut outputs)
+            .map_err(|error| Error::Sandbox(error.to_string()))
+    })?;
+
+    match outputs.as_slice() {
+        [] => Ok(None),
+        [val] => match into_value(val) {
+            None => Err(Error::Sandbox(format!("Unsupported return value: {val:?}"))),
+            Some(v) => Ok(Some(v)),
+        },
+        _outputs => Err(Error::Sandbox(
+            "multiple return types are not supported yet".into(),
+        )),
+    }
 }

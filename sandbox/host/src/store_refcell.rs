@@ -35,13 +35,13 @@
 //!
 //! Now we need to borrow store mutably again inside `func`,
 //! but we can't do it because `mut_borrow` still exists.
-//!
+//!  
 //! ```ignore
 //!    fn func(ref_cell: &RefCell<Store>, mut_borrow: &mut Store) {
 //!        ref_cell.borrow_mut(); // This will panic
 //!   }
 //! ```
-//!
+//!  
 //! With `StoreRefCell` we can do it safely:
 //!
 //! ```ignore
@@ -52,7 +52,7 @@
 //!        });
 //!   }
 //! ```
-//!
+//!  
 //! # Why is this necessary? Can't we do without repeated mutable borrowing?
 //!
 //! The issue arises because when handling syscalls within an instance of a program running in Wasmer,
@@ -86,7 +86,7 @@
 
 use std::{
     cell::{Cell, UnsafeCell},
-    num::NonZero,
+    num::NonZeroUsize,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
@@ -96,7 +96,7 @@ use wasmer::StoreMut;
 
 #[derive(Debug, Clone, Copy)]
 enum BorrowState {
-    Shared(NonZero<usize>),
+    Shared(NonZeroUsize),
     Mutable,
     NonShared,
 }
@@ -112,6 +112,7 @@ pub struct StoreRefCell<S> {
 trait GenericAsStoreMut {}
 
 impl<'r, 's> GenericAsStoreMut for &'r mut StoreMut<'s> {}
+impl<'s, T> GenericAsStoreMut for sandbox_wasmi::StoreContextMut<'s, T> {}
 
 #[derive(Debug)]
 pub struct BorrowScopeError;
@@ -131,13 +132,12 @@ impl<S> StoreRefCell<S> {
         match self.state.get() {
             BorrowState::Shared(n) => {
                 self.state.set(BorrowState::Shared(
-                    NonZero::<usize>::new(n.get() + 1).expect("non zero"),
+                    NonZeroUsize::new(n.get() + 1).expect("non zero"),
                 ));
             }
             BorrowState::NonShared => {
-                self.state.set(BorrowState::Shared(
-                    NonZero::<usize>::new(1).expect("non zero"),
-                ));
+                self.state
+                    .set(BorrowState::Shared(NonZeroUsize::new(1).expect("non zero")));
             }
             BorrowState::Mutable => {
                 panic!("store already borrowed mutably");
@@ -241,7 +241,7 @@ impl<S> Drop for Ref<'_, S> {
             }
             BorrowState::Shared(n) => {
                 self.state.set(BorrowState::Shared(
-                    NonZero::<usize>::new(n.get() - 1).expect("non zero"),
+                    NonZeroUsize::new(n.get() - 1).expect("non zero"),
                 ));
             }
             _ => unreachable!(),
