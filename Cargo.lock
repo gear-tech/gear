@@ -7045,7 +7045,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasmer-cache"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "log",
  "uluru",

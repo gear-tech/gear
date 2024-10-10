@@ -55,7 +55,7 @@ impl CrateInfo {
             .ok_or_else(|| BuilderError::RootPackageNotFound.into())
             .and_then(Self::check)?;
 
-        let manifest = cargo_toml::Manifest::from_path(&metadata.workspace_root.join("Cargo.toml"))
+        let manifest = cargo_toml::Manifest::from_path(metadata.workspace_root.join("Cargo.toml"))
             .context("manifest parsing failed")?;
         let profiles = manifest
             .profile
