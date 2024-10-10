@@ -22,7 +22,7 @@ use common::{
     Origin,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::ids;
+use gear_core::ids::{self, CodeId, MessageId, ProgramId};
 use sp_std::collections::btree_set::BTreeSet;
 
 impl<T: Config> crate::Call<T>
@@ -85,10 +85,13 @@ impl<T: Config> Pallet<T> {
         match call {
             PrepaidCall::DeclineVoucher => (),
             PrepaidCall::UploadCode { .. } => {
-                ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
+                ensure!(
+                    voucher.permissions.code_uploading,
+                    Error::<T>::CodeUploadingDisabled
+                )
             }
             PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => {
-                if let Some(ref programs) = voucher.programs {
+                if let Some(ref programs) = voucher.permissions.programs {
                     let destination = Self::prepaid_call_destination(&origin, call)
                         .ok_or(Error::<T>::UnknownDestination)?;
 
@@ -96,6 +99,11 @@ impl<T: Config> Pallet<T> {
                         programs.contains(&destination),
                         Error::<T>::InappropriateDestination
                     );
+                }
+            }
+            PrepaidCall::CreateProgram { code_id, .. } => {
+                if let Some(code_ids) = voucher.permissions.code_ids {
+                    ensure!(code_ids.contains(code_id), Error::<T>::InappropriateCodeId);
                 }
             }
         }
@@ -113,7 +121,9 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
-            PrepaidCall::UploadCode { .. } | PrepaidCall::DeclineVoucher => None,
+            PrepaidCall::UploadCode { .. }
+            | PrepaidCall::DeclineVoucher
+            | PrepaidCall::CreateProgram { .. } => None,
         }
     }
 }
@@ -183,19 +193,18 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// May be different to original issuer.
     /// Owner manages and claims back remaining balance of the voucher.
     pub owner: AccountId,
-    /// Set of programs this voucher could be used to interact with.
-    /// In case of [`None`] means any gear program.
-    pub programs: Option<BTreeSet<ProgramId>>,
-    /// Flag if this voucher's covers uploading codes as prepaid call.
-    pub code_uploading: bool,
     /// The block number at and after which voucher couldn't be used and
     /// can be revoked by owner.
     pub expiry: BlockNumber,
+    /// Set of CodeId this voucher could be used to create program.
+    /// In case of [`None`] means any uploaded code.
+    pub permissions: VoucherPermissions,
 }
 
 impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
     pub fn contains(&self, program_id: ProgramId) -> bool {
-        self.programs
+        self.permissions
+            .programs
             .as_ref()
             .map_or(true, |v| v.contains(&program_id))
     }
@@ -222,4 +231,172 @@ pub enum PrepaidCall<Balance> {
         code: Vec<u8>,
     },
     DeclineVoucher,
+    CreateProgram {
+        code_id: CodeId,
+        salt: Vec<u8>,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: Balance,
+        keep_alive: bool,
+    },
+}
+
+/// Voucher Permissions:
+/// * programs: pool of programs spender can interact with,
+///             if None - means any program,
+///             limited by Config param;
+/// * code_uploading:
+///             allow voucher to be used as payer for `upload_code`
+///             transactions fee;
+/// * code_ids: pool of code identifiers spender can create program from,
+///             if None - means any code,
+///             limited by Config param;
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq)]
+pub struct VoucherPermissions {
+    /// Set of programs this voucher could be used to interact with.
+    /// In case of [`None`] means any gear program.
+    pub programs: Option<BTreeSet<ProgramId>>,
+    /// Flag if this voucher's covers uploading codes as prepaid call.
+    pub code_uploading: bool,
+    /// Set of CodeId this voucher could be used to create program.
+    /// In case of [`None`] means any uploaded code.
+    pub code_ids: Option<BTreeSet<CodeId>>,
+}
+
+impl VoucherPermissions {
+    pub const fn none() -> Self {
+        Self {
+            programs: Some(BTreeSet::new()),
+            code_uploading: false,
+            code_ids: Some(BTreeSet::new()),
+        }
+    }
+
+    pub const fn all() -> Self {
+        Self {
+            programs: None,
+            code_uploading: true,
+            code_ids: None,
+        }
+    }
+
+    pub fn allow_code_uploading(self, code_uploading: bool) -> Self {
+        Self {
+            code_uploading,
+            ..self
+        }
+    }
+
+    pub fn allow_programs(self, programs: Option<BTreeSet<ProgramId>>) -> Self {
+        Self { programs, ..self }
+    }
+
+    pub fn allow_code_ids(self, code_ids: Option<BTreeSet<CodeId>>) -> Self {
+        Self { code_ids, ..self }
+    }
+
+    /// Extend permissions
+    ///
+    /// Returns `true` if permissions extended
+    pub fn extend<T: Config>(
+        &mut self,
+        extend: VoucherPermissionsExtend,
+    ) -> Result<bool, Error<T>> {
+        // Flag if permissions needs update in storage.
+        let mut updated = false;
+
+        // Flattening code uploading.
+        let code_uploading = extend.code_uploading.filter(|v| *v != self.code_uploading);
+        // Optionally enabling code uploading.
+        if let Some(code_uploading) = code_uploading {
+            ensure!(code_uploading, Error::<T>::CodeUploadingEnabled);
+
+            self.code_uploading = true;
+            updated = true;
+        }
+
+        // Optionally extends whitelisted programs with amount validation.
+        match extend.append_programs {
+            // Adding given destination set to voucher,
+            // if it has destinations limit.
+            Some(Some(mut extra_programs)) if self.programs.is_some() => {
+                let programs = self.programs.as_mut().expect("Infallible");
+                let initial_len = programs.len();
+
+                programs.append(&mut extra_programs);
+
+                ensure!(
+                    programs.len() <= T::MaxProgramsAmount::get().into(),
+                    Error::<T>::MaxProgramsLimitExceeded
+                );
+
+                updated |= programs.len() != initial_len;
+            }
+
+            // Extending vouchers to unlimited destinations.
+            Some(None) => updated |= self.programs.take().is_some(),
+
+            // Noop.
+            _ => (),
+        }
+
+        // Optionally extends whitelisted code_ids.
+        match extend.append_code_ids {
+            // Adding given destination set to voucher,
+            // if it has destinations limit.
+            Some(Some(mut extra_code_ids)) if self.code_ids.is_some() => {
+                let code_ids = self.code_ids.as_mut().expect("Infallible; qed");
+                let initial_len = code_ids.len();
+
+                code_ids.append(&mut extra_code_ids);
+
+                ensure!(
+                    code_ids.len() <= T::MaxCodeIdsAmount::get().into(),
+                    Error::<T>::MaxCodeIdsLimitExceeded
+                );
+
+                updated |= code_ids.len() != initial_len;
+            }
+
+            // Extending vouchers to any CodeId.
+            Some(None) => updated |= self.code_ids.take().is_some(),
+
+            // Noop.
+            _ => (),
+        }
+
+        // Return updated flag
+        Ok(updated)
+    }
+}
+
+impl Default for VoucherPermissions {
+    /// Default permissions don't allow anything
+    fn default() -> Self {
+        Self::none()
+    }
+}
+
+/// Voucher Permissions Extend
+/// * append_programs:  optionally extends pool of programs by
+///                     `Some(programs_set)` passed or allows
+///                     it to interact with any program by
+///                     `None` passed;
+/// * code_uploading:   optionally allows voucher to be used to pay
+///                     fees for `upload_code` extrinsics;
+/// * append_code_ids:  optionally extends pool of code identifiers
+///                     `Some(code_ids)` passed or allows
+///                     it to interact with any program by
+///                     `None` passed;
+#[derive(Debug, Default, Clone, Encode, Decode, TypeInfo, PartialEq)]
+pub struct VoucherPermissionsExtend {
+    pub append_programs: Option<Option<BTreeSet<ProgramId>>>,
+    pub code_uploading: Option<bool>,
+    pub append_code_ids: Option<Option<BTreeSet<CodeId>>>,
+}
+
+impl From<Option<VoucherPermissionsExtend>> for VoucherPermissionsExtend {
+    fn from(value: Option<VoucherPermissionsExtend>) -> Self {
+        value.unwrap_or_default()
+    }
 }

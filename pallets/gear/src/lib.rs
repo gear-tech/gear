@@ -1191,13 +1191,11 @@ pub mod pallet {
         }
 
         pub(crate) fn init_packet(
-            who: T::AccountId,
             code_id: CodeId,
             salt: Vec<u8>,
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            keep_alive: bool,
         ) -> Result<InitPacket, DispatchError> {
             let packet = InitPacket::new_from_user(
                 code_id,
@@ -1218,11 +1216,6 @@ pub mod pallet {
                 Error::<T>::ProgramAlreadyExists
             );
 
-            // First we reserve enough funds on the account to pay for `gas_limit`
-            // and to transfer declared value.
-            GearBank::<T>::deposit_gas(&who, gas_limit, keep_alive)?;
-            GearBank::<T>::deposit_value(&who, value, keep_alive)?;
-
             Ok(packet)
         }
 
@@ -1230,7 +1223,21 @@ pub mod pallet {
             who: T::AccountId,
             packet: InitPacket,
             code_info: CodeInfo,
+            keep_alive: bool,
+            gas_sponsor: Option<T::AccountId>,
         ) -> Result<(), DispatchError> {
+            // First we reserve enough funds on the account to pay for `gas_limit`
+            // and to transfer declared value.
+            // If voucher or any other prepaid mechanism is not used,
+            // gas limit is taken from user's account.
+            let gas_sponsor = gas_sponsor.unwrap_or_else(|| who.clone());
+            GearBank::<T>::deposit_gas(
+                &gas_sponsor,
+                packet.gas_limit().expect("Infallible"),
+                keep_alive,
+            )?;
+            GearBank::<T>::deposit_value(&who, packet.value().unique_saturated_into(), keep_alive)?;
+
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
@@ -1248,7 +1255,7 @@ pub mod pallet {
             let program_account = program_id.cast();
             let ed = CurrencyOf::<T>::minimum_balance();
             CurrencyOf::<T>::transfer(
-                &who,
+                &gas_sponsor,
                 &program_account,
                 ed,
                 ExistenceRequirement::AllowDeath,
@@ -1272,7 +1279,7 @@ pub mod pallet {
             };
 
             Self::create(
-                who.clone(),
+                gas_sponsor,
                 message_id,
                 packet.gas_limit().expect("Infallible"),
                 false,
@@ -1402,15 +1409,8 @@ pub mod pallet {
 
             let code_and_id = Self::try_new_code(code)?;
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
-            let packet = Self::init_packet(
-                who.clone(),
-                code_and_id.code_id(),
-                salt,
-                init_payload,
-                gas_limit,
-                value,
-                keep_alive,
-            )?;
+            let packet =
+                Self::init_packet(code_and_id.code_id(), salt, init_payload, gas_limit, value)?;
 
             if !T::CodeStorage::exists(code_and_id.code_id()) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
@@ -1427,7 +1427,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet, code_info)?;
+            Self::do_create_program(who, packet, code_info, keep_alive, None)?;
 
             Ok(().into())
         }
@@ -1461,25 +1461,16 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            // Check if code exists.
-            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
-
-            // Check `gas_limit`
-            Self::check_gas_limit(gas_limit)?;
-
-            // Construct packet.
-            let packet = Self::init_packet(
-                who.clone(),
+            Self::create_program_impl(
+                who,
                 code_id,
                 salt,
                 init_payload,
                 gas_limit,
                 value,
                 keep_alive,
-            )?;
-
-            Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
-            Ok(().into())
+                None,
+            )
         }
 
         /// Sends a message to a program or to another account.
@@ -1972,6 +1963,36 @@ pub mod pallet {
 
             Ok(().into())
         }
+
+        #[allow(clippy::too_many_arguments)]
+        fn create_program_impl(
+            origin: AccountIdOf<T>,
+            code_id: CodeId,
+            salt: Vec<u8>,
+            init_payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+            keep_alive: bool,
+            gas_sponsor: Option<AccountIdOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            // Check if code exists.
+            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
+
+            // Check `gas_limit`
+            Self::check_gas_limit(gas_limit)?;
+
+            // Construct packet.
+            let packet = Self::init_packet(code_id, salt, init_payload, gas_limit, value)?;
+
+            Self::do_create_program(
+                origin,
+                packet,
+                CodeInfo::from_code(&code_id, &code),
+                keep_alive,
+                gas_sponsor,
+            )?;
+            Ok(().into())
+        }
     }
 
     /// Dispatcher for all types of prepaid calls: gear or gear-voucher pallets.
@@ -1997,6 +2018,9 @@ pub mod pallet {
                 }
                 PrepaidCall::DeclineVoucher => {
                     <T as pallet_gear_voucher::Config>::WeightInfo::decline()
+                }
+                PrepaidCall::CreateProgram { salt, .. } => {
+                    <T as Config>::WeightInfo::create_program(salt.len() as u32)
                 }
             }
         }
@@ -2042,6 +2066,23 @@ pub mod pallet {
                 PrepaidCall::DeclineVoucher => pallet_gear_voucher::Pallet::<T>::decline(
                     RawOrigin::Signed(account_id).into(),
                     voucher_id,
+                ),
+                PrepaidCall::CreateProgram {
+                    code_id,
+                    salt,
+                    payload,
+                    gas_limit,
+                    value,
+                    keep_alive,
+                } => Pallet::<T>::create_program_impl(
+                    account_id,
+                    code_id,
+                    salt,
+                    payload,
+                    gas_limit,
+                    value,
+                    keep_alive,
+                    Some(sponsor_id),
                 ),
             }
         }
