@@ -187,6 +187,7 @@ impl MemoryWrapper {
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
         let mut buffer = Vec::with_capacity(size);
+        unsafe { buffer.set_len(size) };
         let ctx = self.store.borrow();
         self.memory
             .read(&*ctx, source_addr.into(), &mut buffer)
