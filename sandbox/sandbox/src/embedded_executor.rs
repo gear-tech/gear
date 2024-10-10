@@ -45,16 +45,12 @@ pub fn init_traps() {
 }
 
 fn fs_cache() -> PathBuf {
-    const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
-
-    let manifest_dir = PathBuf::from(MANIFEST_DIR);
-    assert!(manifest_dir.ends_with("sandbox/sandbox"));
-
-    let path = manifest_dir.join("../../target/wasmer-cache");
-    if !path.exists() {
-        fs::create_dir(&path).unwrap();
+    let out_dir = PathBuf::from(env!("OUT_DIR"));
+    let cache = out_dir.join("wasmer-cache");
+    if !cache.exists() {
+        fs::create_dir(&cache).unwrap();
     }
-    path
+    cache
 }
 
 struct CustomTunables {
@@ -214,7 +210,7 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let mut engine = Engine::default();
+        let mut engine = Engine::from(wasmer::Singlepass::new());
         let tunables = CustomTunables::for_target(engine.target())
             // make stack size bigger for fuzzer
             .with_wasm_stack_size(16 * 1024 * 1024);
