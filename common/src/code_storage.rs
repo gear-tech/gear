@@ -43,28 +43,28 @@ pub trait CodeStorage {
 
     fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), Error> {
         let (code, code_id) = code_and_id.into_parts();
-        let (code, original_code) = code.into_parts();
+        let (instrumented_code, original_code) = code.into_parts();
 
         Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
             if maybe.is_some() {
                 return Err(CodeStorageError::DuplicateItem);
             }
 
-            Self::InstrumentedLenStorage::insert(code_id, code.code().len() as u32);
+            Self::InstrumentedLenStorage::insert(code_id, instrumented_code.code().len() as u32);
             Self::OriginalCodeStorage::insert(code_id, original_code);
             Self::MetadataStorage::insert(code_id, metadata);
 
-            *maybe = Some(code);
+            *maybe = Some(instrumented_code);
             Ok(())
         })
     }
 
     /// Update the corresponding code in the storage.
-    fn update_code(code_and_id: InstrumentedCodeAndId) {
-        let (code, code_id) = code_and_id.into_parts();
+    fn update_instrumented_code(code_and_id: InstrumentedCodeAndId) {
+        let (instrumented_code, code_id) = code_and_id.into_parts();
 
-        Self::InstrumentedLenStorage::insert(code_id, code.code().len() as u32);
-        Self::InstrumentedCodeStorage::insert(code_id, code);
+        Self::InstrumentedLenStorage::insert(code_id, instrumented_code.code().len() as u32);
+        Self::InstrumentedCodeStorage::insert(code_id, instrumented_code);
     }
 
     fn exists(code_id: CodeId) -> bool {
@@ -89,11 +89,11 @@ pub trait CodeStorage {
         })
     }
 
-    fn get_code(code_id: CodeId) -> Option<InstrumentedCode> {
+    fn get_instrumented_code(code_id: CodeId) -> Option<InstrumentedCode> {
         Self::InstrumentedCodeStorage::get(&code_id)
     }
 
-    fn get_code_len(code_id: CodeId) -> Option<u32> {
+    fn get_instrumented_code_len(code_id: CodeId) -> Option<u32> {
         Self::InstrumentedLenStorage::get(&code_id)
     }
 

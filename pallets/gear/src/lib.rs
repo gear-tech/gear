@@ -1120,7 +1120,7 @@ pub mod pallet {
             code_id: CodeId,
             schedule: &Schedule<T>,
         ) -> Result<InstrumentedCode, CodeError> {
-            debug_assert!(T::CodeStorage::get_code(code_id).is_some());
+            debug_assert!(T::CodeStorage::get_instrumented_code(code_id).is_some());
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
@@ -1145,7 +1145,7 @@ pub mod pallet {
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);
-            T::CodeStorage::update_code(code_and_id.clone());
+            T::CodeStorage::update_instrumented_code(code_and_id.clone());
             let (code, _) = code_and_id.into_parts();
 
             Ok(code)
@@ -1173,7 +1173,7 @@ pub mod pallet {
             })?;
 
             ensure!(
-                (code.code().len() as u32) <= schedule.limits.code_len,
+                (code.instrumented_code().code().len() as u32) <= schedule.limits.code_len,
                 Error::<T>::CodeTooLarge
             );
 
@@ -1462,7 +1462,8 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
+            let code = T::CodeStorage::get_instrumented_code(code_id)
+                .ok_or(Error::<T>::CodeDoesntExist)?;
 
             // Check `gas_limit`
             Self::check_gas_limit(gas_limit)?;

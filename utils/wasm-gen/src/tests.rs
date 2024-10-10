@@ -1066,7 +1066,7 @@ fn execute_wasm_with_custom_configs(
     let ext = Ext::new(processor_context);
     let env = Environment::new(
         ext,
-        code.code(),
+        code.instrumented_code().code(),
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),

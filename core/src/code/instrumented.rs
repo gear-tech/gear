@@ -36,45 +36,126 @@ use scale_info::{
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub struct InstantiatedSectionSizes {
     /// Code section size in bytes.
-    pub code_section: u32,
+    code_section: u32,
     /// Data section size in bytes based on the number of heuristic memory pages
     /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
-    pub data_section: u32,
+    data_section: u32,
     /// Global section size in bytes.
-    pub global_section: u32,
+    global_section: u32,
     /// Table section size in bytes.
-    pub table_section: u32,
+    table_section: u32,
     /// Element section size in bytes.
-    pub element_section: u32,
+    element_section: u32,
     /// Type section size in bytes.
-    pub type_section: u32,
+    type_section: u32,
 }
 
 impl InstantiatedSectionSizes {
-    /// Returns an empty instance of the section sizes.
-    pub const EMPTY: Self = Self {
-        code_section: 0,
-        data_section: 0,
-        global_section: 0,
-        table_section: 0,
-        element_section: 0,
-        type_section: 0,
-    };
+    /// Creates a new instance of the section sizes.
+    pub fn new(
+        code_section: u32,
+        data_section: u32,
+        global_section: u32,
+        table_section: u32,
+        element_section: u32,
+        type_section: u32,
+    ) -> Self {
+        Self {
+            code_section,
+            data_section,
+            global_section,
+            table_section,
+            element_section,
+            type_section,
+        }
+    }
+
+    /// Creates an empty instance of the section sizes.
+    ///
+    /// # Safety
+    /// This method is unsafe because it is used for testing purposes only.
+    pub const unsafe fn zero() -> Self {
+        Self {
+            code_section: 0,
+            data_section: 0,
+            global_section: 0,
+            table_section: 0,
+            element_section: 0,
+            type_section: 0,
+        }
+    }
+
+    /// Returns the code section size in bytes.
+    pub fn code_section(&self) -> u32 {
+        self.code_section
+    }
+
+    /// Returns the data section size in bytes.
+    pub fn data_section(&self) -> u32 {
+        self.data_section
+    }
+
+    /// Returns the global section size in bytes.
+    pub fn global_section(&self) -> u32 {
+        self.global_section
+    }
+
+    /// Returns the table section size in bytes.
+    pub fn table_section(&self) -> u32 {
+        self.table_section
+    }
+
+    /// Returns the element section size in bytes.
+    pub fn element_section(&self) -> u32 {
+        self.element_section
+    }
+
+    /// Returns the type section size in bytes.
+    pub fn type_section(&self) -> u32 {
+        self.type_section
+    }
 }
 
 /// The newtype contains the instrumented code and the corresponding id (hash).
-#[derive(Clone, Debug, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq)]
 pub struct InstrumentedCode {
-    pub(crate) code: Vec<u8>,
-    pub(crate) original_code_len: u32,
-    pub(crate) exports: BTreeSet<DispatchKind>,
-    pub(crate) static_pages: WasmPagesAmount,
-    pub(crate) stack_end: Option<WasmPage>,
-    pub(crate) instantiated_section_sizes: InstantiatedSectionSizes,
-    pub(crate) version: u32,
+    /// Code instrumented with the latest schedule.
+    code: Vec<u8>,
+    /// Original code length.
+    original_code_len: u32,
+    /// Exports of the wasm module.
+    exports: BTreeSet<DispatchKind>,
+    /// Static pages count from memory import.
+    static_pages: WasmPagesAmount,
+    /// Stack end page.
+    stack_end: Option<WasmPage>,
+    /// Instruction weights version.
+    instruction_weights_version: u32,
+    /// Instantiated section sizes used for charging during module instantiation.
+    instantiated_section_sizes: InstantiatedSectionSizes,
 }
 
 impl InstrumentedCode {
+    pub(crate) fn new(
+        code: Vec<u8>,
+        original_code_len: u32,
+        exports: BTreeSet<DispatchKind>,
+        static_pages: WasmPagesAmount,
+        stack_end: Option<WasmPage>,
+        instantiated_section_sizes: InstantiatedSectionSizes,
+        instruction_weights_version: u32,
+    ) -> Self {
+        Self {
+            code,
+            original_code_len,
+            exports,
+            static_pages,
+            stack_end,
+            instantiated_section_sizes,
+            instruction_weights_version,
+        }
+    }
+
     /// Creates a new instance of the instrumented code.
     ///
     /// # Safety
@@ -87,7 +168,7 @@ impl InstrumentedCode {
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         instantiated_section_sizes: InstantiatedSectionSizes,
-        version: u32,
+        instruction_weights_version: u32,
     ) -> Self {
         Self {
             code,
@@ -96,7 +177,7 @@ impl InstrumentedCode {
             static_pages,
             stack_end,
             instantiated_section_sizes,
-            version,
+            instruction_weights_version,
         }
     }
 
@@ -105,14 +186,9 @@ impl InstrumentedCode {
         &self.code
     }
 
-    /// Returns the length of the original binary code.
+    /// Returns original code length.
     pub fn original_code_len(&self) -> u32 {
         self.original_code_len
-    }
-
-    /// Returns instruction weights version.
-    pub fn instruction_weights_version(&self) -> u32 {
-        self.version
     }
 
     /// Returns wasm module exports.
@@ -133,6 +209,11 @@ impl InstrumentedCode {
     /// Returns instantiated section sizes used for charging during module instantiation.
     pub fn instantiated_section_sizes(&self) -> &InstantiatedSectionSizes {
         &self.instantiated_section_sizes
+    }
+
+    /// Returns instruction weights version.
+    pub fn instruction_weights_version(&self) -> u32 {
+        self.instruction_weights_version
     }
 
     /// Consumes the instance and returns the instrumented code.

@@ -422,27 +422,27 @@ pub fn precharge_for_module_instantiation(
 
         charger.charge_gas_for_section_instantiation(
             SectionName::Function,
-            section_sizes.code_section.into(),
+            section_sizes.code_section().into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Data,
-            section_sizes.data_section.into(),
+            section_sizes.data_section().into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Global,
-            section_sizes.global_section.into(),
+            section_sizes.global_section().into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Table,
-            section_sizes.table_section.into(),
+            section_sizes.table_section().into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Element,
-            section_sizes.element_section.into(),
+            section_sizes.element_section().into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Type,
-            section_sizes.type_section.into(),
+            section_sizes.type_section().into(),
         )?;
 
         Ok(memory_size)

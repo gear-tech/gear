@@ -127,7 +127,8 @@ where
         HandleKind::InitByHash(code_id) => {
             let program_id = ProgramId::generate_from_user(code_id, b"bench_salt");
 
-            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
+            let code = T::CodeStorage::get_instrumented_code(code_id)
+                .ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);
 
             ext_manager.set_program(
@@ -252,8 +253,8 @@ where
     let context = core_processor::precharge_for_code_length(&block_config, context, actor_data)
         .map_err(|_| "core_processor::precharge_for_code failed")?;
 
-    let code =
-        T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
+    let code = T::CodeStorage::get_instrumented_code(context.actor_data().code_id)
+        .ok_or("Program code not found")?;
 
     let context = ContextChargedForCode::from(context);
     let context = core_processor::precharge_for_module_instantiation(
