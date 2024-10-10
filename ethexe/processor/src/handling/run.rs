@@ -19,7 +19,7 @@
 use crate::host::{InstanceCreator, InstanceWrapper};
 use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::{Handler, InBlockTransitions};
+use ethexe_runtime_common::{InBlockTransitions, JournalHandler};
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
@@ -30,12 +30,6 @@ enum Task {
         program_id: ProgramId,
         state_hash: H256,
         result_sender: oneshot::Sender<Vec<JournalNote>>,
-    },
-    #[allow(unused)] // TODO (breathx)
-    WakeMessages {
-        program_id: ProgramId,
-        state_hash: H256,
-        result_sender: oneshot::Sender<H256>,
     },
 }
 
@@ -81,9 +75,6 @@ async fn run_in_async(
         handles.push(handle);
     }
 
-    // TODO (breathx): fix me ASAP.
-    // wake_messages(&task_senders, programs).await;
-
     loop {
         // Send tasks to process programs in workers, until all queues are empty.
 
@@ -101,11 +92,10 @@ async fn run_in_async(
             }
 
             for (program_id, journal) in super_journal {
-                let mut handler = Handler {
+                let mut handler = JournalHandler {
                     program_id,
                     in_block_transitions,
                     storage: &db,
-                    block_info: Default::default(),
                 };
                 core_processor::handle_journal(journal, &mut handler);
             }
@@ -137,16 +127,6 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
                 .expect("Some error occurs while running program in instance");
 
             result_sender.send(journal).unwrap();
-        }
-        Task::WakeMessages {
-            program_id,
-            state_hash,
-            result_sender,
-        } => {
-            let new_state_hash = executor
-                .wake_messages(db, program_id, state_hash)
-                .expect("Some error occurs while waking messages");
-            result_sender.send(new_state_hash).unwrap();
         }
     }
 }

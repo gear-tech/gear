@@ -7,11 +7,12 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::Result;
+use core::num::NonZero;
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
 };
-use ethexe_common::router::OutgoingMessage;
+use ethexe_common::{db::ScheduledTask, router::OutgoingMessage};
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
@@ -30,7 +31,6 @@ pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
     pub in_block_transitions: &'a mut InBlockTransitions,
     pub storage: &'a S,
-    pub block_info: BlockInfo,
 }
 
 impl<S: Storage> Handler<'_, S> {
@@ -39,7 +39,7 @@ impl<S: Storage> Handler<'_, S> {
         program_id: ProgramId,
         f: impl FnOnce(&mut ProgramState) -> Result<()>,
     ) -> H256 {
-        self.update_state_with_storage(program_id, |_s, state| f(state))
+        crate::update_state(self.in_block_transitions, self.storage, program_id, f)
     }
 
     pub fn update_state_with_storage(
@@ -47,20 +47,7 @@ impl<S: Storage> Handler<'_, S> {
         program_id: ProgramId,
         f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
     ) -> H256 {
-        let state_hash = self
-            .in_block_transitions
-            .state_of(&program_id)
-            .expect("failed to find program in known states");
-
-        let new_state_hash = self
-            .storage
-            .mutate_state(state_hash, f)
-            .expect("failed to mutate state");
-
-        self.in_block_transitions
-            .modify_state(program_id, new_state_hash);
-
-        new_state_hash
+        crate::update_state_with_storage(self.in_block_transitions, self.storage, program_id, f)
     }
 
     fn pop_queue_message(state: &ProgramState, storage: &S) -> (H256, MessageId) {
@@ -186,13 +173,21 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .is_none()
         {
             if !dispatch.is_reply() {
+                let expiry = self.in_block_transitions.schedule_task(
+                    state::MAILBOX_VALIDITY.try_into().expect("infallible"),
+                    ScheduledTask::RemoveFromMailbox(
+                        (dispatch.source(), dispatch.destination()),
+                        dispatch.id(),
+                    ),
+                );
+
                 self.update_state_with_storage(dispatch.source(), |storage, state| {
                     state.mailbox_hash =
                         storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
                             mailbox
                                 .entry(dispatch.destination())
                                 .or_default()
-                                .insert(dispatch.id(), dispatch.value());
+                                .insert(dispatch.id(), (dispatch.value(), expiry));
                         })?;
 
                     Ok(())
@@ -252,12 +247,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             todo!("Wait dispatch without specified duration");
         };
 
-        // TODO (breathx): support delays.
-        let block = self.block_info.height.saturating_add(duration);
+        let in_blocks =
+            NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
+
+        let expiry = self.in_block_transitions.schedule_task(
+            in_blocks,
+            ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
+        );
 
         let dispatch = Dispatch::from_stored(self.storage, dispatch);
-
-        log::trace!("{:?} was added to waitlist block {block}", dispatch);
 
         self.update_state_with_storage(self.program_id, |storage, state| {
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
@@ -274,7 +272,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             // TODO (breathx): impl Copy for MaybeHash?
             state.waitlist_hash =
                 storage.modify_waitlist(state.waitlist_hash.clone(), |waitlist| {
-                    let r = waitlist.insert(dispatch.id, dispatch);
+                    let r = waitlist.insert(dispatch.id, (dispatch, expiry));
                     debug_assert!(r.is_none());
                 })?;
 
@@ -295,14 +293,18 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
 
+        let mut expiry_if_found = None;
+
         self.update_state_with_storage(program_id, |storage, state| {
-            let Some((dispatch, new_waitlist_hash)) = storage
+            let Some(((dispatch, expiry), new_waitlist_hash)) = storage
                 .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
                     waitlist.remove(&awakening_id)
                 })?
             else {
                 return Ok(());
             };
+
+            expiry_if_found = Some(expiry);
 
             state.waitlist_hash = new_waitlist_hash;
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
@@ -311,6 +313,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
             Ok(())
         });
+
+        if let Some(expiry) = expiry_if_found {
+            self.in_block_transitions
+                .remove_task(
+                    expiry,
+                    &ScheduledTask::WakeMessage(program_id, awakening_id),
+                )
+                .expect("failed to remove scheduled task");
+        }
     }
 
     fn update_pages_data(

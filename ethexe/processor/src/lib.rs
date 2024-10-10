@@ -18,7 +18,7 @@
 
 //! Program's execution service for eGPU.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethexe_common::{mirror::RequestEvent as MirrorEvent, BlockRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::{state::Storage, InBlockTransitions};
@@ -77,14 +77,19 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
+        let header = self
+            .db
+            .block_header(block_hash)
+            .ok_or_else(|| anyhow!("failed to get block header for under-processing block"))?;
+
         let states = self
             .db
             .block_start_program_states(block_hash)
             .unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
 
-        let mut in_block_transitions = InBlockTransitions::new(states);
+        let schedule = self.db.block_start_schedule(block_hash).unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
 
-        let mut schedule = self.db.block_start_schedule(block_hash).unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
+        let mut in_block_transitions = InBlockTransitions::new(header, states, schedule);
 
         // TODO (breathx): handle resulting addresses that were changed (e.g. top up balance wont be dumped as outcome).
         for event in events {
@@ -101,10 +106,10 @@ impl Processor {
             }
         }
 
-        self.run_tasks(block_hash, &mut in_block_transitions, &mut schedule)?;
+        self.run_schedule(&mut in_block_transitions);
         self.run(block_hash, &mut in_block_transitions);
 
-        let (transitions, states) = in_block_transitions.finalize();
+        let (transitions, states, schedule) = in_block_transitions.finalize();
 
         self.db.set_block_end_program_states(block_hash, states);
         self.db.set_block_end_schedule(block_hash, schedule);
@@ -144,22 +149,29 @@ impl OverlaidProcessor {
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
+        let header = self
+            .0
+            .db
+            .block_header(block_hash)
+            .ok_or_else(|| anyhow!("failed to find block header for given block hash"))?;
+
         let states = self
             .0
             .db
             .block_start_program_states(block_hash)
             .unwrap_or_default();
 
-        let mut in_block_transitions = InBlockTransitions::new(states);
+        let mut in_block_transitions = InBlockTransitions::new(header, states, Default::default());
 
         let state_hash = in_block_transitions
             .state_of(&program_id)
-            .ok_or_else(|| anyhow::anyhow!("unknown program at specified block hash"))?;
+            .ok_or_else(|| anyhow!("unknown program at specified block hash"))?;
 
-        let state =
-            self.0.db.read_state(state_hash).ok_or_else(|| {
-                anyhow::anyhow!("unreachable: state partially presents in storage")
-            })?;
+        let state = self
+            .0
+            .db
+            .read_state(state_hash)
+            .ok_or_else(|| anyhow!("unreachable: state partially presents in storage"))?;
 
         anyhow::ensure!(
             !state.requires_init_message(),
@@ -196,7 +208,7 @@ impl OverlaidProcessor {
                     })
                 })
             })
-            .ok_or_else(|| anyhow::anyhow!("reply wasn't found"))?;
+            .ok_or_else(|| anyhow!("reply wasn't found"))?;
 
         Ok(res)
     }

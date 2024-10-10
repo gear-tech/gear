@@ -26,24 +26,6 @@ use ethexe_runtime_common::{process_next_message, state::Storage, RuntimeInterfa
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
 
-pub fn wake_messages(program_id: ProgramId, state_hash: H256) -> H256 {
-    log::debug!("You're calling 'wake_messages(..)'");
-
-    let block_info = BlockInfo {
-        height: database_ri::get_block_height(),
-        timestamp: database_ri::get_block_timestamp(),
-    };
-
-    let ri = NativeRuntimeInterface {
-        block_info,
-        storage: RuntimeInterfaceStorage,
-    };
-
-    let program_state = ri.storage().read_state(state_hash).unwrap();
-
-    ethexe_runtime_common::wake_messages(program_id, program_state, &ri).unwrap_or(state_hash)
-}
-
 pub fn run(
     program_id: ProgramId,
     original_code_id: CodeId,
