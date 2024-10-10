@@ -119,6 +119,14 @@ impl From<H160> for ActorId {
     }
 }
 
+impl Into<H160> for ActorId {
+    fn into(self) -> H160 {
+        let mut h160 = H160::zero();
+        h160.0.copy_from_slice(&self.into_bytes()[12..]);
+        h160
+    }
+}
+
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let byte_array = utils::ByteArray(&self.0);
