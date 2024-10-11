@@ -176,6 +176,7 @@ impl<E> BuiltinCollection<E> for Tuple {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use common::Origin;
     use frame_support::{
         dispatch::{GetDispatchInfo, PostDispatchInfo},
         pallet_prelude::*,
@@ -218,10 +219,13 @@ pub mod pallet {
         }
 
         pub(crate) fn dispatch_call(
-            origin: T::AccountId,
+            origin: ProgramId,
             call: CallOf<T>,
             gas_limit: u64,
-        ) -> (Result<(), BuiltinActorError>, u64) {
+        ) -> (Result<(), BuiltinActorError>, u64)
+        where
+            T::AccountId: Origin,
+        {
             let call_info = call.get_dispatch_info();
 
             // Necessary upfront gas sufficiency check
@@ -230,7 +234,7 @@ pub mod pallet {
             }
 
             // Execute call
-            let res = call.dispatch(frame_system::RawOrigin::Signed(origin).into());
+            let res = call.dispatch(frame_system::RawOrigin::Signed(origin.cast()).into());
             let actual_gas = extract_actual_weight(&res, &call_info).ref_time();
 
             match res {

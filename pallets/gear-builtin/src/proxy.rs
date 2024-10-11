@@ -82,7 +82,7 @@ where
             return (Err(BuiltinActorError::DecodingError), 0);
         };
 
-        let origin = dispatch.source().cast();
+        let origin = dispatch.source();
 
         match Self::cast(request) {
             Ok(call) => {

@@ -108,7 +108,7 @@ where
 
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
         let message = dispatch.message();
-        let origin: T::AccountId = dispatch.source().cast();
+        let origin = dispatch.source();
         let mut payload = message.payload_bytes();
 
         // Rule out payloads that exceed the largest reasonable size.
