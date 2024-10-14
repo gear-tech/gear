@@ -32,10 +32,10 @@ struct Sandboxes {
 }
 
 impl Sandboxes {
-    pub fn new() -> Self {
+    pub fn new(sandbox_backend: sandbox_env::SandboxBackend) -> Self {
         Self {
             store_data_key: 0,
-            store: sandbox_env::SandboxComponents::new(sandbox_env::SandboxBackend::Wasmi),
+            store: sandbox_env::SandboxComponents::new(sandbox_backend),
         }
     }
 
@@ -62,12 +62,13 @@ impl Sandboxes {
 }
 
 thread_local! {
-    static SANDBOXES: RefCell<Sandboxes> = RefCell::new(Sandboxes::new());
+    static SANDBOXES: RefCell<Sandboxes> = panic!("Sandbox not initialized");
 }
 
-pub fn init() {
-    SANDBOXES.with(|sandboxes| {
-        let _store = sandboxes.borrow_mut().get(0);
+pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
+    SANDBOXES.set(Sandboxes::new(sandbox_backend));
+    SANDBOXES.with_borrow_mut(|sandboxes| {
+        let _store = sandboxes.get(0);
     })
 }
 

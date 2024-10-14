@@ -17,6 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
+use std::str::FromStr;
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Parser, derive_more::Display)]
+pub enum SandboxBackend {
+    #[display(fmt = "wasmer")]
+    Wasmer,
+    #[display(fmt = "wasmi")]
+    Wasmi,
+}
+
+// TODO: use `derive_more::FromStr` when derive_more dependency is updated to 1.0
+impl FromStr for SandboxBackend {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "wasmer" => Ok(SandboxBackend::Wasmer),
+            "wasmi" => Ok(SandboxBackend::Wasmi),
+            _ => Err(format!("Unknown sandbox executor: {}", s)),
+        }
+    }
+}
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
@@ -25,6 +48,10 @@ pub struct RunCmd {
     #[allow(missing_docs)]
     #[command(flatten)]
     pub base: sc_cli::RunCmd,
+
+    /// The Wasm host executor to use in program sandbox.
+    #[arg(long, default_value_t = SandboxBackend::Wasmer)]
+    pub sandbox_backend: SandboxBackend,
 
     /// The upper limit for the amount of gas a validator can burn in one block.
     #[arg(long)]
