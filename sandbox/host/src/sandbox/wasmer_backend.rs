@@ -301,7 +301,6 @@ pub fn instantiate(
             instance,
             store: context.store().clone(),
         },
-        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
     })
 }
 

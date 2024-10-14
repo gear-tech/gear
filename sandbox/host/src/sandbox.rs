@@ -201,7 +201,6 @@ enum BackendInstanceBundle {
 /// [`invoke`]: #method.invoke
 pub struct SandboxInstance {
     backend_instance: BackendInstanceBundle,
-    guest_to_supervisor_mapping: GuestToSupervisorFunctionMapping,
 }
 
 impl SandboxInstance {

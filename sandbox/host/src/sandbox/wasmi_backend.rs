@@ -182,7 +182,11 @@ impl MemoryWrapper {
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
         let mut buffer = Vec::with_capacity(size);
-        unsafe { buffer.set_len(size) };
+        let spare_cap = buffer.spare_capacity_mut().len();
+        // # Safety:
+        // `Vec::set_len` is safe to call because we have just allocated enough space and never read from it.
+        unsafe { buffer.set_len(spare_cap) };
+
         let ctx = self.store.borrow();
         self.memory
             .read(&*ctx, source_addr.into(), &mut buffer)
@@ -334,7 +338,6 @@ pub fn instantiate(
             instance,
             store: context.store().clone(),
         },
-        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
     })
 }
 
