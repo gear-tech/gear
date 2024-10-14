@@ -6288,7 +6288,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-proxy"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "gprimitives",
