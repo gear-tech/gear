@@ -27,5 +27,6 @@ std = [
 
   "sp-runtime-interface/std",
   "sp-wasm-interface/std",
+  "sp-wasm-interface/wasmtime",
 ]
 runtime-benchmarks = []
