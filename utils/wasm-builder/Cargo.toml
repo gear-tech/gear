@@ -29,7 +29,6 @@ itertools.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true
-wasmi = { workspace = true, features = ["std"] }
 parity-wasm.workspace = true
 
 [features]

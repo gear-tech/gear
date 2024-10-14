@@ -21,14 +21,12 @@
 use super::ExtManager;
 use crate::{state::actors::Actors, Gas};
 use core_processor::common::JournalHandler;
-use gear_common::{
-    scheduler::{ScheduledTask, StorageType, TaskHandler},
-    Gas as GearCommonGas,
-};
+use gear_common::{scheduler::StorageType, Gas as GearCommonGas};
 use gear_core::{
     gas_metering::TaskWeights,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
+    tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 

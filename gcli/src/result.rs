@@ -47,8 +47,8 @@ pub enum Error {
     Code(gear_core::code::CodeError),
     #[error("Wasm execution error {0}")]
     WasmExecution(String),
-    #[error("Wasmi execution error {0}")]
-    Wasmi(wasmi::Error),
+    #[error("Wasmer runtime error {0}")]
+    Wasmer(wasmer::RuntimeError),
     #[error(transparent)]
     Etc(#[from] etc::Error),
     #[error("Metadata parsing error {0:?}")]

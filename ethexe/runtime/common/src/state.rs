@@ -18,31 +18,38 @@
 
 //! State-related data structures.
 
-use core::num::NonZeroU32;
-
 use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
+use anyhow::{anyhow, Result};
+use core::num::NonZero;
 use gear_core::{
     code::InstrumentedCode,
-    ids::ProgramId,
+    ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
-    message::{ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, Value},
+    message::{
+        ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, ReplyDetails,
+        StoredDispatch, Value, MAX_PAYLOAD_SIZE,
+    },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
     reservation::GasReservationMap,
 };
+use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use gsys::BlockNumber;
 use parity_scale_codec::{Decode, Encode};
 
 pub use gear_core::program::ProgramState as InitStatus;
 
+/// 3h validity in mailbox for 12s blocks.
+pub const MAILBOX_VALIDITY: u32 = 54_000;
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct HashAndLen {
     pub hash: H256,
-    pub len: NonZeroU32,
+    pub len: NonZero<u32>,
 }
 
 // TODO: temporary solution to avoid lengths taking in account
@@ -50,7 +57,7 @@ impl From<H256> for HashAndLen {
     fn from(value: H256) -> Self {
         Self {
             hash: value,
-            len: NonZeroU32::new(1).expect("impossible"),
+            len: NonZero::<u32>::new(1).expect("impossible"),
         }
     }
 }
@@ -73,11 +80,23 @@ impl MaybeHash {
         matches!(self, MaybeHash::Empty)
     }
 
+    pub fn with_hash<T>(&self, f: impl FnOnce(H256) -> T) -> Option<T> {
+        let Self::Hash(HashAndLen { hash, .. }) = self else {
+            return None;
+        };
+
+        Some(f(*hash))
+    }
+
     pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(H256) -> T) -> T {
-        match &self {
-            Self::Hash(HashAndLen { hash, .. }) => f(*hash),
-            Self::Empty => Default::default(),
-        }
+        self.with_hash(f).unwrap_or_default()
+    }
+
+    pub fn with_hash_or_default_result<T: Default>(
+        &self,
+        f: impl FnOnce(H256) -> Result<T>,
+    ) -> Result<T> {
+        self.with_hash(f).unwrap_or_else(|| Ok(Default::default()))
     }
 }
 
@@ -103,6 +122,16 @@ pub enum Program {
 impl Program {
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Active(_))
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        matches!(
+            self,
+            Self::Active(ActiveProgram {
+                initialized: true,
+                ..
+            })
+        )
     }
 }
 
@@ -177,12 +206,53 @@ pub struct Dispatch {
     pub context: Option<ContextStore>,
 }
 
+impl Dispatch {
+    pub fn reply(
+        reply_to: MessageId,
+        source: ActorId,
+        payload_hash: MaybeHash,
+        value: u128,
+        reply_code: impl Into<ReplyCode>,
+    ) -> Self {
+        Self {
+            id: MessageId::generate_reply(reply_to),
+            kind: DispatchKind::Reply,
+            source,
+            payload_hash,
+            value,
+            details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
+            context: None,
+        }
+    }
+
+    pub fn from_stored<S: Storage>(storage: &S, value: StoredDispatch) -> Self {
+        let (kind, message, context) = value.into_parts();
+        let (id, source, destination, payload, value, details) = message.into_parts();
+
+        let payload_hash = storage
+            .store_payload(payload.into_vec())
+            .expect("infallible due to recasts (only panics on len)");
+
+        Self {
+            id,
+            kind,
+            source,
+            payload_hash,
+            value,
+            details,
+            context,
+        }
+    }
+}
+
+pub type ValueWithExpiry<T> = (T, u32);
+
 pub type MessageQueue = VecDeque<Dispatch>;
 
-pub type Waitlist = BTreeMap<BlockNumber, Vec<Dispatch>>;
+pub type Waitlist = BTreeMap<MessageId, ValueWithExpiry<Dispatch>>;
 
 // TODO (breathx): consider here LocalMailbox for each user.
-pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, (Value, BlockNumber)>>;
+pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 
@@ -237,3 +307,200 @@ pub trait Storage {
     /// Writes page data and returns its hash.
     fn write_page_data(&self, data: PageBuf) -> H256;
 }
+
+pub trait ComplexStorage: Storage {
+    fn store_payload(&self, payload: Vec<u8>) -> Result<MaybeHash> {
+        let payload =
+            Payload::try_from(payload).map_err(|_| anyhow!("failed to save payload: too large"))?;
+
+        Ok(payload
+            .inner()
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_payload(payload).into()))
+    }
+
+    fn store_pages(&self, pages: BTreeMap<GearPage, PageBuf>) -> BTreeMap<GearPage, H256> {
+        pages
+            .into_iter()
+            .map(|(k, v)| (k, self.write_page_data(v)))
+            .collect()
+    }
+
+    fn modify_memory_pages(
+        &self,
+        pages_hash: MaybeHash,
+        f: impl FnOnce(&mut MemoryPages),
+    ) -> Result<MaybeHash> {
+        let mut pages = pages_hash.with_hash_or_default_result(|pages_hash| {
+            self.read_pages(pages_hash)
+                .ok_or_else(|| anyhow!("failed to read pages by their hash ({pages_hash})"))
+        })?;
+
+        f(&mut pages);
+
+        let pages_hash = pages
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_pages(pages).into());
+
+        Ok(pages_hash)
+    }
+
+    fn modify_allocations(
+        &self,
+        allocations_hash: MaybeHash,
+        f: impl FnOnce(&mut Allocations),
+    ) -> Result<MaybeHash> {
+        let mut allocations = allocations_hash.with_hash_or_default_result(|allocations_hash| {
+            self.read_allocations(allocations_hash).ok_or_else(|| {
+                anyhow!("failed to read allocations by their hash ({allocations_hash})")
+            })
+        })?;
+
+        f(&mut allocations);
+
+        let allocations_hash = allocations
+            .intervals_amount()
+            .eq(&0)
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_allocations(allocations).into());
+
+        Ok(allocations_hash)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// Always updates storage.
+    fn modify_waitlist(
+        &self,
+        waitlist_hash: MaybeHash,
+        f: impl FnOnce(&mut Waitlist),
+    ) -> Result<MaybeHash> {
+        self.modify_waitlist_if_changed(waitlist_hash, |waitlist| {
+            f(waitlist);
+            Some(())
+        })
+        .map(|v| v.expect("`Some` passed above; infallible").1)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// Waitlist is treated changed if f() returns Some.
+    fn modify_waitlist_if_changed<T>(
+        &self,
+        waitlist_hash: MaybeHash,
+        f: impl FnOnce(&mut Waitlist) -> Option<T>,
+    ) -> Result<Option<(T, MaybeHash)>> {
+        let mut waitlist = waitlist_hash.with_hash_or_default_result(|waitlist_hash| {
+            self.read_waitlist(waitlist_hash)
+                .ok_or_else(|| anyhow!("failed to read waitlist by its hash ({waitlist_hash})"))
+        })?;
+
+        let res = if let Some(v) = f(&mut waitlist) {
+            let maybe_hash = waitlist
+                .is_empty()
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.write_waitlist(waitlist).into());
+
+            Some((v, maybe_hash))
+        } else {
+            None
+        };
+
+        Ok(res)
+    }
+
+    fn modify_queue(
+        &self,
+        queue_hash: MaybeHash,
+        f: impl FnOnce(&mut MessageQueue),
+    ) -> Result<MaybeHash> {
+        self.modify_queue_returning(queue_hash, f)
+            .map(|((), queue_hash)| queue_hash)
+    }
+
+    fn modify_queue_returning<T>(
+        &self,
+        queue_hash: MaybeHash,
+        f: impl FnOnce(&mut MessageQueue) -> T,
+    ) -> Result<(T, MaybeHash)> {
+        let mut queue = queue_hash.with_hash_or_default_result(|queue_hash| {
+            self.read_queue(queue_hash)
+                .ok_or_else(|| anyhow!("failed to read queue by its hash ({queue_hash})"))
+        })?;
+
+        let res = f(&mut queue);
+
+        let queue_hash = queue
+            .is_empty()
+            .then_some(MaybeHash::Empty)
+            .unwrap_or_else(|| self.write_queue(queue).into());
+
+        Ok((res, queue_hash))
+    }
+
+    /// Usage: for optimized performance, please remove map entries if empty.
+    /// Always updates storage.
+    fn modify_mailbox(
+        &self,
+        mailbox_hash: MaybeHash,
+        f: impl FnOnce(&mut Mailbox),
+    ) -> Result<MaybeHash> {
+        self.modify_mailbox_if_changed(mailbox_hash, |mailbox| {
+            f(mailbox);
+            Some(())
+        })
+        .map(|v| v.expect("`Some` passed above; infallible").1)
+    }
+
+    /// Usage: for optimized performance, please remove map entries if empty.
+    /// Mailbox is treated changed if f() returns Some.
+    fn modify_mailbox_if_changed<T>(
+        &self,
+        mailbox_hash: MaybeHash,
+        f: impl FnOnce(&mut Mailbox) -> Option<T>,
+    ) -> Result<Option<(T, MaybeHash)>> {
+        let mut mailbox = mailbox_hash.with_hash_or_default_result(|mailbox_hash| {
+            self.read_mailbox(mailbox_hash)
+                .ok_or_else(|| anyhow!("failed to read mailbox by its hash ({mailbox_hash})"))
+        })?;
+
+        let res = if let Some(v) = f(&mut mailbox) {
+            let maybe_hash = mailbox
+                .values()
+                .all(|v| v.is_empty())
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.write_mailbox(mailbox).into());
+
+            Some((v, maybe_hash))
+        } else {
+            None
+        };
+
+        Ok(res)
+    }
+
+    fn mutate_state(
+        &self,
+        state_hash: H256,
+        f: impl FnOnce(&Self, &mut ProgramState) -> Result<()>,
+    ) -> Result<H256> {
+        self.mutate_state_returning(state_hash, f)
+            .map(|((), hash)| hash)
+    }
+
+    fn mutate_state_returning<T>(
+        &self,
+        state_hash: H256,
+        f: impl FnOnce(&Self, &mut ProgramState) -> Result<T>,
+    ) -> Result<(T, H256)> {
+        let mut state = self
+            .read_state(state_hash)
+            .ok_or_else(|| anyhow!("failed to read state by its hash ({state_hash})"))?;
+
+        let res = f(self, &mut state)?;
+
+        Ok((res, self.write_state(state)))
+    }
+}
+
+impl<T: Storage> ComplexStorage for T {}

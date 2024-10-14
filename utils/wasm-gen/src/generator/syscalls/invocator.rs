@@ -43,7 +43,7 @@ use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
     fmt::{self, Debug, Display},
     iter,
-    num::NonZeroU32,
+    num::NonZero,
 };
 
 #[derive(Debug)]
@@ -138,7 +138,7 @@ pub struct SyscallsInvocator<'a, 'b> {
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SyscallsConfig,
-    syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
+    syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZero<u32>>, CallIndexesHandle)>,
 }
 
 impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<'a, 'b> {

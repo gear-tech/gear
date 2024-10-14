@@ -64,6 +64,7 @@ pub mod pallet {
         traits::{Get, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
+    use gear_core::tasks::ScheduledTask;
     use sp_runtime::DispatchError;
     use sp_std::{convert::TryInto, marker::PhantomData};
 

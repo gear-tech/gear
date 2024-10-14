@@ -33,6 +33,7 @@ use core::cmp;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, Payload, ReplyMessage},
+    tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 

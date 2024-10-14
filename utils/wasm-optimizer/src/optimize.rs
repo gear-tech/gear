@@ -109,7 +109,7 @@ impl Optimizer {
         } else {
             self.module
                 .export_section()
-                .ok_or_else(|| anyhow::anyhow!("Export section not found"))?
+                .ok_or_else(|| anyhow!("Export section not found"))?
                 .entries()
                 .iter()
                 .flat_map(|entry| {
@@ -165,7 +165,7 @@ pub fn optimize_wasm<P: AsRef<Path>>(
 
     let destination = destination.as_ref();
     if !destination.exists() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "Optimization failed, optimized wasm output file `{}` not found.",
             destination.display()
         ));
@@ -196,7 +196,7 @@ pub fn do_optimization<P: AsRef<Path>>(
     // check `wasm-opt` is installed
     let which = which::which("wasm-opt");
     if which.is_err() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "wasm-opt not found! Make sure the binary is in your PATH environment.\n\n\
             We use this tool to optimize the size of your program's Wasm binary.\n\n\
             wasm-opt is part of the binaryen package. You can find detailed\n\

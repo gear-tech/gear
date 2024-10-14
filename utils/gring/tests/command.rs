@@ -35,7 +35,7 @@ fn bin() -> PathBuf {
 fn gring(bin: &PathBuf, args: &[&str]) -> Result<String> {
     let output = process::Command::new(bin).args(args).output()?;
     if output.stdout.is_empty() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "stderr: {}",
             String::from_utf8_lossy(&output.stderr)
         ));

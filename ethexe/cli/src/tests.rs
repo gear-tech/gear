@@ -28,7 +28,7 @@ use anyhow::Result;
 use ethexe_common::{
     db::CodesStorage, mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent,
 };
-use ethexe_db::{Database, MemDb};
+use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
@@ -42,7 +42,11 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
@@ -183,12 +187,13 @@ async fn mailbox() {
         .await
         .unwrap();
 
-    let mid_expected_message = MessageId::generate_outgoing(res.message_id, 0);
-    let ping_expected_message = MessageId::generate_outgoing(res.message_id, 1);
+    let original_mid = res.message_id;
+    let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
+    let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
 
     let mut listener = env.events_publisher().subscribe().await;
-    listener
-        .apply_until_block_event(|event| match event {
+    let block_data = listener
+        .apply_until_block_event_with_header(|event, block_data| match event {
             BlockEvent::Mirror { address, event } if address == pid => {
                 if let MirrorEvent::Message {
                     id,
@@ -204,7 +209,7 @@ async fn mailbox() {
                         Ok(None)
                     } else if id == ping_expected_message {
                         assert_eq!(payload, b"PING");
-                        Ok(Some(()))
+                        Ok(Some(block_data.clone()))
                     } else {
                         unreachable!()
                     }
@@ -217,11 +222,36 @@ async fn mailbox() {
         .await
         .unwrap();
 
+    // -1 bcs execution took place in previous block, not the one that emits events.
+    let wake_expiry = block_data.header.height - 1 + 100; // 100 is default wait for.
+    let expiry = block_data.header.height - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+
+    let expected_schedule = BTreeMap::from_iter([
+        (
+            wake_expiry,
+            BTreeSet::from_iter([ScheduledTask::WakeMessage(pid, original_mid)]),
+        ),
+        (
+            expiry,
+            BTreeSet::from_iter([
+                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), mid_expected_message),
+                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), ping_expected_message),
+            ]),
+        ),
+    ]);
+
+    let schedule = node
+        .db
+        .block_end_schedule(block_data.header.parent_hash)
+        .expect("must exist");
+
+    assert_eq!(schedule, expected_schedule);
+
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
         BTreeMap::from_iter([
-            (mid_expected_message, (0, 0)),
-            (ping_expected_message, (0, 0)),
+            (mid_expected_message, (0, expiry)),
+            (ping_expected_message, (0, expiry)),
         ]),
     )]);
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
@@ -258,20 +288,20 @@ async fn mailbox() {
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, (0, 0))]),
+        BTreeMap::from_iter([(mid_expected_message, (0, expiry))]),
     )]);
 
     assert_eq!(mailbox, expected_mailbox);
 
     mirror.claim_value(mid_expected_message).await.unwrap();
 
-    listener
-        .apply_until_block_event(|event| match event {
+    let block_data = listener
+        .apply_until_block_event_with_header(|event, block_data| match event {
             BlockEvent::Mirror { address, event } if address == pid => match event {
                 MirrorEvent::ValueClaimed { claimed_id, .. }
                     if claimed_id == mid_expected_message =>
                 {
-                    Ok(Some(()))
+                    Ok(Some(block_data.clone()))
                 }
                 _ => Ok(None),
             },
@@ -283,14 +313,13 @@ async fn mailbox() {
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.read_state(state_hash).unwrap();
-    assert!(!state.mailbox_hash.is_empty()); // could be empty
-    let mailbox = state
-        .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+    assert!(state.mailbox_hash.is_empty());
 
-    let expected_mailbox = BTreeMap::from_iter([(env.sender_id, BTreeMap::new())]);
-
-    assert_eq!(mailbox, expected_mailbox);
+    let schedule = node
+        .db
+        .block_end_schedule(block_data.header.parent_hash)
+        .expect("must exist");
+    assert!(schedule.is_empty(), "{:?}", schedule);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -656,6 +685,7 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
+    use ethexe_observer::SimpleBlockData;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use tokio::sync::{broadcast::Sender, Mutex};
@@ -1031,6 +1061,13 @@ mod utils {
             &mut self,
             mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
         ) -> Result<R> {
+            self.apply_until_block_event_with_header(|e, _h| f(e)).await
+        }
+
+        pub async fn apply_until_block_event_with_header<R: Sized>(
+            &mut self,
+            mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
+        ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
 
@@ -1038,8 +1075,10 @@ mod utils {
                     continue;
                 };
 
+                let block_data = block.as_simple();
+
                 for event in block.events {
-                    if let Some(res) = f(event)? {
+                    if let Some(res) = f(event, &block_data)? {
                         return Ok(res);
                     }
                 }

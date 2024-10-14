@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "actor-system-error"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
 ]
@@ -1792,8 +1792,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93f2635620bf0b9d4576eb7bb9a38a55df78bd1205d26fa994b25911a69f212f"
 dependencies = [
  "bitcoin_hashes 0.11.0",
- "rand 0.7.3",
- "rand_core 0.5.1",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
 ]
@@ -2178,7 +2178,7 @@ dependencies = [
 
 [[package]]
 name = "calc-stack-height"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "env_logger",
@@ -2202,7 +2202,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-gbuild"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
@@ -3052,7 +3052,7 @@ dependencies = [
 
 [[package]]
 name = "crates-io"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "cargo-http-registry",
@@ -3580,7 +3580,7 @@ dependencies = [
 
 [[package]]
 name = "demo-create-program-reentrance"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
@@ -5104,7 +5104,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-cli"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5146,7 +5146,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-common"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "derive_more 0.99.18",
@@ -5159,7 +5159,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-db"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
@@ -5177,7 +5177,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-ethereum"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5197,7 +5197,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-network"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5220,7 +5220,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-observer"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5243,7 +5243,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-processor"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "demo-async",
@@ -5271,7 +5271,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-prometheus-endpoint"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "hyper 0.14.27",
  "log",
@@ -5282,7 +5282,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-rpc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -5303,7 +5303,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "ethexe-runtime-common",
  "gear-core",
@@ -5318,8 +5318,10 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime-common"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
+ "anyhow",
+ "ethexe-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -5332,7 +5334,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-sequencer"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -5351,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-signer"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "derive_more 0.99.18",
@@ -5367,7 +5369,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-utils"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "async-channel 1.9.0",
  "futures",
@@ -5381,7 +5383,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-validator"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -6257,14 +6259,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gear-dlmalloc",
 ]
 
 [[package]]
 name = "gbuiltin-bls381"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -6277,7 +6279,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-eth-bridge"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -6295,7 +6297,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-staking"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "gprimitives",
@@ -6304,7 +6306,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6337,14 +6339,15 @@ dependencies = [
  "tokio",
  "toml 0.8.14",
  "url",
- "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer",
+ "wasmer-types",
  "which",
  "whoami",
 ]
 
 [[package]]
 name = "gclient"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "ark-bls12-381",
@@ -6393,7 +6396,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -6405,7 +6408,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "demo-constructor",
  "env_logger",
@@ -6477,7 +6480,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "clap 4.5.9",
  "frame-benchmarking",
@@ -6508,7 +6511,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "enum-iterator 1.5.0",
@@ -6534,7 +6537,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "quote",
  "syn 2.0.71",
@@ -6542,7 +6545,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "blake2 0.10.6",
  "byteorder",
@@ -6568,12 +6571,12 @@ dependencies = [
  "scale-info",
  "serde",
  "wabt",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
 ]
 
 [[package]]
 name = "gear-core-backend"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
@@ -6591,7 +6594,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "enum-iterator 1.5.0",
@@ -6601,7 +6604,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "actor-system-error",
  "derive_more 0.99.18",
@@ -6633,7 +6636,7 @@ dependencies = [
 
 [[package]]
 name = "gear-key-finder"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "directories",
  "hex",
@@ -6641,7 +6644,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "cfg-if",
  "derive_more 0.99.18",
@@ -6663,7 +6666,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gear-core",
  "num_enum 0.6.1",
@@ -6672,7 +6675,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-interface"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "byteorder",
  "gear-core",
@@ -6684,7 +6687,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-native-interface"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gear-core",
  "gear-lazy-pages",
@@ -6695,7 +6698,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "clap 4.5.9",
@@ -6723,7 +6726,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6762,7 +6765,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-wrapper"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -6813,7 +6816,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6839,7 +6842,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -6861,7 +6864,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "sp-core",
  "sp-runtime",
@@ -6869,7 +6872,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "assert_matches",
  "gear-sandbox-env",
@@ -6879,13 +6882,13 @@ dependencies = [
  "sp-core",
  "sp-std 8.0.0",
  "sp-wasm-interface-common",
- "wasmi 0.30.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
+ "wasmi 0.30.0",
  "wat",
 ]
 
 [[package]]
 name = "gear-sandbox-env"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "parity-scale-codec",
  "sp-debug-derive 8.0.0",
@@ -6895,7 +6898,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "defer",
  "environmental",
@@ -6915,7 +6918,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-interface"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gear-sandbox-host",
  "log",
@@ -6926,7 +6929,7 @@ dependencies = [
 
 [[package]]
 name = "gear-service"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -7007,7 +7010,7 @@ dependencies = [
 
 [[package]]
 name = "gear-ss58"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "blake2 0.10.6",
  "bs58 0.5.1",
@@ -7016,14 +7019,14 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "gear-utils"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "env_logger",
  "gear-core",
@@ -7060,7 +7063,7 @@ checksum = "bbfbfa701dc65e683fcd2fb24f046bcef22634acbdf47ad14724637dc39ad05b"
 
 [[package]]
 name = "gear-wasm-builder"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
@@ -7079,7 +7082,6 @@ dependencies = [
  "thiserror",
  "toml 0.8.14",
  "wabt",
- "wasmi 0.14.0",
 ]
 
 [[package]]
@@ -7104,25 +7106,25 @@ dependencies = [
  "rand 0.8.5",
  "thiserror",
  "wasm-smith",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
  "wasmprinter",
  "wat",
 ]
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "enum-iterator 1.5.0",
  "gwasm-instrument",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
  "wat",
 ]
 
 [[package]]
 name = "gear-wasm-optimizer"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "colored",
@@ -7133,8 +7135,8 @@ dependencies = [
  "rustc_version 0.4.0",
  "wabt",
  "wasm-opt",
- "wasmi 0.14.0",
- "wasmparser-nostd 0.100.1",
+ "wasmer",
+ "wasmparser-nostd",
  "which",
 ]
 
@@ -7338,7 +7340,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "blake2 0.10.6",
  "derive_more 0.99.18",
@@ -7352,7 +7354,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta-codegen"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gmeta",
  "gstd",
@@ -7365,7 +7367,7 @@ dependencies = [
 
 [[package]]
 name = "gprimitives"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "gear-ss58",
@@ -7378,7 +7380,7 @@ dependencies = [
 
 [[package]]
 name = "gring"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7409,7 +7411,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7466,7 +7468,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7475,7 +7477,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "arrayvec 0.7.4",
  "const_format",
@@ -7489,11 +7491,12 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "scale-info",
+ "waker-fn",
 ]
 
 [[package]]
 name = "gstd-codegen"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gprimitives",
  "gstd",
@@ -7505,11 +7508,11 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "1.6.1"
+version = "1.6.2"
 
 [[package]]
 name = "gtest"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "cargo_toml",
  "colored",
@@ -11062,7 +11065,7 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "env_logger",
@@ -11417,7 +11420,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "blake2 0.10.6",
  "demo-async",
@@ -11519,7 +11522,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11537,7 +11540,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -11595,7 +11598,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "jsonrpsee 0.16.3",
  "pallet-gear-builtin-rpc-runtime-api",
@@ -11607,7 +11610,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc-runtime-api"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -11615,7 +11618,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-debug"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "demo-vec",
  "env_logger",
@@ -11650,7 +11653,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "binary-merkle-tree",
  "env_logger",
@@ -11691,7 +11694,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "jsonrpsee 0.16.3",
  "pallet-gear-eth-bridge-rpc-runtime-api",
@@ -11703,7 +11706,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc-runtime-api"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "pallet-gear-eth-bridge",
  "sp-api",
@@ -11712,7 +11715,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -11740,7 +11743,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-messenger"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -11765,7 +11768,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -11798,7 +11801,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11807,7 +11810,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-program"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "env_logger",
  "frame-support",
@@ -11834,7 +11837,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "gear-common",
  "gear-core",
@@ -11850,7 +11853,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "pallet-gear",
  "sp-api",
@@ -11861,7 +11864,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-scheduler"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -11892,7 +11895,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -11926,7 +11929,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "jsonrpsee 0.16.3",
  "pallet-gear-staking-rewards-rpc-runtime-api",
@@ -11937,7 +11940,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc-runtime-api"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "pallet-gear-staking-rewards",
  "sp-api",
@@ -11945,7 +11948,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-voucher"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "derive_more 0.99.18",
  "env_logger",
@@ -18676,7 +18679,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
@@ -18871,7 +18874,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "const-str",
  "env_logger",
@@ -19048,9 +19051,9 @@ dependencies = [
 
 [[package]]
 name = "waker-fn"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d5b2c62b4012a3e1eca5a7e077d13b3bf498c4073e33ccd58626607748ceeca"
+checksum = "317211a0dc0ceedd78fb2ca9a44aed3d7b9b26f81870d485c07122b4350673b7"
 
 [[package]]
 name = "walkdir"
@@ -19258,7 +19261,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-proc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "clap 4.5.9",
  "env_logger",
@@ -19494,32 +19497,7 @@ source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b102
 dependencies = [
  "parity-wasm",
  "wasmi-validation",
- "wasmi_core 0.2.1 (git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext)",
-]
-
-[[package]]
-name = "wasmi"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae73f0dc2c05c94f30cb04498c67574b7588d0e674cc9255b96a05d21345528c"
-dependencies = [
- "spin 0.9.8",
- "wasmi_core 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser-nostd 0.83.0",
-]
-
-[[package]]
-name = "wasmi"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e51fb5c61993e71158abf5bb863df2674ca3ec39ed6471c64f07aeaf751d67b4"
-dependencies = [
- "intx",
- "smallvec",
- "spin 0.9.8",
- "wasmi_arena 0.4.1",
- "wasmi_core 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser-nostd 0.100.1",
+ "wasmi_core 0.2.1",
 ]
 
 [[package]]
@@ -19531,8 +19509,8 @@ dependencies = [
  "smallvec",
  "spin 0.9.8",
  "wasmi_arena 0.4.0",
- "wasmi_core 0.12.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
- "wasmparser-nostd 0.100.1",
+ "wasmi_core 0.12.0",
+ "wasmparser-nostd",
 ]
 
 [[package]]
@@ -19545,7 +19523,7 @@ dependencies = [
  "spin 0.9.8",
  "wasmi_arena 0.4.1",
  "wasmi_core 0.13.0",
- "wasmparser-nostd 0.100.1",
+ "wasmparser-nostd",
 ]
 
 [[package]]
@@ -19570,19 +19548,6 @@ checksum = "104a7f73be44570cac297b3035d76b169d6599637631cf37a1703326a0727073"
 [[package]]
 name = "wasmi_core"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d20cb3c59b788653d99541c646c561c9dd26506f25c0cebfe810659c54c6d7"
-dependencies = [
- "downcast-rs",
- "libm",
- "memory_units",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
-name = "wasmi_core"
-version = "0.2.1"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
  "downcast-rs",
@@ -19591,18 +19556,6 @@ dependencies = [
  "num-rational",
  "num-traits",
  "region",
-]
-
-[[package]]
-name = "wasmi_core"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "624e6333e861ef49095d2d678b76ebf30b06bf37effca845be7e5b87c90071b7"
-dependencies = [
- "downcast-rs",
- "libm",
- "num-traits",
- "paste",
 ]
 
 [[package]]
@@ -19671,15 +19624,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser-nostd"
-version = "0.83.0"
+version = "0.100.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58a45f1058fed5ce7ff3da64153d0537a1ae664d09855fbb1402c6472f09571b"
-
-[[package]]
-name = "wasmparser-nostd"
-version = "0.100.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9157cab83003221bfd385833ab587a039f5d6fa7304854042ba358a3b09e0724"
+checksum = "d5a015fe95f3504a94bb1462c717aae75253e39b9dd6c3fb1062c934535c64aa"
 dependencies = [
  "indexmap-nostd",
 ]

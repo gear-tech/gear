@@ -182,7 +182,7 @@ enum BackendInstanceBundle {
     /// Wasmer module instance and store
     Wasmer {
         /// Wasmer module instance
-        instance: sandbox_wasmer::Instance,
+        instance: wasmer::Instance,
         /// Wasmer store
         store: Rc<WasmerStoreRefCell>,
     },

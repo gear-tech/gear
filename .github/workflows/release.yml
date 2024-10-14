@@ -1,8 +1,39 @@
 name: Release
 
 on:
-  push:
-    tags: [ "*" ]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag for release. Example: v1.0.0'
+        required: true
+      make_latest:
+        description: 'Mark this release as the latest'
+        required: true
+        type: choice
+        options:
+          - true
+          - false
+        default: 'true'
+      draft:
+        description: 'Publish as draft'
+        required: true
+        type: choice
+        options:
+          - true
+          - false
+        default: 'false'
+      prerelease:
+        description: 'Is this a pre-release'
+        required: true
+        type: choice
+        options:
+          - true
+          - false
+        default: 'false'
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +46,8 @@ jobs:
     steps:
       - name: "Actions: Checkout"
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag_name }}
 
       - name: "Environment: Cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -68,7 +101,74 @@ jobs:
           cp target/production/gear artifact/gear
           strip artifact/gear || true
 
+      - name: Check SHA256 checksums
+        run: |
+          sha256sum artifact/production_vara_runtime_v$VARA_SPEC.wasm
+          sha256sum artifact/testnet_vara_runtime_v$VARA_SPEC.wasm
+
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
           files: artifact/*
+          tag_name: ${{ github.event.inputs.tag_name }}
+          make_latest: ${{ github.event.inputs.make_latest }}
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          token: ${{ env.GITHUB_TOKEN }}
+
+  trigger-multiplatform-build:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Multiplatform Build Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.GITHUB_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'gear-tech',
+              repo: 'builds',
+              workflow_id: 'nightly.yml',
+              ref: 'master',
+              inputs: {
+                release_version: '${{ github.event.inputs.tag_name }}',
+                latest: '${{ github.event.inputs.make_latest }}'
+              }
+            });
+
+  trigger-docker-build:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Docker Build Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.GITHUB_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'gear-tech',
+              repo: 'gear',
+              workflow_id: 'CI-docker-gear.yml',
+              ref: 'master',
+              inputs: {
+                release_version: '${{ github.event.inputs.tag_name }}',
+                latest: '${{ github.event.inputs.make_latest }}'
+              }
+            });
+
+  notify:
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify build failure in Telegram
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
+          token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
+          format: markdown
+          disable_web_page_preview: true
+          message: |
+            *Status:* 🔥
+            *Problem:* Build failed
+            *Details:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

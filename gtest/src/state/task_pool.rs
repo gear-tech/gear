@@ -23,10 +23,11 @@ use gear_common::{
         task_pool::{AuxiliaryTaskpool, TaskPoolErrorImpl, TaskPoolStorageWrap},
         BlockNumber,
     },
-    scheduler::{ScheduledTask, TaskPool, TaskPoolCallbacks},
+    scheduler::{TaskPool, TaskPoolCallbacks},
     storage::KeyIterableByKeyMap,
     ProgramId,
 };
+use gear_core::tasks::ScheduledTask;
 
 /// Task pool manager which operates under the hood over
 /// [`gear_common::auxiliary::task_pool::AuxiliaryTaskpool`].
@@ -90,9 +91,8 @@ impl TaskPoolCallbacks for TaskPoolCallbacksImpl {
 
 #[cfg(test)]
 mod tests {
-    use gear_common::{scheduler::ScheduledTask, ProgramId};
-
     use super::TaskPoolManager;
+    use gear_core::{ids::ProgramId, tasks::ScheduledTask};
 
     #[test]
     fn test_taskpool() {

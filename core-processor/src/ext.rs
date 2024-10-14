@@ -1227,7 +1227,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::FallibleError> {
-        // TODO: use `NonZeroU64` after issue #1838 is fixed
+        // TODO: use `NonZero<u64>` after issue #1838 is fixed
         if amount == 0 {
             return Err(ReservationError::ZeroReservationAmount.into());
         }
