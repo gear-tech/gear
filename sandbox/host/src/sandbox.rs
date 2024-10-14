@@ -28,6 +28,7 @@ use std::{collections::HashMap, pin::Pin, rc::Rc};
 use codec::Decode;
 use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
+use region::Allocation;
 use sp_wasm_interface_common::{Pointer, Value, WordSize};
 
 use crate::{
@@ -524,6 +525,8 @@ pub struct SandboxComponents<DT> {
     instances: Vec<Option<(Pin<Rc<SandboxInstance>>, DT)>>,
     /// Memories are `Some` until torn down.
     memories: Vec<Option<Memory>>,
+    /// Allocation used for the Wasmi memory.
+    allocations: Vec<Allocation>,
     backend_context: BackendContext,
 }
 
@@ -533,6 +536,7 @@ impl<DT: Clone> SandboxComponents<DT> {
         SandboxComponents {
             instances: Vec::new(),
             memories: Vec::new(),
+            allocations: Vec::new(),
             backend_context: BackendContext::new(backend),
         }
     }
@@ -558,6 +562,9 @@ impl<DT: Clone> SandboxComponents<DT> {
                 self.backend_context = BackendContext::Wasmer(WasmerBackend::new());
             }
         }
+
+        // Clear allocations after store is dropped
+        self.allocations.clear();
     }
 
     /// Create a new memory instance and return it's index.
@@ -577,7 +584,9 @@ impl<DT: Clone> SandboxComponents<DT> {
 
         let memory = match &backend_context {
             BackendContext::Wasmi(backend) => {
-                wasmi_new_memory(backend.store().clone(), initial, maximum)?
+                let (memory, alloc) = wasmi_new_memory(backend.store().clone(), initial, maximum)?;
+                self.allocations.push(alloc);
+                memory
             }
 
             BackendContext::Wasmer(backend) => {

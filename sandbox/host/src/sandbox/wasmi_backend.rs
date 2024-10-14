@@ -18,7 +18,10 @@
 
 //! Wasmi specific impls for sandbox
 
-use std::{rc::Rc, slice};
+use std::{
+    rc::{Rc, Weak},
+    slice,
+};
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
@@ -48,12 +51,12 @@ pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
 environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
 pub struct FuncEnv {
-    store: Rc<StoreRefCell>,
+    store: Weak<StoreRefCell>,
     gas_global: sandbox_wasmi::Global,
 }
 
 impl FuncEnv {
-    pub fn new(store: Rc<StoreRefCell>, gas_global: sandbox_wasmi::Global) -> Self {
+    pub fn new(store: Weak<StoreRefCell>, gas_global: sandbox_wasmi::Global) -> Self {
         Self { store, gas_global }
     }
 }
@@ -135,7 +138,7 @@ pub fn new_memory(
     store: Rc<StoreRefCell>,
     initial: u32,
     maximum: Option<u32>,
-) -> crate::error::Result<Memory> {
+) -> crate::error::Result<(Memory, Allocation)> {
     let ty =
         MemoryType::new(initial, maximum).map_err(|error| Error::Sandbox(error.to_string()))?;
     let mut alloc = region::alloc(u32::MAX as usize, Protection::READ_WRITE)
@@ -145,14 +148,11 @@ pub fn new_memory(
     // `wasmi::Memory::new_static()` requires static lifetime so we convert our buffer to it
     // but actual lifetime of the buffer is lifetime of `Store<T>` itself,
     // so memory will be deallocated when `Store<T>` is dropped.
-    //
-    // Also, according to Rust drop order semantics, `wasmi::Store<T>` will be dropped first and
-    // only then our allocated memories will be freed to ensure they are not used anymore.
     let raw = unsafe { slice::from_raw_parts_mut::<'static, u8>(alloc.as_mut_ptr(), alloc.len()) };
     let memory = sandbox_wasmi::Memory::new_static(&mut *store.borrow_mut(), ty, raw)
         .map_err(|error| Error::Sandbox(error.to_string()))?;
 
-    Ok(Memory::Wasmi(MemoryWrapper::new(memory, store, alloc)))
+    Ok((Memory::Wasmi(MemoryWrapper::new(memory, store)), alloc))
 }
 
 /// Wasmi provides direct access to its memory using slices.
@@ -162,7 +162,6 @@ pub fn new_memory(
 pub struct MemoryWrapper {
     memory: sandbox_wasmi::Memory,
     store: Rc<StoreRefCell>,
-    _alloc: Rc<Allocation>,
 }
 
 impl std::fmt::Debug for MemoryWrapper {
@@ -175,12 +174,8 @@ impl std::fmt::Debug for MemoryWrapper {
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>, alloc: Allocation) -> Self {
-        Self {
-            memory,
-            store,
-            _alloc: Rc::new(alloc),
-        }
+    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>) -> Self {
+        Self { memory, store }
     }
 }
 
@@ -397,7 +392,7 @@ fn dispatch_function_v2(
         move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
             SupervisorContextStore::with(|supervisor_context| {
                 let func_env = caller.data().as_ref().expect("func env should be set");
-                let store_ref_cell = func_env.store.clone();
+                let store_ref_cell = func_env.store.upgrade().expect("store should be alive");
                 let gas_global = func_env.gas_global;
 
                 let gas = gas_global.get(caller.as_context());
@@ -543,7 +538,7 @@ pub fn invoke(
         store
             .borrow_mut()
             .data_mut()
-            .replace(FuncEnv::new(store.clone(), gas_global));
+            .replace(FuncEnv::new(Rc::downgrade(store), gas_global));
     }
 
     SupervisorContextStore::using(supervisor_context, || {
