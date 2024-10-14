@@ -43,7 +43,7 @@ pub use frame_support::{
         ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
         LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo,
-        WithdrawReasons,
+        VariantCountOf, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -77,6 +77,7 @@ use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
+#[allow(deprecated)]
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
 };
@@ -96,8 +97,10 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
-use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder};
+use sp_api::{CallApiAt, CallContext, ProofRecorder};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
+#[cfg(any(feature = "std", test))]
+use sp_externalities::Extensions;
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashingFor;
 #[cfg(not(feature = "dev"))]
@@ -111,6 +114,8 @@ use sp_runtime::{
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
+#[cfg(any(feature = "std", test))]
+use sp_state_machine::OverlayedChanges;
 use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
@@ -246,6 +251,8 @@ impl frame_system::Config for Runtime {
     type Block = Block;
     /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
+    /// Contains an aggregation of all tasks in this runtime.
+    type RuntimeTask = RuntimeTask;
     /// The ubiquitous origin type.
     type RuntimeOrigin = RuntimeOrigin;
     /// Maximum number of block number to block hash mappings to keep (oldest pruned first).
@@ -372,6 +379,8 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Runtime {
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type RuntimeFreezeReason = RuntimeFreezeReason;
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
@@ -381,11 +390,8 @@ impl pallet_balances::Config for Runtime {
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = ();
-    type RuntimeFreezeReason = RuntimeFreezeReason;
     type FreezeIdentifier = RuntimeFreezeReason;
-    type MaxFreezes = ConstU32<8>;
-    type RuntimeHoldReason = RuntimeHoldReason;
-    type MaxHolds = ConstU32<2>;
+    type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
 }
 
 parameter_types! {
@@ -394,6 +400,9 @@ parameter_types! {
     pub const OperationalFeeMultiplier: u8 = 5;
 }
 
+// Can't use `FungibleAdapter` here until Treasury pallet migrates to fungibles
+// <https://github.com/paritytech/polkadot-sdk/issues/226>
+#[allow(deprecated)]
 impl pallet_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
@@ -575,8 +584,6 @@ parameter_types! {
     pub const SignedDepositBase: Balance = ECONOMIC_UNITS;
     pub const SignedDepositByte: Balance = ECONOMIC_CENTIUNITS;
 
-    pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
-
     // miner configs
     pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
     pub MinerMaxWeight: Weight = RuntimeBlockWeights::get()
@@ -666,7 +673,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type EstimateCallFee = TransactionPayment;
     type SignedPhase = SignedPhase;
     type UnsignedPhase = UnsignedPhase;
-    type BetterUnsignedThreshold = BetterUnsignedThreshold;
     type BetterSignedThreshold = ();
     type OffchainRepeat = OffchainRepeat;
     type MinerTxPriority = MultiPhaseUnsignedPriority;
@@ -705,6 +711,7 @@ parameter_types! {
     // this is an unbounded number. We just set it to a reasonably high value, 1 full page
     // of nominators.
     pub const MaxNominators: u32 = 512;
+    pub const MaxControllersInDeprecationBatch: u32 = 5900;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     // 2 hour session, 30 min unsigned phase, 16 offchain executions.
     pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 16;
@@ -742,15 +749,16 @@ impl pallet_staking::Config for Runtime {
     type EraPayout = StakingRewards;
     type NextNewSession = Session;
     type MaxExposurePageSize = MaxExposurePageSize;
-    type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type NominationsQuota = pallet_staking::FixedNominationsQuota<{ MaxNominations::get() }>;
     type MaxUnlockingChunks = ConstU32<32>;
+    type MaxControllersInDeprecationBatch = MaxControllersInDeprecationBatch;
     type HistoryDepth = HistoryDepth;
     type EventListeners = NominationPools;
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
     type BenchmarkingConfig = StakingBenchmarkingConfig;
+    type DisablingStrategy = pallet_staking::UpToLimitDisablingStrategy;
 }
 
 parameter_types! {
@@ -792,13 +800,14 @@ impl pallet_nomination_pools::Config for Runtime {
     type RewardCounter = FixedU128;
     type BalanceToU256 = BalanceToU256;
     type U256ToBalance = U256ToBalance;
-    type Staking = Staking;
+    type StakeAdapter = pallet_nomination_pools::adapter::TransferStake<Self, Staking>;
     type PostUnbondingPoolsWindow = ConstU32<4>;
     type MaxMetadataLen = ConstU32<256>;
     // we use the same number of allowed unlocking chunks as with staking.
     type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
     type PalletId = NominationPoolsPalletId;
     type MaxPointsToBalance = MaxPointsToBalance;
+    type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -827,13 +836,8 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
     type PalletId = TreasuryPalletId;
     type Currency = Balances;
-    type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RuntimeEvent = RuntimeEvent;
-    type OnSlash = Treasury;
-    type ProposalBond = ProposalBond;
-    type ProposalBondMinimum = ProposalBondMinimum;
-    type ProposalBondMaximum = ();
     type SpendPeriod = SpendPeriod;
     type Burn = Burn;
     type BurnDestination = ();
@@ -873,6 +877,7 @@ impl pallet_bounties::Config for Runtime {
     type MaximumReasonLength = MaximumReasonLength;
     type WeightInfo = pallet_bounties::weights::SubstrateWeight<Runtime>;
     type ChildBountyManager = ChildBounties;
+    type OnSlash = Treasury;
 }
 
 parameter_types! {
@@ -932,6 +937,12 @@ impl pallet_identity::Config for Runtime {
     type Slashed = Treasury;
     type ForceOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
     type RegistrarOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
+    type OffchainSignature = Signature;
+    type SigningPublicKey = <Signature as sp_runtime::traits::Verify>::Signer;
+    type UsernameAuthorityOrigin = EnsureRoot<Self::AccountId>;
+    type PendingUsernameExpiration = ConstU32<{ 7 * DAYS }>;
+    type MaxSuffixLength = ConstU32<7>;
+    type MaxUsernameLength = ConstU32<32>;
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1277,6 +1288,7 @@ impl pallet_vesting::Config for Runtime {
     type MinVestedTransfer = MinVestedTransfer;
     type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
     type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
+    type BlockNumberProvider = System;
     const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
@@ -1748,13 +1760,9 @@ impl_runtime_apis_plus_common! {
         }
     }
 
-    impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
-        Block,
-        AccountId,
-        Balance,
-    > for Runtime {
-        fn pending_rewards(member: AccountId) -> Balance {
-            NominationPools::api_pending_rewards(member).unwrap_or_default()
+    impl pallet_nomination_pools_runtime_api::NominationPoolsApi<Block, AccountId, Balance> for Runtime {
+        fn pending_rewards(who: AccountId) -> Balance {
+            NominationPools::api_pending_rewards(who).unwrap_or_default()
         }
 
         fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
@@ -1763,6 +1771,30 @@ impl_runtime_apis_plus_common! {
 
         fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
             NominationPools::api_balance_to_points(pool_id, new_funds)
+        }
+
+        fn pool_pending_slash(pool_id: pallet_nomination_pools::PoolId) -> Balance {
+            NominationPools::api_pool_pending_slash(pool_id)
+        }
+
+        fn member_pending_slash(member: AccountId) -> Balance {
+            NominationPools::api_member_pending_slash(member)
+        }
+
+        fn pool_needs_delegate_migration(pool_id: pallet_nomination_pools::PoolId) -> bool {
+            NominationPools::api_pool_needs_delegate_migration(pool_id)
+        }
+
+        fn member_needs_delegate_migration(member: AccountId) -> bool {
+            NominationPools::api_member_needs_delegate_migration(member)
+        }
+
+        fn member_total_balance(member: AccountId) -> Balance {
+            NominationPools::api_member_total_balance(member)
+        }
+
+        fn pool_balance(pool_id: pallet_nomination_pools::PoolId) -> Balance {
+            NominationPools::api_pool_balance(pool_id)
         }
     }
 
@@ -1773,6 +1805,10 @@ impl_runtime_apis_plus_common! {
 
         fn eras_stakers_page_count(era: sp_staking::EraIndex, account: AccountId) -> sp_staking::Page {
             Staking::api_eras_stakers_page_count(era, account)
+        }
+
+        fn pending_rewards(era: sp_staking::EraIndex, account: AccountId) -> bool {
+            Staking::api_pending_rewards(era, account)
         }
     }
 
