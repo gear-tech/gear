@@ -500,9 +500,11 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                                 .chain(params.iter().cloned())
                                 .map(to_interface)
                                 .map(|val| {
-                                    val.ok_or(RuntimeError::new(
-                                        "`externref` or `funcref` are not supported",
-                                    ))
+                                    val.ok_or_else(|| {
+                                        RuntimeError::new(
+                                            "`externref` or `funcref` are not supported",
+                                        )
+                                    })
                                 })
                                 .collect::<Result<_, _>>()?;
 
