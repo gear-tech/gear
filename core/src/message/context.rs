@@ -198,6 +198,13 @@ impl ContextStore {
     pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
     }
+
+    /// Clear state created by `*_commit` syscalls. This function is part of #4284
+    /// and will be removed once migration to a runtime without `*_commit` syscalls is done.
+    pub fn clear_commit_state(&mut self) {
+        self.outgoing.clear();
+        self.reply = None;
+    }
 }
 
 /// Context of currently processing incoming message.

@@ -158,7 +158,11 @@ impl IncomingDispatch {
     }
 
     /// Convert IncomingDispatch into gasless StoredDispatch with updated (or recently set) context.
-    pub fn into_stored(self, destination: ProgramId, context: ContextStore) -> StoredDispatch {
+    pub fn into_stored(self, destination: ProgramId, mut context: ContextStore) -> StoredDispatch {
+        // clear outgoing messages in context, we don't want to keep them.
+        // See: #4284
+        context.clear_commit_state();
+
         StoredDispatch::new(
             self.kind,
             self.message.into_stored(destination),
