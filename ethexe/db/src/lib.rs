@@ -109,17 +109,32 @@ mod tests {
     }
 
     pub fn kv_iter_prefix<DB: KVDatabase>(db: DB) {
+        let testcase = |prefix: &str, expectations: &[(&str, &str)]| {
+            let actual: BTreeSet<_> = db.iter_prefix(prefix.as_bytes()).collect();
+            let expected: BTreeSet<_> = expectations
+                .iter()
+                .map(|(k, v)| (k.as_bytes().to_vec(), v.as_bytes().to_vec()))
+                .collect();
+            assert_eq!(actual, expected);
+        };
+
         db.put(b"prefix_foo", b"hello".to_vec());
         db.put(b"prefix_bar", b"world".to_vec());
 
-        let values: BTreeSet<(Vec<u8>, Vec<u8>)> = db.iter_prefix(b"prefix_").collect();
-        assert_eq!(
-            values,
-            BTreeSet::from([
-                (b"prefix_foo".to_vec(), b"hello".to_vec()),
-                (b"prefix_bar".to_vec(), b"world".to_vec()),
-            ]),
+        testcase(
+            "prefix_",
+            &[("prefix_foo", "hello"), ("prefix_bar", "world")],
         );
+
+        testcase("", &[("prefix_foo", "hello"), ("prefix_bar", "world")]);
+
+        testcase("0", &[]);
+
+        testcase("prefix_foobar", &[]);
+
+        testcase("prefix_foo", &[("prefix_foo", "hello")]);
+
+        testcase("prefix_bar", &[("prefix_bar", "world")]);
     }
 
     pub fn cas_multi_thread<DB: CASDatabase>(db: DB) {
