@@ -33,7 +33,7 @@ use frame_election_provider_support::{
     VoteWeight,
 };
 pub use frame_support::{
-    construct_runtime,
+    construct_runtime, derive_impl,
     dispatch::{DispatchClass, WeighData},
     genesis_builder_helper::{build_config, create_default_config},
     parameter_types,
@@ -80,6 +80,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
 };
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{
@@ -102,7 +103,6 @@ use sp_runtime::traits::HashingFor;
 #[cfg(not(feature = "dev"))]
 use sp_runtime::traits::OpaqueKeys;
 use sp_runtime::{
-    codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
@@ -222,6 +222,7 @@ parameter_types! {
 
 // Configure FRAME pallets to include in runtime.
 
+#[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]
 impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
     type BaseCallFilter = Everything;
@@ -1281,125 +1282,319 @@ impl pallet_vesting::Config for Runtime {
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "dev")]
-construct_runtime!(
-    pub struct Runtime
-    {
-        System: frame_system = 0,
-        Timestamp: pallet_timestamp = 1,
-        Authorship: pallet_authorship = 2,
-        AuthorityDiscovery: pallet_authority_discovery = 9,
-        Babe: pallet_babe = 3,
-        Grandpa: pallet_grandpa = 4,
-        Balances: pallet_balances = 5,
-        Vesting: pallet_vesting = 10,
-        TransactionPayment: pallet_transaction_payment = 6,
-        BagsList: pallet_bags_list::<Instance1> = 11,
-        ImOnline: pallet_im_online = 12,
-        Staking: pallet_staking = 13,
-        Session: pallet_session = 7,
-        Treasury: pallet_treasury = 14,
-        Historical: pallet_session_historical = 15,
-        Utility: pallet_utility = 8,
+#[frame_support::runtime]
+mod runtime {
+    #[runtime::runtime]
+    #[runtime::derive(
+        RuntimeCall,
+        RuntimeEvent,
+        RuntimeError,
+        RuntimeOrigin,
+        RuntimeFreezeReason,
+        RuntimeHoldReason,
+        RuntimeSlashReason,
+        RuntimeLockId,
+        RuntimeTask
+    )]
+    pub struct Runtime;
 
-        // Governance
-        ConvictionVoting: pallet_conviction_voting = 16,
-        Referenda: pallet_referenda = 17,
-        FellowshipCollective: pallet_ranked_collective::<Instance1> = 18,
-        FellowshipReferenda: pallet_referenda::<Instance2> = 19,
-        Origins: pallet_custom_origins = 20,
-        Whitelist: pallet_whitelist = 21,
+    #[runtime::pallet_index(0)]
+    pub type System = frame_system::Pallet<Runtime>;
 
-        Scheduler: pallet_scheduler = 22,
-        Preimage: pallet_preimage = 23,
-        Identity: pallet_identity = 24,
-        Proxy: pallet_proxy = 25,
-        Multisig: pallet_multisig = 26,
+    #[runtime::pallet_index(1)]
+    pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
 
-        ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 27,
-        Offences: pallet_offences = 28,
-        Bounties: pallet_bounties = 29,
-        ChildBounties: pallet_child_bounties = 30,
-        NominationPools: pallet_nomination_pools = 31,
+    #[runtime::pallet_index(2)]
+    pub type Authorship = pallet_authorship::Pallet<Runtime>;
 
-        GearProgram: pallet_gear_program = 100,
-        GearMessenger: pallet_gear_messenger = 101,
-        GearScheduler: pallet_gear_scheduler = 102,
-        GearGas: pallet_gear_gas = 103,
-        Gear: pallet_gear = 104,
-        GearPayment: pallet_gear_payment = 105,
-        StakingRewards: pallet_gear_staking_rewards = 106,
-        GearVoucher: pallet_gear_voucher = 107,
-        GearBank: pallet_gear_bank = 108,
-        GearBuiltin: pallet_gear_builtin = 109,
-        GearEthBridge: pallet_gear_eth_bridge = 110,
+    #[runtime::pallet_index(9)]
+    pub type AuthorityDiscovery = pallet_authority_discovery;
 
-        Sudo: pallet_sudo = 99,
+    #[runtime::pallet_index(3)]
+    pub type Babe = pallet_babe;
 
-        // NOTE (!): `pallet_airdrop` used to be idx(198).
+    #[runtime::pallet_index(4)]
+    pub type Grandpa = pallet_grandpa;
 
-        // Only available with "dev" feature on
-        GearDebug: pallet_gear_debug = 199,
-    }
-);
+    #[runtime::pallet_index(5)]
+    pub type Balances = pallet_balances;
+
+    #[runtime::pallet_index(10)]
+    pub type Vesting = pallet_vesting;
+
+    #[runtime::pallet_index(6)]
+    pub type TransactionPayment = pallet_transaction_payment;
+
+    #[runtime::pallet_index(11)]
+    pub type BagsList = pallet_bags_list<Instance1>;
+
+    #[runtime::pallet_index(12)]
+    pub type ImOnline = pallet_im_online;
+
+    #[runtime::pallet_index(13)]
+    pub type Staking = pallet_staking;
+
+    #[runtime::pallet_index(7)]
+    pub type Session = pallet_session;
+
+    #[runtime::pallet_index(14)]
+    pub type Treasury = pallet_treasury;
+
+    #[runtime::pallet_index(15)]
+    pub type Historical = pallet_session_historical;
+
+    #[runtime::pallet_index(8)]
+    pub type Utility = pallet_utility;
+
+    // Governance
+
+    #[runtime::pallet_index(16)]
+    pub type ConvictionVoting = pallet_conviction_voting;
+
+    #[runtime::pallet_index(17)]
+    pub type Referenda = pallet_referenda;
+
+    #[runtime::pallet_index(18)]
+    pub type FellowshipCollective = pallet_ranked_collective<Instance1>;
+
+    #[runtime::pallet_index(19)]
+    pub type FellowshipReferenda = pallet_referenda<Instance2>;
+
+    #[runtime::pallet_index(20)]
+    pub type Origins = pallet_custom_origins;
+
+    #[runtime::pallet_index(21)]
+    pub type Whitelist = pallet_whitelist;
+
+    #[runtime::pallet_index(22)]
+    pub type Scheduler = pallet_scheduler;
+
+    #[runtime::pallet_index(23)]
+    pub type Preimage = pallet_preimage;
+
+    #[runtime::pallet_index(24)]
+    pub type Identity = pallet_identity;
+
+    #[runtime::pallet_index(25)]
+    pub type Proxy = pallet_proxy;
+
+    #[runtime::pallet_index(26)]
+    pub type Multisig = pallet_multisig;
+
+    #[runtime::pallet_index(27)]
+    pub type ElectionProviderMultiPhase = pallet_election_provider_multi_phase;
+
+    #[runtime::pallet_index(28)]
+    pub type Offences = pallet_offences;
+
+    #[runtime::pallet_index(29)]
+    pub type Bounties = pallet_bounties;
+
+    #[runtime::pallet_index(30)]
+    pub type ChildBounties = pallet_child_bounties;
+
+    #[runtime::pallet_index(31)]
+    pub type NominationPools = pallet_nomination_pools;
+
+    // Gear
+
+    #[runtime::pallet_index(100)]
+    pub type GearProgram = pallet_gear_program;
+
+    #[runtime::pallet_index(101)]
+    pub type GearMessenger = pallet_gear_messenger;
+
+    #[runtime::pallet_index(102)]
+    pub type GearScheduler = pallet_gear_scheduler;
+
+    #[runtime::pallet_index(103)]
+    pub type GearGas = pallet_gear_gas;
+
+    #[runtime::pallet_index(104)]
+    pub type Gear = pallet_gear;
+
+    #[runtime::pallet_index(105)]
+    pub type GearPayment = pallet_gear_payment;
+
+    #[runtime::pallet_index(106)]
+    pub type StakingRewards = pallet_gear_staking_rewards;
+
+    #[runtime::pallet_index(107)]
+    pub type GearVoucher = pallet_gear_voucher;
+
+    #[runtime::pallet_index(108)]
+    pub type GearBank = pallet_gear_bank;
+
+    #[runtime::pallet_index(109)]
+    pub type GearBuiltin = pallet_gear_builtin;
+
+    #[runtime::pallet_index(110)]
+    pub type GearEthBridge = pallet_gear_eth_bridge;
+
+    #[runtime::pallet_index(99)]
+    pub type Sudo = pallet_sudo;
+
+    // NOTE (!): `pallet_airdrop` used to be idx(198).
+
+    // Only available with "dev" feature on
+    #[runtime::pallet_index(199)]
+    pub type GearDebug = pallet_gear_debug;
+}
 
 #[cfg(not(feature = "dev"))]
-construct_runtime!(
-    pub struct Runtime
-    {
-        System: frame_system = 0,
-        Timestamp: pallet_timestamp = 1,
-        Authorship: pallet_authorship = 2,
-        AuthorityDiscovery: pallet_authority_discovery = 9,
-        Babe: pallet_babe = 3,
-        Grandpa: pallet_grandpa = 4,
-        Balances: pallet_balances = 5,
-        Vesting: pallet_vesting = 10,
-        TransactionPayment: pallet_transaction_payment = 6,
-        BagsList: pallet_bags_list::<Instance1> = 11,
-        ImOnline: pallet_im_online = 12,
-        Staking: pallet_staking = 13,
-        Session: pallet_session = 7,
-        Treasury: pallet_treasury = 14,
-        Historical: pallet_session_historical = 15,
-        Utility: pallet_utility = 8,
+#[frame_support::runtime]
+mod runtime {
+    #[runtime::runtime]
+    #[runtime::derive(
+        RuntimeCall,
+        RuntimeEvent,
+        RuntimeError,
+        RuntimeOrigin,
+        RuntimeFreezeReason,
+        RuntimeHoldReason,
+        RuntimeSlashReason,
+        RuntimeLockId,
+        RuntimeTask
+    )]
+    pub struct Runtime;
 
-        // Governance
-        ConvictionVoting: pallet_conviction_voting = 16,
-        Referenda: pallet_referenda = 17,
-        FellowshipCollective: pallet_ranked_collective::<Instance1> = 18,
-        FellowshipReferenda: pallet_referenda::<Instance2> = 19,
-        Origins: pallet_custom_origins = 20,
-        Whitelist: pallet_whitelist = 21,
+    #[runtime::pallet_index(0)]
+    pub type System = frame_system;
 
-        Scheduler: pallet_scheduler = 22,
-        Preimage: pallet_preimage = 23,
-        Identity: pallet_identity = 24,
-        Proxy: pallet_proxy = 25,
-        Multisig: pallet_multisig = 26,
+    #[runtime::pallet_index(1)]
+    pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
 
-        ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 27,
-        Offences: pallet_offences = 28,
-        Bounties: pallet_bounties = 29,
-        ChildBounties: pallet_child_bounties = 30,
-        NominationPools: pallet_nomination_pools = 31,
+    #[runtime::pallet_index(2)]
+    pub type Authorship = pallet_authorship;
 
-        GearProgram: pallet_gear_program = 100,
-        GearMessenger: pallet_gear_messenger = 101,
-        GearScheduler: pallet_gear_scheduler = 102,
-        GearGas: pallet_gear_gas = 103,
-        Gear: pallet_gear = 104,
-        GearPayment: pallet_gear_payment = 105,
-        StakingRewards: pallet_gear_staking_rewards = 106,
-        GearVoucher: pallet_gear_voucher = 107,
-        GearBank: pallet_gear_bank = 108,
-        GearBuiltin: pallet_gear_builtin = 109,
-        // Uncomment me, once ready for prod runtime.
-        // GearEthBridge: pallet_gear_eth_bridge = 110,
+    #[runtime::pallet_index(9)]
+    pub type AuthorityDiscovery = pallet_authority_discovery;
 
-        // NOTE (!): `pallet_sudo` used to be idx(99).
-        // NOTE (!): `pallet_airdrop` used to be idx(198).
-    }
-);
+    #[runtime::pallet_index(3)]
+    pub type Babe = pallet_babe;
+
+    #[runtime::pallet_index(4)]
+    pub type Grandpa = pallet_grandpa;
+
+    #[runtime::pallet_index(5)]
+    pub type Balances = pallet_balances;
+
+    #[runtime::pallet_index(10)]
+    pub type Vesting = pallet_vesting;
+
+    #[runtime::pallet_index(6)]
+    pub type TransactionPayment = pallet_transaction_payment;
+
+    #[runtime::pallet_index(11)]
+    pub type BagsList = pallet_bags_list<Instance1>;
+
+    #[runtime::pallet_index(12)]
+    pub type ImOnline = pallet_im_online;
+
+    #[runtime::pallet_index(13)]
+    pub type Staking = pallet_staking;
+
+    #[runtime::pallet_index(7)]
+    pub type Session = pallet_session;
+
+    #[runtime::pallet_index(14)]
+    pub type Treasury = pallet_treasury;
+
+    #[runtime::pallet_index(15)]
+    pub type Historical = pallet_session_historical;
+
+    #[runtime::pallet_index(8)]
+    pub type Utility = pallet_utility;
+
+    // Governance
+
+    #[runtime::pallet_index(16)]
+    pub type ConvictionVoting = pallet_conviction_voting;
+
+    #[runtime::pallet_index(17)]
+    pub type Referenda = pallet_referenda;
+
+    #[runtime::pallet_index(18)]
+    pub type FellowshipCollective = pallet_ranked_collective<Instance1>;
+
+    #[runtime::pallet_index(19)]
+    pub type FellowshipReferenda = pallet_referenda<Instance2>;
+
+    #[runtime::pallet_index(20)]
+    pub type Origins = pallet_custom_origins;
+
+    #[runtime::pallet_index(21)]
+    pub type Whitelist = pallet_whitelist;
+
+    #[runtime::pallet_index(22)]
+    pub type Scheduler = pallet_scheduler;
+
+    #[runtime::pallet_index(23)]
+    pub type Preimage = pallet_preimage;
+
+    #[runtime::pallet_index(24)]
+    pub type Identity = pallet_identity;
+
+    #[runtime::pallet_index(25)]
+    pub type Proxy = pallet_proxy;
+
+    #[runtime::pallet_index(26)]
+    pub type Multisig = pallet_multisig;
+
+    #[runtime::pallet_index(27)]
+    pub type ElectionProviderMultiPhase = pallet_election_provider_multi_phase;
+
+    #[runtime::pallet_index(28)]
+    pub type Offences = pallet_offences;
+
+    #[runtime::pallet_index(29)]
+    pub type Bounties = pallet_bounties;
+
+    #[runtime::pallet_index(30)]
+    pub type ChildBounties = pallet_child_bounties;
+
+    #[runtime::pallet_index(31)]
+    pub type NominationPools = pallet_nomination_pools;
+
+    // Gear
+
+    #[runtime::pallet_index(100)]
+    pub type GearProgram = pallet_gear_program;
+
+    #[runtime::pallet_index(101)]
+    pub type GearMessenger = pallet_gear_messenger;
+
+    #[runtime::pallet_index(102)]
+    pub type GearScheduler = pallet_gear_scheduler;
+
+    #[runtime::pallet_index(103)]
+    pub type GearGas = pallet_gear_gas;
+
+    #[runtime::pallet_index(104)]
+    pub type Gear = pallet_gear;
+
+    #[runtime::pallet_index(105)]
+    pub type GearPayment = pallet_gear_payment;
+
+    #[runtime::pallet_index(106)]
+    pub type StakingRewards = pallet_gear_staking_rewards;
+
+    #[runtime::pallet_index(107)]
+    pub type GearVoucher = pallet_gear_voucher;
+
+    #[runtime::pallet_index(108)]
+    pub type GearBank = pallet_gear_bank;
+
+    #[runtime::pallet_index(109)]
+    pub type GearBuiltin = pallet_gear_builtin;
+
+    // Uncomment me, once ready for prod runtime.
+    // #[runtime::pallet_index(110)]
+    // pub type GearEthBridge = pallet_gear_eth_bridge;
+
+    // NOTE (!): `pallet_sudo` used to be idx(99).
+    // NOTE (!): `pallet_airdrop` used to be idx(198).
+}
 
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
