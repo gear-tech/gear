@@ -35,13 +35,13 @@
 //!
 //! Now we need to borrow store mutably again inside `func`,
 //! but we can't do it because `mut_borrow` still exists.
-//!  
+//!
 //! ```ignore
 //!    fn func(ref_cell: &RefCell<Store>, mut_borrow: &mut Store) {
 //!        ref_cell.borrow_mut(); // This will panic
 //!   }
 //! ```
-//!  
+//!
 //! With `StoreRefCell` we can do it safely:
 //!
 //! ```ignore
@@ -52,7 +52,7 @@
 //!        });
 //!   }
 //! ```
-//!  
+//!
 //! # Why is this necessary? Can't we do without repeated mutable borrowing?
 //!
 //! The issue arises because when handling syscalls within an instance of a program running in the sandbox,
