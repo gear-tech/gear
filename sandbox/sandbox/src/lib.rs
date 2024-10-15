@@ -48,8 +48,10 @@ pub mod embedded_executor;
 pub use self::embedded_executor as default_executor;
 
 #[cfg(not(feature = "std"))]
+#[cfg(target_arch = "wasm32")]
 pub mod host_executor;
 #[cfg(not(feature = "std"))]
+#[cfg(target_arch = "wasm32")]
 pub use self::host_executor as default_executor;
 
 pub use gear_sandbox_env as env;

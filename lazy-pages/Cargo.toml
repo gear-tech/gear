@@ -19,7 +19,7 @@ derive_more.workspace = true
 numerated.workspace = true
 
 gear-sandbox-host.workspace = true
-gear-sandbox.workspace = true
+gear-sandbox = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 
