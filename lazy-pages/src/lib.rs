@@ -442,10 +442,10 @@ pub fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
             })
     });
 
-    // TODO: remove after usage of `wasmi::Store::set_trap_handler` for lazy-pages
-    // we capture executor signal handlers first to call them later
-    // if our handlers are not effective
-    gear_sandbox::default_executor::init_traps();
+    // TODO: remove after usage of `wasmer::Store::set_trap_handler` for lazy-pages
+    // we capture executor signal handler first to call it later
+    // if our handler is not effective
+    wasmer_vm::init_traps();
 
     unsafe { init_for_process::<H>()? }
 

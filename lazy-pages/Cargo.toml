@@ -17,9 +17,9 @@ cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true
 numerated.workspace = true
+wasmer-vm.workspace = true
 
 gear-sandbox-host.workspace = true
-gear-sandbox = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 

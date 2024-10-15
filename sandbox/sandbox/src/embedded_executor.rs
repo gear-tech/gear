@@ -38,12 +38,6 @@ use wasmer::{
 };
 use wasmer_types::{ExternType, Target};
 
-/// Initialize wasmer traps
-pub fn init_traps() {
-    wasmer_vm::init_traps();
-    log::trace!("wasmer traps initialized");
-}
-
 fn fs_cache() -> PathBuf {
     let out_dir = PathBuf::from(env!("OUT_DIR"));
     let cache = out_dir.join("wasmer-cache");

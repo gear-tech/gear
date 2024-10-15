@@ -6550,7 +6550,6 @@ dependencies = [
  "errno",
  "gear-core",
  "gear-lazy-pages-common",
- "gear-sandbox",
  "gear-sandbox-host",
  "libc",
  "log",
@@ -6560,6 +6559,7 @@ dependencies = [
  "proptest",
  "region",
  "sp-wasm-interface-common",
+ "wasmer-vm",
  "winapi",
 ]
 
