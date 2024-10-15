@@ -18,7 +18,7 @@
 
 //! # Description
 //!
-//! Custom implementation of `RefCell` for the `wasmer::Store` type,
+//! Custom implementation of `RefCell` for the `wasmer::Store`/`wasmi::Store` types,
 //! enabling safe repeated mutable borrowing of `StoreRefCell` higher up the call stack
 //! when the mutable borrow of `StoreRefCell` still exists.
 //!
@@ -55,7 +55,7 @@
 //!  
 //! # Why is this necessary? Can't we do without repeated mutable borrowing?
 //!
-//! The issue arises because when handling syscalls within an instance of a program running in Wasmer,
+//! The issue arises because when handling syscalls within an instance of a program running in the sandbox,
 //! a runtime interface call occurs, leading to a situation where we have two nested runtime interface calls.
 //! The first call `sandbox::invoke` initiates the program execution, the second occurs during the syscall processing.
 //!
@@ -69,7 +69,7 @@
 //!   -----------------------------------
 //!   | runtime executes syscall        |
 //!   --------runtime boundary-----------
-//!   | syscall_callback                | Wasmer calls syscall callback from inside his VM
+//!   | syscall_callback                | Wasmer/Wasmi calls syscall callback from inside its VM
 //!   -----------------------------------
 //!   | Wasmer's Func::call             | Sandbox starts to executes program function (Borrows Store mutably)
 //!   -------native boundary----------- |
@@ -83,7 +83,6 @@
 //! Therefore, since it is not possible to pass a reference to Store through nested runtime interface call
 //! or cancel previous mutable borrow, it is necessary to use `StoreRefCell` for safe repeated mutable borrowing of `Store`.
 //!
-
 use std::{
     cell::{Cell, UnsafeCell},
     num::NonZeroUsize,
