@@ -145,8 +145,6 @@ impl ContextOutcome {
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextStore {
-    outgoing: BTreeMap<u32, Option<Payload>>,
-    reply: Option<Payload>,
     initialized: BTreeSet<ProgramId>,
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
@@ -156,15 +154,11 @@ impl ContextStore {
     // TODO: Remove, only used in migrations (#issue 3721)
     /// Create a new context store with the provided parameters.
     pub fn new(
-        outgoing: BTreeMap<u32, Option<Payload>>,
-        reply: Option<Payload>,
         initialized: BTreeSet<ProgramId>,
         reservation_nonce: ReservationNonce,
         system_reservation: Option<u64>,
     ) -> Self {
         Self {
-            outgoing,
-            reply,
             initialized,
             reservation_nonce,
             system_reservation,
@@ -198,13 +192,6 @@ impl ContextStore {
     pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
     }
-
-    /// Clear state created by `*_commit` syscalls. This function is part of #4284
-    /// and will be removed once migration to a runtime without `*_commit` syscalls is done.
-    pub fn clear_commit_state(&mut self) {
-        self.outgoing.clear();
-        self.reply = None;
-    }
 }
 
 /// Context of currently processing incoming message.
@@ -228,21 +215,7 @@ impl MessageContext {
     ) -> Option<Self> {
         let (kind, message, store) = dispatch.into_parts();
 
-        let outgoing_bytes_counter = match &store {
-            Some(store) => {
-                let mut counter = 0u32;
-                for payload in store.outgoing.values().filter_map(|x| x.as_ref()) {
-                    counter = counter.checked_add(payload.len_u32())?;
-                }
-                counter
-            }
-            None => 0,
-        };
-
-        if outgoing_bytes_counter > settings.outgoing_bytes_limit {
-            // Outgoing messages bytes limit exceeded.
-            return None;
-        }
+        let outgoing_bytes_counter = 0;
 
         Some(Self {
             kind,
@@ -294,7 +267,8 @@ impl MessageContext {
             return Err(Error::DuplicateInit);
         }
 
-        let last = self.store.outgoing.len() as u32;
+        /* todo(adel): is it a right way to replace `last` from store.outgoing? */
+        let last = self.store.initialized.len() as u32;
 
         if last >= self.settings.outgoing_limit {
             return Err(Error::OutgoingMessagesAmountLimitExceeded);
@@ -303,7 +277,6 @@ impl MessageContext {
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
         let message = InitMessage::from_packet(message_id, packet);
 
-        self.store.outgoing.insert(last, None);
         self.store.initialized.insert(program_id);
         self.outcome.init.push((message, delay, None));
 
@@ -321,7 +294,7 @@ impl MessageContext {
         delay: u32,
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
-        let outgoing = self
+        /*let outgoing = self
             .store
             .outgoing
             .get_mut(&handle)
@@ -361,14 +334,15 @@ impl MessageContext {
         do_send_commit().map_err(|(err, data)| {
             *outgoing = Some(data);
             err
-        })
+        })*/
+        todo!()
     }
 
     /// Provide space for storing payload for future message creation.
     ///
     /// Returns it's handle.
     pub fn send_init(&mut self) -> Result<u32, Error> {
-        let last = self.store.outgoing.len() as u32;
+        /*let last = self.store.outgoing.len() as u32;
 
         if last < self.settings.outgoing_limit {
             self.store.outgoing.insert(last, Some(Default::default()));
@@ -376,12 +350,13 @@ impl MessageContext {
             Ok(last)
         } else {
             Err(Error::OutgoingMessagesAmountLimitExceeded)
-        }
+        }*/
+        todo!()
     }
 
     /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
-        let data = match self.store.outgoing.get_mut(&handle) {
+        /*let data = match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
             None => return Err(Error::OutOfBounds),
@@ -399,12 +374,13 @@ impl MessageContext {
 
         self.outgoing_bytes_counter = new_outgoing_bytes;
 
-        Ok(())
+        Ok(())*/
+        todo!()
     }
 
     /// Pushes the incoming buffer/payload into stored payload by handle.
     pub fn send_push_input(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
-        let data = match self.store.outgoing.get_mut(&handle) {
+        /*let data = match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
             None => return Err(Error::OutOfBounds),
@@ -428,7 +404,8 @@ impl MessageContext {
 
         self.outgoing_bytes_counter = new_outgoing_bytes;
 
-        Ok(())
+        Ok(())*/
+        todo!()
     }
 
     /// Check if provided `offset`/`len` are correct for the current payload
@@ -467,7 +444,7 @@ impl MessageContext {
         mut packet: ReplyPacket,
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, ExtError> {
-        self.check_reply_availability()?;
+        /*self.check_reply_availability()?;
 
         if self.reply_sent() {
             return Err(Error::DuplicateReply.into());
@@ -485,12 +462,13 @@ impl MessageContext {
 
         self.outcome.reply = Some((message, reservation));
 
-        Ok(message_id)
+        Ok(message_id)*/
+        todo!()
     }
 
     /// Pushes payload into stored reply payload.
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), ExtError> {
-        self.check_reply_availability()?;
+        /*self.check_reply_availability()?;
 
         if self.reply_sent() {
             return Err(Error::LateAccess.into());
@@ -501,7 +479,8 @@ impl MessageContext {
             .reply
             .get_or_insert_with(Default::default)
             .try_extend_from_slice(buffer)
-            .map_err(|_| Error::MaxMessageSizeExceed.into())
+            .map_err(|_| Error::MaxMessageSizeExceed.into())*/
+        todo!()
     }
 
     /// Return reply destination.
@@ -511,7 +490,7 @@ impl MessageContext {
 
     /// Pushes the incoming message buffer into stored reply payload.
     pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), ExtError> {
-        self.check_reply_availability()?;
+        /*self.check_reply_availability()?;
 
         if self.reply_sent() {
             return Err(Error::LateAccess.into());
@@ -527,7 +506,8 @@ impl MessageContext {
             .reply
             .get_or_insert_with(Default::default)
             .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
-            .map_err(|_| Error::MaxMessageSizeExceed.into())
+            .map_err(|_| Error::MaxMessageSizeExceed.into())*/
+        todo!()
     }
 
     /// Wake message by it's message id.
@@ -825,11 +805,6 @@ mod tests {
     #[test]
     fn create_wrong_context() {
         let context_store = ContextStore {
-            outgoing: [(1, Some(vec![1, 2].try_into().unwrap()))]
-                .iter()
-                .cloned()
-                .collect(),
-            reply: None,
             initialized: BTreeSet::new(),
             reservation_nonce: ReservationNonce::default(),
             system_reservation: None,
@@ -985,7 +960,7 @@ mod tests {
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id(), MessageId::from(INCOMING_MESSAGE_ID));
-        assert!(context.store.reply.is_none());
+
         assert!(context.outcome.reply.is_none());
 
         // Creating a reply packet
@@ -1041,14 +1016,6 @@ mod tests {
             context.send_init().expect("Error initializing new message"),
             expected_handle
         );
-
-        // And checking that it is not formed
-        assert!(context
-            .store
-            .outgoing
-            .get(&expected_handle)
-            .expect("This key should be")
-            .is_some());
 
         // Checking that we are able to push payload for the
         // message that we have not committed yet
