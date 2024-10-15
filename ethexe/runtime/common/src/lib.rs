@@ -105,7 +105,7 @@ pub(crate) fn update_state_with_storage<S: Storage>(
     new_state_hash
 }
 
-pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
+pub fn process_next_message<S, RI>(
     program_id: ProgramId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
@@ -113,6 +113,8 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     ri: &RI,
 ) -> Vec<JournalNote>
 where
+    S: Storage,
+    RI: RuntimeInterface<S>,
     <RI as RuntimeInterface<S>>::LazyPages: Send,
 {
     let block_info = ri.block_info();
