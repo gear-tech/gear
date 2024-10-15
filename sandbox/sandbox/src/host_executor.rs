@@ -28,7 +28,9 @@ use sp_core::RuntimeDebug;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface_common::HostPointer;
 
-pub fn init_traps() {}
+pub fn init_traps() {
+    gear_sandbox_interface::detail::init();
+}
 
 mod ffi {
     use super::HostFuncType;
