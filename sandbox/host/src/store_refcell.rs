@@ -174,12 +174,6 @@ impl<S> StoreRefCell<S> {
         store: impl GenericAsStoreMut,
         f: F,
     ) -> Result<R, BorrowScopeError> {
-        // We expect  the same store
-        //debug_assert!(
-        //    self.compare_stores(store.as_store_ref()),
-        //    "stores are different"
-        //);
-
         // Caller just returned borrowed mutably reference to the store, now we can safely borrow it mutably again
         let _store = store;
 
@@ -200,16 +194,6 @@ impl<S> StoreRefCell<S> {
 
         Ok(result)
     }
-
-    //#[allow(unused)]
-    //fn compare_stores(&self, returned_store: StoreRef) -> bool {
-    //    // SAFETY:
-    //    // Verified with Miri, it seems safe.
-    //    // Carefully compare the stores while don't using/holding mutable references to them in the same time.
-    //    let orig_store_ref: StoreRef = unsafe { &*self.store.get() }.as_store_ref();
-
-    //    StoreRef::same(&orig_store_ref, &returned_store)
-    //}
 
     /// Returns store ptr, same semantics as `RefCell::as_ptr`
     pub unsafe fn as_ptr(&self) -> *mut S {
