@@ -182,11 +182,11 @@ mod tests {
         let module = Module::from_bytes(wasm).unwrap();
         let (module, _) = globals.inject(module).unwrap();
 
-        let engine = sandbox_wasmi::Engine::default();
-        let mut store = sandbox_wasmi::Store::new(&engine, ());
+        let engine = wasmi::Engine::default();
+        let mut store = wasmi::Store::new(&engine, ());
 
-        let module = sandbox_wasmi::Module::new(&engine, &module.into_bytes().unwrap()).unwrap();
-        let instance = sandbox_wasmi::Instance::new(&mut store, &module, &[]).unwrap();
+        let module = wasmi::Module::new(&engine, &module.into_bytes().unwrap()).unwrap();
+        let instance = wasmi::Instance::new(&mut store, &module, &[]).unwrap();
 
         let gear_fuzz_a = instance
             .get_global(&store, "gear_fuzz_a")
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(gear_fuzz_a, INITIAL_GLOBAL_VALUE);
 
         let func = instance.get_func(&store, "main").unwrap();
-        func.call(&mut store, &[], &mut [sandbox_wasmi::Val::I64(0)])
+        func.call(&mut store, &[], &mut [wasmi::Val::I64(0)])
             .unwrap();
 
         // Assert that global was modified (initially 0)

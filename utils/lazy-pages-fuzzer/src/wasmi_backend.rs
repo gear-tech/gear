@@ -23,7 +23,7 @@ use anyhow::{anyhow, bail, Context};
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
 use region::{Allocation, Protection};
-use sandbox_wasmi::{
+use wasmi::{
     core::UntypedVal, Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType,
     Module as WasmiModule, StackLimits, Store, Val,
 };

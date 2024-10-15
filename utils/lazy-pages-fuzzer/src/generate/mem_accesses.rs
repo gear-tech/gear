@@ -186,19 +186,19 @@ mod tests {
             .inject(module)
             .unwrap();
 
-        let engine = sandbox_wasmi::Engine::default();
-        let mut store = sandbox_wasmi::Store::new(&engine, ());
-        let module = sandbox_wasmi::Module::new(&engine, &module.into_bytes().unwrap()).unwrap();
+        let engine = wasmi::Engine::default();
+        let mut store = wasmi::Store::new(&engine, ());
+        let module = wasmi::Module::new(&engine, &module.into_bytes().unwrap()).unwrap();
 
-        let ty = sandbox_wasmi::MemoryType::new(1, None).unwrap();
-        let memory = sandbox_wasmi::Memory::new(&mut store, ty).unwrap();
+        let ty = wasmi::MemoryType::new(1, None).unwrap();
+        let memory = wasmi::Memory::new(&mut store, ty).unwrap();
 
         let original_mem_hash = {
             let mem_slice = memory.data(&store);
             calculate_slice_hash(mem_slice)
         };
 
-        let mut linker = <sandbox_wasmi::Linker<()>>::new(&engine);
+        let mut linker = <wasmi::Linker<()>>::new(&engine);
         linker.define(MODULE_ENV, "memory", memory).unwrap();
 
         let instance = linker
@@ -208,7 +208,7 @@ mod tests {
             .unwrap();
         let func = instance.get_func(&store, "main").unwrap();
 
-        func.call(&mut store, &[], &mut [sandbox_wasmi::Val::I32(0)])
+        func.call(&mut store, &[], &mut [wasmi::Val::I32(0)])
             .unwrap();
 
         let mem_hash = {

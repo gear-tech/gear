@@ -171,7 +171,7 @@ enum BackendInstanceBundle {
     /// Wasmi module instance
     Wasmi {
         /// Wasmer module instance
-        instance: sandbox_wasmi::Instance,
+        instance: wasmi::Instance,
         /// Wasmer store
         store: Rc<WasmiStoreRefCell>,
     },

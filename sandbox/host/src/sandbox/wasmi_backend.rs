@@ -26,7 +26,7 @@ use std::{
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use region::{Allocation, Protection};
-use sandbox_wasmi::{
+use wasmi::{
     core::UntypedVal, AsContext, AsContextMut, Config, Engine, ExternType, Linker, MemoryType,
     Module, StackLimits, Val,
 };
@@ -45,49 +45,49 @@ use crate::{
 
 use super::SupervisorFuncIndex;
 
-type Store = sandbox_wasmi::Store<Option<FuncEnv>>;
+type Store = wasmi::Store<Option<FuncEnv>>;
 pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
 
 environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
 pub struct FuncEnv {
     store: Weak<StoreRefCell>,
-    gas_global: sandbox_wasmi::Global,
+    gas_global: wasmi::Global,
 }
 
 impl FuncEnv {
-    pub fn new(store: Weak<StoreRefCell>, gas_global: sandbox_wasmi::Global) -> Self {
+    pub fn new(store: Weak<StoreRefCell>, gas_global: wasmi::Global) -> Self {
         Self { store, gas_global }
     }
 }
 
 /// Construct trap error from specified message
-fn host_trap(msg: impl Into<error::Error>) -> sandbox_wasmi::Error {
-    sandbox_wasmi::Error::host(msg.into())
+fn host_trap(msg: impl Into<error::Error>) -> wasmi::Error {
+    wasmi::Error::host(msg.into())
 }
 
-fn into_wasmi_val(value: Value) -> sandbox_wasmi::Val {
+fn into_wasmi_val(value: Value) -> wasmi::Val {
     match value {
-        Value::I32(val) => sandbox_wasmi::Val::I32(val),
-        Value::I64(val) => sandbox_wasmi::Val::I64(val),
-        Value::F32(val) => sandbox_wasmi::Val::F32(val.into()),
-        Value::F64(val) => sandbox_wasmi::Val::F64(val.into()),
+        Value::I32(val) => wasmi::Val::I32(val),
+        Value::I64(val) => wasmi::Val::I64(val),
+        Value::F32(val) => wasmi::Val::F32(val.into()),
+        Value::F64(val) => wasmi::Val::F64(val.into()),
     }
 }
 
-fn into_wasmi_result(value: ReturnValue) -> Vec<sandbox_wasmi::Val> {
+fn into_wasmi_result(value: ReturnValue) -> Vec<wasmi::Val> {
     match value {
         ReturnValue::Value(v) => vec![into_wasmi_val(v)],
         ReturnValue::Unit => vec![],
     }
 }
 
-fn into_value(value: &sandbox_wasmi::Val) -> Option<Value> {
+fn into_value(value: &wasmi::Val) -> Option<Value> {
     match value {
-        sandbox_wasmi::Val::I32(val) => Some(Value::I32(*val)),
-        sandbox_wasmi::Val::I64(val) => Some(Value::I64(*val)),
-        sandbox_wasmi::Val::F32(val) => Some(Value::F32((*val).into())),
-        sandbox_wasmi::Val::F64(val) => Some(Value::F64((*val).into())),
+        wasmi::Val::I32(val) => Some(Value::I32(*val)),
+        wasmi::Val::I64(val) => Some(Value::I64(*val)),
+        wasmi::Val::F32(val) => Some(Value::F32((*val).into())),
+        wasmi::Val::F64(val) => Some(Value::F64((*val).into())),
         _ => None,
     }
 }
@@ -149,7 +149,7 @@ pub fn new_memory(
     // but actual lifetime of the buffer is lifetime of `Store<T>` itself,
     // so memory will be deallocated when `Store<T>` is dropped.
     let raw = unsafe { slice::from_raw_parts_mut::<'static, u8>(alloc.as_mut_ptr(), alloc.len()) };
-    let memory = sandbox_wasmi::Memory::new_static(&mut *store.borrow_mut(), ty, raw)
+    let memory = wasmi::Memory::new_static(&mut *store.borrow_mut(), ty, raw)
         .map_err(|error| Error::Sandbox(error.to_string()))?;
 
     Ok((Memory::Wasmi(MemoryWrapper::new(memory, store)), alloc))
@@ -160,7 +160,7 @@ pub fn new_memory(
 /// This wrapper limits the scope where the slice can be taken to
 #[derive(Clone)]
 pub struct MemoryWrapper {
-    memory: sandbox_wasmi::Memory,
+    memory: wasmi::Memory,
     store: Rc<StoreRefCell>,
 }
 
@@ -174,7 +174,7 @@ impl std::fmt::Debug for MemoryWrapper {
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    fn new(memory: sandbox_wasmi::Memory, store: Rc<StoreRefCell>) -> Self {
+    fn new(memory: wasmi::Memory, store: Rc<StoreRefCell>) -> Self {
         Self { memory, store }
     }
 }
@@ -232,13 +232,13 @@ impl MemoryTransfer for MemoryWrapper {
 }
 
 /// Get global value by name
-pub fn get_global(instance: &sandbox_wasmi::Instance, store: &Store, name: &str) -> Option<Value> {
+pub fn get_global(instance: &wasmi::Instance, store: &Store, name: &str) -> Option<Value> {
     into_value(&instance.get_global(store, name)?.get(store))
 }
 
 /// Set global value by name
 pub fn set_global(
-    instance: &sandbox_wasmi::Instance,
+    instance: &wasmi::Instance,
     store: &mut Store,
     name: &str,
     value: Value,
@@ -344,12 +344,12 @@ pub fn instantiate(
 fn dispatch_function(
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
-    func_ty: &sandbox_wasmi::FuncType,
-) -> sandbox_wasmi::Func {
-    sandbox_wasmi::Func::new(
+    func_ty: &wasmi::FuncType,
+) -> wasmi::Func {
+    wasmi::Func::new(
         store,
         func_ty.clone(),
-        move |_caller, params, results| -> Result<(), sandbox_wasmi::Error> {
+        move |_caller, params, results| -> Result<(), wasmi::Error> {
             SupervisorContextStore::with(|supervisor_context| {
                 let invoke_args_data = params
                     .iter()
@@ -387,12 +387,12 @@ fn dispatch_function(
 fn dispatch_function_v2(
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
-    func_ty: &sandbox_wasmi::FuncType,
-) -> sandbox_wasmi::Func {
-    sandbox_wasmi::Func::new(
+    func_ty: &wasmi::FuncType,
+) -> wasmi::Func {
+    wasmi::Func::new(
         store,
         func_ty.clone(),
-        move |mut caller, params, results| -> Result<(), sandbox_wasmi::Error> {
+        move |mut caller, params, results| -> Result<(), wasmi::Error> {
             SupervisorContextStore::with(|supervisor_context| {
                 let func_env = caller.data().as_ref().expect("func env should be set");
                 let store_ref_cell = func_env.store.upgrade().expect("store should be alive");
@@ -450,7 +450,7 @@ fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
     supervisor_context: &mut dyn SupervisorContext,
     invoke_args_data: Vec<u8>,
-) -> std::result::Result<Vec<u8>, sandbox_wasmi::Error> {
+) -> std::result::Result<Vec<u8>, wasmi::Error> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
     // then free allocated memory.
     let invoke_args_len = invoke_args_data.len() as WordSize;
@@ -514,7 +514,7 @@ fn dispatch_common(
 
 /// Invoke a function within a sandboxed module
 pub fn invoke(
-    instance: &sandbox_wasmi::Instance,
+    instance: &wasmi::Instance,
     store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
@@ -524,13 +524,11 @@ pub fn invoke(
         .get_func(&*store.borrow(), export_name)
         .ok_or_else(|| Error::Sandbox(format!("function {export_name} export error")))?;
 
-    let args: Vec<sandbox_wasmi::Val> = args.iter().copied().map(into_wasmi_val).collect();
+    let args: Vec<wasmi::Val> = args.iter().copied().map(into_wasmi_val).collect();
     let func_ty = function.ty(&*store.borrow());
 
-    let mut outputs = vec![
-        sandbox_wasmi::Val::ExternRef(sandbox_wasmi::ExternRef::null());
-        func_ty.results().len()
-    ];
+    let mut outputs =
+        vec![wasmi::Val::ExternRef(wasmi::ExternRef::null()); func_ty.results().len()];
 
     // Init func env
     {

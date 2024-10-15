@@ -303,7 +303,7 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
-sandbox-wasmi = { package = "wasmi", version = "0.36"}
+wasmi = { package = "wasmi", version = "0.36"}
 
 # Substrate deps
 binary-merkle-tree = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
