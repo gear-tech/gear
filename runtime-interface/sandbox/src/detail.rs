@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::cell::RefCell;
+use core::{cell::RefCell, sync::atomic::Ordering};
 
 use codec::{Decode, Encode};
 use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
@@ -61,12 +61,20 @@ impl Sandboxes {
     }
 }
 
+// Global sandbox backend type selector
+static SANDBOX_BACKEND_TYPE: sandbox_env::AtomicSandboxBackend =
+    sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmer);
+
 thread_local! {
-    static SANDBOXES: RefCell<Sandboxes> = panic!("Sandbox not initialized");
+    static SANDBOXES: RefCell<Sandboxes> = {
+        let sandbox_backend = SANDBOX_BACKEND_TYPE.load(Ordering::SeqCst);
+        RefCell::new(Sandboxes::new(sandbox_backend))
+    }
 }
 
 pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
-    SANDBOXES.set(Sandboxes::new(sandbox_backend));
+    SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
+    // At first access sandbox will be initialized with the provided backend
     SANDBOXES.with_borrow_mut(|sandboxes| {
         let _store = sandboxes.get(0);
     })

@@ -495,6 +495,7 @@ demo-wat = { path = "examples/wat" }
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 
+atomic_enum = "0.3.0"
 cfg-if = "1.0.0"                                             # gear-lazy-pages
 cargo-http-registry = "0.1.6"                                # crates-io
 errno = "0.3"                                                # gear-lazy-pages

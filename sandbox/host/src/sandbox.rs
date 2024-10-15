@@ -406,6 +406,7 @@ impl UnregisteredInstance {
 }
 
 /// Sandbox backend to use
+#[atomic_enum::atomic_enum]
 pub enum SandboxBackend {
     /// Wasm interpreter
     Wasmi,
