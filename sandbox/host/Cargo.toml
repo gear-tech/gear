@@ -20,7 +20,7 @@ defer.workspace = true
 environmental.workspace = true
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
-wasmer = { workspace = true, features = ["singlepass"] }
+wasmer.workspace = true
 wasmer-types.workspace = true
 sandbox-wasmi.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }

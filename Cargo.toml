@@ -178,7 +178,7 @@ url = "2.5.2"
 # wasmer 4.3.4 for some reason have wat's version "=1.0.71" nailed down, so we have to do the same
 wat = "1.0.71"
 wabt = "0.10.0"
-wasmer = { version = "4.3.4", default-features = false, features = ["sys"] }
+wasmer = { version = "4.3.4", default-features = false, features = ["singlepass"] }
 wasmer-cache = "4.3.4"
 wasmer-types = "4.3.4"
 wasmer-vm = "4.3.4"
