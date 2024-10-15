@@ -22,7 +22,7 @@ thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
 wasmer = { workspace = true, features = ["singlepass"] }
 wasmer-types.workspace = true
-sandbox-wasmi = { package = "wasmi", version = "0.36"}
+sandbox-wasmi.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface-common = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }

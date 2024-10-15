@@ -6464,6 +6464,7 @@ name = "gear-cli"
 version = "1.6.2"
 dependencies = [
  "clap 4.5.9",
+ "derive_more 0.99.18",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -6895,7 +6896,7 @@ dependencies = [
  "wasmer",
  "wasmer-cache",
  "wasmer-types",
- "wasmi 0.36.2",
+ "wasmi 0.36.5",
 ]
 
 [[package]]
@@ -9018,7 +9019,7 @@ dependencies = [
  "log",
  "region",
  "wasmer",
- "wasmi 0.36.1",
+ "wasmi 0.36.5",
  "wasmprinter",
  "wat",
 ]
@@ -19534,9 +19535,9 @@ dependencies = [
 
 [[package]]
 name = "wasmi"
-version = "0.36.1"
+version = "0.36.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81eacbefcfb4fc0d0af5424752e10895a131e1d0edb4b87554aac024bd294bdd"
+checksum = "446ddc18185880ff32de907a809864283d18f9de568c23d46464b6231973d595"
 dependencies = [
  "arrayvec 0.7.4",
  "multi-stash",
@@ -19545,7 +19546,7 @@ dependencies = [
  "smallvec",
  "spin 0.9.8",
  "wasmi_collections",
- "wasmi_core 0.36.1",
+ "wasmi_core 0.36.5",
  "wasmparser-nostd",
 ]
 
@@ -19570,9 +19571,9 @@ checksum = "104a7f73be44570cac297b3035d76b169d6599637631cf37a1703326a0727073"
 
 [[package]]
 name = "wasmi_collections"
-version = "0.36.1"
+version = "0.36.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d1ff23df2c456c8b5d9a0ae7eed03a40f0c4520466b4aa87135c5fc557476e8"
+checksum = "8eddc10bfb0069e913399ebd66c5a72c7d9aceabddcaa0296f062a55ab61d404"
 dependencies = [
  "ahash 0.8.11",
  "hashbrown 0.14.5",
@@ -19618,9 +19619,9 @@ dependencies = [
 
 [[package]]
 name = "wasmi_core"
-version = "0.36.1"
+version = "0.36.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac1b21ded145eb313d44a5895442c28e18904fb95718dc83893779f55945d342"
+checksum = "f08b12621457c17cfd5349cce25029eeac3769b63b1b02bd850d595a00f375ff"
 dependencies = [
  "downcast-rs",
  "libm",

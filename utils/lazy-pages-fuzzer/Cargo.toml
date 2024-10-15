@@ -15,7 +15,6 @@ gear-lazy-pages-common.workspace = true
 log.workspace = true
 region.workspace = true
 wasmer = { workspace = true, features = ["singlepass"] }
-#sandbox-wasmi.workspace = true
-sandbox-wasmi = { package = "wasmi", version = "0.36.1"}
+sandbox-wasmi.workspace = true
 wasmprinter.workspace = true
 wat.workspace = true
