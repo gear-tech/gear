@@ -18,14 +18,12 @@
 
 //! Database for ethexe.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
-
 use crate::{
     overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, ScheduledTask},
+    db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
     router::StateTransition,
     BlockRequestEvent,
 };
@@ -40,6 +38,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const LOG_TARGET: &str = "ethexe-db";
 
@@ -274,16 +273,16 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_start_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, Vec<ScheduledTask>>> {
+    fn block_start_schedule(&self, block_hash: H256) -> Option<Schedule> {
         self.kv
             .get(&KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash))
             .map(|data| {
-                BTreeMap::decode(&mut data.as_slice())
+                Schedule::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
             })
     }
 
-    fn set_block_start_schedule(&self, block_hash: H256, map: BTreeMap<u32, Vec<ScheduledTask>>) {
+    fn set_block_start_schedule(&self, block_hash: H256, map: Schedule) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set block start schedule: {map:?}");
         self.kv.put(
             &KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash),
@@ -291,16 +290,16 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_end_schedule(&self, block_hash: H256) -> Option<BTreeMap<u32, Vec<ScheduledTask>>> {
+    fn block_end_schedule(&self, block_hash: H256) -> Option<Schedule> {
         self.kv
             .get(&KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash))
             .map(|data| {
-                BTreeMap::decode(&mut data.as_slice())
+                Schedule::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
             })
     }
 
-    fn set_block_end_schedule(&self, block_hash: H256, map: BTreeMap<u32, Vec<ScheduledTask>>) {
+    fn set_block_end_schedule(&self, block_hash: H256, map: Schedule) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set block end schedule: {map:?}");
         self.kv.put(
             &KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash),

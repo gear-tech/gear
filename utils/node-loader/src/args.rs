@@ -1,6 +1,6 @@
 //! CLI args for the `gear-node-loader`
 
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use clap::Parser;
 use std::str::FromStr;
 
@@ -74,7 +74,7 @@ impl FromStr for SeedVariant {
         let s = s.to_lowercase();
         let input = s.split('=').collect::<Vec<_>>();
         if input.len() != 2 {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "Invalid seed argument format {s:?}. Must be 'seed_variant=num'"
             ));
         }
@@ -84,7 +84,7 @@ impl FromStr for SeedVariant {
         match variant {
             "start" => Ok(SeedVariant::Dynamic(num)),
             "constant" => Ok(SeedVariant::Constant(num)),
-            v => Err(anyhow::anyhow!("Invalid variant {v}")),
+            v => Err(anyhow!("Invalid variant {v}")),
         }
     }
 }

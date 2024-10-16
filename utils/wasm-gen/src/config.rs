@@ -22,7 +22,7 @@
 //! 1. From scratch by settings fields to corresponding values sometimes using
 //!    related to these fields builders. For example, wasm module configs:
 //! ```rust
-//! # use std::num::NonZeroUsize;
+//! # use std::num::NonZero;
 //! use gear_wasm_gen::*;
 //! use arbitrary::{Arbitrary, Result, Unstructured};
 //!
@@ -38,8 +38,8 @@
 //!             InstructionKind::Control,
 //!         ],
 //!         max_instructions: 100_000,
-//!         min_funcs: NonZeroUsize::new(15).unwrap(),
-//!         max_funcs: NonZeroUsize::new(30).unwrap(),
+//!         min_funcs: NonZero::<usize>::new(15).unwrap(),
+//!         max_funcs: NonZero::<usize>::new(30).unwrap(),
 //!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
 //!     Ok((selectable_params, arbitrary).into())
@@ -93,19 +93,18 @@
 //! There's a pre-defined one - [`StandardGearWasmConfigsBundle`], usage of which will result
 //! in generation of valid (always) gear-wasm module.
 
-use std::num::{NonZeroU32, NonZeroUsize};
+use crate::InvocableSyscall;
+use arbitrary::Unstructured;
+use gear_wasm_instrument::SyscallName;
+use std::num::NonZero;
 
 mod generator;
 mod module;
 mod syscalls;
 
-use arbitrary::Unstructured;
-use gear_wasm_instrument::SyscallName;
 pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
-
-use crate::InvocableSyscall;
 
 /// Trait which describes a type that stores and manages data for generating
 /// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
@@ -141,7 +140,7 @@ pub struct StandardGearWasmConfigsBundle {
     ///
     /// For example, if this parameter is 4, wait syscalls will be invoked
     /// with probability 1/4.
-    pub waiting_probability: Option<NonZeroU32>,
+    pub waiting_probability: Option<NonZero<u32>>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
     /// If the limit is set to `Some(_)`, programs will try to stop execution
@@ -167,7 +166,7 @@ impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
-            waiting_probability: NonZeroU32::new(4),
+            waiting_probability: NonZero::<u32>::new(4),
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
             injection_types: SyscallsInjectionTypes::all_once(),
@@ -304,7 +303,7 @@ impl RandomizedGearWasmConfigBundle {
                 log_info,
                 params_config,
                 initial_pages: initial_pages as u32,
-                waiting_probability: NonZeroU32::new(unstructured.int_in_range(1..=4).unwrap()),
+                waiting_probability: NonZero::<u32>::new(unstructured.int_in_range(1..=4).unwrap()),
                 ..Default::default()
             },
             max_funcs,
@@ -338,8 +337,8 @@ impl ConfigsBundle for RandomizedGearWasmConfigBundle {
 
         let mut selectable_params = SelectableParams {
             max_instructions,
-            max_funcs: NonZeroUsize::new(max_funcs).unwrap(),
-            min_funcs: NonZeroUsize::new(min_funcs).unwrap(),
+            max_funcs: NonZero::<usize>::new(max_funcs).unwrap(),
+            min_funcs: NonZero::<usize>::new(min_funcs).unwrap(),
             ..Default::default()
         };
 

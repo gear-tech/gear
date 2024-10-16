@@ -19,7 +19,7 @@
 //! Keyring implementation based on the polkadot-js keystore.
 
 use crate::{ss58, Keystore};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use colored::Colorize;
 use schnorrkel::Keypair;
 use serde::{Deserialize, Serialize};
@@ -79,7 +79,7 @@ impl Keyring {
     #[allow(clippy::assigning_clones)]
     pub fn primary(&mut self) -> Result<Keystore> {
         if self.ring.is_empty() {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "No keys in keyring, run {} to create a new one.",
                 "`gring generate <NAME> -p <PASSPHRASE>`"
                     .underline()
@@ -110,7 +110,7 @@ impl Keyring {
             .find(|k| k.meta.name == name)
             .cloned()
             .ok_or_else(|| {
-                anyhow::anyhow!(
+                anyhow!(
                     "Key with name {} not found, run {} to see all keys in keyring.",
                     name.underline().bold(),
                     "`gring list`".underline().cyan().bold()

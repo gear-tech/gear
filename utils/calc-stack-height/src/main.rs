@@ -1,3 +1,22 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use anyhow::anyhow;
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
 use std::{env, fs};
@@ -24,7 +43,7 @@ fn main() -> anyhow::Result<()> {
             ..Default::default()
         },
     )
-    .map_err(|e| anyhow::anyhow!("{e}"))?;
+    .map_err(|e| anyhow!("{e}"))?;
 
     let compiler = Singlepass::default();
     let mut store = Store::new(compiler);
@@ -91,7 +110,7 @@ fn main() -> anyhow::Result<()> {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.table_number.into(),
         )
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+        .map_err(|e| anyhow!("{e}"))?;
 
         let module = Module::new(&store, code.instrumented_code().code())?;
         let instance = Instance::new(&mut store, &module, &imports)?;
