@@ -163,38 +163,62 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             unreachable!("deprecated: {dispatch:?}");
         }
 
-        if delay != 0 {
-            todo!("delayed sending isn't supported yet");
-        }
-
         if self
             .in_block_transitions
             .state_of(&dispatch.destination())
             .is_none()
         {
             if !dispatch.is_reply() {
-                let expiry = self.in_block_transitions.schedule_task(
-                    state::MAILBOX_VALIDITY.try_into().expect("infallible"),
-                    ScheduledTask::RemoveFromMailbox(
-                        (dispatch.source(), dispatch.destination()),
-                        dispatch.id(),
-                    ),
-                );
+                if let Ok(non_zero_delay) = delay.try_into() {
+                    // TODO (breathx): specify which program sent it. FIX WITHIN THE PR.
+                    let expiry = self.in_block_transitions.schedule_task(
+                        non_zero_delay,
+                        ScheduledTask::SendUserMessage {
+                            message_id: dispatch.id(),
+                            to_mailbox: true,
+                        },
+                    );
 
-                self.update_state_with_storage(dispatch.source(), |storage, state| {
-                    state.mailbox_hash =
-                        storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
-                            mailbox
-                                .entry(dispatch.destination())
-                                .or_default()
-                                .insert(dispatch.id(), (dispatch.value(), expiry));
-                        })?;
+                    self.update_state_with_storage(dispatch.source(), |storage, state| {
+                        let dispatch = Dispatch::from_stored(storage, dispatch.into_stored());
 
-                    Ok(())
-                });
+                        state.stash_hash =
+                            storage.modify_stash(state.stash_hash.clone(), |stash| {
+                                let r = stash.insert(dispatch.id, (dispatch, expiry));
+                                debug_assert!(r.is_none());
+                            })?;
+
+                        Ok(())
+                    });
+                } else {
+                    let expiry = self.in_block_transitions.schedule_task(
+                        state::MAILBOX_VALIDITY.try_into().expect("infallible"),
+                        ScheduledTask::RemoveFromMailbox(
+                            (dispatch.source(), dispatch.destination()),
+                            dispatch.id(),
+                        ),
+                    );
+
+                    self.update_state_with_storage(dispatch.source(), |storage, state| {
+                        state.mailbox_hash =
+                            storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
+                                mailbox
+                                    .entry(dispatch.destination())
+                                    .or_default()
+                                    .insert(dispatch.id(), (dispatch.value(), expiry));
+                            })?;
+
+                        Ok(())
+                    });
+                }
+
+                return;
             }
 
-            // TODO (breathx): send here to in_block_transitions.
+            if delay != 0 {
+                unreachable!("delayed sending of replies is forbidden");
+            }
+
             let source = dispatch.source();
             let message = dispatch.into_parts().1;
 
@@ -214,27 +238,31 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             return;
         }
 
-        let (kind, message) = dispatch.into_parts();
-        let (id, source, destination, payload, gas_limit, value, details) = message.into_parts();
+        let destination = dispatch.destination();
+        let dispatch = Dispatch::from_stored(self.storage, dispatch.into_stored());
 
-        let payload_hash = self.storage.write_payload(payload).into();
+        if let Ok(non_zero_delay) = delay.try_into() {
+            // TODO (breathx): specify which program sent it. FIX WITHIN THE PR.
+            let expiry = self
+                .in_block_transitions
+                .schedule_task(non_zero_delay, ScheduledTask::SendDispatch(dispatch.id));
 
-        let dispatch = Dispatch {
-            id,
-            kind,
-            source,
-            payload_hash,
-            value,
-            details,
-            context: None,
-        };
+            self.update_state_with_storage(destination, |storage, state| {
+                state.stash_hash = storage.modify_stash(state.stash_hash.clone(), |stash| {
+                    let r = stash.insert(dispatch.id, (dispatch, expiry));
+                    debug_assert!(r.is_none());
+                })?;
 
-        self.update_state_with_storage(destination, |storage, state| {
-            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
-                queue.push_back(dispatch);
-            })?;
-            Ok(())
-        });
+                Ok(())
+            });
+        } else {
+            self.update_state_with_storage(destination, |storage, state| {
+                state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
+                    queue.push_back(dispatch);
+                })?;
+                Ok(())
+            });
+        }
     }
 
     fn wait_dispatch(
