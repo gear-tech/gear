@@ -378,7 +378,12 @@ async fn incoming_transfers() {
 
     env.transfer_wvara(ping_id, VALUE_SENT).await;
 
-    listener.apply_until_block_event(|e| Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))).await.unwrap();
+    listener
+        .apply_until_block_event(|e| {
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+        })
+        .await
+        .unwrap();
 
     let on_eth_balance = wvara
         .query()
@@ -391,31 +396,32 @@ async fn incoming_transfers() {
     let local_balance = node.db.read_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    // TODO (breathx): `value_to_receive` param of transition.
-    // let res = env
-    //     .send_message(ping_id, b"PING", VALUE_SENT)
-    //     .await
-    //     .unwrap()
-    //     .wait_for()
-    //     .await
-    //     .unwrap();
+    env.approve_wvara(ping_id).await;
 
-    // assert_eq!(
-    //     res.reply_code,
-    //     ReplyCode::Success(SuccessReplyReason::Manual)
-    // );
-    // assert_eq!(res.reply_value, 0);
+    let res = env
+        .send_message(ping_id, b"PING", VALUE_SENT)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
 
-    // let on_eth_balance = wvara
-    //     .query()
-    //     .balance_of(ping.address().0.into())
-    //     .await
-    //     .unwrap();
-    // assert_eq!(on_eth_balance, 2 * VALUE_SENT);
+    assert_eq!(
+        res.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(res.reply_value, 0);
 
-    // let state_hash = ping.query().state_hash().await.unwrap();
-    // let local_balance = node.db.read_state(state_hash).unwrap().balance;
-    // assert_eq!(local_balance, 2 * VALUE_SENT);
+    let on_eth_balance = wvara
+        .query()
+        .balance_of(ping.address().0.into())
+        .await
+        .unwrap();
+    assert_eq!(on_eth_balance, 2 * VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 2 * VALUE_SENT);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1035,7 +1041,10 @@ mod utils {
 
             let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
-            wvara.transfer(program_address.0.into(), value).await.unwrap();
+            wvara
+                .transfer(program_address.0.into(), value)
+                .await
+                .unwrap();
         }
 
         pub fn events_publisher(&self) -> EventsPublisher {
