@@ -36,8 +36,8 @@ pub type Rfm = (ProgramId, ActorId);
 /// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
 pub type Sd = (ProgramId, MessageId);
 
-/// SendUserMessage key; (msgs sources program (mailbox and stash provider), destination user id)
-pub type Sum = (ProgramId, ActorId);
+/// SendUserMessage key; (msgs sources program (mailbox and stash provider))
+pub type Sum = ProgramId;
 
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;

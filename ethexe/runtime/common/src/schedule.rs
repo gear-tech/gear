@@ -90,11 +90,13 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
 
     fn send_dispatch(&mut self, (program_id, message_id): (ProgramId, MessageId)) -> u64 {
         self.update_state_with_storage(program_id, |storage, state| {
-            let ((dispatch, _expiry), new_stash_hash) = storage
+            let (((dispatch, user_id), _expiry), new_stash_hash) = storage
                 .modify_stash_if_changed(state.stash_hash.clone(), |stash| {
                     stash.remove(&message_id)
                 })?
                 .ok_or_else(|| anyhow!("failed to find message in stash"))?;
+
+            debug_assert!(user_id.is_none());
 
             state.stash_hash = new_stash_hash;
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
@@ -107,27 +109,26 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
         0
     }
 
-    fn send_user_message(
-        &mut self,
-        stashed_message_id: MessageId,
-        (program_id, user_id): (ProgramId, ActorId),
-    ) -> u64 {
-        let mut dispatch = None;
+    fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ProgramId) -> u64 {
+        let mut dispatch_and_user = None;
 
         self.update_state_with_storage(program_id, |storage, state| {
-            let ((stashed_dispatch, _expiry), new_stash_hash) = storage
+            let (((dispatch, user_id), _expiry), new_stash_hash) = storage
                 .modify_stash_if_changed(state.stash_hash.clone(), |stash| {
                     stash.remove(&stashed_message_id)
                 })?
                 .ok_or_else(|| anyhow!("failed to find message in stash"))?;
 
             state.stash_hash = new_stash_hash;
-            dispatch = Some(stashed_dispatch);
+            dispatch_and_user = Some((
+                dispatch,
+                user_id.expect("the message intended to user contains no id"),
+            ));
 
             Ok(())
         });
 
-        if let Some(dispatch) = dispatch {
+        if let Some((dispatch, user_id)) = dispatch_and_user {
             let expiry = self.in_block_transitions.schedule_task(
                 MAILBOX_VALIDITY.try_into().expect("infallible"),
                 ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),

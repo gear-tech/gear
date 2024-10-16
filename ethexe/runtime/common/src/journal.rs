@@ -168,13 +168,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .state_of(&dispatch.destination())
             .is_none()
         {
+            let user_id = dispatch.destination();
+
             if !dispatch.is_reply() {
                 if let Ok(non_zero_delay) = delay.try_into() {
                     let expiry = self.in_block_transitions.schedule_task(
                         non_zero_delay,
                         ScheduledTask::SendUserMessage {
                             message_id: dispatch.id(),
-                            to_mailbox: (dispatch.source(), dispatch.destination()),
+                            to_mailbox: dispatch.source(),
                         },
                     );
 
@@ -183,7 +185,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
                         state.stash_hash =
                             storage.modify_stash(state.stash_hash.clone(), |stash| {
-                                let r = stash.insert(dispatch.id, (dispatch, expiry));
+                                let r =
+                                    stash.insert(dispatch.id, ((dispatch, Some(user_id)), expiry));
                                 debug_assert!(r.is_none());
                             })?;
 
@@ -195,7 +198,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                     let expiry = self.in_block_transitions.schedule_task(
                         MAILBOX_VALIDITY.try_into().expect("infallible"),
                         ScheduledTask::RemoveFromMailbox(
-                            (dispatch.source(), dispatch.destination()),
+                            (dispatch.source(), user_id),
                             dispatch.id(),
                         ),
                     );
@@ -204,7 +207,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                         state.mailbox_hash =
                             storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
                                 mailbox
-                                    .entry(dispatch.destination())
+                                    .entry(user_id)
                                     .or_default()
                                     .insert(dispatch.id(), (dispatch.value(), expiry));
                             })?;
@@ -244,7 +247,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
             self.update_state_with_storage(destination, |storage, state| {
                 state.stash_hash = storage.modify_stash(state.stash_hash.clone(), |stash| {
-                    let r = stash.insert(dispatch.id, (dispatch, expiry));
+                    let r = stash.insert(dispatch.id, ((dispatch, None), expiry));
                     debug_assert!(r.is_none());
                 })?;
 
