@@ -1,7 +1,7 @@
 use crate::{
     state::{
         self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program,
-        ProgramState, Storage,
+        ProgramState, Storage, MAILBOX_VALIDITY,
     },
     InBlockTransitions,
 };
@@ -189,9 +189,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
                         Ok(())
                     });
+
+                    return;
                 } else {
                     let expiry = self.in_block_transitions.schedule_task(
-                        state::MAILBOX_VALIDITY.try_into().expect("infallible"),
+                        MAILBOX_VALIDITY.try_into().expect("infallible"),
                         ScheduledTask::RemoveFromMailbox(
                             (dispatch.source(), dispatch.destination()),
                             dispatch.id(),
@@ -210,25 +212,19 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                         Ok(())
                     });
                 }
-
-                return;
-            }
-
-            if delay != 0 {
-                unreachable!("delayed sending of replies is forbidden");
             }
 
             let source = dispatch.source();
             let message = dispatch.into_parts().1;
 
-            let source_state_hash = self
+            let state_hash = self
                 .in_block_transitions
                 .state_of(&source)
                 .expect("must exist");
 
             self.in_block_transitions.modify_state_with(
                 source,
-                source_state_hash,
+                state_hash,
                 0,
                 vec![],
                 vec![OutgoingMessage::from(message)],

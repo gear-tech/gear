@@ -24,6 +24,7 @@ use alloc::{
 };
 use anyhow::{anyhow, Result};
 use core::num::NonZero;
+use ethexe_common::router::OutgoingMessage;
 use gear_core::{
     code::InstrumentedCode,
     ids::{prelude::MessageIdExt as _, ProgramId},
@@ -244,6 +245,31 @@ impl Dispatch {
             value,
             details,
             context,
+        }
+    }
+
+    pub fn into_outgoing<S: Storage>(self, storage: &S, destination: ActorId) -> OutgoingMessage {
+        let Self {
+            id,
+            payload_hash,
+            value,
+            details,
+            ..
+        } = self;
+
+        let payload = payload_hash.with_hash_or_default(|payload_hash| {
+            storage
+                .read_payload(payload_hash)
+                .expect("must be found")
+                .into_vec()
+        });
+
+        OutgoingMessage {
+            id,
+            destination,
+            payload,
+            value,
+            reply_details: details.and_then(|d| d.to_reply_details()),
         }
     }
 }
