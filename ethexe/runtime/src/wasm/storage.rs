@@ -20,7 +20,10 @@ use super::interface::database_ri;
 use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{
-    state::{Allocations, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist},
+    state::{
+        Allocations, DispatchStash, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage,
+        Waitlist,
+    },
     RuntimeInterface,
 };
 use gear_core::{memory::PageBuf, message::Payload, pages::GearPage};
@@ -64,6 +67,10 @@ impl Storage for RuntimeInterfaceStorage {
         database_ri::read_unwrapping(&hash)
     }
 
+    fn read_stash(&self, hash: H256) -> Option<DispatchStash> {
+        database_ri::read_unwrapping(&hash)
+    }
+
     fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
         database_ri::read_unwrapping(&hash)
     }
@@ -98,6 +105,10 @@ impl Storage for RuntimeInterfaceStorage {
 
     fn write_waitlist(&self, waitlist: Waitlist) -> H256 {
         database_ri::write(waitlist)
+    }
+
+    fn write_stash(&self, stash: DispatchStash) -> H256 {
+        database_ri::write(stash)
     }
 
     fn write_mailbox(&self, mailbox: Mailbox) -> H256 {

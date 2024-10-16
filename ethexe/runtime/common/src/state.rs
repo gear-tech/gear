@@ -144,6 +144,8 @@ pub struct ProgramState {
     pub queue_hash: MaybeHash,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHash,
+    /// Hash of dispatch stash, see [`DispatchStash`].
+    pub stash_hash: MaybeHash,
     /// Hash of mailboxed messages, see [`Mailbox`].
     pub mailbox_hash: MaybeHash,
     /// Reducible balance.
@@ -163,6 +165,7 @@ impl ProgramState {
             }),
             queue_hash: MaybeHash::Empty,
             waitlist_hash: MaybeHash::Empty,
+            stash_hash: MaybeHash::Empty,
             mailbox_hash: MaybeHash::Empty,
             balance: 0,
             executable_balance: 0,
@@ -251,6 +254,8 @@ pub type MessageQueue = VecDeque<Dispatch>;
 
 pub type Waitlist = BTreeMap<MessageId, ValueWithExpiry<Dispatch>>;
 
+pub type DispatchStash = BTreeMap<MessageId, ValueWithExpiry<Dispatch>>;
+
 // TODO (breathx): consider here LocalMailbox for each user.
 pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>;
 
@@ -276,6 +281,12 @@ pub trait Storage {
 
     /// Writes waitlist and returns its hash.
     fn write_waitlist(&self, waitlist: Waitlist) -> H256;
+
+    /// Reads dispatch stash by its hash.
+    fn read_stash(&self, hash: H256) -> Option<DispatchStash>;
+
+    /// Writes dispatch stash and returns its hash.
+    fn write_stash(&self, stash: DispatchStash) -> H256;
 
     /// Reads mailbox by mailbox hash.
     fn read_mailbox(&self, hash: H256) -> Option<Mailbox>;
@@ -400,6 +411,46 @@ pub trait ComplexStorage: Storage {
                 .is_empty()
                 .then_some(MaybeHash::Empty)
                 .unwrap_or_else(|| self.write_waitlist(waitlist).into());
+
+            Some((v, maybe_hash))
+        } else {
+            None
+        };
+
+        Ok(res)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// Always updates storage.
+    fn modify_stash(
+        &self,
+        stash_hash: MaybeHash,
+        f: impl FnOnce(&mut DispatchStash),
+    ) -> Result<MaybeHash> {
+        self.modify_stash_if_changed(stash_hash, |stash| {
+            f(stash);
+            Some(())
+        })
+        .map(|v| v.expect("`Some` passed above; infallible").1)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// DispatchStash is treated changed if f() returns Some.
+    fn modify_stash_if_changed<T>(
+        &self,
+        stash_hash: MaybeHash,
+        f: impl FnOnce(&mut DispatchStash) -> Option<T>,
+    ) -> Result<Option<(T, MaybeHash)>> {
+        let mut stash = stash_hash.with_hash_or_default_result(|stash_hash| {
+            self.read_stash(stash_hash)
+                .ok_or_else(|| anyhow!("failed to read dispatch stash by its hash ({stash_hash})"))
+        })?;
+
+        let res = if let Some(v) = f(&mut stash) {
+            let maybe_hash = stash
+                .is_empty()
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.write_stash(stash).into());
 
             Some((v, maybe_hash))
         } else {
