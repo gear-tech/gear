@@ -3,6 +3,7 @@ use crate::{
     InBlockTransitions,
 };
 use anyhow::Result;
+use ethexe_common::db::{Rfm, Sd, Sum};
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
@@ -29,7 +30,7 @@ impl<S: Storage> Handler<'_, S> {
     }
 }
 
-impl<'a, S: Storage> TaskHandler<(ProgramId, ActorId)> for Handler<'a, S> {
+impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
     fn remove_from_mailbox(
         &mut self,
         (_program_id, _user_id): (ProgramId, ActorId),
@@ -37,10 +38,14 @@ impl<'a, S: Storage> TaskHandler<(ProgramId, ActorId)> for Handler<'a, S> {
     ) -> u64 {
         unimplemented!("TODO (breathx)")
     }
-    fn send_dispatch(&mut self, _stashed_message_id: MessageId) -> u64 {
+    fn send_dispatch(&mut self, (_program_id, _message_id): (ProgramId, MessageId)) -> u64 {
         unimplemented!("TODO (breathx)")
     }
-    fn send_user_message(&mut self, _stashed_message_id: MessageId, _to_mailbox: bool) -> u64 {
+    fn send_user_message(
+        &mut self,
+        _stashed_message_id: MessageId,
+        (_program_id, _user_id): (ProgramId, ActorId),
+    ) -> u64 {
         unimplemented!("TODO (breathx)")
     }
     // TODO (breathx): consider deprecation of delayed wakes + non-concrete waits.

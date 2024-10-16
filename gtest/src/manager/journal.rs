@@ -410,7 +410,11 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         expiration: u32,
     ) {
-        <Self as TaskHandler<ProgramId>>::remove_gas_reservation(self, program_id, reservation_id);
+        <Self as TaskHandler<ProgramId, MessageId, bool>>::remove_gas_reservation(
+            self,
+            program_id,
+            reservation_id,
+        );
 
         let _ = self
             .task_pool

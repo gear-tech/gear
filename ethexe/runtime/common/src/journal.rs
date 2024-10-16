@@ -170,12 +170,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         {
             if !dispatch.is_reply() {
                 if let Ok(non_zero_delay) = delay.try_into() {
-                    // TODO (breathx): specify which program sent it. FIX WITHIN THE PR.
                     let expiry = self.in_block_transitions.schedule_task(
                         non_zero_delay,
                         ScheduledTask::SendUserMessage {
                             message_id: dispatch.id(),
-                            to_mailbox: true,
+                            to_mailbox: (dispatch.source(), dispatch.destination()),
                         },
                     );
 
@@ -242,10 +241,10 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let dispatch = Dispatch::from_stored(self.storage, dispatch.into_stored());
 
         if let Ok(non_zero_delay) = delay.try_into() {
-            // TODO (breathx): specify which program sent it. FIX WITHIN THE PR.
-            let expiry = self
-                .in_block_transitions
-                .schedule_task(non_zero_delay, ScheduledTask::SendDispatch(dispatch.id));
+            let expiry = self.in_block_transitions.schedule_task(
+                non_zero_delay,
+                ScheduledTask::SendDispatch((destination, dispatch.id)),
+            );
 
             self.update_state_with_storage(destination, |storage, state| {
                 state.stash_hash = storage.modify_stash(state.stash_hash.clone(), |stash| {

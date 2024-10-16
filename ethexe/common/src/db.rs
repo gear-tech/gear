@@ -27,11 +27,20 @@ use gear_core::{
     code::InstrumentedCode,
     ids::{ActorId, CodeId, ProgramId},
 };
-use gprimitives::H256;
+use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
-/// NOTE: key for actor id is (program_id, user_id). only used for mailbox.
-pub type ScheduledTask = gear_core::tasks::ScheduledTask<(ProgramId, ActorId)>;
+/// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
+pub type Rfm = (ProgramId, ActorId);
+
+/// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
+pub type Sd = (ProgramId, MessageId);
+
+/// SendUserMessage key; (msgs sources program (mailbox and stash provider), destination user id)
+pub type Sum = (ProgramId, ActorId);
+
+/// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
+pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct BlockHeader {
