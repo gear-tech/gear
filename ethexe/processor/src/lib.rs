@@ -95,7 +95,6 @@ impl Processor {
 
         let mut in_block_transitions = InBlockTransitions::new(header, states, schedule);
 
-        // TODO (breathx): handle resulting addresses that were changed (e.g. top up balance wont be dumped as outcome).
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
