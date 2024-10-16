@@ -60,8 +60,8 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
+    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeStorage,
+    GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
 use core::{marker::PhantomData, num::NonZeroU32};
 use core_processor::{
@@ -85,7 +85,10 @@ use frame_system::{
     Pallet as System, RawOrigin,
 };
 use gear_core::{
-    code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
+    code::{
+        Code, CodeAndId, CodeAttribution, CodeError, CodeMetadata, InstrumentationStatus,
+        InstrumentedCode,
+    },
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
@@ -93,7 +96,7 @@ use gear_core::{
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
-use manager::{CodeInfo, QueuePostProcessingData};
+use manager::QueuePostProcessingData;
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
 use sp_runtime::{
@@ -579,10 +582,10 @@ pub mod pallet {
             })?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_info = CodeInfo::from_code_and_id(&code_and_id);
+            let code_id = code_and_id.code_id();
 
             let packet = InitPacket::new_from_user(
-                code_and_id.code_id(),
+                code_id,
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
@@ -619,7 +622,7 @@ pub mod pallet {
 
             // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
+            if let Ok(code_id) = Self::set_code_with_attribution(code_and_id, origin) {
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
                 // calculated one (issues #646 and #969).
@@ -634,7 +637,7 @@ pub mod pallet {
 
             ExtManager::<T>::new(builtins).set_program(
                 program_id,
-                &code_info,
+                code_id,
                 message_id,
                 block_number,
             );
@@ -673,7 +676,7 @@ pub mod pallet {
                     Error::<T>::ProgramConstructionFailed
                 })?;
 
-            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
+            let code_id = Self::set_code_with_attribution(CodeAndId::new(code), who.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -1083,25 +1086,25 @@ pub mod pallet {
             }
         }
 
-        /// Sets `code` and metadata, if code doesn't exist in storage.
+        /// Sets `code` and attribution, if code doesn't exist in storage.
         ///
         /// On success returns Blake256 hash of the `code`. If code already
         /// exists (*so, metadata exists as well*), returns unit `CodeAlreadyExists` error.
         ///
         /// # Note
-        /// Code existence in storage means that metadata is there too.
-        pub(crate) fn set_code_with_metadata(
+        /// Code existence in storage means that attribution is there too.
+        pub(crate) fn set_code_with_attribution(
             code_and_id: CodeAndId,
             who: H256,
         ) -> Result<CodeId, Error<T>> {
             let code_id = code_and_id.code_id();
 
-            let metadata = {
+            let code_attribution = {
                 let block_number = Self::block_number().unique_saturated_into();
-                CodeMetadata::new(who, block_number)
+                CodeAttribution::new(who, block_number)
             };
 
-            T::CodeStorage::add_code(code_and_id, metadata)
+            T::CodeStorage::add_code(code_and_id, code_attribution)
                 .map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
             Ok(code_id)
@@ -1118,21 +1121,10 @@ pub mod pallet {
         /// test (`schedule::tests::instructions_backward_compatibility`)
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
+            original_code: Vec<u8>,
             schedule: &Schedule<T>,
         ) -> Result<InstrumentedCode, CodeError> {
             debug_assert!(T::CodeStorage::get_instrumented_code(code_id).is_some());
-
-            // By the invariant set in CodeStorage trait, original code can't exist in storage
-            // without the instrumented code
-            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| {
-                let err_msg = format!(
-                    "reinstrument_code: failed to get original code, while instrumented exists. \
-                    Code id - {code_id}"
-                );
-
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}")
-            });
 
             let code = Code::try_new(
                 original_code,
@@ -1143,12 +1135,12 @@ pub mod pallet {
                 schedule.limits.table_number.into(),
             )?;
 
-            let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
-            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
-            T::CodeStorage::update_instrumented_code(code_and_id.clone());
-            let (code, _) = code_and_id.into_parts();
+            let (instrumented_code, _, metadata) = code.into_parts();
 
-            Ok(code)
+            T::CodeStorage::update_instrumented_code(code_id, instrumented_code.clone());
+            T::CodeStorage::update_code_metadata(code_id, metadata);
+
+            Ok(instrumented_code)
         }
 
         pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
@@ -1229,7 +1221,7 @@ pub mod pallet {
         pub(crate) fn do_create_program(
             who: T::AccountId,
             packet: InitPacket,
-            code_info: CodeInfo,
+            code_id: CodeId,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
@@ -1262,7 +1254,7 @@ pub mod pallet {
                 WithdrawReasons::all(),
             );
 
-            ext_manager.set_program(program_id, &code_info, message_id, block_number);
+            ext_manager.set_program(program_id, code_id, message_id, block_number);
 
             let program_event = Event::ProgramChanged {
                 id: program_id,
@@ -1401,10 +1393,11 @@ pub mod pallet {
             Self::check_gas_limit(gas_limit)?;
 
             let code_and_id = Self::try_new_code(code)?;
-            let code_info = CodeInfo::from_code_and_id(&code_and_id);
+            let code_id = code_and_id.code_id();
+
             let packet = Self::init_packet(
                 who.clone(),
-                code_and_id.code_id(),
+                code_id,
                 salt,
                 init_payload,
                 gas_limit,
@@ -1412,11 +1405,11 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            if !T::CodeStorage::exists(code_and_id.code_id()) {
+            if !T::CodeStorage::exists(code_id) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
                 // if there's code in storage, there's also metadata for it.
                 let code_hash =
-                    Self::set_code_with_metadata(code_and_id, who.clone().into_origin())?;
+                    Self::set_code_with_attribution(code_and_id, who.clone().into_origin())?;
 
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
@@ -1427,7 +1420,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet, code_info)?;
+            Self::do_create_program(who, packet, code_id)?;
 
             Ok(().into())
         }
@@ -1462,7 +1455,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            let code = T::CodeStorage::get_instrumented_code(code_id)
+            let _ = T::CodeStorage::get_instrumented_code(code_id)
                 .ok_or(Error::<T>::CodeDoesntExist)?;
 
             // Check `gas_limit`
@@ -1479,7 +1472,7 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
+            Self::do_create_program(who, packet, code_id)?;
             Ok(().into())
         }
 
@@ -1961,7 +1954,7 @@ pub mod pallet {
             code: Vec<u8>,
         ) -> DispatchResultWithPostInfo {
             let code_id =
-                Self::set_code_with_metadata(Self::try_new_code(code)?, origin.into_origin())?;
+                Self::set_code_with_attribution(Self::try_new_code(code)?, origin.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly

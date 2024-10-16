@@ -23,7 +23,7 @@ use std::{cell::RefCell, collections::BTreeMap, fmt};
 use core_processor::common::ExecutableActorData;
 use gear_common::{CodeId, GearPage, MessageId, PageBuf, ProgramId};
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     pages::{numerated::tree::IntervalsTree, WasmPage},
     reservation::GasReservationMap,
 };
@@ -200,7 +200,7 @@ impl TestActor {
     // Gets a new executable actor derived from the inner program.
     pub(crate) fn get_executable_actor_data(
         &self,
-    ) -> Option<(ExecutableActorData, InstrumentedCode)> {
+    ) -> Option<(ExecutableActorData, InstrumentedCode, CodeMetadata)> {
         self.genuine_program()
             .map(GenuineProgram::executable_actor_data)
     }
@@ -210,23 +210,27 @@ impl TestActor {
 pub(crate) struct GenuineProgram {
     pub code_id: CodeId,
     pub code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
     pub allocations: IntervalsTree<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub gas_reservation_map: GasReservationMap,
 }
 
 impl GenuineProgram {
-    pub(crate) fn executable_actor_data(&self) -> (ExecutableActorData, InstrumentedCode) {
+    pub(crate) fn executable_actor_data(
+        &self,
+    ) -> (ExecutableActorData, InstrumentedCode, CodeMetadata) {
         (
             ExecutableActorData {
                 allocations: self.allocations.clone(),
                 code_id: self.code_id,
-                code_exports: self.code.exports().clone(),
-                static_pages: self.code.static_pages(),
+                code_exports: self.code_metadata.code_exports().clone(),
+                static_pages: self.code_metadata.static_pages(),
                 gas_reservation_map: self.gas_reservation_map.clone(),
                 memory_infix: Default::default(),
             },
             self.code.clone(),
+            self.code_metadata.clone(),
         )
     }
 }

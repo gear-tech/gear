@@ -17,17 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBoundBuilder,
-    manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank,
-    Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+    internal::HoldBoundBuilder, manager::ExtManager, Config, CostsPerBlockOf, CurrencyOf, Event,
+    GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf,
+    WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use alloc::format;
 use common::{
     event::*,
     scheduler::{SchedulingCostsPerBlock, StorageType, TaskPool},
     storage::*,
-    CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
+    LockableTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -431,18 +430,16 @@ where
         code_id: CodeId,
         candidates: Vec<(MessageId, ProgramId)>,
     ) {
-        if let Some(code) = T::CodeStorage::get_instrumented_code(code_id) {
-            let code_info = CodeInfo::from_code(&code_id, &code);
-            for (init_message, candidate_id) in candidates {
-                if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
-                    let block_number = Pallet::<T>::block_number();
+        for (init_message, candidate_id) in candidates {
+            if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
+                let block_number = Pallet::<T>::block_number();
 
-                    let candidate_account = candidate_id.cast();
-                    let ed = CurrencyOf::<T>::minimum_balance();
+                let candidate_account = candidate_id.cast();
+                let ed = CurrencyOf::<T>::minimum_balance();
 
-                    // Make sure an account exists for the newly created program.
-                    // Balance validity check has been performed so we don't expect any errors.
-                    CurrencyOf::<T>::transfer(
+                // Make sure an account exists for the newly created program.
+                // Balance validity check has been performed so we don't expect any errors.
+                CurrencyOf::<T>::transfer(
                         &program_id.cast(),
                         &candidate_account,
                         ed,
@@ -457,41 +454,24 @@ where
                         log::error!("{err_msg}");
                         unreachable!("{err_msg}");
                     });
-                    // Set lock to avoid accidental account removal by the runtime.
-                    CurrencyOf::<T>::set_lock(
-                        EXISTENTIAL_DEPOSIT_LOCK_ID,
-                        &candidate_account,
-                        ed,
-                        WithdrawReasons::all(),
-                    );
+                // Set lock to avoid accidental account removal by the runtime.
+                CurrencyOf::<T>::set_lock(
+                    EXISTENTIAL_DEPOSIT_LOCK_ID,
+                    &candidate_account,
+                    ed,
+                    WithdrawReasons::all(),
+                );
 
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                self.set_program(candidate_id, code_id, init_message, block_number);
 
-                    Pallet::<T>::deposit_event(Event::ProgramChanged {
-                        id: candidate_id,
-                        change: ProgramChangeKind::ProgramSet {
-                            expiration: block_number,
-                        },
-                    });
-                } else {
-                    log::debug!("Program with id {:?} already exists", candidate_id);
-                }
-            }
-        } else {
-            log::debug!(
-                "No referencing code with code hash {:?} for candidate programs",
-                code_id
-            );
-            // SAFETY:
-            // Do not remove insertion into programs map as it gives guarantee
-            // that init message for destination with no code won't enter
-            // the mailbox (so no possible uncovered gas charges which leads to panic).
-            // Such message will be inserted into the queue and later processed as
-            // non executable.
-            //
-            // Test for it - `test_create_program_no_code_hash`.
-            for (_, candidate) in candidates {
-                self.programs.insert(candidate);
+                Pallet::<T>::deposit_event(Event::ProgramChanged {
+                    id: candidate_id,
+                    change: ProgramChangeKind::ProgramSet {
+                        expiration: block_number,
+                    },
+                });
+            } else {
+                log::debug!("Program with id {:?} already exists", candidate_id);
             }
         }
     }

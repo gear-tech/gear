@@ -26,7 +26,7 @@ use crate::{
 };
 use alloc::{format, string::String, vec::Vec};
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     env::Externalities,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
@@ -83,8 +83,8 @@ where
     let allocations_context = AllocationsContext::try_new(
         memory_size,
         program.allocations,
-        program.code.static_pages(),
-        program.code.stack_end(),
+        program.code_metadata.static_pages(),
+        program.code_metadata.stack_end(),
         settings.max_pages,
     )
     .map_err(SystemExecutionError::from)?;
@@ -145,7 +145,7 @@ where
             ext,
             program.code.code(),
             kind,
-            program.code.exports().clone(),
+            program.code_metadata.code_exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -154,7 +154,7 @@ where
                 memory,
                 program.id,
                 program.memory_infix,
-                program.code.stack_end(),
+                program.code_metadata.stack_end(),
                 globals_config,
                 settings.lazy_pages_costs,
             )
@@ -259,6 +259,7 @@ where
 pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
+    code_metadata: CodeMetadata,
     allocations: Option<IntervalsTree<WasmPage>>,
     program_info: Option<(ProgramId, MemoryInfix)>,
     payload: Vec<u8>,
@@ -278,9 +279,10 @@ where
         id: program_id,
         memory_infix,
         code: instrumented_code,
+        code_metadata,
         allocations: allocations.unwrap_or_default(),
     };
-    let static_pages = program.code.static_pages();
+    let static_pages = program.code_metadata.static_pages();
     let memory_size = program
         .allocations
         .end()
@@ -316,7 +318,7 @@ where
             memory_size,
             program.allocations,
             static_pages,
-            program.code.stack_end(),
+            program.code_metadata.stack_end(),
             512.into(),
         )
         .map_err(|e| format!("Failed to create alloc ctx: {e:?}"))?,
@@ -344,7 +346,7 @@ where
             ext,
             program.code.code(),
             function,
-            program.code.exports().clone(),
+            program.code_metadata.code_exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -353,7 +355,7 @@ where
                 memory,
                 program_id,
                 program.memory_infix,
-                program.code.stack_end(),
+                program.code_metadata.stack_end(),
                 globals_config,
                 Default::default(),
             )

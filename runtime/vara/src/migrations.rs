@@ -21,12 +21,12 @@ use crate::*;
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
     // migration for added section sizes
-    pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
+    // pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
     // substrate v1.4.0
     staking::MigrateToV14<Runtime>,
     pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
     // move allocations to a separate storage item and remove pages_with_data field from program
-    pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
+    // pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
 );
 
 mod staking {

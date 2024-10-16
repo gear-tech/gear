@@ -147,7 +147,7 @@ pub mod pallet_tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{scheduler::*, storage::*, CodeMetadata};
+    use common::{scheduler::*, storage::*};
     use frame_support::{
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
@@ -156,7 +156,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        code::InstrumentedCode,
+        code::{CodeAttribution, CodeMetadata, InstrumentedCode},
         ids::{CodeId, ProgramId},
         memory::PageBuf,
         pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
@@ -217,23 +217,14 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
+    pub(crate) type InstrumentedCodeStorage<T: Config> =
+        StorageMap<_, Identity, CodeId, InstrumentedCode>;
 
     common::wrap_storage_map!(
-        storage: CodeStorage,
-        name: CodeStorageWrap,
+        storage: InstrumentedCodeStorage,
+        name: InstrumentedCodeStorageWrap,
         key: CodeId,
         value: InstrumentedCode
-    );
-
-    #[pallet::storage]
-    pub(crate) type CodeLenStorage<T: Config> = StorageMap<_, Identity, CodeId, u32>;
-
-    common::wrap_storage_map!(
-        storage: CodeLenStorage,
-        name: CodeLenStorageWrap,
-        key: CodeId,
-        value: u32
     );
 
     #[pallet::storage]
@@ -249,13 +240,25 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type MetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
+    pub(crate) type CodeMetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
 
     common::wrap_storage_map!(
-        storage: MetadataStorage,
-        name: MetadataStorageWrap,
+        storage: CodeMetadataStorage,
+        name: CodeMetadataStorageWrap,
         key: CodeId,
         value: CodeMetadata
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type CodeAttributionStorage<T: Config> =
+        StorageMap<_, Identity, CodeId, CodeAttribution>;
+
+    common::wrap_storage_map!(
+        storage: CodeAttributionStorage,
+        name: CodeAttributionStorageWrap,
+        key: CodeId,
+        value: CodeAttribution
     );
 
     #[pallet::storage]
@@ -304,10 +307,10 @@ pub mod pallet {
     );
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
-        type InstrumentedCodeStorage = CodeStorageWrap<T>;
-        type InstrumentedLenStorage = CodeLenStorageWrap<T>;
-        type MetadataStorage = MetadataStorageWrap<T>;
+        type InstrumentedCodeStorage = InstrumentedCodeStorageWrap<T>;
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
+        type CodeMetadataStorage = CodeMetadataStorageWrap<T>;
+        type CodeAttributionStorage = CodeAttributionStorageWrap<T>;
     }
 
     impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {

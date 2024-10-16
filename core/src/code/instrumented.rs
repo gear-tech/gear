@@ -18,13 +18,8 @@
 
 //! Module for instrumented code.
 
-use crate::{
-    code::{Code, CodeAndId},
-    ids::CodeId,
-    message::DispatchKind,
-    pages::{WasmPage, WasmPagesAmount},
-};
-use alloc::{collections::BTreeSet, vec::Vec};
+use crate::code::Code;
+use alloc::vec::Vec;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -121,63 +116,15 @@ impl InstantiatedSectionSizes {
 pub struct InstrumentedCode {
     /// Code instrumented with the latest schedule.
     code: Vec<u8>,
-    /// Original code length.
-    original_code_len: u32,
-    /// Exports of the wasm module.
-    exports: BTreeSet<DispatchKind>,
-    /// Static pages count from memory import.
-    static_pages: WasmPagesAmount,
-    /// Stack end page.
-    stack_end: Option<WasmPage>,
-    /// Instruction weights version.
-    instruction_weights_version: u32,
     /// Instantiated section sizes used for charging during module instantiation.
     instantiated_section_sizes: InstantiatedSectionSizes,
 }
 
 impl InstrumentedCode {
-    pub(crate) fn new(
-        code: Vec<u8>,
-        original_code_len: u32,
-        exports: BTreeSet<DispatchKind>,
-        static_pages: WasmPagesAmount,
-        stack_end: Option<WasmPage>,
-        instantiated_section_sizes: InstantiatedSectionSizes,
-        instruction_weights_version: u32,
-    ) -> Self {
+    pub(crate) fn new(code: Vec<u8>, instantiated_section_sizes: InstantiatedSectionSizes) -> Self {
         Self {
             code,
-            original_code_len,
-            exports,
-            static_pages,
-            stack_end,
             instantiated_section_sizes,
-            instruction_weights_version,
-        }
-    }
-
-    /// Creates a new instance of the instrumented code.
-    ///
-    /// # Safety
-    /// The caller must ensure that the `code` is a valid wasm binary,
-    /// and other parameters are valid and suitable for the wasm binary.
-    pub unsafe fn new_unchecked(
-        code: Vec<u8>,
-        original_code_len: u32,
-        exports: BTreeSet<DispatchKind>,
-        static_pages: WasmPagesAmount,
-        stack_end: Option<WasmPage>,
-        instantiated_section_sizes: InstantiatedSectionSizes,
-        instruction_weights_version: u32,
-    ) -> Self {
-        Self {
-            code,
-            original_code_len,
-            exports,
-            static_pages,
-            stack_end,
-            instantiated_section_sizes,
-            instruction_weights_version,
         }
     }
 
@@ -186,34 +133,9 @@ impl InstrumentedCode {
         &self.code
     }
 
-    /// Returns original code length.
-    pub fn original_code_len(&self) -> u32 {
-        self.original_code_len
-    }
-
-    /// Returns wasm module exports.
-    pub fn exports(&self) -> &BTreeSet<DispatchKind> {
-        &self.exports
-    }
-
-    /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPagesAmount {
-        self.static_pages
-    }
-
-    /// Returns stack end page if exists.
-    pub fn stack_end(&self) -> Option<WasmPage> {
-        self.stack_end
-    }
-
     /// Returns instantiated section sizes used for charging during module instantiation.
     pub fn instantiated_section_sizes(&self) -> &InstantiatedSectionSizes {
         &self.instantiated_section_sizes
-    }
-
-    /// Returns instruction weights version.
-    pub fn instruction_weights_version(&self) -> u32 {
-        self.instruction_weights_version
     }
 
     /// Consumes the instance and returns the instrumented code.
@@ -225,37 +147,5 @@ impl InstrumentedCode {
 impl From<Code> for InstrumentedCode {
     fn from(code: Code) -> Self {
         code.into_parts().0
-    }
-}
-
-/// The newtype contains the instrumented code and the corresponding id (hash).
-#[derive(Clone, Debug)]
-pub struct InstrumentedCodeAndId {
-    code: InstrumentedCode,
-    code_id: CodeId,
-}
-
-impl InstrumentedCodeAndId {
-    /// Returns reference to the instrumented code.
-    pub fn code(&self) -> &InstrumentedCode {
-        &self.code
-    }
-
-    /// Returns corresponding id (hash) for the code.
-    pub fn code_id(&self) -> CodeId {
-        self.code_id
-    }
-
-    /// Consumes the instance and returns the instrumented code.
-    pub fn into_parts(self) -> (InstrumentedCode, CodeId) {
-        (self.code, self.code_id)
-    }
-}
-
-impl From<CodeAndId> for InstrumentedCodeAndId {
-    fn from(code_and_id: CodeAndId) -> Self {
-        let (code, code_id) = code_and_id.into_parts();
-        let (code, _) = code.into_parts();
-        Self { code, code_id }
     }
 }

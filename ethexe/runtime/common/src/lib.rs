@@ -31,10 +31,10 @@ use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
+    ContextCharged, Ext, ProcessExecutionContext,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::ProgramId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
@@ -136,6 +136,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     program_id: ProgramId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
+    code_metadata: CodeMetadata,
     code_id: CodeId,
     ri: &RI,
 ) -> Vec<JournalNote> {
@@ -242,17 +243,25 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let context = match core_processor::precharge_for_program(
-        &block_config,
-        1_000_000_000_000,
-        dispatch,
-        program_id,
-    ) {
-        Ok(dispatch) => dispatch,
+    let context = ContextCharged::new(program_id, dispatch, 1_000_000_000_000);
+
+    let context = match context.charge_for_program(&block_config) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let context = match context.charge_for_code_metadata(&block_config) {
+        Ok(context) => context,
         Err(journal) => return journal,
     };
 
     let code = instrumented_code.expect("Instrumented code must be provided if program is active");
+
+    let context =
+        match context.charge_for_instrumented_code(&block_config, code.code().len() as u32) {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
 
     // TODO: support normal allocations len #4068
     let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
@@ -261,10 +270,26 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             .expect("Cannot get allocations")
     });
 
-    let context = match core_processor::precharge_for_allocations(
+    let context = match context
+        .charge_for_allocations(&block_config, allocations.intervals_amount() as u32)
+    {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let actor_data = ExecutableActorData {
+        allocations,
+        code_id,
+        code_exports: code_metadata.code_exports().clone(),
+        static_pages: code_metadata.static_pages(),
+        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
+        memory_infix: active_state.memory_infix,
+    };
+
+    let context = match context.charge_for_module_instantiation(
         &block_config,
-        context,
-        allocations.intervals_amount() as u32,
+        actor_data,
+        code.instantiated_section_sizes(),
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
@@ -275,33 +300,9 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             .read_pages(hash)
             .expect("Cannot get memory pages")
     });
-    let actor_data = ExecutableActorData {
-        allocations,
-        code_id,
-        code_exports: code.exports().clone(),
-        static_pages: code.static_pages(),
-        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
-        memory_infix: active_state.memory_infix,
-    };
 
-    let context =
-        match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
-
-    let context = ContextChargedForCode::from(context);
-    let context = ContextChargedForInstrumentation::from(context);
-    let context = match core_processor::precharge_for_module_instantiation(
-        &block_config,
-        context,
-        code.instantiated_section_sizes(),
-    ) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
-
-    let execution_context = ProcessExecutionContext::from((context, code, program_state.balance));
+    let execution_context =
+        ProcessExecutionContext::from((context, code, code_metadata, program_state.balance));
 
     let random_data = ri.random_data();
 

@@ -26,6 +26,7 @@ use crate::{
     executor,
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
+    ContextCharged, ForCodeMetadata, ForInstrumentedCode, ForProgram,
 };
 use alloc::{
     format,
@@ -203,6 +204,8 @@ enum ProcessErrorCase {
     NonExecutable,
     /// Error is considered as an execution failure.
     ExecutionFailed(ActorExecutionErrorReplyReason),
+    /// Message is executable, but it's execution failed due to code metadata verification.
+    MetadataVerificationFailed,
     /// Message is executable, but it's execution failed due to re-instrumentation.
     ReinstrumentationFailed,
 }
@@ -216,6 +219,10 @@ impl ProcessErrorCase {
             }
             ProcessErrorCase::ExecutionFailed(reason) => {
                 (reason.as_simple().into(), reason.to_string())
+            }
+            ProcessErrorCase::MetadataVerificationFailed => {
+                let err = ErrorReplyReason::ReinstrumentationFailure;
+                (err, err.to_string())
             }
             ProcessErrorCase::ReinstrumentationFailed => {
                 let err = ErrorReplyReason::ReinstrumentationFailure;
@@ -316,7 +323,9 @@ fn process_error(
     }
 
     let outcome = match case {
-        ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
+        ProcessErrorCase::ExecutionFailed { .. }
+        | ProcessErrorCase::ReinstrumentationFailed
+        | ProcessErrorCase::MetadataVerificationFailed => {
             let (_, err_payload) = case.to_reason_and_payload();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
@@ -362,30 +371,41 @@ pub fn process_execution_error(
 
 /// Helper function for journal creation in case of re-instrumentation error.
 pub fn process_reinstrumentation_error(
-    context: ContextChargedForInstrumentation,
+    context: ContextCharged<ForInstrumentedCode>,
 ) -> Vec<JournalNote> {
-    let dispatch = context.data.dispatch;
-    let program_id = context.data.destination_id;
-    let gas_burned = context.data.gas_counter.burned();
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+    let gas_burned = gas_counter.burned();
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
         dispatch,
-        program_id,
+        destination_id,
         gas_burned,
         system_reservation_ctx,
         ProcessErrorCase::ReinstrumentationFailed,
     )
 }
 
-/// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
+/// Helper function for journal creation in case of metadata verification error.
+pub fn process_code_metadata_error(context: ContextCharged<ForCodeMetadata>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+    let gas_burned = gas_counter.burned();
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
         dispatch,
-        gas_counter,
         destination_id,
-        ..
-    } = context;
+        gas_burned,
+        system_reservation_ctx,
+        ProcessErrorCase::MetadataVerificationFailed,
+    )
+}
+
+/// Helper function for journal creation in message no execution case.
+pub fn process_non_executable(context: ContextCharged<ForProgram>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 

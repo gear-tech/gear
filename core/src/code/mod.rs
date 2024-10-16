@@ -28,14 +28,18 @@ use gear_wasm_instrument::{
     InstrumentationBuilder,
 };
 
+mod attribution;
 mod config;
 mod errors;
 mod instrumented;
+mod metadata;
 mod utils;
 
+pub use attribution::*;
 pub use config::*;
 pub use errors::*;
 pub use instrumented::*;
+pub use metadata::*;
 pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
 use utils::CodeTypeSectionSizes;
@@ -48,6 +52,7 @@ const GENERIC_OS_PAGE_SIZE: u32 = 4096;
 pub struct Code {
     original_code: Vec<u8>,
     instrumented_code: InstrumentedCode,
+    code_metadata: CodeMetadata,
 }
 
 impl Code {
@@ -111,6 +116,7 @@ impl Code {
         if let Some(get_gas_rules) = get_gas_rules {
             instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+
         module = instrumentation_builder.instrument(module)?;
 
         // Use instrumented module to get section sizes.
@@ -136,19 +142,21 @@ impl Code {
             type_section,
         );
 
-        let instrumented_code = InstrumentedCode::new(
-            code,
+        let instrumented_code = InstrumentedCode::new(code, instantiated_section_sizes);
+
+        let code_metadata = CodeMetadata::new(
             original_code.len() as u32,
-            exports,
+            instrumented_code.code().len() as u32,
+            exports.clone(),
             static_pages,
             stack_end,
-            instantiated_section_sizes,
-            config.version,
+            InstrumentationStatus::Instrumented(config.version),
         );
 
         Ok(Self {
             original_code,
             instrumented_code,
+            code_metadata,
         })
     }
 
@@ -287,9 +295,18 @@ impl Code {
         &self.instrumented_code
     }
 
+    /// Returns the code metadata.
+    pub fn code_metadata(&self) -> &CodeMetadata {
+        &self.code_metadata
+    }
+
     /// Consumes this instance and returns the instrumented and raw binary codes.
-    pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>) {
-        (self.instrumented_code, self.original_code)
+    pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>, CodeMetadata) {
+        (
+            self.instrumented_code,
+            self.original_code,
+            self.code_metadata,
+        )
     }
 }
 
@@ -625,7 +642,7 @@ mod tests {
         );
 
         let code = try_new_code_from_wat(wat.as_str(), None).expect("Must be ok");
-        assert_eq!(code.instrumented_code().stack_end(), Some(1.into()));
+        assert_eq!(code.code_metadata().stack_end(), Some(1.into()));
     }
 
     #[test]

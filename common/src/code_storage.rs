@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::storage::MapStorage;
-use gear_core::code::{CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
+use gear_core::code::{CodeAndId, CodeAttribution, CodeMetadata, InstrumentedCode};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
@@ -29,30 +29,31 @@ pub enum Error {
 /// Trait to work with program binary codes in a storage.
 pub trait CodeStorage {
     type InstrumentedCodeStorage: MapStorage<Key = CodeId, Value = InstrumentedCode>;
-    type InstrumentedLenStorage: MapStorage<Key = CodeId, Value = u32>;
     type OriginalCodeStorage: MapStorage<Key = CodeId, Value = Vec<u8>>;
-    type MetadataStorage: MapStorage<Key = CodeId, Value = CodeMetadata>;
+    type CodeMetadataStorage: MapStorage<Key = CodeId, Value = CodeMetadata>;
+    type CodeAttributionStorage: MapStorage<Key = CodeId, Value = CodeAttribution>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
-        Self::MetadataStorage::clear();
+        Self::CodeAttributionStorage::clear();
+        Self::CodeMetadataStorage::clear();
         Self::OriginalCodeStorage::clear();
-        Self::InstrumentedLenStorage::clear();
         Self::InstrumentedCodeStorage::clear();
     }
 
-    fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), Error> {
+    /// Add the code to the storage.
+    fn add_code(code_and_id: CodeAndId, code_attribution: CodeAttribution) -> Result<(), Error> {
         let (code, code_id) = code_and_id.into_parts();
-        let (instrumented_code, original_code) = code.into_parts();
+        let (instrumented_code, original_code, code_metadata) = code.into_parts();
 
         Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
             if maybe.is_some() {
                 return Err(CodeStorageError::DuplicateItem);
             }
 
-            Self::InstrumentedLenStorage::insert(code_id, instrumented_code.code().len() as u32);
             Self::OriginalCodeStorage::insert(code_id, original_code);
-            Self::MetadataStorage::insert(code_id, metadata);
+            Self::CodeMetadataStorage::insert(code_id, code_metadata);
+            Self::CodeAttributionStorage::insert(code_id, code_attribution);
 
             *maybe = Some(instrumented_code);
             Ok(())
@@ -60,13 +61,16 @@ pub trait CodeStorage {
     }
 
     /// Update the corresponding code in the storage.
-    fn update_instrumented_code(code_and_id: InstrumentedCodeAndId) {
-        let (instrumented_code, code_id) = code_and_id.into_parts();
-
-        Self::InstrumentedLenStorage::insert(code_id, instrumented_code.code().len() as u32);
+    fn update_instrumented_code(code_id: CodeId, instrumented_code: InstrumentedCode) {
         Self::InstrumentedCodeStorage::insert(code_id, instrumented_code);
     }
 
+    /// Update the corresponding metadata in the storage.
+    fn update_code_metadata(code_id: CodeId, metadata: CodeMetadata) {
+        Self::CodeMetadataStorage::insert(code_id, metadata);
+    }
+
+    /// Returns true if the code associated with given id exists.
     fn exists(code_id: CodeId) -> bool {
         Self::InstrumentedCodeStorage::contains_key(&code_id)
     }
@@ -80,9 +84,9 @@ pub trait CodeStorage {
                 return false;
             }
 
-            Self::InstrumentedLenStorage::remove(code_id);
             Self::OriginalCodeStorage::remove(code_id);
-            Self::MetadataStorage::remove(code_id);
+            Self::CodeMetadataStorage::remove(code_id);
+            Self::CodeAttributionStorage::remove(code_id);
 
             *maybe = None;
             true
@@ -93,15 +97,15 @@ pub trait CodeStorage {
         Self::InstrumentedCodeStorage::get(&code_id)
     }
 
-    fn get_instrumented_code_len(code_id: CodeId) -> Option<u32> {
-        Self::InstrumentedLenStorage::get(&code_id)
-    }
-
     fn get_original_code(code_id: CodeId) -> Option<Vec<u8>> {
         Self::OriginalCodeStorage::get(&code_id)
     }
 
-    fn get_metadata(code_id: CodeId) -> Option<CodeMetadata> {
-        Self::MetadataStorage::get(&code_id)
+    fn get_code_metadata(code_id: CodeId) -> Option<CodeMetadata> {
+        Self::CodeMetadataStorage::get(&code_id)
+    }
+
+    fn get_code_attribution(code_id: CodeId) -> Option<CodeAttribution> {
+        Self::CodeAttributionStorage::get(&code_id)
     }
 }

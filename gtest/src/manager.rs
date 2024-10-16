@@ -47,7 +47,7 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
-    ContextChargedForInstrumentation, ContextChargedForProgram, Ext,
+    Ext,
 };
 use gear_common::{
     auxiliary::{
@@ -60,7 +60,7 @@ use gear_common::{
     LockId, Origin,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    code::{Code, CodeAndId, InstrumentedCode, TryNewCodeConfig},
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,

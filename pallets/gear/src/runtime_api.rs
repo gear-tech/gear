@@ -36,6 +36,7 @@ pub(crate) const ALLOWANCE_LIMIT_ERR: &str = "Calculation gas limit exceeded. Us
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
     pub allocations: IntervalsTree<WasmPage>,
     pub memory_infix: MemoryInfix,
 }
@@ -409,9 +410,8 @@ where
         }
 
         let code_and_id = CodeAndId::new(code);
-        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
 
-        let instrumented_code = code_and_id.into_parts().0;
+        let (instrumented_code, _, code_metadata) = code_and_id.into_parts().0.into_parts();
 
         let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
@@ -435,6 +435,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             function.into(),
             instrumented_code,
+            code_metadata,
             None,
             None,
             payload,
@@ -454,6 +455,7 @@ where
 
         let CodeWithMemoryData {
             instrumented_code,
+            code_metadata,
             allocations,
             memory_infix,
         } = Self::code_with_memory(program_id)?;
@@ -472,6 +474,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("state"),
             instrumented_code,
+            code_metadata,
             Some(allocations),
             Some((program_id, memory_infix)),
             payload,
@@ -490,6 +493,7 @@ where
 
         let CodeWithMemoryData {
             instrumented_code,
+            code_metadata,
             allocations,
             memory_infix,
         } = Self::code_with_memory(program_id)?;
@@ -508,6 +512,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("metahash"),
             instrumented_code,
+            code_metadata,
             Some(allocations),
             Some((program_id, memory_infix)),
             Default::default(),
@@ -527,25 +532,48 @@ where
             .try_into()
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
-        let code_id = program.code_hash.cast();
+        let code_id = program.code_id.cast();
 
-        // Load instrumented binary code from storage.
-        let mut code = T::CodeStorage::get_instrumented_code(code_id).ok_or_else(|| {
-            format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
-        })?;
+        let code_metadata = T::CodeStorage::get_code_metadata(code_id)
+            .ok_or_else(|| format!("Code '{code_id:?}' not found for program '{program_id:?}'"))?;
 
-        // Reinstrument the code if necessary.
         let schedule = T::Schedule::get();
 
-        if code.instruction_weights_version() != schedule.instruction_weights.version {
-            code = Pallet::<T>::reinstrument_code(code_id, &schedule)
-                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?;
-        }
+        // Check if the code needs to be reinstrumented.
+        let need_reinstrumentation = match code_metadata.instrumentation_status() {
+            InstrumentationStatus::Instrumented(weights_version) => {
+                weights_version != schedule.instruction_weights.version
+            }
+            InstrumentationStatus::InstrumentationFailed(weights_version) => {
+                if weights_version == schedule.instruction_weights.version {
+                    return Err(format!(
+                        "Re-instrumentation already failed for program '{program_id:?}' \
+                        with instructions weights version {weights_version}"
+                    ));
+                }
+
+                true
+            }
+        };
+
+        let instrumented_code = if need_reinstrumentation {
+            let original_code = T::CodeStorage::get_original_code(code_id).ok_or_else(|| {
+                format!("Code '{code_id:?}' not found for program '{program_id:?}'")
+            })?;
+
+            Pallet::<T>::reinstrument_code(code_id, original_code, &schedule)
+                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?
+        } else {
+            T::CodeStorage::get_instrumented_code(code_id).ok_or_else(|| {
+                format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
+            })?
+        };
 
         let allocations = ProgramStorageOf::<T>::allocations(program_id).unwrap_or_default();
 
         Ok(CodeWithMemoryData {
-            instrumented_code: code,
+            instrumented_code,
+            code_metadata,
             allocations,
             memory_infix: program.memory_infix,
         })
