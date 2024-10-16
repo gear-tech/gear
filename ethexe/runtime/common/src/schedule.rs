@@ -3,7 +3,7 @@ use crate::{
     InBlockTransitions,
 };
 use alloc::vec;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{Rfm, ScheduledTask, Sd, Sum},
     router::{OutgoingMessage, ValueClaim},
@@ -44,8 +44,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
         let mut value_claim = None;
 
         let state_hash = self.update_state_with_storage(program_id, |storage, state| {
-            // TODO (breathx): FIX WITHIN THE PR, this removal should be infallible, isn't it?
-            let Some(((claimed_value, expiry), new_mailbox_hash)) = storage
+            let ((claimed_value, expiry), new_mailbox_hash) = storage
                 .modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
                     let local_mailbox = mailbox.get_mut(&user_id)?;
                     let claimed_value = local_mailbox.remove(&message_id)?;
@@ -56,9 +55,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
 
                     Some(claimed_value)
                 })?
-            else {
-                return Ok(());
-            };
+                .ok_or_else(|| anyhow!("failed to find message in mailbox"))?;
 
             state.mailbox_hash = new_mailbox_hash;
 
@@ -93,14 +90,11 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
 
     fn send_dispatch(&mut self, (program_id, message_id): (ProgramId, MessageId)) -> u64 {
         self.update_state_with_storage(program_id, |storage, state| {
-            // TODO (breathx): FIX WITHIN THE PR, this removal should be infallible, isn't it?
-            let Some(((dispatch, _expiry), new_stash_hash)) = storage
+            let ((dispatch, _expiry), new_stash_hash) = storage
                 .modify_stash_if_changed(state.stash_hash.clone(), |stash| {
                     stash.remove(&message_id)
                 })?
-            else {
-                return Ok(());
-            };
+                .ok_or_else(|| anyhow!("failed to find message in stash"))?;
 
             state.stash_hash = new_stash_hash;
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
@@ -121,14 +115,11 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
         let mut dispatch = None;
 
         self.update_state_with_storage(program_id, |storage, state| {
-            // TODO (breathx): FIX WITHIN THE PR, this removal should be infallible, isn't it?
-            let Some(((stashed_dispatch, _expiry), new_stash_hash)) = storage
+            let ((stashed_dispatch, _expiry), new_stash_hash) = storage
                 .modify_stash_if_changed(state.stash_hash.clone(), |stash| {
                     stash.remove(&stashed_message_id)
                 })?
-            else {
-                return Ok(());
-            };
+                .ok_or_else(|| anyhow!("failed to find message in stash"))?;
 
             state.stash_hash = new_stash_hash;
             dispatch = Some(stashed_dispatch);
@@ -170,15 +161,12 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> u64 {
         log::trace!("Running scheduled task wake message {message_id} to {program_id}");
 
-        // TODO (breathx): don't update state if not changed?
         self.update_state_with_storage(program_id, |storage, state| {
-            let Some(((dispatch, _expiry), new_waitlist_hash)) = storage
+            let ((dispatch, _expiry), new_waitlist_hash) = storage
                 .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
                     waitlist.remove(&message_id)
                 })?
-            else {
-                return Ok(());
-            };
+                .ok_or_else(|| anyhow!("failed to find message in waitlist"))?;
 
             state.waitlist_hash = new_waitlist_hash;
             state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
