@@ -151,12 +151,24 @@ impl Processor {
 
     pub(crate) fn handle_wvara_event(
         &mut self,
-        _in_block_transitions: &mut InBlockTransitions,
+        in_block_transitions: &mut InBlockTransitions,
         event: WVaraEvent,
     ) -> Result<()> {
         match event {
-            WVaraEvent::Transfer { .. } => {
-                log::debug!("Handler not yet implemented: {event:?}");
+            WVaraEvent::Transfer { from, to, value } => {
+                if let Some(state_hash) = in_block_transitions.state_of(&to) {
+                    if in_block_transitions.state_of(&from).is_none() {
+                        let new_state_hash = self.db.mutate_state(state_hash, |_, state| {
+                            state.balance += value;
+                            Ok(())
+                        })?;
+
+                        in_block_transitions
+                            .modify_state(to, new_state_hash)
+                            .expect("queried above so infallible here");
+                    }
+                }
+
                 Ok(())
             }
         }
