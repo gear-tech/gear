@@ -400,7 +400,21 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        // TODO: implement
+        // TODO (breathx): implement rest of cases.
+        if let Some(to) = to {
+            if self.in_block_transitions.state_of(&from).is_some() {
+                return;
+            }
+
+            let state_hash = self.update_state(to, |state| {
+                state.balance += value;
+                Ok(())
+            });
+
+            self.in_block_transitions
+                .modify_state_with(to, state_hash, value, vec![], vec![])
+                .expect("queried above; infallible");
+        }
     }
 
     fn store_new_programs(
