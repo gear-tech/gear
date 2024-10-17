@@ -29,7 +29,10 @@ use alloy::{
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
-        fillers::{FillProvider, JoinFill, WalletFiller, GasFiller, NonceFiller, ChainIdFiller, BlobGasFiller},
+        fillers::{
+            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
+            WalletFiller,
+        },
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
     },
