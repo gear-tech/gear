@@ -23,6 +23,7 @@ clap = { workspace = true, features = ["derive"] }
 mimalloc = { workspace = true, default-features = false }
 log = { workspace = true, features = ["std"] }
 futures.workspace = true
+derive_more.workspace = true
 
 # Gear
 runtime-primitives.workspace = true
