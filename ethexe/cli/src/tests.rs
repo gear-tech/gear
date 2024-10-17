@@ -323,6 +323,108 @@ async fn mailbox() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn incoming_transfers() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, b"PING", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+    let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
+
+    let on_eth_balance = wvara
+        .query()
+        .balance_of(ping.address().0.into())
+        .await
+        .unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 tokens
+    const VALUE_SENT: u128 = 1_000_000_000_000_000;
+
+    let mut listener = env.events_publisher().subscribe().await;
+
+    env.transfer_wvara(ping_id, VALUE_SENT).await;
+
+    listener
+        .apply_until_block_event(|e| {
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+        })
+        .await
+        .unwrap();
+
+    let on_eth_balance = wvara
+        .query()
+        .balance_of(ping.address().0.into())
+        .await
+        .unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    env.approve_wvara(ping_id).await;
+
+    let res = env
+        .send_message(ping_id, b"PING", VALUE_SENT)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        res.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(res.reply_value, 0);
+
+    let on_eth_balance = wvara
+        .query()
+        .balance_of(ping.address().0.into())
+        .await
+        .unwrap();
+    assert_eq!(on_eth_balance, 2 * VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 2 * VALUE_SENT);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn ping_reorg() {
     gear_utils::init_default_logger();
@@ -932,6 +1034,17 @@ mod utils {
             let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
             wvara.approve_all(program_address.0.into()).await.unwrap();
+        }
+
+        pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
+            log::info!("📗 Transferring {value} WVara to {program_id}");
+
+            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let wvara = self.ethereum.router().wvara();
+            wvara
+                .transfer(program_address.0.into(), value)
+                .await
+                .unwrap();
         }
 
         pub fn events_publisher(&self) -> EventsPublisher {
