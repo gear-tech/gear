@@ -21,6 +21,7 @@
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
 use gear_core::ids::ProgramId;
+use gsdk::metadata::runtime_types::pallet_gear_voucher::internal::VoucherPermissions;
 use parity_scale_codec::Encode;
 
 #[tokio::test]
@@ -35,14 +36,19 @@ async fn voucher_issue_and_upload_code_and_send_message() -> anyhow::Result<()> 
     let gas_limit = api.block_gas_limit()?;
 
     // Taking account balance.
-    let _balance = api.total_balance(api.account_id()).await?;
+    let _initial_balance = api.free_balance(api.account_id()).await?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
 
     // Issue voucher
     let (voucher_id, ..) = api
-        .issue_voucher(actor_id, voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            actor_id,
+            voucher_initial_balance,
+            100,
+            VoucherPermissions::all(),
+        )
         .await?;
 
     // Upload code with voucher
@@ -50,10 +56,18 @@ async fn voucher_issue_and_upload_code_and_send_message() -> anyhow::Result<()> 
         .upload_code_with_voucher(voucher_id.clone(), WASM_BINARY)
         .await?;
 
-    // Create program
+    // Create program with voucher
     let payload = InitMessage::Capacitor("15".to_string()).encode();
     let (message_id, program_id, ..) = api
-        .create_program_bytes(code_id, vec![], payload, gas_limit, 0)
+        .create_program_bytes_with_voucher(
+            voucher_id.clone(),
+            code_id,
+            vec![],
+            payload,
+            gas_limit,
+            0,
+            false,
+        )
         .await?;
 
     // Asserting message succeed
@@ -77,6 +91,9 @@ async fn voucher_issue_and_upload_code_and_send_message() -> anyhow::Result<()> 
 
     // Decline voucher
     let (_voucher_id, ..) = api.decline_voucher_with_voucher(voucher_id.clone()).await?;
+
+    // Revoke voucher
+    let (_voucher_id, ..) = api.revoke_voucher(actor_id, voucher_id.clone()).await?;
 
     Ok(())
 }
