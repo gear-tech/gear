@@ -334,6 +334,8 @@ morph_types! {
 impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime {
     type WeightInfo = pallet_ranked_collective::weights::SubstrateWeight<Self>;
     type RuntimeEvent = RuntimeEvent;
+    type AddOrigin = EnsureRoot<AccountId>;
+    type RemoveOrigin = Self::DemoteOrigin;
     // Promotion is by any of:
     // - Root can demote arbitrarily.
     // - the FellowshipAdmin origin (i.e. token holder referendum);
@@ -356,7 +358,16 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
             TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<2>>>,
         >,
     >;
+    type ExchangeOrigin = EitherOf<
+        frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
+        EitherOf<
+            MapSuccess<FellowshipAdmin, Replace<ConstU16<3>>>,
+            TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<2>>>,
+        >,
+    >;
     type Polls = FellowshipReferenda;
     type MinRankOfClass = sp_runtime::traits::Identity;
     type VoteWeight = pallet_ranked_collective::Geometric;
+    type MemberSwappedHandler = ();
+    type MaxMemberCount = ();
 }

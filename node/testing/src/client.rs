@@ -18,33 +18,19 @@
 
 //! Utilities to build a `TestClient` for gear- or vara-runtime.
 
+use service::RuntimeExecutor;
 use sp_runtime::BuildStorage;
 /// Re-export test-client utilities.
 pub use substrate_test_client::*;
 use vara_runtime as runtime;
 
-// A unit struct which implements `NativeExecutionDispatch` feeding in the hard-coded runtime
-pub struct LocalExecutorDispatch;
-
-impl sc_executor::NativeExecutionDispatch for LocalExecutorDispatch {
-    type ExtendHostFunctions = (
-        frame_benchmarking::benchmarking::HostFunctions,
-        gear_runtime_interface::gear_ri::HostFunctions,
-        gear_runtime_interface::sandbox::HostFunctions,
-        sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
-        gear_runtime_interface::gear_bls_12_381::HostFunctions,
-    );
-
-    fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-        runtime::api::dispatch(method, data)
-    }
-
-    fn native_version() -> sc_executor::NativeVersion {
-        runtime::native_version()
-    }
-}
-
-pub type ExecutorDispatch = sc_executor::NativeElseWasmExecutor<LocalExecutorDispatch>;
+pub type ExtendHostFunctions = (
+    frame_benchmarking::benchmarking::HostFunctions,
+    gear_runtime_interface::gear_ri::HostFunctions,
+    gear_runtime_interface::sandbox::HostFunctions,
+    sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
+    gear_runtime_interface::gear_bls_12_381::HostFunctions,
+);
 
 /// Test client backend.
 pub type Backend = substrate_test_client::Backend<runtime_primitives::Block>;
@@ -52,7 +38,7 @@ pub type Backend = substrate_test_client::Backend<runtime_primitives::Block>;
 /// Test client type.
 pub type Client = client::Client<
     Backend,
-    client::LocalCallExecutor<runtime_primitives::Block, Backend, ExecutorDispatch>,
+    client::LocalCallExecutor<runtime_primitives::Block, Backend, RuntimeExecutor>,
     runtime_primitives::Block,
     runtime::RuntimeApi,
 >;
@@ -83,13 +69,13 @@ pub trait TestClientBuilderExt: Sized {
     fn build(self) -> Client;
 
     /// Build the test client with customized executor.
-    fn build_with_wasm_executor(self, executor: Option<ExecutorDispatch>) -> Client;
+    fn build_with_wasm_executor(self, executor: Option<RuntimeExecutor>) -> Client;
 }
 
 impl TestClientBuilderExt
     for substrate_test_client::TestClientBuilder<
         runtime_primitives::Block,
-        client::LocalCallExecutor<runtime_primitives::Block, Backend, ExecutorDispatch>,
+        client::LocalCallExecutor<runtime_primitives::Block, Backend, RuntimeExecutor>,
         Backend,
         GenesisParameters,
     >
@@ -102,11 +88,9 @@ impl TestClientBuilderExt
         self.build_with_native_executor(None).0
     }
 
-    fn build_with_wasm_executor(self, executor: Option<ExecutorDispatch>) -> Client {
-        let executor = executor.unwrap_or_else(|| {
-            NativeElseWasmExecutor::new_with_wasm_executor(WasmExecutor::builder().build())
-        });
+    fn build_with_wasm_executor(self, executor: Option<RuntimeExecutor>) -> Client {
+        let executor = executor.unwrap_or_else(|| WasmExecutor::builder().build());
 
-        self.build_with_native_executor(executor).0
+        executor
     }
 }

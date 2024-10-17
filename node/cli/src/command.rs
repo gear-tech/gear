@@ -211,7 +211,7 @@ pub fn run() -> sc_cli::Result<()> {
             use frame_benchmarking_cli::{
                 BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
             };
-            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
+            use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
             use sp_keyring::Sr25519Keyring;
 
             let runner = cli.create_runner(cmd)?;
@@ -232,11 +232,9 @@ pub fn run() -> sc_cli::Result<()> {
                             #[cfg(feature = "vara-native")]
                             spec if spec.is_vara() => cmd
                                 .run::<service::vara_runtime::Block, ExtendedHostFunctions<
-                                sp_io::SubstrateHostFunctions,
-                                <service::VaraExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
-                            >>(
-                                    config,
-                                ),
+                                    sp_io::SubstrateHostFunctions,
+                                    ExtendHostFunctions,
+                                >>(config),
                             _ => Err("invalid chain spec".into()),
                         }
                     }
