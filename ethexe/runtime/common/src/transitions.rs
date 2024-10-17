@@ -165,6 +165,7 @@ impl InBlockTransitions {
                 res.push(StateTransition {
                     actor_id,
                     new_state_hash,
+                    inheritor: ActorId::zero(),
                     value_to_receive: modification.value_to_receive,
                     value_claims: modification.claims,
                     messages: modification.messages,

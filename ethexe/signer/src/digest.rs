@@ -118,6 +118,7 @@ impl ToDigest for StateTransition {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.actor_id.to_address_lossy().as_bytes());
         hasher.update(self.new_state_hash.as_bytes());
+        hasher.update(self.inheritor.to_address_lossy().as_bytes());
         hasher.update(self.value_to_receive.to_be_bytes().as_slice());
 
         let mut value_hasher = sha3::Keccak256::new();
@@ -172,6 +173,7 @@ mod tests {
         let state_transition = StateTransition {
             actor_id: ActorId::from(0),
             new_state_hash: H256::from([1; 32]),
+            inheritor: ActorId::from(0),
             value_to_receive: 0,
             value_claims: vec![],
             messages: vec![OutgoingMessage {
