@@ -218,18 +218,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             let source = dispatch.source();
             let message = dispatch.into_parts().1;
 
-            let source_state_hash = self
-                .in_block_transitions
-                .state_of(&source)
+            self.in_block_transitions
+                .modify_transition(source, |_state_hash, transition| {
+                    transition.messages.push(OutgoingMessage::from(message))
+                })
                 .expect("must exist");
-
-            self.in_block_transitions.modify_state_with(
-                source,
-                source_state_hash,
-                0,
-                vec![],
-                vec![OutgoingMessage::from(message)],
-            );
 
             return;
         }
@@ -400,14 +393,16 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 return;
             }
 
-            let state_hash = self.update_state(to, |state| {
+            self.update_state(to, |state| {
                 state.balance += value;
                 Ok(())
             });
 
             self.in_block_transitions
-                .modify_state_with(to, state_hash, value, vec![], vec![])
-                .expect("queried above; infallible");
+                .modify_transition(to, |_state_hash, transition| {
+                    transition.value_to_receive += value
+                })
+                .expect("must exist");
         }
     }
 

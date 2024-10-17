@@ -129,38 +129,9 @@ impl InBlockTransitions {
     }
 
     pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256) -> Option<()> {
-        self.modify_state_with(
-            actor_id,
-            new_state_hash,
-            0,
-            Default::default(),
-            Default::default(),
-        )
-    }
-
-    pub fn modify_state_with(
-        &mut self,
-        actor_id: ActorId,
-        new_state_hash: H256,
-        extra_value_to_receive: u128,
-        extra_claims: Vec<ValueClaim>,
-        extra_messages: Vec<OutgoingMessage>,
-    ) -> Option<()> {
-        let initial_state = self.states.insert(actor_id, new_state_hash)?;
-
-        let transition = self
-            .modifications
-            .entry(actor_id)
-            .or_insert(NonFinalTransition {
-                initial_state,
-                ..Default::default()
-            });
-
-        transition.value_to_receive += extra_value_to_receive;
-        transition.claims.extend(extra_claims);
-        transition.messages.extend(extra_messages);
-
-        Some(())
+        self.modify_transition(actor_id, |state_hash, _transition| {
+            *state_hash = new_state_hash
+        })
     }
 
     pub fn finalize(self) -> (Vec<StateTransition>, BTreeMap<ActorId, H256>, Schedule) {
