@@ -41,7 +41,7 @@ use gear_wasm_instrument::{
     parity_wasm::{builder, elements::Instruction},
     syscalls::SyscallName,
 };
-use std::{collections::BTreeMap, num::NonZeroU32};
+use std::{collections::BTreeMap, num::NonZero};
 
 /// Additional data injector.
 ///
@@ -56,7 +56,7 @@ pub struct AdditionalDataInjector<'a, 'b> {
     config: SyscallsConfig,
     last_offset: u32,
     module: WasmModule,
-    syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
+    syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZero<u32>>, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
@@ -191,7 +191,7 @@ pub struct DisabledAdditionalDataInjector<'a, 'b> {
     pub(super) module: WasmModule,
     pub(super) call_indexes: CallIndexes,
     pub(super) syscalls_imports:
-        BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
+        BTreeMap<InvocableSyscall, (Option<NonZero<u32>>, CallIndexesHandle)>,
     pub(super) config: SyscallsConfig,
 }
 

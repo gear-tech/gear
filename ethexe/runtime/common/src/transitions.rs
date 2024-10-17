@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::num::NonZeroU32;
-
 use alloc::{
-    collections::{btree_map::Iter, BTreeMap},
+    collections::{btree_map::Iter, BTreeMap, BTreeSet},
     vec::Vec,
 };
+use anyhow::{anyhow, Result};
+use core::num::NonZero;
 use ethexe_common::{
-    db::{Schedule, ScheduledTask},
+    db::{BlockHeader, Schedule, ScheduledTask},
     router::{OutgoingMessage, StateTransition, ValueClaim},
 };
 use gprimitives::{ActorId, CodeId, H256};
@@ -31,24 +31,24 @@ use parity_scale_codec::{Decode, Encode};
 
 #[derive(Default)]
 pub struct InBlockTransitions {
-    current_bn: u32,
+    header: BlockHeader,
     states: BTreeMap<ActorId, H256>,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
 }
 
 impl InBlockTransitions {
-    pub fn new(current_bn: u32, states: BTreeMap<ActorId, H256>, schedule: Schedule) -> Self {
+    pub fn new(header: BlockHeader, states: BTreeMap<ActorId, H256>, schedule: Schedule) -> Self {
         Self {
-            current_bn,
+            header,
             states,
             schedule,
             ..Default::default()
         }
     }
 
-    pub fn block_number(&self) -> u32 {
-        self.current_bn
+    pub fn header(&self) -> &BlockHeader {
+        &self.header
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {
@@ -70,20 +70,39 @@ impl InBlockTransitions {
             .collect()
     }
 
-    pub fn take_actual_tasks(&mut self) -> Vec<ScheduledTask> {
-        self.schedule.remove(&self.current_bn).unwrap_or_default()
+    pub fn take_actual_tasks(&mut self) -> BTreeSet<ScheduledTask> {
+        self.schedule
+            .remove(&self.header.height)
+            .unwrap_or_default()
     }
 
-    pub fn schedule_task(&mut self, in_blocks: NonZeroU32, task: ScheduledTask) -> u32 {
-        let scheduled_block = self.current_bn + u32::from(in_blocks);
+    pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
+        let scheduled_block = self.header.height + u32::from(in_blocks);
 
-        let entry = self.schedule.entry(scheduled_block).or_default();
-
-        if !entry.contains(&task) {
-            entry.push(task);
-        }
+        self.schedule
+            .entry(scheduled_block)
+            .or_default()
+            .insert(task);
 
         scheduled_block
+    }
+
+    pub fn remove_task(&mut self, expiry: u32, task: &ScheduledTask) -> Result<()> {
+        let block_tasks = self
+            .schedule
+            .get_mut(&expiry)
+            .ok_or_else(|| anyhow!("No tasks found scheduled for a given block"))?;
+
+        block_tasks
+            .remove(task)
+            .then_some(())
+            .ok_or_else(|| anyhow!("Requested task wasn't found scheduled for a given block"))?;
+
+        if block_tasks.is_empty() {
+            self.schedule.remove(&expiry);
+        }
+
+        Ok(())
     }
 
     pub fn register_new(&mut self, actor_id: ActorId) {

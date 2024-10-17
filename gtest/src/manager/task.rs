@@ -26,11 +26,11 @@ use gear_core::{
     gas_metering::TaskWeights,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
-    tasks::{ScheduledTask, TaskHandler},
+    tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 
-pub(crate) fn get_maximum_task_gas(task: &ScheduledTask<ProgramId>) -> Gas {
+pub(crate) fn get_maximum_task_gas(task: &VaraScheduledTask<ProgramId>) -> Gas {
     use ScheduledTask::*;
     let weights = TaskWeights::default();
     match task {
@@ -55,7 +55,7 @@ pub(crate) fn get_maximum_task_gas(task: &ScheduledTask<ProgramId>) -> Gas {
     }
 }
 
-impl TaskHandler<ProgramId> for ExtManager {
+impl TaskHandler<ProgramId, MessageId, bool> for ExtManager {
     fn pause_program(&mut self, _program_id: ProgramId) -> GearCommonGas {
         log::debug!("Program rent logic is disabled.");
 

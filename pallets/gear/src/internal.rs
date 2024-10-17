@@ -36,7 +36,7 @@ use common::{
 };
 use core::{
     cmp::{Ord, Ordering},
-    num::NonZeroUsize,
+    num::NonZero,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -1283,7 +1283,7 @@ where
 
     pub(crate) fn inheritor_for(
         program_id: ProgramId,
-        max_depth: NonZeroUsize,
+        max_depth: NonZero<usize>,
     ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
         let max_depth = max_depth.get();
 

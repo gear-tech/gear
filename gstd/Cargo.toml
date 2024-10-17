@@ -28,7 +28,8 @@ futures = { workspace = true, features = ["alloc"] }
 waker-fn = "1.2.0"
 
 [features]
-#! ## Default features
+#! ## Default features:
+#! - `panic-message`
 
 default = ["panic-message"]
 
@@ -82,4 +83,4 @@ debug = ["galloc/debug", "gcore/debug"]
 #! [rust-51540]: https://github.com/rust-lang/rust/issues/51540
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["document-features"]

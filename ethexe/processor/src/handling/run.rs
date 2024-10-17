@@ -96,7 +96,6 @@ async fn run_in_async(
                     program_id,
                     in_block_transitions,
                     storage: &db,
-                    block_info: Default::default(),
                 };
                 core_processor::handle_journal(journal, &mut handler);
             }

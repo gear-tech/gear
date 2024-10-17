@@ -22,8 +22,9 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
-use anyhow::Result;
-use core::num::NonZeroU32;
+use anyhow::{anyhow, Result};
+use core::num::NonZero;
+use ethexe_common::router::OutgoingMessage;
 use gear_core::{
     code::InstrumentedCode,
     ids::{prelude::MessageIdExt as _, ProgramId},
@@ -43,10 +44,13 @@ use parity_scale_codec::{Decode, Encode};
 
 pub use gear_core::program::ProgramState as InitStatus;
 
+/// 3h validity in mailbox for 12s blocks.
+pub const MAILBOX_VALIDITY: u32 = 54_000;
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct HashAndLen {
     pub hash: H256,
-    pub len: NonZeroU32,
+    pub len: NonZero<u32>,
 }
 
 // TODO: temporary solution to avoid lengths taking in account
@@ -54,7 +58,7 @@ impl From<H256> for HashAndLen {
     fn from(value: H256) -> Self {
         Self {
             hash: value,
-            len: NonZeroU32::new(1).expect("impossible"),
+            len: NonZero::<u32>::new(1).expect("impossible"),
         }
     }
 }
@@ -141,6 +145,8 @@ pub struct ProgramState {
     pub queue_hash: MaybeHash,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHash,
+    /// Hash of dispatch stash, see [`DispatchStash`].
+    pub stash_hash: MaybeHash,
     /// Hash of mailboxed messages, see [`Mailbox`].
     pub mailbox_hash: MaybeHash,
     /// Reducible balance.
@@ -160,6 +166,7 @@ impl ProgramState {
             }),
             queue_hash: MaybeHash::Empty,
             waitlist_hash: MaybeHash::Empty,
+            stash_hash: MaybeHash::Empty,
             mailbox_hash: MaybeHash::Empty,
             balance: 0,
             executable_balance: 0,
@@ -240,6 +247,31 @@ impl Dispatch {
             context,
         }
     }
+
+    pub fn into_outgoing<S: Storage>(self, storage: &S, destination: ActorId) -> OutgoingMessage {
+        let Self {
+            id,
+            payload_hash,
+            value,
+            details,
+            ..
+        } = self;
+
+        let payload = payload_hash.with_hash_or_default(|payload_hash| {
+            storage
+                .read_payload(payload_hash)
+                .expect("must be found")
+                .into_vec()
+        });
+
+        OutgoingMessage {
+            id,
+            destination,
+            payload,
+            value,
+            reply_details: details.and_then(|d| d.to_reply_details()),
+        }
+    }
 }
 
 pub type ValueWithExpiry<T> = (T, u32);
@@ -248,8 +280,10 @@ pub type MessageQueue = VecDeque<Dispatch>;
 
 pub type Waitlist = BTreeMap<MessageId, ValueWithExpiry<Dispatch>>;
 
+pub type DispatchStash = BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>;
+
 // TODO (breathx): consider here LocalMailbox for each user.
-pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, Value>>;
+pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>;
 
 pub type MemoryPages = BTreeMap<GearPage, H256>;
 
@@ -273,6 +307,12 @@ pub trait Storage {
 
     /// Writes waitlist and returns its hash.
     fn write_waitlist(&self, waitlist: Waitlist) -> H256;
+
+    /// Reads dispatch stash by its hash.
+    fn read_stash(&self, hash: H256) -> Option<DispatchStash>;
+
+    /// Writes dispatch stash and returns its hash.
+    fn write_stash(&self, stash: DispatchStash) -> H256;
 
     /// Reads mailbox by mailbox hash.
     fn read_mailbox(&self, hash: H256) -> Option<Mailbox>;
@@ -307,8 +347,8 @@ pub trait Storage {
 
 pub trait ComplexStorage: Storage {
     fn store_payload(&self, payload: Vec<u8>) -> Result<MaybeHash> {
-        let payload = Payload::try_from(payload)
-            .map_err(|_| anyhow::anyhow!("failed to save payload: too large"))?;
+        let payload =
+            Payload::try_from(payload).map_err(|_| anyhow!("failed to save payload: too large"))?;
 
         Ok(payload
             .inner()
@@ -331,7 +371,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<MaybeHash> {
         let mut pages = pages_hash.with_hash_or_default_result(|pages_hash| {
             self.read_pages(pages_hash)
-                .ok_or_else(|| anyhow::anyhow!("failed to read pages by their hash ({pages_hash})"))
+                .ok_or_else(|| anyhow!("failed to read pages by their hash ({pages_hash})"))
         })?;
 
         f(&mut pages);
@@ -351,7 +391,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<MaybeHash> {
         let mut allocations = allocations_hash.with_hash_or_default_result(|allocations_hash| {
             self.read_allocations(allocations_hash).ok_or_else(|| {
-                anyhow::anyhow!("failed to read allocations by their hash ({allocations_hash})")
+                anyhow!("failed to read allocations by their hash ({allocations_hash})")
             })
         })?;
 
@@ -388,9 +428,8 @@ pub trait ComplexStorage: Storage {
         f: impl FnOnce(&mut Waitlist) -> Option<T>,
     ) -> Result<Option<(T, MaybeHash)>> {
         let mut waitlist = waitlist_hash.with_hash_or_default_result(|waitlist_hash| {
-            self.read_waitlist(waitlist_hash).ok_or_else(|| {
-                anyhow::anyhow!("failed to read waitlist by its hash ({waitlist_hash})")
-            })
+            self.read_waitlist(waitlist_hash)
+                .ok_or_else(|| anyhow!("failed to read waitlist by its hash ({waitlist_hash})"))
         })?;
 
         let res = if let Some(v) = f(&mut waitlist) {
@@ -398,6 +437,46 @@ pub trait ComplexStorage: Storage {
                 .is_empty()
                 .then_some(MaybeHash::Empty)
                 .unwrap_or_else(|| self.write_waitlist(waitlist).into());
+
+            Some((v, maybe_hash))
+        } else {
+            None
+        };
+
+        Ok(res)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// Always updates storage.
+    fn modify_stash(
+        &self,
+        stash_hash: MaybeHash,
+        f: impl FnOnce(&mut DispatchStash),
+    ) -> Result<MaybeHash> {
+        self.modify_stash_if_changed(stash_hash, |stash| {
+            f(stash);
+            Some(())
+        })
+        .map(|v| v.expect("`Some` passed above; infallible").1)
+    }
+
+    /// Usage: for optimized performance, please remove entries if empty.
+    /// DispatchStash is treated changed if f() returns Some.
+    fn modify_stash_if_changed<T>(
+        &self,
+        stash_hash: MaybeHash,
+        f: impl FnOnce(&mut DispatchStash) -> Option<T>,
+    ) -> Result<Option<(T, MaybeHash)>> {
+        let mut stash = stash_hash.with_hash_or_default_result(|stash_hash| {
+            self.read_stash(stash_hash)
+                .ok_or_else(|| anyhow!("failed to read dispatch stash by its hash ({stash_hash})"))
+        })?;
+
+        let res = if let Some(v) = f(&mut stash) {
+            let maybe_hash = stash
+                .is_empty()
+                .then_some(MaybeHash::Empty)
+                .unwrap_or_else(|| self.write_stash(stash).into());
 
             Some((v, maybe_hash))
         } else {
@@ -423,7 +502,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<(T, MaybeHash)> {
         let mut queue = queue_hash.with_hash_or_default_result(|queue_hash| {
             self.read_queue(queue_hash)
-                .ok_or_else(|| anyhow::anyhow!("failed to read queue by its hash ({queue_hash})"))
+                .ok_or_else(|| anyhow!("failed to read queue by its hash ({queue_hash})"))
         })?;
 
         let res = f(&mut queue);
@@ -458,9 +537,8 @@ pub trait ComplexStorage: Storage {
         f: impl FnOnce(&mut Mailbox) -> Option<T>,
     ) -> Result<Option<(T, MaybeHash)>> {
         let mut mailbox = mailbox_hash.with_hash_or_default_result(|mailbox_hash| {
-            self.read_mailbox(mailbox_hash).ok_or_else(|| {
-                anyhow::anyhow!("failed to read mailbox by its hash ({mailbox_hash})")
-            })
+            self.read_mailbox(mailbox_hash)
+                .ok_or_else(|| anyhow!("failed to read mailbox by its hash ({mailbox_hash})"))
         })?;
 
         let res = if let Some(v) = f(&mut mailbox) {
@@ -494,7 +572,7 @@ pub trait ComplexStorage: Storage {
     ) -> Result<(T, H256)> {
         let mut state = self
             .read_state(state_hash)
-            .ok_or_else(|| anyhow::anyhow!("failed to read state by its hash ({state_hash})"))?;
+            .ok_or_else(|| anyhow!("failed to read state by its hash ({state_hash})"))?;
 
         let res = f(self, &mut state)?;
 

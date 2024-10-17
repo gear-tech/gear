@@ -62,7 +62,7 @@ use numerated::iterators::IntervalIterator;
 use pages::GearPage;
 use signal::DefaultUserSignalHandler;
 pub use signal::{ExceptionInfo, UserSignalHandler};
-use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
+use std::{cell::RefCell, convert::TryInto, num::NonZero};
 
 /// Initialize lazy-pages once for process.
 static LAZY_PAGES_INITIALIZED: InitializationFlag = InitializationFlag::new();
@@ -400,7 +400,7 @@ pub fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
     // Check that sizes are not zero
     let page_sizes = page_sizes
         .into_iter()
-        .map(TryInto::<NonZeroU32>::try_into)
+        .map(TryInto::<NonZero<u32>>::try_into)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ZeroPageSize)?;
 

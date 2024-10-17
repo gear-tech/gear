@@ -26,7 +26,7 @@ use crate::{
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
 use numerated::tree::IntervalsTree;
-use std::{fmt, num::NonZeroU32};
+use std::{fmt, num::NonZero};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -127,7 +127,7 @@ impl LazyPagesContext {
 
 pub(crate) type Costs = [u64; CostNo::Amount as usize];
 pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
-pub(crate) type PageSizes = [NonZeroU32; SIZES_AMOUNT];
+pub(crate) type PageSizes = [NonZero<u32>; SIZES_AMOUNT];
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
@@ -214,7 +214,7 @@ pub enum LazyPagesVersion {
 }
 
 impl SizeManager for LazyPagesRuntimeContext {
-    fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
+    fn size_non_zero<S: SizeNumber>(&self) -> NonZero<u32> {
         self.page_sizes[S::SIZE_NO]
     }
 }
