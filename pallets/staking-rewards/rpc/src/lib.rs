@@ -19,9 +19,12 @@
 //! RPC interface for the gear module.
 
 use jsonrpsee::{
-    core::{Error as JsonRpseeError, RpcResult},
+    core::RpcResult,
     proc_macros::rpc,
-    types::error::{CallError, ErrorObject},
+    types::{
+        error::{ErrorCode, ErrorObject},
+        ErrorObjectOwned,
+    },
 };
 pub use pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi as GearStakingRewardsRuntimeApi;
 use pallet_gear_staking_rewards_rpc_runtime_api::InflationInfo;
@@ -81,8 +84,8 @@ where
         let api = self.client.runtime_api();
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> JsonRpseeError {
-            CallError::Custom(ErrorObject::owned(8000, desc, Some(format!("{err:?}")))).into()
+        fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> ErrorObjectOwned {
+            ErrorObject::owned(8000, desc, Some(format!("{err:?}"))).into()
         }
 
         api.inflation_info(at_hash)
