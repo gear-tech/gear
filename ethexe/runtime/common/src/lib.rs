@@ -150,11 +150,8 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             // TBD about deprecation
             SyscallName::SignalCode,
             SyscallName::SignalFrom,
-            // TODO: refactor asap
-            SyscallName::GasAvailable,
             // Temporary forbidden (unimplemented)
             SyscallName::CreateProgram,
-            SyscallName::Exit,
             SyscallName::Random,
         ]
         .into(),
