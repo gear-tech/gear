@@ -11,6 +11,7 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 // TODO: handle ETH sent in each contract.
 contract Mirror is IMirror {
     bytes32 public stateHash;
+    address public inheritor;
     // NOTE: Nonce 0 is used for init message in current implementation
     uint256 public nonce; /* = 1 */
     address public decoder;
@@ -25,6 +26,8 @@ contract Mirror is IMirror {
 
     // TODO (breathx): sendMessage with msg.sender, but with tx.origin if decoder.
     function sendMessage(bytes calldata _payload, uint128 _value) external payable returns (bytes32) {
+        require(inheritor == address(0), "program is terminated");
+
         uint128 baseFee = IRouter(router()).baseFee();
         _retrieveValueToRouter(baseFee + _value);
 
@@ -36,6 +39,8 @@ contract Mirror is IMirror {
     }
 
     function sendReply(bytes32 _repliedTo, bytes calldata _payload, uint128 _value) external payable {
+        require(inheritor == address(0), "program is terminated");
+
         uint128 baseFee = IRouter(router()).baseFee();
         _retrieveValueToRouter(baseFee + _value);
 
@@ -43,11 +48,14 @@ contract Mirror is IMirror {
     }
 
     function claimValue(bytes32 _claimedId) external {
-        // TODO (breathx): should we charge here something for try?
+        require(inheritor == address(0), "program is terminated");
+
         emit ValueClaimingRequested(_claimedId, _source());
     }
 
     function executableBalanceTopUp(uint128 _value) external payable {
+        require(inheritor == address(0), "program is terminated");
+
         _retrieveValueToRouter(_value);
 
         emit ExecutableBalanceTopUpRequested(_value);
@@ -61,6 +69,12 @@ contract Mirror is IMirror {
 
             emit StateChanged(stateHash);
         }
+    }
+
+    function setInheritor(address _inheritor) external onlyRouter {
+        inheritor = _inheritor;
+
+        IWrappedVara(IRouter(router()).wrappedVara()).approve(inheritor, uint256(2 ** 256 - 1));
     }
 
     function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external onlyRouter {
@@ -113,10 +127,6 @@ contract Mirror is IMirror {
         emit ValueClaimed(claimedId, value);
     }
 
-    function executableBalanceBurned(uint128 value) external onlyRouter {
-        _sendValueTo(router(), value);
-    }
-
     function createDecoder(address implementation, bytes32 salt) external onlyRouter {
         require(nonce == 0, "decoder could only be created before init message");
         require(decoder == address(0), "decoder could only be created once");
@@ -150,7 +160,7 @@ contract Mirror is IMirror {
     /* Local helper functions */
 
     function _source() private view returns (address) {
-        if (decoder != address(0) && msg.sender == decoder) {
+        if (msg.sender == decoder) {
             return tx.origin;
         } else {
             return msg.sender;
