@@ -41,7 +41,7 @@ use pallet_gear_rpc_runtime_api::GearApi;
 use parking_lot::{Mutex, RwLock};
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
-use sc_executor::{NativeElseWasmExecutor, WasmExecutor};
+use sc_executor::WasmExecutor;
 use sc_service::client::Client;
 use sc_transaction_pool::{BasicPool, FullPool};
 use sc_transaction_pool_api::{
@@ -69,8 +69,8 @@ use std::{
 };
 use testing::{
     client::{
-        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, ExecutorDispatch,
-        TestClientBuilder, TestClientBuilderExt,
+        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, TestClientBuilder,
+        TestClientBuilderExt,
     },
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
@@ -78,15 +78,18 @@ use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
 
+type RuntimeExecutor = sc_executor::WasmExecutor<
+    sc_executor::sp_wasm_interface::ExtendedHostFunctions<
+        sp_io::SubstrateHostFunctions,
+        ExtendHostFunctions,
+    >,
+>;
+
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
-fn get_executor() -> &'static RwLock<ExecutorDispatch> {
-    static EXECUTOR: OnceLock<RwLock<ExecutorDispatch>> = OnceLock::new();
-    EXECUTOR.get_or_init(|| {
-        RwLock::new(NativeElseWasmExecutor::new_with_wasm_executor(
-            WasmExecutor::builder().build(),
-        ))
-    })
+fn get_executor() -> &'static RwLock<RuntimeExecutor> {
+    static EXECUTOR: OnceLock<RwLock<RuntimeExecutor>> = OnceLock::new();
+    EXECUTOR.get_or_init(|| RwLock::new(WasmExecutor::builder().build()))
 }
 
 const SOURCE: TransactionSource = TransactionSource::External;

@@ -209,7 +209,8 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
 );
 
 /// The version information used to identify this runtime when compiled natively.
-#[cfg(feature = "std")]
+
+#[cfg(any(feature = "std", test))]
 pub fn native_version() -> NativeVersion {
     NativeVersion {
         runtime_version: VERSION,

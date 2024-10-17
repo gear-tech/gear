@@ -72,6 +72,7 @@ sp-api = { workspace = true, features = ["std"] }
 sp-authority-discovery = { workspace = true, optional = true, features = ["std"] }
 sp-consensus.workspace = true
 sp-consensus-babe = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
 sp-transaction-pool = { workspace = true, features = ["std"] }
 sp-transaction-storage-proof = { workspace = true, features = ["std"] }
 sp-consensus-grandpa = { workspace = true, features = ["std"] }
@@ -82,6 +83,7 @@ sp-block-builder = { workspace = true, features = ["std"] }
 sp-keystore = { workspace = true, features = ["std"] }
 sp-trie = { workspace = true, features = ["std"] }
 sp-storage = { workspace = true, features = ["std"] }
+sp-state-machine = { workspace = true, features = ["std"] }
 sp-offchain = { workspace = true, features = ["std"] }
 sp-session = { workspace = true, features = ["std"] }
 
