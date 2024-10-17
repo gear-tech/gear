@@ -228,7 +228,7 @@ pub fn get_weight_of_adding_task() -> Weight {
 
         TaskPoolOf::<Test>::add(
             100,
-            ScheduledTask::RemoveFromMailbox(USER_2, Default::default()),
+            VaraScheduledTask::RemoveFromMailbox(USER_2, Default::default()),
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 

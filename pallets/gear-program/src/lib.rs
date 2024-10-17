@@ -161,7 +161,7 @@ pub mod pallet {
         memory::PageBuf,
         pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, Program},
-        tasks::ScheduledTask,
+        tasks::VaraScheduledTask,
     };
     use sp_runtime::DispatchError;
 
@@ -173,7 +173,7 @@ pub mod pallet {
         /// Scheduler.
         type Scheduler: Scheduler<
             BlockNumber = BlockNumberFor<Self>,
-            Task = ScheduledTask<Self::AccountId>,
+            Task = VaraScheduledTask<Self::AccountId>,
         >;
 
         /// Custom block number tracker.

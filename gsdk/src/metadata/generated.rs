@@ -901,7 +901,7 @@ pub mod runtime_types {
             pub mod tasks {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum ScheduledTask<_0> {
+                pub enum ScheduledTask<_0, _1, _2> {
                     #[codec(index = 0)]
                     PauseProgram(runtime_types::gprimitives::ActorId),
                     #[codec(index = 1)]
@@ -921,11 +921,11 @@ pub mod runtime_types {
                         runtime_types::gprimitives::MessageId,
                     ),
                     #[codec(index = 6)]
-                    SendDispatch(runtime_types::gprimitives::MessageId),
+                    SendDispatch(_1),
                     #[codec(index = 7)]
                     SendUserMessage {
                         message_id: runtime_types::gprimitives::MessageId,
-                        to_mailbox: ::core::primitive::bool,
+                        to_mailbox: _2,
                     },
                     #[codec(index = 8)]
                     RemoveGasReservation(
