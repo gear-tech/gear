@@ -89,9 +89,12 @@ interface IMirror {
 
     function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external payable;
 
+    // payable?
     function claimValue(bytes32 claimedId) external;
 
     function executableBalanceTopUp(uint128 value) external payable;
+
+    function sendValueToInheritor() external;
 
     /* Router-driven state and funds management */
     // NOTE: all of these methods will have additional handler (with hooks) for decoder.

@@ -61,6 +61,13 @@ contract Mirror is IMirror {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
+    function sendValueToInheritor() public {
+        require(inheritor != address(0), "program is not terminated");
+
+        uint256 balance = IWrappedVara(IRouter(router()).wrappedVara()).balanceOf(address(this));
+        _sendValueTo(inheritor, uint128(balance));
+    }
+
     /* Router-driven state and funds management */
 
     function updateState(bytes32 newStateHash) external onlyRouter {
@@ -71,10 +78,11 @@ contract Mirror is IMirror {
         }
     }
 
+    // TODO (breathx): handle after-all transfers to program on wvara event properly.
     function setInheritor(address _inheritor) external onlyRouter {
         inheritor = _inheritor;
 
-        IWrappedVara(IRouter(router()).wrappedVara()).approve(inheritor, uint256(2 ** 256 - 1));
+        sendValueToInheritor();
     }
 
     function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external onlyRouter {
