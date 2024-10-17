@@ -23,5 +23,5 @@ which.workspace = true
 colored.workspace = true
 
 [dev-dependencies]
-wasmer = { workspace = true, features = ["std"] }
+wasmer.workspace = true
 wabt.workspace = true
