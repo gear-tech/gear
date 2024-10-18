@@ -26,7 +26,7 @@ use crate::{
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, CodeMetadata, InstrumentedCode},
     gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
@@ -331,7 +331,8 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (code, code_id) = Self::build_instrumented_code_and_id(self.code.clone());
+        let (code, code_id, code_metadata) =
+            Self::build_instrumented_code_and_id(self.code.clone());
 
         system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
@@ -347,6 +348,7 @@ impl ProgramBuilder {
             id,
             InnerProgram::Genuine(GenuineProgram {
                 code,
+                code_metadata,
                 code_id,
                 allocations: Default::default(),
                 pages_data: Default::default(),
@@ -357,7 +359,7 @@ impl ProgramBuilder {
 
     pub(crate) fn build_instrumented_code_and_id(
         original_code: Vec<u8>,
-    ) -> (InstrumentedCode, CodeId) {
+    ) -> (InstrumentedCode, CodeId, CodeMetadata) {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
@@ -369,7 +371,10 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts()
+        let (code, code_id) = CodeAndId::new(code).into_parts();
+        let (instrumented_code, _, code_metadata) = code.into_parts();
+
+        (instrumented_code, code_id, code_metadata)
     }
 }
 
