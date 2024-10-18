@@ -26,6 +26,8 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+#[cfg(feature = "std")]
+use serde::Serialize;
 
 pub use numerated::{self, num_traits};
 
@@ -195,6 +197,7 @@ impl<const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
     Default,
     derive_more::Into,
 )]
+#[cfg_attr(feature = "std", derive(Serialize))]
 pub struct Page<const SIZE: u32>(u32);
 
 impl<const SIZE: u32> Page<SIZE> {

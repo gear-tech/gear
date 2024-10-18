@@ -50,4 +50,10 @@ numerated = { workspace = true, features = ["mock"] }
 [features]
 default = []
 strict = []
-std = ["serde/std", "dep:impl-serde", "wasmparser/std", "gear-core-errors/serde"]
+std = [
+    "serde/std",
+    "dep:impl-serde",
+    "wasmparser/std",
+    "gear-core-errors/serde",
+    "gprimitives/serde",
+]

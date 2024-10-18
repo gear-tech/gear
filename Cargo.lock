@@ -5292,6 +5292,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
+ "ethexe-runtime-common",
  "futures",
  "gear-core",
  "gprimitives",
@@ -5300,6 +5301,7 @@ dependencies = [
  "jsonrpsee 0.24.0",
  "log",
  "parity-scale-codec",
+ "serde",
  "sp-core",
  "tokio",
  "tower 0.4.13",
@@ -5334,6 +5336,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "serde",
 ]
 
 [[package]]
@@ -19668,9 +19671,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser-nostd"
-version = "0.100.2"
+version = "0.100.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5a015fe95f3504a94bb1462c717aae75253e39b9dd6c3fb1062c934535c64aa"
+checksum = "9157cab83003221bfd385833ab587a039f5d6fa7304854042ba358a3b09e0724"
 dependencies = [
  "indexmap-nostd",
 ]
