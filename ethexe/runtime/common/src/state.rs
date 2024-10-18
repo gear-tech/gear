@@ -40,13 +40,14 @@ use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use gsys::BlockNumber;
 use parity_scale_codec::{Decode, Encode};
+use serde::Serialize;
 
 pub use gear_core::program::ProgramState as InitStatus;
 
 /// 3h validity in mailbox for 12s blocks.
 pub const MAILBOX_VALIDITY: u32 = 54_000;
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize)]
 pub struct HashAndLen {
     pub hash: H256,
     pub len: NonZero<u32>,
@@ -62,7 +63,7 @@ impl From<H256> for HashAndLen {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize)]
 pub enum MaybeHash {
     Hash(HashAndLen),
     Empty,
@@ -100,7 +101,7 @@ impl MaybeHash {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize)]
 pub struct ActiveProgram {
     /// Hash of wasm memory pages allocations, see [`Allocations`].
     pub allocations_hash: MaybeHash,
@@ -112,7 +113,7 @@ pub struct ActiveProgram {
     pub initialized: bool,
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize)]
 pub enum Program {
     Active(ActiveProgram),
     Exited(ProgramId),
@@ -136,7 +137,7 @@ impl Program {
 }
 
 /// ethexe program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize)]
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
@@ -188,7 +189,7 @@ impl ProgramState {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, Serialize)]
 pub struct Dispatch {
     /// Message id.
     pub id: MessageId,

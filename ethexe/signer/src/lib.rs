@@ -22,6 +22,7 @@ mod digest;
 mod signature;
 
 pub use digest::{Digest, ToDigest};
+use secp256k1::hashes::hex::DisplayHex;
 pub use sha3;
 pub use signature::Signature;
 
@@ -237,6 +238,12 @@ impl Signer {
         let local_public = PublicKey::from_bytes(public_key.serialize());
 
         let key_file = self.key_store.join(local_public.to_hex());
+        println!(
+            "Secret key: {:?}",
+            secret_key
+                .secret_bytes()
+                .to_hex_string(secp256k1::hashes::hex::Case::Lower)
+        );
         fs::write(key_file, secret_key.secret_bytes())?;
         Ok(local_public)
     }

@@ -13,7 +13,7 @@ repository.workspace = true
 tokio = { workspace = true }
 anyhow.workspace = true
 futures.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["serde"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
 jsonrpsee = { version = "0.24", features = ["server", "macros"] }
@@ -23,5 +23,7 @@ log.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime-common.workspace = true
 sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
+serde.workspace = true

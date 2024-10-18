@@ -28,6 +28,8 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+#[cfg(feature = "std")]
+use serde::Serialize;
 
 /// An unchangeable wrapper over u64 value, which is required
 /// to be used as a "view-only" reservations nonce in a message
@@ -40,6 +42,7 @@ use scale_info::{
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
+#[cfg_attr(feature = "std", derive(Serialize))]
 pub struct ReservationNonce(u64);
 
 impl From<&InnerNonce> for ReservationNonce {

@@ -22,6 +22,8 @@ anyhow.workspace = true
 parity-scale-codec.workspace = true
 log.workspace = true
 
+serde.workspace = true
+
 [features]
 default = ["std"]
 std = ["anyhow/std", "core-processor/std", "log/std"]
