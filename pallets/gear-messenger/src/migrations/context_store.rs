@@ -9,7 +9,6 @@ use common::{
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::ensure,
-    parity_scale_codec::Decode,
     sp_runtime::{
         codec::{Decode, Encode},
         TryRuntimeError,
@@ -97,31 +96,22 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
-        let res = if onchain == MIGRATE_FROM_VERSION {
+        if onchain == MIGRATE_FROM_VERSION {
             ensure!(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
             );
+        }
 
-            Some(true)
-        } else {
-            None
-        };
-
-        Ok(res.encode())
+        Ok(vec![])
     }
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        if let Some(x) = Option::<bool>::decode(&mut state.as_ref())
-            .map_err(|_| "`pre_upgrade` provided an invalid state")?
-        {
-            ensure!(x, "pre_upgrade failed",);
-            ensure!(
-                Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
-                "incorrect storage version after migration"
-            );
-        }
+        ensure!(
+            Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
+            "incorrect storage version after migration"
+        );
 
         Ok(())
     }
