@@ -28,9 +28,6 @@ use sp_wasm_interface::HostPointer;
 #[cfg(feature = "std")]
 pub mod detail;
 
-#[cfg(feature = "std")]
-pub use detail::init;
-
 /// Wasm-only interface that provides functions for interacting with the sandbox.
 #[runtime_interface(wasm_only)]
 pub trait Sandbox {

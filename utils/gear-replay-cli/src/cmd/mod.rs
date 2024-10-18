@@ -63,8 +63,6 @@ pub enum Command {
 
 impl Command {
     pub async fn run(&self, shared: &SharedParams) -> sc_cli::Result<()> {
-        gear_runtime_interface::sandbox_init();
-
         match &self {
             Command::ReplayBlock(cmd) => {
                 replay_block::run::<Block>(shared.clone(), cmd.clone()).await

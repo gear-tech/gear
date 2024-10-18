@@ -74,7 +74,7 @@ pub struct GlobalsAccessError;
 /// Globals access trait.
 pub trait GlobalsAccessor {
     /// Returns global `name` value, if `name` is I64 global export.
-    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError>;
+    fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError>;
 
     /// Set global `name` == `value`, if `name` is I64 global export.
     fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError>;

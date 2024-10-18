@@ -200,7 +200,7 @@ impl WasmProject {
         let mut production_profile = Table::new();
         production_profile.insert("inherits".into(), "release".into());
 
-        let mut profile = Table::new();
+        let mut profile = crate_info.profiles;
         profile.insert("dev".into(), dev_profile.clone().into());
         profile.insert("release".into(), release_profile.into());
         profile.insert("production".into(), production_profile.into());

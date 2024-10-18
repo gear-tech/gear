@@ -65,12 +65,6 @@ thread_local! {
     static SANDBOXES: RefCell<Sandboxes> = RefCell::new(Sandboxes::new());
 }
 
-pub fn init() {
-    SANDBOXES.with(|sandboxes| {
-        let _store = sandboxes.borrow_mut().get(0);
-    })
-}
-
 struct SupervisorContext<'a, 'b> {
     caller: &'a mut Caller<'b, StoreData>,
     dispatch_thunk: Func,
