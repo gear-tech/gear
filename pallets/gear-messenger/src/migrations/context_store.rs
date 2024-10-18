@@ -5,6 +5,17 @@ use common::{
     storage::{Interval, LinkedNode},
     MessageId,
 };
+
+#[cfg(feature = "try-runtime")]
+use {
+    frame_support::ensure,
+    sp_runtime::{
+        codec::{Decode, Encode},
+        TryRuntimeError,
+    },
+    sp_std::vec::Vec,
+};
+
 use frame_support::{
     traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
@@ -104,7 +115,6 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
         if let Some(x) = Option::<u64>::decode(&mut state.as_ref())
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
-            let count = ProgramStorage::<T>::iter().count() as u64;
             ensure!(x, "pre_upgrade failed",);
             ensure!(
                 Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
