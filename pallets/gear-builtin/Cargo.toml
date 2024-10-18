@@ -30,6 +30,7 @@ common.workspace = true
 core-processor.workspace = true
 gbuiltin-bls381.workspace = true
 gbuiltin-staking.workspace = true
+gbuiltin-proxy.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-runtime-interface.workspace = true
@@ -41,10 +42,12 @@ sp-std.workspace = true
 sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
 pallet-staking.workspace = true
+pallet-proxy.workspace = true
 
 [dev-dependencies]
 demo-waiting-proxy.workspace = true
 demo-staking-broker.workspace = true
+demo-proxy-broker.workspace = true
 gprimitives.workspace = true
 sp-core = { workspace = true, features = ["std"] }
 sp-externalities = { workspace = true, features = ["std"] }
@@ -81,6 +84,7 @@ std = [
 	"gear-runtime-interface/std",
 	"pallet-gear/std",
 	"pallet-staking/std",
+	"pallet-proxy/std",
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"sp-crypto-ec-utils/std",
