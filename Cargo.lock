@@ -6907,7 +6907,6 @@ dependencies = [
  "sc-executor-common 0.35.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sc-network",
  "sc-network-common",
- "sc-network-statement",
  "sc-network-sync",
  "sc-offchain",
  "sc-rpc",
@@ -15286,26 +15285,6 @@ dependencies = [
  "sp-core 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-runtime 39.0.1",
  "thiserror",
-]
-
-[[package]]
-name = "sc-network-statement"
-version = "0.27.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409#06891d8665d75e27b6374157e4adba724bdbbae4"
-dependencies = [
- "array-bytes",
- "async-channel 1.9.0",
- "futures",
- "log",
- "parity-scale-codec",
- "sc-network",
- "sc-network-common",
- "sc-network-sync",
- "sc-network-types",
- "sp-consensus",
- "sp-runtime 39.0.1",
- "sp-statement-store",
- "substrate-prometheus-endpoint",
 ]
 
 [[package]]

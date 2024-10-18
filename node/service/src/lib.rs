@@ -422,15 +422,6 @@ where
 
     net_config.add_notification_protocol(grandpa_protocol_config);
 
-    let (statement_handler_proto, statement_config) =
-        sc_network_statement::StatementHandlerPrototype::new::<_, _, N>(
-            genesis_hash,
-            config.chain_spec.fork_id(),
-            metrics.clone(),
-            Arc::clone(&peer_store_handle),
-        );
-    net_config.add_notification_protocol(statement_config);
-
     let warp_sync = Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
         backend.clone(),
         import_setup.1.shared_authority_set().clone(),
