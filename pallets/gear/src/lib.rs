@@ -89,7 +89,7 @@ use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
-    tasks::ScheduledTask,
+    tasks::VaraScheduledTask,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
@@ -253,7 +253,7 @@ pub mod pallet {
         type Scheduler: Scheduler<
             BlockNumber = BlockNumberFor<Self>,
             Cost = u64,
-            Task = ScheduledTask<Self::AccountId>,
+            Task = VaraScheduledTask<Self::AccountId>,
         >;
 
         /// Message Queue processing routing provider.

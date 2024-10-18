@@ -27,7 +27,7 @@ pub use sha3;
 pub use signature::Signature;
 
 use anyhow::{anyhow, Result};
-use gprimitives::ActorId;
+use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 use signature::RawSignature;
@@ -51,6 +51,18 @@ impl From<PrivateKey> for PublicKey {
 
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Address(pub [u8; 20]);
+
+impl From<[u8; 20]> for Address {
+    fn from(value: [u8; 20]) -> Self {
+        Self(value)
+    }
+}
+
+impl From<H160> for Address {
+    fn from(value: H160) -> Self {
+        Self(value.into())
+    }
+}
 
 impl TryFrom<ActorId> for Address {
     type Error = anyhow::Error;

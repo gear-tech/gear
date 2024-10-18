@@ -43,7 +43,7 @@ impl RawSignature {
         let (id, signature) = recoverable.serialize_compact();
         let mut bytes = [0u8; 65];
         bytes[..64].copy_from_slice(signature.as_ref());
-        bytes[64] = id.to_i32() as u8;
+        bytes[64] = i32::from(id) as u8;
         Ok(RawSignature(bytes))
     }
 }
@@ -125,7 +125,7 @@ impl TryFrom<Signature> for RecoverableSignature {
     fn try_from(sig: Signature) -> Result<Self> {
         RecoverableSignature::from_compact(
             sig.0[..64].as_ref(),
-            RecoveryId::from_i32((sig.0[64] - 27) as i32)?,
+            RecoveryId::try_from((sig.0[64] - 27) as i32)?,
         )
         .map_err(Into::into)
     }
