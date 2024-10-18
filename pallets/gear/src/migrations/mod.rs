@@ -15,3 +15,22 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+#[cfg(test)]
+#[cfg(feature = "try-runtime")]
+mod tests {
+    use crate::mock::*;
+
+    use frame_support::traits::{OnRuntimeUpgrade, StorageVersion};
+
+    #[test]
+    fn test_context_store_migration_works() {
+        new_test_ext().execute_with(|| {
+            StorageVersion::new(3).put::<GearMessenger>();
+            let state = pallet_gear_messenger::migrations::context_store::RemoveCommitStorage::<Test>::pre_upgrade().unwrap();
+            let _w = pallet_gear_messenger::migrations::context_store::RemoveCommitStorage::<Test>::on_runtime_upgrade();
+            pallet_gear_messenger::migrations::context_store::RemoveCommitStorage::<Test>::post_upgrade(state).unwrap();
+
+        });
+    }
+}
