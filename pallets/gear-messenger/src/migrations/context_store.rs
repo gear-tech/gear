@@ -7,14 +7,7 @@ use common::{
 };
 
 #[cfg(feature = "try-runtime")]
-use {
-    frame_support::ensure,
-    sp_runtime::{
-        codec::{Decode, Encode},
-        TryRuntimeError,
-    },
-    sp_std::vec::Vec,
-};
+use {frame_support::ensure, sp_runtime::TryRuntimeError, sp_std::vec::Vec};
 
 use frame_support::{
     traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
@@ -101,6 +94,10 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
             );
+
+            Ok(vec![1])
+        } else {
+            Ok(vec![0])
         }
 
         Ok(vec![])
@@ -108,10 +105,12 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        ensure!(
-            Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
-            "incorrect storage version after migration"
-        );
+        if state[0] == 1 {
+            ensure!(
+                Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
+                "incorrect storage version after migration"
+            );
+        }
 
         Ok(())
     }
