@@ -9,6 +9,7 @@ use common::{
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::ensure,
+    parity_scale_codec::Decode,
     sp_runtime::{
         codec::{Decode, Encode},
         TryRuntimeError,
@@ -112,7 +113,7 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        if let Some(x) = Option::<u64>::decode(&mut state.as_ref())
+        if let Some(x) = Option::<bool>::decode(&mut state.as_ref())
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
             ensure!(x, "pre_upgrade failed",);
