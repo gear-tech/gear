@@ -91,7 +91,7 @@ pub enum Error {
     #[error(transparent)]
     Tx(#[from] TxError),
     #[error(transparent)]
-    SubxtRpc(#[from] jsonrpsee::core::Error),
+    SubxtRpc(#[from] jsonrpsee::core::ClientError),
     #[error("Page {0} of Program {1} was not found in the storage.")]
     PageNotFound(u32, String),
     #[error("Program has been terminated.")]

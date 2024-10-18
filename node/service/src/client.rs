@@ -22,60 +22,52 @@ use sc_client_api::{
     AuxStore, Backend as BackendT, BlockBackend, BlockchainEvents, KeysIter, PairsIter,
     UsageProvider,
 };
-use sc_executor::NativeElseWasmExecutor;
-use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi, StateBackend};
+use sp_api::{CallApiAt, ProvideRuntimeApi};
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_core::H256;
 use sp_runtime::{
     generic::SignedBlock,
-    traits::{BlakeTwo256, Block as BlockT},
+    traits::{BlakeTwo256, Block as BlockT, NumberFor},
     Justifications, OpaqueExtrinsic,
 };
+use sp_state_machine::Backend as StateBackend;
 use sp_storage::{ChildInfo, StorageData, StorageKey};
 use sp_trie::MerkleValue;
 use std::sync::Arc;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
 
-pub type FullClient<RuntimeApi, ExecutorDispatch> =
-    sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+/// A specialized `WasmExecutor` intended to use across substrate node. It provides all required
+/// HostFunctions.
+pub type RuntimeExecutor = sc_executor::WasmExecutor<
+    sc_executor::sp_wasm_interface::ExtendedHostFunctions<
+        sp_io::SubstrateHostFunctions,
+        ExtendHostFunctions,
+    >,
+>;
 
-#[cfg(not(feature = "vara-native"))]
-compile_error!("at least one runtime feature must be enabled");
+pub type FullClient<RuntimeApi> = sc_service::TFullClient<Block, RuntimeApi, RuntimeExecutor>;
 
-/// The native executor instance for standalone network.
-#[cfg(feature = "vara-native")]
-pub struct VaraExecutorDispatch;
-
-#[cfg(feature = "vara-native")]
-impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
-    /// Only enable the benchmarking host functions when we actually want to benchmark.
-    #[cfg(feature = "runtime-benchmarks")]
-    type ExtendHostFunctions = (
-        frame_benchmarking::benchmarking::HostFunctions,
-        gear_ri::gear_ri::HostFunctions,
-        gear_ri::sandbox::HostFunctions,
-        sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
-        gear_ri::gear_bls_12_381::HostFunctions,
-    );
-    /// Otherwise we only use the default Substrate host functions.
-    #[cfg(not(feature = "runtime-benchmarks"))]
-    type ExtendHostFunctions = (
-        gear_ri::gear_ri::HostFunctions,
-        gear_ri::sandbox::HostFunctions,
-        sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
-        gear_ri::gear_bls_12_381::HostFunctions,
-    );
-
-    fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-        vara_runtime::api::dispatch(method, data)
-    }
-
-    fn native_version() -> sc_executor::NativeVersion {
-        vara_runtime::native_version()
-    }
-}
+/// Only enable the benchmarking host functions when we actually want to benchmark.
+#[cfg(feature = "runtime-benchmarks")]
+pub type ExtendHostFunctions = (
+    // sp_io::SubstrateHostFunctions,
+    frame_benchmarking::benchmarking::HostFunctions,
+    gear_ri::gear_ri::HostFunctions,
+    gear_ri::sandbox::HostFunctions,
+    sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
+    gear_ri::gear_bls_12_381::HostFunctions,
+);
+/// Otherwise we only use the default Substrate host functions.
+#[cfg(not(feature = "runtime-benchmarks"))]
+pub type ExtendHostFunctions = (
+    // sp_io::SubstrateHostFunctions,
+    gear_ri::gear_ri::HostFunctions,
+    gear_ri::sandbox::HostFunctions,
+    sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
+    gear_ri::gear_bls_12_381::HostFunctions,
+);
 
 /// A set of APIs that polkadot-like runtimes must implement.
 ///
@@ -131,7 +123,7 @@ pub trait AbstractClient<Block, Backend>:
 where
     Block: BlockT,
     Backend: BackendT<Block>,
-    Backend::State: sp_api::StateBackend<BlakeTwo256>,
+    Backend::State: StateBackend<BlakeTwo256>,
     Self::Api: RuntimeApiCollection,
 {
 }
@@ -140,7 +132,7 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 where
     Block: BlockT,
     Backend: BackendT<Block>,
-    Backend::State: sp_api::StateBackend<BlakeTwo256>,
+    Backend::State: StateBackend<BlakeTwo256>,
     Client: BlockchainEvents<Block>
         + ProvideRuntimeApi<Block>
         + HeaderBackend<Block>
@@ -171,7 +163,7 @@ pub trait ExecuteWithClient {
     fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
     where
         Backend: BackendT<Block> + 'static,
-        Backend::State: sp_api::StateBackend<BlakeTwo256>,
+        Backend::State: StateBackend<BlakeTwo256>,
         Api: crate::RuntimeApiCollection,
         Client: AbstractClient<Block, Backend, Api = Api>
             + 'static
@@ -221,14 +213,12 @@ macro_rules! with_client {
 #[derive(Clone)]
 pub enum Client {
     #[cfg(feature = "vara-native")]
-    Vara(Arc<crate::FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>>),
+    Vara(Arc<crate::FullClient<vara_runtime::RuntimeApi>>),
 }
 
 #[cfg(feature = "vara-native")]
-impl From<Arc<crate::FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>>> for Client {
-    fn from(
-        client: Arc<crate::FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>>,
-    ) -> Self {
+impl From<Arc<crate::FullClient<vara_runtime::RuntimeApi>>> for Client {
+    fn from(client: Arc<crate::FullClient<vara_runtime::RuntimeApi>>) -> Self {
         Self::Vara(client)
     }
 }
