@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use crate::{Config, Pallet, Waitlist};
 use common::{
-    storage::{Interval, LinkedNode, Queue},
+    storage::{Interval, LinkedNode},
     MessageId,
 };
 use frame_support::{
@@ -16,11 +16,11 @@ use crate::Dispatches;
 use sp_runtime::traits::Get;
 pub struct RemoveCommitStorage<T: Config>(PhantomData<T>);
 
-const MIGRATE_FROM_VERSION: u16 = 10;
-const MIGRATE_TO_VERSION: u16 = 11;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 10;
+const MIGRATE_FROM_VERSION: u16 = 3;
+const MIGRATE_TO_VERSION: u16 = 4;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 3;
 
-fn translate_dispatch(dispatch: v10::StoredDispatch) -> StoredDispatch {
+fn translate_dispatch(dispatch: v3::StoredDispatch) -> StoredDispatch {
     StoredDispatch::new(
         dispatch.kind,
         dispatch.message,
@@ -29,6 +29,7 @@ fn translate_dispatch(dispatch: v10::StoredDispatch) -> StoredDispatch {
                 ctx.initialized,
                 ctx.reservation_nonce,
                 ctx.system_reservation,
+                0,
             )
         }),
     )
@@ -51,7 +52,7 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            Dispatches::<T>::translate(|_, value: LinkedNode<MessageId, v10::StoredDispatch>| {
+            Dispatches::<T>::translate(|_, value: LinkedNode<MessageId, v3::StoredDispatch>| {
                 counter += 1;
                 Some(LinkedNode {
                     next: value.next,
@@ -60,14 +61,13 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
             });
 
             Waitlist::<T>::translate(
-                |_, _, (dispatch, interval): (v10::StoredDispatch, Interval<BlockNumberFor<T>>)| {
+                |_, _, (dispatch, interval): (v3::StoredDispatch, Interval<BlockNumberFor<T>>)| {
                     counter += 1;
                     Some((translate_dispatch(dispatch), interval))
                 },
             );
             // each `translate` call results in read to DB to fetch dispatch and then write to DB to update it.
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(counter, counter));
-
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
             update_to.put::<Pallet<T>>();
@@ -79,16 +79,46 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
 
         weight
     }
+
+    #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        let current = Pallet::<T>::current_storage_version();
+        let onchain = Pallet::<T>::on_chain_storage_version();
+
+        let res = if onchain == MIGRATE_FROM_VERSION {
+            ensure!(
+                current == ALLOWED_CURRENT_STORAGE_VERSION,
+                "Current storage version is not allowed for migration, check migration code in order to allow it."
+            );
+
+            Some(true)
+        } else {
+            None
+        };
+
+        Ok(res.encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
+        if let Some(x) = Option::<u64>::decode(&mut state.as_ref())
+            .map_err(|_| "`pre_upgrade` provided an invalid state")?
+        {
+            let count = ProgramStorage::<T>::iter().count() as u64;
+            ensure!(x, "pre_upgrade failed",);
+            ensure!(
+                Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
+                "incorrect storage version after migration"
+            );
+        }
+
+        Ok(())
+    }
 }
 
-mod v10 {
-    use common::{storage::LinkedNode, MessageId, ProgramId};
-    use core::marker::PhantomData;
-    use frame_support::{
-        pallet_prelude::CountedStorageMap, storage::types::CountedStorageMapInstance,
-        traits::StorageInstance, Identity,
-    };
-    use frame_system::Config;
+mod v3 {
+    use common::ProgramId;
+
     use gear_core::{
         message::{DispatchKind, Payload, StoredMessage},
         reservation::ReservationNonce,
