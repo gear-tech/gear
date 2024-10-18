@@ -19,7 +19,9 @@
 //! Keccak256 digest type. Implements AsDigest hashing for ethexe common types.
 
 use core::fmt;
-use ethexe_common::router::{BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition};
+use ethexe_common::router::{
+    BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition, ValueClaim,
+};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -116,31 +118,57 @@ impl ToDigest for CodeCommitment {
 
 impl ToDigest for StateTransition {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.actor_id.to_address_lossy().as_bytes());
-        hasher.update(self.new_state_hash.as_bytes());
-        hasher.update(self.value_to_receive.to_be_bytes().as_slice());
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            actor_id,
+            new_state_hash,
+            inheritor,
+            value_to_receive,
+            value_claims,
+            messages,
+        } = self;
+
+        hasher.update(actor_id.to_address_lossy().as_bytes());
+        hasher.update(new_state_hash.as_bytes());
+        hasher.update(inheritor.to_address_lossy().as_bytes());
+        hasher.update(value_to_receive.to_be_bytes().as_slice());
 
         let mut value_hasher = sha3::Keccak256::new();
-        for value_claim in &self.value_claims {
-            value_hasher.update(value_claim.message_id.as_ref());
-            value_hasher.update(value_claim.destination.to_address_lossy().as_bytes());
-            value_hasher.update(value_claim.value.to_be_bytes().as_slice());
+        for value_claim in value_claims {
+            // To avoid missing incorrect hashing while developing.
+            let ValueClaim {
+                message_id,
+                destination,
+                value,
+            } = value_claim;
+
+            value_hasher.update(message_id.as_ref());
+            value_hasher.update(destination.to_address_lossy().as_bytes());
+            value_hasher.update(value.to_be_bytes().as_slice());
         }
         hasher.update(value_hasher.finalize().as_slice());
 
-        hasher.update(self.messages.to_digest().as_ref());
+        hasher.update(messages.to_digest().as_ref());
     }
 }
 
 impl ToDigest for OutgoingMessage {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let (reply_details_to, reply_details_code) =
-            self.reply_details.unwrap_or_default().into_parts();
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            id,
+            destination,
+            payload,
+            value,
+            reply_details,
+        } = self;
 
-        hasher.update(self.id.as_ref());
-        hasher.update(self.destination.to_address_lossy().as_bytes());
-        hasher.update(self.payload.as_slice());
-        hasher.update(self.value.to_be_bytes().as_slice());
+        let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
+
+        hasher.update(id.as_ref());
+        hasher.update(destination.to_address_lossy().as_bytes());
+        hasher.update(payload.as_slice());
+        hasher.update(value.to_be_bytes().as_slice());
         hasher.update(reply_details_to.as_ref());
         hasher.update(reply_details_code.to_bytes().as_slice());
     }
@@ -148,10 +176,18 @@ impl ToDigest for OutgoingMessage {
 
 impl ToDigest for BlockCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.block_hash.as_bytes());
-        hasher.update(self.prev_commitment_hash.as_bytes());
-        hasher.update(self.pred_block_hash.as_bytes());
-        hasher.update(self.transitions.to_digest().as_ref());
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            block_hash,
+            prev_commitment_hash,
+            pred_block_hash,
+            transitions,
+        } = self;
+
+        hasher.update(block_hash.as_bytes());
+        hasher.update(prev_commitment_hash.as_bytes());
+        hasher.update(pred_block_hash.as_bytes());
+        hasher.update(transitions.to_digest().as_ref());
     }
 }
 
@@ -172,6 +208,7 @@ mod tests {
         let state_transition = StateTransition {
             actor_id: ActorId::from(0),
             new_state_hash: H256::from([1; 32]),
+            inheritor: ActorId::from(0),
             value_to_receive: 0,
             value_claims: vec![],
             messages: vec![OutgoingMessage {
