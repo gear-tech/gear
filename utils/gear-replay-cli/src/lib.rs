@@ -166,6 +166,22 @@ where
     )
 }
 
+pub(crate) async fn fetch_header<Block>(
+    rpc: &WsClient,
+    hash: Option<HashFor<Block>>,
+) -> sc_cli::Result<Block::Header>
+where
+    Block: BlockT + DeserializeOwned,
+    Block::Header: DeserializeOwned,
+{
+    Ok(
+        ChainApi::<(), Block::Hash, Block::Header, SignedBlock<Block>>::header(rpc, hash)
+            .await
+            .map_err(rpc_err_handler)?
+            .expect("header should exist"),
+    )
+}
+
 pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
     log::error!(target: LOG_TARGET, "rpc error: {:?}", error);
     "rpc error."

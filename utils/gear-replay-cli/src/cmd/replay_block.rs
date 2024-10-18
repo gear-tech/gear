@@ -19,7 +19,7 @@
 //! Replaying a block on top of the corresponding chain state
 
 use crate::{
-    build_executor, fetch_block, full_extensions,
+    build_executor, fetch_block, fetch_header, full_extensions,
     shared_parameters::SharedParams,
     state::{LiveState, SnapState, State},
     state_machine_call, BlockHashOrNumber, LOG_TARGET,
@@ -31,7 +31,7 @@ use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
 #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
 use service::VaraExecutorDispatch;
 use sp_runtime::{
-    traits::{Block as BlockT, Header as HeaderT},
+    traits::{Block as BlockT, Header as HeaderT, One},
     DeserializeOwned,
 };
 use std::fmt::Debug;
@@ -94,14 +94,6 @@ where
     // Initialize the RPC client.
     let rpc = ws_client(&block_ws_uri).await?;
 
-    let ext = match command.state {
-        State::Live(live_state) => {
-            let prev_block_live_state = live_state.prev_block_live_state().await?;
-            State::Live(prev_block_live_state).to_ext(None).await?
-        }
-        State::Snap(snap_state) => State::Snap(snap_state).to_ext(None).await?,
-    };
-
     let current_hash = match execute_at {
         Some(b) => Some(b.as_hash(&rpc).await?),
         _ => None,
@@ -109,6 +101,29 @@ where
 
     log::info!(target: LOG_TARGET, "Fetching block {:?} ", current_hash);
     let block = fetch_block::<Block>(&rpc, current_hash).await?;
+
+    let ext = match command.state {
+        State::Live(live_state) => {
+            let prev_block_live_state = live_state.prev_block_live_state().await?;
+            State::Live(prev_block_live_state).to_ext(None).await?
+        }
+
+        State::Snap(snap_state) => {
+            let ext = State::Snap(snap_state).to_ext(None).await?;
+
+            let header_previous = fetch_header::<Block>(&rpc, Some(ext.header.hash())).await?;
+            let expected = *block.header().number() - One::one();
+            if *header_previous.number() != expected {
+                let message = format!(
+                    "Expected snapshot for block number {expected}, but got a snapshot for {}",
+                    header_previous.number()
+                );
+                return Err(message.into());
+            }
+
+            ext
+        }
+    };
 
     let (mut header, mut extrinsics) = block.deconstruct();
 
