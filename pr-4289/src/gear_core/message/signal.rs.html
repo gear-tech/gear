@@ -96,7 +96,7 @@
     ids::{<a href="../ids.rs.html#50-169">prelude</a>::<span class="kw-2">*</span>, <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../ids.rs.html#48">ProgramId</a>},
     message::{<a href="common.rs.html#295-300">Dispatch</a>, <a href="mod.rs.html#116-126">DispatchKind</a>, <a href="common.rs.html#36-51">Message</a>, <a href="common.rs.html#264-269">SignalDetails</a>},
 };
-<span class="kw">use </span><a href="../../../gear_core_errors/simple/enum.SignalCode.html">gear_core_errors::SignalCode</a>;
+<span class="kw">use </span>gear_core_errors::SignalCode;
 <span class="kw">use </span>scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -108,12 +108,12 @@
     <span class="doccomment">/// Message id.
     </span>id: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>,
     <span class="doccomment">/// Reply status code.
-    </span>code: <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>,
+    </span>code: SignalCode,
 }
 
 <span class="kw">impl </span><a href="#31-36">SignalMessage</a> {
     <span class="doccomment">/// Creates a new [`SignalMessage`].
-    </span><span class="kw">pub fn </span>new(origin_msg_id: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, code: <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(origin_msg_id: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, code: SignalCode) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>id = <a href="../ids.rs.html#110">MessageId::generate_signal</a>(<a href="#40">origin_msg_id</a>);
 
         <span class="self">Self </span>{ <a href="#41">id</a>, <a href="#40">code</a> }
@@ -146,7 +146,7 @@
     }
 
     <span class="doccomment">/// Status code of the reply message.
-    </span><span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a> {
+    </span><span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SignalCode {
         <a class="self" href="#73">self</a>.code
     }
 }
