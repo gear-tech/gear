@@ -57,6 +57,8 @@ where
             Err(journal) => return journal,
         };
 
+        log::debug!("Gas burned after Program {:?}", context.gas_burned());
+
         let Some(Program::Active(program)) = ProgramStorageOf::<T>::get_program(destination_id)
         else {
             log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
@@ -102,6 +104,8 @@ where
             Err(journal) => return journal,
         };
 
+        log::debug!("Gas burned after CodeMetadata {:?}", context.gas_burned());
+
         let code_id = program.code_id;
 
         // The second step is to load code metadata
@@ -146,7 +150,7 @@ where
         };
 
         // Reinstrument the code if necessary.
-        let (code, context) = if need_reinstrumentation {
+        let (instrumented_code, context) = if need_reinstrumentation {
             log::debug!("Re-instrumenting code for program '{destination_id:?}'");
 
             let context = match context
@@ -155,6 +159,8 @@ where
                 Ok(code) => code,
                 Err(journal) => return journal,
             };
+
+            log::debug!("Gas burned after Original Code {:?}", context.gas_burned());
 
             let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| {
                 let err_msg = format!(
@@ -173,6 +179,11 @@ where
                 Err(journal) => return journal,
             };
 
+            log::debug!(
+                "Gas burned after Instrumentation {:?}",
+                context.gas_burned()
+            );
+
             let code = match Pallet::<T>::reinstrument_code(code_id, original_code, &schedule) {
                 Ok(code) => code,
                 Err(e) => {
@@ -190,6 +201,11 @@ where
                 Ok(context) => context,
                 Err(journal) => return journal,
             };
+
+            log::debug!(
+                "Gas burned after Instrumented Code {:?}",
+                context.gas_burned()
+            );
 
             let code = T::CodeStorage::get_instrumented_code(code_id).unwrap_or_else(|| {
                 // `Program` exists, so do code and code len.
@@ -210,6 +226,8 @@ where
                 Ok(context) => context,
                 Err(journal) => return journal,
             };
+
+        log::debug!("Gas burned after Allocations {:?}", context.gas_burned());
 
         let allocations = (program.allocations_tree_len != 0).then(|| {
             ProgramStorageOf::<T>::allocations(destination_id).unwrap_or_else(|| {
@@ -233,17 +251,24 @@ where
         let context = match context.charge_for_module_instantiation(
             block_config,
             actor_data,
-            code.instantiated_section_sizes(),
+            instrumented_code.instantiated_section_sizes(),
         ) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
 
+        log::debug!(
+            "Gas burned after Module Instantiation {:?}",
+            context.gas_burned()
+        );
+
+        log::debug!("Gas left after Instantiation {:?}", context.gas_left());
+
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
         core_processor::process::<Ext>(
             block_config,
-            (context, code, code_metadata, balance).into(),
+            (context, instrumented_code, code_metadata, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
         )
         .unwrap_or_else(|e| {

@@ -44,11 +44,14 @@ pub enum PreChargeGasOperation {
     #[display(fmt = "handle program data")]
     ProgramData,
     /// Obtain code metadata.
-    #[display(fmt = "obtain program code metadata")]
-    ProgramCodeMetadata,
-    /// Handle program code.
-    #[display(fmt = "handle program code")]
-    ProgramCode,
+    #[display(fmt = "obtain code metadata")]
+    CodeMetadata,
+    /// Obtain original code
+    #[display(fmt = "obtain original code")]
+    OriginalCode,
+    /// Obtain instrumented code
+    #[display(fmt = "obtain instrumented code")]
+    InstrumentedCode,
     /// Instantiate the type section of the Wasm module.
     #[display(fmt = "instantiate {_0} of Wasm module")]
     ModuleInstantiation(SectionName),
@@ -138,6 +141,16 @@ impl<T> ContextCharged<T> {
         )
     }
 
+    /// Gas already burned
+    pub fn gas_burned(&self) -> u64 {
+        self.gas_counter.burned()
+    }
+
+    /// Gas left
+    pub fn gas_left(&self) -> u64 {
+        self.gas_counter.left()
+    }
+
     /// Charges gas for the operation.
     fn charge_gas<For>(
         mut self,
@@ -199,7 +212,7 @@ impl ContextCharged<ForProgram> {
         block_config: &BlockConfig,
     ) -> PrechargeResult<ContextCharged<ForCodeMetadata>> {
         self.charge_gas(
-            PreChargeGasOperation::ProgramCodeMetadata,
+            PreChargeGasOperation::CodeMetadata,
             block_config.costs.read.cost_for_one(),
         )
     }
@@ -213,7 +226,7 @@ impl ContextCharged<ForCodeMetadata> {
         code_len_bytes: u32,
     ) -> PrechargeResult<ContextCharged<ForOriginalCode>> {
         self.charge_gas(
-            PreChargeGasOperation::ProgramCode,
+            PreChargeGasOperation::OriginalCode,
             block_config
                 .costs
                 .read
@@ -228,11 +241,11 @@ impl ContextCharged<ForCodeMetadata> {
         code_len_bytes: u32,
     ) -> PrechargeResult<ContextCharged<ForInstrumentedCode>> {
         self.charge_gas(
-            PreChargeGasOperation::ModuleInstrumentation,
-            block_config.costs.instrumentation.cost_for_with_bytes(
-                block_config.costs.instrumentation_per_byte,
-                code_len_bytes.into(),
-            ),
+            PreChargeGasOperation::InstrumentedCode,
+            block_config
+                .costs
+                .read
+                .cost_for_with_bytes(block_config.costs.read_per_byte, code_len_bytes.into()),
         )
     }
 }

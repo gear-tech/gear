@@ -45,7 +45,9 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeAttribution, CodeError, ExportError, MAX_WASM_PAGES_AMOUNT},
+    code::{
+        self, Code, CodeAttribution, CodeError, CodeMetadata, ExportError, MAX_WASM_PAGES_AMOUNT,
+    },
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
@@ -234,9 +236,22 @@ fn state_rpc_calls_trigger_reinstrumentation() {
         )
         .expect("Failed to create dummy code");
 
-        let (instrumented_code, _, _) = code.into_parts();
+        let (instrumented_code, _, invalid_metadata) = code.into_parts();
+
+        // Code metadata doesn't have to be completely wrong, just a version of instrumentation
+        let old_code_metadata =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id).unwrap();
+        let code_metadata = CodeMetadata::new(
+            old_code_metadata.original_code_len(),
+            old_code_metadata.instrumented_code_len(),
+            old_code_metadata.code_exports().clone(),
+            old_code_metadata.static_pages(),
+            old_code_metadata.stack_end(),
+            invalid_metadata.instrumentation_status(), // invalid version
+        );
 
         <Test as Config>::CodeStorage::update_instrumented_code(program.code_id, instrumented_code);
+        <Test as Config>::CodeStorage::update_code_metadata(program.code_id, code_metadata);
         /* ends here */
 
         assert_ok!(Gear::read_metahash_impl(program_id, None));
@@ -2508,10 +2523,15 @@ fn delayed_program_creation_no_code() {
         );
         let read_program_from_storage_fee =
             gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
+        let read_code_metadata_from_storage_fee =
+            gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            free_balance + reserved_balance - delay_holding_fee - 2 * read_program_from_storage_fee
+            free_balance + reserved_balance
+                - delay_holding_fee
+                - 2 * read_program_from_storage_fee
+                - read_code_metadata_from_storage_fee
         );
         assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
@@ -10182,8 +10202,9 @@ fn missing_functions_are_not_executed() {
         .expect("calculate_gas_info failed");
 
         let program_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+        let metadata_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         // there is no execution so the values should be equal
-        assert_eq!(min_limit, program_cost);
+        assert_eq!(min_limit, program_cost + metadata_cost);
 
         run_to_next_block(None);
 
@@ -10191,7 +10212,7 @@ fn missing_functions_are_not_executed() {
         // no execution is performed at all and hence user was not charged for program execution.
         assert_eq!(
             balance_before,
-            Balances::free_balance(USER_1) + gas_price(program_cost) + ed
+            Balances::free_balance(USER_1) + gas_price(program_cost + metadata_cost) + ed
         );
 
         // this value is actually a constant in the wat.
@@ -10226,7 +10247,7 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, program_cost);
+        assert_eq!(min_limit, program_cost + metadata_cost);
 
         let balance_before = Balances::free_balance(USER_1);
         let reply_value = 1_500;
@@ -10243,7 +10264,7 @@ fn missing_functions_are_not_executed() {
 
         assert_eq!(
             balance_before - reply_value + locked_value,
-            Balances::free_balance(USER_1) + gas_price(program_cost)
+            Balances::free_balance(USER_1) + gas_price(program_cost + metadata_cost)
         );
     });
 }
@@ -16118,6 +16139,10 @@ pub(crate) mod utils {
 
     #[track_caller]
     pub(super) fn assert_total_dequeued(expected: u32) {
+        System::events().iter().for_each(|e| {
+            log::debug!("Event: {:?}", e);
+        });
+
         let actual_dequeued: u32 = System::events()
             .iter()
             .filter_map(|e| {
