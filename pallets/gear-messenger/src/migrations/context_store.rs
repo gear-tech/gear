@@ -99,8 +99,6 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
         } else {
             Ok(vec![0])
         }
-
-        Ok(vec![])
     }
 
     #[cfg(feature = "try-runtime")]
