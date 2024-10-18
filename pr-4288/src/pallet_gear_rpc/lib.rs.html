@@ -660,7 +660,7 @@
     types::error::{CallError, ErrorObject},
 };
 <span class="kw">pub use </span><a href="../../pallet_gear_rpc/trait.GearRuntimeApi.html">pallet_gear_rpc_runtime_api::GearApi</a> <span class="kw">as </span>GearRuntimeApi;
-<span class="kw">use </span>pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
+<span class="kw">use </span>pallet_gear_rpc_runtime_api::{GasInfo, <a href="../../pallet_gear/manager/enum.HandleKind.html">HandleKind</a>, ReplyInfo};
 <span class="kw">use </span>sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 <span class="kw">use </span>sp_blockchain::HeaderBackend;
 <span class="kw">use </span>sp_core::{Bytes, H256};
@@ -833,7 +833,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         at_hash: &lt;Block <span class="kw">as </span>BlockT&gt;::Hash,
         source: H256,
-        kind: HandleKind,
+        kind: <a href="../../pallet_gear/manager/enum.HandleKind.html">HandleKind</a>,
         payload: Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
         value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
         allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
@@ -935,7 +935,7 @@
         <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#295">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#303">at_hash</a>,
             <a href="#296">source</a>,
-            HandleKind::InitByHash(<a href="#297">code_id</a>.cast()),
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.InitByHash">HandleKind::InitByHash</a>(<a href="#297">code_id</a>.cast()),
             <a href="#298">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
             <a href="#299">value</a>,
             <a href="#300">allow_other_panics</a>,
@@ -945,7 +945,7 @@
         <a class="self" href="#295">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#303">at_hash</a>,
             <a href="#296">source</a>,
-            HandleKind::InitByHash(<a href="#297">code_id</a>.cast()),
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.InitByHash">HandleKind::InitByHash</a>(<a href="#297">code_id</a>.cast()),
             <a href="#298">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
             <a href="#299">value</a>,
             <a href="#300">allow_other_panics</a>,
@@ -967,7 +967,7 @@
         <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#327">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#335">at_hash</a>,
             <a href="#328">source</a>,
-            HandleKind::Init(<a href="#329">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Init">HandleKind::Init</a>(<a href="#329">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
             <a href="#330">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
             <a href="#331">value</a>,
             <a href="#332">allow_other_panics</a>,
@@ -977,7 +977,7 @@
         <a class="self" href="#327">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#335">at_hash</a>,
             <a href="#328">source</a>,
-            HandleKind::Init(<a href="#329">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Init">HandleKind::Init</a>(<a href="#329">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
             <a href="#330">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
             <a href="#331">value</a>,
             <a href="#332">allow_other_panics</a>,
@@ -999,7 +999,7 @@
         <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#359">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#367">at_hash</a>,
             <a href="#360">source</a>,
-            HandleKind::Handle(<a href="#361">dest</a>.cast()),
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Handle">HandleKind::Handle</a>(<a href="#361">dest</a>.cast()),
             <a href="#362">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
             <a href="#363">value</a>,
             <a href="#364">allow_other_panics</a>,
@@ -1009,7 +1009,7 @@
         <a class="self" href="#359">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#367">at_hash</a>,
             <a href="#360">source</a>,
-            HandleKind::Handle(<a href="#361">dest</a>.cast()),
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Handle">HandleKind::Handle</a>(<a href="#361">dest</a>.cast()),
             <a href="#362">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
             <a href="#363">value</a>,
             <a href="#364">allow_other_panics</a>,
@@ -1031,7 +1031,7 @@
         <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#391">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#399">at_hash</a>,
             <a href="#392">source</a>,
-            HandleKind::Reply(
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Reply">HandleKind::Reply</a>(
                 <a href="#393">message_id</a>.cast(),
                 ReplyCode::Success(SuccessReplyReason::Manual),
             ),
@@ -1044,7 +1044,7 @@
         <a class="self" href="#391">self</a>.<a href="#202-239">calculate_gas_info</a>(
             <a href="#399">at_hash</a>,
             <a href="#392">source</a>,
-            HandleKind::Reply(
+            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Reply">HandleKind::Reply</a>(
                 <a href="#393">message_id</a>.cast(),
                 ReplyCode::Success(SuccessReplyReason::Manual),
             ),

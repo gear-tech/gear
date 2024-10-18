@@ -148,16 +148,6 @@
 <a href="#148" id="148">148</a>
 <a href="#149" id="149">149</a>
 <a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">core::marker::PhantomData</a>;
 
 <span class="kw">use crate</span>::{<a href="../lib.rs.html#174-180">Config</a>, <a href="../lib.rs.html#191">Pallet</a>, <a href="../lib.rs.html#393-400">Waitlist</a>};
@@ -169,7 +159,6 @@
 <span class="attr">#[cfg(feature = <span class="string">"try-runtime"</span>)]
 </span><span class="kw">use </span>{
     frame_support::ensure,
-    parity_scale_codec::Decode,
     sp_runtime::{
         codec::{Decode, Encode},
         TryRuntimeError,
@@ -192,15 +181,15 @@
 <span class="kw">const </span>MIGRATE_TO_VERSION: <a href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a> = <span class="number">4</span>;
 <span class="kw">const </span>ALLOWED_CURRENT_STORAGE_VERSION: <a href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a> = <span class="number">3</span>;
 
-<span class="kw">fn </span>translate_dispatch(dispatch: <a href="#145-149">v3::StoredDispatch</a>) -&gt; StoredDispatch {
+<span class="kw">fn </span>translate_dispatch(dispatch: <a href="#135-139">v3::StoredDispatch</a>) -&gt; StoredDispatch {
     StoredDispatch::new(
-        <a href="#35">dispatch</a>.kind,
-        <a href="#35">dispatch</a>.message,
-        <a href="#35">dispatch</a>.context.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|ctx| {
+        <a href="#34">dispatch</a>.kind,
+        <a href="#34">dispatch</a>.message,
+        <a href="#34">dispatch</a>.context.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|ctx| {
             ContextStore::new(
-                <a href="#39">ctx</a>.initialized,
-                <a href="#39">ctx</a>.reservation_nonce,
-                <a href="#39">ctx</a>.system_reservation,
+                <a href="#38">ctx</a>.initialized,
+                <a href="#38">ctx</a>.reservation_nonce,
+                <a href="#38">ctx</a>.system_reservation,
                 <span class="number">0</span>,
             )
         }),
@@ -218,38 +207,38 @@
             <span class="kw">let </span>current = Pallet::&lt;T&gt;::current_storage_version();
             <span class="kw">if </span>current != ALLOWED_CURRENT_STORAGE_VERSION {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.error.html">log::error!</a>(<span class="string">"❌ Migration is not allowed for current storage version {current:?}."</span>);
-                <span class="kw">return </span><a href="#54">weight</a>;
+                <span class="kw">return </span><a href="#53">weight</a>;
             }
 
-            <span class="kw">let </span>update_to = StorageVersion::new(<a href="#32">MIGRATE_TO_VERSION</a>);
+            <span class="kw">let </span>update_to = StorageVersion::new(<a href="#31">MIGRATE_TO_VERSION</a>);
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.info.html">log::info!</a>(<span class="string">"🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."</span>);
 
-            Dispatches::&lt;T&gt;::translate(|<span class="kw">_</span>, value: LinkedNode&lt;MessageId, <a href="#145-149">v3::StoredDispatch</a>&gt;| {
-                <a href="#55">counter</a> += <span class="number">1</span>;
+            Dispatches::&lt;T&gt;::translate(|<span class="kw">_</span>, value: LinkedNode&lt;MessageId, <a href="#135-139">v3::StoredDispatch</a>&gt;| {
+                <a href="#54">counter</a> += <span class="number">1</span>;
                 <span class="prelude-val">Some</span>(LinkedNode {
-                    next: <a href="#67">value</a>.next,
-                    value: <a href="#35-48">translate_dispatch</a>(<a href="#67">value</a>.value),
+                    next: <a href="#66">value</a>.next,
+                    value: <a href="#34-47">translate_dispatch</a>(<a href="#66">value</a>.value),
                 })
             });
 
             Waitlist::&lt;T&gt;::translate(
-                |<span class="kw">_</span>, <span class="kw">_</span>, (dispatch, interval): (<a href="#145-149">v3::StoredDispatch</a>, Interval&lt;BlockNumberFor&lt;T&gt;&gt;)| {
-                    <a href="#55">counter</a> += <span class="number">1</span>;
-                    <span class="prelude-val">Some</span>((<a href="#35-48">translate_dispatch</a>(<a href="#76">dispatch</a>), <a href="#76">interval</a>))
+                |<span class="kw">_</span>, <span class="kw">_</span>, (dispatch, interval): (<a href="#135-139">v3::StoredDispatch</a>, Interval&lt;BlockNumberFor&lt;T&gt;&gt;)| {
+                    <a href="#54">counter</a> += <span class="number">1</span>;
+                    <span class="prelude-val">Some</span>((<a href="#34-47">translate_dispatch</a>(<a href="#75">dispatch</a>), <a href="#75">interval</a>))
                 },
             );
             <span class="comment">// each `translate` call results in read to DB to fetch dispatch and then write to DB to update it.
-            </span><a href="#54">weight</a> = <a href="#54">weight</a>.saturating_add(T::DbWeight::get().reads_writes(<a href="#55">counter</a>, <a href="#55">counter</a>));
-            <a href="#54">weight</a> = <a href="#54">weight</a>.saturating_add(T::DbWeight::get().writes(<span class="number">1</span>));
+            </span><a href="#53">weight</a> = <a href="#53">weight</a>.saturating_add(T::DbWeight::get().reads_writes(<a href="#54">counter</a>, <a href="#54">counter</a>));
+            <a href="#53">weight</a> = <a href="#53">weight</a>.saturating_add(T::DbWeight::get().writes(<span class="number">1</span>));
 
-            <a href="#64">update_to</a>.put::&lt;Pallet&lt;T&gt;&gt;();
+            <a href="#63">update_to</a>.put::&lt;Pallet&lt;T&gt;&gt;();
 
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.info.html">log::info!</a>(<span class="string">"✅ Successfully migrated storage. {counter} codes have been migrated"</span>);
         } <span class="kw">else </span>{
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.info.html">log::info!</a>(<span class="string">"🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}"</span>);
         }
 
-        <a href="#54">weight</a>
+        <a href="#53">weight</a>
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"try-runtime"</span>)]
@@ -257,31 +246,22 @@
         <span class="kw">let </span>current = Pallet::&lt;T&gt;::current_storage_version();
         <span class="kw">let </span>onchain = Pallet::&lt;T&gt;::on_chain_storage_version();
 
-        <span class="kw">let </span>res = <span class="kw">if </span>onchain == MIGRATE_FROM_VERSION {
+        <span class="kw">if </span>onchain == MIGRATE_FROM_VERSION {
             <span class="macro">ensure!</span>(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
                 <span class="string">"Current storage version is not allowed for migration, check migration code in order to allow it."
             </span>);
+        }
 
-            <span class="prelude-val">Some</span>(<span class="bool-val">true</span>)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>};
-
-        <span class="prelude-val">Ok</span>(res.encode())
+        <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[])
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"try-runtime"</span>)]
     </span><span class="kw">fn </span>post_upgrade(state: Vec&lt;u8&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), TryRuntimeError&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(x) = <span class="prelude-ty">Option</span>::&lt;bool&gt;::decode(<span class="kw-2">&amp;mut </span>state.as_ref())
-            .map_err(|<span class="kw">_</span>| <span class="string">"`pre_upgrade` provided an invalid state"</span>)<span class="question-mark">?
-        </span>{
-            <span class="macro">ensure!</span>(x, <span class="string">"pre_upgrade failed"</span>,);
-            <span class="macro">ensure!</span>(
-                Pallet::&lt;T&gt;::on_chain_storage_version() == MIGRATE_TO_VERSION,
-                <span class="string">"incorrect storage version after migration"
-            </span>);
-        }
+        <span class="macro">ensure!</span>(
+            Pallet::&lt;T&gt;::on_chain_storage_version() == MIGRATE_TO_VERSION,
+            <span class="string">"incorrect storage version after migration"
+        </span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -305,7 +285,7 @@
     </span><span class="kw">pub struct </span>StoredDispatch {
         <span class="kw">pub </span>kind: DispatchKind,
         <span class="kw">pub </span>message: StoredMessage,
-        <span class="kw">pub </span>context: <span class="prelude-ty">Option</span>&lt;<a href="#153-159">ContextStore</a>&gt;,
+        <span class="kw">pub </span>context: <span class="prelude-ty">Option</span>&lt;<a href="#143-149">ContextStore</a>&gt;,
     }
     <span class="attr">#[derive(
         Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
