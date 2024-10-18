@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MailboxErrorImpl"],"struct":["MailboxStorageWrap"],"type":["AuxiliaryMailbox","MailboxedMessage"]};
