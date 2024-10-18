@@ -21,8 +21,6 @@ contract RouterScript is Script {
         address[] memory validatorsArray = vm.envAddress("ROUTER_VALIDATORS_LIST", ",");
         address deployerAddress = vm.addr(privateKey);
 
-        console.log(deployerAddress);
-
         vm.startBroadcast(privateKey);
 
         wrappedVara = WrappedVara(
