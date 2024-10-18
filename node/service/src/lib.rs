@@ -353,10 +353,7 @@ where
 }
 
 /// Creates a full service from the configuration.
-pub fn new_full_base<
-    N: NetworkBackend<Block, <Block as BlockT>::Hash>,
-    RuntimeApi,
->(
+pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>, RuntimeApi>(
     config: Configuration,
     disable_hardware_benchmarks: bool,
     with_startup_data: impl FnOnce(

@@ -91,6 +91,6 @@ impl TestClientBuilderExt
     fn build_with_wasm_executor(self, executor: Option<RuntimeExecutor>) -> Client {
         let executor = executor.unwrap_or_else(|| WasmExecutor::builder().build());
 
-        executor
+        self.build_with_native_executor(executor).0
     }
 }
