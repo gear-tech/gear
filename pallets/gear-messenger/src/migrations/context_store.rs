@@ -126,7 +126,8 @@ mod v3 {
         scale::{Decode, Encode},
         TypeInfo,
     };
-    use std::collections::{BTreeMap, BTreeSet};
+
+    use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
     #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
     pub struct StoredDispatch {
