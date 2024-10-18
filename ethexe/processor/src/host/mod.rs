@@ -18,7 +18,10 @@
 
 use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
-use gear_core::{code::InstrumentedCode, ids::ProgramId};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    ids::ProgramId,
+};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
@@ -121,7 +124,7 @@ impl InstanceWrapper {
     pub fn instrument(
         &mut self,
         original_code: impl AsRef<[u8]>,
-    ) -> Result<Option<InstrumentedCode>> {
+    ) -> Result<Option<(InstrumentedCode, CodeMetadata)>> {
         self.call("instrument_code", original_code)
     }
 

@@ -26,7 +26,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
@@ -534,6 +534,15 @@ pub struct ExecutableActorData {
     pub gas_reservation_map: GasReservationMap,
 }
 
+/// Executable allocations data.
+#[derive(Clone, Debug)]
+pub struct ExecutableAllocationsData {
+    /// Amount of reservations can exist for 1 program.
+    pub max_reservations: u64,
+    /// Size of wasm memory buffer which must be created in execution environment
+    pub memory_size: WasmPagesAmount,
+}
+
 /// Program.
 #[derive(Clone, Debug)]
 pub(crate) struct Program {
@@ -543,6 +552,8 @@ pub(crate) struct Program {
     pub memory_infix: MemoryInfix,
     /// Instrumented code.
     pub code: InstrumentedCode,
+    /// Code metadata.
+    pub code_metadata: CodeMetadata,
     /// Allocations.
     pub allocations: IntervalsTree<WasmPage>,
 }

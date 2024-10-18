@@ -74,7 +74,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                             allocations_tree_len,
                             memory_infix: p.memory_infix,
                             gas_reservation_map: p.gas_reservation_map,
-                            code_hash: p.code_hash,
+                            code_id: p.code_hash,
                             code_exports: p.code_exports,
                             static_pages: p.static_pages.into(),
                             state: p.state,
