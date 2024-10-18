@@ -26,7 +26,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[allow(missing_docs)]
 pub enum Error {
     #[error(transparent)]
-    Wasmi(#[from] sandbox_wasmi::Error),
+    Wasmi(#[from] wasmi::Error),
 
     #[error("Sandbox error: {0}")]
     Sandbox(String),
@@ -107,10 +107,10 @@ pub enum Error {
     AbortedDueToTrap(MessageWithBacktrace),
 }
 
-impl sandbox_wasmi::HostError for Error {}
+impl wasmi::core::HostError for Error {}
 
-impl From<&'static str> for Error {
-    fn from(err: &'static str) -> Error {
+impl From<&'_ str> for Error {
+    fn from(err: &'_ str) -> Error {
         Error::Other(err.into())
     }
 }

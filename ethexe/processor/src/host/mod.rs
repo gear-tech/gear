@@ -54,7 +54,7 @@ pub(crate) struct InstanceCreator {
 
 impl InstanceCreator {
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
-        gear_runtime_interface::sandbox_init();
+        gear_runtime_interface::sandbox_init(gear_runtime_interface::SandboxBackend::Wasmer);
 
         let engine = wasmtime::Engine::default();
 

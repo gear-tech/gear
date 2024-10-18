@@ -28,6 +28,7 @@ use std::{collections::HashMap, pin::Pin, rc::Rc};
 use codec::Decode;
 use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
+use region::Allocation;
 use sp_wasm_interface_common::{Pointer, Value, WordSize};
 
 use crate::{
@@ -44,8 +45,8 @@ use self::{
     },
     wasmi_backend::{
         get_global as wasmi_get_global, instantiate as wasmi_instantiate, invoke as wasmi_invoke,
-        new_memory as wasmi_new_memory, set_global as wasmi_set_global,
-        MemoryWrapper as WasmiMemoryWrapper,
+        new_memory as wasmi_new_memory, set_global as wasmi_set_global, Backend as WasmiBackend,
+        MemoryWrapper as WasmiMemoryWrapper, StoreRefCell as WasmiStoreRefCell,
     },
 };
 
@@ -165,19 +166,15 @@ pub trait SupervisorContext {
     fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> SandboxResult<()>;
 }
 
-/// Implementation of [`Externals`] that allows execution of guest module with
-/// [externals][`Externals`] that might refer functions defined by supervisor.
-///
-/// [`Externals`]: ../wasmi/trait.Externals.html
-pub struct GuestExternals<'a> {
-    /// Instance of sandboxed module to be dispatched
-    sandbox_instance: &'a SandboxInstance,
-}
-
 /// Module instance in terms of selected backend
 enum BackendInstanceBundle {
     /// Wasmi module instance
-    Wasmi(sandbox_wasmi::ModuleRef),
+    Wasmi {
+        /// Wasmer module instance
+        instance: wasmi::Instance,
+        /// Wasmer store
+        store: Rc<WasmiStoreRefCell>,
+    },
 
     /// Wasmer module instance and store
     Wasmer {
@@ -204,7 +201,6 @@ enum BackendInstanceBundle {
 /// [`invoke`]: #method.invoke
 pub struct SandboxInstance {
     backend_instance: BackendInstanceBundle,
-    guest_to_supervisor_mapping: GuestToSupervisorFunctionMapping,
 }
 
 impl SandboxInstance {
@@ -219,8 +215,8 @@ impl SandboxInstance {
         supervisor_context: &mut dyn SupervisorContext,
     ) -> std::result::Result<Option<Value>, error::Error> {
         match &self.backend_instance {
-            BackendInstanceBundle::Wasmi(wasmi_instance) => {
-                wasmi_invoke(self, wasmi_instance, export_name, args, supervisor_context)
+            BackendInstanceBundle::Wasmi { instance, store } => {
+                wasmi_invoke(instance, store, export_name, args, supervisor_context)
             }
 
             BackendInstanceBundle::Wasmer { instance, store } => {
@@ -234,7 +230,9 @@ impl SandboxInstance {
     /// Returns `Some(_)` if the global could be found.
     pub fn get_global_val(&self, name: &str) -> Option<Value> {
         match &self.backend_instance {
-            BackendInstanceBundle::Wasmi(wasmi_instance) => wasmi_get_global(wasmi_instance, name),
+            BackendInstanceBundle::Wasmi { instance, store } => {
+                wasmi_get_global(instance, &store.borrow(), name)
+            }
 
             BackendInstanceBundle::Wasmer { instance, store } => {
                 wasmer_get_global(instance, &mut store.borrow_mut(), name)
@@ -251,8 +249,8 @@ impl SandboxInstance {
         value: Value,
     ) -> std::result::Result<Option<()>, error::Error> {
         match &self.backend_instance {
-            BackendInstanceBundle::Wasmi(wasmi_instance) => {
-                wasmi_set_global(wasmi_instance, name, value)
+            BackendInstanceBundle::Wasmi { instance, store } => {
+                wasmi_set_global(instance, &mut store.borrow_mut(), name, value)
             }
 
             BackendInstanceBundle::Wasmer { instance, store } => {
@@ -270,7 +268,9 @@ impl SandboxInstance {
     /// Expected to be called only from signal handler.
     pub unsafe fn signal_handler_get_global_val(&self, name: &str) -> Option<Value> {
         match &self.backend_instance {
-            BackendInstanceBundle::Wasmi(wasmi_instance) => wasmi_get_global(wasmi_instance, name),
+            BackendInstanceBundle::Wasmi { instance, store } => unsafe {
+                wasmi_get_global(instance, &*store.as_ptr(), name)
+            },
 
             BackendInstanceBundle::Wasmer { instance, store } => unsafe {
                 // We cannot use `store.borrow_mut()` in signal handler context because it's already borrowed during `invoke` call.
@@ -292,9 +292,10 @@ impl SandboxInstance {
         value: Value,
     ) -> Result<Option<()>> {
         match &self.backend_instance {
-            BackendInstanceBundle::Wasmi(wasmi_instance) => {
-                wasmi_set_global(wasmi_instance, name, value)
-            }
+            BackendInstanceBundle::Wasmi { instance, store } => unsafe {
+                // We cannot use `store.borrow_mut()` in signal handler context because it's already borrowed during `invoke` call.
+                wasmi_set_global(instance, &mut *store.as_ptr(), name, value)
+            },
 
             BackendInstanceBundle::Wasmer { instance, store } => unsafe {
                 // We cannot use `store.borrow_mut()` in signal handler context because it's already borrowed during `invoke` call.
@@ -405,6 +406,7 @@ impl UnregisteredInstance {
 }
 
 /// Sandbox backend to use
+#[atomic_enum::atomic_enum]
 pub enum SandboxBackend {
     /// Wasm interpreter
     Wasmi,
@@ -497,7 +499,7 @@ impl util::MemoryTransfer for Memory {
 /// Information specific to a particular execution backend
 enum BackendContext {
     /// Wasmi specific context
-    Wasmi,
+    Wasmi(WasmiBackend),
 
     /// Wasmer specific context
     Wasmer(WasmerBackend),
@@ -506,7 +508,7 @@ enum BackendContext {
 impl BackendContext {
     pub fn new(backend: SandboxBackend) -> BackendContext {
         match backend {
-            SandboxBackend::Wasmi => BackendContext::Wasmi,
+            SandboxBackend::Wasmi => BackendContext::Wasmi(WasmiBackend::new()),
 
             SandboxBackend::Wasmer => BackendContext::Wasmer(WasmerBackend::new()),
         }
@@ -523,6 +525,8 @@ pub struct SandboxComponents<DT> {
     instances: Vec<Option<(Pin<Rc<SandboxInstance>>, DT)>>,
     /// Memories are `Some` until torn down.
     memories: Vec<Option<Memory>>,
+    /// Allocation used for the Wasmi memory.
+    allocations: Vec<Allocation>,
     backend_context: BackendContext,
 }
 
@@ -532,6 +536,7 @@ impl<DT: Clone> SandboxComponents<DT> {
         SandboxComponents {
             instances: Vec::new(),
             memories: Vec::new(),
+            allocations: Vec::new(),
             backend_context: BackendContext::new(backend),
         }
     }
@@ -550,11 +555,16 @@ impl<DT: Clone> SandboxComponents<DT> {
         self.memories.clear();
 
         match self.backend_context {
-            BackendContext::Wasmi => (),
+            BackendContext::Wasmi(_) => {
+                self.backend_context = BackendContext::Wasmi(WasmiBackend::new());
+            }
             BackendContext::Wasmer(_) => {
                 self.backend_context = BackendContext::Wasmer(WasmerBackend::new());
             }
         }
+
+        // Clear allocations after store is dropped
+        self.allocations.clear();
     }
 
     /// Create a new memory instance and return it's index.
@@ -573,7 +583,11 @@ impl<DT: Clone> SandboxComponents<DT> {
         };
 
         let memory = match &backend_context {
-            BackendContext::Wasmi => wasmi_new_memory(initial, maximum)?,
+            BackendContext::Wasmi(backend) => {
+                let (memory, alloc) = wasmi_new_memory(backend.store().clone(), initial, maximum)?;
+                self.allocations.push(alloc);
+                memory
+            }
 
             BackendContext::Wasmer(backend) => {
                 wasmer_new_memory(backend.store().clone(), initial, maximum)?
@@ -684,7 +698,9 @@ impl<DT: Clone> SandboxComponents<DT> {
         supervisor_context: &mut dyn SupervisorContext,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
         let sandbox_instance = match self.backend_context {
-            BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, supervisor_context)?,
+            BackendContext::Wasmi(ref context) => {
+                wasmi_instantiate(version, context, wasm, guest_env, supervisor_context)?
+            }
 
             BackendContext::Wasmer(ref context) => {
                 wasmer_instantiate(version, context, wasm, guest_env, supervisor_context)?
