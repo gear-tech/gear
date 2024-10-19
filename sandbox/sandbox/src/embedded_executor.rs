@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! An embedded WASM executor utilizing `wasmi`.
+//! An embedded WASM executor utilizing `wasmer`.
 
 use crate::{
     AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore,
@@ -241,7 +241,7 @@ impl<T: Send + 'static> AsContextExt for Store<T> {
 
 impl<T> AsContext for Store<T> {}
 
-/// wasmi caller wrapper.
+/// wasmer function env wrapper.
 pub struct Caller<'a, T>(wasmer::FunctionEnvMut<'a, InnerState<T>>);
 
 impl<T> wasmer::AsStoreRef for Caller<'_, T> {
@@ -499,7 +499,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                             let return_val = match (val.inner, func_ty.results()) {
                                 (ReturnValue::Unit, []) => None,
                                 (ReturnValue::Value(val), [ret]) => {
-                                    let val = to_wasmi(val);
+                                    let val = to_wasmer(val);
 
                                     if val.ty() != *ret {
                                         return Err(RuntimeError::new("mismatching return types"));
@@ -557,7 +557,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         name: &str,
         args: &[Value],
     ) -> Result<ReturnValue, Error> {
-        let args = args.iter().cloned().map(to_wasmi).collect::<Vec<_>>();
+        let args = args.iter().cloned().map(to_wasmer).collect::<Vec<_>>();
 
         let func = self
             .instance
@@ -606,7 +606,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
             .get_global(name)
             .map_err(|_| GlobalsSetError::NotFound)?;
         global
-            .set(&mut store, to_wasmi(value))
+            .set(&mut store, to_wasmer(value))
             .map_err(|_| GlobalsSetError::Other)?;
         Ok(())
     }
@@ -619,8 +619,8 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
     }
 }
 
-/// Convert the substrate value type to the wasmi value type.
-fn to_wasmi(value: Value) -> RuntimeValue {
+/// Convert the substrate value type to the wasmer value type.
+fn to_wasmer(value: Value) -> RuntimeValue {
     match value {
         Value::I32(val) => RuntimeValue::I32(val),
         Value::I64(val) => RuntimeValue::I64(val),
@@ -629,7 +629,7 @@ fn to_wasmi(value: Value) -> RuntimeValue {
     }
 }
 
-/// Convert the wasmi value type to the substrate value type.
+/// Convert the wasmer value type to the substrate value type.
 fn to_interface(value: RuntimeValue) -> Option<Value> {
     match value {
         RuntimeValue::I32(val) => Some(Value::I32(val)),
