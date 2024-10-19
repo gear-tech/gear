@@ -31,7 +31,6 @@ use sc_service::{
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ConstructRuntimeApi;
-use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_runtime::{
     traits::{BlakeTwo256, Block as BlockT},
     OpaqueExtrinsic,
@@ -373,7 +372,7 @@ where
 {
     let hwbench = (!disable_hardware_benchmarks)
         .then_some(config.database.path().map(|database_path| {
-            let _ = std::fs::create_dir_all(&database_path);
+            let _ = std::fs::create_dir_all(database_path);
             sc_sysinfo::gather_hwbench(Some(database_path), &SUBSTRATE_REFERENCE_HARDWARE)
         }))
         .flatten();
@@ -443,7 +442,7 @@ where
             metrics,
         })?;
 
-    let role = config.role.clone();
+    let role = config.role;
     let force_authoring = config.force_authoring;
     let backoff_authoring_blocks =
         Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default());
@@ -602,7 +601,7 @@ where
         name: Some(name),
         observer_enabled: false,
         keystore,
-        local_role: role.clone(),
+        local_role: role,
         telemetry: telemetry.as_ref().map(|x| x.handle()),
         protocol_name: grandpa_protocol_name,
     };
@@ -717,19 +716,17 @@ pub fn new_full(
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "vara-native")]
-        spec if spec.is_vara() => new_full_base::<
-            sc_network::NetworkWorker<_, _>,
-            vara_runtime::RuntimeApi,
-            // WasmExecutor<ExtendHostFunctions>,
-        >(
-            config,
-            disable_hardware_benchmarks,
-            |_, _| (),
-            max_gas,
-            rpc_calculations_multiplier,
-            rpc_max_batch_size,
-        )
-        .map(|NewFullBase { task_manager, .. }| task_manager),
+        spec if spec.is_vara() => {
+            new_full_base::<sc_network::NetworkWorker<_, _>, vara_runtime::RuntimeApi>(
+                config,
+                disable_hardware_benchmarks,
+                |_, _| (),
+                max_gas,
+                rpc_calculations_multiplier,
+                rpc_max_batch_size,
+            )
+            .map(|NewFullBase { task_manager, .. }| task_manager)
+        }
         _ => Err(ServiceError::Other("Invalid chain spec".into())),
     }
 }

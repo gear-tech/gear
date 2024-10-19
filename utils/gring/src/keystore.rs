@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ss58, KeypairInfo, Scrypt, Keypair};
+use crate::{ss58, Keypair, KeypairInfo, Scrypt};
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::RngCore;

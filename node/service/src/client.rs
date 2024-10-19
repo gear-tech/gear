@@ -52,7 +52,6 @@ pub type FullClient<RuntimeApi> = sc_service::TFullClient<Block, RuntimeApi, Run
 /// Only enable the benchmarking host functions when we actually want to benchmark.
 #[cfg(feature = "runtime-benchmarks")]
 pub type ExtendHostFunctions = (
-    // sp_io::SubstrateHostFunctions,
     frame_benchmarking::benchmarking::HostFunctions,
     gear_ri::gear_ri::HostFunctions,
     gear_ri::sandbox::HostFunctions,
@@ -62,7 +61,6 @@ pub type ExtendHostFunctions = (
 /// Otherwise we only use the default Substrate host functions.
 #[cfg(not(feature = "runtime-benchmarks"))]
 pub type ExtendHostFunctions = (
-    // sp_io::SubstrateHostFunctions,
     gear_ri::gear_ri::HostFunctions,
     gear_ri::sandbox::HostFunctions,
     sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,

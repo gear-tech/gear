@@ -30,6 +30,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, mocking, pallet_prelude::BlockNumberFor};
 use pallet_gear_voucher::VoucherId;
+#[allow(deprecated)]
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
@@ -98,6 +99,7 @@ parameter_types! {
     pub const QueueLengthStep: u64 = 5;
 }
 
+#[allow(deprecated)]
 impl pallet_transaction_payment::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
