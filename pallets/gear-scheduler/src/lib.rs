@@ -64,7 +64,7 @@ pub mod pallet {
         traits::{Get, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
-    use gear_core::tasks::ScheduledTask;
+    use gear_core::tasks::VaraScheduledTask;
     use sp_runtime::DispatchError;
     use sp_std::{convert::TryInto, marker::PhantomData};
 
@@ -140,7 +140,7 @@ pub mod pallet {
     type AccountId<T> = <T as frame_system::Config>::AccountId;
 
     /// Task type of the scheduler.
-    type Task<T> = ScheduledTask<AccountId<T>>;
+    type Task<T> = VaraScheduledTask<AccountId<T>>;
 
     // Below goes storages and their gear's wrapper implementations.
     //
