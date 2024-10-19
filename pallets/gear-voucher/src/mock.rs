@@ -142,6 +142,7 @@ impl pallet_gear_voucher::Config for Test {
     type MaxProgramsAmount = ConstU8<3>;
     type MaxDuration = MaxVoucherDuration;
     type MinDuration = MinVoucherDuration;
+    type MaxCodeIdsAmount = ConstU8<3>;
 }
 
 // Build genesis storage according to the mock runtime.

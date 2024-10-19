@@ -18,11 +18,12 @@
 
 use gear_core::ids::{prelude::CodeIdExt, CodeId, MessageId, ProgramId};
 use gsdk::{
-    metadata::runtime_types::pallet_gear_voucher::internal::VoucherId, Api, Event, Result,
-    TxInBlock,
+    metadata::runtime_types::pallet_gear_voucher::internal::{VoucherId, VoucherPermissions},
+    Api, Error, Event, Result, TxInBlock,
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
+use subxt::Error as SubxtError;
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -44,9 +45,8 @@ async fn test_issue_voucher() -> Result<()> {
         .issue_voucher(
             account_id.clone(),
             voucher_initial_balance,
-            None,
-            false,
             100,
+            VoucherPermissions::none(),
         )
         .await?;
 
@@ -74,7 +74,12 @@ async fn test_decline_revoke_voucher() -> Result<()> {
     // issue voucher
     let tx = signer
         .calls
-        .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            100,
+            VoucherPermissions::none(),
+        )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let _voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
@@ -111,7 +116,12 @@ async fn test_upload_code_with_voucher() -> Result<()> {
     // issue voucher
     let tx = signer
         .calls
-        .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            100,
+            VoucherPermissions::all(),
+        )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
@@ -140,6 +150,7 @@ async fn test_upload_code_with_voucher() -> Result<()> {
     Ok(())
 }
 
+/// Upload code, Create program and Send messages with voucher
 #[tokio::test]
 async fn test_send_message_with_voucher() -> Result<()> {
     // arrange
@@ -154,7 +165,12 @@ async fn test_send_message_with_voucher() -> Result<()> {
     // 1. issue voucher
     let tx = signer
         .calls
-        .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            100,
+            VoucherPermissions::all(),
+        )
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
@@ -166,14 +182,22 @@ async fn test_send_message_with_voucher() -> Result<()> {
         .await?;
     let code_id = get_last_code_id(tx).await?;
 
-    // 3. calculate create gas and create program
+    // 3. calculate create gas and create program with voucher
     let gas_info = signer
         .rpc
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
     let tx = signer
         .calls
-        .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
+        .create_program_with_voucher(
+            voucher_id.clone(),
+            code_id,
+            vec![],
+            vec![],
+            gas_info.min_limit,
+            0,
+            false,
+        )
         .await?;
     let program_id = get_last_program_id(tx).await?;
 
@@ -210,6 +234,104 @@ async fn test_send_message_with_voucher() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_voucher_transfer_below_minimum_error() -> Result<()> {
+    // arrange
+    let node = dev_node();
+
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
+    let account_id = signer.account_id();
+
+    // 1. issue voucher
+    let tx = signer
+        .calls
+        .issue_voucher(account_id.clone(), 1_000, 100, VoucherPermissions::all())
+        .await?;
+
+    let error = get_issued_voucher_id(tx)
+        .await
+        .expect_err("Expect: Subxt(Runtime(Module(ModuleError(<GearVoucher::BalanceTransfer>))))");
+
+    assert!(matches!(
+        error,
+        Error::Subxt(SubxtError::Runtime(subxt::error::DispatchError::Module(
+            err
+        ))) if err.to_string() == "GearVoucher::BalanceTransfer"
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_voucher_balance_transfer_error() -> Result<()> {
+    // arrange
+    let node = dev_node();
+
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
+    let account_id = signer.account_id();
+
+    // 1. issue voucher
+    let tx = signer
+        .calls
+        .issue_voucher(
+            account_id.clone(),
+            100_000_000_000_000_000_000,
+            100,
+            VoucherPermissions::all(),
+        )
+        .await?;
+
+    let error = get_issued_voucher_id(tx)
+        .await
+        .expect_err("Expect: Subxt(Runtime(Module(ModuleError(<GearVoucher::BalanceTransfer>))))");
+
+    assert!(matches!(
+        error,
+        Error::Subxt(SubxtError::Runtime(subxt::error::DispatchError::Module(
+            err
+        ))) if err.to_string() == "GearVoucher::BalanceTransfer"
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_voucher_duration_error() -> Result<()> {
+    // arrange
+    let node = dev_node();
+
+    let signer = Api::new(node.ws().as_str())
+        .await?
+        .signer("//Alice", None)?;
+    let account_id = signer.account_id();
+    let voucher_initial_balance = 100_000_000_000_000;
+
+    // 1. issue voucher
+    let tx = signer
+        .calls
+        .issue_voucher(
+            account_id.clone(),
+            voucher_initial_balance,
+            0,
+            VoucherPermissions::all(),
+        )
+        .await?;
+
+    let error = get_issued_voucher_id(tx).await.expect_err(
+        "Expect: Subxt(Runtime(Module(ModuleError(<GearVoucher::DurationOutOfBounds>))))",
+    );
+
+    assert!(matches!(
+        error,
+        Error::Subxt(SubxtError::Runtime(subxt::error::DispatchError::Module(
+            err
+        ))) if err.to_string() == "GearVoucher::DurationOutOfBounds"
+    ));
+    Ok(())
+}
+
 async fn get_issued_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
     for event in tx.wait_for_success().await?.iter() {
         if let Event::GearVoucher(
@@ -219,7 +341,6 @@ async fn get_issued_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
             },
         ) = event?.as_root_event::<Event>()?
         {
-            dbg!(&voucher_id);
             return Ok(voucher_id);
         }
     }
