@@ -27,10 +27,7 @@ use gear_core_errors::*;
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::{
-        error::ErrorObject,
-        ErrorObjectOwned,
-    },
+    types::{error::ErrorObject, ErrorObjectOwned},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
@@ -461,8 +458,7 @@ where
                     "Batch size must be lower than {:?}",
                     self.max_batch_size
                 )),
-            )
-            );
+            ));
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
@@ -556,8 +552,7 @@ where
                     "Batch size must be lower than {:?}",
                     self.max_batch_size
                 )),
-            )
-            );
+            ));
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);

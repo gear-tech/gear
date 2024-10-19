@@ -29,7 +29,6 @@ use crate::{
     block_builder::{BlockBuilder, BlockBuilderBuilder},
     ProposerFactory,
 };
-
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
@@ -69,8 +68,8 @@ use std::{
 };
 use testing::{
     client::{
-        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, TestClientBuilder,
-        TestClientBuilderExt,
+        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, ExtendHostFunctions,
+        TestClientBuilder, TestClientBuilderExt,
     },
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
@@ -271,7 +270,7 @@ pub fn init() -> (
 }
 
 pub fn create_proposal<A>(
-    mut client: Arc<TestClient>,
+    client: Arc<TestClient>,
     _backend: Arc<TestBackend>,
     txpool: Arc<A>,
     spawner: sp_core::testing::TaskExecutor,

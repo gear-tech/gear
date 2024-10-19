@@ -1625,10 +1625,10 @@ pub type SignedExtra = (
     frame_system::CheckTxVersion<Runtime>,
     frame_system::CheckGenesis<Runtime>,
     frame_system::CheckEra<Runtime>,
-    frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
     CustomCheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
     CustomChargeTransactionPayment<Runtime>,
+    frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

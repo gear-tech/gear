@@ -82,10 +82,10 @@ pub fn signed_extra(nonce: Nonce) -> SignedExtra {
         frame_system::CheckTxVersion::new(),
         frame_system::CheckGenesis::new(),
         frame_system::CheckEra::from(Era::mortal(256, 0)),
-        frame_metadata_hash_extension::CheckMetadataHash::new(true),
         CustomCheckNonce::from(nonce),
         frame_system::CheckWeight::new(),
         CustomChargeTransactionPayment::from(0),
+        frame_metadata_hash_extension::CheckMetadataHash::new(true),
     )
 }
 

@@ -20,7 +20,7 @@ use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
-use service::{chain_spec, IdentifyVariant};
+use service::{chain_spec, ExtendHostFunctions, IdentifyVariant};
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
@@ -231,10 +231,10 @@ pub fn run() -> sc_cli::Result<()> {
                         match &config.chain_spec {
                             #[cfg(feature = "vara-native")]
                             spec if spec.is_vara() => cmd
-                                .run::<service::vara_runtime::Block, ExtendedHostFunctions<
+                                .run_with_spec::<sp_runtime::traits::HashingFor<service::vara_runtime::Block>, ExtendedHostFunctions<
                                     sp_io::SubstrateHostFunctions,
                                     ExtendHostFunctions,
-                                >>(config),
+                                >>(Some(config.chain_spec)),
                             _ => Err("invalid chain spec".into()),
                         }
                     }
