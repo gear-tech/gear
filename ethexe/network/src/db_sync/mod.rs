@@ -79,7 +79,7 @@ impl Request {
                 }
             }
             (Request::ProgramIds, Response::ProgramIds(_ids)) => None,
-            _ => unreachable!("should be checked in `validate_response`"),
+            _ => unreachable!("should be checked in `Response::validate()`"),
         }
     }
 }
@@ -109,7 +109,7 @@ impl Response {
             (Response::ProgramIds(ids), Response::ProgramIds(new_ids)) => {
                 ids.extend(new_ids);
             }
-            _ => unreachable!("should be checked in `validate_response`"),
+            _ => unreachable!("should be checked in `Response::validate()`"),
         }
     }
 
@@ -150,7 +150,7 @@ impl Response {
                 true
             }
             (Request::ProgramIds, Response::ProgramIds(_ids)) => false,
-            _ => unreachable!("should be checked in `validate_response`"),
+            _ => unreachable!("should be checked in `Response::validate()`"),
         }
     }
 }
