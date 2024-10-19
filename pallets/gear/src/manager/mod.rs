@@ -59,7 +59,7 @@ use crate::{
 use alloc::format;
 use common::{
     event::*,
-    scheduler::{ScheduledTask, StorageType, TaskPool},
+    scheduler::{StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
     CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
@@ -73,6 +73,7 @@ use gear_core::{
     pages::WasmPagesAmount,
     program::{ActiveProgram, Program, ProgramState},
     reservation::GasReservationSlot,
+    tasks::ScheduledTask,
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;

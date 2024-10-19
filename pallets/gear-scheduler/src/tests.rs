@@ -23,7 +23,7 @@ extern crate alloc;
 use crate::{mock::*, *};
 use common::{scheduler::*, storage::*, GasTree, LockId, LockableTree as _, Origin};
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::{ids::*, message::*};
+use gear_core::{ids::*, message::*, tasks::*};
 use gear_core_errors::ErrorReplyReason;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;

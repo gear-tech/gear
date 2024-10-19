@@ -43,7 +43,6 @@ pub type Store = wasmtime::Store<StoreData>;
 
 #[derive(Clone)]
 pub(crate) struct InstanceCreator {
-    db: Database,
     engine: wasmtime::Engine,
     instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
 
@@ -54,7 +53,7 @@ pub(crate) struct InstanceCreator {
 }
 
 impl InstanceCreator {
-    pub fn new(db: Database, runtime: Vec<u8>) -> Result<Self> {
+    pub fn new(runtime: Vec<u8>) -> Result<Self> {
         gear_runtime_interface::sandbox_init();
 
         let engine = wasmtime::Engine::default();
@@ -72,7 +71,6 @@ impl InstanceCreator {
         let instance_pre = Arc::new(instance_pre);
 
         Ok(Self {
-            db,
             engine,
             instance_pre,
             chain_head: None,
@@ -87,7 +85,6 @@ impl InstanceCreator {
         let mut instance_wrapper = InstanceWrapper {
             instance,
             store,
-            db: self.db().clone(),
             chain_head: self.chain_head,
         };
 
@@ -100,10 +97,6 @@ impl InstanceCreator {
         Ok(instance_wrapper)
     }
 
-    pub fn db(&self) -> &Database {
-        &self.db
-    }
-
     pub fn set_chain_head(&mut self, chain_head: H256) {
         self.chain_head = Some(chain_head);
     }
@@ -112,15 +105,10 @@ impl InstanceCreator {
 pub(crate) struct InstanceWrapper {
     instance: wasmtime::Instance,
     store: Store,
-    db: Database,
     chain_head: Option<H256>,
 }
 
 impl InstanceWrapper {
-    pub fn db(&self) -> &Database {
-        &self.db
-    }
-
     #[allow(unused)]
     pub fn data(&self) -> &StoreData {
         self.store.data()
@@ -139,13 +127,14 @@ impl InstanceWrapper {
 
     pub fn run(
         &mut self,
+        db: Database,
         program_id: ProgramId,
         original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
     ) -> Result<Vec<JournalNote>> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
-        threads::set(self.db.clone(), chain_head, state_hash);
+        threads::set(db, chain_head, state_hash);
 
         let arg = (
             program_id,
@@ -155,13 +144,6 @@ impl InstanceWrapper {
         );
 
         self.call("run", arg.encode())
-    }
-
-    pub fn wake_messages(&mut self, program_id: ProgramId, state_hash: H256) -> Result<H256> {
-        let chain_head = self.chain_head.expect("chain head must be set before wake");
-        threads::set(self.db.clone(), chain_head, state_hash);
-
-        self.call("wake_messages", (program_id, state_hash).encode())
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {

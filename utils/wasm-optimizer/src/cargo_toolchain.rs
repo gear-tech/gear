@@ -101,4 +101,9 @@ impl Toolchain {
         );
         Ok(())
     }
+
+    /// Returns bool representing nightly toolchain.
+    pub fn is_nightly(&self) -> bool {
+        self.0.starts_with("nightly")
+    }
 }

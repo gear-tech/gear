@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Gas;
-use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
-use sp_runtime::{
-    codec::{self, Decode, Encode, MaxEncodedLen},
-    scale_info::{self, TypeInfo},
-};
+//! The module provides primitives for all available regular or time-dependent tasks.
+
+use crate::ids::{CodeId, MessageId, ProgramId, ReservationId};
+use gsys::Gas;
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
+
+/// Alias for ScheduledTask used in vara-runtime, generic across AccountId used.
+pub type VaraScheduledTask<AccountId> = ScheduledTask<AccountId, MessageId, bool>;
 
 /// Scheduled task sense and required data for processing action.
 ///
-/// CAUTION: NEVER ALLOW `ScheduledTask<AccountId>` BE A BIG DATA.
+/// CAUTION: NEVER ALLOW `ScheduledTask` BE A BIG DATA.
 /// To avoid redundant migrations only append new variant(s) to the enum
 /// with an explicit corresponding scale codec index.
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo, MaxEncodedLen)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub enum ScheduledTask<AccountId> {
+pub enum ScheduledTask<RFM, SD, SUM> {
     // Rent charging section.
     // -----
     /// Pause program as out of rent one.
@@ -44,7 +45,7 @@ pub enum ScheduledTask<AccountId> {
 
     /// Remove message from mailbox as out of rent one.
     #[codec(index = 2)]
-    RemoveFromMailbox(AccountId, MessageId),
+    RemoveFromMailbox(RFM, MessageId),
 
     /// Remove message from waitlist as out of rent one.
     #[codec(index = 3)]
@@ -64,15 +65,17 @@ pub enum ScheduledTask<AccountId> {
     ///
     /// The message itself stored in DispatchStash.
     #[codec(index = 6)]
-    SendDispatch(MessageId),
+    SendDispatch(SD),
 
     /// Delayed message to user sending.
     ///
     /// The message itself stored in DispatchStash.
     #[codec(index = 7)]
     SendUserMessage {
+        /// What message to send.
         message_id: MessageId,
-        to_mailbox: bool,
+        /// Should it be inserted into users mailbox.
+        to_mailbox: SUM,
     },
 
     /// Remove gas reservation.
@@ -85,8 +88,9 @@ pub enum ScheduledTask<AccountId> {
     RemoveResumeSession(u32),
 }
 
-impl<AccountId> ScheduledTask<AccountId> {
-    pub fn process_with(self, handler: &mut impl TaskHandler<AccountId>) -> Gas {
+impl<RFM, SD, SUM> ScheduledTask<RFM, SD, SUM> {
+    /// Processing function of current task with given handler.
+    pub fn process_with(self, handler: &mut impl TaskHandler<RFM, SD, SUM>) -> Gas {
         use ScheduledTask::*;
 
         match self {
@@ -115,7 +119,7 @@ impl<AccountId> ScheduledTask<AccountId> {
 }
 
 /// Task handler trait for dealing with required tasks.
-pub trait TaskHandler<AccountId> {
+pub trait TaskHandler<RFM, SD, SUM> {
     // Rent charging section.
     // -----
     /// Pause program action.
@@ -123,7 +127,7 @@ pub trait TaskHandler<AccountId> {
     /// Remove code action.
     fn remove_code(&mut self, code_id: CodeId) -> Gas;
     /// Remove from mailbox action.
-    fn remove_from_mailbox(&mut self, user_id: AccountId, message_id: MessageId) -> Gas;
+    fn remove_from_mailbox(&mut self, user_id: RFM, message_id: MessageId) -> Gas;
     /// Remove from waitlist action.
     fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas;
     /// Remove paused program action.
@@ -134,11 +138,11 @@ pub trait TaskHandler<AccountId> {
     /// Wake message action.
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas;
 
-    // Send delayed message to program action.
-    fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas;
+    /// Send delayed message to program action.
+    fn send_dispatch(&mut self, stashed_message_id: SD) -> Gas;
 
-    // Send delayed message to user action.
-    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas;
+    /// Send delayed message to user action.
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: SUM) -> Gas;
 
     /// Remove gas reservation action.
     fn remove_gas_reservation(
@@ -157,7 +161,5 @@ fn task_encoded_size() {
     const MAX_SIZE: usize = 256;
 
     // For example we will take `AccountId` = `ProgramId` from `gear_core`.
-    type AccountId = ProgramId;
-
-    assert!(ScheduledTask::<AccountId>::max_encoded_len() <= MAX_SIZE);
+    assert!(VaraScheduledTask::<ProgramId>::max_encoded_len() <= MAX_SIZE);
 }

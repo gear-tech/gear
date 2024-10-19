@@ -63,7 +63,7 @@ use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
-use core::{marker::PhantomData, num::NonZeroU32};
+use core::{marker::PhantomData, num::NonZero};
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
@@ -89,6 +89,7 @@ use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
+    tasks::VaraScheduledTask,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
@@ -252,7 +253,7 @@ pub mod pallet {
         type Scheduler: Scheduler<
             BlockNumber = BlockNumberFor<Self>,
             Cost = u64,
-            Task = ScheduledTask<Self::AccountId>,
+            Task = VaraScheduledTask<Self::AccountId>,
         >;
 
         /// Message Queue processing routing provider.
@@ -1709,12 +1710,12 @@ pub mod pallet {
         pub fn claim_value_to_inheritor(
             origin: OriginFor<T>,
             program_id: ProgramId,
-            depth: NonZeroU32,
+            depth: NonZero<u32>,
         ) -> DispatchResultWithPostInfo {
             ensure_signed(origin)?;
 
             let depth = depth.try_into().unwrap_or_else(|e| {
-                unreachable!("NonZeroU32 to NonZeroUsize conversion must be infallible: {e}")
+                unreachable!("NonZero<u32> to NonZero<usize> conversion must be infallible: {e}")
             });
             let (destination, holders) = match Self::inheritor_for(program_id, depth) {
                 Ok(res) => res,

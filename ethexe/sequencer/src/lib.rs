@@ -106,7 +106,7 @@ impl Sequencer {
 
     // This function should never block.
     pub fn process_observer_event(&mut self, event: &RequestEvent) -> Result<()> {
-        if let RequestEvent::Block(RequestBlockData { block_hash, .. }) = event {
+        if let RequestEvent::Block(RequestBlockData { hash, .. }) = event {
             // Reset status, candidates and chain-head each block event
 
             self.update_status(|status| {
@@ -115,7 +115,7 @@ impl Sequencer {
 
             self.codes_candidate = None;
             self.blocks_candidate = None;
-            self.chain_head = Some(*block_hash);
+            self.chain_head = Some(*hash);
         }
 
         Ok(())
@@ -195,6 +195,8 @@ impl Sequencer {
         &mut self,
         aggregated: AggregatedCommitments<CodeCommitment>,
     ) -> Result<()> {
+        log::debug!("Received code commitments: {aggregated:?}");
+
         Self::receive_commitments(
             aggregated,
             &self.validators,
@@ -207,6 +209,8 @@ impl Sequencer {
         &mut self,
         aggregated: AggregatedCommitments<BlockCommitment>,
     ) -> Result<()> {
+        log::debug!("Received block commitments: {aggregated:?}");
+
         Self::receive_commitments(
             aggregated,
             &self.validators,

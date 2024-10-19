@@ -1,4 +1,5 @@
 use ethexe_common::{BlockEvent, BlockRequestEvent};
+use ethexe_db::BlockHeader;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 
@@ -16,18 +17,38 @@ pub enum Event {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct RequestBlockData {
-    pub parent_hash: H256,
-    pub block_hash: H256,
-    pub block_number: u64,
-    pub block_timestamp: u64,
+    pub hash: H256,
+    pub header: BlockHeader,
     pub events: Vec<BlockRequestEvent>,
+}
+
+impl RequestBlockData {
+    pub fn as_simple(&self) -> SimpleBlockData {
+        SimpleBlockData {
+            hash: self.hash,
+            header: self.header.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct BlockData {
-    pub parent_hash: H256,
-    pub block_hash: H256,
-    pub block_number: u64,
-    pub block_timestamp: u64,
+    pub hash: H256,
+    pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
+}
+
+impl BlockData {
+    pub fn as_simple(&self) -> SimpleBlockData {
+        SimpleBlockData {
+            hash: self.hash,
+            header: self.header.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SimpleBlockData {
+    pub hash: H256,
+    pub header: BlockHeader,
 }

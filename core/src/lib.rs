@@ -27,6 +27,7 @@
 
 extern crate alloc;
 
+pub mod buffer;
 pub mod code;
 pub mod costs;
 pub mod env;
@@ -40,9 +41,8 @@ pub mod pages;
 pub mod percent;
 pub mod program;
 pub mod reservation;
-
-pub mod buffer;
 pub mod str;
+pub mod tasks;
 
 // This allows all casts from u32 into usize be safe.
 const _: () = assert!(size_of::<u32>() <= size_of::<usize>());

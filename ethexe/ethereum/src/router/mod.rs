@@ -136,7 +136,7 @@ impl Router {
             }
         }
 
-        Err(anyhow::anyhow!("Failed to define if code is validated"))
+        Err(anyhow!("Failed to define if code is validated"))
     }
 
     pub async fn create_program(

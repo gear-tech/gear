@@ -1,6 +1,9 @@
 # Ethexe section
 .PHONY: ethexe-pre-commit
-ethexe-pre-commit: ethexe-contracts-pre-commit
+ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
+
+.PHONY: ethexe-pre-commit-no-contracts
+ethexe-pre-commit-no-contracts:
 	@ echo " > Formatting ethexe" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
 	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
 
@@ -274,9 +277,11 @@ doc:
 	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
 		-p galloc -p gclient -p gcore -p gear-core-backend \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gmeta -p gstd -p gtest -p gear-wasm-builder -p gear-common \
+		-p gmeta -p gtest -p gear-wasm-builder -p gear-common \
 		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
 		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
+	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
+		-p gstd -F document-features
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
 .PHONY: kill-gear

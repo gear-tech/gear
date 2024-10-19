@@ -88,7 +88,7 @@ impl GasTreeManager {
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
-        if !is_reply && !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
+        if !is_reply || !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
         {
             return GasTree::split_with_value(
                 GasNodeId::from(original_mid.cast::<PlainNodeId>()),
@@ -107,7 +107,7 @@ impl GasTreeManager {
         original_node: impl Origin,
         new_mid: MessageId,
     ) -> Result<(), GasTreeError> {
-        if !is_reply && !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
+        if !is_reply || !GasTree::exists_and_deposit(GasNodeId::from(new_mid.cast::<PlainNodeId>()))
         {
             return GasTree::split(
                 GasNodeId::from(original_node.cast::<PlainNodeId>()),

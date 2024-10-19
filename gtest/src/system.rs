@@ -22,13 +22,13 @@ use crate::{
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
-    Gas, ProgramBuilder, Value, GAS_ALLOWANCE,
+    Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{
-    ids::{CodeId, ProgramId},
+    ids::{prelude::CodeIdExt, CodeId, ProgramId},
     pages::GearPage,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
@@ -352,7 +352,8 @@ impl System {
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
-        let (code, code_id) = ProgramBuilder::build_instrumented_code_and_id(binary.into());
+        let code = binary.into();
+        let code_id = CodeId::generate(code.as_ref());
         self.0.borrow_mut().store_new_code(code_id, code);
 
         code_id
