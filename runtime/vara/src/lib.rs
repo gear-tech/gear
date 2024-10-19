@@ -98,6 +98,7 @@ use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
 use sp_api::{CallApiAt, CallContext, ProofRecorder};
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
 use sp_externalities::Extensions;
@@ -1742,6 +1743,12 @@ impl_runtime_apis_plus_common! {
             )
         }
 
+    }
+
+    impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {
+        fn authorities() -> Vec<AuthorityDiscoveryId> {
+            AuthorityDiscovery::authorities()
+        }
     }
 
     impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>

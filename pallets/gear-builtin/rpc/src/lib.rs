@@ -21,10 +21,7 @@
 use jsonrpsee::{
     core::RpcResult,
     proc_macros::rpc,
-    types::{
-        error::{ErrorCode, ErrorObject},
-        ErrorObjectOwned,
-    },
+    types::{error::ErrorObject, ErrorObjectOwned},
 };
 pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi as GearBuiltinRuntimeApi;
 use sp_api::ProvideRuntimeApi;

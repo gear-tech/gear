@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ss58, KeypairInfo, Scrypt};
+use crate::{ss58, KeypairInfo, Scrypt, Keypair};
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::RngCore;
-use schnorrkel::Keypair;
+// use schnorrkel::Keypair;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 

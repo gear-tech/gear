@@ -84,6 +84,7 @@ pub trait RuntimeApiCollection:
     + sp_api::Metadata<Block>
     + sp_offchain::OffchainWorkerApi<Block>
     + sp_session::SessionKeys<Block>
+    + sp_authority_discovery::AuthorityDiscoveryApi<Block>
     + pallet_gear_rpc_runtime_api::GearApi<Block>
     + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
     + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
@@ -102,6 +103,7 @@ impl<Api> RuntimeApiCollection for Api where
         + sp_api::Metadata<Block>
         + sp_offchain::OffchainWorkerApi<Block>
         + sp_session::SessionKeys<Block>
+        + sp_authority_discovery::AuthorityDiscoveryApi<Block>
         + pallet_gear_rpc_runtime_api::GearApi<Block>
         + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
         + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>

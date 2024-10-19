@@ -39,6 +39,7 @@ gear-runtime-common = { workspace = true, features = ["std"] }
 vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 
 # Substrate Client
+sc-authority-discovery.workspace = true
 sc-chain-spec.workspace = true
 sc-executor.workspace = true
 sc-executor-common.workspace = true

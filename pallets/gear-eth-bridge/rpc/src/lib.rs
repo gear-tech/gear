@@ -18,14 +18,7 @@
 
 //! RPC interface for the gear module.
 
-use jsonrpsee::{
-    core::RpcResult,
-    proc_macros::rpc,
-    types::{
-        error::{ErrorCode, ErrorObject},
-        ErrorObjectOwned,
-    },
-};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, types::error::ErrorObject};
 use pallet_gear_eth_bridge_rpc_runtime_api::Proof;
 use primitive_types::H256;
 use sp_api::ProvideRuntimeApi;

@@ -22,9 +22,7 @@ use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use futures::FutureExt;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
-use sc_network::{
-    event::Event, service::traits::NetworkService, NetworkBackend, NetworkEventStream,
-};
+use sc_network::{service::traits::NetworkService, NetworkBackend};
 use sc_network_sync::{strategy::warp::WarpSyncConfig, SyncingService};
 use sc_service::{
     error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, RpcHandlers,
@@ -33,7 +31,7 @@ use sc_service::{
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ConstructRuntimeApi;
-use sp_core::traits::CodeExecutor;
+use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_runtime::{
     traits::{BlakeTwo256, Block as BlockT},
     OpaqueExtrinsic,
@@ -396,6 +394,9 @@ where
     );
     let shared_voter_state = rpc_setup;
 
+    let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
+    let auth_disc_public_addresses = config.network.public_addresses.clone();
+
     let mut net_config = sc_network::config::FullNetworkConfiguration::<_, _, N>::new(
         &config.network,
         config
@@ -545,6 +546,45 @@ where
             "babe-proposer",
             Some("block-authoring"),
             babe,
+        );
+    }
+
+    // Spawn authority discovery module.
+    if role.is_authority() {
+        use futures::StreamExt;
+        use sc_network::{Event, NetworkEventStream};
+
+        let authority_discovery_role =
+            sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore());
+        let dht_event_stream =
+            network
+                .event_stream("authority-discovery")
+                .filter_map(|e| async move {
+                    match e {
+                        Event::Dht(e) => Some(e),
+                        _ => None,
+                    }
+                });
+        let (authority_discovery_worker, _service) =
+            sc_authority_discovery::new_worker_and_service_with_config(
+                sc_authority_discovery::WorkerConfig {
+                    publish_non_global_ips: auth_disc_publish_non_global_ips,
+                    public_addresses: auth_disc_public_addresses,
+                    // Require that authority discovery records are signed.
+                    strict_record_validation: true,
+                    ..Default::default()
+                },
+                client.clone(),
+                Arc::new(network.clone()),
+                Box::pin(dht_event_stream),
+                authority_discovery_role,
+                prometheus_registry.clone(),
+            );
+
+        task_manager.spawn_handle().spawn(
+            "authority-discovery-worker",
+            Some("networking"),
+            Box::pin(authority_discovery_worker.run()),
         );
     }
 

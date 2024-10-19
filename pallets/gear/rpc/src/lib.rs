@@ -28,7 +28,7 @@ use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
     types::{
-        error::{ErrorCode, ErrorObject},
+        error::ErrorObject,
         ErrorObjectOwned,
     },
 };
@@ -462,7 +462,7 @@ where
                     self.max_batch_size
                 )),
             )
-            .into());
+            );
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
@@ -557,7 +557,7 @@ where
                     self.max_batch_size
                 )),
             )
-            .into());
+            );
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);

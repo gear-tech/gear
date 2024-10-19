@@ -360,7 +360,7 @@ pallet-utility = { version = "38.0.0", git = "https://github.com/gear-tech/polka
 pallet-vesting = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409", default-features = false }
 pallet-whitelist = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409", default-features = false }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.17.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
-sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
+sc-authority-discovery = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
 sc-block-builder = { version = "0.42.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
 sc-consensus = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
 sc-consensus-babe = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
@@ -519,7 +519,7 @@ page_size = { version = "0.6", default-features = false }    # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
 rand_pcg = "0.3.1"                                           # pallets/gear
 rustc_version = "0.4.0"                                      # utils/wasm-builder
-schnorrkel = "0.9.1"                                         # gcli
+schnorrkel = "0.11.4"                                         # gcli
 scopeguard = { version = "1.2.0", default-features = false } # pallets/gear
 tabled = "0.10.0"                                            # utils/regression-analysis
 thousands = "0.2.0"                                          # utils/regression-analysis

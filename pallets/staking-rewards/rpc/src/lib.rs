@@ -21,10 +21,7 @@
 use jsonrpsee::{
     core::RpcResult,
     proc_macros::rpc,
-    types::{
-        error::{ErrorCode, ErrorObject},
-        ErrorObjectOwned,
-    },
+    types::{error::ErrorObject, ErrorObjectOwned},
 };
 pub use pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi as GearStakingRewardsRuntimeApi;
 use pallet_gear_staking_rewards_rpc_runtime_api::InflationInfo;
@@ -85,7 +82,7 @@ where
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> ErrorObjectOwned {
-            ErrorObject::owned(8000, desc, Some(format!("{err:?}"))).into()
+            ErrorObject::owned(8000, desc, Some(format!("{err:?}")))
         }
 
         api.inflation_info(at_hash)

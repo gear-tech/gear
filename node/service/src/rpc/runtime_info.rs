@@ -22,7 +22,6 @@ use jsonrpsee::{
     core::RpcResult,
     proc_macros::rpc,
     types::{
-        error::{ErrorCode, ErrorObject},
         ErrorObjectOwned,
     },
 };

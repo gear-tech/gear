@@ -370,4 +370,6 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
     type VoteWeight = pallet_ranked_collective::Geometric;
     type MemberSwappedHandler = ();
     type MaxMemberCount = ();
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkSetup = ();
 }
