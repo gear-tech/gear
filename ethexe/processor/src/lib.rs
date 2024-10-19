@@ -85,13 +85,16 @@ impl Processor {
         let states = self
             .db
             .block_start_program_states(block_hash)
-            .unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
+            .ok_or_else(|| {
+                anyhow!("failed to get block start program states for under-processing block")
+            })?;
 
-        let schedule = self.db.block_start_schedule(block_hash).unwrap_or_default(); // TODO (breathx): shouldn't it be a panic?
+        let schedule = self.db.block_start_schedule(block_hash).ok_or_else(|| {
+            anyhow!("failed to get block start schedule for under-processing block")
+        })?;
 
         let mut in_block_transitions = InBlockTransitions::new(header, states, schedule);
 
-        // TODO (breathx): handle resulting addresses that were changed (e.g. top up balance wont be dumped as outcome).
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
