@@ -70,6 +70,8 @@ impl Query {
         self.database.set_block_is_empty(hash, true);
         self.database
             .set_block_end_program_states(hash, Default::default());
+        self.database
+            .set_block_end_schedule(hash, Default::default());
 
         // set latest valid if empty.
         if self.database.latest_valid_block().is_none() {
@@ -274,6 +276,13 @@ impl Query {
             .ok_or_else(|| anyhow!("parent block end states not found"))?;
         self.database
             .set_block_start_program_states(block_hash, program_state_hashes);
+
+        // Propagate scheduled tasks
+        let schedule = self
+            .database
+            .block_end_schedule(parent)
+            .ok_or_else(|| anyhow!("parent block schedule not found"))?;
+        self.database.set_block_start_schedule(block_hash, schedule);
 
         // Propagate `wait for commitment` blocks queue
         let queue = self

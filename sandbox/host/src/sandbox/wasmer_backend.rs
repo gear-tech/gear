@@ -22,9 +22,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
-use sandbox_wasmer::{AsStoreMut, Module, RuntimeError, Store};
-use sandbox_wasmer_types::TrapCode;
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
+use wasmer::{AsStoreMut, Module, RuntimeError, Store};
+use wasmer_types::TrapCode;
 
 use crate::{
     error::{Error, Result},
@@ -48,11 +48,11 @@ environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 mod store_refcell_ctx {
     use std::rc::Rc;
 
-    use sandbox_wasmer::StoreMut;
+    use wasmer::StoreMut;
 
     use super::{store_refcell::BorrowScopeError, StoreRefCell};
 
-    // We cannot store `StoreRefCell` in `sandbox_wasmer::FunctionEnv` because it doesn't implement Send/Sync,
+    // We cannot store `StoreRefCell` in `wasmer::FunctionEnv` because it doesn't implement Send/Sync,
     // so we have to use `environment!` to access it from `dispatch_function` functions.
     environmental::environmental!(StoreRefCellEnv: Rc<StoreRefCell>);
 
@@ -75,7 +75,7 @@ mod store_refcell_ctx {
 pub struct Env {
     // Gas global is optional because it will be initialized after instance creation.
     // See `instantiate` function.
-    gas_global: Option<sandbox_wasmer::Global>,
+    gas_global: Option<wasmer::Global>,
 }
 
 /// Wasmer specific context
@@ -91,9 +91,9 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let compiler = sandbox_wasmer::Singlepass::default();
+        let compiler = wasmer::Singlepass::default();
         Backend {
-            store: Rc::new(StoreRefCell::new(sandbox_wasmer::Store::new(compiler))),
+            store: Rc::new(StoreRefCell::new(wasmer::Store::new(compiler))),
         }
     }
 
@@ -104,7 +104,7 @@ impl Backend {
 
 /// Invoke a function within a sandboxed module
 pub fn invoke(
-    instance: &sandbox_wasmer::Instance,
+    instance: &wasmer::Instance,
     store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
@@ -115,7 +115,7 @@ pub fn invoke(
         .get_function(export_name)
         .map_err(|error| Error::Sandbox(error.to_string()))?;
 
-    let args: Vec<sandbox_wasmer::Value> = args.iter().map(into_wasmer_val).collect();
+    let args: Vec<wasmer::Value> = args.iter().map(into_wasmer_val).collect();
 
     let wasmer_result = SupervisorContextStore::using(supervisor_context, || {
         store_refcell_ctx::using(&mut store.clone(), || {
@@ -190,19 +190,17 @@ pub fn instantiate(
     let module = Module::new(&context.store().borrow(), wasm)
         .map_err(|_| InstantiationError::ModuleDecoding)?;
 
-    let mut exports = sandbox_wasmer::Exports::new();
+    let mut exports = wasmer::Exports::new();
 
-    let func_env = sandbox_wasmer::FunctionEnv::new(
-        &mut context.store().borrow_mut(),
-        Env { gas_global: None },
-    );
+    let func_env =
+        wasmer::FunctionEnv::new(&mut context.store().borrow_mut(), Env { gas_global: None });
 
     for import in module.imports() {
         match import.ty() {
             // Nothing to do here
-            sandbox_wasmer::ExternType::Global(_) | sandbox_wasmer::ExternType::Table(_) => (),
+            wasmer::ExternType::Global(_) | wasmer::ExternType::Table(_) => (),
 
-            sandbox_wasmer::ExternType::Memory(_) => {
+            wasmer::ExternType::Memory(_) => {
                 let memory = guest_env
                     .imports
                     .memory_by_name(import.module(), import.name())
@@ -229,10 +227,10 @@ pub fn instantiate(
                     .map_err(|_| InstantiationError::EnvironmentDefinitionCorrupted)?
                     .clone();
 
-                exports.insert(import.name(), sandbox_wasmer::Extern::Memory(wasmer_memory));
+                exports.insert(import.name(), wasmer::Extern::Memory(wasmer_memory));
             }
 
-            sandbox_wasmer::ExternType::Function(func_ty) => {
+            wasmer::ExternType::Function(func_ty) => {
                 let guest_func_index = guest_env
                     .imports
                     .func_by_name(import.module(), import.name());
@@ -264,35 +262,30 @@ pub fn instantiate(
                     ),
                 };
 
-                exports.insert(import.name(), sandbox_wasmer::Extern::Function(function));
+                exports.insert(import.name(), wasmer::Extern::Function(function));
             }
         }
     }
 
-    let mut import_object = sandbox_wasmer::Imports::new();
+    let mut import_object = wasmer::Imports::new();
     import_object.register_namespace("env", exports);
 
     let instance = SupervisorContextStore::using(supervisor_context, || {
-        sandbox_wasmer::Instance::new(&mut context.store().borrow_mut(), &module, &import_object)
-            .map_err(|error| {
-                log::trace!("Failed to call sandbox_wasmer::Instance::new: {error:?}");
+        wasmer::Instance::new(&mut context.store().borrow_mut(), &module, &import_object).map_err(
+            |error| {
+                log::trace!("Failed to call wasmer::Instance::new: {error:?}");
 
                 match error {
-                    sandbox_wasmer::InstantiationError::Link(_) => {
-                        InstantiationError::Instantiation
-                    }
-                    sandbox_wasmer::InstantiationError::Start(_) => {
-                        InstantiationError::StartTrapped
-                    }
-                    sandbox_wasmer::InstantiationError::CpuFeature(_) => {
-                        InstantiationError::CpuFeature
-                    }
-                    sandbox_wasmer::InstantiationError::DifferentStores
-                    | sandbox_wasmer::InstantiationError::DifferentArchOS => {
+                    wasmer::InstantiationError::Link(_) => InstantiationError::Instantiation,
+                    wasmer::InstantiationError::Start(_) => InstantiationError::StartTrapped,
+                    wasmer::InstantiationError::CpuFeature(_) => InstantiationError::CpuFeature,
+                    wasmer::InstantiationError::DifferentStores
+                    | wasmer::InstantiationError::DifferentArchOS => {
                         InstantiationError::EnvironmentDefinitionCorrupted
                     }
                 }
-            })
+            },
+        )
     })?;
 
     // Initialize function environment with gas global after instance creation.
@@ -379,28 +372,28 @@ fn dispatch_common(
     serialized_result_val
 }
 
-fn into_wasmer_val(value: &Value) -> sandbox_wasmer::Value {
+fn into_wasmer_val(value: &Value) -> wasmer::Value {
     match value {
-        Value::I32(val) => sandbox_wasmer::Value::I32(*val),
-        Value::I64(val) => sandbox_wasmer::Value::I64(*val),
-        Value::F32(val) => sandbox_wasmer::Value::F32(f32::from_bits(*val)),
-        Value::F64(val) => sandbox_wasmer::Value::F64(f64::from_bits(*val)),
+        Value::I32(val) => wasmer::Value::I32(*val),
+        Value::I64(val) => wasmer::Value::I64(*val),
+        Value::F32(val) => wasmer::Value::F32(f32::from_bits(*val)),
+        Value::F64(val) => wasmer::Value::F64(f64::from_bits(*val)),
     }
 }
 
-fn into_wasmer_result(value: ReturnValue) -> Vec<sandbox_wasmer::Value> {
+fn into_wasmer_result(value: ReturnValue) -> Vec<wasmer::Value> {
     match value {
         ReturnValue::Value(v) => vec![into_wasmer_val(&v)],
         ReturnValue::Unit => vec![],
     }
 }
 
-fn into_value(value: &sandbox_wasmer::Value) -> Option<Value> {
+fn into_value(value: &wasmer::Value) -> Option<Value> {
     match value {
-        sandbox_wasmer::Value::I32(val) => Some(Value::I32(*val)),
-        sandbox_wasmer::Value::I64(val) => Some(Value::I64(*val)),
-        sandbox_wasmer::Value::F32(val) => Some(Value::F32(f32::to_bits(*val))),
-        sandbox_wasmer::Value::F64(val) => Some(Value::F64(f64::to_bits(*val))),
+        wasmer::Value::I32(val) => Some(Value::I32(*val)),
+        wasmer::Value::I64(val) => Some(Value::I64(*val)),
+        wasmer::Value::F32(val) => Some(Value::F32(f32::to_bits(*val))),
+        wasmer::Value::F64(val) => Some(Value::F64(f64::to_bits(*val))),
         _ => None,
     }
 }
@@ -408,10 +401,10 @@ fn into_value(value: &sandbox_wasmer::Value) -> Option<Value> {
 fn dispatch_function(
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
-    func_env: &sandbox_wasmer::FunctionEnv<Env>,
-    func_ty: &sandbox_wasmer::FunctionType,
-) -> sandbox_wasmer::Function {
-    sandbox_wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
+    func_env: &wasmer::FunctionEnv<Env>,
+    func_ty: &wasmer::FunctionType,
+) -> wasmer::Function {
+    wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
         SupervisorContextStore::with(|supervisor_context| {
             let mut storemut = env.as_store_mut();
 
@@ -451,10 +444,10 @@ fn dispatch_function(
 fn dispatch_function_v2(
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
-    func_env: &sandbox_wasmer::FunctionEnv<Env>,
-    func_ty: &sandbox_wasmer::FunctionType,
-) -> sandbox_wasmer::Function {
-    sandbox_wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
+    func_env: &wasmer::FunctionEnv<Env>,
+    func_ty: &wasmer::FunctionType,
+) -> wasmer::Function {
+    wasmer::Function::new_with_env(store, func_env, func_ty, move |mut env, params| {
         SupervisorContextStore::with(|supervisor_context| {
             let (env, mut storemut) = env.data_and_store_mut();
             let gas_global = env
@@ -494,10 +487,7 @@ fn dispatch_function_v2(
             .map_err(|_| RuntimeError::new("StoreRefCell borrow scope error"))??;
 
             gas_global
-                .set(
-                    &mut storemut,
-                    sandbox_wasmer::Value::I64(deserialized_result.gas),
-                )
+                .set(&mut storemut, wasmer::Value::I64(deserialized_result.gas))
                 .map_err(|_| RuntimeError::new("Cannot set gas global from store environment"))?;
 
             Ok(into_wasmer_result(deserialized_result.inner))
@@ -512,8 +502,8 @@ pub fn new_memory(
     initial: u32,
     maximum: Option<u32>,
 ) -> crate::error::Result<Memory> {
-    let ty = sandbox_wasmer::MemoryType::new(initial, maximum, false);
-    let memory = sandbox_wasmer::Memory::new(&mut store.borrow_mut(), ty)
+    let ty = wasmer::MemoryType::new(initial, maximum, false);
+    let memory = wasmer::Memory::new(&mut store.borrow_mut(), ty)
         .map_err(|_| Error::InvalidMemoryReference)?;
 
     Ok(Memory::Wasmer(MemoryWrapper::new(memory, store)))
@@ -523,13 +513,13 @@ pub fn new_memory(
 /// we wrap it with `RefCell` and encapsulate all memory operations.
 #[derive(Debug, Clone)]
 pub struct MemoryWrapper {
-    buffer: Rc<RefCell<sandbox_wasmer::Memory>>,
+    buffer: Rc<RefCell<wasmer::Memory>>,
     store: Rc<StoreRefCell>,
 }
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    pub fn new(memory: sandbox_wasmer::Memory, store: Rc<StoreRefCell>) -> Self {
+    pub fn new(memory: wasmer::Memory, store: Rc<StoreRefCell>) -> Self {
         Self {
             buffer: Rc::new(RefCell::new(memory)),
             store,
@@ -543,10 +533,7 @@ impl MemoryWrapper {
     /// Wasmer doesn't provide comprehensive documentation about the exact behavior of the data
     /// pointer. If a dynamic style heap is used the base pointer of the heap can change. Since
     /// growing, we cannot guarantee the lifetime of the returned slice reference.
-    unsafe fn memory_as_slice<'m>(
-        memory: &'m sandbox_wasmer::Memory,
-        store: &sandbox_wasmer::Store,
-    ) -> &'m [u8] {
+    unsafe fn memory_as_slice<'m>(memory: &'m wasmer::Memory, store: &wasmer::Store) -> &'m [u8] {
         let memory_view = memory.view(store);
         let ptr = memory_view.data_ptr() as *const _;
 
@@ -571,8 +558,8 @@ impl MemoryWrapper {
     /// returned it must be ensured that only one mutable and no shared references to memory
     /// exists at the same time.
     unsafe fn memory_as_slice_mut<'m>(
-        memory: &'m mut sandbox_wasmer::Memory,
-        store: &sandbox_wasmer::Store,
+        memory: &'m mut wasmer::Memory,
+        store: &wasmer::Store,
     ) -> &'m mut [u8] {
         let memory_view = memory.view(store);
         let ptr = memory_view.data_ptr();
@@ -672,8 +659,8 @@ impl MemoryTransfer for MemoryWrapper {
 
 /// Get global value by name
 pub fn get_global(
-    instance: &sandbox_wasmer::Instance,
-    store: &mut sandbox_wasmer::Store,
+    instance: &wasmer::Instance,
+    store: &mut wasmer::Store,
     name: &str,
 ) -> Option<Value> {
     let global = instance.exports.get_global(name).ok()?;
@@ -683,8 +670,8 @@ pub fn get_global(
 
 /// Set global value by name
 pub fn set_global(
-    instance: &sandbox_wasmer::Instance,
-    mut store: &mut sandbox_wasmer::Store,
+    instance: &wasmer::Instance,
+    mut store: &mut wasmer::Store,
     name: &str,
     value: Value,
 ) -> core::result::Result<Option<()>, crate::error::Error> {

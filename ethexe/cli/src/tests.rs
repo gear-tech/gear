@@ -28,10 +28,11 @@ use anyhow::Result;
 use ethexe_common::{
     db::CodesStorage, mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent,
 };
-use ethexe_db::{Database, MemDb};
+use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
+use ethexe_runtime_common::state::Storage;
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
@@ -41,7 +42,11 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
@@ -134,6 +139,289 @@ async fn ping() {
     assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.reply_payload, b"");
     assert_eq!(res.reply_value, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn mailbox() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_async::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, &env.sender_id.encode(), 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let pid = res.program_id;
+
+    env.approve_wvara(pid).await;
+
+    let res = env
+        .send_message(pid, &demo_async::Command::Mutex.encode(), 0)
+        .await
+        .unwrap();
+
+    let original_mid = res.message_id;
+    let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
+    let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
+
+    let mut listener = env.events_publisher().subscribe().await;
+    let block_data = listener
+        .apply_until_block_event_with_header(|event, block_data| match event {
+            BlockEvent::Mirror { address, event } if address == pid => {
+                if let MirrorEvent::Message {
+                    id,
+                    destination,
+                    payload,
+                    ..
+                } = event
+                {
+                    assert_eq!(destination, env.sender_id);
+
+                    if id == mid_expected_message {
+                        assert_eq!(payload, res.message_id.encode());
+                        Ok(None)
+                    } else if id == ping_expected_message {
+                        assert_eq!(payload, b"PING");
+                        Ok(Some(block_data.clone()))
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Ok(None),
+        })
+        .await
+        .unwrap();
+
+    // -1 bcs execution took place in previous block, not the one that emits events.
+    let wake_expiry = block_data.header.height - 1 + 100; // 100 is default wait for.
+    let expiry = block_data.header.height - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+
+    let expected_schedule = BTreeMap::from_iter([
+        (
+            wake_expiry,
+            BTreeSet::from_iter([ScheduledTask::WakeMessage(pid, original_mid)]),
+        ),
+        (
+            expiry,
+            BTreeSet::from_iter([
+                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), mid_expected_message),
+                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), ping_expected_message),
+            ]),
+        ),
+    ]);
+
+    let schedule = node
+        .db
+        .block_end_schedule(block_data.header.parent_hash)
+        .expect("must exist");
+
+    assert_eq!(schedule, expected_schedule);
+
+    let expected_mailbox = BTreeMap::from_iter([(
+        env.sender_id,
+        BTreeMap::from_iter([
+            (mid_expected_message, (0, expiry)),
+            (ping_expected_message, (0, expiry)),
+        ]),
+    )]);
+    let mirror = env.ethereum.mirror(pid.try_into().unwrap());
+    let state_hash = mirror.query().state_hash().await.unwrap();
+
+    let state = node.db.read_state(state_hash).unwrap();
+    assert!(!state.mailbox_hash.is_empty());
+    let mailbox = state
+        .mailbox_hash
+        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+
+    assert_eq!(mailbox, expected_mailbox);
+
+    mirror
+        .send_reply(ping_expected_message, "PONG", 0)
+        .await
+        .unwrap();
+
+    let initial_message = res.message_id;
+    let reply_info = res.wait_for().await.unwrap();
+    assert_eq!(
+        reply_info.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(reply_info.reply_payload, initial_message.encode());
+
+    let state_hash = mirror.query().state_hash().await.unwrap();
+
+    let state = node.db.read_state(state_hash).unwrap();
+    assert!(!state.mailbox_hash.is_empty());
+    let mailbox = state
+        .mailbox_hash
+        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+
+    let expected_mailbox = BTreeMap::from_iter([(
+        env.sender_id,
+        BTreeMap::from_iter([(mid_expected_message, (0, expiry))]),
+    )]);
+
+    assert_eq!(mailbox, expected_mailbox);
+
+    mirror.claim_value(mid_expected_message).await.unwrap();
+
+    let block_data = listener
+        .apply_until_block_event_with_header(|event, block_data| match event {
+            BlockEvent::Mirror { address, event } if address == pid => match event {
+                MirrorEvent::ValueClaimed { claimed_id, .. }
+                    if claimed_id == mid_expected_message =>
+                {
+                    Ok(Some(block_data.clone()))
+                }
+                _ => Ok(None),
+            },
+            _ => Ok(None),
+        })
+        .await
+        .unwrap();
+
+    let state_hash = mirror.query().state_hash().await.unwrap();
+
+    let state = node.db.read_state(state_hash).unwrap();
+    assert!(state.mailbox_hash.is_empty());
+
+    let schedule = node
+        .db
+        .block_end_schedule(block_data.header.parent_hash)
+        .expect("must exist");
+    assert!(schedule.is_empty(), "{:?}", schedule);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn incoming_transfers() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, b"PING", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+    let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
+
+    let on_eth_balance = wvara
+        .query()
+        .balance_of(ping.address().0.into())
+        .await
+        .unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 tokens
+    const VALUE_SENT: u128 = 1_000_000_000_000_000;
+
+    let mut listener = env.events_publisher().subscribe().await;
+
+    env.transfer_wvara(ping_id, VALUE_SENT).await;
+
+    listener
+        .apply_until_block_event(|e| {
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+        })
+        .await
+        .unwrap();
+
+    let on_eth_balance = wvara
+        .query()
+        .balance_of(ping.address().0.into())
+        .await
+        .unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    env.approve_wvara(ping_id).await;
+
+    let res = env
+        .send_message(ping_id, b"PING", VALUE_SENT)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        res.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(res.reply_value, 0);
+
+    let on_eth_balance = wvara
+        .query()
+        .balance_of(ping.address().0.into())
+        .await
+        .unwrap();
+    assert_eq!(on_eth_balance, 2 * VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 2 * VALUE_SENT);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -485,7 +773,8 @@ async fn multiple_validators() {
     let mut validator2 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[2])
-            .network(None, sequencer.multiaddr.clone()),
+            .network(None, sequencer.multiaddr.clone())
+            .db(validator2.db),
     );
     validator2.start_service().await;
 
@@ -498,6 +787,7 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
+    use ethexe_observer::SimpleBlockData;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use tokio::sync::{broadcast::Sender, Mutex};
@@ -746,6 +1036,17 @@ mod utils {
             wvara.approve_all(program_address.0.into()).await.unwrap();
         }
 
+        pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
+            log::info!("📗 Transferring {value} WVara to {program_id}");
+
+            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let wvara = self.ethereum.router().wvara();
+            wvara
+                .transfer(program_address.0.into(), value)
+                .await
+                .unwrap();
+        }
+
         pub fn events_publisher(&self) -> EventsPublisher {
             EventsPublisher {
                 broadcaster: self.broadcaster.clone(),
@@ -873,6 +1174,13 @@ mod utils {
             &mut self,
             mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
         ) -> Result<R> {
+            self.apply_until_block_event_with_header(|e, _h| f(e)).await
+        }
+
+        pub async fn apply_until_block_event_with_header<R: Sized>(
+            &mut self,
+            mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
+        ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
 
@@ -880,8 +1188,10 @@ mod utils {
                     continue;
                 };
 
+                let block_data = block.as_simple();
+
                 for event in block.events {
-                    if let Some(res) = f(event)? {
+                    if let Some(res) = f(event, &block_data)? {
                         return Ok(res);
                     }
                 }

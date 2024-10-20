@@ -33,10 +33,11 @@ use core::cmp;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, Payload, ReplyMessage},
+    tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 
-pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Gas {
+pub fn get_maximum_task_gas<T: Config>(task: &VaraScheduledTask<T::AccountId>) -> Gas {
     use ScheduledTask::*;
 
     match task {
@@ -66,7 +67,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
     }
 }
 
-impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
+impl<T: Config> TaskHandler<T::AccountId, MessageId, bool> for ExtManager<T>
 where
     T::AccountId: Origin,
 {

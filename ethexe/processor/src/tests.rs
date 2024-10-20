@@ -20,20 +20,32 @@ use crate::*;
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
-use gear_core::{ids::prelude::CodeIdExt, message::DispatchKind};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
+use ethexe_runtime_common::state::{ComplexStorage, Dispatch};
+use gear_core::{
+    ids::{prelude::CodeIdExt, ProgramId},
+    message::DispatchKind,
+};
 use gprimitives::{ActorId, MessageId};
-use std::collections::BTreeMap;
+use parity_scale_codec::Encode;
+use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
 use wabt::wat2wasm;
 
 fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
     let chain_head = H256::random();
     processor.db.set_block_header(chain_head, meta);
+    processor
+        .db
+        .set_block_start_program_states(chain_head, Default::default());
+    processor
+        .db
+        .set_block_start_schedule(chain_head, Default::default());
     processor.creator.set_chain_head(chain_head);
     chain_head
 }
 
+#[track_caller]
 fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H256 {
     let parent_block_header = processor.db.block_header(parent_hash).unwrap_or_default();
     let height = parent_block_header.height + 1;
@@ -46,13 +58,35 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
             parent_hash,
         },
     );
+
     let parent_out_program_hashes = processor
         .db
         .block_end_program_states(parent_hash)
-        .unwrap_or_default();
+        .unwrap_or_else(|| {
+            if parent_hash.is_zero() {
+                Default::default()
+            } else {
+                panic!("process block events before new block; start states not found")
+            }
+        });
     processor
         .db
         .set_block_start_program_states(chain_head, parent_out_program_hashes);
+
+    let parent_out_schedule = processor
+        .db
+        .block_end_schedule(parent_hash)
+        .unwrap_or_else(|| {
+            if parent_hash.is_zero() {
+                Default::default()
+            } else {
+                panic!("process block events before new block; start schedule not found")
+            }
+        });
+    processor
+        .db
+        .set_block_start_schedule(chain_head, parent_out_schedule);
+
     chain_head
 }
 
@@ -81,6 +115,7 @@ fn process_observer_event() {
         }]
     );
 
+    let _ = processor.process_block_events(ch0, vec![]).unwrap();
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
     let actor_id = ActorId::from(42);
@@ -248,26 +283,31 @@ fn ping_pong() {
         .handle_messages_queueing(state_hash, messages)
         .expect("failed to populate message queue");
 
-    let mut programs = BTreeMap::from_iter([(program_id, state_hash)]);
+    let states = BTreeMap::from_iter([(program_id, state_hash)]);
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(0), states, Default::default());
 
-    let (to_users, _) = run::run(
+    run::run(
         8,
         processor.db.clone(),
         processor.creator.clone(),
-        &mut programs,
+        &mut in_block_transitions,
     );
+
+    let to_users = in_block_transitions.current_messages();
 
     assert_eq!(to_users.len(), 2);
 
-    let message = &to_users[0];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"PONG");
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
 
-    let message = &to_users[1];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"PONG");
+    let message = &to_users[1].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
 }
 
+#[allow(unused)]
 fn create_message(
     processor: &mut Processor,
     kind: DispatchKind,
@@ -290,7 +330,7 @@ fn create_message_full(
     payload: impl AsRef<[u8]>,
 ) -> Dispatch {
     let payload = payload.as_ref().to_vec();
-    let payload_hash = processor.handle_payload(payload).unwrap();
+    let payload_hash = processor.db.store_payload(payload).unwrap();
 
     Dispatch {
         id,
@@ -378,32 +418,32 @@ fn async_and_ping() {
         .handle_message_queueing(async_state_hash, message)
         .expect("failed to populate message queue");
 
-    let mut programs =
-        BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
+    let states = BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(0), states, Default::default());
 
-    let (to_users, _) = run::run(
+    run::run(
         8,
         processor.db.clone(),
         processor.creator.clone(),
-        &mut programs,
+        &mut in_block_transitions,
     );
+
+    let to_users = in_block_transitions.current_messages();
 
     assert_eq!(to_users.len(), 3);
 
-    let message = &to_users[0];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"PONG");
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
 
-    let message = &to_users[1];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(message.payload_bytes(), b"");
+    let message = &to_users[1].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"");
 
-    let message = &to_users[2];
-    assert_eq!(message.destination(), user_id);
-    assert_eq!(
-        message.payload_bytes(),
-        wait_for_reply_to.into_bytes().as_slice()
-    );
+    let message = &to_users[2].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, wait_for_reply_to.into_bytes().as_slice());
 }
 
 #[test]
@@ -439,7 +479,14 @@ fn many_waits() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
-    init_new_block(&mut processor, Default::default());
+    let ch0 = init_new_block(
+        &mut processor,
+        BlockHeader {
+            height: 1,
+            timestamp: 1,
+            parent_hash: Default::default(),
+        },
+    );
 
     let code_id = processor
         .handle_new_code(code)
@@ -447,7 +494,7 @@ fn many_waits() {
         .expect("code failed verification or instrumentation");
 
     let amount = 10000;
-    let mut programs = BTreeMap::new();
+    let mut states = BTreeMap::new();
     for i in 0..amount {
         let program_id = ProgramId::from(i);
 
@@ -464,53 +511,109 @@ fn many_waits() {
             .handle_message_queueing(state_hash, message)
             .expect("failed to populate message queue");
 
-        programs.insert(program_id, state_hash);
+        states.insert(program_id, state_hash);
     }
 
-    let (to_users, _) = run::run(
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(1), states, Default::default());
+
+    processor.run_schedule(&mut in_block_transitions);
+    run::run(
         threads_amount,
         processor.db.clone(),
         processor.creator.clone(),
-        &mut programs,
+        &mut in_block_transitions,
     );
-    assert_eq!(to_users.len(), amount as usize);
+    assert_eq!(
+        in_block_transitions.current_messages().len(),
+        amount as usize
+    );
 
-    for (_pid, state_hash) in programs.iter_mut() {
+    let mut changes = BTreeMap::new();
+
+    for (pid, state_hash) in in_block_transitions.states_iter().clone() {
         let message = create_message(&mut processor, DispatchKind::Handle, b"");
         let new_state_hash = processor
             .handle_message_queueing(*state_hash, message)
             .expect("failed to populate message queue");
-        *state_hash = new_state_hash;
+        changes.insert(*pid, new_state_hash);
     }
 
-    let (to_users, _) = run::run(
+    for (pid, state_hash) in changes {
+        in_block_transitions.modify_state(pid, state_hash).unwrap();
+    }
+
+    processor.run_schedule(&mut in_block_transitions);
+    run::run(
         threads_amount,
         processor.db.clone(),
         processor.creator.clone(),
-        &mut programs,
+        &mut in_block_transitions,
     );
-    assert_eq!(to_users.len(), 0);
-
-    init_new_block(
-        &mut processor,
-        BlockHeader {
-            height: 11,
-            timestamp: 11,
-            ..Default::default()
-        },
+    // unchanged
+    assert_eq!(
+        in_block_transitions.current_messages().len(),
+        amount as usize
     );
 
-    let (to_users, _) = run::run(
+    let (_outcomes, states, schedule) = in_block_transitions.finalize();
+    processor.db.set_block_end_program_states(ch0, states);
+    processor.db.set_block_end_schedule(ch0, schedule);
+
+    let mut parent = ch0;
+    for _ in 0..10 {
+        parent = init_new_block_from_parent(&mut processor, parent);
+        let states = processor.db.block_start_program_states(parent).unwrap();
+        processor.db.set_block_end_program_states(parent, states);
+        let schedule = processor.db.block_start_schedule(parent).unwrap();
+        processor.db.set_block_end_schedule(parent, schedule);
+    }
+
+    let ch11 = init_new_block_from_parent(&mut processor, parent);
+
+    let states = processor.db.block_start_program_states(ch11).unwrap();
+    let schedule = processor.db.block_start_schedule(ch11).unwrap();
+
+    // Reproducibility test.
+    {
+        let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
+
+        for (pid, state_hash) in &states {
+            let state = processor.db.read_state(*state_hash).unwrap();
+            let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
+            let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
+
+            for (mid, (dispatch, expiry)) in waitlist {
+                assert_eq!(mid, dispatch.id);
+                expected_schedule
+                    .entry(expiry)
+                    .or_default()
+                    .insert(ScheduledTask::WakeMessage(*pid, mid));
+            }
+        }
+
+        // This could fail in case of handling more scheduled ops: please, update test than.
+        assert_eq!(schedule, expected_schedule);
+    }
+
+    let mut in_block_transitions =
+        InBlockTransitions::new(BlockHeader::dummy(11), states, schedule);
+
+    processor.run_schedule(&mut in_block_transitions);
+    run::run(
         threads_amount,
         processor.db.clone(),
         processor.creator.clone(),
-        &mut programs,
+        &mut in_block_transitions,
     );
 
-    assert_eq!(to_users.len(), amount as usize);
+    assert_eq!(
+        in_block_transitions.current_messages().len(),
+        amount as usize
+    );
 
-    for message in to_users {
-        assert_eq!(message.payload_bytes(), b"Hello, world!");
+    for (_pid, message) in in_block_transitions.current_messages() {
+        assert_eq!(message.payload, b"Hello, world!");
     }
 }
 

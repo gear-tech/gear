@@ -19,6 +19,7 @@ const RELEASE = "E3-forcerelease";
 const PRODUCTION = "E4-forceproduction";
 const SKIP_CI = "[skip-ci]";
 const VALIDATOR_LABEL = "check-validator";
+const CHECK_NODE_SYNC = "check-node-sync";
 const [owner, repo] = ["gear-tech", "gear"];
 
 /**
@@ -78,6 +79,7 @@ async function main() {
     !skipCI &&
     (isDepbot || BUILD_LABELS.some((label) => labels.includes(label)));
   const validator = !skipCI && labels.includes(VALIDATOR_LABEL);
+  const check_node_sync = !skipCI && labels.includes(CHECK_NODE_SYNC);
   const win_native = !skipCI && labels.includes(WINDOWS_NATIVE);
   const macos = !skipCI && labels.includes(MACOS);
   const release = !skipCI && labels.includes(RELEASE);
@@ -90,6 +92,7 @@ async function main() {
   core.setOutput("macos", macos);
   core.setOutput("release", release);
   core.setOutput("validator", validator);
+  core.setOutput("check-node-sync", check_node_sync);
   core.setOutput("production", production);
 
   console.log("---");
@@ -99,6 +102,7 @@ async function main() {
   console.log("macos: ", macos);
   console.log("production: ", production);
   console.log("validator: ", validator);
+  console.log("check-node-sync: ", check_node_sync);
   console.log("release: ", release);
 
   // Mock checks if skipping CI.

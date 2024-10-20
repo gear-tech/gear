@@ -21,10 +21,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(unused)]
 
+extern crate alloc;
+
 use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
+use anyhow::Result;
 use core::{marker::PhantomData, mem::swap};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
@@ -44,21 +47,24 @@ use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use state::{
-    ActiveProgram, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue, ProgramState,
-    Storage, Waitlist,
+    ActiveProgram, ComplexStorage, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue,
+    ProgramState, Storage, Waitlist,
 };
 
-extern crate alloc;
+pub use core_processor::configs::BlockInfo;
+pub use journal::Handler as JournalHandler;
+pub use schedule::Handler as ScheduleHandler;
+pub use transitions::{InBlockTransitions, NonFinalTransition};
 
-mod journal;
 pub mod state;
 
-pub use core_processor::configs::BlockInfo;
-pub use journal::Handler;
-
-const RUNTIME_ID: u32 = 0;
+mod journal;
+mod schedule;
+mod transitions;
 
 pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
+
+const RUNTIME_ID: u32 = 0;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
@@ -69,63 +75,34 @@ pub trait RuntimeInterface<S: Storage> {
     fn storage(&self) -> &S;
 }
 
-pub fn wake_messages<S: Storage, RI: RuntimeInterface<S>>(
+pub(crate) fn update_state<S: Storage>(
+    in_block_transitions: &mut InBlockTransitions,
+    storage: &S,
     program_id: ProgramId,
-    program_state: ProgramState,
-    ri: &RI,
-) -> Option<H256> {
-    let block_info = ri.block_info();
+    f: impl FnOnce(&mut ProgramState) -> Result<()>,
+) -> H256 {
+    update_state_with_storage(in_block_transitions, storage, program_id, |_s, state| {
+        f(state)
+    })
+}
 
-    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
-        ri.storage()
-            .read_queue(hash)
-            .expect("Cannot get message queue")
-    });
+pub(crate) fn update_state_with_storage<S: Storage>(
+    in_block_transitions: &mut InBlockTransitions,
+    storage: &S,
+    program_id: ProgramId,
+    f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
+) -> H256 {
+    let state_hash = in_block_transitions
+        .state_of(&program_id)
+        .expect("failed to find program in known states");
 
-    let mut waitlist = match program_state.waitlist_hash {
-        MaybeHash::Empty => {
-            // No messages in waitlist
-            return None;
-        }
-        MaybeHash::Hash(HashAndLen { hash, .. }) => ri
-            .storage()
-            .read_waitlist(hash)
-            .expect("Cannot get waitlist"),
-    };
+    let new_state_hash = storage
+        .mutate_state(state_hash, f)
+        .expect("failed to mutate state");
 
-    let mut dispatches_to_wake = Vec::new();
-    let mut remove_from_waitlist_blocks = Vec::new();
-    for (block, list) in waitlist.range_mut(0..=block_info.height) {
-        if list.is_empty() {
-            log::error!("Empty waitlist for block, must been removed from waitlist")
-        }
-        dispatches_to_wake.append(list);
-        remove_from_waitlist_blocks.push(*block);
-    }
+    in_block_transitions.modify_state(program_id, new_state_hash);
 
-    if remove_from_waitlist_blocks.is_empty() {
-        // No messages to wake up
-        return None;
-    }
-
-    for block in remove_from_waitlist_blocks {
-        waitlist.remove(&block);
-    }
-
-    for dispatch in dispatches_to_wake {
-        queue.push_back(dispatch);
-    }
-
-    let queue_hash = ri.storage().write_queue(queue).into();
-    let waitlist_hash = ri.storage().write_waitlist(waitlist).into();
-
-    let new_program_state = ProgramState {
-        queue_hash,
-        waitlist_hash,
-        ..program_state
-    };
-
-    Some(ri.storage().write_state(new_program_state))
+    new_state_hash
 }
 
 pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(

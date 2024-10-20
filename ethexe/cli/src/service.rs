@@ -29,7 +29,7 @@ use ethexe_common::{
     },
     BlockRequestEvent,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
+use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::NetworkReceiverEvent;
 use ethexe_observer::{RequestBlockData, RequestEvent};
@@ -333,20 +333,11 @@ impl Service {
         processor: &mut ethexe_processor::Processor,
         block_data: RequestBlockData,
     ) -> Result<Vec<BlockCommitment>> {
-        db.set_block_events(block_data.block_hash, block_data.events);
-        db.set_block_header(
-            block_data.block_hash,
-            BlockHeader {
-                height: block_data.block_number.try_into()?,
-                timestamp: block_data.block_timestamp,
-                parent_hash: block_data.parent_hash,
-            },
-        );
+        db.set_block_events(block_data.hash, block_data.events);
+        db.set_block_header(block_data.hash, block_data.header);
 
         let mut commitments = vec![];
-        let last_committed_chain = query
-            .get_last_committed_chain(block_data.block_hash)
-            .await?;
+        let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
 
@@ -357,7 +348,7 @@ impl Service {
 
             commitments.push(BlockCommitment {
                 block_hash,
-                pred_block_hash: block_data.block_hash,
+                pred_block_hash: block_data.hash,
                 prev_commitment_hash: db
                     .block_prev_commitment(block_hash)
                     .ok_or_else(|| anyhow!("Prev commitment not found"))?,
@@ -383,9 +374,9 @@ impl Service {
             RequestEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
-                    block_data.block_number,
-                    block_data.block_hash,
-                    block_data.parent_hash
+                    block_data.header.height,
+                    block_data.hash,
+                    block_data.header.parent_hash
                 );
 
                 let commitments =
@@ -665,6 +656,10 @@ impl Service {
             .get_candidate_block_commitments()
             .map(BlockCommitmentValidationRequest::from)
             .collect();
+
+        if block_requests.is_empty() && code_requests.is_empty() {
+            return Ok(());
+        }
 
         if let Some(network_sender) = maybe_network_sender {
             log::debug!("Request validation of aggregated commitments...");

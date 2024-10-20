@@ -42,7 +42,7 @@ use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 use nonempty::nonempty;
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num::NonZero;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 const WASM_PAGE_SIZE: u32 = 64 * 1024;
@@ -229,7 +229,7 @@ fn test_avoid_waits_works() {
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Wait), 1, 1);
     let syscalls_config = SyscallsConfigBuilder::new(injection_types)
-        .with_waiting_probability(NonZeroU32::new(4).unwrap())
+        .with_waiting_probability(NonZero::<u32>::new(4).unwrap())
         .build();
 
     let backend_report = execute_wasm_with_custom_configs(
@@ -273,7 +273,7 @@ fn test_wait_stores_message_id() {
     let syscalls_config_with_waiting_probability =
         SyscallsConfigBuilder::new(injection_types.clone())
             .with_params_config(params_config.clone())
-            .with_waiting_probability(NonZeroU32::new(4).unwrap())
+            .with_waiting_probability(NonZero::<u32>::new(4).unwrap())
             .build();
 
     let syscalls_config_wo_waiting_probability = SyscallsConfigBuilder::new(injection_types)
@@ -1015,8 +1015,8 @@ fn execute_wasm_with_custom_configs(
         SelectableParams {
             allowed_instructions: vec![],
             max_instructions: 0,
-            min_funcs: NonZeroUsize::new(1).unwrap(),
-            max_funcs: NonZeroUsize::new(1).unwrap(),
+            min_funcs: NonZero::<usize>::new(1).unwrap(),
+            max_funcs: NonZero::<usize>::new(1).unwrap(),
         },
     );
 

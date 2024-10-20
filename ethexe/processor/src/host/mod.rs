@@ -146,18 +146,6 @@ impl InstanceWrapper {
         self.call("run", arg.encode())
     }
 
-    pub fn wake_messages(
-        &mut self,
-        db: Database,
-        program_id: ProgramId,
-        state_hash: H256,
-    ) -> Result<H256> {
-        let chain_head = self.chain_head.expect("chain head must be set before wake");
-        threads::set(db, chain_head, state_hash);
-
-        self.call("wake_messages", (program_id, state_hash).encode())
-    }
-
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {
         self.with_host_state(|instance_wrapper| {
             let func = instance_wrapper

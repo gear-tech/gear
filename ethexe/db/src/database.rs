@@ -18,19 +18,17 @@
 
 //! Database for ethexe.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
-
 use crate::{
     overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage},
+    db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
     router::StateTransition,
     BlockRequestEvent,
 };
 use ethexe_runtime_common::state::{
-    Allocations, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
+    Allocations, DispatchStash, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -40,6 +38,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const LOG_TARGET: &str = "ethexe-db";
 
@@ -56,6 +55,8 @@ enum KeyPrefix {
     LatestValidBlock = 8,
     BlockHeader = 9,
     CodeValid = 10,
+    BlockStartSchedule = 11,
+    BlockEndSchedule = 12,
 }
 
 impl KeyPrefix {
@@ -271,6 +272,40 @@ impl BlockMetaStorage for Database {
             (block_hash, header).encode(),
         );
     }
+
+    fn block_start_schedule(&self, block_hash: H256) -> Option<Schedule> {
+        self.kv
+            .get(&KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash))
+            .map(|data| {
+                Schedule::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
+    }
+
+    fn set_block_start_schedule(&self, block_hash: H256, map: Schedule) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set block start schedule: {map:?}");
+        self.kv.put(
+            &KeyPrefix::BlockStartSchedule.two(self.router_address, block_hash),
+            map.encode(),
+        );
+    }
+
+    fn block_end_schedule(&self, block_hash: H256) -> Option<Schedule> {
+        self.kv
+            .get(&KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash))
+            .map(|data| {
+                Schedule::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap`")
+            })
+    }
+
+    fn set_block_end_schedule(&self, block_hash: H256, map: Schedule) {
+        log::trace!(target: LOG_TARGET, "For block {block_hash} set block end schedule: {map:?}");
+        self.kv.put(
+            &KeyPrefix::BlockEndSchedule.two(self.router_address, block_hash),
+            map.encode(),
+        );
+    }
 }
 
 impl CodesStorage for Database {
@@ -467,6 +502,27 @@ impl Storage for Database {
 
     fn write_waitlist(&self, waitlist: Waitlist) -> H256 {
         self.cas.write(&waitlist.encode())
+    }
+
+    fn read_stash(&self, hash: H256) -> Option<DispatchStash> {
+        self.cas.read(&hash).map(|data| {
+            DispatchStash::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `DispatchStash`")
+        })
+    }
+
+    fn write_stash(&self, stash: DispatchStash) -> H256 {
+        self.cas.write(&stash.encode())
+    }
+
+    fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
+        self.cas.read(&hash).map(|data| {
+            Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
+        })
+    }
+
+    fn write_mailbox(&self, mailbox: Mailbox) -> H256 {
+        self.cas.write(&mailbox.encode())
     }
 
     fn read_pages(&self, hash: H256) -> Option<MemoryPages> {

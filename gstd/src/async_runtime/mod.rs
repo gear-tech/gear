@@ -19,7 +19,6 @@
 mod futures;
 mod locks;
 mod signals;
-mod waker;
 
 #[cfg(not(feature = "ethexe"))]
 mod reply_hooks;

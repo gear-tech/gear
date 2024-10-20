@@ -27,8 +27,20 @@ use gear_core::{
     code::InstrumentedCode,
     ids::{ActorId, CodeId, ProgramId},
 };
-use gprimitives::H256;
+use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
+
+/// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
+pub type Rfm = (ProgramId, ActorId);
+
+/// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
+pub type Sd = (ProgramId, MessageId);
+
+/// SendUserMessage key; (msgs sources program (mailbox and stash provider))
+pub type Sum = ProgramId;
+
+/// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
+pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct BlockHeader {
@@ -37,11 +49,26 @@ pub struct BlockHeader {
     pub parent_hash: H256,
 }
 
+impl BlockHeader {
+    pub fn dummy(height: u32) -> Self {
+        let mut parent_hash = [0; 32];
+        parent_hash[..4].copy_from_slice(&height.to_le_bytes());
+
+        Self {
+            height,
+            timestamp: height as u64 * 12,
+            parent_hash: parent_hash.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Encode, Decode)]
 pub struct CodeUploadInfo {
     pub origin: ActorId,
     pub tx_hash: H256,
 }
+
+pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
 pub trait BlockMetaStorage: Send + Sync {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
@@ -73,6 +100,12 @@ pub trait BlockMetaStorage: Send + Sync {
 
     fn latest_valid_block(&self) -> Option<(H256, BlockHeader)>;
     fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader);
+
+    fn block_start_schedule(&self, block_hash: H256) -> Option<Schedule>;
+    fn set_block_start_schedule(&self, block_hash: H256, map: Schedule);
+
+    fn block_end_schedule(&self, block_hash: H256) -> Option<Schedule>;
+    fn set_block_end_schedule(&self, block_hash: H256, map: Schedule);
 }
 
 pub trait CodesStorage: Send + Sync {
