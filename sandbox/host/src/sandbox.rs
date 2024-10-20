@@ -28,7 +28,6 @@ use std::{collections::HashMap, pin::Pin, rc::Rc};
 use codec::Decode;
 use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
-use region::Allocation;
 use sp_wasm_interface_common::{Pointer, Value, WordSize};
 
 use crate::{
@@ -525,8 +524,6 @@ pub struct SandboxComponents<DT> {
     instances: Vec<Option<(Pin<Rc<SandboxInstance>>, DT)>>,
     /// Memories are `Some` until torn down.
     memories: Vec<Option<Memory>>,
-    /// Allocation used for the Wasmi memory.
-    allocations: Vec<Allocation>,
     backend_context: BackendContext,
 }
 
@@ -536,7 +533,6 @@ impl<DT: Clone> SandboxComponents<DT> {
         SandboxComponents {
             instances: Vec::new(),
             memories: Vec::new(),
-            allocations: Vec::new(),
             backend_context: BackendContext::new(backend),
         }
     }
@@ -562,9 +558,6 @@ impl<DT: Clone> SandboxComponents<DT> {
                 self.backend_context = BackendContext::Wasmer(WasmerBackend::new());
             }
         }
-
-        // Clear allocations after store is dropped
-        self.allocations.clear();
     }
 
     /// Create a new memory instance and return it's index.
@@ -575,19 +568,15 @@ impl<DT: Clone> SandboxComponents<DT> {
     /// Typically happens if `initial` is more than `maximum`.
     pub fn new_memory(&mut self, initial: u32, maximum: u32) -> Result<u32> {
         let memories = &mut self.memories;
-        let backend_context = &self.backend_context;
+        let backend_context = &mut self.backend_context;
 
         let maximum = match maximum {
             sandbox_env::MEM_UNLIMITED => None,
             specified_limit => Some(specified_limit),
         };
 
-        let memory = match &backend_context {
-            BackendContext::Wasmi(backend) => {
-                let (memory, alloc) = wasmi_new_memory(backend.store().clone(), initial, maximum)?;
-                self.allocations.push(alloc);
-                memory
-            }
+        let memory = match backend_context {
+            BackendContext::Wasmi(backend) => wasmi_new_memory(backend, initial, maximum)?,
 
             BackendContext::Wasmer(backend) => {
                 wasmer_new_memory(backend.store().clone(), initial, maximum)?

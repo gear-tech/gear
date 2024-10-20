@@ -34,3 +34,5 @@ region.workspace = true
 
 [features]
 default = ["wasmer-cache", "uluru"]
+# See wasmi/extra-checks for more information.
+wasmi-extra-checks = ["wasmi/extra-checks"]

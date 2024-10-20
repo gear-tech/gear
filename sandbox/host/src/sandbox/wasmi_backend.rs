@@ -70,8 +70,8 @@ fn into_wasmi_val(value: Value) -> wasmi::Val {
     match value {
         Value::I32(val) => wasmi::Val::I32(val),
         Value::I64(val) => wasmi::Val::I64(val),
-        Value::F32(val) => wasmi::Val::F32(val.into()),
-        Value::F64(val) => wasmi::Val::F64(val.into()),
+        Value::F32(val) => wasmi::Val::F32(wasmi::core::F32::from_bits(val)),
+        Value::F64(val) => wasmi::Val::F64(wasmi::core::F64::from_bits(val)),
     }
 }
 
@@ -86,8 +86,8 @@ fn into_value(value: &wasmi::Val) -> Option<Value> {
     match value {
         wasmi::Val::I32(val) => Some(Value::I32(*val)),
         wasmi::Val::I64(val) => Some(Value::I64(*val)),
-        wasmi::Val::F32(val) => Some(Value::F32((*val).into())),
-        wasmi::Val::F64(val) => Some(Value::F64((*val).into())),
+        wasmi::Val::F32(val) => Some(Value::F32(u32::from(*val))),
+        wasmi::Val::F64(val) => Some(Value::F64(u64::from(*val))),
         _ => None,
     }
 }
@@ -95,6 +95,8 @@ fn into_value(value: &wasmi::Val) -> Option<Value> {
 /// Wasmi specific context
 pub struct Backend {
     store: Rc<StoreRefCell>,
+    // Allocation should be dropped right after the store is dropped
+    allocations: Vec<Allocation>,
 }
 
 impl Default for Backend {
@@ -125,34 +127,47 @@ impl Backend {
         let store = Store::new(&engine, None);
         Backend {
             store: Rc::new(StoreRefCell::new(store)),
+            allocations: Vec::new(),
         }
     }
 
     pub fn store(&self) -> &Rc<StoreRefCell> {
         &self.store
     }
+
+    pub fn add_allocation(&mut self, alloc: Allocation) {
+        self.allocations.push(alloc);
+    }
 }
 
 /// Allocate new memory region
 pub fn new_memory(
-    store: Rc<StoreRefCell>,
+    backend: &mut Backend,
     initial: u32,
     maximum: Option<u32>,
-) -> crate::error::Result<(Memory, Allocation)> {
+) -> crate::error::Result<Memory> {
+    let store = backend.store().clone();
+
     let ty =
         MemoryType::new(initial, maximum).map_err(|error| Error::Sandbox(error.to_string()))?;
     let mut alloc = region::alloc(u32::MAX as usize, Protection::READ_WRITE)
         .unwrap_or_else(|err| unreachable!("Failed to allocate memory: {err}"));
+
     // # Safety:
     //
     // `wasmi::Memory::new_static()` requires static lifetime so we convert our buffer to it
-    // but actual lifetime of the buffer is lifetime of `Store<T>` itself,
-    // so memory will be deallocated when `Store<T>` is dropped.
+    // but actual lifetime of the buffer is lifetime of `wasmi::Store` itself,
+    // because the store might hold reference to the memory.
+    //
+    // So in accordance with the Rust's drop order rules, the memory will be dropped right after the store is dropped.
+    // This order ensured by `Backend` structure which contains these fields.
     let raw = unsafe { slice::from_raw_parts_mut::<'static, u8>(alloc.as_mut_ptr(), alloc.len()) };
     let memory = wasmi::Memory::new_static(&mut *store.borrow_mut(), ty, raw)
         .map_err(|error| Error::Sandbox(error.to_string()))?;
 
-    Ok((Memory::Wasmi(MemoryWrapper::new(memory, store)), alloc))
+    backend.add_allocation(alloc);
+
+    Ok(Memory::Wasmi(MemoryWrapper::new(memory, store)))
 }
 
 /// Wasmi provides direct access to its memory using slices.
@@ -181,12 +196,7 @@ impl MemoryWrapper {
 
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
-        let mut buffer = Vec::with_capacity(size);
-        let spare_cap = buffer.spare_capacity_mut().len();
-        // # Safety:
-        // `Vec::set_len` is safe to call because we have just allocated enough space and never read from it.
-        unsafe { buffer.set_len(spare_cap) };
-
+        let mut buffer = vec![0; size];
         let ctx = self.store.borrow();
         self.memory
             .read(&*ctx, source_addr.into(), &mut buffer)
@@ -242,10 +252,9 @@ pub fn set_global(
     store: &mut Store,
     name: &str,
     value: Value,
-) -> std::result::Result<Option<()>, error::Error> {
-    let global = match instance.get_global(&*store, name) {
-        Some(e) => e,
-        None => return Ok(None),
+) -> Result<Option<()>, error::Error> {
+    let Some(global) = instance.get_global(&*store, name) else {
+        return Ok(None);
     };
 
     global
@@ -260,8 +269,8 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    _supervisor_context: &mut dyn SupervisorContext,
-) -> std::result::Result<SandboxInstance, InstantiationError> {
+    supervisor_context: &mut dyn SupervisorContext,
+) -> Result<SandboxInstance, InstantiationError> {
     let mut store = context.store().borrow_mut();
 
     let module =
@@ -269,15 +278,15 @@ pub fn instantiate(
     let mut linker = Linker::new(store.engine());
 
     for import in module.imports() {
-        let module = import.module().to_string();
-        let name = import.name().to_string();
+        let module = import.module();
+        let name = import.name();
 
         match import.ty() {
             ExternType::Global(_) | ExternType::Table(_) => {}
             ExternType::Memory(_mem_ty) => {
                 let memory = guest_env
                     .imports
-                    .memory_by_name(&module, &name)
+                    .memory_by_name(module, name)
                     .ok_or(InstantiationError::ModuleDecoding)?;
 
                 let wasmi_memory = memory.as_wasmi().expect(
@@ -288,17 +297,13 @@ pub fn instantiate(
                 );
 
                 linker
-                    .define(&module, &name, wasmi_memory.memory)
+                    .define(module, name, wasmi_memory.memory)
                     .map_err(|_| InstantiationError::EnvironmentDefinitionCorrupted)?;
             }
             ExternType::Func(func_ty) => {
-                let guest_func_index = guest_env
-                    .imports
-                    .func_by_name(import.module(), import.name());
+                let guest_func_index = guest_env.imports.func_by_name(module, name);
 
-                let guest_func_index = if let Some(index) = guest_func_index {
-                    index
-                } else {
+                let Some(guest_func_index) = guest_func_index else {
                     // Missing import (should we abort here?)
                     continue;
                 };
@@ -318,7 +323,7 @@ pub fn instantiate(
                 };
 
                 linker
-                    .define(&module, &name, function)
+                    .define(module, name, function)
                     .map_err(|_| InstantiationError::ModuleDecoding)?;
             }
         }
@@ -328,9 +333,12 @@ pub fn instantiate(
         log::trace!("Failed to call wasmi instantiate: {error:?}");
         InstantiationError::Instantiation
     })?;
-    let instance = instance_pre.start(&mut *store).map_err(|error| {
-        log::trace!("Failed to call wasmi start: {error:?}");
-        InstantiationError::StartTrapped
+
+    let instance = SupervisorContextStore::using(supervisor_context, || {
+        instance_pre.start(&mut *store).map_err(|error| {
+            log::trace!("Failed to call wasmi start: {error:?}");
+            InstantiationError::StartTrapped
+        })
     })?;
 
     Ok(SandboxInstance {
@@ -358,17 +366,18 @@ fn dispatch_function(
                             host_trap(format!("Unsupported function argument: {:?}", value))
                         })
                     })
-                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .collect::<Result<Vec<_>, _>>()?
                     .encode();
 
                 let serialized_result_val =
                     dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
 
-                let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
-                    &mut serialized_result_val.as_slice(),
-                )
-                .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
-                .map_err(|_| host_trap("Supervisor function returned sandbox::HostError"))?;
+                let deserialized_result =
+                    Result::<ReturnValue, HostError>::decode(&mut serialized_result_val.as_slice())
+                        .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
+                        .map_err(|_| {
+                            host_trap("Supervisor function returned sandbox::HostError")
+                        })?;
 
                 for (idx, result_val) in into_wasmi_result(deserialized_result)
                     .into_iter()
@@ -411,7 +420,7 @@ fn dispatch_function_v2(
                                     host_trap(format!("Unsupported function argument: {:?}", value))
                                 })
                             })
-                            .collect::<std::result::Result<Vec<_>, _>>()?
+                            .collect::<Result<Vec<_>, _>>()?
                             .encode();
 
                         let serialized_result_val = dispatch_common(
@@ -420,7 +429,7 @@ fn dispatch_function_v2(
                             invoke_args_data,
                         )?;
 
-                        std::result::Result::<WasmReturnValue, HostError>::decode(
+                        Result::<WasmReturnValue, HostError>::decode(
                             &mut serialized_result_val.as_slice(),
                         )
                         .map_err(|_| host_trap("Decoding Result<ReturnValue, HostError> failed!"))?
@@ -450,7 +459,7 @@ fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
     supervisor_context: &mut dyn SupervisorContext,
     invoke_args_data: Vec<u8>,
-) -> std::result::Result<Vec<u8>, wasmi::Error> {
+) -> Result<Vec<u8>, wasmi::Error> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
     // then free allocated memory.
     let invoke_args_len = invoke_args_data.len() as WordSize;
@@ -519,7 +528,7 @@ pub fn invoke(
     export_name: &str,
     args: &[Value],
     supervisor_context: &mut dyn SupervisorContext,
-) -> std::result::Result<Option<Value>, Error> {
+) -> Result<Option<Value>, Error> {
     let function = instance
         .get_func(&*store.borrow(), export_name)
         .ok_or_else(|| Error::Sandbox(format!("function {export_name} export error")))?;

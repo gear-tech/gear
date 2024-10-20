@@ -91,7 +91,6 @@ use std::{
 };
 
 use defer::defer;
-use wasmer::StoreMut;
 
 #[derive(Debug, Clone, Copy)]
 enum BorrowState {
@@ -110,7 +109,7 @@ pub struct StoreRefCell<S> {
 
 trait GenericAsStoreMut {}
 
-impl<'r, 's> GenericAsStoreMut for &'r mut StoreMut<'s> {}
+impl<'r, 's> GenericAsStoreMut for &'r mut wasmer::StoreMut<'s> {}
 impl<'s, T> GenericAsStoreMut for wasmi::StoreContextMut<'s, T> {}
 
 #[derive(Debug)]

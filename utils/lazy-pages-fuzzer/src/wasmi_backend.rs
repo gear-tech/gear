@@ -40,6 +40,9 @@ mod error;
 #[derive(Clone)]
 struct InstanceBundle {
     instance: Instance,
+    // NOTE: Due to the implementation of lazy pages, which need to access the Store to retrieve globals,
+    // we have to use a second mutable reference to the Store in the form of a raw pointer
+    // to use it within the lazy pages' signal handler context.
     store: *mut Store<()>,
 }
 
@@ -92,11 +95,8 @@ fn memory(store: &mut Store<()>) -> anyhow::Result<(Memory, Allocation)> {
     // # Safety:
     //
     // `wasmi::Memory::new_static()` requires static lifetime so we convert our buffer to it
-    // but actual lifetime of the buffer is lifetime of `Store<T>` itself,
-    // so memory will be deallocated when `Store<T>` is dropped.
-    //
-    // Also, according to Rust drop order semantics, `wasmi::Store<T>` will be dropped first and
-    // only then our allocated memories will be freed to ensure they are not used anymore.
+    // but actual lifetime of the buffer is lifetime of `wasmi::Store` itself,
+    // because the store might hold reference to the memory.
     let memref =
         unsafe { slice::from_raw_parts_mut::<'static, u8>(alloc.as_mut_ptr(), alloc.len()) };
     let ty = MemoryType::new(INITIAL_PAGES, None).context("failed to create memory type")?;

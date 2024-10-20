@@ -23,7 +23,8 @@
 
 pub mod error;
 pub mod sandbox;
-pub(crate) mod store_refcell;
 pub mod util;
+
+pub(crate) mod store_refcell;
 
 use log as _;
