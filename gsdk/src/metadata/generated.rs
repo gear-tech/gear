@@ -622,6 +622,7 @@ pub mod runtime_types {
                     )]
                     pub struct CodeAttribution {
                         pub author: ::subxt::ext::subxt_core::utils::H256,
+                        #[codec(compact)]
                         pub block_number: ::core::primitive::u32,
                     }
                 }
