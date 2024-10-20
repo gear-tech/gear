@@ -600,7 +600,7 @@ where
         program_id: ProgramId,
         expiration: u32,
     ) {
-        <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
+        <Self as TaskHandler<T::AccountId, MessageId, bool>>::remove_gas_reservation(
             self,
             program_id,
             reservation_id,

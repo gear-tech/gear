@@ -29,8 +29,11 @@ use alloy::{
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
-        fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
-        PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
+        fillers::{
+            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
+            WalletFiller,
+        },
+        Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
     },
     rpc::types::eth::Log,
@@ -58,7 +61,13 @@ pub(crate) type AlloyTransport = BoxTransport;
 type AlloyProvider =
     FillProvider<ExeFiller, RootProvider<AlloyTransport>, AlloyTransport, AlloyEthereum>;
 
-pub(crate) type ExeFiller = JoinFill<RecommendedFiller, WalletFiller<EthereumWallet>>;
+pub(crate) type ExeFiller = JoinFill<
+    JoinFill<
+        Identity,
+        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+    >,
+    WalletFiller<EthereumWallet>,
+>;
 
 pub struct Ethereum {
     router_address: Address,
