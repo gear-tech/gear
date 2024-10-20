@@ -31,7 +31,7 @@ use gear_core::{
     costs::{BytesAmount, ProcessCosts},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    message::{IncomingDispatch, MessageWaitedType},
+    message::IncomingDispatch,
 };
 
 /// Operation related to gas charging.
@@ -61,15 +61,6 @@ pub enum PreChargeGasOperation {
     /// Obtain program allocations.
     #[display(fmt = "obtain program allocations")]
     Allocations,
-}
-
-/// Possible variants of the [`DispatchResult`] if the latter contains value.
-#[allow(missing_docs)]
-#[derive(Debug)]
-pub enum SuccessfulDispatchResultKind {
-    Exit(ProgramId),
-    Wait(Option<u32>, MessageWaitedType),
-    Success,
 }
 
 /// Defines result variants of the precharge functions.

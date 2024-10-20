@@ -57,6 +57,15 @@ pub enum DispatchResultKind {
     GasAllowanceExceed,
 }
 
+/// Possible variants of the [`DispatchResult`] if the latter contains value.
+#[allow(missing_docs)]
+#[derive(Debug)]
+pub enum SuccessfulDispatchResultKind {
+    Exit(ProgramId),
+    Wait(Option<u32>, MessageWaitedType),
+    Success,
+}
+
 /// Result of the specific dispatch.
 pub struct DispatchResult {
     /// Kind of the dispatch.

@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core_processor::{common::DispatchResult, ContextCharged, SuccessfulDispatchResultKind};
+use core_processor::{
+    common::{DispatchResult, SuccessfulDispatchResultKind},
+    ContextCharged,
+};
 use gear_core::program::ProgramState;
 
 pub(crate) struct QueueStep<'a, T: Config> {

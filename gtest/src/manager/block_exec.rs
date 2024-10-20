@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core_processor::{ContextCharged, ForProgram, SuccessfulDispatchResultKind};
+use core_processor::{common::SuccessfulDispatchResultKind, ContextCharged, ForProgram};
 use gear_core::{code::CodeMetadata, gas::GasCounter, str::LimitedStr};
 use task::get_maximum_task_gas;
 

@@ -33,7 +33,11 @@ async fn test_command_upload_works() -> Result<()> {
         .signer("//Alice", None)?;
     let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
     assert!(
-        signer.api().code_storage(code_id).await.is_err(),
+        signer
+            .api()
+            .instrumented_code_storage(code_id)
+            .await
+            .is_err(),
         "code should not exist"
     );
 
@@ -47,7 +51,11 @@ async fn test_command_upload_works() -> Result<()> {
         output.stderr
     );
     assert!(
-        signer.api().code_storage(code_id).await.is_ok(),
+        signer
+            .api()
+            .instrumented_code_storage(code_id)
+            .await
+            .is_ok(),
         "code should exist"
     );
 

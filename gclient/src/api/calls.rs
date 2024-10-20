@@ -425,18 +425,18 @@ impl GearApi {
             }
         }
 
-        let src_code_id = src_program.code_hash.0.into();
+        let src_code_id = src_program.code_id.0.into();
 
-        let src_code_len = self
+        let src_instrumented_code = self
             .0
             .api()
-            .code_len_storage_at(src_code_id, src_block_hash)
+            .instrumented_code_storage_at(src_code_id, src_block_hash)
             .await?;
 
-        let src_code = self
+        let src_code_metadata = self
             .0
             .api()
-            .code_storage_at(src_code_id, src_block_hash)
+            .code_metadata_storage_at(src_code_id, src_block_hash)
             .await?;
 
         // Apply data to the target program
@@ -463,13 +463,13 @@ impl GearApi {
         dest_node_api
             .0
             .storage
-            .set_code_storage(src_code_id, &src_code)
+            .set_instrumented_code_storage(src_code_id, &src_instrumented_code)
             .await?;
 
         dest_node_api
             .0
             .storage
-            .set_code_len_storage(src_code_id, src_code_len)
+            .set_code_metadata_storage(src_code_id, &src_code_metadata)
             .await?;
 
         dest_node_api
@@ -636,10 +636,16 @@ impl GearApi {
         file_path: P,
     ) -> Result {
         let program = self.0.api().gprog_at(program_id, block_hash).await?;
+        let code_metadata = self
+            .0
+            .api()
+            .code_metadata_storage_at(program.code_id.0.into(), block_hash)
+            .await?;
 
-        assert!(program.static_pages.0 > 0);
+        assert!(code_metadata.static_pages.0 > 0);
         // TODO: consider to remove `-1` may be it's a bug #3893
-        let static_page_count = (program.static_pages.0 - 1) * WasmPage::SIZE / GearPage::SIZE;
+        let static_page_count =
+            (code_metadata.static_pages.0 - 1) * WasmPage::SIZE / GearPage::SIZE;
 
         let program_pages = self
             .0

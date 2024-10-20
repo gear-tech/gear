@@ -596,12 +596,6 @@ pub mod runtime_types {
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct CodeMetadata {
-                pub author: ::subxt::ext::subxt_core::utils::H256,
-                #[codec(compact)]
-                pub block_number: ::core::primitive::u32,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum GasMultiplier<_0, _1> {
                 #[codec(index = 0)]
                 ValuePerGas(_0),
@@ -621,6 +615,16 @@ pub mod runtime_types {
             }
             pub mod code {
                 use super::runtime_types;
+                pub mod attribution {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct CodeAttribution {
+                        pub author: ::subxt::ext::subxt_core::utils::H256,
+                        pub block_number: ::core::primitive::u32,
+                    }
+                }
                 pub mod instrumented {
                     use super::runtime_types;
                     #[derive(
@@ -639,16 +643,35 @@ pub mod runtime_types {
                     )]
                     pub struct InstrumentedCode {
                         pub code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        pub instantiated_section_sizes:
+                            runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
+                    }
+                }
+                pub mod metadata {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct CodeMetadata {
                         pub original_code_len: ::core::primitive::u32,
-                        pub exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                        pub instrumented_code_len: ::core::primitive::u32,
+                        pub code_exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::gear_core::message::DispatchKind,
                         >,
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
                             ::core::option::Option<runtime_types::gear_core::pages::Page>,
-                        pub instruction_weights_version: ::core::primitive::u32,
-                        pub instantiated_section_sizes:
-                            runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
+                        pub instrumentation_status:
+                            runtime_types::gear_core::code::metadata::InstrumentationStatus,
+                    }
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub enum InstrumentationStatus {
+                        #[codec(index = 0)]
+                        Instrumented(::core::primitive::u32),
+                        #[codec(index = 1)]
+                        InstrumentationFailed(::core::primitive::u32),
                     }
                 }
             }
@@ -846,11 +869,7 @@ pub mod runtime_types {
                         runtime_types::gprimitives::ReservationId,
                         runtime_types::gear_core::reservation::GasReservationSlot,
                     >,
-                    pub code_hash: ::subxt::ext::subxt_core::utils::H256,
-                    pub code_exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
-                        runtime_types::gear_core::message::DispatchKind,
-                    >,
-                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
+                    pub code_id: runtime_types::gprimitives::CodeId,
                     pub state: runtime_types::gear_core::program::ProgramState,
                     pub expiration_block: _0,
                 }
@@ -2757,7 +2776,7 @@ pub mod runtime_types {
                         runtime_types::gear_core::pages::Page,
                         runtime_types::gear_core::memory::PageBuf,
                     >,
-                    pub code_hash: ::subxt::ext::subxt_core::utils::H256,
+                    pub code_hash: runtime_types::gprimitives::CodeId,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ProgramState {
@@ -9359,10 +9378,10 @@ pub mod storage {
     }
     #[doc = "Storage of pallet `GearProgram`."]
     pub enum GearProgramStorage {
-        CodeStorage,
-        CodeLenStorage,
+        InstrumentedCodeStorage,
         OriginalCodeStorage,
-        MetadataStorage,
+        CodeMetadataStorage,
+        CodeAttributionStorage,
         AllocationsStorage,
         ProgramStorage,
         MemoryPages,
@@ -9371,10 +9390,10 @@ pub mod storage {
         const PALLET: &'static str = "GearProgram";
         fn storage_name(&self) -> &'static str {
             match self {
-                Self::CodeStorage => "CodeStorage",
-                Self::CodeLenStorage => "CodeLenStorage",
+                Self::InstrumentedCodeStorage => "InstrumentedCodeStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
-                Self::MetadataStorage => "MetadataStorage",
+                Self::CodeMetadataStorage => "CodeMetadataStorage",
+                Self::CodeAttributionStorage => "CodeAttributionStorage",
                 Self::AllocationsStorage => "AllocationsStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
