@@ -26,10 +26,7 @@ use std::{
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use region::{Allocation, Protection};
-use wasmi::{
-    core::UntypedVal, AsContext, AsContextMut, Config, Engine, ExternType, Linker, MemoryType,
-    Module, StackLimits, Val,
-};
+use wasmi::{AsContext, AsContextMut, Engine, ExternType, Linker, MemoryType, Module, Val};
 
 use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 
@@ -107,23 +104,7 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let register_len = size_of::<UntypedVal>();
-
-        const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
-        const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
-        const DEFAULT_MAX_RECURSION_DEPTH: usize = 16384;
-
-        let mut config = Config::default();
-        config.set_stack_limits(
-            StackLimits::new(
-                DEFAULT_MIN_VALUE_STACK_HEIGHT / register_len,
-                DEFAULT_MAX_VALUE_STACK_HEIGHT / register_len,
-                DEFAULT_MAX_RECURSION_DEPTH,
-            )
-            .expect("infallible"),
-        );
-
-        let engine = Engine::new(&config);
+        let engine = Engine::default();
         let store = Store::new(&engine, None);
         Backend {
             store: Rc::new(StoreRefCell::new(store)),
