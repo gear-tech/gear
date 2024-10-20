@@ -34,7 +34,7 @@ pub fn run(
     original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
-    code_metadata: CodeMetadata,
+    code_metadata: Option<CodeMetadata>,
 ) -> Vec<JournalNote> {
     log::debug!("You're calling 'run(..)'");
 

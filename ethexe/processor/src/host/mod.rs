@@ -135,6 +135,7 @@ impl InstanceWrapper {
         original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
+        maybe_code_metadata: Option<CodeMetadata>,
     ) -> Result<Vec<JournalNote>> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
         threads::set(db, chain_head, state_hash);
@@ -144,6 +145,7 @@ impl InstanceWrapper {
             original_code_id,
             state_hash,
             maybe_instrumented_code,
+            maybe_code_metadata,
         );
 
         self.call("run", arg.encode())

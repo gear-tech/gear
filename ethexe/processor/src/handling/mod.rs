@@ -95,6 +95,8 @@ impl Processor {
             instrumented_code,
         );
 
+        self.db.set_code_metadata(code_id, code_metadata);
+
         Ok(Some(code_id))
     }
 }

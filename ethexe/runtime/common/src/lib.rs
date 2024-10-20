@@ -109,7 +109,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     program_id: ProgramId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
-    code_metadata: CodeMetadata,
+    code_metadata: Option<CodeMetadata>,
     code_id: CodeId,
     ri: &RI,
 ) -> Vec<JournalNote> {
@@ -229,6 +229,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     };
 
     let code = instrumented_code.expect("Instrumented code must be provided if program is active");
+    let code_metadata = code_metadata.expect("Code metadata must be provided if program is active");
 
     let context =
         match context.charge_for_instrumented_code(&block_config, code.code().len() as u32) {

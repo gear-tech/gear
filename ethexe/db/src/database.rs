@@ -31,7 +31,7 @@ use ethexe_runtime_common::state::{
     Allocations, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId, ProgramId},
     memory::PageBuf,
     message::Payload,
@@ -46,17 +46,18 @@ const LOG_TARGET: &str = "ethexe-db";
 enum KeyPrefix {
     ProgramToCodeId = 0,
     InstrumentedCode = 1,
-    BlockStartProgramStates = 2,
-    BlockEndProgramStates = 3,
-    BlockEvents = 4,
-    BlockOutcome = 5,
-    BlockSmallMeta = 6,
-    CodeUpload = 7,
-    LatestValidBlock = 8,
-    BlockHeader = 9,
-    CodeValid = 10,
-    BlockStartSchedule = 11,
-    BlockEndSchedule = 12,
+    CodeMetadata = 2,
+    BlockStartProgramStates = 3,
+    BlockEndProgramStates = 4,
+    BlockEvents = 5,
+    BlockOutcome = 6,
+    BlockSmallMeta = 7,
+    CodeUpload = 8,
+    LatestValidBlock = 9,
+    BlockHeader = 10,
+    CodeValid = 11,
+    BlockStartSchedule = 12,
+    BlockEndSchedule = 13,
 }
 
 impl KeyPrefix {
@@ -373,6 +374,22 @@ impl CodesStorage for Database {
                 code_id,
             ),
             code.encode(),
+        );
+    }
+
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata> {
+        self.kv
+            .get(&KeyPrefix::CodeMetadata.one(code_id))
+            .map(|data| {
+                CodeMetadata::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CodeMetadata`")
+            })
+    }
+
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
+        self.kv.put(
+            &KeyPrefix::CodeMetadata.one(code_id),
+            code_metadata.encode(),
         );
     }
 
