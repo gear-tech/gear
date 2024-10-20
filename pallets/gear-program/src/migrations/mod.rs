@@ -18,3 +18,7 @@
 
 // pub mod add_section_sizes;
 // pub mod allocations;
+
+pub mod v11_metadata_into_attribution;
+pub mod v12_program_code_id_migration;
+pub mod v13_split_instrumented_code_migration;

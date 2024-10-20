@@ -121,7 +121,8 @@ pub struct InstrumentedCode {
 }
 
 impl InstrumentedCode {
-    pub(crate) fn new(code: Vec<u8>, instantiated_section_sizes: InstantiatedSectionSizes) -> Self {
+    /// Creates a new instance of the instrumented code.
+    pub fn new(code: Vec<u8>, instantiated_section_sizes: InstantiatedSectionSizes) -> Self {
         Self {
             code,
             instantiated_section_sizes,

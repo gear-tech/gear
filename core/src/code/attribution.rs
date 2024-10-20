@@ -11,6 +11,7 @@ pub struct CodeAttribution {
     /// Author of the code.
     pub author: H256,
     /// Block number when the code was uploaded.
+    #[codec(compact)]
     pub block_number: u32,
 }
 
