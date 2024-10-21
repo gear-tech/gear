@@ -656,9 +656,8 @@ pub mod runtime_types {
                     pub struct CodeMetadata {
                         pub original_code_len: ::core::primitive::u32,
                         pub instrumented_code_len: ::core::primitive::u32,
-                        pub code_exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
-                            runtime_types::gear_core::message::DispatchKind,
-                        >,
+                        pub code_exports:
+                            runtime_types::gear_core::message::dispatch_kind::DispatchKind,
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
                             ::core::option::Option<runtime_types::gear_core::pages::Page>,
@@ -745,20 +744,31 @@ pub mod runtime_types {
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,
                     }
                 }
+                pub mod dispatch_kind {
+                    use super::runtime_types;
+                    #[derive(
+                        ::subxt::ext ::subxt_core::ext::codec::CompactAs,
+                        Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
+                    )]
+                    pub struct DispatchKind(pub ::core::primitive::u8);
+                }
                 pub mod stored {
                     use super::runtime_types;
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct StoredDelayedDispatch {
-                        pub kind: runtime_types::gear_core::message::DispatchKind,
+                        pub kind: runtime_types::gear_core::message::dispatch_kind::DispatchKind,
                         pub message: runtime_types::gear_core::message::stored::StoredMessage,
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct StoredDispatch {
-                        pub kind: runtime_types::gear_core::message::DispatchKind,
+                        pub kind: runtime_types::gear_core::message::dispatch_kind::DispatchKind,
                         pub message: runtime_types::gear_core::message::stored::StoredMessage,
                         pub context: ::core::option::Option<
                             runtime_types::gear_core::message::context::ContextStore,
@@ -815,17 +825,6 @@ pub mod runtime_types {
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
                     }
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum DispatchKind {
-                    #[codec(index = 0)]
-                    Init,
-                    #[codec(index = 1)]
-                    Handle,
-                    #[codec(index = 2)]
-                    Reply,
-                    #[codec(index = 3)]
-                    Signal,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PayloadSizeError;

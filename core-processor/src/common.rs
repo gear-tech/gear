@@ -20,11 +20,7 @@
 
 use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation};
 use actor_system_error::actor_system_error;
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    string::String,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
@@ -536,7 +532,7 @@ pub struct ExecutableActorData {
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.
-    pub code_exports: BTreeSet<DispatchKind>,
+    pub code_exports: DispatchKind,
     /// Count of static memory pages.
     pub static_pages: WasmPagesAmount,
     /// Gas reservation map.

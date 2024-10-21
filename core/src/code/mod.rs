@@ -147,7 +147,7 @@ impl Code {
         let code_metadata = CodeMetadata::new(
             original_code.len() as u32,
             instrumented_code.code().len() as u32,
-            exports.clone(),
+            exports,
             static_pages,
             stack_end,
             InstrumentationStatus::Instrumented(config.version),

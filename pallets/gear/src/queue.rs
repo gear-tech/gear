@@ -122,7 +122,7 @@ where
             unreachable!("{err_msg}");
         });
 
-        if !code_metadata.code_exports().contains(&dispatch_kind) {
+        if !code_metadata.code_exports().contains(dispatch_kind) {
             let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
             return core_processor::process_success(
@@ -244,7 +244,7 @@ where
         let actor_data = ExecutableActorData {
             allocations,
             code_id: program.code_id,
-            code_exports: code_metadata.code_exports().clone(),
+            code_exports: code_metadata.code_exports(),
             static_pages: code_metadata.static_pages(),
             gas_reservation_map: program.gas_reservation_map,
             memory_infix: program.memory_infix,

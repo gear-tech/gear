@@ -58,7 +58,7 @@ impl ExtManager {
             usage_panic!("User message can't be sent to non active program");
         }
 
-        let is_init_msg = dispatch.kind().is_init();
+        let is_init_msg = dispatch.kind().contains(DispatchKind::Init);
         // We charge ED only for init messages
         let maybe_ed = if is_init_msg { EXISTENTIAL_DEPOSIT } else { 0 };
         let balance = Accounts::balance(source);
@@ -317,7 +317,7 @@ impl ExtManager {
                 return Exec::Notes(core_processor::process_non_executable(context));
             };
 
-            if actor.is_initialized() && dispatch_kind.is_init() {
+            if actor.is_initialized() && dispatch_kind.contains(DispatchKind::Init) {
                 // Panic is impossible, because gear protocol does not provide functionality
                 // to send second init message to any already existing program.
                 let err_msg = format!(
@@ -341,9 +341,9 @@ impl ExtManager {
             // to process message, if it's a reply or init message.
             // Otherwise, we return error reply.
             if matches!(actor, Uninitialized(Some(message_id), _)
-                if *message_id != dispatch_id && !dispatch_kind.is_reply())
+                if *message_id != dispatch_id && !dispatch_kind.contains(DispatchKind::Reply))
             {
-                if dispatch_kind.is_init() {
+                if dispatch_kind.contains(DispatchKind::Init) {
                     // Panic is impossible, because gear protocol does not provide functionality
                     // to send second init message to any existing program.
                     let err_msg = format!(
@@ -449,6 +449,7 @@ impl ExtManager {
             DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
             DispatchKind::Reply => mock.handle_reply(payload).map(|_| Mocked::Reply(None)),
             DispatchKind::Signal => mock.handle_signal(payload).map(|_| Mocked::Signal),
+            _ => unreachable!("Multiple dispatch kinds are not allowed here"),
         };
 
         match response {

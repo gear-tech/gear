@@ -8,8 +8,6 @@ use crate::{
     pages::{WasmPage, WasmPagesAmount},
 };
 
-use alloc::collections::BTreeSet;
-
 /// Status of the instrumentation.
 #[derive(Clone, Copy, Debug, Decode, Encode, TypeInfo, PartialEq, Eq)]
 pub enum InstrumentationStatus {
@@ -27,7 +25,7 @@ pub struct CodeMetadata {
     /// Instrumented code length.
     instrumented_code_len: u32,
     /// Exports of the wasm module.
-    code_exports: BTreeSet<DispatchKind>,
+    code_exports: DispatchKind,
     // Static pages count from memory import.
     static_pages: WasmPagesAmount,
     /// Stack end page.
@@ -41,7 +39,7 @@ impl CodeMetadata {
     pub fn new(
         original_code_len: u32,
         instrumented_code_len: u32,
-        code_exports: BTreeSet<DispatchKind>,
+        code_exports: DispatchKind,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         instrumentation_status: InstrumentationStatus,
@@ -67,8 +65,8 @@ impl CodeMetadata {
     }
 
     /// Returns the code exports.
-    pub fn code_exports(&self) -> &BTreeSet<DispatchKind> {
-        &self.code_exports
+    pub fn code_exports(&self) -> DispatchKind {
+        self.code_exports
     }
 
     /// Returns the static pages count from memory import.

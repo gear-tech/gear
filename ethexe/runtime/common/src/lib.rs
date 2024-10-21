@@ -254,7 +254,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     let actor_data = ExecutableActorData {
         allocations,
         code_id,
-        code_exports: code_metadata.code_exports().clone(),
+        code_exports: code_metadata.code_exports(),
         static_pages: code_metadata.static_pages(),
         gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
         memory_infix: active_state.memory_infix,

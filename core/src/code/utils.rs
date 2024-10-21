@@ -73,8 +73,8 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
     Ok(static_pages)
 }
 
-pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
-    let mut entries = BTreeSet::new();
+pub fn get_exports(module: &Module) -> DispatchKind {
+    let mut entries: DispatchKind = Default::default();
 
     for entry in module
         .export_section()

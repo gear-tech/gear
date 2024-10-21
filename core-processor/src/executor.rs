@@ -145,7 +145,7 @@ where
             ext,
             program.code.code(),
             kind,
-            program.code_metadata.code_exports().clone(),
+            program.code_metadata.code_exports(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -346,7 +346,7 @@ where
             ext,
             program.code.code(),
             function,
-            program.code_metadata.code_exports().clone(),
+            program.code_metadata.code_exports(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
