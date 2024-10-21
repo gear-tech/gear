@@ -5242,6 +5242,7 @@ name = "ethexe-runtime-common"
 version = "1.6.2"
 dependencies = [
  "anyhow",
+ "derive_more 0.99.18",
  "ethexe-common",
  "gear-core",
  "gear-core-errors",

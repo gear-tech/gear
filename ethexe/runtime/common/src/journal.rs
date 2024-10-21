@@ -411,7 +411,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                         .flat_map(|i| i.to_iter())
                         .collect();
 
-                    *allocations = new_allocations;
+                    *allocations = new_allocations.into();
                 })?;
 
             *pages_hash = storage.modify_memory_pages(pages_hash.clone(), |pages| {

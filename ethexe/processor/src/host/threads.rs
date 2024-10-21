@@ -64,7 +64,10 @@ impl ThreadParams {
             };
 
             if let MaybeHash::Hash(mem_root) = pages_hash {
-                self.db.read_pages(mem_root.hash).expect(UNKNOWN_STATE)
+                self.db
+                    .read_pages(mem_root.hash)
+                    .expect(UNKNOWN_STATE)
+                    .into()
             } else {
                 Default::default()
             }

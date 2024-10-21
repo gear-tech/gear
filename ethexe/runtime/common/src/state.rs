@@ -23,7 +23,10 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{anyhow, Result};
-use core::num::NonZero;
+use core::{
+    num::NonZero,
+    ops::{Deref, DerefMut},
+};
 use ethexe_common::router::OutgoingMessage;
 use gear_core::{
     code::InstrumentedCode,
@@ -276,18 +279,78 @@ impl Dispatch {
 
 pub type ValueWithExpiry<T> = (T, u32);
 
-pub type MessageQueue = VecDeque<Dispatch>;
+#[derive(
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+pub struct MessageQueue(pub VecDeque<Dispatch>);
 
-pub type Waitlist = BTreeMap<MessageId, ValueWithExpiry<Dispatch>>;
+#[derive(
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+pub struct Waitlist(pub BTreeMap<MessageId, ValueWithExpiry<Dispatch>>);
 
-pub type DispatchStash = BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>;
+#[derive(
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+pub struct DispatchStash(pub BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>);
 
 // TODO (breathx): consider here LocalMailbox for each user.
-pub type Mailbox = BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>;
+#[derive(
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+pub struct Mailbox(pub BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>);
 
-pub type MemoryPages = BTreeMap<GearPage, H256>;
+#[derive(
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+pub struct MemoryPages(pub BTreeMap<GearPage, H256>);
 
-pub type Allocations = IntervalsTree<WasmPage>;
+#[derive(
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+pub struct Allocations(pub IntervalsTree<WasmPage>);
 
 pub trait Storage {
     /// Reads program state by state hash.

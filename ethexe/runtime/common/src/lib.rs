@@ -251,7 +251,7 @@ where
             .expect("Cannot get memory pages")
     });
     let actor_data = ExecutableActorData {
-        allocations,
+        allocations: allocations.into(),
         code_id,
         code_exports: code.exports().clone(),
         static_pages: code.static_pages(),

@@ -583,7 +583,7 @@ fn many_waits() {
             let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
-            for (mid, (dispatch, expiry)) in waitlist {
+            for (mid, (dispatch, expiry)) in waitlist.0 {
                 assert_eq!(mid, dispatch.id);
                 expected_schedule
                     .entry(expiry)

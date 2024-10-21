@@ -21,6 +21,7 @@ gear-core-errors.workspace = true
 anyhow.workspace = true
 parity-scale-codec.workspace = true
 log.workspace = true
+derive_more.workspace = true
 
 [features]
 default = ["std"]
