@@ -18,7 +18,7 @@
 
 //! # Description
 //!
-//! Custom implementation of `RefCell` for the `wasmer::Store` type,
+//! Custom implementation of `RefCell` for the `wasmer::Store`/`wasmi::Store` types,
 //! enabling safe repeated mutable borrowing of `StoreRefCell` higher up the call stack
 //! when the mutable borrow of `StoreRefCell` still exists.
 //!
@@ -55,7 +55,7 @@
 //!
 //! # Why is this necessary? Can't we do without repeated mutable borrowing?
 //!
-//! The issue arises because when handling syscalls within an instance of a program running in Wasmer,
+//! The issue arises because when handling syscalls within an instance of a program running in the sandbox,
 //! a runtime interface call occurs, leading to a situation where we have two nested runtime interface calls.
 //! The first call `sandbox::invoke` initiates the program execution, the second occurs during the syscall processing.
 //!
@@ -69,7 +69,7 @@
 //!   -----------------------------------
 //!   | runtime executes syscall        |
 //!   --------runtime boundary-----------
-//!   | syscall_callback                | Wasmer calls syscall callback from inside his VM
+//!   | syscall_callback                | Wasmer/Wasmi calls syscall callback from inside its VM
 //!   -----------------------------------
 //!   | Wasmer's Func::call             | Sandbox starts to executes program function (Borrows Store mutably)
 //!   -------native boundary----------- |
@@ -83,20 +83,18 @@
 //! Therefore, since it is not possible to pass a reference to Store through nested runtime interface call
 //! or cancel previous mutable borrow, it is necessary to use `StoreRefCell` for safe repeated mutable borrowing of `Store`.
 //!
-
 use std::{
     cell::{Cell, UnsafeCell},
-    num::NonZero,
+    num::NonZeroUsize,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
 
 use defer::defer;
-use wasmer::{AsStoreMut, AsStoreRef, Store, StoreRef};
 
 #[derive(Debug, Clone, Copy)]
 enum BorrowState {
-    Shared(NonZero<usize>),
+    Shared(NonZeroUsize),
     Mutable,
     NonShared,
 }
@@ -104,17 +102,22 @@ enum BorrowState {
 /// Custom implementation of `RefCell` which allows to safely borrow store
 /// mutably/immutably second time inside the scope.
 #[derive(Debug)]
-pub struct StoreRefCell {
-    store: UnsafeCell<Store>,
+pub struct StoreRefCell<S> {
+    store: UnsafeCell<S>,
     state: Cell<BorrowState>,
 }
+
+trait GenericAsStoreMut {}
+
+impl<'r, 's> GenericAsStoreMut for &'r mut wasmer::StoreMut<'s> {}
+impl<'s, T> GenericAsStoreMut for wasmi::StoreContextMut<'s, T> {}
 
 #[derive(Debug)]
 pub struct BorrowScopeError;
 
-impl StoreRefCell {
+impl<S> StoreRefCell<S> {
     /// Create new `StoreRefCell` with provided `Store`
-    pub fn new(store: Store) -> Self {
+    pub fn new(store: S) -> Self {
         Self {
             store: UnsafeCell::new(store),
             state: Cell::new(BorrowState::NonShared),
@@ -123,17 +126,16 @@ impl StoreRefCell {
 
     /// Borrow store immutably, same semantics as `RefCell::borrow`
     #[track_caller]
-    pub fn borrow(&self) -> Ref<'_> {
+    pub fn borrow(&self) -> Ref<'_, S> {
         match self.state.get() {
             BorrowState::Shared(n) => {
                 self.state.set(BorrowState::Shared(
-                    NonZero::<usize>::new(n.get() + 1).expect("non zero"),
+                    NonZeroUsize::new(n.get() + 1).expect("non zero"),
                 ));
             }
             BorrowState::NonShared => {
-                self.state.set(BorrowState::Shared(
-                    NonZero::<usize>::new(1).expect("non zero"),
-                ));
+                self.state
+                    .set(BorrowState::Shared(NonZeroUsize::new(1).expect("non zero")));
             }
             BorrowState::Mutable => {
                 panic!("store already borrowed mutably");
@@ -148,7 +150,7 @@ impl StoreRefCell {
 
     /// Borrow store mutably, same semantics as `RefCell::borrow_mut`
     #[track_caller]
-    pub fn borrow_mut(&self) -> RefMut<'_> {
+    pub fn borrow_mut(&self) -> RefMut<'_, S> {
         match self.state.get() {
             BorrowState::NonShared => {
                 self.state.set(BorrowState::Mutable);
@@ -165,17 +167,12 @@ impl StoreRefCell {
     }
 
     /// Provide borrow scope where store can be borrowed mutably second time safely (or borrowed immutably multiple times).
+    #[allow(private_bounds)]
     pub fn borrow_scope<R, F: FnOnce() -> R>(
         &self,
-        store: impl AsStoreMut,
+        store: impl GenericAsStoreMut,
         f: F,
     ) -> Result<R, BorrowScopeError> {
-        // We expect  the same store
-        debug_assert!(
-            self.compare_stores(store.as_store_ref()),
-            "stores are different"
-        );
-
         // Caller just returned borrowed mutably reference to the store, now we can safely borrow it mutably again
         let _store = store;
 
@@ -197,29 +194,19 @@ impl StoreRefCell {
         Ok(result)
     }
 
-    #[allow(unused)]
-    fn compare_stores(&self, returned_store: StoreRef) -> bool {
-        // SAFETY:
-        // Verified with Miri, it seems safe.
-        // Carefully compare the stores while don't using/holding mutable references to them in the same time.
-        let orig_store_ref: StoreRef = unsafe { &*self.store.get() }.as_store_ref();
-
-        StoreRef::same(&orig_store_ref, &returned_store)
-    }
-
     /// Returns store ptr, same semantics as `RefCell::as_ptr`
-    pub unsafe fn as_ptr(&self) -> *mut Store {
+    pub unsafe fn as_ptr(&self) -> *mut S {
         self.store.get()
     }
 }
 
-pub struct Ref<'b> {
-    store: NonNull<Store>,
+pub struct Ref<'b, S> {
+    store: NonNull<S>,
     state: &'b Cell<BorrowState>,
 }
 
-impl Deref for Ref<'_> {
-    type Target = Store;
+impl<S> Deref for Ref<'_, S> {
+    type Target = S;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -228,7 +215,7 @@ impl Deref for Ref<'_> {
     }
 }
 
-impl Drop for Ref<'_> {
+impl<S> Drop for Ref<'_, S> {
     fn drop(&mut self) {
         match self.state.get() {
             BorrowState::Shared(n) if n.get() == 1 => {
@@ -236,7 +223,7 @@ impl Drop for Ref<'_> {
             }
             BorrowState::Shared(n) => {
                 self.state.set(BorrowState::Shared(
-                    NonZero::<usize>::new(n.get() - 1).expect("non zero"),
+                    NonZeroUsize::new(n.get() - 1).expect("non zero"),
                 ));
             }
             _ => unreachable!(),
@@ -244,13 +231,13 @@ impl Drop for Ref<'_> {
     }
 }
 
-pub struct RefMut<'b> {
-    store: NonNull<Store>,
+pub struct RefMut<'b, S> {
+    store: NonNull<S>,
     state: &'b Cell<BorrowState>,
 }
 
-impl<'a> Deref for RefMut<'a> {
-    type Target = Store;
+impl<'a, S> Deref for RefMut<'a, S> {
+    type Target = S;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -259,7 +246,7 @@ impl<'a> Deref for RefMut<'a> {
     }
 }
 
-impl DerefMut for RefMut<'_> {
+impl<S> DerefMut for RefMut<'_, S> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: we ensure that store isn't borrowed before
@@ -267,7 +254,7 @@ impl DerefMut for RefMut<'_> {
     }
 }
 
-impl Drop for RefMut<'_> {
+impl<S> Drop for RefMut<'_, S> {
     fn drop(&mut self) {
         match self.state.get() {
             BorrowState::Mutable => {
@@ -280,15 +267,15 @@ impl Drop for RefMut<'_> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::rc::Rc;
 
-    use wasmer::StoreMut;
-
-    use super::*;
+    struct Store;
+    impl<'r> GenericAsStoreMut for &'r mut Store {}
 
     #[test]
     fn test_store_refcell_borrow() {
-        let store = Store::default();
+        let store = Store;
         let store_refcell = StoreRefCell::new(store);
 
         {
@@ -307,19 +294,19 @@ mod tests {
     #[test]
     fn test_store_refcell_borrow_scope() {
         struct Env {
-            store: Rc<StoreRefCell>,
+            store: Rc<StoreRefCell<Store>>,
         }
 
-        let store = Store::default();
+        let store = Store;
         let rc = Rc::new(StoreRefCell::new(store));
         let env = Env { store: rc.clone() };
 
-        let callback = |env: Env, mut storemut: StoreMut| {
+        let callback = |env: Env, storemut: &mut Store| {
             // do something with `storemut`
             // ..
 
             let rc = rc.clone();
-            let _ = env.store.borrow_scope(&mut storemut, move || {
+            let _ = env.store.borrow_scope(storemut, move || {
                 // Callback is called and it allowed to borrow store mutably/immutably
                 {
                     let _borrow = rc.borrow_mut();
@@ -339,6 +326,6 @@ mod tests {
         };
 
         let mut borrow = rc.borrow_mut();
-        callback(env, borrow.as_store_mut())
+        callback(env, &mut borrow)
     }
 }

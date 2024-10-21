@@ -32,11 +32,11 @@ use crate::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
         SupervisorContext, SupervisorFuncIndex,
     },
+    store_refcell,
     util::MemoryTransfer,
 };
 
-pub use store_refcell::StoreRefCell;
-mod store_refcell;
+pub type StoreRefCell = store_refcell::StoreRefCell<wasmer::Store>;
 
 #[cfg(feature = "wasmer-cache")]
 mod cache;
@@ -301,7 +301,6 @@ pub fn instantiate(
             instance,
             store: context.store().clone(),
         },
-        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
     })
 }
 
