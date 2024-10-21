@@ -30,9 +30,10 @@ const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
 pub struct Actor<T: Config>(PhantomData<T>);
 
 impl<T: Config> BuiltinActor for Actor<T> {
-    type Error = BuiltinActorError;
-
-    fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
+    fn handle(
+        dispatch: &StoredDispatch,
+        gas_limit: u64,
+    ) -> (Result<Payload, BuiltinActorError>, u64) {
         let message = dispatch.message();
         let payload = message.payload_bytes();
         let (result, gas_spent) = match payload.first().copied() {

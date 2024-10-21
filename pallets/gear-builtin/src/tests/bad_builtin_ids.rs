@@ -99,8 +99,6 @@ pallet_gear::impl_config!(
 
 pub struct SomeBuiltinActor {}
 impl BuiltinActor for SomeBuiltinActor {
-    type Error = BuiltinActorError;
-
     fn handle(
         _dispatch: &StoredDispatch,
         _gas_limit: u64,
