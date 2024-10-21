@@ -131,7 +131,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateProgramCodeHashToCodeId<T> {
 mod v11 {
     use gear_core::{
         ids::ProgramId,
-        message::DispatchKind,
         pages::WasmPage,
         program::{MemoryInfix, ProgramState},
         reservation::GasReservationMap,
@@ -143,6 +142,19 @@ mod v11 {
         traits::Saturating,
     };
     use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+
+    #[derive(
+        Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    )]
+    #[codec(crate = codec)]
+    #[scale_info(crate = scale_info)]
+    pub enum DispatchKind {
+        Init,
+        #[default]
+        Handle,
+        Reply,
+        Signal,
+    }
 
     #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
     #[codec(crate = codec)]

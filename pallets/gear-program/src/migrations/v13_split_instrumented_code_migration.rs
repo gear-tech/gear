@@ -21,10 +21,12 @@ use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
-use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gear_core::{
+    code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
+    message::DispatchKind,
+};
 use sp_std::marker::PhantomData;
 
-use gear_core::code::InstrumentationStatus;
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::ensure,
@@ -65,10 +67,23 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
                 // 1 read for instrumented code, 1 write for instrumented code and 1 write for code metadata
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
 
+                let mut exports: DispatchKind = DispatchKind::empty();
+
+                instrumented_code.exports.iter().for_each(|export| {
+                    let export = match *export {
+                        v12::DispatchKind::Init => DispatchKind::Init,
+                        v12::DispatchKind::Handle => DispatchKind::Handle,
+                        v12::DispatchKind::Reply => DispatchKind::Reply,
+                        v12::DispatchKind::Signal => DispatchKind::Signal,
+                    };
+
+                    exports.insert(export);
+                });
+
                 let code_metadata = CodeMetadata::new(
                     instrumented_code.original_code_len,
                     instrumented_code.code.len() as u32,
-                    instrumented_code.exports,
+                    exports,
                     instrumented_code.static_pages,
                     instrumented_code.stack_end,
                     InstrumentationStatus::Instrumented(instrumented_code.version),
@@ -145,7 +160,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
 mod v12 {
     use gear_core::{
         code::InstantiatedSectionSizes,
-        message::DispatchKind,
         pages::{WasmPage, WasmPagesAmount},
     };
     use sp_runtime::{
@@ -153,6 +167,19 @@ mod v12 {
         scale_info::{self, TypeInfo},
     };
     use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+
+    #[derive(
+        Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    )]
+    #[codec(crate = codec)]
+    #[scale_info(crate = scale_info)]
+    pub enum DispatchKind {
+        Init,
+        #[default]
+        Handle,
+        Reply,
+        Signal,
+    }
 
     #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
     #[codec(crate = codec)]
@@ -215,6 +242,7 @@ mod test {
     use frame_support::traits::StorageVersion;
     use gear_core::{code::InstantiatedSectionSizes, pages::WasmPagesAmount};
     use sp_runtime::traits::Zero;
+    use sp_std::collections::btree_set::BTreeSet;
 
     #[test]
     fn v13_split_instrumented_code_migration_works() {
@@ -225,12 +253,15 @@ mod test {
 
             let code_id = CodeId::from(1u64);
 
+            let mut btree_exports = BTreeSet::new();
+            btree_exports.insert(v12::DispatchKind::Handle);
+
             let section_sizes = unsafe { InstantiatedSectionSizes::zero() };
 
             let instrumented_code = v12::InstrumentedCode {
                 code: vec![1u8; 32],
                 original_code_len: 32,
-                exports: Default::default(),
+                exports: btree_exports,
                 static_pages: WasmPagesAmount::from(1u16),
                 stack_end: None,
                 instantiated_section_sizes: section_sizes,
@@ -255,7 +286,7 @@ mod test {
                 code_metadata.instrumented_code_len(),
                 instrumented_code.code.len() as u32
             );
-            assert_eq!(code_metadata.code_exports(), &instrumented_code.exports);
+            assert_eq!(code_metadata.code_exports(), DispatchKind::Handle);
             assert_eq!(code_metadata.static_pages(), instrumented_code.static_pages);
             assert_eq!(code_metadata.stack_end(), instrumented_code.stack_end);
             assert_eq!(

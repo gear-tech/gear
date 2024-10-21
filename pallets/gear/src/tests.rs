@@ -244,7 +244,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
         let code_metadata = CodeMetadata::new(
             old_code_metadata.original_code_len(),
             old_code_metadata.instrumented_code_len(),
-            old_code_metadata.code_exports().clone(),
+            old_code_metadata.code_exports(),
             old_code_metadata.static_pages(),
             old_code_metadata.stack_end(),
             invalid_metadata.instrumentation_status(), // invalid version

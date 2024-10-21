@@ -487,6 +487,7 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
                 Ok(packet.gas_limit().unwrap_or(0))
             }
             DispatchKind::Signal => unreachable!("Signals can't be sent as a syscall"),
+            _ => unreachable!("Multiple dispatch kind is impossible here"),
         }
     }
 

@@ -20,6 +20,7 @@
 
 mod common;
 mod context;
+mod dispatch_kind;
 mod handle;
 mod incoming;
 mod init;
@@ -32,6 +33,7 @@ pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails}
 pub use context::{
     ContextOutcome, ContextOutcomeDrain, ContextSettings, ContextStore, MessageContext,
 };
+pub use dispatch_kind::DispatchKind;
 pub use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
@@ -42,9 +44,8 @@ pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
-use alloc::{collections::BTreeSet, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
-use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -109,22 +110,6 @@ pub enum MessageWaitedType {
     WaitUpToFull,
 }
 
-/// Entry point for dispatch processing.
-#[derive(
-    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
-)]
-pub enum DispatchKind {
-    /// Initialization.
-    Init,
-    /// Common handle.
-    #[default]
-    Handle,
-    /// Handle reply.
-    Reply,
-    /// System signal.
-    Signal,
-}
-
 /// Trait defining type could be used as entry point for a wasm module.
 pub trait WasmEntryPoint: Sized {
     /// Converting self into entry point name.
@@ -146,71 +131,6 @@ impl WasmEntryPoint for String {
 
     fn try_from_entry(entry: &str) -> Option<Self> {
         Some(entry.into())
-    }
-}
-
-impl WasmEntryPoint for DispatchKind {
-    fn as_entry(&self) -> &str {
-        match self {
-            Self::Init => "init",
-            Self::Handle => "handle",
-            Self::Reply => "handle_reply",
-            Self::Signal => "handle_signal",
-        }
-    }
-
-    fn try_from_entry(entry: &str) -> Option<Self> {
-        let kind = match entry {
-            "init" => Self::Init,
-            "handle" => Self::Handle,
-            "handle_reply" => Self::Reply,
-            "handle_signal" => Self::Signal,
-            _ => return None,
-        };
-
-        Some(kind)
-    }
-}
-
-impl DispatchKind {
-    /// Check if kind is init.
-    pub fn is_init(&self) -> bool {
-        matches!(self, Self::Init)
-    }
-
-    /// Check if kind is handle.
-    pub fn is_handle(&self) -> bool {
-        matches!(self, Self::Handle)
-    }
-
-    /// Check if kind is reply.
-    pub fn is_reply(&self) -> bool {
-        matches!(self, Self::Reply)
-    }
-
-    /// Check if kind is signal.
-    pub fn is_signal(&self) -> bool {
-        matches!(self, Self::Signal)
-    }
-
-    /// Syscalls that are not allowed to be called for the dispatch kind.
-    pub fn forbidden_funcs(&self) -> BTreeSet<SyscallName> {
-        match self {
-            DispatchKind::Signal => [
-                SyscallName::Source,
-                SyscallName::Reply,
-                SyscallName::ReplyPush,
-                SyscallName::ReplyCommit,
-                SyscallName::ReplyCommitWGas,
-                SyscallName::ReplyInput,
-                SyscallName::ReplyInputWGas,
-                SyscallName::ReservationReply,
-                SyscallName::ReservationReplyCommit,
-                SyscallName::SystemReserveGas,
-            ]
-            .into(),
-            _ => Default::default(),
-        }
     }
 }
 

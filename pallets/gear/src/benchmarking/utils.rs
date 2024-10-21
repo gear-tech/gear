@@ -253,7 +253,7 @@ where
     let actor_data = ExecutableActorData {
         allocations,
         code_id: active.code_id,
-        code_exports: code_metadata.code_exports().clone(),
+        code_exports: code_metadata.code_exports(),
         static_pages: code_metadata.static_pages(),
         gas_reservation_map: active.gas_reservation_map,
         memory_infix: active.memory_infix,

@@ -224,7 +224,7 @@ impl GenuineProgram {
             ExecutableActorData {
                 allocations: self.allocations.clone(),
                 code_id: self.code_id,
-                code_exports: self.code_metadata.code_exports().clone(),
+                code_exports: self.code_metadata.code_exports(),
                 static_pages: self.code_metadata.static_pages(),
                 gas_reservation_map: self.gas_reservation_map.clone(),
                 memory_infix: Default::default(),
