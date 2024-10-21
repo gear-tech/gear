@@ -20,6 +20,7 @@ use alloc::vec::Vec;
 use gear_core::message::{Message, ReplyDetails};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
+use serde::Serialize;
 
 /* Storage related structures */
 
@@ -141,7 +142,7 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize)]
 pub enum RequestEvent {
     BaseWeightChanged {
         base_weight: u64,
