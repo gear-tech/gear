@@ -19,7 +19,7 @@
 use crate::{
     builtin::BuiltinDispatcherFactory,
     internal::{HoldBound, HoldBoundBuilder, InheritorForError},
-    manager::{CodeInfo, HandleKind},
+    manager::HandleKind,
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
@@ -46,8 +46,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{
-        self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
-        InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
+        self, Code, CodeAttribution, CodeError, CodeMetadata, ExportError, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
@@ -237,11 +236,22 @@ fn state_rpc_calls_trigger_reinstrumentation() {
         )
         .expect("Failed to create dummy code");
 
-        let code_and_id =
-            unsafe { CodeAndId::from_incompatible_parts(code, program.code_hash.cast()) };
-        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+        let (instrumented_code, _, invalid_metadata) = code.into_parts();
 
-        <Test as Config>::CodeStorage::update_code(code_and_id);
+        // Code metadata doesn't have to be completely wrong, just a version of instrumentation
+        let old_code_metadata =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id).unwrap();
+        let code_metadata = CodeMetadata::new(
+            old_code_metadata.original_code_len(),
+            old_code_metadata.instrumented_code_len(),
+            old_code_metadata.code_exports().clone(),
+            old_code_metadata.static_pages(),
+            old_code_metadata.stack_end(),
+            invalid_metadata.instrumentation_status(), // invalid version
+        );
+
+        <Test as Config>::CodeStorage::update_instrumented_code(program.code_id, instrumented_code);
+        <Test as Config>::CodeStorage::update_code_metadata(program.code_id, code_metadata);
         /* ends here */
 
         assert_ok!(Gear::read_metahash_impl(program_id, None));
@@ -2513,10 +2523,15 @@ fn delayed_program_creation_no_code() {
         );
         let read_program_from_storage_fee =
             gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
+        let read_code_metadata_from_storage_fee =
+            gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            free_balance + reserved_balance - delay_holding_fee - 2 * read_program_from_storage_fee
+            free_balance + reserved_balance
+                - delay_holding_fee
+                - 2 * read_program_from_storage_fee
+                - read_code_metadata_from_storage_fee
         );
         assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
@@ -5028,7 +5043,7 @@ fn test_code_submission_pass() {
             code.clone()
         ));
 
-        let saved_code = <Test as Config>::CodeStorage::get_code(code_id);
+        let saved_code = <Test as Config>::CodeStorage::get_instrumented_code(code_id);
 
         let schedule = <Test as Config>::Schedule::get();
         let code = Code::try_new(
@@ -5040,11 +5055,11 @@ fn test_code_submission_pass() {
             schedule.limits.table_number.into(),
         )
         .expect("Error creating Code");
-        assert_eq!(saved_code.unwrap().code(), code.code());
+        assert_eq!(saved_code.unwrap().code(), code.instrumented_code().code());
 
-        let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
-        let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
-        assert_eq!(expected_meta, actual_meta);
+        let expected_attribution = Some(CodeAttribution::new(USER_1.into_origin(), 1));
+        let actual_attribution = <Test as Config>::CodeStorage::get_code_attribution(code_id);
+        assert_eq!(expected_attribution, actual_attribution);
 
         // TODO: replace this temporary (`None`) value
         // for expiration block number with properly
@@ -5133,8 +5148,8 @@ fn test_code_is_not_reset_within_program_submission() {
             code.clone()
         ));
         let expected_code_saved_events = 1;
-        let expected_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
-        assert!(expected_meta.is_some());
+        let expected_attribution = <Test as Config>::CodeStorage::get_code_attribution(code_id);
+        assert!(expected_attribution.is_some());
 
         // Submit program from another origin. Should not change meta or code.
         assert_ok!(Gear::upload_program(
@@ -5146,7 +5161,7 @@ fn test_code_is_not_reset_within_program_submission() {
             0,
             false,
         ));
-        let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
+        let actual_attribution = <Test as Config>::CodeStorage::get_code_attribution(code_id);
         let actual_code_saved_events = System::events()
             .iter()
             .filter(|e| {
@@ -5160,7 +5175,7 @@ fn test_code_is_not_reset_within_program_submission() {
             })
             .count();
 
-        assert_eq!(expected_meta, actual_meta);
+        assert_eq!(expected_attribution, actual_attribution);
         assert_eq!(expected_code_saved_events, actual_code_saved_events);
     })
 }
@@ -6455,7 +6470,7 @@ fn terminated_locking_funds() {
 
         let schedule = Schedule::<Test>::default();
         let code_id = get_last_code_id();
-        let code = <Test as Config>::CodeStorage::get_code(code_id)
+        let code = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
             .expect("code should be in the storage");
         let code_length = code.code().len() as u64;
         let system_reservation = demo_init_fail_sender::system_reserve();
@@ -6463,46 +6478,39 @@ fn terminated_locking_funds() {
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let gas_for_module_instantiation = {
-            let InstantiatedSectionSizes {
-                code_section: code_section_bytes,
-                data_section: data_section_bytes,
-                global_section: global_section_bytes,
-                table_section: table_section_bytes,
-                element_section: element_section_bytes,
-                type_section: type_section_bytes,
-            } = *code.instantiated_section_sizes();
+            let instantiated_section_sizes = code.instantiated_section_sizes();
 
             let instantiation_weights = schedule.instantiation_weights;
 
             let mut gas_for_code_instantiation = instantiation_weights
                 .code_section_per_byte
                 .ref_time()
-                .saturating_mul(code_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.code_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .data_section_per_byte
                 .ref_time()
-                .saturating_mul(data_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.data_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .global_section_per_byte
                 .ref_time()
-                .saturating_mul(global_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.global_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .table_section_per_byte
                 .ref_time()
-                .saturating_mul(table_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.table_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .element_section_per_byte
                 .ref_time()
-                .saturating_mul(element_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.element_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .type_section_per_byte
                 .ref_time()
-                .saturating_mul(type_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.type_section() as u64);
 
             gas_for_code_instantiation
         };
@@ -6811,8 +6819,6 @@ fn test_sequence_inheritor_of() {
             demo_ping::WASM_BINARY.to_vec(),
         ));
         let code_id = get_last_code_id();
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        let code_info = CodeInfo::from_code(&code_id, &code);
 
         let message_id = MessageId::from(1);
 
@@ -6820,12 +6826,7 @@ fn test_sequence_inheritor_of() {
         let mut programs = vec![];
         for i in 1000..1100 {
             let program_id = ProgramId::from(i);
-            manager.set_program(
-                program_id,
-                &code_info,
-                message_id,
-                1.unique_saturated_into(),
-            );
+            manager.set_program(program_id, code_id, message_id, 1.unique_saturated_into());
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
                 let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.into());
@@ -6905,8 +6906,6 @@ fn test_cyclic_inheritor_of() {
             demo_ping::WASM_BINARY.to_vec(),
         ));
         let code_id = get_last_code_id();
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        let code_info = CodeInfo::from_code(&code_id, &code);
 
         let message_id = MessageId::from(1);
 
@@ -6914,12 +6913,7 @@ fn test_cyclic_inheritor_of() {
         let mut cyclic_programs = vec![];
         for i in 2000..2100 {
             let program_id = ProgramId::from(i);
-            manager.set_program(
-                program_id,
-                &code_info,
-                message_id,
-                1.unique_saturated_into(),
-            );
+            manager.set_program(program_id, code_id, message_id, 1.unique_saturated_into());
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
                 let inheritor = cyclic_programs
@@ -8004,10 +7998,10 @@ fn gas_spent_precalculated() {
             let code_id = ProgramStorageOf::<Test>::get_program(pid)
                 .and_then(|program| ActiveProgram::try_from(program).ok())
                 .expect("program must exist")
-                .code_hash
+                .code_id
                 .cast();
 
-            <Test as Config>::CodeStorage::get_code(code_id).unwrap()
+            <Test as Config>::CodeStorage::get_instrumented_code(code_id).unwrap()
         };
 
         let get_gas_charged_for_code = |pid| {
@@ -8022,46 +8016,39 @@ fn gas_spent_precalculated() {
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
 
-            let InstantiatedSectionSizes {
-                code_section: code_section_bytes,
-                data_section: data_section_bytes,
-                global_section: global_section_bytes,
-                table_section: table_section_bytes,
-                element_section: element_section_bytes,
-                type_section: type_section_bytes,
-            } = *instrumented_prog.instantiated_section_sizes();
+            let instantiated_section_sizes = instrumented_prog.instantiated_section_sizes();
 
             let instantiation_weights = schedule.instantiation_weights;
 
             let mut gas_for_code_instantiation = instantiation_weights
                 .code_section_per_byte
                 .ref_time()
-                .saturating_mul(code_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.code_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .data_section_per_byte
                 .ref_time()
-                .saturating_mul(data_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.data_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .global_section_per_byte
                 .ref_time()
-                .saturating_mul(global_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.global_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .table_section_per_byte
                 .ref_time()
-                .saturating_mul(table_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.table_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .element_section_per_byte
                 .ref_time()
-                .saturating_mul(element_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.element_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .type_section_per_byte
                 .ref_time()
-                .saturating_mul(type_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.type_section() as u64);
 
             gas_for_code_read + gas_for_code_instantiation
         };
@@ -10215,8 +10202,9 @@ fn missing_functions_are_not_executed() {
         .expect("calculate_gas_info failed");
 
         let program_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+        let metadata_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         // there is no execution so the values should be equal
-        assert_eq!(min_limit, program_cost);
+        assert_eq!(min_limit, program_cost + metadata_cost);
 
         run_to_next_block(None);
 
@@ -10224,7 +10212,7 @@ fn missing_functions_are_not_executed() {
         // no execution is performed at all and hence user was not charged for program execution.
         assert_eq!(
             balance_before,
-            Balances::free_balance(USER_1) + gas_price(program_cost) + ed
+            Balances::free_balance(USER_1) + gas_price(program_cost + metadata_cost) + ed
         );
 
         // this value is actually a constant in the wat.
@@ -10259,7 +10247,7 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, program_cost);
+        assert_eq!(min_limit, program_cost + metadata_cost);
 
         let balance_before = Balances::free_balance(USER_1);
         let reply_value = 1_500;
@@ -10276,7 +10264,7 @@ fn missing_functions_are_not_executed() {
 
         assert_eq!(
             balance_before - reply_value + locked_value,
-            Balances::free_balance(USER_1) + gas_price(program_cost)
+            Balances::free_balance(USER_1) + gas_price(program_cost + metadata_cost)
         );
     });
 }
@@ -10407,9 +10395,9 @@ fn test_reinstrumentation_works() {
 
         // check old version
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
-            let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+            let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
             assert_eq!(
-                code.instruction_weights_version(),
+                code_metadata.instruction_weights_version(),
                 schedule.instruction_weights.version
             );
 
@@ -10428,8 +10416,8 @@ fn test_reinstrumentation_works() {
         run_to_block(3, None);
 
         // check new version
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), 0xdeadbeef);
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(code_metadata.instruction_weights_version(), 0xdeadbeef);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -10443,8 +10431,8 @@ fn test_reinstrumentation_works() {
         run_to_block(4, None);
 
         // check new version stands still
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), 0xdeadbeef);
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(code_metadata.instruction_weights_version(), 0xdeadbeef);
     })
 }
 
@@ -10487,8 +10475,8 @@ fn test_reinstrumentation_failure() {
         assert!(program.is_active());
 
         // After message processing the code must have the old instrumentation version.
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), old_version);
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(code_metadata.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
         assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
@@ -10524,8 +10512,8 @@ fn test_init_reinstrumentation_failure() {
         assert!(program.is_terminated());
 
         // After message processing the code must have the old instrumentation version.
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), old_version);
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(code_metadata.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
         assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
@@ -16151,6 +16139,10 @@ pub(crate) mod utils {
 
     #[track_caller]
     pub(super) fn assert_total_dequeued(expected: u32) {
+        System::events().iter().for_each(|e| {
+            log::debug!("Event: {:?}", e);
+        });
+
         let actual_dequeued: u32 = System::events()
             .iter()
             .filter_map(|e| {
@@ -16212,7 +16204,7 @@ pub(crate) mod utils {
                 ProgramStorageOf::<Test>::get_program(prog_id)
                     .and_then(|program| ActiveProgram::try_from(program).ok())
                     .expect("program must exist")
-                    .code_hash,
+                    .code_id,
                 generate_code_hash(&expected_code).into(),
                 "can invoke send to mailbox only from `ProgramCodeKind::OutgoingWithValueInHandle` program"
             );
@@ -16223,7 +16215,7 @@ pub(crate) mod utils {
 
     #[track_caller]
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: ProgramId) {
-        let expected_code_hash: H256 = generate_code_hash(
+        let expected_code_hash: CodeId = generate_code_hash(
             ProgramCodeKind::OutgoingWithValueInHandle
                 .to_bytes()
                 .as_slice(),
@@ -16231,7 +16223,7 @@ pub(crate) mod utils {
         .into();
         let actual_code_hash = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|program| ActiveProgram::try_from(program).ok())
-            .map(|prog| prog.code_hash)
+            .map(|prog| prog.code_id)
             .expect("invalid program address for the test");
         assert_eq!(
             expected_code_hash, actual_code_hash,
