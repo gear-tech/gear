@@ -6,7 +6,7 @@ use crate::{
     InBlockTransitions,
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use core::{mem, num::NonZero};
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
@@ -83,15 +83,13 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 self.update_state(program_id, |state| {
                     match &mut state.program {
                         Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
-                            anyhow::bail!("an attempt to initialize already initialized program")
+                            bail!("an attempt to initialize already initialized program")
                         }
                         Program::Active(ActiveProgram {
                             ref mut initialized,
                             ..
                         }) => *initialized = true,
-                        _ => anyhow::bail!(
-                            "an attempt to dispatch init message for inactive program"
-                        ),
+                        _ => bail!("an attempt to dispatch init message for inactive program"),
                     };
 
                     Ok(())
@@ -373,7 +371,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 ref mut pages_hash, ..
             }) = state.program
             else {
-                anyhow::bail!("an attempt to update pages data of inactive program");
+                bail!("an attempt to update pages data of inactive program");
             };
 
             let new_pages = storage.store_pages(pages_data);
@@ -396,17 +394,31 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         self.update_state_with_storage(program_id, |storage, state| {
             let Program::Active(ActiveProgram {
                 ref mut allocations_hash,
+                ref mut pages_hash,
                 ..
             }) = state.program
             else {
-                anyhow::bail!("an attempt to update allocations of inactive program");
+                bail!("an attempt to update allocations of inactive program");
             };
 
-            // TODO (breathx): remove data for difference pages.
+            let mut removed_pages = vec![];
+
             *allocations_hash =
                 storage.modify_allocations(allocations_hash.clone(), |allocations| {
+                    removed_pages = allocations
+                        .difference(&new_allocations)
+                        .flat_map(|i| i.iter())
+                        .flat_map(|i| i.to_iter())
+                        .collect();
+
                     *allocations = new_allocations;
                 })?;
+
+            *pages_hash = storage.modify_memory_pages(pages_hash.clone(), |pages| {
+                for page in removed_pages {
+                    pages.remove(&page);
+                }
+            })?;
 
             Ok(())
         });

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent,
     router::{RequestEvent as RouterEvent, ValueClaim},
@@ -278,12 +278,12 @@ impl Processor {
     }
 
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {
-        anyhow::ensure!(
+        ensure!(
             self.db.original_code(code_id).is_some(),
             "code existence must be checked on router"
         );
 
-        anyhow::ensure!(
+        ensure!(
             self.db.program_code_id(program_id).is_none(),
             "program duplicates must be checked on router"
         );
