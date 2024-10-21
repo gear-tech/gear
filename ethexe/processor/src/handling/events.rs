@@ -25,7 +25,7 @@ use ethexe_common::{
 };
 use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::{
-    state::{ComplexStorage as _, Dispatch, Storage},
+    state::{ComplexStorage as _, Dispatch, Storage, ValueWithExpiry},
     InBlockTransitions,
 };
 use gear_core::{
@@ -236,17 +236,22 @@ impl Processor {
     ) -> Result<Option<(ValueClaim, u32, H256)>> {
         self.db
             .mutate_state_returning(state_hash, |db, state| {
-                let Some(((claimed_value, expiry), mailbox_hash)) =
-                    db.modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
-                        let local_mailbox = mailbox.get_mut(&user_id)?;
-                        let claimed_value = local_mailbox.remove(&mailboxed_id)?;
+                let Some((
+                    ValueWithExpiry {
+                        value: claimed_value,
+                        expiry,
+                    },
+                    mailbox_hash,
+                )) = db.modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
+                    let local_mailbox = mailbox.get_mut(&user_id)?;
+                    let claimed_value = local_mailbox.remove(&mailboxed_id)?;
 
-                        if local_mailbox.is_empty() {
-                            mailbox.remove(&user_id);
-                        }
+                    if local_mailbox.is_empty() {
+                        mailbox.remove(&user_id);
+                    }
 
-                        Some(claimed_value)
-                    })?
+                    Some(claimed_value)
+                })?
                 else {
                     return Ok(None);
                 };

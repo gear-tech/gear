@@ -1,5 +1,8 @@
 use crate::{
-    state::{ComplexStorage, Dispatch, MaybeHash, ProgramState, Storage, MAILBOX_VALIDITY},
+    state::{
+        ComplexStorage, Dispatch, MaybeHash, ProgramState, Storage, ValueWithExpiry,
+        MAILBOX_VALIDITY,
+    },
     InBlockTransitions,
 };
 use alloc::vec;
@@ -44,7 +47,13 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
         let mut value_claim = None;
 
         self.update_state_with_storage(program_id, |storage, state| {
-            let ((claimed_value, expiry), new_mailbox_hash) = storage
+            let (
+                ValueWithExpiry {
+                    value: claimed_value,
+                    expiry,
+                },
+                new_mailbox_hash,
+            ) = storage
                 .modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
                     let local_mailbox = mailbox.get_mut(&user_id)?;
                     let claimed_value = local_mailbox.remove(&message_id)?;
@@ -92,7 +101,13 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
 
     fn send_dispatch(&mut self, (program_id, message_id): (ProgramId, MessageId)) -> u64 {
         self.update_state_with_storage(program_id, |storage, state| {
-            let (((dispatch, user_id), _expiry), new_stash_hash) = storage
+            let (
+                ValueWithExpiry {
+                    value: (dispatch, user_id),
+                    ..
+                },
+                new_stash_hash,
+            ) = storage
                 .modify_stash_if_changed(state.stash_hash.clone(), |stash| {
                     stash.remove(&message_id)
                 })?
@@ -115,7 +130,13 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
         let mut dispatch_and_user = None;
 
         self.update_state_with_storage(program_id, |storage, state| {
-            let (((dispatch, user_id), _expiry), new_stash_hash) = storage
+            let (
+                ValueWithExpiry {
+                    value: (dispatch, user_id),
+                    ..
+                },
+                new_stash_hash,
+            ) = storage
                 .modify_stash_if_changed(state.stash_hash.clone(), |stash| {
                     stash.remove(&stashed_message_id)
                 })?
@@ -139,10 +160,13 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
             self.update_state_with_storage(program_id, |storage, state| {
                 state.mailbox_hash =
                     storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
-                        let r = mailbox
-                            .entry(user_id)
-                            .or_default()
-                            .insert(dispatch.id, (dispatch.value, expiry));
+                        let r = mailbox.entry(user_id).or_default().insert(
+                            dispatch.id,
+                            ValueWithExpiry {
+                                value: dispatch.value,
+                                expiry,
+                            },
+                        );
 
                         debug_assert!(r.is_none());
                     })?;
@@ -167,7 +191,12 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
         log::trace!("Running scheduled task wake message {message_id} to {program_id}");
 
         self.update_state_with_storage(program_id, |storage, state| {
-            let ((dispatch, _expiry), new_waitlist_hash) = storage
+            let (
+                ValueWithExpiry {
+                    value: dispatch, ..
+                },
+                new_waitlist_hash,
+            ) = storage
                 .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
                     waitlist.remove(&message_id)
                 })?

@@ -21,7 +21,7 @@ use ethexe_common::{
     mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
-use ethexe_runtime_common::state::{ComplexStorage, Dispatch};
+use ethexe_runtime_common::state::{ComplexStorage, Dispatch, ValueWithExpiry};
 use gear_core::{
     ids::{prelude::CodeIdExt, ProgramId},
     message::DispatchKind,
@@ -583,7 +583,14 @@ fn many_waits() {
             let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
-            for (mid, (dispatch, expiry)) in waitlist.0 {
+            for (
+                mid,
+                ValueWithExpiry {
+                    value: dispatch,
+                    expiry,
+                },
+            ) in waitlist.0
+            {
                 assert_eq!(mid, dispatch.id);
                 expected_schedule
                     .entry(expiry)

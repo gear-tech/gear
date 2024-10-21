@@ -1,7 +1,7 @@
 use crate::{
     state::{
         self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program,
-        ProgramState, Storage, MAILBOX_VALIDITY,
+        ProgramState, Storage, ValueWithExpiry, MAILBOX_VALIDITY,
     },
     InBlockTransitions,
 };
@@ -203,8 +203,13 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
                         state.stash_hash =
                             storage.modify_stash(state.stash_hash.clone(), |stash| {
-                                let r =
-                                    stash.insert(dispatch.id, ((dispatch, Some(user_id)), expiry));
+                                let r = stash.insert(
+                                    dispatch.id,
+                                    ValueWithExpiry {
+                                        value: (dispatch, Some(user_id)),
+                                        expiry,
+                                    },
+                                );
                                 debug_assert!(r.is_none());
                             })?;
 
@@ -224,10 +229,13 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                     self.update_state_with_storage(dispatch.source(), |storage, state| {
                         state.mailbox_hash =
                             storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
-                                mailbox
-                                    .entry(user_id)
-                                    .or_default()
-                                    .insert(dispatch.id(), (dispatch.value(), expiry));
+                                mailbox.entry(user_id).or_default().insert(
+                                    dispatch.id(),
+                                    ValueWithExpiry {
+                                        value: dispatch.value(),
+                                        expiry,
+                                    },
+                                );
                             })?;
 
                         Ok(())
@@ -258,7 +266,13 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
             self.update_state_with_storage(destination, |storage, state| {
                 state.stash_hash = storage.modify_stash(state.stash_hash.clone(), |stash| {
-                    let r = stash.insert(dispatch.id, ((dispatch, None), expiry));
+                    let r = stash.insert(
+                        dispatch.id,
+                        ValueWithExpiry {
+                            value: (dispatch, None),
+                            expiry,
+                        },
+                    );
                     debug_assert!(r.is_none());
                 })?;
 
@@ -309,7 +323,13 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             // TODO (breathx): impl Copy for MaybeHash?
             state.waitlist_hash =
                 storage.modify_waitlist(state.waitlist_hash.clone(), |waitlist| {
-                    let r = waitlist.insert(dispatch.id, (dispatch, expiry));
+                    let r = waitlist.insert(
+                        dispatch.id,
+                        ValueWithExpiry {
+                            value: dispatch,
+                            expiry,
+                        },
+                    );
                     debug_assert!(r.is_none());
                 })?;
 
@@ -333,10 +353,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let mut expiry_if_found = None;
 
         self.update_state_with_storage(program_id, |storage, state| {
-            let Some(((dispatch, expiry), new_waitlist_hash)) = storage
-                .modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
-                    waitlist.remove(&awakening_id)
-                })?
+            let Some((
+                ValueWithExpiry {
+                    value: dispatch,
+                    expiry,
+                },
+                new_waitlist_hash,
+            )) = storage.modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
+                waitlist.remove(&awakening_id)
+            })?
             else {
                 return Ok(());
             };

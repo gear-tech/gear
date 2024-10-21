@@ -195,7 +195,7 @@ impl ProgramState {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct Dispatch {
     /// Message id.
     pub id: MessageId,
@@ -277,13 +277,25 @@ impl Dispatch {
     }
 }
 
-pub type ValueWithExpiry<T> = (T, u32);
+#[derive(Default, Debug, Encode, Decode, PartialEq, Eq)]
+pub struct ValueWithExpiry<T> {
+    pub value: T,
+    pub expiry: u32,
+}
+
+impl<T> From<(T, u32)> for ValueWithExpiry<T> {
+    fn from((value, expiry): (T, u32)) -> Self {
+        Self { value, expiry }
+    }
+}
 
 #[derive(
     Default,
     Debug,
     Encode,
     Decode,
+    PartialEq,
+    Eq,
     derive_more::Deref,
     derive_more::DerefMut,
     derive_more::From,
@@ -296,6 +308,8 @@ pub struct MessageQueue(pub VecDeque<Dispatch>);
     Debug,
     Encode,
     Decode,
+    PartialEq,
+    Eq,
     derive_more::Deref,
     derive_more::DerefMut,
     derive_more::From,
@@ -308,6 +322,8 @@ pub struct Waitlist(pub BTreeMap<MessageId, ValueWithExpiry<Dispatch>>);
     Debug,
     Encode,
     Decode,
+    PartialEq,
+    Eq,
     derive_more::Deref,
     derive_more::DerefMut,
     derive_more::From,
@@ -321,6 +337,8 @@ pub struct DispatchStash(pub BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Opti
     Debug,
     Encode,
     Decode,
+    PartialEq,
+    Eq,
     derive_more::Deref,
     derive_more::DerefMut,
     derive_more::From,
@@ -333,6 +351,8 @@ pub struct Mailbox(pub BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Val
     Debug,
     Encode,
     Decode,
+    PartialEq,
+    Eq,
     derive_more::Deref,
     derive_more::DerefMut,
     derive_more::From,
@@ -345,6 +365,8 @@ pub struct MemoryPages(pub BTreeMap<GearPage, H256>);
     Debug,
     Encode,
     Decode,
+    PartialEq,
+    Eq,
     derive_more::Deref,
     derive_more::DerefMut,
     derive_more::From,
