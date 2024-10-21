@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::anyhow;
+use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
 use ethexe_db::Database;
 use futures::FutureExt;
 use jsonrpsee::{
@@ -26,16 +27,13 @@ use jsonrpsee::{
     },
     Methods, RpcModule as JsonrpcModule,
 };
-use modules::{
-    block::{BlockApiModule, BlockServer},
-    program::{ProgramApiModule, ProgramServer},
-};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower::Service;
 
+mod apis;
+mod common;
 mod errors;
-mod modules;
 
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
@@ -66,12 +64,10 @@ impl RpcService {
 
         let service_builder = Server::builder().to_service_builder();
         let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApiModule::new(
+        module.merge(ProgramServer::into_rpc(ProgramApi::new(
             self.config.db.clone(),
         )))?;
-        module.merge(BlockServer::into_rpc(BlockApiModule::new(
-            self.config.db.clone(),
-        )))?;
+        module.merge(BlockServer::into_rpc(BlockApi::new(self.config.db.clone())))?;
 
         let (stop_handle, server_handle) = stop_channel();
 

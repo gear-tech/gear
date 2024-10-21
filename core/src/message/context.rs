@@ -33,8 +33,6 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-#[cfg(feature = "std")]
-use serde::Serialize;
 
 use super::{DispatchKind, IncomingDispatch, Packet};
 
@@ -146,7 +144,7 @@ impl ContextOutcome {
 
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct ContextStore {
     outgoing: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,

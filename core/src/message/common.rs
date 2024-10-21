@@ -29,8 +29,6 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-#[cfg(feature = "std")]
-use serde::Serialize;
 
 /// An entity that is used for interaction between actors.
 /// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply.
@@ -181,7 +179,7 @@ impl Message {
     TypeInfo,
     derive_more::From,
 )]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub enum MessageDetails {
     /// Reply details.
     Reply(ReplyDetails),
@@ -231,7 +229,7 @@ impl MessageDetails {
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct ReplyDetails {
     /// Message id, this message replies on.
     to: MessageId,
@@ -265,7 +263,7 @@ impl ReplyDetails {
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct SignalDetails {
     /// Message id, which issues signal.
     to: MessageId,

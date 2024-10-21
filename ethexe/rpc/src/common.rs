@@ -16,16 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::ErrorObject;
+use crate::errors;
+use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
+use gprimitives::H256;
+use jsonrpsee::core::RpcResult;
 
-pub fn db(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
-}
-
-pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
-}
-
-pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
+pub fn block_header_at_or_latest(
+    db: &Database,
+    at: impl Into<Option<H256>>,
+) -> RpcResult<(H256, BlockHeader)> {
+    if let Some(hash) = at.into() {
+        db.block_header(hash)
+            .map(|header| (hash, header))
+            .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
+    } else {
+        db.latest_valid_block()
+            .ok_or_else(|| errors::db("Latest block header wasn't found"))
+    }
 }

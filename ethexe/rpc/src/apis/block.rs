@@ -1,5 +1,22 @@
-use std::collections::VecDeque;
+// This file is part of Gear.
+//
+// Copyright (C) 2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{common::block_header_at_or_latest, errors};
 use ethexe_common::BlockRequestEvent;
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
 use gprimitives::H256;
@@ -7,22 +24,7 @@ use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
 };
-
-use crate::errors;
-
-pub fn block_header_at_or_latest(
-    db: &Database,
-    at: impl Into<Option<H256>>,
-) -> RpcResult<(H256, BlockHeader)> {
-    if let Some(hash) = at.into() {
-        db.block_header(hash)
-            .map(|header| (hash, header))
-            .ok_or_else(|| errors::db_err("Block header for requested hash wasn't found"))
-    } else {
-        db.latest_valid_block()
-            .ok_or_else(|| errors::db_err("Latest block header wasn't found"))
-    }
-}
+use std::collections::VecDeque;
 
 #[rpc(server)]
 pub trait Block {
@@ -37,18 +39,18 @@ pub trait Block {
 }
 
 #[derive(Clone)]
-pub struct BlockApiModule {
+pub struct BlockApi {
     db: Database,
 }
 
-impl BlockApiModule {
+impl BlockApi {
     pub fn new(db: Database) -> Self {
         Self { db }
     }
 }
 
 #[async_trait]
-impl BlockServer for BlockApiModule {
+impl BlockServer for BlockApi {
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)> {
         block_header_at_or_latest(&self.db, hash)
     }
@@ -58,7 +60,7 @@ impl BlockServer for BlockApiModule {
 
         self.db
             .block_commitment_queue(block_hash)
-            .ok_or_else(|| errors::db_err("Block commitment queue wasn't found"))
+            .ok_or_else(|| errors::db("Block commitment queue wasn't found"))
     }
 
     async fn block_events(&self, hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>> {
@@ -66,6 +68,6 @@ impl BlockServer for BlockApiModule {
 
         self.db
             .block_events(block_hash)
-            .ok_or_else(|| errors::db_err("Block events weren't found"))
+            .ok_or_else(|| errors::db("Block events weren't found"))
     }
 }

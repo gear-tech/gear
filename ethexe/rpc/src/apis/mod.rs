@@ -16,16 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::ErrorObject;
+mod block;
+mod program;
 
-pub fn db(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
-}
-
-pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
-}
-
-pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
-}
+pub use block::{BlockApi, BlockServer};
+pub use program::{ProgramApi, ProgramServer};

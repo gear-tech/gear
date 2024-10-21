@@ -30,8 +30,6 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-#[cfg(feature = "std")]
-use serde::Serialize;
 
 /// Program in different states in storage.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
@@ -126,7 +124,7 @@ pub enum ProgramState {
 
 /// Struct defines infix of memory pages storage.
 #[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct MemoryInfix(u32);
 
 impl MemoryInfix {

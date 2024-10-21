@@ -21,7 +21,6 @@ gear-core-errors.workspace = true
 anyhow.workspace = true
 parity-scale-codec.workspace = true
 log.workspace = true
-
 serde.workspace = true
 
 [features]

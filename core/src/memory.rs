@@ -38,8 +38,6 @@ use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
 };
-#[cfg(feature = "std")]
-use serde::Serialize;
 
 /// Interval in wasm program memory.
 #[derive(Clone, Copy, Eq, PartialEq, Encode, Decode)]
@@ -113,7 +111,6 @@ pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usi
 
 /// Buffer for gear page data.
 #[derive(Clone, PartialEq, Eq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize))]
 pub struct PageBuf(PageBufInner);
 
 // These traits are implemented intentionally by hand to achieve two goals:

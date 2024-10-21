@@ -49,8 +49,6 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-#[cfg(feature = "std")]
-use serde::Serialize;
 
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
@@ -62,7 +60,7 @@ const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct PayloadSizeError;
 
 impl From<PayloadSizeError> for &str {
@@ -116,7 +114,7 @@ pub enum MessageWaitedType {
 #[derive(
     Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub enum DispatchKind {
     /// Initialization.
     Init,
