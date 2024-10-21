@@ -383,17 +383,31 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         self.update_state_with_storage(program_id, |storage, state| {
             let Program::Active(ActiveProgram {
                 ref mut allocations_hash,
+                ref mut pages_hash,
                 ..
             }) = state.program
             else {
                 anyhow::bail!("an attempt to update allocations of inactive program");
             };
 
-            // TODO (breathx): remove data for difference pages.
+            let mut removed_pages = vec![];
+
             *allocations_hash =
                 storage.modify_allocations(allocations_hash.clone(), |allocations| {
+                    removed_pages = allocations
+                        .difference(&new_allocations)
+                        .flat_map(|i| i.iter())
+                        .flat_map(|i| i.to_iter())
+                        .collect();
+
                     *allocations = new_allocations;
                 })?;
+
+            *pages_hash = storage.modify_memory_pages(pages_hash.clone(), |pages| {
+                for page in removed_pages {
+                    pages.remove(&page);
+                }
+            })?;
 
             Ok(())
         });
