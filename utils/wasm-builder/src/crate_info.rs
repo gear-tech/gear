@@ -32,6 +32,8 @@ pub struct CrateInfo {
     pub version: String,
     /// Crate features.
     pub features: BTreeMap<String, Vec<String>>,
+    /// Crate custom profiles
+    pub profiles: BTreeMap<String, toml::Value>,
 }
 
 impl CrateInfo {
@@ -52,6 +54,16 @@ impl CrateInfo {
             .ok_or_else(|| BuilderError::RootPackageNotFound.into())
             .and_then(Self::check)?;
 
+        let manifest = cargo_toml::Manifest::from_path(metadata.workspace_root.join("Cargo.toml"))
+            .context("manifest parsing failed")?;
+        let profiles = manifest
+            .profile
+            .custom
+            .into_iter()
+            .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
+            .collect::<Result<_>>()
+            .context("failed to convert profile to `toml::Value`")?;
+
         multiple_crate_versions::check(&metadata, &root_package.id)?;
 
         let name = root_package.name.clone();
@@ -64,6 +76,7 @@ impl CrateInfo {
             snake_case_name,
             version,
             features,
+            profiles,
         })
     }
 
