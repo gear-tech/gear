@@ -25,7 +25,7 @@ pub use digest::{Digest, ToDigest};
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -205,7 +205,7 @@ impl Signer {
             }
         }
 
-        anyhow::bail!("Address not found: {}", address);
+        bail!("Address not found: {}", address);
     }
 
     pub fn get_key_by_addr(&self, address: Address) -> Result<Option<PublicKey>> {
@@ -279,7 +279,7 @@ impl Signer {
         let bytes = fs::read(key_path)?;
 
         if bytes.len() != 32 {
-            anyhow::bail!("Invalid key length: {:?}", bytes);
+            bail!("Invalid key length: {:?}", bytes);
         }
 
         buf.copy_from_slice(&bytes);

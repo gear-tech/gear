@@ -6,7 +6,7 @@ use crate::{
     InBlockTransitions,
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use core::num::NonZero;
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
@@ -83,15 +83,13 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 self.update_state(program_id, |state| {
                     match &mut state.program {
                         Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
-                            anyhow::bail!("an attempt to initialize already initialized program")
+                            bail!("an attempt to initialize already initialized program")
                         }
                         Program::Active(ActiveProgram {
                             ref mut initialized,
                             ..
                         }) => *initialized = true,
-                        _ => anyhow::bail!(
-                            "an attempt to dispatch init message for inactive program"
-                        ),
+                        _ => bail!("an attempt to dispatch init message for inactive program"),
                     };
 
                     Ok(())
@@ -360,7 +358,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 ref mut pages_hash, ..
             }) = state.program
             else {
-                anyhow::bail!("an attempt to update pages data of inactive program");
+                bail!("an attempt to update pages data of inactive program");
             };
 
             let new_pages = storage.store_pages(pages_data);
@@ -387,7 +385,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 ..
             }) = state.program
             else {
-                anyhow::bail!("an attempt to update allocations of inactive program");
+                bail!("an attempt to update allocations of inactive program");
             };
 
             let mut removed_pages = vec![];
