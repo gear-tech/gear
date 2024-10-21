@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::{bail, Result};
-use core::num::NonZero;
+use core::{mem, num::NonZero};
 use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
@@ -126,11 +126,31 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        // TODO (breathx): upd contract on exit and send value.
+        // TODO (breathx): handle rest of value cases; exec balance into value_to_receive.
+        let mut balance = 0;
+
         self.update_state(id_exited, |state| {
             state.program = Program::Exited(value_destination);
+            balance = mem::replace(&mut state.balance, 0);
             Ok(())
         });
+
+        if self
+            .in_block_transitions
+            .state_of(&value_destination)
+            .is_some()
+        {
+            self.update_state(value_destination, |state| {
+                state.balance += balance;
+                Ok(())
+            });
+        }
+
+        self.in_block_transitions
+            .modify_transition(id_exited, |_state_hash, transition| {
+                transition.inheritor = value_destination
+            })
+            .expect("infallible");
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -218,18 +238,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             let source = dispatch.source();
             let message = dispatch.into_parts().1;
 
-            let state_hash = self
-                .in_block_transitions
-                .state_of(&source)
+            self.in_block_transitions
+                .modify_transition(source, |_state_hash, transition| {
+                    transition.messages.push(OutgoingMessage::from(message))
+                })
                 .expect("must exist");
-
-            self.in_block_transitions.modify_state_with(
-                source,
-                state_hash,
-                0,
-                vec![],
-                vec![OutgoingMessage::from(message)],
-            );
 
             return;
         }
@@ -418,14 +431,16 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 return;
             }
 
-            let state_hash = self.update_state(to, |state| {
+            self.update_state(to, |state| {
                 state.balance += value;
                 Ok(())
             });
 
             self.in_block_transitions
-                .modify_state_with(to, state_hash, value, vec![], vec![])
-                .expect("queried above; infallible");
+                .modify_transition(to, |_state_hash, transition| {
+                    transition.value_to_receive += value
+                })
+                .expect("must exist");
         }
     }
 

@@ -43,7 +43,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
     ) -> u64 {
         let mut value_claim = None;
 
-        let state_hash = self.update_state_with_storage(program_id, |storage, state| {
+        self.update_state_with_storage(program_id, |storage, state| {
             let ((claimed_value, expiry), new_mailbox_hash) = storage
                 .modify_mailbox_if_changed(state.mailbox_hash.clone(), |mailbox| {
                     let local_mailbox = mailbox.get_mut(&user_id)?;
@@ -81,7 +81,9 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
 
         if let Some(value_claim) = value_claim {
             self.in_block_transitions
-                .modify_state_with(program_id, state_hash, 0, vec![value_claim], vec![])
+                .modify_transition(program_id, |_state_hash, transition| {
+                    transition.claims.push(value_claim)
+                })
                 .expect("can't be None");
         }
 
@@ -134,7 +136,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
                 ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
             );
 
-            let state_hash = self.update_state_with_storage(program_id, |storage, state| {
+            self.update_state_with_storage(program_id, |storage, state| {
                 state.mailbox_hash =
                     storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
                         let r = mailbox
@@ -151,7 +153,9 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
             let outgoing_message = dispatch.into_outgoing(self.storage, user_id);
 
             self.in_block_transitions
-                .modify_state_with(program_id, state_hash, 0, vec![], vec![outgoing_message])
+                .modify_transition(program_id, |_state_hash, transition| {
+                    transition.messages.push(outgoing_message)
+                })
                 .expect("must be")
         }
 

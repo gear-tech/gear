@@ -82,6 +82,7 @@ contract RouterTest is Test {
 
         assertEq(deployedProgram.router(), address(router));
         assertEq(deployedProgram.stateHash(), 0);
+        assertEq(deployedProgram.inheritor(), address(0));
 
         vm.roll(100);
 
@@ -93,7 +94,8 @@ contract RouterTest is Test {
 
         IRouter.StateTransition[] memory transitionsArray = new IRouter.StateTransition[](1);
         IRouter.BlockCommitment[] memory blockCommitmentsArray = new IRouter.BlockCommitment[](1);
-        transitionsArray[0] = IRouter.StateTransition(actorId, bytes32(uint256(1)), 0, valueClaims, outgoingMessages);
+        transitionsArray[0] =
+            IRouter.StateTransition(actorId, bytes32(uint256(1)), address(0), 0, valueClaims, outgoingMessages);
         blockCommitmentsArray[0] = IRouter.BlockCommitment(
             bytes32(uint256(1)), bytes32(uint256(0)), blockhash(block.number - 1), transitionsArray
         );
@@ -174,6 +176,7 @@ contract RouterTest is Test {
                     abi.encodePacked(
                         transition.actorId,
                         transition.newStateHash,
+                        transition.inheritor,
                         transition.valueToReceive,
                         keccak256(valueClaimsBytes),
                         keccak256(messagesHashesBytes)
