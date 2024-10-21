@@ -35,6 +35,7 @@ use tokio::sync::mpsc;
 pub(crate) enum ScoreChangedReason {
     UnsupportedProtocol,
     ExcessiveData,
+    InvalidData,
 }
 
 impl ScoreChangedReason {
@@ -42,6 +43,7 @@ impl ScoreChangedReason {
         match self {
             ScoreChangedReason::UnsupportedProtocol => config.unsupported_protocol,
             ScoreChangedReason::ExcessiveData => config.excessive_data,
+            ScoreChangedReason::InvalidData => config.invalid_data,
         }
     }
 }
@@ -66,6 +68,10 @@ impl Handle {
 
     pub fn excessive_data(&self, peer_id: PeerId) {
         let _res = self.0.send((peer_id, ScoreChangedReason::ExcessiveData));
+    }
+
+    pub fn invalid_data(&self, peer_id: PeerId) {
+        let _res = self.0.send((peer_id, ScoreChangedReason::InvalidData));
     }
 }
 
@@ -95,6 +101,7 @@ pub(crate) enum Event {
 pub(crate) struct Config {
     unsupported_protocol: u8,
     excessive_data: u8,
+    invalid_data: u8,
 }
 
 impl Default for Config {
@@ -102,6 +109,7 @@ impl Default for Config {
         Self {
             unsupported_protocol: u8::MAX,
             excessive_data: u8::MAX,
+            invalid_data: u8::MAX,
         }
     }
 }
