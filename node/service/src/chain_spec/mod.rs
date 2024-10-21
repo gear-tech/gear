@@ -44,7 +44,7 @@ pub struct Extensions {
 }
 
 /// General `ChainSpec` used as a basis for a specialized config.
-pub type RawChainSpec = sc_service::GenericChainSpec<(), Extensions>;
+pub type RawChainSpec = sc_service::GenericChainSpec<Extensions>;
 
 /// Generate a crypto pair from seed.
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {

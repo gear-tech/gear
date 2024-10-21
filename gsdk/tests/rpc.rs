@@ -24,7 +24,7 @@ use gear_core::{
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Error, Result};
-use jsonrpsee::types::error::{CallError, ErrorObject};
+use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
 use subxt::{error::RpcError, utils::H256, Error as SubxtError};
@@ -50,11 +50,11 @@ async fn pallet_errors_formatting() -> Result<()> {
         .expect_err("Must return error");
 
     let expected_err = Error::Subxt(SubxtError::Rpc(RpcError::ClientError(Box::new(
-        CallError::Custom(ErrorObject::owned(
+        ErrorObject::owned(
             8000,
             "Runtime error",
             Some("Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'"),
-        )),
+        ),
     ))));
 
     assert_eq!(format!("{err}"), format!("{expected_err}"));
@@ -285,11 +285,11 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
             .runtime_wasm_blob_version(Some(no_method_block_hash))
             .await;
 
-        let err = CallError::Custom(ErrorObject::owned(
+        let err = ErrorObject::owned(
             9000,
             "Unable to find WASM blob version in WASM blob",
             None::<String>,
-        ));
+        );
         assert!(
             matches!(
                 &wasm_blob_version_result,
