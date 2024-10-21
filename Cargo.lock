@@ -3853,6 +3853,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy-broker"
+version = "0.1.0"
+dependencies = [
+ "gbuiltin-proxy",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-proxy-relay"
 version = "0.1.0"
 dependencies = [
@@ -6293,6 +6303,15 @@ version = "1.6.2"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
+name = "gbuiltin-proxy"
+version = "1.6.2"
+dependencies = [
+ "derive_more 0.99.18",
+ "gprimitives",
  "scale-info",
 ]
 
@@ -11559,6 +11578,7 @@ dependencies = [
  "ark-scale 0.0.12",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+ "demo-proxy-broker",
  "demo-staking-broker",
  "demo-waiting-proxy",
  "derive_more 0.99.18",
@@ -11570,6 +11590,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "gbuiltin-bls381",
+ "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
  "gear-core",
@@ -11588,6 +11609,7 @@ dependencies = [
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
+ "pallet-proxy",
  "pallet-session",
  "pallet-staking",
  "pallet-timestamp",
@@ -18931,6 +18953,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
  "gear-core",
