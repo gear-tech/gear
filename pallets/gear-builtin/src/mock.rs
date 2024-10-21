@@ -131,8 +131,6 @@ pallet_gear::impl_config!(
 // A builtin actor who always returns success (even if not enough gas is provided).
 pub struct SuccessBuiltinActor {}
 impl BuiltinActor for SuccessBuiltinActor {
-    type Error = BuiltinActorError;
-
     fn handle(
         dispatch: &StoredDispatch,
         _gas_limit: u64,
@@ -158,8 +156,6 @@ impl BuiltinActor for SuccessBuiltinActor {
 // A builtin actor that always returns an error.
 pub struct ErrorBuiltinActor {}
 impl BuiltinActor for ErrorBuiltinActor {
-    type Error = BuiltinActorError;
-
     fn handle(
         dispatch: &StoredDispatch,
         _gas_limit: u64,
@@ -181,8 +177,6 @@ impl BuiltinActor for ErrorBuiltinActor {
 // An honest bulitin actor that actually checks whether the gas is sufficient.
 pub struct HonestBuiltinActor {}
 impl BuiltinActor for HonestBuiltinActor {
-    type Error = BuiltinActorError;
-
     fn handle(
         dispatch: &StoredDispatch,
         gas_limit: u64,

@@ -142,9 +142,10 @@ where
     T::AccountId: Origin,
     CallOf<T>: From<pallet_staking::Call<T>>,
 {
-    type Error = BuiltinActorError;
-
-    fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
+    fn handle(
+        dispatch: &StoredDispatch,
+        gas_limit: u64,
+    ) -> (Result<Payload, BuiltinActorError>, u64) {
         let message = dispatch.message();
         let origin: T::AccountId = dispatch.source().cast();
         let mut payload = message.payload_bytes();
