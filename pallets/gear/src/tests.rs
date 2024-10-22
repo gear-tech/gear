@@ -15422,8 +15422,6 @@ fn outgoing_messages_bytes_limit_exceeded() {
     });
 }
 
-/*
-NOT VALID ANYMORE: `commit` syscalls family do not preserve state across executions.
 // TODO: this test must be moved to `core-processor` crate,
 // but it's not possible currently, because mock for `core-processor` does not exist #3742
 #[test]
@@ -15489,11 +15487,11 @@ fn incorrect_store_context() {
         QueueOf::<Test>::queue(dispatch).unwrap();
 
         run_to_next_block(None);
-
-        assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
+        // does not fail anymore, context does not keep state between executions
+        assert_succeed(mid);
     });
 }
-*/
+
 #[test]
 fn allocate_in_init_free_in_handle() {
     let static_pages = 16u16;
@@ -16811,11 +16809,6 @@ pub(crate) mod utils {
             })
             .filter(|message| message.destination() == user_id.into())
             .collect();
-        for message in messages.iter() {
-            let payload = core::str::from_utf8(message.payload_bytes()).unwrap();
-
-            log::debug!("GOT {}", payload);
-        }
 
         if messages.len() != assertions.len() {
             panic!(

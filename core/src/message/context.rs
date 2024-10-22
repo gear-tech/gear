@@ -167,12 +167,13 @@ impl ContextStore {
         initialized: BTreeSet<ProgramId>,
         reservation_nonce: ReservationNonce,
         system_reservation: Option<u64>,
+        local_nonce: u32,
     ) -> Self {
         Self {
             initialized,
             reservation_nonce,
             system_reservation,
-            local_nonce: 0,
+            local_nonce,
         }
     }
 
