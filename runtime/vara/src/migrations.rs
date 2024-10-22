@@ -27,6 +27,7 @@ pub type Migrations = (
     pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
     // move allocations to a separate storage item and remove pages_with_data field from program
     pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
+    pallet_gear_messenger::migrations::context_store::RemoveCommitStorage<Runtime>,
 );
 
 mod staking {
