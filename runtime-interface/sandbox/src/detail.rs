@@ -484,7 +484,6 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
     method_result
 }
 
-
 pub fn memory_set(
     context: &mut dyn FunctionContext,
     memory_idx: u32,
@@ -499,7 +498,7 @@ pub fn memory_set(
     sp_wasm_interface::with_caller_mut(context, |caller| {
         trace("memory_set", caller);
 
-        let Ok(buffer) = read_memory(&mut* caller, val_ptr, val_len) else {
+        let Ok(buffer) = read_memory(&mut *caller, val_ptr, val_len) else {
             method_result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
             return;
         };

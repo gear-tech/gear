@@ -61,12 +61,7 @@ pub mod collections {
 ///
 /// [`alloc::ffi`]: ::alloc::ffi
 pub mod ffi {
-    pub use ::alloc::ffi::{
-        FromVecWithNulError,
-        IntoStringError,
-        NulError,
-        CString
-    };
+    pub use ::alloc::ffi::{CString, FromVecWithNulError, IntoStringError, NulError};
     pub use core::ffi::*;
 }
 
