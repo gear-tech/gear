@@ -166,12 +166,12 @@ mod v3 {
 }
 
 #[cfg(test)]
-#[cfg(feature="try-runtime")]
+#[cfg(feature = "try-runtime")]
 mod test {
     use super::*;
     use crate::mock::{new_test_ext, *};
     use frame_support::traits::StorageVersion;
-    
+
     #[test]
     fn context_store_migration_works() {
         new_test_ext().execute_with(|| {
@@ -180,7 +180,7 @@ mod test {
             let _ = RemoveCommitStorage::<Test>::on_runtime_upgrade();
             RemoveCommitStorage::<Test>::post_upgrade(state).unwrap();
 
-        assert_eq!(StorageVersion::get::<GearMessenger>(), MIGRATE_TO_VERSION);
+            assert_eq!(StorageVersion::get::<GearMessenger>(), MIGRATE_TO_VERSION);
         });
     }
 }
