@@ -698,27 +698,13 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct ContextStore {
-                        pub outgoing: ::subxt::ext::subxt_core::utils::KeyedVec<
-                            ::core::primitive::u32,
-                            ::core::option::Option<
-                                runtime_types::gear_core::buffer::LimitedVec<
-                                    ::core::primitive::u8,
-                                    runtime_types::gear_core::message::PayloadSizeError,
-                                >,
-                            >,
-                        >,
-                        pub reply: ::core::option::Option<
-                            runtime_types::gear_core::buffer::LimitedVec<
-                                ::core::primitive::u8,
-                                runtime_types::gear_core::message::PayloadSizeError,
-                            >,
-                        >,
                         pub initialized: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::gprimitives::ActorId,
                         >,
                         pub reservation_nonce:
                             runtime_types::gear_core::reservation::ReservationNonce,
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,
+                        pub local_nonce: ::core::primitive::u32,
                     }
                 }
                 pub mod stored {
