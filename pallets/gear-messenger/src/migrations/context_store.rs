@@ -39,7 +39,7 @@ pub struct RemoveCommitStorage<T: Config>(PhantomData<T>);
 
 const MIGRATE_FROM_VERSION: u16 = 3;
 const MIGRATE_TO_VERSION: u16 = 4;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 3;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 4;
 
 fn translate_dispatch(dispatch: v3::StoredDispatch) -> StoredDispatch {
     StoredDispatch::new(
@@ -162,5 +162,25 @@ mod v3 {
         pub initialized: BTreeSet<ProgramId>,
         pub reservation_nonce: ReservationNonce,
         pub system_reservation: Option<u64>,
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature="try-runtime")]
+mod test {
+    use super::*;
+    use crate::mock::{new_test_ext, *};
+    use frame_support::traits::StorageVersion;
+    
+    #[test]
+    fn context_store_migration_works() {
+        new_test_ext().execute_with(|| {
+            StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearMessenger>();
+            let state = RemoveCommitStorage::<Test>::pre_upgrade().unwrap();
+            let _ = RemoveCommitStorage::<Test>::on_runtime_upgrade();
+            RemoveCommitStorage::<Test>::post_upgrade(state).unwrap();
+
+        assert_eq!(StorageVersion::get::<GearMessenger>(), MIGRATE_TO_VERSION);
+        });
     }
 }
