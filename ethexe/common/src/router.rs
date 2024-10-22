@@ -51,6 +51,7 @@ pub struct BlockCommitment {
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
+    pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<OutgoingMessage>,

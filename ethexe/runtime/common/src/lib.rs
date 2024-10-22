@@ -155,11 +155,8 @@ where
             // TBD about deprecation
             SyscallName::SignalCode,
             SyscallName::SignalFrom,
-            // TODO: refactor asap
-            SyscallName::GasAvailable,
             // Temporary forbidden (unimplemented)
             SyscallName::CreateProgram,
-            SyscallName::Exit,
             SyscallName::Random,
         ]
         .into(),
