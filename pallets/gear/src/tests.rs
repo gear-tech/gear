@@ -12636,9 +12636,12 @@ fn incomplete_async_payloads_kept() {
             None,
             Some("OK PING"),
             Some("OK REPLY"),
-            None,
-            Some("STORED COMMON"),
-            Some("STORED REPLY"),
+            // payload is not kept between executions so we get a panic here
+            Some(
+                "Panic occurred: panicked with 'Failed to push payload: Ext(Message(OutOfBounds))'",
+            ),
+            // here we get `REPLY` again because its `push("REPLY")` + `commit()`
+            Some("REPLY"),
         ]
         .iter()
         .map(|v| {
@@ -15419,7 +15422,7 @@ fn outgoing_messages_bytes_limit_exceeded() {
     });
 }
 
-/* 
+/*
 NOT VALID ANYMORE: `commit` syscalls family do not preserve state across executions.
 // TODO: this test must be moved to `core-processor` crate,
 // but it's not possible currently, because mock for `core-processor` does not exist #3742
@@ -16808,6 +16811,11 @@ pub(crate) mod utils {
             })
             .filter(|message| message.destination() == user_id.into())
             .collect();
+        for message in messages.iter() {
+            let payload = core::str::from_utf8(message.payload_bytes()).unwrap();
+
+            log::debug!("GOT {}", payload);
+        }
 
         if messages.len() != assertions.len() {
             panic!(
