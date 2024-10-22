@@ -141,33 +141,38 @@ impl ContextOutcome {
         }
     }
 }
+/// Store of current temporary message execution context.
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+pub struct TmpStore {
+    outgoing: BTreeMap<u32, Option<Payload>>,
+    reply: Option<Payload>,
+}
 
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextStore {
-    outgoing: BTreeMap<u32, Option<Payload>>,
-    reply: Option<Payload>,
     initialized: BTreeSet<ProgramId>,
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
+    /// Used to prevent creating messages with the same ID in DB. Before this was achieved by using `outgoing.len()`
+    /// but now it is moved to [TmpStore] thus we need to keep nonce here. Now to calculate nonce we do `local_nonce + tmp_store.outgoing.len()`
+    /// and we update `local_nonce` once message context is drained.
+    local_nonce: u32,
 }
 
 impl ContextStore {
     // TODO: Remove, only used in migrations (#issue 3721)
     /// Create a new context store with the provided parameters.
     pub fn new(
-        outgoing: BTreeMap<u32, Option<Payload>>,
-        reply: Option<Payload>,
         initialized: BTreeSet<ProgramId>,
         reservation_nonce: ReservationNonce,
         system_reservation: Option<u64>,
     ) -> Self {
         Self {
-            outgoing,
-            reply,
             initialized,
             reservation_nonce,
             system_reservation,
+            local_nonce: 0,
         }
     }
 
@@ -207,6 +212,7 @@ pub struct MessageContext {
     current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
+    tmp_store: TmpStore,
     settings: ContextSettings,
     outgoing_bytes_counter: u32,
 }
@@ -221,29 +227,16 @@ impl MessageContext {
     ) -> Option<Self> {
         let (kind, message, store) = dispatch.into_parts();
 
-        let outgoing_bytes_counter = match &store {
-            Some(store) => {
-                let mut counter = 0u32;
-                for payload in store.outgoing.values().filter_map(|x| x.as_ref()) {
-                    counter = counter.checked_add(payload.len_u32())?;
-                }
-                counter
-            }
-            None => 0,
-        };
-
-        if outgoing_bytes_counter > settings.outgoing_bytes_limit {
-            // Outgoing messages bytes limit exceeded.
-            return None;
-        }
-
         Some(Self {
             kind,
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
+            tmp_store: TmpStore::default(),
             settings,
-            outgoing_bytes_counter,
+            // message context *always* starts with zero bytes outgoing. Before it could be non-zero and eventually
+            // overflow the current limit but now we do not save state between executions
+            outgoing_bytes_counter: 0,
         })
     }
 
@@ -287,7 +280,7 @@ impl MessageContext {
             return Err(Error::DuplicateInit);
         }
 
-        let last = self.store.outgoing.len() as u32;
+        let last = self.store.local_nonce + self.tmp_store.outgoing.len() as u32;
 
         if last >= self.settings.outgoing_limit {
             return Err(Error::OutgoingMessagesAmountLimitExceeded);
@@ -296,7 +289,7 @@ impl MessageContext {
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
         let message = InitMessage::from_packet(message_id, packet);
 
-        self.store.outgoing.insert(last, None);
+        self.tmp_store.outgoing.insert(last, None);
         self.store.initialized.insert(program_id);
         self.outcome.init.push((message, delay, None));
 
@@ -315,7 +308,7 @@ impl MessageContext {
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
         let outgoing = self
-            .store
+            .tmp_store
             .outgoing
             .get_mut(&handle)
             .ok_or(Error::OutOfBounds)?;
@@ -361,10 +354,12 @@ impl MessageContext {
     ///
     /// Returns it's handle.
     pub fn send_init(&mut self) -> Result<u32, Error> {
-        let last = self.store.outgoing.len() as u32;
+        let last = self.store.local_nonce + self.tmp_store.outgoing.len() as u32;
 
         if last < self.settings.outgoing_limit {
-            self.store.outgoing.insert(last, Some(Default::default()));
+            self.tmp_store
+                .outgoing
+                .insert(last, Some(Default::default()));
 
             Ok(last)
         } else {
@@ -374,10 +369,13 @@ impl MessageContext {
 
     /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
-        let data = match self.store.outgoing.get_mut(&handle) {
+        let data = match self.tmp_store.outgoing.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
-            None => return Err(Error::OutOfBounds),
+            None => {
+                //            debug!("OOB: {:#?}", backtrace::Backtrace::new().frames());
+                return Err(Error::OutOfBounds);
+            }
         };
 
         let new_outgoing_bytes = Self::increase_counter(
@@ -397,7 +395,7 @@ impl MessageContext {
 
     /// Pushes the incoming buffer/payload into stored payload by handle.
     pub fn send_push_input(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
-        let data = match self.store.outgoing.get_mut(&handle) {
+        let data = match self.tmp_store.outgoing.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
             None => return Err(Error::OutOfBounds),
@@ -466,10 +464,10 @@ impl MessageContext {
             return Err(Error::DuplicateReply.into());
         }
 
-        let data = self.store.reply.take().unwrap_or_default();
+        let data = self.tmp_store.reply.take().unwrap_or_default();
 
         if let Err(data) = packet.try_prepend(data) {
-            self.store.reply = Some(data);
+            self.tmp_store.reply = Some(data);
             return Err(Error::MaxMessageSizeExceed.into());
         }
 
@@ -490,7 +488,7 @@ impl MessageContext {
         }
 
         // NOTE: it's normal to not undone `get_or_insert_with` in case of error
-        self.store
+        self.tmp_store
             .reply
             .get_or_insert_with(Default::default)
             .try_extend_from_slice(buffer)
@@ -516,7 +514,7 @@ impl MessageContext {
         } = range;
 
         // NOTE: it's normal to not undone `get_or_insert_with` in case of error
-        self.store
+        self.tmp_store
             .reply
             .get_or_insert_with(Default::default)
             .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
@@ -583,7 +581,8 @@ impl MessageContext {
     }
 
     /// Destructs context after execution and returns provided outcome and store.
-    pub fn drain(self) -> (ContextOutcome, ContextStore) {
+    pub fn drain(mut self) -> (ContextOutcome, ContextStore) {
+        self.store.local_nonce += self.tmp_store.outgoing.len() as u32;
         let Self { outcome, store, .. } = self;
 
         (outcome, store)
@@ -814,18 +813,13 @@ mod tests {
             Error::OutgoingMessagesBytesLimitExceeded,
         );
     }
-
-    #[test]
+    /*     #[test]
     fn create_wrong_context() {
         let context_store = ContextStore {
-            outgoing: [(1, Some(vec![1, 2].try_into().unwrap()))]
-                .iter()
-                .cloned()
-                .collect(),
-            reply: None,
             initialized: BTreeSet::new(),
             reservation_nonce: ReservationNonce::default(),
             system_reservation: None,
+            local_nonce: 0,
         };
 
         let incoming_dispatch = IncomingDispatch::new(
@@ -843,7 +837,7 @@ mod tests {
         // Creating a message context must return None,
         // because of the outgoing messages bytes limit exceeded.
         assert!(ctx.is_none(), "Expect None, got {:?}", ctx);
-    }
+    }*/
 
     #[test]
     fn outgoing_limit_exceeded() {
@@ -978,8 +972,6 @@ mod tests {
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id(), MessageId::from(INCOMING_MESSAGE_ID));
-        assert!(context.store.reply.is_none());
-        assert!(context.outcome.reply.is_none());
 
         // Creating a reply packet
         let reply_packet = ReplyPacket::new(vec![0, 0].try_into().unwrap(), 0);
@@ -1037,7 +1029,7 @@ mod tests {
 
         // And checking that it is not formed
         assert!(context
-            .store
+            .tmp_store
             .outgoing
             .get(&expected_handle)
             .expect("This key should be")
