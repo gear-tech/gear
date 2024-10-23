@@ -40,7 +40,7 @@ use scale_info::{
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde:Deserialize))]
 pub struct ReservationNonce(u64);
 
 impl From<&InnerNonce> for ReservationNonce {
