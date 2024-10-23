@@ -32,7 +32,7 @@ pub use gprimitives;
 
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum BlockEvent {
@@ -62,7 +62,7 @@ impl From<wvara::Event> for BlockEvent {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, Serialize)]
+#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
 pub enum BlockRequestEvent {
     Router(router::RequestEvent),
     Mirror {

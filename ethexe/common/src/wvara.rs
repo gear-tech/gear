@@ -18,7 +18,7 @@
 
 use gprimitives::{ActorId, U256};
 use parity_scale_codec::{Decode, Encode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /* Events section */
 
@@ -45,7 +45,7 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, Serialize)]
+#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
 pub enum RequestEvent {
     Transfer {
         /// Never router, wvara or zero address.
