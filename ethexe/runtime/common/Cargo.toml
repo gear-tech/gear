@@ -19,7 +19,7 @@ gsys.workspace = true
 gear-core-errors.workspace = true
 
 anyhow.workspace = true
-parity-scale-codec.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
 log.workspace = true
 derive_more.workspace = true
 

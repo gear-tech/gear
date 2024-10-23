@@ -51,6 +51,10 @@ impl InBlockTransitions {
         &self.header
     }
 
+    pub fn is_program(&self, actor_id: &ActorId) -> bool {
+        self.state_of(actor_id).is_some()
+    }
+
     pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {
         self.states.get(actor_id).cloned()
     }
@@ -110,12 +114,29 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
+    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256) {
+        self.modify(actor_id, |state_hash, _transition| {
+            *state_hash = new_state_hash
+        })
+    }
+
     pub fn modify_transition<T>(
         &mut self,
         actor_id: ActorId,
+        f: impl FnOnce(&mut NonFinalTransition) -> T,
+    ) -> T {
+        self.modify(actor_id, |_state_hash, transition| f(transition))
+    }
+
+    pub fn modify<T>(
+        &mut self,
+        actor_id: ActorId,
         f: impl FnOnce(&mut H256, &mut NonFinalTransition) -> T,
-    ) -> Option<T> {
-        let initial_state = self.states.get_mut(&actor_id)?;
+    ) -> T {
+        let initial_state = self
+            .states
+            .get_mut(&actor_id)
+            .expect("couldn't modify transition for unknown actor");
 
         let transition = self
             .modifications
@@ -125,13 +146,7 @@ impl InBlockTransitions {
                 ..Default::default()
             });
 
-        Some(f(initial_state, transition))
-    }
-
-    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256) -> Option<()> {
-        self.modify_transition(actor_id, |state_hash, _transition| {
-            *state_hash = new_state_hash
-        })
+        f(initial_state, transition)
     }
 
     pub fn finalize(self) -> (Vec<StateTransition>, BTreeMap<ActorId, H256>, Schedule) {

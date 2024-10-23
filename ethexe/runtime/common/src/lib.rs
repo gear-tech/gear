@@ -37,6 +37,7 @@ use core_processor::{
 use gear_core::{
     code::InstrumentedCode,
     ids::ProgramId,
+    memory::PageBuf,
     message::{DispatchKind, IncomingDispatch, IncomingMessage, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
@@ -47,8 +48,8 @@ use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
 use parity_scale_codec::{Decode, Encode};
 use state::{
-    ActiveProgram, ComplexStorage, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue,
-    ProgramState, Storage, Waitlist,
+    ActiveProgram, Dispatch, HashOf, InitStatus, MaybeHashOf, MessageQueue, ProgramState, Storage,
+    Waitlist,
 };
 
 pub use core_processor::configs::BlockInfo;
@@ -70,39 +71,32 @@ pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
 
     fn block_info(&self) -> BlockInfo;
-    fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, H256>);
+    fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, HashOf<PageBuf>>);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn storage(&self) -> &S;
 }
 
-pub(crate) fn update_state<S: Storage>(
-    in_block_transitions: &mut InBlockTransitions,
-    storage: &S,
+pub(crate) fn update_state<S: Storage, T>(
     program_id: ProgramId,
-    f: impl FnOnce(&mut ProgramState) -> Result<()>,
-) -> H256 {
-    update_state_with_storage(in_block_transitions, storage, program_id, |_s, state| {
-        f(state)
-    })
-}
-
-pub(crate) fn update_state_with_storage<S: Storage>(
-    in_block_transitions: &mut InBlockTransitions,
     storage: &S,
-    program_id: ProgramId,
-    f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
-) -> H256 {
-    let state_hash = in_block_transitions
+    transitions: &mut InBlockTransitions,
+    f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
+) -> T {
+    let state_hash = transitions
         .state_of(&program_id)
         .expect("failed to find program in known states");
 
-    let new_state_hash = storage
-        .mutate_state(state_hash, f)
-        .expect("failed to mutate state");
+    let mut state = storage
+        .read_state(state_hash)
+        .expect("failed to read state from storage");
 
-    in_block_transitions.modify_state(program_id, new_state_hash);
+    let res = f(&mut state, storage, transitions);
 
-    new_state_hash
+    let new_state_hash = storage.write_state(state);
+
+    transitions.modify_state(program_id, new_state_hash);
+
+    res
 }
 
 pub fn process_next_message<S, RI>(
@@ -187,7 +181,7 @@ where
         value,
         details,
         context,
-    } = queue.pop_front().unwrap();
+    } = queue.dequeue().unwrap(); // TODO (breathx): why unwrap?
 
     if active_state.initialized && kind == DispatchKind::Init {
         // Panic is impossible, because gear protocol does not provide functionality
@@ -239,7 +233,7 @@ where
     let context = match core_processor::precharge_for_allocations(
         &block_config,
         context,
-        allocations.intervals_amount() as u32,
+        allocations.tree_len(),
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
@@ -280,7 +274,7 @@ where
 
     let random_data = ri.random_data();
 
-    ri.init_lazy_pages(pages_map.clone());
+    ri.init_lazy_pages(pages_map.into());
 
     core_processor::process::<Ext<RI::LazyPages>>(&block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))

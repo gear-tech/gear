@@ -1,7 +1,7 @@
 use crate::{
     state::{
-        self, ActiveProgram, ComplexStorage, Dispatch, HashAndLen, MaybeHash, Program,
-        ProgramState, Storage, ValueWithExpiry, MAILBOX_VALIDITY,
+        self, ActiveProgram, Dispatch, MaybeHashOf, Program, ProgramState, Storage,
+        ValueWithExpiry, MAILBOX_VALIDITY,
     },
     InBlockTransitions,
 };
@@ -34,34 +34,89 @@ pub struct Handler<'a, S: Storage> {
 }
 
 impl<S: Storage> Handler<'_, S> {
-    pub fn update_state(
+    fn update_state<T>(
         &mut self,
         program_id: ProgramId,
-        f: impl FnOnce(&mut ProgramState) -> Result<()>,
-    ) -> H256 {
-        crate::update_state(self.in_block_transitions, self.storage, program_id, f)
+        f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
+    ) -> T {
+        crate::update_state(program_id, self.storage, self.in_block_transitions, f)
     }
 
-    pub fn update_state_with_storage(
+    fn send_dispatch_to_program(
         &mut self,
-        program_id: ProgramId,
-        f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
-    ) -> H256 {
-        crate::update_state_with_storage(self.in_block_transitions, self.storage, program_id, f)
+        message_id: MessageId,
+        destination: ActorId,
+        dispatch: Dispatch,
+        delay: u32,
+    ) {
+        self.update_state(destination, |state, storage, transitions| {
+            if let Ok(non_zero_delay) = delay.try_into() {
+                let expiry = transitions.schedule_task(
+                    non_zero_delay,
+                    ScheduledTask::SendDispatch((destination, dispatch.id)),
+                );
+
+                state.stash_hash.modify_stash(storage, |stash| {
+                    stash.add_to_program(dispatch.id, dispatch, expiry);
+                })
+            } else {
+                state
+                    .queue_hash
+                    .modify_queue(storage, |queue| queue.queue(dispatch));
+            }
+        })
     }
 
-    fn pop_queue_message(state: &ProgramState, storage: &S) -> (H256, MessageId) {
-        let mut queue = state
-            .queue_hash
-            .with_hash_or_default(|hash| storage.read_queue(hash).expect("Failed to read queue"));
+    fn send_dispatch_to_user(
+        &mut self,
+        message_id: MessageId,
+        dispatch: StoredDispatch,
+        delay: u32,
+    ) {
+        if dispatch.is_reply() {
+            self.in_block_transitions
+                .modify_transition(dispatch.source(), |transition| {
+                    transition.messages.push(dispatch.into_parts().1.into())
+                });
 
-        let dispatch = queue
-            .pop_front()
-            .unwrap_or_else(|| unreachable!("Queue must not be empty in message consume"));
+            return;
+        }
 
-        let new_queue_hash = storage.write_queue(queue);
+        self.update_state(dispatch.source(), |state, storage, transitions| {
+            if let Ok(non_zero_delay) = delay.try_into() {
+                let expiry = transitions.schedule_task(
+                    non_zero_delay,
+                    ScheduledTask::SendUserMessage {
+                        message_id: dispatch.id(),
+                        to_mailbox: dispatch.source(),
+                    },
+                );
 
-        (new_queue_hash, dispatch.id)
+                let user_id = dispatch.destination();
+                let dispatch = Dispatch::from_stored(storage, dispatch);
+
+                state.stash_hash.modify_stash(storage, |stash| {
+                    stash.add_to_user(dispatch.id, dispatch, expiry, user_id);
+                });
+            } else {
+                let expiry = transitions.schedule_task(
+                    MAILBOX_VALIDITY.try_into().expect("infallible"),
+                    ScheduledTask::RemoveFromMailbox(
+                        (dispatch.source(), dispatch.destination()),
+                        dispatch.id(),
+                    ),
+                );
+
+                state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    mailbox.add(
+                        dispatch.destination(),
+                        dispatch.id(),
+                        dispatch.value(),
+                        expiry,
+                    );
+                });
+            }
+        });
     }
 }
 
@@ -80,7 +135,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             DispatchOutcome::InitSuccess { program_id } => {
                 log::trace!("Dispatch {message_id} successfully initialized program {program_id}");
 
-                self.update_state(program_id, |state| {
+                self.update_state(program_id, |state, _, _| {
                     match &mut state.program {
                         Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
                             bail!("an attempt to initialize already initialized program")
@@ -103,9 +158,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             } => {
                 log::trace!("Dispatch {message_id} failed init of program {program_id}: {reason}");
 
-                self.update_state(program_id, |state| {
-                    state.program = Program::Terminated(origin);
-                    Ok(())
+                self.update_state(program_id, |state, _, _| {
+                    state.program = Program::Terminated(origin)
                 });
             }
 
@@ -127,47 +181,36 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         // TODO (breathx): handle rest of value cases; exec balance into value_to_receive.
-        let mut balance = 0;
-
-        self.update_state(id_exited, |state| {
+        let balance = self.update_state(id_exited, |state, _, transitions| {
             state.program = Program::Exited(value_destination);
-            balance = mem::replace(&mut state.balance, 0);
-            Ok(())
+
+            transitions.modify_transition(id_exited, |transition| {
+                transition.inheritor = value_destination
+            });
+
+            mem::replace(&mut state.balance, 0)
         });
 
-        if self
-            .in_block_transitions
-            .state_of(&value_destination)
-            .is_some()
-        {
-            self.update_state(value_destination, |state| {
+        if self.in_block_transitions.is_program(&value_destination) {
+            self.update_state(value_destination, |state, _, _| {
                 state.balance += balance;
-                Ok(())
-            });
-        }
-
-        self.in_block_transitions
-            .modify_transition(id_exited, |_state_hash, transition| {
-                transition.inheritor = value_destination
             })
-            .expect("infallible");
+        }
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        self.update_state_with_storage(self.program_id, |storage, state| {
-            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
-                let queue_head = queue
-                    .pop_front()
+        self.update_state(self.program_id, |state, storage, _| {
+            state.queue_hash.modify_queue(storage, |queue| {
+                let head = queue
+                    .dequeue()
                     .expect("an attempt to consume message from empty queue");
 
                 assert_eq!(
-                    queue_head.id, message_id,
+                    head.id, message_id,
                     "queue head doesn't match processed message"
                 );
-            })?;
-
-            Ok(())
-        });
+            });
+        })
     }
 
     fn send_dispatch(
@@ -181,110 +224,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             unreachable!("deprecated: {dispatch:?}");
         }
 
-        if self
-            .in_block_transitions
-            .state_of(&dispatch.destination())
-            .is_none()
-        {
-            let user_id = dispatch.destination();
-
-            if !dispatch.is_reply() {
-                if let Ok(non_zero_delay) = delay.try_into() {
-                    let expiry = self.in_block_transitions.schedule_task(
-                        non_zero_delay,
-                        ScheduledTask::SendUserMessage {
-                            message_id: dispatch.id(),
-                            to_mailbox: dispatch.source(),
-                        },
-                    );
-
-                    self.update_state_with_storage(dispatch.source(), |storage, state| {
-                        let dispatch = Dispatch::from_stored(storage, dispatch.into_stored());
-
-                        state.stash_hash =
-                            storage.modify_stash(state.stash_hash.clone(), |stash| {
-                                let r = stash.insert(
-                                    dispatch.id,
-                                    ValueWithExpiry {
-                                        value: (dispatch, Some(user_id)),
-                                        expiry,
-                                    },
-                                );
-                                debug_assert!(r.is_none());
-                            })?;
-
-                        Ok(())
-                    });
-
-                    return;
-                } else {
-                    let expiry = self.in_block_transitions.schedule_task(
-                        MAILBOX_VALIDITY.try_into().expect("infallible"),
-                        ScheduledTask::RemoveFromMailbox(
-                            (dispatch.source(), user_id),
-                            dispatch.id(),
-                        ),
-                    );
-
-                    self.update_state_with_storage(dispatch.source(), |storage, state| {
-                        state.mailbox_hash =
-                            storage.modify_mailbox(state.mailbox_hash.clone(), |mailbox| {
-                                mailbox.entry(user_id).or_default().insert(
-                                    dispatch.id(),
-                                    ValueWithExpiry {
-                                        value: dispatch.value(),
-                                        expiry,
-                                    },
-                                );
-                            })?;
-
-                        Ok(())
-                    });
-                }
-            }
-
-            let source = dispatch.source();
-            let message = dispatch.into_parts().1;
-
-            self.in_block_transitions
-                .modify_transition(source, |_state_hash, transition| {
-                    transition.messages.push(OutgoingMessage::from(message))
-                })
-                .expect("must exist");
-
-            return;
-        }
-
         let destination = dispatch.destination();
-        let dispatch = Dispatch::from_stored(self.storage, dispatch.into_stored());
+        let dispatch = dispatch.into_stored();
 
-        if let Ok(non_zero_delay) = delay.try_into() {
-            let expiry = self.in_block_transitions.schedule_task(
-                non_zero_delay,
-                ScheduledTask::SendDispatch((destination, dispatch.id)),
-            );
+        if self.in_block_transitions.is_program(&destination) {
+            let dispatch = Dispatch::from_stored(self.storage, dispatch);
 
-            self.update_state_with_storage(destination, |storage, state| {
-                state.stash_hash = storage.modify_stash(state.stash_hash.clone(), |stash| {
-                    let r = stash.insert(
-                        dispatch.id,
-                        ValueWithExpiry {
-                            value: (dispatch, None),
-                            expiry,
-                        },
-                    );
-                    debug_assert!(r.is_none());
-                })?;
-
-                Ok(())
-            });
+            self.send_dispatch_to_program(message_id, destination, dispatch, delay);
         } else {
-            self.update_state_with_storage(destination, |storage, state| {
-                state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
-                    queue.push_back(dispatch);
-                })?;
-                Ok(())
-            });
+            self.send_dispatch_to_user(message_id, dispatch, delay);
         }
     }
 
@@ -301,42 +249,32 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let in_blocks =
             NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
-        let expiry = self.in_block_transitions.schedule_task(
-            in_blocks,
-            ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
-        );
+        self.update_state(self.program_id, |state, storage, transitions| {
+            let expiry = transitions.schedule_task(
+                in_blocks,
+                ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
+            );
 
-        let dispatch = Dispatch::from_stored(self.storage, dispatch);
+            let dispatch = Dispatch::from_stored(storage, dispatch);
 
-        self.update_state_with_storage(self.program_id, |storage, state| {
-            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
-                let queue_head = queue
-                    .pop_front()
+            state.queue_hash.modify_queue(storage, |queue| {
+                let head = queue
+                    .dequeue()
                     .expect("an attempt to wait message from empty queue");
 
                 assert_eq!(
-                    queue_head.id, dispatch.id,
+                    head.id, dispatch.id,
                     "queue head doesn't match processed message"
                 );
-            })?;
+            });
 
-            // TODO (breathx): impl Copy for MaybeHash?
-            state.waitlist_hash =
-                storage.modify_waitlist(state.waitlist_hash.clone(), |waitlist| {
-                    let r = waitlist.insert(
-                        dispatch.id,
-                        ValueWithExpiry {
-                            value: dispatch,
-                            expiry,
-                        },
-                    );
-                    debug_assert!(r.is_none());
-                })?;
-
-            Ok(())
+            state.waitlist_hash.modify_waitlist(storage, |waitlist| {
+                waitlist.wait(dispatch.id, dispatch, expiry);
+            });
         });
     }
 
+    // TODO (breathx): deprecate delayed wakes?
     fn wake_message(
         &mut self,
         message_id: MessageId,
@@ -350,40 +288,28 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
 
-        let mut expiry_if_found = None;
-
-        self.update_state_with_storage(program_id, |storage, state| {
-            let Some((
-                ValueWithExpiry {
-                    value: dispatch,
-                    expiry,
-                },
-                new_waitlist_hash,
-            )) = storage.modify_waitlist_if_changed(state.waitlist_hash.clone(), |waitlist| {
-                waitlist.remove(&awakening_id)
-            })?
+        self.update_state(program_id, |state, storage, transitions| {
+            let Some(ValueWithExpiry {
+                value: dispatch,
+                expiry,
+            }) = state
+                .waitlist_hash
+                .modify_waitlist(storage, |waitlist| waitlist.wake(&awakening_id))
             else {
-                return Ok(());
+                return;
             };
 
-            expiry_if_found = Some(expiry);
+            state
+                .queue_hash
+                .modify_queue(storage, |queue| queue.queue(dispatch));
 
-            state.waitlist_hash = new_waitlist_hash;
-            state.queue_hash = storage.modify_queue(state.queue_hash.clone(), |queue| {
-                queue.push_back(dispatch);
-            })?;
-
-            Ok(())
-        });
-
-        if let Some(expiry) = expiry_if_found {
-            self.in_block_transitions
+            transitions
                 .remove_task(
                     expiry,
                     &ScheduledTask::WakeMessage(program_id, awakening_id),
                 )
                 .expect("failed to remove scheduled task");
-        }
+        });
     }
 
     fn update_pages_data(
@@ -391,7 +317,11 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         program_id: ProgramId,
         pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        self.update_state_with_storage(program_id, |storage, state| {
+        if pages_data.is_empty() {
+            return;
+        }
+
+        self.update_state(program_id, |state, storage, _| {
             let Program::Active(ActiveProgram {
                 ref mut pages_hash, ..
             }) = state.program
@@ -399,13 +329,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 bail!("an attempt to update pages data of inactive program");
             };
 
-            let new_pages = storage.store_pages(pages_data);
-
-            *pages_hash = storage.modify_memory_pages(pages_hash.clone(), |pages| {
-                for (page, data) in new_pages {
-                    pages.insert(page, data);
-                }
-            })?;
+            pages_hash.modify_pages(storage, |pages| {
+                pages.update(storage.write_pages_data(pages_data));
+            });
 
             Ok(())
         });
@@ -416,34 +342,25 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         program_id: ProgramId,
         new_allocations: IntervalsTree<WasmPage>,
     ) {
-        self.update_state_with_storage(program_id, |storage, state| {
+        self.update_state(program_id, |state, storage, _| {
             let Program::Active(ActiveProgram {
-                ref mut allocations_hash,
-                ref mut pages_hash,
+                allocations_hash,
+                pages_hash,
                 ..
-            }) = state.program
+            }) = &mut state.program
             else {
                 bail!("an attempt to update allocations of inactive program");
             };
 
-            let mut removed_pages = vec![];
+            allocations_hash.modify_allocations(storage, |allocations| {
+                let removed_pages = allocations.update(new_allocations);
 
-            *allocations_hash =
-                storage.modify_allocations(allocations_hash.clone(), |allocations| {
-                    removed_pages = allocations
-                        .difference(&new_allocations)
-                        .flat_map(|i| i.iter())
-                        .flat_map(|i| i.to_iter())
-                        .collect();
-
-                    *allocations = new_allocations.into();
-                })?;
-
-            *pages_hash = storage.modify_memory_pages(pages_hash.clone(), |pages| {
-                for page in removed_pages {
-                    pages.remove(&page);
+                if !removed_pages.is_empty() {
+                    pages_hash.modify_pages(storage, |pages| {
+                        pages.remove(&removed_pages);
+                    })
                 }
-            })?;
+            });
 
             Ok(())
         });
@@ -456,16 +373,12 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 return;
             }
 
-            self.update_state(to, |state| {
+            self.update_state(to, |state, _, transitions| {
                 state.balance += value;
-                Ok(())
-            });
 
-            self.in_block_transitions
-                .modify_transition(to, |_state_hash, transition| {
-                    transition.value_to_receive += value
-                })
-                .expect("must exist");
+                transitions
+                    .modify_transition(to, |transition| transition.value_to_receive += value);
+            });
         }
     }
 
