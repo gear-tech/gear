@@ -18,7 +18,7 @@
 
 //! Program's execution service for eGPU.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{mirror::RequestEvent as MirrorEvent, BlockRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::{state::Storage, InBlockTransitions};
@@ -176,7 +176,7 @@ impl OverlaidProcessor {
             .read_state(state_hash)
             .ok_or_else(|| anyhow!("unreachable: state partially presents in storage"))?;
 
-        anyhow::ensure!(
+        ensure!(
             !state.requires_init_message(),
             "program isn't yet initialized"
         );

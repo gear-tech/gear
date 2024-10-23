@@ -57,7 +57,7 @@ pub(crate) fn execute_wasm<Ext>(
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError>
 where
-    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
     <Ext as Externalities>::AllocError:
         BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     RunFallibleError: From<Ext::FallibleError>,
@@ -266,7 +266,7 @@ pub fn execute_for_reply<Ext, EP>(
     block_info: BlockInfo,
 ) -> Result<Vec<u8>, String>
 where
-    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
     <Ext as Externalities>::AllocError:
         BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     RunFallibleError: From<Ext::FallibleError>,

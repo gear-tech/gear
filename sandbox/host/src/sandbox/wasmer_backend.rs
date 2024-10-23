@@ -18,12 +18,11 @@
 
 //! Wasmer specific impls for sandbox
 
-use std::{cell::RefCell, rc::Rc};
-
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
-use wasmer::{AsStoreMut, Module, RuntimeError, Store};
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use wasmer::{AsStoreMut, RuntimeError, Store};
 use wasmer_types::TrapCode;
 
 use crate::{
@@ -38,10 +37,8 @@ use crate::{
 
 pub type StoreRefCell = store_refcell::StoreRefCell<wasmer::Store>;
 
-#[cfg(feature = "wasmer-cache")]
-mod cache;
-#[cfg(feature = "wasmer-cache")]
-use cache::*;
+#[cfg(feature = "gear-wasmer-cache")]
+use gear_wasmer_cache::*;
 
 environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
@@ -158,6 +155,20 @@ pub fn invoke(
     }
 }
 
+#[cfg(feature = "gear-wasmer-cache")]
+fn fs_cache() -> PathBuf {
+    use std::sync::OnceLock;
+    use tempfile::TempDir;
+
+    static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
+    CACHE_DIR
+        .get_or_init(|| {
+            tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
+        })
+        .path()
+        .into()
+}
+
 /// Instantiate a module within a sandbox context
 pub fn instantiate(
     version: Instantiate,
@@ -166,27 +177,11 @@ pub fn instantiate(
     guest_env: GuestEnvironment,
     supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
-    #[cfg(feature = "wasmer-cache")]
-    let module = match get_cached_module(wasm, &context.store().borrow()) {
-        Ok(module) => {
-            log::trace!("Found cached module for current program");
-            module
-        }
-        Err(CacheMissErr {
-            fs_cache,
-            code_hash,
-        }) => {
-            log::trace!("Cache for program has not been found, so compile it now");
-            let module = Module::new(&context.store().borrow(), wasm)
-                .map_err(|_| InstantiationError::ModuleDecoding)?;
+    #[cfg(feature = "gear-wasmer-cache")]
+    let module = get_or_compile_with_cache(wasm, context.store().borrow().engine(), fs_cache)
+        .map_err(|_| InstantiationError::ModuleDecoding)?;
 
-            try_to_store_module_in_cache(fs_cache, code_hash, wasm, &module);
-
-            module
-        }
-    };
-
-    #[cfg(not(feature = "wasmer-cache"))]
+    #[cfg(not(feature = "gear-wasmer-cache"))]
     let module = Module::new(&context.store().borrow(), wasm)
         .map_err(|_| InstantiationError::ModuleDecoding)?;
 

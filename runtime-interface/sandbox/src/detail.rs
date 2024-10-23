@@ -74,10 +74,6 @@ thread_local! {
 
 pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
     SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
-    // At first access sandbox will be initialized with the provided backend
-    SANDBOXES.with_borrow_mut(|sandboxes| {
-        let _store = sandboxes.get(0);
-    })
 }
 
 struct SupervisorContext<'a, 'b> {
