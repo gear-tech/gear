@@ -25,7 +25,6 @@ pub use substrate_test_client::*;
 use vara_runtime as runtime;
 
 pub type ExtendHostFunctions = (
-    frame_benchmarking::benchmarking::HostFunctions,
     gear_runtime_interface::gear_ri::HostFunctions,
     gear_runtime_interface::sandbox::HostFunctions,
     sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,

@@ -20,7 +20,7 @@ use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
-use service::{chain_spec, ExtendHostFunctions, IdentifyVariant};
+use service::{chain_spec, IdentifyVariant};
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
@@ -233,7 +233,7 @@ pub fn run() -> sc_cli::Result<()> {
                             spec if spec.is_vara() => cmd
                                 .run_with_spec::<sp_runtime::traits::HashingFor<service::vara_runtime::Block>, ExtendedHostFunctions<
                                     sp_io::SubstrateHostFunctions,
-                                    ExtendHostFunctions,
+                                    service::ExtendHostFunctions,
                                 >>(Some(config.chain_spec)),
                             _ => Err("invalid chain spec".into()),
                         }

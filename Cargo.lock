@@ -6539,7 +6539,6 @@ dependencies = [
 name = "gear-node-testing"
 version = "1.6.2"
 dependencies = [
- "frame-benchmarking",
  "frame-metadata-hash-extension",
  "frame-support",
  "frame-system",
