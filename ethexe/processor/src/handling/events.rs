@@ -25,7 +25,7 @@ use ethexe_common::{
 };
 use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::{
-    state::{ComplexStorage as _, Dispatch, Storage, ValueWithExpiry},
+    state::{Dispatch, Storage, ValueWithExpiry},
     InBlockTransitions,
 };
 use gear_core::{
@@ -73,9 +73,7 @@ impl Processor {
         match event {
             MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
                 let new_state_hash = self.handle_executable_balance_top_up(state_hash, value)?;
-                in_block_transitions
-                    .modify_state(actor_id, new_state_hash)
-                    .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
+                in_block_transitions.modify_state(actor_id, new_state_hash);
             }
             MirrorEvent::MessageQueueingRequested {
                 id,
@@ -107,9 +105,7 @@ impl Processor {
                 };
 
                 let new_state_hash = self.handle_message_queueing(state_hash, dispatch)?;
-                in_block_transitions
-                    .modify_state(actor_id, new_state_hash)
-                    .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
+                in_block_transitions.modify_state(actor_id, new_state_hash);
             }
             MirrorEvent::ReplyQueueingRequested {
                 replied_to,
@@ -120,12 +116,10 @@ impl Processor {
                 if let Some((value_claim, expiry, new_state_hash)) =
                     self.handle_reply_queueing(state_hash, replied_to, source, payload, value)?
                 {
-                    in_block_transitions
-                        .modify_transition(actor_id, |state_hash, transition| {
-                            *state_hash = new_state_hash;
-                            transition.claims.push(value_claim);
-                        })
-                        .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
+                    in_block_transitions.modify(actor_id, |state_hash, transition| {
+                        *state_hash = new_state_hash;
+                        transition.claims.push(value_claim);
+                    });
 
                     in_block_transitions.remove_task(
                         expiry,
@@ -137,12 +131,10 @@ impl Processor {
                 if let Some((value_claim, expiry, new_state_hash)) =
                     self.handle_value_claiming(state_hash, claimed_id, source)?
                 {
-                    in_block_transitions
-                        .modify_transition(actor_id, |state_hash, transition| {
-                            *state_hash = new_state_hash;
-                            transition.claims.push(value_claim);
-                        })
-                        .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
+                    in_block_transitions.modify(actor_id, |state_hash, transition| {
+                        *state_hash = new_state_hash;
+                        transition.claims.push(value_claim);
+                    });
 
                     in_block_transitions.remove_task(
                         expiry,
@@ -163,6 +155,7 @@ impl Processor {
         match event {
             WVaraEvent::Transfer { from, to, value } => {
                 if let Some(state_hash) = in_block_transitions.state_of(&to) {
+                    // TODO (breathx): FIX ME WITHIN THE PR impl handler similar to runtime common.
                     if in_block_transitions.state_of(&from).is_none() {
                         let new_state_hash = self.db.mutate_state(state_hash, |_, state| {
                             state.balance += value;

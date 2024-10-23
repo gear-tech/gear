@@ -19,10 +19,7 @@
 use crate::Processor;
 use anyhow::{ensure, Result};
 use ethexe_db::CodesStorage;
-use ethexe_runtime_common::{
-    state::{ComplexStorage as _, Dispatch},
-    InBlockTransitions, ScheduleHandler,
-};
+use ethexe_runtime_common::{state::Dispatch, InBlockTransitions, ScheduleHandler};
 use gprimitives::{CodeId, H256};
 
 pub(crate) mod events;

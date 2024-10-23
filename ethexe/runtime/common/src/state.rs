@@ -541,6 +541,10 @@ impl Waitlist {
         self.changed
             .then(|| MaybeHashOf((!self.inner.is_empty()).then(|| storage.write_waitlist(self))))
     }
+
+    pub fn into_inner(self) -> BTreeMap<MessageId, ValueWithExpiry<Dispatch>> {
+        self.into()
+    }
 }
 
 #[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]

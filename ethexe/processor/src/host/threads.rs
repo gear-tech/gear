@@ -22,10 +22,10 @@ use crate::Database;
 use core::fmt;
 use ethexe_db::BlockMetaStorage;
 use ethexe_runtime_common::{
-    state::{ActiveProgram, MaybeHash, Program, ProgramState, Storage},
+    state::{ActiveProgram, HashOf, Program, ProgramState, Storage},
     BlockInfo,
 };
-use gear_core::{ids::ProgramId, pages::GearPage};
+use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
@@ -42,7 +42,7 @@ pub struct ThreadParams {
     pub db: Database,
     pub block_info: BlockInfo,
     pub state_hash: H256,
-    pub pages: Option<BTreeMap<GearPage, H256>>,
+    pub pages: Option<BTreeMap<GearPage, HashOf<PageBuf>>>,
 }
 
 impl fmt::Debug for ThreadParams {
@@ -52,7 +52,7 @@ impl fmt::Debug for ThreadParams {
 }
 
 impl ThreadParams {
-    pub fn pages(&mut self) -> &BTreeMap<GearPage, H256> {
+    pub fn pages(&mut self) -> &BTreeMap<GearPage, HashOf<PageBuf>> {
         self.pages.get_or_insert_with(|| {
             let ProgramState {
                 program: Program::Active(ActiveProgram { pages_hash, .. }),
@@ -63,14 +63,7 @@ impl ThreadParams {
                 panic!("Couldn't get pages hash for inactive program!")
             };
 
-            if let MaybeHash::Hash(mem_root) = pages_hash {
-                self.db
-                    .read_pages(mem_root.hash)
-                    .expect(UNKNOWN_STATE)
-                    .into()
-            } else {
-                Default::default()
-            }
+            pages_hash.query(&self.db).expect(UNKNOWN_STATE).into()
         })
     }
 }
