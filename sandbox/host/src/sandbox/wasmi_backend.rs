@@ -102,6 +102,18 @@ impl Default for Backend {
     }
 }
 
+impl Drop for Backend {
+    fn drop(&mut self) {
+        // Ensure what we actually dropping the store and not just the RC reference to it.
+        // This is important because it enforces the drop order of the store and its allocations.
+        assert_eq!(
+            Rc::strong_count(&self.store),
+            1,
+            "Attempt to drop Backend while references to Store still exist"
+        );
+    }
+}
+
 impl Backend {
     pub fn new() -> Self {
         let engine = Engine::default();
