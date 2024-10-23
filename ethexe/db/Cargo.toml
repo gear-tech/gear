@@ -16,7 +16,7 @@ gear-core.workspace = true
 gprimitives.workspace = true
 
 anyhow.workspace = true
-dashmap = "5.5.3"
+dashmap = "6.0.1"
 parity-scale-codec.workspace = true
 log = { workspace = true, features = ["std"] }
 # TODO: jemalloc is not stable for OpenBSD and MSVC.
