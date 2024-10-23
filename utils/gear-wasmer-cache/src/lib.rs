@@ -25,9 +25,8 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-use tempfile::TempDir;
 use uluru::LRUCache;
-use wasmer::Module;
+use wasmer::{CompileError, Engine, Module};
 use wasmer_cache::Hash;
 
 pub struct CacheMissErr {
@@ -51,21 +50,11 @@ fn lru_cache() -> &'static CachedModules {
     CACHED_MODULES.get_or_init(|| Mutex::new(LRUCache::default()))
 }
 
-fn fs_cache() -> FileSystemCache {
-    static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
-
-    // Try to load from tempfile cache
-    let cache_path = CACHE_DIR
-        .get_or_init(|| {
-            tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
-        })
-        .path();
-    log::trace!("Wasmer sandbox cache dir is: {cache_path:?}");
-
-    FileSystemCache::new(cache_path)
-}
-
-pub fn get_cached_module(wasm: &[u8], store: &wasmer::Store) -> Result<Module, CacheMissErr> {
+pub fn get_cached_module(
+    wasm: &[u8],
+    engine: &Engine,
+    fs_cache: impl FnOnce() -> PathBuf,
+) -> Result<Module, CacheMissErr> {
     let mut lru_lock = lru_cache().lock().expect("CACHED_MODULES lock fail");
 
     let maybe_module = lru_lock.find(|x| x.wasm == wasm);
@@ -77,14 +66,14 @@ pub fn get_cached_module(wasm: &[u8], store: &wasmer::Store) -> Result<Module, C
     {
         // SAFETY: Module inside LRU cache cannot be corrupted.
         let module = unsafe {
-            Module::deserialize_unchecked(store, serialized_module.as_slice())
+            Module::deserialize_unchecked(engine, serialized_module.as_slice())
                 .expect("module in LRU cache is valid")
         };
         Ok(module)
     } else {
         let code_hash = Hash::generate(wasm);
 
-        let fs_cache = fs_cache();
+        let fs_cache = FileSystemCache::new(fs_cache());
         let serialized_module = fs_cache.load(code_hash).map_err(|_| CacheMissErr {
             fs_cache: fs_cache.clone(),
             code_hash,
@@ -97,7 +86,7 @@ pub fn get_cached_module(wasm: &[u8], store: &wasmer::Store) -> Result<Module, C
 
         // SAFETY: We trust the module in FS cache.
         let module = unsafe {
-            Module::deserialize(store, serialized_module).map_err(|_| {
+            Module::deserialize(engine, serialized_module).map_err(|_| {
                 log::debug!("Module in FS cache is corrupted, remove it");
                 fs_cache.remove_key(code_hash);
                 CacheMissErr {
@@ -135,6 +124,30 @@ pub fn try_to_store_module_in_cache(
 
     let res = fs_cache.store(code_hash, &serialized_module);
     log::trace!("Store module in FS cache with result: {:?}", res);
+}
+
+pub fn get_or_compile_with_cache(
+    wasm: &[u8],
+    engine: &Engine,
+    fs_cache: impl FnOnce() -> PathBuf,
+) -> Result<Module, CompileError> {
+    match get_cached_module(wasm, engine, fs_cache) {
+        Ok(module) => {
+            log::trace!("Found cached module for current program");
+            Ok(module)
+        }
+        Err(CacheMissErr {
+            fs_cache,
+            code_hash,
+        }) => {
+            log::trace!("Cache for program has not been found, so compile it now");
+            let module = Module::new(engine, wasm)?;
+
+            try_to_store_module_in_cache(fs_cache, code_hash, wasm, &module);
+
+            Ok(module)
+        }
+    }
 }
 
 /// Altered copy of the `FileSystemCache` struct from `wasmer_cache` crate.

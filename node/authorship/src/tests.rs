@@ -331,7 +331,6 @@ type TestCase = Box<dyn Fn() + Send + 'static>;
 #[test]
 fn run_all_tests() {
     init_logger();
-    gear_runtime_interface::sandbox_init();
 
     use basic_tests::*;
 
