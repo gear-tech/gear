@@ -1274,6 +1274,10 @@ mod utils {
             .await
             .unwrap();
 
+            let router_query = RouterQuery::new(&self.rpc_url, self.router_address)
+                .await
+                .unwrap();
+
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let mut config =
@@ -1322,6 +1326,7 @@ mod utils {
                 self.db.clone(),
                 self.observer.clone(),
                 query,
+                router_query,
                 processor,
                 self.signer.clone(),
                 self.block_time,
