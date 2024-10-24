@@ -18,6 +18,8 @@
 
 use crate::*;
 
+const IDENTITY_MIGRATION_KEY_LIMIT: u64 = u64::MAX;
+
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
     // migration for added section sizes
@@ -27,6 +29,8 @@ pub type Migrations = (
     pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
     // move allocations to a separate storage item and remove pages_with_data field from program
     pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
+    // Migrate Identity pallet for Usernames
+    pallet_identity::migration::versioned::V0ToV1<Runtime, IDENTITY_MIGRATION_KEY_LIMIT>,
 );
 
 mod staking {
@@ -46,7 +50,7 @@ mod staking {
     pub struct MigrateToV14<T>(sp_std::marker::PhantomData<T>);
     impl<T: Config> OnRuntimeUpgrade for MigrateToV14<T> {
         fn on_runtime_upgrade() -> Weight {
-            let current = Pallet::<T>::current_storage_version();
+            let current = Pallet::<T>::in_code_storage_version();
             let on_chain = Pallet::<T>::on_chain_storage_version();
 
             if current == 14 && on_chain == 13 {

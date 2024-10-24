@@ -49,7 +49,7 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
         let mut counter = 0;
 
         if onchain == MIGRATE_FROM_VERSION {
-            let current = Pallet::<T>::current_storage_version();
+            let current = Pallet::<T>::in_code_storage_version();
             if current != ALLOWED_CURRENT_STORAGE_VERSION {
                 log::error!("❌ Migration is not allowed for current storage version {current:?}.");
                 return weight;
@@ -96,7 +96,7 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let current = Pallet::<T>::current_storage_version();
+        let current = Pallet::<T>::in_code_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
         let res = if onchain == MIGRATE_FROM_VERSION {

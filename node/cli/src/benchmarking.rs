@@ -84,6 +84,7 @@ macro_rules! with_signed_payload {
                     runtime::CustomCheckNonce::<runtime::Runtime>::from($nonce),
                     frame_system::CheckWeight::<runtime::Runtime>::new(),
                     pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
+                    frame_metadata_hash_extension::CheckMetadataHash::<runtime::Runtime>::new(false),
                 );
 
                 let $raw_payload = runtime::SignedPayload::from_raw(
@@ -99,6 +100,7 @@ macro_rules! with_signed_payload {
                         (),
                         (),
                         (),
+                        None,
                     ),
                 );
 

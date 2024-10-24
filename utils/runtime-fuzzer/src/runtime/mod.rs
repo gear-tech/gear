@@ -85,6 +85,7 @@ pub fn new_test_ext() -> TestExternalities {
                 )
             })
             .collect(),
+        ..Default::default()
     }
     .assimilate_storage(&mut t)
     .unwrap();

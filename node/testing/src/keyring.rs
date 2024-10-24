@@ -85,6 +85,7 @@ pub fn signed_extra(nonce: Nonce) -> SignedExtra {
         CustomCheckNonce::from(nonce),
         frame_system::CheckWeight::new(),
         CustomChargeTransactionPayment::from(0),
+        frame_metadata_hash_extension::CheckMetadataHash::new(true),
     )
 }
 
