@@ -330,7 +330,7 @@ fn create_message_full(
     payload: impl AsRef<[u8]>,
 ) -> Dispatch {
     let payload = payload.as_ref().to_vec();
-    let payload_hash = processor.db.store_payload(payload).unwrap();
+    let payload_hash = processor.db.write_payload_raw(payload).unwrap();
 
     Dispatch {
         id,

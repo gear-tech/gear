@@ -77,42 +77,26 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
-        let header = self
-            .db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow!("failed to get block header for under-processing block"))?;
-
-        let states = self
-            .db
-            .block_start_program_states(block_hash)
-            .ok_or_else(|| {
-                anyhow!("failed to get block start program states for under-processing block")
-            })?;
-
-        let schedule = self.db.block_start_schedule(block_hash).ok_or_else(|| {
-            anyhow!("failed to get block start schedule for under-processing block")
-        })?;
-
-        let mut in_block_transitions = InBlockTransitions::new(header, states, schedule);
+        let mut handler = self.handler(block_hash)?;
 
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
-                    self.handle_router_event(&mut in_block_transitions, event)?;
+                    handler.handle_router_event(event)?;
                 }
                 BlockRequestEvent::Mirror { address, event } => {
-                    self.handle_mirror_event(&mut in_block_transitions, address, event)?;
+                    handler.handle_mirror_event(address, event)?;
                 }
                 BlockRequestEvent::WVara(event) => {
-                    self.handle_wvara_event(&mut in_block_transitions, event)?;
+                    handler.handle_wvara_event(event);
                 }
             }
         }
 
-        self.run_schedule(&mut in_block_transitions);
-        self.run(block_hash, &mut in_block_transitions);
+        handler.run_schedule();
+        self.run(block_hash, &mut handler.transitions);
 
-        let (transitions, states, schedule) = in_block_transitions.finalize();
+        let (transitions, states, schedule) = handler.transitions.finalize();
 
         self.db.set_block_end_program_states(block_hash, states);
         self.db.set_block_end_schedule(block_hash, schedule);
@@ -152,26 +136,14 @@ impl OverlaidProcessor {
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
-        let header = self
-            .0
-            .db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow!("failed to find block header for given block hash"))?;
+        let mut handler = self.0.handler(block_hash)?;
 
-        let states = self
-            .0
-            .db
-            .block_start_program_states(block_hash)
-            .unwrap_or_default();
-
-        let mut in_block_transitions = InBlockTransitions::new(header, states, Default::default());
-
-        let state_hash = in_block_transitions
+        let state_hash = handler
+            .transitions
             .state_of(&program_id)
             .ok_or_else(|| anyhow!("unknown program at specified block hash"))?;
 
-        let state = self
-            .0
+        let state = handler
             .db
             .read_state(state_hash)
             .ok_or_else(|| anyhow!("unreachable: state partially presents in storage"))?;
@@ -181,8 +153,7 @@ impl OverlaidProcessor {
             "program isn't yet initialized"
         );
 
-        self.0.handle_mirror_event(
-            &mut in_block_transitions,
+        handler.handle_mirror_event(
             program_id,
             MirrorEvent::MessageQueueingRequested {
                 id: MessageId::zero(),
@@ -196,10 +167,11 @@ impl OverlaidProcessor {
             8,
             self.0.db.clone(),
             self.0.creator.clone(),
-            &mut in_block_transitions,
+            &mut handler.transitions,
         );
 
-        let res = in_block_transitions
+        let res = handler
+            .transitions
             .current_messages()
             .into_iter()
             .find_map(|(_source, message)| {
