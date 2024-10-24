@@ -109,6 +109,10 @@ impl<S: Storage> Handler<'_, S> {
                         expiry,
                     );
                 });
+
+                transitions.modify_transition(dispatch.source(), |transition| {
+                    transition.messages.push(dispatch.into_parts().1.into())
+                });
             }
         });
     }
