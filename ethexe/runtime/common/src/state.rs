@@ -24,6 +24,7 @@ use alloc::{
 };
 use anyhow::{anyhow, Result};
 use core::{
+    any::Any,
     marker::PhantomData,
     num::NonZero,
     ops::{Deref, DerefMut},
@@ -67,12 +68,24 @@ mod private {
     // TODO (breathx): FIX ME WITHIN THE PR
     // impl Sealed for ProgramState {}
     impl Sealed for Waitlist {}
+
+    pub fn shortname<S: Any>() -> &'static str {
+        core::any::type_name::<S>()
+            .split("::")
+            .last()
+            .expect("name is empty")
+    }
 }
 
-#[derive(Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
-pub struct HashOf<S: Sealed> {
+#[derive(
+    Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::DebugCustom, derive_more::Display,
+)]
+#[debug(fmt = "HashOf<{}>({hash:?})", "private::shortname::<S>()")]
+#[display(fmt = "{hash}")]
+pub struct HashOf<S: Sealed + 'static> {
     hash: H256,
     #[into(ignore)]
+    #[codec(skip)]
     _phantom: PhantomData<S>,
 }
 
@@ -99,8 +112,26 @@ impl<S: Sealed> HashOf<S> {
     }
 }
 
-#[derive(Debug, Encode, Decode, PartialEq, Eq)]
-pub struct MaybeHashOf<S: Sealed>(Option<HashOf<S>>);
+#[derive(
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    derive_more::Into,
+    derive_more::From,
+    derive_more::DebugCustom,
+    derive_more::Display,
+)]
+#[debug(
+    fmt = "MaybeHashOf<{}>({})",
+    "private::shortname::<S>()",
+    "self.hash().map(|v| v.to_string()).unwrap_or_else(|| String::from(\"<none>\"))"
+)]
+#[display(
+    fmt = "{}",
+    "_0.map(|v| v.to_string()).unwrap_or_else(|| String::from(\"<none>\"))"
+)]
+pub struct MaybeHashOf<S: Sealed + 'static>(Option<HashOf<S>>);
 
 impl<S: Sealed> Clone for MaybeHashOf<S> {
     fn clone(&self) -> Self {
