@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand};
+use crate::{
+    cli::{Cli, Subcommand},
+    SandboxBackend,
+};
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
@@ -129,6 +132,11 @@ macro_rules! unwrap_client {
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
     let cli = Cli::from_args();
+
+    gear_runtime_interface::sandbox_init(match cli.run.sandbox_backend {
+        SandboxBackend::Wasmer => gear_runtime_interface::SandboxBackend::Wasmer,
+        SandboxBackend::Wasmi => gear_runtime_interface::SandboxBackend::Wasmi,
+    });
 
     let old_base = BasePath::from_project("", "", "gear-node");
     let new_base = BasePath::from_project("", "", &Cli::executable_name());

@@ -26,7 +26,10 @@ use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use gear_wasmer_cache::get_or_compile_with_cache;
 use sp_wasm_interface_common::HostPointer;
-use std::{collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull};
+use std::{
+    collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
+    sync::OnceLock,
+};
 use wasmer::{
     sys::{BaseTunables, VMConfig},
     vm::{
@@ -39,12 +42,17 @@ use wasmer::{
 use wasmer_types::{ExternType, Target};
 
 fn fs_cache() -> PathBuf {
-    let out_dir = PathBuf::from(env!("OUT_DIR"));
-    let cache = out_dir.join("wasmer-cache");
-    if !cache.exists() {
-        fs::create_dir(&cache).unwrap();
-    }
-    cache
+    static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
+    CACHE_DIR
+        .get_or_init(|| {
+            let out_dir = PathBuf::from(env!("OUT_DIR"));
+            let cache = out_dir.join("wasmer-cache");
+            if !cache.exists() {
+                fs::create_dir(&cache).unwrap();
+            }
+            cache
+        })
+        .into()
 }
 
 struct CustomTunables {

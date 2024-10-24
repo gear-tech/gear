@@ -21,12 +21,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
-pub use gear_sandbox_host::sandbox::env::Instantiate;
+pub use gear_sandbox_host::sandbox::{env::Instantiate, SandboxBackend};
 use sp_runtime_interface::{runtime_interface, Pointer};
 use sp_wasm_interface::HostPointer;
 
 #[cfg(feature = "std")]
 pub mod detail;
+
+#[cfg(feature = "std")]
+pub use detail::init;
 
 /// Wasm-only interface that provides functions for interacting with the sandbox.
 #[runtime_interface(wasm_only)]
