@@ -65,7 +65,7 @@ mod private {
     impl Sealed for MessageQueue {}
     impl Sealed for Payload {}
     impl Sealed for PageBuf {}
-    // TODO (breathx): FIX ME WITHIN THE PR
+    // TODO (breathx): consider using HashOf<ProgramState> everywhere.
     // impl Sealed for ProgramState {}
     impl Sealed for Waitlist {}
 
@@ -173,6 +173,12 @@ impl<S: Sealed> MaybeHashOf<S> {
         if let Some(other) = other {
             *self = other;
         }
+    }
+}
+
+impl<S: Sealed + 'static> From<HashOf<S>> for MaybeHashOf<S> {
+    fn from(value: HashOf<S>) -> Self {
+        Self(Some(value))
     }
 }
 

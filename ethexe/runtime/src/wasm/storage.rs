@@ -39,7 +39,6 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
-        // TODO (breathx): FIX ME WITHIN THE PR
         if state.is_zero() {
             return H256::zero();
         }
