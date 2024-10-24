@@ -83,8 +83,8 @@ fn into_value(value: &wasmi::Val) -> Option<Value> {
     match value {
         wasmi::Val::I32(val) => Some(Value::I32(*val)),
         wasmi::Val::I64(val) => Some(Value::I64(*val)),
-        wasmi::Val::F32(val) => Some(Value::F32(u32::from(*val))),
-        wasmi::Val::F64(val) => Some(Value::F64(u64::from(*val))),
+        wasmi::Val::F32(val) => Some(Value::F32(val.to_bits())),
+        wasmi::Val::F64(val) => Some(Value::F64(val.to_bits())),
         _ => None,
     }
 }
