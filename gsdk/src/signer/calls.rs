@@ -22,7 +22,9 @@ use crate::{
     metadata::{
         calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
         runtime_types::{
-            pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
+            pallet_gear_voucher::internal::{
+                PrepaidCall, VoucherId, VoucherPermissions, VoucherPermissionsExtend,
+            },
             sp_weights::weight_v2::Weight,
         },
         vara_runtime::RuntimeCall,
@@ -243,25 +245,17 @@ impl SignerCalls {
         &self,
         spender: impl Into<AccountId32>,
         balance: u128,
-        programs: Option<Vec<ProgramId>>,
-        code_uploading: bool,
         duration: u32,
+        permissions: VoucherPermissions,
     ) -> Result<TxInBlock> {
-        let programs_value = programs
-            .map(|vec| {
-                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
-            })
-            .convert();
-
         self.0
             .run_tx(
                 GearVoucherCall::Issue,
                 vec![
                     Value::from_bytes(spender.into()),
                     Value::u128(balance),
-                    programs_value,
-                    Value::bool(code_uploading),
                     Value::from(duration),
+                    Value::from(permissions),
                 ],
             )
             .await
@@ -275,21 +269,9 @@ impl SignerCalls {
         voucher_id: VoucherId,
         move_ownership: Option<impl Into<AccountId32>>,
         balance_top_up: Option<u128>,
-        append_programs: Option<Option<Vec<ProgramId>>>,
-        code_uploading: Option<bool>,
         prolong_duration: u32,
+        permissions_extend: VoucherPermissionsExtend,
     ) -> Result<TxInBlock> {
-        let append_programs_value = append_programs
-            .map(|o| {
-                o.map(|vec| {
-                    Value::unnamed_composite(
-                        vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
-                    )
-                })
-                .convert()
-            })
-            .convert();
-
         self.0
             .run_tx(
                 GearVoucherCall::Update,
@@ -300,9 +282,8 @@ impl SignerCalls {
                         .map(|v| Value::from_bytes(v.into()))
                         .convert(),
                     balance_top_up.map(Value::u128).convert(),
-                    append_programs_value,
-                    code_uploading.map(Value::bool).convert(),
                     Value::from(prolong_duration),
+                    Value::from(permissions_extend),
                 ],
             )
             .await
@@ -335,7 +316,7 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::UploadCode`
     pub async fn upload_code_with_voucher(
         &self,
         voucher_id: VoucherId,
@@ -351,7 +332,36 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::CreateProgram`
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_program_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        code_id: CodeId,
+        salt: Vec<u8>,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<TxInBlock> {
+        let call = PrepaidCall::<u128>::CreateProgram {
+            code_id: code_id.into(),
+            salt,
+            payload,
+            gas_limit,
+            value,
+            keep_alive,
+        };
+
+        self.0
+            .run_tx(
+                GearVoucherCall::Call,
+                vec![Value::from_bytes(voucher_id.0), call.into()],
+            )
+            .await
+    }
+
+    /// `pallet_gear_voucher::call` `PrepaidCall::SendMessage`
     pub async fn send_message_with_voucher(
         &self,
         voucher_id: VoucherId,
@@ -377,7 +387,7 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::SendReply`
     pub async fn send_reply_with_voucher(
         &self,
         voucher_id: VoucherId,
@@ -403,7 +413,7 @@ impl SignerCalls {
             .await
     }
 
-    /// `pallet_gear_voucher::call`
+    /// `pallet_gear_voucher::call` `PrepaidCall::DeclineVoucher`
     pub async fn decline_voucher_with_voucher(&self, voucher_id: VoucherId) -> Result<TxInBlock> {
         let call = PrepaidCall::<u128>::DeclineVoucher;
 

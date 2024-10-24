@@ -41,7 +41,7 @@
 mod benchmarking;
 
 mod internal;
-
+pub mod migrations;
 pub mod weights;
 
 #[cfg(test)]
@@ -55,7 +55,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
     PalletId,
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::MessageId;
 pub use primitive_types::H256;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
@@ -68,7 +68,7 @@ type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The current storage version.
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -83,7 +83,6 @@ pub mod pallet {
         traits::{CheckedSub, One, Zero},
         SaturatedConversion, Saturating,
     };
-    use sp_std::collections::btree_set::BTreeSet;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -120,6 +119,10 @@ pub mod pallet {
         /// Maximal duration in blocks voucher could be issued/prolonged for.
         #[pallet::constant]
         type MaxDuration: Get<BlockNumberFor<Self>>;
+
+        /// Maximal amount of programs to be specified to interact with.
+        #[pallet::constant]
+        type MaxCodeIdsAmount: Get<u8>;
     }
 
     #[pallet::pallet]
@@ -195,6 +198,10 @@ pub mod pallet {
         CodeUploadingEnabled,
         /// Voucher is disabled for code uploading, but requested.
         CodeUploadingDisabled,
+        /// CodeId is not in whitelisted set for voucher.
+        InappropriateCodeId,
+        /// Try to whitelist more CodeId than allowed.
+        MaxCodeIdsLimitExceeded,
     }
 
     /// Storage containing amount of the total vouchers issued.
@@ -232,26 +239,21 @@ pub mod pallet {
         /// * spender:  user id that is eligible to use the voucher;
         /// * balance:  voucher balance could be used for transactions
         ///             fees and gas;
-        /// * programs: pool of programs spender can interact with,
-        ///             if None - means any program,
-        ///             limited by Config param;
-        /// * code_uploading:
-        ///             allow voucher to be used as payer for `upload_code`
-        ///             transactions fee;
         /// * duration: amount of blocks voucher could be used by spender
         ///             and couldn't be revoked by owner.
         ///             Must be out in [MinDuration; MaxDuration] constants.
         ///             Expiration block of the voucher calculates as:
         ///             current bn (extrinsic exec bn) + duration + 1.
+        /// * permissions:
+        ///             set of permissions voucher could be used
         #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::issue())]
         pub fn issue(
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
-            programs: Option<BTreeSet<ProgramId>>,
-            code_uploading: bool,
             duration: BlockNumberFor<T>,
+            permissions: VoucherPermissions,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let owner = ensure_signed(origin)?;
@@ -263,10 +265,18 @@ pub mod pallet {
             );
 
             // Asserting amount of programs.
-            if let Some(ref programs) = programs {
+            if let Some(ref programs) = permissions.programs {
                 ensure!(
                     programs.len() <= T::MaxProgramsAmount::get().saturated_into(),
                     Error::<T>::MaxProgramsLimitExceeded
+                )
+            }
+
+            // Asserting amount of code_ids.
+            if let Some(ref code_ids) = permissions.code_ids {
+                ensure!(
+                    code_ids.len() <= T::MaxCodeIdsAmount::get().saturated_into(),
+                    Error::<T>::MaxCodeIdsLimitExceeded
                 )
             }
 
@@ -290,9 +300,8 @@ pub mod pallet {
             // Aggregating vouchers data.
             let voucher_info = VoucherInfo {
                 owner: owner.clone(),
-                programs,
-                code_uploading,
                 expiry,
+                permissions,
             };
 
             // Inserting voucher data into storage, associated with spender and voucher ids.
@@ -435,9 +444,8 @@ pub mod pallet {
             voucher_id: VoucherId,
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
-            append_programs: Option<Option<BTreeSet<ProgramId>>>,
-            code_uploading: Option<bool>,
             prolong_duration: Option<BlockNumberFor<T>>,
+            permissions_extend: VoucherPermissionsExtend,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
@@ -454,9 +462,6 @@ pub mod pallet {
 
             // Flattening move ownership back to current owner.
             let new_owner = move_ownership.filter(|addr| *addr != voucher.owner);
-
-            // Flattening code uploading.
-            let code_uploading = code_uploading.filter(|v| *v != voucher.code_uploading);
 
             // Flattening duration prolongation.
             let prolong_duration = prolong_duration.filter(|dur| !dur.is_zero());
@@ -477,39 +482,6 @@ pub mod pallet {
                 )
                 .map_err(|_| Error::<T>::BalanceTransfer)?;
 
-                updated = true;
-            }
-
-            // Optionally extends whitelisted programs with amount validation.
-            match append_programs {
-                // Adding given destination set to voucher,
-                // if it has destinations limit.
-                Some(Some(mut extra_programs)) if voucher.programs.is_some() => {
-                    let programs = voucher.programs.as_mut().expect("Infallible; qed");
-                    let initial_len = programs.len();
-
-                    programs.append(&mut extra_programs);
-
-                    ensure!(
-                        programs.len() <= T::MaxProgramsAmount::get().into(),
-                        Error::<T>::MaxProgramsLimitExceeded
-                    );
-
-                    updated |= programs.len() != initial_len;
-                }
-
-                // Extending vouchers to unlimited destinations.
-                Some(None) => updated |= voucher.programs.take().is_some(),
-
-                // Noop.
-                _ => (),
-            }
-
-            // Optionally enabling code uploading.
-            if let Some(code_uploading) = code_uploading {
-                ensure!(code_uploading, Error::<T>::CodeUploadingEnabled);
-
-                voucher.code_uploading = true;
                 updated = true;
             }
 
@@ -538,6 +510,9 @@ pub mod pallet {
                 voucher.expiry = expiry;
                 updated = true;
             }
+
+            // extend permissions
+            updated |= voucher.permissions.extend::<T>(permissions_extend)?;
 
             // Check for Noop.
             if updated {
