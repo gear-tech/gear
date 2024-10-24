@@ -52,7 +52,7 @@ impl InBlockTransitions {
     }
 
     pub fn is_program(&self, actor_id: &ActorId) -> bool {
-        self.state_of(actor_id).is_some()
+        self.states.contains_key(actor_id)
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {

@@ -76,27 +76,35 @@ pub trait RuntimeInterface<S: Storage> {
     fn storage(&self) -> &S;
 }
 
-pub(crate) fn update_state<S: Storage, T>(
-    program_id: ProgramId,
-    storage: &S,
-    transitions: &mut InBlockTransitions,
-    f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
-) -> T {
-    let state_hash = transitions
-        .state_of(&program_id)
-        .expect("failed to find program in known states");
+pub struct TransitionOperator<'a, S: Storage> {
+    pub storage: &'a S,
+    pub transitions: &'a mut InBlockTransitions,
+}
 
-    let mut state = storage
-        .read_state(state_hash)
-        .expect("failed to read state from storage");
+impl<'a, S: Storage> TransitionOperator<'a, S> {
+    pub fn update_state<T>(
+        &mut self,
+        program_id: ProgramId,
+        f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
+    ) -> T {
+        let state_hash = self
+            .transitions
+            .state_of(&program_id)
+            .expect("failed to find program in known states");
 
-    let res = f(&mut state, storage, transitions);
+        let mut state = self
+            .storage
+            .read_state(state_hash)
+            .expect("failed to read state from storage");
 
-    let new_state_hash = storage.write_state(state);
+        let res = f(&mut state, self.storage, self.transitions);
 
-    transitions.modify_state(program_id, new_state_hash);
+        let new_state_hash = self.storage.write_state(state);
 
-    res
+        self.transitions.modify_state(program_id, new_state_hash);
+
+        res
+    }
 }
 
 pub fn process_next_message<S, RI>(

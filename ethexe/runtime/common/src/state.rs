@@ -41,7 +41,7 @@ use gear_core::{
     program::MemoryInfix,
     reservation::GasReservationMap,
 };
-use gear_core_errors::ReplyCode;
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use gsys::BlockNumber;
 use parity_scale_codec::{Decode, Encode};
@@ -411,6 +411,51 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
+    pub fn new<S: Storage>(
+        storage: &S,
+        id: MessageId,
+        source: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+        is_init: bool,
+    ) -> Result<Self> {
+        let payload_hash = storage.write_payload_raw(payload)?;
+
+        let kind = if is_init {
+            DispatchKind::Init
+        } else {
+            DispatchKind::Handle
+        };
+
+        Ok(Self {
+            id,
+            kind,
+            source,
+            payload_hash,
+            value,
+            details: None,
+            context: None,
+        })
+    }
+
+    pub fn new_reply<S: Storage>(
+        storage: &S,
+        replied_to: MessageId,
+        source: ActorId,
+        payload: Vec<u8>,
+        value: u128,
+    ) -> Result<Self> {
+        let payload_hash = storage.write_payload_raw(payload)?;
+
+        Ok(Self::reply(
+            replied_to,
+            source,
+            payload_hash,
+            value,
+            SuccessReplyReason::Manual,
+        ))
+    }
+
     pub fn reply(
         reply_to: MessageId,
         source: ActorId,
@@ -433,11 +478,9 @@ impl Dispatch {
         let (kind, message, context) = value.into_parts();
         let (id, source, destination, payload, value, details) = message.into_parts();
 
-        // TODO (breathx): FIX ME WITHIN THE PR
-        let payload_hash = MaybeHashOf::empty();
-        // let payload_hash = storage
-        //     .store_payload(payload.into_vec())
-        //     .expect("infallible due to recasts (only panics on len)");
+        let payload_hash = storage
+            .write_payload_raw(payload.into_vec())
+            .expect("infallible due to recasts (only panics on len)");
 
         Self {
             id,
@@ -770,6 +813,15 @@ pub trait Storage {
 
     /// Writes payload and returns its hash.
     fn write_payload(&self, payload: Payload) -> HashOf<Payload>;
+
+    /// Writes payload if it doesnt exceed limits.
+    fn write_payload_raw(&self, payload: Vec<u8>) -> Result<MaybeHashOf<Payload>> {
+        Payload::try_from(payload)
+            .map(|payload| {
+                MaybeHashOf((!payload.inner().is_empty()).then(|| self.write_payload(payload)))
+            })
+            .map_err(|_| anyhow!("payload exceeds size limit"))
+    }
 
     /// Reads page data by page data hash.
     fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf>;

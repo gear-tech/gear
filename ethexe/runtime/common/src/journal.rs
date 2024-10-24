@@ -3,7 +3,7 @@ use crate::{
         self, ActiveProgram, Dispatch, MaybeHashOf, Program, ProgramState, Storage,
         ValueWithExpiry, MAILBOX_VALIDITY,
     },
-    InBlockTransitions,
+    InBlockTransitions, TransitionOperator,
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::{bail, Result};
@@ -27,21 +27,15 @@ use gear_core::{
 use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
+#[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
-    pub in_block_transitions: &'a mut InBlockTransitions,
-    pub storage: &'a S,
+    #[deref]
+    #[deref_mut]
+    pub operator: TransitionOperator<'a, S>,
 }
 
 impl<S: Storage> Handler<'_, S> {
-    fn update_state<T>(
-        &mut self,
-        program_id: ProgramId,
-        f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
-    ) -> T {
-        crate::update_state(program_id, self.storage, self.in_block_transitions, f)
-    }
-
     fn send_dispatch_to_program(
         &mut self,
         message_id: MessageId,
@@ -74,7 +68,7 @@ impl<S: Storage> Handler<'_, S> {
         delay: u32,
     ) {
         if dispatch.is_reply() {
-            self.in_block_transitions
+            self.transitions
                 .modify_transition(dispatch.source(), |transition| {
                     transition.messages.push(dispatch.into_parts().1.into())
                 });
@@ -191,7 +185,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             mem::replace(&mut state.balance, 0)
         });
 
-        if self.in_block_transitions.is_program(&value_destination) {
+        if self.transitions.is_program(&value_destination) {
             self.update_state(value_destination, |state, _, _| {
                 state.balance += balance;
             })
@@ -199,7 +193,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        self.update_state(self.program_id, |state, storage, _| {
+        let program_id = self.program_id;
+
+        self.update_state(program_id, |state, storage, _| {
             state.queue_hash.modify_queue(storage, |queue| {
                 let head = queue
                     .dequeue()
@@ -227,7 +223,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let destination = dispatch.destination();
         let dispatch = dispatch.into_stored();
 
-        if self.in_block_transitions.is_program(&destination) {
+        if self.transitions.is_program(&destination) {
             let dispatch = Dispatch::from_stored(self.storage, dispatch);
 
             self.send_dispatch_to_program(message_id, destination, dispatch, delay);
@@ -249,7 +245,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let in_blocks =
             NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
-        self.update_state(self.program_id, |state, storage, transitions| {
+        let program_id = self.program_id;
+
+        self.update_state(program_id, |state, storage, transitions| {
             let expiry = transitions.schedule_task(
                 in_blocks,
                 ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
@@ -369,7 +367,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         // TODO (breathx): implement rest of cases.
         if let Some(to) = to {
-            if self.in_block_transitions.state_of(&from).is_some() {
+            if self.transitions.state_of(&from).is_some() {
                 return;
             }
 

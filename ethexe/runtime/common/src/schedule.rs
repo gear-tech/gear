@@ -1,6 +1,6 @@
 use crate::{
     state::{Dispatch, MaybeHashOf, ProgramState, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
-    InBlockTransitions,
+    InBlockTransitions, TransitionOperator,
 };
 use alloc::vec;
 use anyhow::{anyhow, Result};
@@ -12,19 +12,9 @@ use gear_core::{ids::ProgramId, message::ReplyMessage, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
+#[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
-    pub in_block_transitions: &'a mut InBlockTransitions,
-    pub storage: &'a S,
-}
-
-impl<S: Storage> Handler<'_, S> {
-    fn update_state<T>(
-        &mut self,
-        program_id: ProgramId,
-        f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
-    ) -> T {
-        crate::update_state(program_id, self.storage, self.in_block_transitions, f)
-    }
+    pub operator: TransitionOperator<'a, S>,
 }
 
 impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
