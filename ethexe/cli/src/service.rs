@@ -813,7 +813,7 @@ impl Service {
                 return Ok(false);
             }
 
-            // TODO: use multicall for batched requests when introduced: https://github.com/alloy-rs/alloy/issues/328
+            // TODO: #4309
             for &id in ids {
                 let code_id = router_query.program_code_id(id).await?;
                 if code_id.is_none() {
