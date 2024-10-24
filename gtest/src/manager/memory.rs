@@ -34,10 +34,11 @@ impl ExtManager {
             }
         })?;
 
-        if let Some((data, code)) = executable_actor_data {
+        if let Some((data, code, code_metadata)) = executable_actor_data {
             core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
                 String::from("state"),
                 code,
+                code_metadata,
                 Some(data.allocations),
                 Some((*program_id, Default::default())),
                 payload,
@@ -71,9 +72,8 @@ impl ExtManager {
         )
         .map_err(|_| TestError::Instrumentation)?;
 
-        let mapping_code = InstrumentedCodeAndId::from(CodeAndId::new(mapping_code))
-            .into_parts()
-            .0;
+        let (mapping_code, _, code_metadata) =
+            CodeAndId::new(mapping_code).into_parts().0.into_parts();
 
         let mut mapping_code_payload = args.unwrap_or_default();
         mapping_code_payload.append(&mut self.read_state_bytes(payload, program_id)?);
@@ -81,6 +81,7 @@ impl ExtManager {
         core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
             String::from(fn_name),
             mapping_code,
+            code_metadata,
             None,
             None,
             mapping_code_payload,

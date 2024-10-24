@@ -54,9 +54,11 @@ use alloc::{
 };
 use core::marker::PhantomData;
 use core_processor::{
-    common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
-    process_execution_error, process_success, SuccessfulDispatchResultKind,
-    SystemReservationContext,
+    common::{
+        ActorExecutionErrorReplyReason, DispatchResult, JournalNote, SuccessfulDispatchResultKind,
+        TrapExplanation,
+    },
+    process_execution_error, process_success, SystemReservationContext,
 };
 use gear_core::{
     gas::GasCounter,
