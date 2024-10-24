@@ -119,6 +119,20 @@ impl From<H160> for ActorId {
     }
 }
 
+impl TryInto<H160> for ActorId {
+    type Error = &'static str;
+
+    fn try_into(self) -> Result<H160, Self::Error> {
+        if !self.0[..12].iter().all(|i| i.eq(&0)) {
+            Err("ActorId has non-zero prefix")
+        } else {
+            let mut h160 = H160::zero();
+            h160.0.copy_from_slice(&self.into_bytes()[12..]);
+            Ok(h160)
+        }
+    }
+}
+
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let byte_array = utils::ByteArray(&self.0);
