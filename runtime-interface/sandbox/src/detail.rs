@@ -84,7 +84,6 @@ struct SupervisorContext<'a, 'b> {
 }
 
 impl<'a, 'b> sandbox_env::SupervisorContext for SupervisorContext<'a, 'b> {
-    #[allow(clippy::needless_borrows_for_generic_args)]
     fn invoke(
         &mut self,
         invoke_args_ptr: Pointer<u8>,
@@ -93,7 +92,7 @@ impl<'a, 'b> sandbox_env::SupervisorContext for SupervisorContext<'a, 'b> {
     ) -> gear_sandbox_host::error::Result<i64> {
         let mut ret_vals = [Val::null()];
         let result = self.dispatch_thunk.call(
-            &mut self.caller,
+            &mut *self.caller,
             &[
                 Val::I32(u32::from(invoke_args_ptr) as i32),
                 Val::I32(invoke_args_len as i32),
@@ -490,7 +489,6 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
     method_result
 }
 
-#[allow(clippy::needless_borrows_for_generic_args)]
 pub fn memory_set(
     context: &mut dyn FunctionContext,
     memory_idx: u32,
@@ -505,7 +503,7 @@ pub fn memory_set(
     sp_wasm_interface::with_caller_mut(context, |caller| {
         trace("memory_set", caller);
 
-        let Ok(buffer) = read_memory(&caller, val_ptr, val_len) else {
+        let Ok(buffer) = read_memory(&mut *caller, val_ptr, val_len) else {
             method_result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
             return;
         };

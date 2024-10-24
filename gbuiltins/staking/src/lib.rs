@@ -60,14 +60,13 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use gprimitives::ActorId;
-use scale_info::scale::{self, Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 /// Type that should be used to create a message to the staking built-in actor.
 ///
 /// A [partial] mirror of the staking pallet interface. Not all extrinsics
 /// are supported, more can be added as needed for real-world use cases.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-#[codec(crate = scale)]
 pub enum Request {
     /// Bond up to the `value` from the sender to self as the controller.
     Bond { value: u128, payee: RewardAccount },
@@ -93,7 +92,6 @@ pub enum Request {
 ///
 /// A "mirror" of the staking pallet's `RewardDestination` enum.
 #[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, Debug)]
-#[codec(crate = scale)]
 pub enum RewardAccount {
     /// Pay rewards to the sender's account and increase the amount at stake.
     Staked,
