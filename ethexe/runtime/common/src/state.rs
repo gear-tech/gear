@@ -18,6 +18,8 @@
 
 //! State-related data structures.
 
+#[cfg(not(feature = "std"))]
+use alloc::string::{String, ToString};
 use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
