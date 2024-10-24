@@ -110,39 +110,28 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
-    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256) -> Option<()> {
-        self.modify_state_with(
-            actor_id,
-            new_state_hash,
-            0,
-            Default::default(),
-            Default::default(),
-        )
-    }
-
-    pub fn modify_state_with(
+    pub fn modify_transition<T>(
         &mut self,
         actor_id: ActorId,
-        new_state_hash: H256,
-        extra_value_to_receive: u128,
-        extra_claims: Vec<ValueClaim>,
-        extra_messages: Vec<OutgoingMessage>,
-    ) -> Option<()> {
-        let initial_state = self.states.insert(actor_id, new_state_hash)?;
+        f: impl FnOnce(&mut H256, &mut NonFinalTransition) -> T,
+    ) -> Option<T> {
+        let initial_state = self.states.get_mut(&actor_id)?;
 
         let transition = self
             .modifications
             .entry(actor_id)
             .or_insert(NonFinalTransition {
-                initial_state,
+                initial_state: *initial_state,
                 ..Default::default()
             });
 
-        transition.value_to_receive += extra_value_to_receive;
-        transition.claims.extend(extra_claims);
-        transition.messages.extend(extra_messages);
+        Some(f(initial_state, transition))
+    }
 
-        Some(())
+    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256) -> Option<()> {
+        self.modify_transition(actor_id, |state_hash, _transition| {
+            *state_hash = new_state_hash
+        })
     }
 
     pub fn finalize(self) -> (Vec<StateTransition>, BTreeMap<ActorId, H256>, Schedule) {
@@ -165,6 +154,7 @@ impl InBlockTransitions {
                 res.push(StateTransition {
                     actor_id,
                     new_state_hash,
+                    inheritor: ActorId::zero(),
                     value_to_receive: modification.value_to_receive,
                     value_claims: modification.claims,
                     messages: modification.messages,
@@ -179,6 +169,7 @@ impl InBlockTransitions {
 #[derive(Default)]
 pub struct NonFinalTransition {
     initial_state: H256,
+    pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<OutgoingMessage>,
@@ -191,6 +182,6 @@ impl NonFinalTransition {
             // check if state hash changed at final (always op)
             && current_state == self.initial_state
             // check if with unchanged state needs commitment (op)
-            && (self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
+            && (self.inheritor.is_zero() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
     }
 }

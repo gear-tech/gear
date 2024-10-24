@@ -76,7 +76,6 @@ impl Keyring {
     }
 
     /// Update and get the primary key.
-    #[allow(clippy::assigning_clones)]
     pub fn primary(&mut self) -> Result<Keystore> {
         if self.ring.is_empty() {
             return Err(anyhow!(
