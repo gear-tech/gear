@@ -29,7 +29,7 @@ use ethexe_common::{
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
     states: BTreeMap<ActorId, H256>,
@@ -65,6 +65,10 @@ impl InBlockTransitions {
 
     pub fn states_iter(&self) -> Iter<ActorId, H256> {
         self.states.iter()
+    }
+
+    pub fn known_programs(&self) -> Vec<ActorId> {
+        self.states.keys().cloned().collect()
     }
 
     pub fn current_messages(&self) -> Vec<(ActorId, OutgoingMessage)> {
@@ -181,7 +185,7 @@ impl InBlockTransitions {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: ActorId,

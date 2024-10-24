@@ -32,7 +32,7 @@ use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
-use ethexe_runtime_common::state::{Mailbox, Storage};
+use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
@@ -247,14 +247,13 @@ async fn mailbox() {
 
     assert_eq!(schedule, expected_schedule);
 
-    let expected_mailbox: Mailbox = BTreeMap::from_iter([(
+    let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
         BTreeMap::from_iter([
-            (mid_expected_message, (0u128, expiry).into()),
-            (ping_expected_message, (0, expiry).into()),
+            (mid_expected_message, ValueWithExpiry { value: 0, expiry }),
+            (ping_expected_message, ValueWithExpiry { value: 0, expiry }),
         ]),
-    )])
-    .into();
+    )]);
 
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
@@ -265,7 +264,7 @@ async fn mailbox() {
         .mailbox_hash
         .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
-    assert_eq!(mailbox, expected_mailbox);
+    assert_eq!(mailbox.into_inner(), expected_mailbox);
 
     mirror
         .send_reply(ping_expected_message, "PONG", 0)
@@ -288,13 +287,12 @@ async fn mailbox() {
         .mailbox_hash
         .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
-    let expected_mailbox: Mailbox = BTreeMap::from_iter([(
+    let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, (0u128, expiry).into())]),
-    )])
-    .into();
+        BTreeMap::from_iter([(mid_expected_message, ValueWithExpiry { value: 0, expiry })]),
+    )]);
 
-    assert_eq!(mailbox, expected_mailbox);
+    assert_eq!(mailbox.into_inner(), expected_mailbox);
 
     mirror.claim_value(mid_expected_message).await.unwrap();
 

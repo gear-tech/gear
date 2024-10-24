@@ -700,6 +700,10 @@ impl Mailbox {
         self.changed
             .then(|| MaybeHashOf((!self.inner.is_empty()).then(|| storage.write_mailbox(self))))
     }
+
+    pub fn into_inner(self) -> BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
+        self.into()
+    }
 }
 
 #[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]

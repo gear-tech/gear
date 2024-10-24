@@ -120,7 +120,7 @@ impl ProcessingHandler {
                     transitions.remove_task(
                         expiry,
                         &ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to),
-                    );
+                    )?;
 
                     let reply = Dispatch::new_reply(storage, replied_to, source, payload, value)?;
 
@@ -132,37 +132,40 @@ impl ProcessingHandler {
                 })?;
             }
             MirrorEvent::ValueClaimingRequested { claimed_id, source } => {
-                self.update_state(actor_id, |state, storage, transitions| {
-                    if let Some(ValueWithExpiry { value, expiry }) = state
+                self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
+                    let Some(ValueWithExpiry { value, expiry }) = state
                         .mailbox_hash
                         .modify_mailbox(storage, |mailbox| mailbox.remove(source, claimed_id))
-                    {
-                        transitions.modify_transition(actor_id, |transition| {
-                            transition.claims.push(ValueClaim {
-                                message_id: claimed_id,
-                                destination: source,
-                                value,
-                            });
+                    else {
+                        return Ok(());
+                    };
+                    transitions.modify_transition(actor_id, |transition| {
+                        transition.claims.push(ValueClaim {
+                            message_id: claimed_id,
+                            destination: source,
+                            value,
                         });
+                    });
 
-                        transitions.remove_task(
-                            expiry,
-                            &ScheduledTask::RemoveFromMailbox((actor_id, source), claimed_id),
-                        );
+                    transitions.remove_task(
+                        expiry,
+                        &ScheduledTask::RemoveFromMailbox((actor_id, source), claimed_id),
+                    )?;
 
-                        let reply = Dispatch::reply(
-                            claimed_id,
-                            source,
-                            MaybeHashOf::empty(),
-                            0,
-                            SuccessReplyReason::Auto,
-                        );
+                    let reply = Dispatch::reply(
+                        claimed_id,
+                        source,
+                        MaybeHashOf::empty(),
+                        0,
+                        SuccessReplyReason::Auto,
+                    );
 
-                        state
-                            .queue_hash
-                            .modify_queue(storage, |queue| queue.queue(reply));
-                    }
-                });
+                    state
+                        .queue_hash
+                        .modify_queue(storage, |queue| queue.queue(reply));
+
+                    Ok(())
+                })?;
             }
         };
 
