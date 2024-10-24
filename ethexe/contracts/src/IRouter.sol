@@ -46,6 +46,7 @@ interface IRouter {
     struct StateTransition {
         address actorId;
         bytes32 newStateHash;
+        address inheritor;
         uint128 valueToReceive;
         ValueClaim[] valueClaims;
         OutgoingMessage[] messages;

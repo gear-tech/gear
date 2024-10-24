@@ -429,11 +429,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             }
         }
 
+        if (stateTransition.inheritor != address(0)) {
+            mirrorActor.setInheritor(stateTransition.inheritor);
+        }
+
         mirrorActor.updateState(stateTransition.newStateHash);
 
         return _stateTransitionHash(
             stateTransition.actorId,
             stateTransition.newStateHash,
+            stateTransition.inheritor,
             stateTransition.valueToReceive,
             keccak256(valueClaimsBytes),
             keccak256(messagesHashes)
@@ -452,11 +457,14 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function _stateTransitionHash(
         address actorId,
         bytes32 newStateHash,
+        address inheritor,
         uint128 valueToReceive,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(actorId, newStateHash, valueToReceive, valueClaimsHash, messagesHashesHash));
+        return keccak256(
+            abi.encodePacked(actorId, newStateHash, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash)
+        );
     }
 
     function _outgoingMessageHash(OutgoingMessage calldata outgoingMessage) private pure returns (bytes32) {

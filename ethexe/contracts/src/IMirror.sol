@@ -75,6 +75,8 @@ interface IMirror {
 
     function stateHash() external view returns (bytes32);
 
+    function inheritor() external view returns (address);
+
     function nonce() external view returns (uint256);
 
     function router() external view returns (address);
@@ -87,14 +89,19 @@ interface IMirror {
 
     function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external payable;
 
+    // payable?
     function claimValue(bytes32 claimedId) external;
 
     function executableBalanceTopUp(uint128 value) external payable;
+
+    function sendValueToInheritor() external;
 
     /* Router-driven state and funds management */
     // NOTE: all of these methods will have additional handler (with hooks) for decoder.
 
     function updateState(bytes32 newStateHash) external;
+
+    function setInheritor(address inheritor) external;
 
     function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external;
 
@@ -102,8 +109,6 @@ interface IMirror {
         external;
 
     function valueClaimed(bytes32 claimedId, address destination, uint128 value) external;
-
-    function executableBalanceBurned(uint128 value) external;
 
     function createDecoder(address implementation, bytes32 salt) external;
 
