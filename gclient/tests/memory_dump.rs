@@ -89,32 +89,27 @@ async fn memory_dump() -> Result<()> {
         .await?;
     assert!(listener.message_processed(message_id).await?.succeed());
 
-    assert_eq!(
-        charge_10(&api, program_id, &mut listener).await.unwrap(),
-        ""
-    );
+    assert_eq!(charge_10(&api, program_id, &mut listener).await?, "");
 
     let cleanup = CleanupFolderOnDrop {
         path: "./296c6962726".to_string(),
     };
 
     api.save_program_memory_dump_at(program_id, None, "./296c6962726/demo_custom.dump")
-        .await
-        .unwrap();
+        .await?;
 
     assert_eq!(
-        charge_10(&api, program_id, &mut listener).await.unwrap(),
+        charge_10(&api, program_id, &mut listener).await?,
         "Discharged: 20"
     );
 
     api.replace_program_memory(program_id, "./296c6962726/demo_custom.dump")
-        .await
-        .unwrap();
+        .await?;
 
     drop(cleanup);
 
     assert_eq!(
-        charge_10(&api, program_id, &mut listener).await.unwrap(),
+        charge_10(&api, program_id, &mut listener).await?,
         "Discharged: 20"
     );
 
