@@ -496,10 +496,6 @@ async fn ping_reorg() {
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.reply_payload, b"PONG");
 
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(env.block_time).await;
-
     log::info!("📗 Test after reverting to the program creation snapshot");
     provider
         .anvil_revert(program_created_snapshot_id)
@@ -541,10 +537,6 @@ async fn ping_reorg() {
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.reply_payload, b"PONG");
-
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(Duration::from_secs(1)).await;
 }
 
 // Mine 150 blocks - send message - mine 150 blocks.
@@ -862,7 +854,7 @@ mod utils {
                 .expect("failed to create observer");
 
             let (broadcaster, _events_stream) = {
-                let mut observer = observer.clone();
+                let observer = observer.clone();
                 let (sender, mut receiver) = tokio::sync::broadcast::channel::<Event>(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
@@ -870,7 +862,7 @@ mod utils {
                 let (send_subscription_created, receive_subscription_created) =
                     oneshot::channel::<()>();
                 let handle = task::spawn(async move {
-                    let observer_events = observer.events_all();
+                    let observer_events = observer.events_stream_producer().events_all();
                     futures::pin_mut!(observer_events);
 
                     send_subscription_created.send(()).unwrap();
@@ -1331,12 +1323,9 @@ mod utils {
                 None,
                 None,
             );
-
-            let handle = task::spawn(service.run());
+            let service_pending_run = service.pending_run().await;
+            let handle = task::spawn(service_pending_run.complete_run());
             self.running_service_handle = Some(handle);
-
-            // Sleep to wait for the new service to start
-            tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
         pub async fn stop_service(&mut self) {

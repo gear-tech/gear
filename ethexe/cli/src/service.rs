@@ -32,7 +32,7 @@ use ethexe_common::{
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::NetworkReceiverEvent;
-use ethexe_observer::{RequestBlockData, RequestEvent};
+use ethexe_observer::{EventsStreamProducer, RequestBlockData, RequestEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
@@ -51,7 +51,9 @@ use utils::*;
 /// ethexe service.
 pub struct Service {
     db: Database,
-    observer: ethexe_observer::Observer,
+    // Option used to enable "taking" observer from it when calling
+    // Service methods by `self`. Contract: always `Some`.
+    observer: Option<ethexe_observer::Observer>,
     query: ethexe_observer::Query,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
@@ -184,7 +186,7 @@ impl Service {
         Ok(Self {
             db,
             network,
-            observer,
+            observer: Some(observer),
             query,
             processor,
             sequencer,
@@ -221,7 +223,7 @@ impl Service {
     ) -> Self {
         Self {
             db,
-            observer,
+            observer: Some(observer),
             query,
             processor,
             signer,
@@ -398,29 +400,45 @@ impl Service {
         }
     }
 
-    async fn run_inner(self) -> Result<()> {
+    #[cfg(test)]
+    pub async fn pending_run(self) -> ServicePendingRun {
+        ServicePendingRun::new(self).await
+    }
+
+    pub async fn run(mut self) -> Result<()> {
+        let Some(observer) = self.observer.take() else {
+            unreachable!("Contract invalidation; qed.")
+        };
+
+        if let Some(metrics_service) = self.metrics_service.take() {
+            tokio::spawn(metrics_service.run(
+                observer.get_status_receiver(),
+                self.sequencer.as_mut().map(|s| s.get_status_receiver()),
+            ));
+        }
+        let events_stream_producer = observer.events_stream_producer();
+
+        self.run_inner(events_stream_producer).await.map_err(|err| {
+            log::error!("Service finished work with error: {:?}", err);
+            err
+        })
+    }
+
+    async fn run_inner(self, events_stream_producer: EventsStreamProducer) -> Result<()> {
         let Service {
             db,
             network,
-            mut observer,
+            mut sequencer,
             mut query,
             mut processor,
-            mut sequencer,
-            signer: _signer,
             mut validator,
-            metrics_service,
             rpc,
             block_time,
+            signer: _signer,
+            ..
         } = self;
 
-        if let Some(metrics_service) = metrics_service {
-            tokio::spawn(metrics_service.run(
-                observer.get_status_receiver(),
-                sequencer.as_mut().map(|s| s.get_status_receiver()),
-            ));
-        }
-
-        let observer_events = observer.request_events();
+        let observer_events = events_stream_producer.request_events();
         futures::pin_mut!(observer_events);
 
         let (mut network_sender, mut network_receiver, mut network_handle) =
@@ -538,13 +556,6 @@ impl Service {
         }
 
         Ok(())
-    }
-
-    pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
-            log::error!("Service finished work with error: {:?}", err);
-            err
-        })
     }
 
     async fn post_process_commitments(
@@ -780,6 +791,62 @@ impl Service {
                 Ok(())
             }
         }
+    }
+}
+
+/// The type was introduced as a solution to the issue#4099.
+///
+/// Basically, it splits the events stream creation into two steps:
+/// 1) blocks subscription and 2) actually obtaining events in the loop.
+///
+/// Usually blocks subscription is done within `async_stream::stream!` in which
+/// the events obtaining loop is actually defined. This is a default design and
+/// it's too slow as subscription to blocks is scheduled when the async stream is
+/// first time polled.  
+#[cfg(test)]
+pub struct ServicePendingRun {
+    service: Service,
+    events_stream_producer: EventsStreamProducer,
+}
+
+#[cfg(test)]
+impl ServicePendingRun {
+    async fn new(mut service: Service) -> Self {
+        let Some(observer) = service.observer.take() else {
+            unreachable!("Contract invalidation; qed.")
+        };
+
+        if let Some(metrics_service) = service.metrics_service.take() {
+            tokio::spawn(metrics_service.run(
+                observer.get_status_receiver(),
+                service.sequencer.as_mut().map(|s| s.get_status_receiver()),
+            ));
+        }
+
+        let events_stream_producer = observer
+            .events_stream_producer()
+            .with_blocks_subscribed_first()
+            .await;
+
+        Self {
+            service,
+            events_stream_producer,
+        }
+    }
+
+    pub async fn complete_run(self) -> Result<()> {
+        let Self {
+            service,
+            events_stream_producer,
+        } = self;
+
+        service
+            .run_inner(events_stream_producer)
+            .await
+            .map_err(|err| {
+                log::error!("Service finished work with error: {:?}", err);
+                err
+            })
     }
 }
 

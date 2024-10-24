@@ -5,7 +5,8 @@ use crate::{
 use alloy::{
     primitives::Address as AlloyAddress,
     providers::{Provider, ProviderBuilder, RootProvider},
-    rpc::types::eth::{Filter, Topic},
+    pubsub::Subscription,
+    rpc::types::eth::{Block, Filter, Topic},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
@@ -74,18 +75,71 @@ impl Observer {
         update_fn(&mut self.status);
         let _ = self.status_sender.send_replace(self.status);
     }
+
     pub fn provider(&self) -> &ObserverProvider {
         &self.provider
     }
 
-    pub fn events_all(&mut self) -> impl Stream<Item = Event> + '_ {
+    /// Returns events stream producer, which produces a stream for polling events
+    /// in observed blocks.
+    pub fn events_stream_producer(self) -> EventsStreamProducer {
+        EventsStreamProducer::new(self)
+    }
+
+    async fn subscribe_blocks(&self) -> Result<Subscription<Block>> {
+        self.provider.subscribe_blocks().await.map_err(Into::into)
+    }
+}
+
+/// Events stream producer.
+///
+/// Produces events stream that yields obtained from the observed chain blocks.
+pub struct EventsStreamProducer {
+    observer: Observer,
+    maybe_subscription: Option<Subscription<Block>>,
+}
+
+impl EventsStreamProducer {
+    /// Creates an events stream producer from the `observer`.
+    pub fn new(observer: Observer) -> Self {
+        Self {
+            observer,
+            maybe_subscription: None,
+        }
+    }
+
+    /// Subscribes to blocks and stores the subscription to be used
+    /// when events stream is created.
+    ///
+    /// For more info read `ethexe_cli::service::ServicePendingRun` docs.
+    pub async fn with_blocks_subscribed_first(self) -> Self {
+        let subscription = self
+            .observer
+            .subscribe_blocks()
+            .await
+            .expect("failed to subscribe to blocks");
+
+        Self {
+            observer: self.observer,
+            maybe_subscription: Some(subscription),
+        }
+    }
+
+    /// Returs stream for polling events.
+    pub fn events_all(self) -> impl Stream<Item = Event> + 'static {
+        let Self {
+            mut observer,
+            maybe_subscription,
+        } = self;
         async_stream::stream! {
-            let block_subscription = self
-                .provider
-                .subscribe_blocks()
-                .await
-                .expect("failed to subscribe to blocks");
-            let mut block_stream = block_subscription.into_stream();
+            let blocks_subscription = match maybe_subscription {
+                Some(blocks_subscription) => blocks_subscription,
+                None => observer
+                    .subscribe_blocks()
+                    .await
+                    .expect("failed to subscribe to blocks")
+            };
+            let mut block_stream = blocks_subscription.into_stream();
             let mut futures = FuturesUnordered::new();
 
             loop {
@@ -103,7 +157,7 @@ impl Observer {
                         let block_number = block.header.number;
                         let block_timestamp = block.header.timestamp;
 
-                        let events = match read_block_events(block_hash, &self.provider, self.router_address).await {
+                        let events = match read_block_events(block_hash, &observer.provider, observer.router_address).await {
                             Ok(events) => events,
                             Err(err) => {
                                 log::error!("failed to read events: {err}");
@@ -118,7 +172,7 @@ impl Observer {
                             if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
                                 codes_len += 1;
 
-                                let blob_reader = self.blob_reader.clone();
+                                let blob_reader = observer.blob_reader.clone();
 
                                 let code_id = *code_id;
                                 let blob_tx_hash = *blob_tx_hash;
@@ -136,7 +190,7 @@ impl Observer {
                             }
                         }
 
-                        self.update_status(|status| {
+                        observer.update_status(|status| {
                             status.eth_block_number = block_number;
                             if codes_len > 0 {
                                 status.last_router_state = block_number;
@@ -168,14 +222,21 @@ impl Observer {
         }
     }
 
-    pub fn request_events(&mut self) -> impl Stream<Item = RequestEvent> + '_ {
+    /// Returs stream for polling request events.
+    pub fn request_events(self) -> impl Stream<Item = RequestEvent> + 'static {
+        let Self {
+            mut observer,
+            maybe_subscription,
+        } = self;
         async_stream::stream! {
-            let block_subscription = self
-                .provider
-                .subscribe_blocks()
-                .await
-                .expect("failed to subscribe to blocks");
-            let mut block_stream = block_subscription.into_stream();
+            let blocks_subscription = match maybe_subscription {
+                Some(blocks_subscription) => blocks_subscription,
+                None => observer
+                    .subscribe_blocks()
+                    .await
+                    .expect("failed to subscribe to blocks")
+            };
+            let mut block_stream = blocks_subscription.into_stream();
             let mut futures = FuturesUnordered::new();
 
             loop {
@@ -193,7 +254,7 @@ impl Observer {
                         let block_number = block.header.number;
                         let block_timestamp = block.header.timestamp;
 
-                        let events = match read_block_request_events(block_hash, &self.provider, self.router_address).await {
+                        let events = match read_block_request_events(block_hash, &observer.provider, observer.router_address).await {
                             Ok(events) => events,
                             Err(err) => {
                                 log::error!("failed to read events: {err}");
@@ -209,7 +270,7 @@ impl Observer {
                             if let BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
                                 codes_len += 1;
 
-                                let blob_reader = self.blob_reader.clone();
+                                let blob_reader = observer.blob_reader.clone();
 
                                 let code_id = *code_id;
                                 let blob_tx_hash = *blob_tx_hash;
@@ -227,7 +288,7 @@ impl Observer {
                             }
                         }
 
-                        self.update_status(|status| {
+                        observer.update_status(|status| {
                             status.eth_block_number = block_number;
                             if codes_len > 0 {
                                 status.last_router_state = block_number;
@@ -563,11 +624,11 @@ mod tests {
 
         let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let handle = task::spawn(async move {
-            let mut observer = Observer::new(&ethereum_rpc, router_address, cloned_blob_reader)
+            let observer = Observer::new(&ethereum_rpc, router_address, cloned_blob_reader)
                 .await
                 .expect("failed to create observer");
 
-            let observer_events = observer.events_all();
+            let observer_events = observer.events_stream_producer().events_all();
             futures::pin_mut!(observer_events);
 
             send_subscription_created.send(()).unwrap();
