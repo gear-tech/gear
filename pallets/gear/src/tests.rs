@@ -12636,9 +12636,12 @@ fn incomplete_async_payloads_kept() {
             None,
             Some("OK PING"),
             Some("OK REPLY"),
-            None,
-            Some("STORED COMMON"),
-            Some("STORED REPLY"),
+            // payload is not kept between executions so we get a panic here
+            Some(
+                "Panic occurred: panicked with 'Failed to push payload: Ext(Message(OutOfBounds))'",
+            ),
+            // here we get `REPLY` again because its `push("REPLY")` + `commit()`
+            Some("REPLY"),
         ]
         .iter()
         .map(|v| {
@@ -15484,8 +15487,8 @@ fn incorrect_store_context() {
         QueueOf::<Test>::queue(dispatch).unwrap();
 
         run_to_next_block(None);
-
-        assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
+        // does not fail anymore, context does not keep state between executions
+        assert_succeed(mid);
     });
 }
 
@@ -16809,7 +16812,7 @@ pub(crate) mod utils {
 
         if messages.len() != assertions.len() {
             panic!(
-                "Expected {} messages, you assert only {} of them\n{:?}",
+                "Expected {} messages, you assert only {} of them\n{:#?}",
                 messages.len(),
                 assertions.len(),
                 messages
