@@ -28,6 +28,7 @@ use anyhow::{anyhow, Result};
 use core::{
     any::Any,
     marker::PhantomData,
+    mem,
     num::NonZero,
     ops::{Deref, DerefMut},
 };
@@ -87,7 +88,7 @@ pub enum PayloadLookup {
 
 impl Default for PayloadLookup {
     fn default() -> Self {
-        Self::Direct(Default::default())
+        Self::empty()
     }
 }
 
@@ -101,8 +102,30 @@ impl PayloadLookup {
     /// Lower len to be stored in storage instead of holding value itself; 1 KB.
     pub const STORING_THRESHOLD: usize = 1024;
 
-    pub fn empty() -> Self {
-        Default::default()
+    pub const fn empty() -> Self {
+        Self::Direct(Payload::new())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        if let Self::Direct(payload) = self {
+            payload.inner().is_empty()
+        } else {
+            false
+        }
+    }
+
+    pub fn force_stored<S: Storage>(&mut self, storage: &S) -> HashOf<Payload> {
+        let hash = match self {
+            Self::Direct(payload) => {
+                let payload = mem::replace(payload, Payload::new());
+                storage.write_payload(payload)
+            }
+            Self::Stored(hash) => *hash,
+        };
+
+        *self = hash.into();
+
+        hash
     }
 
     pub fn query<S: Storage>(self, storage: &S) -> Result<Payload> {
