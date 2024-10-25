@@ -89,6 +89,11 @@ impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
 }
 
 impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
+    /// Constructs a new, empty `LimitedVec<T>`.
+    pub const fn new() -> Self {
+        Self(Vec::new(), PhantomData)
+    }
+
     /// Tries to create new limited vector of length `len`
     /// with default initialized elements.
     pub fn try_new_default(len: usize) -> Result<Self, E> {
