@@ -315,9 +315,12 @@ pub fn instantiate(
                     }
                 };
 
-                linker
-                    .define(module, name, function)
-                    .map_err(|_| InstantiationError::ModuleDecoding)?;
+                // Filter out duplicate imports
+                if linker.get(&*store, module, name).is_none() {
+                    linker
+                        .define(module, name, function)
+                        .map_err(|_| InstantiationError::ModuleDecoding)?;
+                }
             }
         }
     }
