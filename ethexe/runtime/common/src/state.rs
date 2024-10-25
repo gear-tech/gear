@@ -79,6 +79,42 @@ mod private {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum PayloadLookup {
+    Direct(Payload),
+    Stored(HashOf<Payload>),
+}
+
+impl Default for PayloadLookup {
+    fn default() -> Self {
+        Self::Direct(Default::default())
+    }
+}
+
+impl From<HashOf<Payload>> for PayloadLookup {
+    fn from(value: HashOf<Payload>) -> Self {
+        Self::Stored(value)
+    }
+}
+
+impl PayloadLookup {
+    /// Lower len to be stored in storage instead of holding value itself; 1 KB.
+    pub const STORING_THRESHOLD: usize = 1024;
+
+    pub fn empty() -> Self {
+        Default::default()
+    }
+
+    pub fn query<S: Storage>(self, storage: &S) -> Result<Payload> {
+        match self {
+            Self::Direct(payload) => Ok(payload),
+            Self::Stored(hash) => storage
+                .read_payload(hash)
+                .ok_or(anyhow!("failed to read ['Payload'] from storage by hash")),
+        }
+    }
+}
+
 #[derive(
     Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::DebugCustom, derive_more::Display,
 )]
@@ -440,7 +476,7 @@ pub struct Dispatch {
     /// Message source.
     pub source: ProgramId,
     /// Message payload.
-    pub payload_hash: MaybeHashOf<Payload>,
+    pub payload: PayloadLookup,
     /// Message value.
     pub value: Value,
     /// Message details like reply message ID, status code, etc.
@@ -857,13 +893,18 @@ pub trait Storage {
     /// Writes payload and returns its hash.
     fn write_payload(&self, payload: Payload) -> HashOf<Payload>;
 
-    /// Writes payload if it doesnt exceed limits.
-    fn write_payload_raw(&self, payload: Vec<u8>) -> Result<MaybeHashOf<Payload>> {
-        Payload::try_from(payload)
-            .map(|payload| {
-                MaybeHashOf((!payload.inner().is_empty()).then(|| self.write_payload(payload)))
-            })
-            .map_err(|_| anyhow!("payload exceeds size limit"))
+    /// Writes payload if it doesnt exceed limits, returning lookup.
+    fn write_payload_raw(&self, payload: Vec<u8>) -> Result<PayloadLookup> {
+        let payload =
+            Payload::try_from(payload).map_err(|_| anyhow!("payload exceeds size limit"))?;
+
+        let res = if payload.inner().len() < PayloadLookup::STORING_THRESHOLD {
+            PayloadLookup::Direct(payload)
+        } else {
+            PayloadLookup::Stored(self.write_payload(payload))
+        };
+
+        Ok(res)
     }
 
     /// Reads page data by page data hash.
