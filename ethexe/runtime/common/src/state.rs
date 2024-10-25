@@ -494,7 +494,7 @@ impl Dispatch {
         value: u128,
         is_init: bool,
     ) -> Result<Self> {
-        let payload_hash = storage.write_payload_raw(payload)?;
+        let payload = storage.write_payload_raw(payload)?;
 
         let kind = if is_init {
             DispatchKind::Init
@@ -506,7 +506,7 @@ impl Dispatch {
             id,
             kind,
             source,
-            payload_hash,
+            payload,
             value,
             details: None,
             context: None,
@@ -534,7 +534,7 @@ impl Dispatch {
     pub fn reply(
         reply_to: MessageId,
         source: ActorId,
-        payload_hash: MaybeHashOf<Payload>,
+        payload: PayloadLookup,
         value: u128,
         reply_code: impl Into<ReplyCode>,
     ) -> Self {
@@ -542,7 +542,7 @@ impl Dispatch {
             id: MessageId::generate_reply(reply_to),
             kind: DispatchKind::Reply,
             source,
-            payload_hash,
+            payload,
             value,
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
@@ -553,7 +553,7 @@ impl Dispatch {
         let (kind, message, context) = value.into_parts();
         let (id, source, destination, payload, value, details) = message.into_parts();
 
-        let payload_hash = storage
+        let payload = storage
             .write_payload_raw(payload.into_vec())
             .expect("infallible due to recasts (only panics on len)");
 
@@ -561,7 +561,7 @@ impl Dispatch {
             id,
             kind,
             source,
-            payload_hash,
+            payload,
             value,
             details,
             context,
@@ -571,18 +571,13 @@ impl Dispatch {
     pub fn into_outgoing<S: Storage>(self, storage: &S, destination: ActorId) -> OutgoingMessage {
         let Self {
             id,
-            payload_hash,
+            payload,
             value,
             details,
             ..
         } = self;
 
-        let payload = payload_hash.with_hash_or_default(|payload_hash| {
-            storage
-                .read_payload(payload_hash)
-                .expect("must be found")
-                .into_vec()
-        });
+        let payload = payload.query(storage).expect("must be found").into_vec();
 
         OutgoingMessage {
             id,

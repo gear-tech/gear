@@ -24,7 +24,7 @@ use ethexe_common::{
     wvara::RequestEvent as WVaraEvent,
 };
 use ethexe_db::{CodesStorage, ScheduledTask};
-use ethexe_runtime_common::state::{Dispatch, MaybeHashOf, ValueWithExpiry};
+use ethexe_runtime_common::state::{Dispatch, PayloadLookup, ValueWithExpiry};
 use gear_core::{ids::ProgramId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
@@ -155,7 +155,7 @@ impl ProcessingHandler {
                     let reply = Dispatch::reply(
                         claimed_id,
                         source,
-                        MaybeHashOf::empty(),
+                        PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
                     );
