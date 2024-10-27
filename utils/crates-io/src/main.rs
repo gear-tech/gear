@@ -62,14 +62,15 @@ async fn main() -> Result<()> {
             simulate,
             registry_path,
         } => {
-            let publisher =
-                Publisher::with_simulation(simulate, registry_path)?.build(true, version)?;
+            let publisher = Publisher::with_simulation(simulate, registry_path)?
+                .build(true, version)
+                .await?;
             let result = publisher.publish();
             publisher.restore()?;
             result
         }
         Command::Build => {
-            Publisher::new()?.build(false, None)?;
+            Publisher::new()?.build(false, None).await?;
             Ok(())
         }
     }

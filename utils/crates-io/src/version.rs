@@ -20,24 +20,25 @@
 
 use crate::{handler, Simulator};
 use anyhow::{anyhow, Result};
+use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::process::Command;
 
 #[derive(Debug, Deserialize)]
-struct Resp {
-    pub versions: Vec<Version>,
+struct VersionsResponse {
+    versions: Vec<Version>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Version {
-    pub num: String,
+    num: String,
 }
 
 /// Verify if the package has already been published.
-pub fn verify(name: &str, version: &str, simulator: Option<&Simulator>) -> Result<bool> {
+pub async fn verify(name: &str, version: &str, simulator: Option<&Simulator>) -> Result<bool> {
     println!("Verifying {name}@{version} ...");
 
-    let client = reqwest::blocking::Client::builder()
+    let client = Client::builder()
         .user_agent("gear-crates-io-manager")
         .build()?;
 
@@ -48,21 +49,66 @@ pub fn verify(name: &str, version: &str, simulator: Option<&Simulator>) -> Resul
                 simulator.addr(),
                 handler::crates_io_name(name)
             ))
-            .send()?
+            .send()
+            .await?
             .error_for_status()
             .is_ok()
         {
             return Ok(true);
         }
-    } else if let Ok(resp) = client
+    } else if let Ok(response) = client
         .get(format!(
             "https://crates.io/api/v1/crates/{}/versions",
             handler::crates_io_name(name)
         ))
-        .send()?
-        .json::<Resp>()
+        .send()
+        .await?
+        .json::<VersionsResponse>()
+        .await
     {
-        return Ok(resp.versions.into_iter().any(|v| v.num == version));
+        return Ok(response.versions.into_iter().any(|v| v.num == version));
+    }
+
+    Ok(false)
+}
+
+const EXPECTED_OWNERS: [&str; 2] = ["breathx", "github:gear-tech:dev"];
+
+#[derive(Debug, Deserialize)]
+struct OwnersResponse {
+    users: Vec<User>,
+}
+
+#[derive(Debug, Deserialize)]
+struct User {
+    login: String,
+}
+
+/// Verify if the package has valid owners.
+pub async fn verify_ownership(name: &str) -> Result<bool> {
+    println!("Verifying {name} ownership ...");
+
+    let client = Client::builder()
+        .user_agent("gear-crates-io-manager")
+        .build()?;
+
+    let response = client
+        .get(format!(
+            "https://crates.io/api/v1/crates/{}/owners",
+            handler::crates_io_name(name)
+        ))
+        .send()
+        .await?;
+
+    if response.status() == StatusCode::NOT_FOUND {
+        return Ok(true);
+    }
+
+    if let Ok(response) = response.json::<OwnersResponse>().await {
+        return Ok(response.users.len() == EXPECTED_OWNERS.len()
+            && EXPECTED_OWNERS
+                .into_iter()
+                .all(|owner| response.users.iter().any(|u| u.login == owner)));
     }
 
     Ok(false)

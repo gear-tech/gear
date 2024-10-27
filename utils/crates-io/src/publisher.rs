@@ -58,7 +58,7 @@ impl Publisher {
     /// 1. Replace git dependencies to crates-io dependencies.
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
-    pub fn build(mut self, verify: bool, version: Option<String>) -> Result<Self> {
+    pub async fn build(mut self, verify: bool, version: Option<String>) -> Result<Self> {
         let mut workspace = Workspace::lookup(version)?;
         let version = workspace.version()?;
 
@@ -68,7 +68,11 @@ impl Publisher {
                 continue;
             };
 
-            if verify && crate::verify(name, &version, self.simulator.as_ref())? {
+            if verify && !crate::verify_ownership(name).await? {
+                bail!("Package {name} has an invalid owner!");
+            }
+
+            if verify && crate::verify(name, &version, self.simulator.as_ref()).await? {
                 println!("Package {name}@{version} already published!");
                 continue;
             }

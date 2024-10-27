@@ -29,7 +29,7 @@ pub use self::{
     manifest::{LockFile, Manifest, Workspace},
     publisher::Publisher,
     simulator::Simulator,
-    version::verify,
+    version::{verify, verify_ownership},
 };
 use anyhow::Result;
 use std::process::{Command, ExitStatus};
@@ -60,6 +60,7 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
 pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gprimitives",
     "gbuiltin-eth-bridge",
+    "gbuiltin-proxy",
     "gbuiltin-staking",
     "gstd-codegen",
     "gcore",
