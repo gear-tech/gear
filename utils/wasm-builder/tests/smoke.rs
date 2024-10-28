@@ -59,6 +59,8 @@ fn install_stable_toolchain() {
             .arg("stable")
             .arg("--component")
             .arg("llvm-tools")
+            .arg("--component")
+            .arg("rust-src")
             .arg("--target")
             .arg("wasm32-unknown-unknown")
             .status()

@@ -85,7 +85,7 @@ struct User {
 }
 
 /// Verify if the package has valid owners.
-pub async fn verify_ownership(name: &str) -> Result<bool> {
+pub async fn verify_owners(name: &str) -> Result<bool> {
     println!("Verifying {name} ownership ...");
 
     let client = Client::builder()

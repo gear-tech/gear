@@ -68,8 +68,8 @@ impl Publisher {
                 continue;
             };
 
-            if verify && !crate::verify_ownership(name).await? {
-                bail!("Package {name} has an invalid owner!");
+            if verify && !crate::verify_owners(name).await? {
+                bail!("Package {name} has invalid owners!");
             }
 
             if verify && crate::verify(name, &version, self.simulator.as_ref()).await? {
@@ -125,26 +125,7 @@ impl Publisher {
     }
 
     /// Check the to-be-published packages
-    ///
-    /// TODO: Complete the check process (#3565)
-    pub fn check(&self) -> Result<()> {
-        let mut failed = Vec::new();
-        for Manifest { path, name, .. } in self.graph.iter() {
-            if !PACKAGES.contains(&name.as_str()) {
-                continue;
-            }
-
-            println!("Checking {path:?}");
-            let status = crate::check(&path.to_string_lossy())?;
-            if !status.success() {
-                failed.push(path);
-            }
-        }
-
-        if !failed.is_empty() {
-            bail!("Packages {failed:?} failed to pass the check ...");
-        }
-
+    pub fn check(self) -> Result<Self> {
         // Post tests for gtest and gclient
         for (pkg, test) in [
             ("demo-syscall-error", "program_can_be_initialized"),
@@ -155,7 +136,7 @@ impl Publisher {
             }
         }
 
-        Ok(())
+        Ok(self)
     }
 
     /// Publish packages

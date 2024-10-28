@@ -29,7 +29,7 @@ pub use self::{
     manifest::{LockFile, Manifest, Workspace},
     publisher::Publisher,
     simulator::Simulator,
-    version::{verify, verify_ownership},
+    version::{verify, verify_owners},
 };
 use anyhow::Result;
 use std::process::{Command, ExitStatus};
@@ -106,14 +106,6 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
 
 /// Name for temporary cargo registry.
 pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";
-
-/// Check the input package
-pub fn check(manifest: &str) -> Result<ExitStatus> {
-    Command::new("cargo")
-        .args(["+stable", "check", "--manifest-path", manifest])
-        .status()
-        .map_err(Into::into)
-}
 
 /// Test the input package
 pub fn test(package: &str, test: &str) -> Result<ExitStatus> {

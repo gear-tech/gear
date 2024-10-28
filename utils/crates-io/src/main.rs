@@ -64,7 +64,8 @@ async fn main() -> Result<()> {
         } => {
             let publisher = Publisher::with_simulation(simulate, registry_path)?
                 .build(true, version)
-                .await?;
+                .await?
+                .check()?;
             let result = publisher.publish();
             publisher.restore()?;
             result
