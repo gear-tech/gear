@@ -26,7 +26,9 @@ use std::{
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use region::{Allocation, Protection};
-use wasmi::{AsContext, AsContextMut, Engine, ExternType, Linker, MemoryType, Module, Val};
+use wasmi::{
+    AsContext, AsContextMut, Engine, ExternType, Linker, MemoryType, Module, StackLimits, Val,
+};
 
 use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 
@@ -116,8 +118,18 @@ impl Drop for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let engine = Engine::default();
+        const DEFAULT_MAX_RECURSION_DEPTH: usize = 10 * 1024;
+
+        // Increase recursion limit because it was not enough for some programs on testnet to run
+        let mut config = wasmi::Config::default();
+        config.set_stack_limits(StackLimits {
+            maximum_recursion_depth: DEFAULT_MAX_RECURSION_DEPTH,
+            ..Default::default()
+        });
+
+        let engine = Engine::new(&config);
         let store = Store::new(&engine, None);
+
         Backend {
             store: Rc::new(StoreRefCell::new(store)),
             allocations: Vec::new(),
