@@ -91,6 +91,105 @@ impl Observer {
     }
 }
 
+macro_rules! define_event_stream_method {
+    (
+        $method_name:ident,
+        $read_events_fn:ident,
+        $block_event_type:ty,
+        $router_event_type:ty,
+        $block_data_type:ty,
+        $event_type:ty
+    ) => {
+        pub fn $method_name(self) -> impl Stream<Item = $event_type> + 'static {
+            let Self {
+                mut observer,
+                maybe_subscription,
+            } = self;
+            async_stream::stream! {
+                let blocks_subscription = match maybe_subscription {
+                    Some(subscription) => subscription,
+                    None => observer
+                        .subscribe_blocks()
+                        .await
+                        .expect("failed to subscribe to blocks"),
+                };
+                let mut block_stream = blocks_subscription.into_stream();
+                let mut futures = FuturesUnordered::new();
+
+                loop {
+                    tokio::select! {
+                        block = block_stream.next() => {
+                            let Some(block) = block else {
+                                log::info!("Block stream ended");
+                                break;
+                            };
+
+                            log::trace!("Received block: {:?}", block.header.hash);
+
+                            let block_hash = (*block.header.hash).into();
+                            let parent_hash = (*block.header.parent_hash).into();
+                            let block_number = block.header.number;
+                            let block_timestamp = block.header.timestamp;
+
+                            let events = match $read_events_fn(block_hash, &observer.provider, observer.router_address).await {
+                                Ok(events) => events,
+                                Err(err) => {
+                                    log::error!("failed to read events: {err}");
+                                    continue;
+                                }
+                            };
+
+                            let mut codes_len = 0;
+
+                            for event in events.iter() {
+                                if let $block_event_type::Router($router_event_type::CodeValidationRequested { code_id, blob_tx_hash }) = event {
+                                    codes_len += 1;
+
+                                    let blob_reader = observer.blob_reader.clone();
+                                    let code_id = *code_id;
+                                    let blob_tx_hash = *blob_tx_hash;
+
+                                    futures.push(async move {
+                                        let attempts = Some(3);
+                                        read_code_from_tx_hash(blob_reader, code_id, blob_tx_hash, attempts).await
+                                    });
+                                }
+                            }
+
+                            observer.update_status(|status| {
+                                status.eth_block_number = block_number;
+                                if codes_len > 0 {
+                                    status.last_router_state = block_number;
+                                }
+                                status.pending_upload_code = codes_len as u64;
+                            });
+
+                            let block_data = $block_data_type {
+                                hash: block_hash,
+                                header: BlockHeader {
+                                    height: block_number as u32,
+                                    timestamp: block_timestamp,
+                                    parent_hash,
+                                },
+                                events,
+                            };
+
+                            yield $event_type::Block(block_data);
+                        },
+                        future = futures.next(), if !futures.is_empty() => {
+                            match future {
+                                Some(Ok((code_id, code))) => yield $event_type::CodeLoaded { code_id, code },
+                                Some(Err(err)) => log::error!("failed to handle upload code event: {err}"),
+                                None => continue,
+                            }
+                        }
+                    };
+                }
+            }
+        }
+    }
+}
+
 /// Events stream producer.
 ///
 /// Produces events stream that yields obtained from the observed chain blocks.
@@ -125,200 +224,23 @@ impl EventsStreamProducer {
         }
     }
 
-    /// Returs stream for polling events.
-    pub fn events_all(self) -> impl Stream<Item = Event> + 'static {
-        let Self {
-            mut observer,
-            maybe_subscription,
-        } = self;
-        async_stream::stream! {
-            let blocks_subscription = match maybe_subscription {
-                Some(blocks_subscription) => blocks_subscription,
-                None => observer
-                    .subscribe_blocks()
-                    .await
-                    .expect("failed to subscribe to blocks")
-            };
-            let mut block_stream = blocks_subscription.into_stream();
-            let mut futures = FuturesUnordered::new();
+    define_event_stream_method!(
+        events_all,
+        read_block_events,
+        BlockEvent,
+        RouterEvent,
+        BlockData,
+        Event
+    );
 
-            loop {
-                tokio::select! {
-                    block = block_stream.next() => {
-                        let Some(block) = block else {
-                            log::info!("Block stream ended");
-                            break;
-                        };
-
-                        log::trace!("Received block: {:?}", block.header.hash);
-
-                        let block_hash = (*block.header.hash).into();
-                        let parent_hash = (*block.header.parent_hash).into();
-                        let block_number = block.header.number;
-                        let block_timestamp = block.header.timestamp;
-
-                        let events = match read_block_events(block_hash, &observer.provider, observer.router_address).await {
-                            Ok(events) => events,
-                            Err(err) => {
-                                log::error!("failed to read events: {err}");
-                                continue;
-                            }
-                        };
-
-                        let mut codes_len = 0;
-
-                        // Create futures to load codes
-                        for event in events.iter() {
-                            if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
-                                codes_len += 1;
-
-                                let blob_reader = observer.blob_reader.clone();
-
-                                let code_id = *code_id;
-                                let blob_tx_hash = *blob_tx_hash;
-
-                                futures.push(async move {
-                                    let attempts = Some(3);
-
-                                    read_code_from_tx_hash(
-                                        blob_reader,
-                                        code_id,
-                                        blob_tx_hash,
-                                        attempts,
-                                    ).await
-                                });
-                            }
-                        }
-
-                        observer.update_status(|status| {
-                            status.eth_block_number = block_number;
-                            if codes_len > 0 {
-                                status.last_router_state = block_number;
-                            }
-                            status.pending_upload_code = codes_len as u64;
-                        });
-
-                        let block_data = BlockData {
-                            hash: block_hash,
-                            header: BlockHeader {
-                                height: block_number as u32,
-                                timestamp: block_timestamp,
-                                parent_hash,
-                            },
-                            events,
-                        };
-
-                        yield Event::Block(block_data);
-                    },
-                    future = futures.next(), if !futures.is_empty() => {
-                        match future {
-                            Some(Ok((code_id, code))) => yield Event::CodeLoaded { code_id, code },
-                            Some(Err(err)) => log::error!("failed to handle upload code event: {err}"),
-                            None => continue,
-                        }
-                    }
-                };
-            }
-        }
-    }
-
-    /// Returs stream for polling request events.
-    pub fn request_events(self) -> impl Stream<Item = RequestEvent> + 'static {
-        let Self {
-            mut observer,
-            maybe_subscription,
-        } = self;
-        async_stream::stream! {
-            let blocks_subscription = match maybe_subscription {
-                Some(blocks_subscription) => blocks_subscription,
-                None => observer
-                    .subscribe_blocks()
-                    .await
-                    .expect("failed to subscribe to blocks")
-            };
-            let mut block_stream = blocks_subscription.into_stream();
-            let mut futures = FuturesUnordered::new();
-
-            loop {
-                tokio::select! {
-                    block = block_stream.next() => {
-                        let Some(block) = block else {
-                            log::info!("Block stream ended");
-                            break;
-                        };
-
-                        log::trace!("Received block: {:?}", block.header.hash);
-
-                        let block_hash = (*block.header.hash).into();
-                        let parent_hash = (*block.header.parent_hash).into();
-                        let block_number = block.header.number;
-                        let block_timestamp = block.header.timestamp;
-
-                        let events = match read_block_request_events(block_hash, &observer.provider, observer.router_address).await {
-                            Ok(events) => events,
-                            Err(err) => {
-                                log::error!("failed to read events: {err}");
-                                continue;
-                            }
-                        };
-
-                        let mut codes_len = 0;
-
-                        // Create futures to load codes
-                        // TODO (breathx): remove me from here mb
-                        for event in events.iter() {
-                            if let BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
-                                codes_len += 1;
-
-                                let blob_reader = observer.blob_reader.clone();
-
-                                let code_id = *code_id;
-                                let blob_tx_hash = *blob_tx_hash;
-
-                                futures.push(async move {
-                                    let attempts = Some(3);
-
-                                    read_code_from_tx_hash(
-                                        blob_reader,
-                                        code_id,
-                                        blob_tx_hash,
-                                        attempts,
-                                    ).await
-                                });
-                            }
-                        }
-
-                        observer.update_status(|status| {
-                            status.eth_block_number = block_number;
-                            if codes_len > 0 {
-                                status.last_router_state = block_number;
-                            }
-                            status.pending_upload_code = codes_len as u64;
-                        });
-
-                        let block_data = RequestBlockData {
-                            hash: block_hash,
-                            header: BlockHeader {
-                                height: block_number as u32,
-                                timestamp: block_timestamp,
-                                parent_hash,
-                            },
-                            events,
-                        };
-
-                        yield RequestEvent::Block(block_data);
-                    },
-                    future = futures.next(), if !futures.is_empty() => {
-                        match future {
-                            Some(Ok((code_id, code))) => yield RequestEvent::CodeLoaded { code_id, code },
-                            Some(Err(err)) => log::error!("failed to handle upload code event: {err}"),
-                            None => continue,
-                        }
-                    }
-                };
-            }
-        }
-    }
+    define_event_stream_method!(
+        request_events,
+        read_block_request_events,
+        BlockRequestEvent,
+        RouterRequestEvent,
+        RequestBlockData,
+        RequestEvent
+    );
 }
 
 pub(crate) async fn read_code_from_tx_hash(
