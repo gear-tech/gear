@@ -195,7 +195,7 @@ impl<const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
     Default,
     derive_more::Into,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde:Deserialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Page<const SIZE: u32>(u32);
 
 impl<const SIZE: u32> Page<SIZE> {

@@ -144,7 +144,7 @@ impl ContextOutcome {
 
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde:Deserialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
     outgoing: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,

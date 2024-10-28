@@ -35,7 +35,7 @@ use scale_info::{
 /// `E` is overflow error type.
 /// `N` is max len which a vector can have.
 #[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde:Deserialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
 /// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
