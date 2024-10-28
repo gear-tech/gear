@@ -20,7 +20,7 @@ derive_more.workspace = true
 tempfile.workspace = true
 
 secp256k1 = { version = "0.30", features = ["rand", "global-context", "hashes", "recovery"] }
-sha3 = { version = "0.10.0", default-features = false }
+sha3 = { version = "0.10", default-features = false }
 
 [dev-dependencies]
-ethers = "2"
+alloy.workspace = true
