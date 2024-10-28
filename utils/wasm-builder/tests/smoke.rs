@@ -164,8 +164,8 @@ fn build_release_for_target_deny_duplicate_crate() {
         .0;
     cmd.arg("--color=always");
     cmd.arg("--manifest-path=test-program/Cargo.toml");
-    cmd.arg("--config=env.GEAR_WASM_BUILDER_DENIED_DUPLICATE_CRATES=\'syn\'");
+    cmd.env("__GEAR_WASM_BUILDER_DENIED_DUPLICATE_CRATES", "syn");
 
-    let _status = cmd.status().expect("cargo run error");
-    //assert!(!status.success())
+    let status = cmd.status().expect("cargo run error");
+    assert!(!status.success())
 }
