@@ -18,7 +18,7 @@
 
 //! Utilities to build a `TestClient` for gear- or vara-runtime.
 
-use service::RuntimeExecutor;
+pub use service::RuntimeExecutor;
 use sp_runtime::BuildStorage;
 /// Re-export test-client utilities.
 pub use substrate_test_client::*;
@@ -61,14 +61,11 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 
 /// A `test-runtime` extensions to `TestClientBuilder`.
 pub trait TestClientBuilderExt: Sized {
-    /// Create test client builder.
-    fn new() -> Self;
+	/// Create test client builder.
+	fn new() -> Self;
 
-    /// Build the test client.
-    fn build(self) -> Client;
-
-    /// Build the test client with customized executor.
-    fn build_with_wasm_executor(self, executor: Option<RuntimeExecutor>) -> Client;
+	/// Build the test client.
+	fn build(self) -> Client;
 }
 
 impl TestClientBuilderExt
@@ -79,17 +76,20 @@ impl TestClientBuilderExt
         GenesisParameters,
     >
 {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn build(self) -> Client {
-        self.build_with_native_executor(None).0
-    }
-
-    fn build_with_wasm_executor(self, executor: Option<RuntimeExecutor>) -> Client {
-        let executor = executor.unwrap_or_else(|| WasmExecutor::builder().build());
-
-        self.build_with_native_executor(executor).0
-    }
+	fn new() -> Self {
+		Self::default()
+	}
+	fn build(self) -> Client {
+		let executor = RuntimeExecutor::builder().build();
+		use sc_service::client::LocalCallExecutor;
+		use std::sync::Arc;
+		let executor = LocalCallExecutor::new(
+			self.backend().clone(),
+			executor.clone(),
+			Default::default(),
+			ExecutionExtensions::new(None, Arc::new(executor)),
+		)
+		.expect("Creates LocalCallExecutor");
+		self.build_with_executor(executor).0
+	}
 }

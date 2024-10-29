@@ -40,12 +40,8 @@ pub type FullBackend = sc_service::TFullBackend<Block>;
 
 /// A specialized `WasmExecutor` intended to use across substrate node. It provides all required
 /// HostFunctions.
-pub type RuntimeExecutor = sc_executor::WasmExecutor<
-    sc_executor::sp_wasm_interface::ExtendedHostFunctions<
-        sp_io::SubstrateHostFunctions,
-        ExtendHostFunctions,
-    >,
->;
+pub type RuntimeExecutor =
+    sc_executor::WasmExecutor<(sp_io::SubstrateHostFunctions, ExtendHostFunctions)>;
 
 pub type FullClient<RuntimeApi> = sc_service::TFullClient<Block, RuntimeApi, RuntimeExecutor>;
 

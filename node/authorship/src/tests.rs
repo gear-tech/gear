@@ -68,8 +68,8 @@ use std::{
 };
 use testing::{
     client::{
-        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, ExtendHostFunctions,
-        TestClientBuilder, TestClientBuilderExt,
+        Backend as TestBackend, Client as TestClient, ClientBlockImportExt,
+        RuntimeExecutor, TestClientBuilder, TestClientBuilderExt,
     },
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
@@ -77,18 +77,14 @@ use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
 
-type RuntimeExecutor = sc_executor::WasmExecutor<
-    sc_executor::sp_wasm_interface::ExtendedHostFunctions<
-        sp_io::SubstrateHostFunctions,
-        ExtendHostFunctions,
-    >,
->;
+// pub type RuntimeExecutor =
+//     sc_executor::WasmExecutor<(sp_io::SubstrateHostFunctions, ExtendHostFunctions)>;
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
 fn get_executor() -> &'static RwLock<RuntimeExecutor> {
     static EXECUTOR: OnceLock<RwLock<RuntimeExecutor>> = OnceLock::new();
-    EXECUTOR.get_or_init(|| RwLock::new(WasmExecutor::builder().build()))
+    EXECUTOR.get_or_init(|| RwLock::new(RuntimeExecutor::builder().build()))
 }
 
 const SOURCE: TransactionSource = TransactionSource::External;
@@ -254,7 +250,7 @@ pub fn init() -> (
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
     let executor = get_executor().read();
-    let client = Arc::new(client_builder.build_with_wasm_executor(Some(executor.clone())));
+    let client = Arc::new(client_builder.build());
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = BasicPool::new_full(
         Default::default(),
