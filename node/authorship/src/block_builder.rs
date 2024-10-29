@@ -460,7 +460,7 @@ where
             version: self.version,
             parent_hash: self.parent_hash,
             estimated_header_size: self.estimated_header_size,
-            extrinsic_inclusion_mode: ExtrinsicInclusionMode::AllExtrinsics,
+            extrinsic_inclusion_mode: self.extrinsic_inclusion_mode,
         }
     }
 }
