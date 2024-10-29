@@ -40,7 +40,6 @@ use pallet_gear_rpc_runtime_api::GearApi;
 use parking_lot::{Mutex, RwLock};
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
-use sc_executor::WasmExecutor;
 use sc_service::client::Client;
 use sc_transaction_pool::{BasicPool, FullPool};
 use sc_transaction_pool_api::{
@@ -76,9 +75,6 @@ use testing::{
 use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
-
-// pub type RuntimeExecutor =
-//     sc_executor::WasmExecutor<(sp_io::SubstrateHostFunctions, ExtendHostFunctions)>;
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
@@ -142,7 +138,7 @@ where
 {
     extrinsics
         .into_iter()
-        .map(|x| sign(x, spec_version, tx_version, best_hash).into())
+        .map(|x| sign(x, spec_version, tx_version, best_hash, None).into())
         .collect()
 }
 
@@ -250,7 +246,7 @@ pub fn init() -> (
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
     let executor = get_executor().read();
-    let client = Arc::new(client_builder.build());
+    let client = Arc::new(client_builder.build(Some(executor.clone())));
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = BasicPool::new_full(
         Default::default(),
@@ -535,6 +531,7 @@ fn test_block_max_gas_works() {
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
+        None,
     )
     .into()];
     submit_and_maintain(client.clone(), txpool.clone(), extrinsics.clone());
@@ -657,6 +654,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
+        None,
     );
     // A `DispatchClass::Normal` extrinsic - supposed to end up in the txpool
     let legit_xt = sign(
@@ -667,6 +665,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
+        None,
     );
 
     let extrinsics = vec![
@@ -706,6 +705,7 @@ fn test_block_builder_cloned_ok() {
         genesis_hash,
     );
 
+
     let mut block_builder = BlockBuilderBuilder::new(client.as_ref())
         .on_parent_block(genesis_hash.into())
         .with_parent_block_number(0)
@@ -714,6 +714,8 @@ fn test_block_builder_cloned_ok() {
         .unwrap();
 
     extrinsics.into_iter().for_each(|xt: OpaqueExtrinsic| {
+
+        log::info!("{:?}", &xt);
         assert_ok!(block_builder.push(xt));
     });
 

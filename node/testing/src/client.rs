@@ -65,7 +65,7 @@ pub trait TestClientBuilderExt: Sized {
 	fn new() -> Self;
 
 	/// Build the test client.
-	fn build(self) -> Client;
+	fn build(self, executor: Option<RuntimeExecutor>) -> Client;
 }
 
 impl TestClientBuilderExt
@@ -79,8 +79,8 @@ impl TestClientBuilderExt
 	fn new() -> Self {
 		Self::default()
 	}
-	fn build(self) -> Client {
-		let executor = RuntimeExecutor::builder().build();
+	fn build(self, executor: Option<RuntimeExecutor>) -> Client {
+		let executor = executor.unwrap_or_else(|| RuntimeExecutor::builder().build());
 		use sc_service::client::LocalCallExecutor;
 		use std::sync::Arc;
 		let executor = LocalCallExecutor::new(
