@@ -14,7 +14,8 @@ ignored_warnings_from = [
     "src/MirrorProxy.sol",
 ]
 # Enable new EVM codegen
-via_ir = true
+via_ir = false
+ignored_warning_paths = ["lib/"]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
