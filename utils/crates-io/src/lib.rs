@@ -29,10 +29,19 @@ pub use self::{
     manifest::{LockFile, Manifest, Workspace},
     publisher::Publisher,
     simulator::Simulator,
-    version::{verify, verify_owners},
+    version::{verify, verify_owners, PackageStatus},
 };
 use anyhow::Result;
 use std::process::{Command, ExitStatus};
+
+/// Username that owns crates.
+pub const USER_OWNER: &str = "breathx";
+
+/// Team that owns crates.
+pub const TEAM_OWNER: &str = "github:gear-tech:dev";
+
+/// Expected owners of crates.
+pub const EXPECTED_OWNERS: [&str; 2] = [USER_OWNER, TEAM_OWNER];
 
 /// Required Packages without local dependencies.
 pub const SAFE_DEPENDENCIES: &[&str] = &[
@@ -125,6 +134,14 @@ pub fn publish(manifest: &str) -> Result<ExitStatus> {
             manifest,
             "--allow-dirty",
         ])
+        .status()
+        .map_err(Into::into)
+}
+
+/// Add owner to the input package
+pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
+    Command::new("cargo")
+        .args(["+stable", "owner", "--add", owner, package])
         .status()
         .map_err(Into::into)
 }

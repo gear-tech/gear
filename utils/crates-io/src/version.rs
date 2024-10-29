@@ -18,7 +18,7 @@
 
 //! Crate verifier
 
-use crate::{handler, Simulator};
+use crate::{handler, Simulator, EXPECTED_OWNERS};
 use anyhow::{anyhow, Result};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
@@ -72,8 +72,6 @@ pub async fn verify(name: &str, version: &str, simulator: Option<&Simulator>) ->
     Ok(false)
 }
 
-const EXPECTED_OWNERS: [&str; 2] = ["breathx", "github:gear-tech:dev"];
-
 #[derive(Debug, Deserialize)]
 struct OwnersResponse {
     users: Vec<User>,
@@ -84,9 +82,20 @@ struct User {
     login: String,
 }
 
+/// Package status.
+#[derive(Debug, PartialEq)]
+pub enum PackageStatus {
+    /// Package has not been published.
+    NotPublished,
+    /// Package has invalid owners.
+    InvalidOwners,
+    /// Package has valid owners.
+    ValidOwners,
+}
+
 /// Verify if the package has valid owners.
-pub async fn verify_owners(name: &str) -> Result<bool> {
-    println!("Verifying {name} ownership ...");
+pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
+    println!("Verifying {name} owners ...");
 
     let client = Client::builder()
         .user_agent("gear-crates-io-manager")
@@ -101,17 +110,21 @@ pub async fn verify_owners(name: &str) -> Result<bool> {
         .await?;
 
     if response.status() == StatusCode::NOT_FOUND {
-        return Ok(true);
+        return Ok(PackageStatus::NotPublished);
     }
 
-    if let Ok(response) = response.json::<OwnersResponse>().await {
-        return Ok(response.users.len() == EXPECTED_OWNERS.len()
-            && EXPECTED_OWNERS
-                .into_iter()
-                .all(|owner| response.users.iter().any(|u| u.login == owner)));
-    }
+    let response = response.json::<OwnersResponse>().await?;
+    let package_status = if response.users.len() == EXPECTED_OWNERS.len()
+        && EXPECTED_OWNERS
+            .into_iter()
+            .all(|owner| response.users.iter().any(|u| u.login == owner))
+    {
+        PackageStatus::ValidOwners
+    } else {
+        PackageStatus::InvalidOwners
+    };
 
-    Ok(false)
+    Ok(package_status)
 }
 
 /// Get the short hash of the current commit.

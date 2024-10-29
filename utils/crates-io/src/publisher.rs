@@ -19,7 +19,8 @@
 //! Packages publisher
 
 use crate::{
-    handler, Manifest, Simulator, Workspace, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES,
+    handler, Manifest, PackageStatus, Simulator, Workspace, PACKAGES, SAFE_DEPENDENCIES,
+    STACKED_DEPENDENCIES, TEAM_OWNER,
 };
 use anyhow::{bail, Result};
 use cargo_metadata::{Metadata, MetadataCommand};
@@ -68,8 +69,14 @@ impl Publisher {
                 continue;
             };
 
-            if verify && !crate::verify_owners(name).await? {
-                bail!("Package {name} has invalid owners!");
+            let mut is_published = false;
+
+            if verify {
+                match crate::verify_owners(name).await? {
+                    PackageStatus::InvalidOwners => bail!("Package {name} has invalid owners!"),
+                    PackageStatus::NotPublished => is_published = false,
+                    PackageStatus::ValidOwners => is_published = true,
+                }
             }
 
             if verify && crate::verify(name, &version, self.simulator.as_ref()).await? {
@@ -77,7 +84,7 @@ impl Publisher {
                 continue;
             }
 
-            self.graph.push(handler::patch(pkg)?);
+            self.graph.push(handler::patch(pkg, is_published)?);
         }
 
         workspace.complete(self.index.clone(), self.simulator.is_some())?;
@@ -141,11 +148,24 @@ impl Publisher {
 
     /// Publish packages
     pub fn publish(&self) -> Result<()> {
-        for Manifest { path, .. } in self.graph.iter() {
+        for Manifest {
+            name,
+            path,
+            is_published,
+            ..
+        } in self.graph.iter()
+        {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
                 bail!("Failed to publish package {path:?} ...");
+            }
+
+            if self.simulator.is_none() && !is_published {
+                let status = crate::add_owner(name, TEAM_OWNER)?;
+                if !status.success() {
+                    bail!("Failed to add owner to package {name} ...");
+                }
             }
         }
 
