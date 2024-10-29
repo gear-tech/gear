@@ -828,8 +828,7 @@ mod utils {
                     (rpc_url, None)
                 }
                 Err(_) => {
-                    let mut anvil = Anvil::new().try_spawn().unwrap();
-                    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+                    let anvil = Anvil::new().try_spawn().unwrap();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
@@ -1274,6 +1273,10 @@ mod utils {
             .await
             .unwrap();
 
+            let router_query = RouterQuery::new(&self.rpc_url, self.router_address)
+                .await
+                .unwrap();
+
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let mut config =
@@ -1322,6 +1325,7 @@ mod utils {
                 self.db.clone(),
                 self.observer.clone(),
                 query,
+                router_query,
                 processor,
                 self.signer.clone(),
                 self.block_time,

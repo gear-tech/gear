@@ -137,7 +137,6 @@ impl Keystore {
     }
 
     /// Returns self with the given name in meta.
-    #[allow(clippy::assigning_clones)]
     pub fn with_name(mut self, name: &str) -> Self {
         self.meta.name = name.to_owned();
         self

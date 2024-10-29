@@ -1,6 +1,6 @@
 [package]
-name = "gbuiltin-staking"
-description = "Types and traits to interact with staking builtin actor."
+name = "gbuiltin-proxy"
+description = "Types and traits to interact with proxy builtin actor."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,6 +9,6 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-parity-scale-codec = { workspace = true, features = ["derive"] }
+gprimitives.workspace = true
+derive_more.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
-gprimitives = { workspace = true, features = ["codec"] }
