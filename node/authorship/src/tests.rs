@@ -67,8 +67,8 @@ use std::{
 };
 use testing::{
     client::{
-        Backend as TestBackend, Client as TestClient, ClientBlockImportExt,
-        RuntimeExecutor, TestClientBuilder, TestClientBuilderExt,
+        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, RuntimeExecutor,
+        TestClientBuilder, TestClientBuilderExt,
     },
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
@@ -705,7 +705,6 @@ fn test_block_builder_cloned_ok() {
         genesis_hash,
     );
 
-
     let mut block_builder = BlockBuilderBuilder::new(client.as_ref())
         .on_parent_block(genesis_hash.into())
         .with_parent_block_number(0)
@@ -714,7 +713,6 @@ fn test_block_builder_cloned_ok() {
         .unwrap();
 
     extrinsics.into_iter().for_each(|xt: OpaqueExtrinsic| {
-
         log::info!("{:?}", &xt);
         assert_ok!(block_builder.push(xt));
     });

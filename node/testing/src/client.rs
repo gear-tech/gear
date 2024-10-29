@@ -61,11 +61,11 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 
 /// A `test-runtime` extensions to `TestClientBuilder`.
 pub trait TestClientBuilderExt: Sized {
-	/// Create test client builder.
-	fn new() -> Self;
+    /// Create test client builder.
+    fn new() -> Self;
 
-	/// Build the test client.
-	fn build(self, executor: Option<RuntimeExecutor>) -> Client;
+    /// Build the test client.
+    fn build(self, executor: Option<RuntimeExecutor>) -> Client;
 }
 
 impl TestClientBuilderExt
@@ -76,20 +76,20 @@ impl TestClientBuilderExt
         GenesisParameters,
     >
 {
-	fn new() -> Self {
-		Self::default()
-	}
-	fn build(self, executor: Option<RuntimeExecutor>) -> Client {
-		let executor = executor.unwrap_or_else(|| RuntimeExecutor::builder().build());
-		use sc_service::client::LocalCallExecutor;
-		use std::sync::Arc;
-		let executor = LocalCallExecutor::new(
-			self.backend().clone(),
-			executor.clone(),
-			Default::default(),
-			ExecutionExtensions::new(None, Arc::new(executor)),
-		)
-		.expect("Creates LocalCallExecutor");
-		self.build_with_executor(executor).0
-	}
+    fn new() -> Self {
+        Self::default()
+    }
+    fn build(self, executor: Option<RuntimeExecutor>) -> Client {
+        let executor = executor.unwrap_or_else(|| RuntimeExecutor::builder().build());
+        use sc_service::client::LocalCallExecutor;
+        use std::sync::Arc;
+        let executor = LocalCallExecutor::new(
+            self.backend().clone(),
+            executor.clone(),
+            Default::default(),
+            ExecutionExtensions::new(None, Arc::new(executor)),
+        )
+        .expect("Creates LocalCallExecutor");
+        self.build_with_executor(executor).0
+    }
 }
