@@ -201,22 +201,79 @@ contract MiddlewareTest is Test {
         _depositFromInVault(owner, vault1, 1_000);
         _depositFromInVault(owner, vault2, 2_000);
 
-        uint48 ts1 = uint48(block.timestamp);
-        vm.warp(block.timestamp + 1);
-        assertEq(middleware.getOperatorStakeAt(operator1, ts1), 1_000);
-        assertEq(middleware.getOperatorStakeAt(operator2, ts1), 2_000);
+        {
+            // Check operator stake after depositing
+            uint48 ts = uint48(block.timestamp);
+            vm.warp(block.timestamp + 1);
+            assertEq(middleware.getOperatorStakeAt(operator1, ts), 1_000);
+            assertEq(middleware.getOperatorStakeAt(operator2, ts), 2_000);
+            (address[] memory enabled_operators, uint256[] memory stakes) = middleware.getEnabledOperatorsStakeAt(ts);
+            assertEq(enabled_operators.length, 2);
+            assertEq(stakes.length, 2);
+            assertEq(enabled_operators[0], operator1);
+            assertEq(enabled_operators[1], operator2);
+        }
 
-        // Create one more vault for operator1 and check operator1 stake
+        // Create one more vault for operator1
         address vault3 = _createVaultForOperator(operator1);
 
-        uint48 ts2 = uint48(block.timestamp);
-        vm.warp(block.timestamp + 1);
-        assertEq(middleware.getOperatorStakeAt(operator1, ts2), 1_000);
+        {
+            // Check that vault creation doesn't affect operator stake without deposit
+            uint48 ts = uint48(block.timestamp);
+            vm.warp(block.timestamp + 1);
+            assertEq(middleware.getOperatorStakeAt(operator1, ts), 1_000);
+        }
 
-        _depositFromInVault(owner, vault3, 3_000);
-        uint48 ts3 = uint48(block.timestamp);
-        vm.warp(block.timestamp + 1);
-        assertEq(middleware.getOperatorStakeAt(operator1, ts3), 4_000);
+        {
+            // Check after depositing to new vault
+            _depositFromInVault(owner, vault3, 3_000);
+            uint48 ts = uint48(block.timestamp);
+            vm.warp(block.timestamp + 1);
+            assertEq(middleware.getOperatorStakeAt(operator1, ts), 4_000);
+        }
+
+        {
+            // Disable vault1 and check operator1 stake
+            // Disable is not immediate, so we need to check for the next block ts
+            _disableVault(operator1, vault1);
+            uint48 ts = uint48(block.timestamp) + 1;
+            vm.warp(block.timestamp + 2);
+            assertEq(middleware.getOperatorStakeAt(operator1, ts), 3_000);
+        }
+
+        {
+            // Disable operator1 and check operator1 stake is 0
+            _disableOperator(operator1);
+            uint48 ts = uint48(block.timestamp) + 1;
+            vm.warp(block.timestamp + 2);
+            assertEq(middleware.getOperatorStakeAt(operator1, ts), 0);
+
+            // Check that operator1 is not in enabled operators list
+            (address[] memory enabled_operators, uint256[] memory stakes) = middleware.getEnabledOperatorsStakeAt(ts);
+            assertEq(enabled_operators.length, 1);
+            assertEq(stakes.length, 1);
+            assertEq(enabled_operators[0], operator2);
+        }
+
+        // Try to get stake for current timestamp
+        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        middleware.getOperatorStakeAt(operator2, uint48(block.timestamp));
+
+        // Try to get stake for future timestamp
+        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        middleware.getOperatorStakeAt(operator2, uint48(block.timestamp + 1));
+    }
+
+    function _disableOperator(address operator) private {
+        vm.startPrank(operator);
+        middleware.disableOperator();
+        vm.stopPrank();
+    }
+
+    function _disableVault(address vault_owner, address vault) private {
+        vm.startPrank(vault_owner);
+        middleware.disableVault(vault);
+        vm.stopPrank();
     }
 
     function _depositFromInVault(address from, address vault, uint256 amount) private {

@@ -14,6 +14,7 @@ import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
+// TODO: support slashing
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
@@ -35,6 +36,9 @@ contract Middleware {
 
     uint48 public immutable ERA_DURATION;
     uint48 public immutable GENESIS_TIMESTAMP;
+    uint48 public immutable OPERATOR_GRACE_PERIOD;
+    uint48 public immutable VAULT_GRACE_PERIOD;
+    uint48 public immutable VAULT_MIN_EPOCH_DURATION;
     address public immutable VAULT_FACTORY;
     address public immutable DELEGATOR_FACTORY;
     address public immutable SLASHER_FACTORY;
@@ -57,6 +61,9 @@ contract Middleware {
     ) {
         ERA_DURATION = eraDuration;
         GENESIS_TIMESTAMP = Time.timestamp();
+        OPERATOR_GRACE_PERIOD = 2 * eraDuration;
+        VAULT_GRACE_PERIOD = 2 * eraDuration;
+        VAULT_MIN_EPOCH_DURATION = 2 * eraDuration;
         VAULT_FACTORY = vaultFactory;
         DELEGATOR_FACTORY = delegatorFactory;
         SLASHER_FACTORY = slasherFactory;
@@ -88,10 +95,11 @@ contract Middleware {
         operators.enable(msg.sender);
     }
 
+    // TODO: allow anybody to unregister operator
     function unregisterOperator() external {
         (, uint48 disabledTime) = operators.getTimes(msg.sender);
 
-        if (disabledTime == 0 || disabledTime + 2 * ERA_DURATION > Time.timestamp()) {
+        if (disabledTime == 0 || disabledTime + OPERATOR_GRACE_PERIOD > Time.timestamp()) {
             revert OperatorGracePeriodNotPassed();
         }
 
@@ -99,6 +107,7 @@ contract Middleware {
     }
 
     // TODO: check vault has enough stake
+    // TODO: support and check slasher
     function registerVault(address vault) external {
         if (vault == address(0)) {
             revert ZeroVaultAddress();
@@ -108,7 +117,7 @@ contract Middleware {
             revert NotKnownVault();
         }
 
-        if (IVault(vault).epochDuration() < 2 * ERA_DURATION) {
+        if (IVault(vault).epochDuration() < VAULT_MIN_EPOCH_DURATION) {
             revert VaultWrongEpochDuration();
         }
 
@@ -116,7 +125,10 @@ contract Middleware {
             revert UnknownCollateral();
         }
 
-        IBaseDelegator(IVault(vault).delegator()).setMaxNetworkLimit(network_identifier(), type(uint256).max);
+        address delegator = IVault(vault).delegator();
+        if (IBaseDelegator(delegator).maxNetworkLimit(subnetwork()) != type(uint256).max) {
+            IBaseDelegator(delegator).setMaxNetworkLimit(network_identifier(), type(uint256).max);
+        }
 
         vaults.append(vault, msg.sender);
     }
@@ -144,7 +156,7 @@ contract Middleware {
     function unregisterVault(address vault) external {
         (, uint48 disabledTime) = vaults.getTimes(vault);
 
-        if (disabledTime == 0 || disabledTime + 2 * ERA_DURATION > Time.timestamp()) {
+        if (disabledTime == 0 || disabledTime + VAULT_GRACE_PERIOD > Time.timestamp()) {
             revert VaultGracePeriodNotPassed();
         }
 
@@ -159,6 +171,48 @@ contract Middleware {
             return 0;
         }
 
+        stake = _collectOperatorStakeFromVaultsAt(operator, ts);
+    }
+
+    function getEnabledOperatorsStakeAt(uint48 ts)
+        public
+        view
+        returns (address[] memory enabled_operators, uint256[] memory stakes)
+    {
+        _checkTimestampInThePast(ts);
+
+        enabled_operators = new address[](operators.length());
+        stakes = new uint256[](operators.length());
+
+        uint256 operatorIdx = 0;
+
+        for (uint256 i; i < operators.length(); ++i) {
+            (address operator, uint48 enabled, uint48 disabled) = operators.atWithTimes(i);
+
+            if (!_wasActiveAt(enabled, disabled, ts)) {
+                continue;
+            }
+
+            enabled_operators[operatorIdx] = operator;
+            stakes[operatorIdx] = _collectOperatorStakeFromVaultsAt(operator, ts);
+            operatorIdx += 1;
+        }
+
+        assembly {
+            mstore(enabled_operators, operatorIdx)
+            mstore(stakes, operatorIdx)
+        }
+    }
+
+    function subnetwork() public view returns (bytes32) {
+        return address(this).subnetwork(network_identifier());
+    }
+
+    function network_identifier() public pure returns (uint96) {
+        return 0;
+    }
+
+    function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
         for (uint256 i; i < vaults.length(); ++i) {
             (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = vaults.atWithTimes(i);
 
@@ -179,13 +233,5 @@ contract Middleware {
         if (ts >= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
-    }
-
-    function subnetwork() public view returns (bytes32) {
-        return address(this).subnetwork(network_identifier());
-    }
-
-    function network_identifier() public pure returns (uint96) {
-        return 0;
     }
 }
