@@ -53,7 +53,7 @@ async fn pallet_errors_formatting() -> Result<()> {
         ErrorObject::owned(
             8000,
             "Runtime error",
-            Some("Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'"),
+            Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
         ),
     ))));
 
