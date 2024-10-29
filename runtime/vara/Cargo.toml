@@ -208,7 +208,6 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
-	"substrate-wasm-builder/metadata-hash",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
