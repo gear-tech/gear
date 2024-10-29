@@ -62,6 +62,7 @@ members = [
     "examples/program-factory",
     "examples/program-generator",
     "examples/proxy",
+    "examples/proxy-broker",
     "examples/proxy-relay",
     "examples/proxy-reservation-with-gas",
     "examples/read-big-state",
@@ -161,7 +162,7 @@ rand = { version = "0.8", default-features = false }
 rayon = "1.10"
 regex = "^1.9"
 region = "3.0.2"
-reqwest = { version = "0.11.27", default-features = false }
+reqwest = { version = "0.12.8", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = { version = "^1", default-features = false }
 serde_json = "^1"
@@ -216,6 +217,7 @@ galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
 gbuiltin-staking = { path = "gbuiltins/staking" }
+gbuiltin-proxy = { path = "gbuiltins/proxy" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
@@ -482,6 +484,7 @@ demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry", default-features = false }
 demo-staking-broker = { path = "examples/staking-broker" }
+demo-proxy-broker = { path = "examples/proxy-broker" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
