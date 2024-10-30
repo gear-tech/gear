@@ -77,9 +77,7 @@ contract Middleware {
         INetworkRegistry(networkRegistry).registerNetwork();
     }
 
-    // TODO: append total operator stake check is big enough
-    // TODO: append check operator is opt-in network
-    // TODO: append check operator is operator registry entity
+    // TODO: Check that total stake is big enough
     function registerOperator() external {
         if (!IRegistry(OPERATOR_REGISTRY).isEntity(msg.sender)) {
             revert OperatorDoesNotExist();
