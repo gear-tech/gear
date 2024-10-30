@@ -20,13 +20,10 @@ contract Middleware {
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
     using Subnetwork for address;
 
-    error OperatorAlreadyRegistered();
     error ZeroVaultAddress();
     error NotKnownVault();
-    error IncorrectDelegatorType();
     error VaultWrongEpochDuration();
     error UnknownCollateral();
-    error NotEnoughStakeInVault();
     error OperatorGracePeriodNotPassed();
     error VaultGracePeriodNotPassed();
     error NotVaultOwner();
@@ -45,6 +42,8 @@ contract Middleware {
     address public immutable OPERATOR_REGISTRY;
     address public immutable NETWORK_OPT_IN;
     address public immutable COLLATERAL;
+    bytes32 public immutable SUBNETWORK;
+    uint96 public immutable NETWORK_IDENTIFIER = 0;
 
     EnumerableMap.AddressToUintMap private operators;
     EnumerableMap.AddressToUintMap private vaults;
@@ -70,6 +69,7 @@ contract Middleware {
         OPERATOR_REGISTRY = operatorRegistry;
         NETWORK_OPT_IN = networkOptIn;
         COLLATERAL = collateral;
+        SUBNETWORK = address(this).subnetwork(NETWORK_IDENTIFIER);
 
         INetworkRegistry(networkRegistry).registerNetwork();
     }
@@ -126,8 +126,8 @@ contract Middleware {
         }
 
         address delegator = IVault(vault).delegator();
-        if (IBaseDelegator(delegator).maxNetworkLimit(subnetwork()) != type(uint256).max) {
-            IBaseDelegator(delegator).setMaxNetworkLimit(network_identifier(), type(uint256).max);
+        if (IBaseDelegator(delegator).maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
+            IBaseDelegator(delegator).setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
         }
 
         vaults.append(vault, msg.sender);
@@ -204,14 +204,6 @@ contract Middleware {
         }
     }
 
-    function subnetwork() public view returns (bytes32) {
-        return address(this).subnetwork(network_identifier());
-    }
-
-    function network_identifier() public pure returns (uint96) {
-        return 0;
-    }
-
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
         for (uint256 i; i < vaults.length(); ++i) {
             (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = vaults.atWithTimes(i);
@@ -220,7 +212,7 @@ contract Middleware {
                 continue;
             }
 
-            stake += IBaseDelegator(IVault(vault).delegator()).stakeAt(subnetwork(), operator, ts, new bytes(0));
+            stake += IBaseDelegator(IVault(vault).delegator()).stakeAt(SUBNETWORK, operator, ts, new bytes(0));
         }
     }
 

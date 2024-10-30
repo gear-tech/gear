@@ -13,7 +13,6 @@ import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurat
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
 import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
-// import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
@@ -305,7 +304,7 @@ contract MiddlewareTest is Test {
 
             // Set initial network limit
             IOperatorSpecificDelegator(IVault(vault).delegator()).setNetworkLimit(
-                middleware.subnetwork(), type(uint256).max
+                middleware.SUBNETWORK(), type(uint256).max
             );
 
             vm.stopPrank();
@@ -314,7 +313,7 @@ contract MiddlewareTest is Test {
 
     function _setNetworkLimit(address vault, address operator, uint256 limit) private {
         vm.startPrank(address(operator));
-        IOperatorSpecificDelegator(IVault(vault).delegator()).setNetworkLimit(middleware.subnetwork(), limit);
+        IOperatorSpecificDelegator(IVault(vault).delegator()).setNetworkLimit(middleware.SUBNETWORK(), limit);
         vm.stopPrank();
     }
 
