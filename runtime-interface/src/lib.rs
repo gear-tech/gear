@@ -50,7 +50,7 @@ use {
 
 pub use gear_sandbox_interface::sandbox;
 #[cfg(feature = "std")]
-pub use gear_sandbox_interface::{detail as sandbox_detail, init as sandbox_init, Instantiate};
+pub use gear_sandbox_interface::{detail as sandbox_detail, Instantiate};
 
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
