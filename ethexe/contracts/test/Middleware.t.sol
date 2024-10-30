@@ -55,7 +55,7 @@ contract MiddlewareTest is Test {
         assertEq(uint256(middleware.ERA_DURATION()), eraDuration);
         assertEq(uint256(middleware.GENESIS_TIMESTAMP()), Time.timestamp());
         assertEq(uint256(middleware.OPERATOR_GRACE_PERIOD()), eraDuration * 2);
-        assertEq(uint256(middleware.VAULT_GRACE_PERIOD()), eraDuration * 2);,
+        assertEq(uint256(middleware.VAULT_GRACE_PERIOD()), eraDuration * 2);
         assertEq(uint256(middleware.VAULT_MIN_EPOCH_DURATION()), eraDuration * 2);
         assertEq(middleware.VAULT_FACTORY(), address(sym.vaultFactory()));
         assertEq(middleware.DELEGATOR_FACTORY(), address(sym.delegatorFactory()));
@@ -235,7 +235,7 @@ contract MiddlewareTest is Test {
 
         {
             // Check after depositing to new vault
-            _depositFromInVault(owner, vault3, 3_000);
+            _depositFromInVault(owner, vault3, stake3);
             uint48 ts = uint48(block.timestamp);
             vm.warp(block.timestamp + 1);
             assertEq(middleware.getOperatorStakeAt(operator1, ts), stake1 + stake3);
