@@ -75,9 +75,10 @@ where
     <T as ProxyConfig>::ProxyType: From<BuiltinProxyType>,
     CallOf<T>: From<pallet_proxy::Call<T>>,
 {
-    type Error = BuiltinActorError;
-
-    fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
+    fn handle(
+        dispatch: &StoredDispatch,
+        gas_limit: u64,
+    ) -> (Result<Payload, BuiltinActorError>, u64) {
         let Ok(request) = Request::decode(&mut dispatch.payload_bytes()) else {
             return (Err(BuiltinActorError::DecodingError), 0);
         };
