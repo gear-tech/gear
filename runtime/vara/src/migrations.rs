@@ -22,60 +22,10 @@ const IDENTITY_MIGRATION_KEY_LIMIT: u64 = u64::MAX;
 
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
-    // migration for added section sizes
-    pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
-    // substrate v1.4.0
-    staking::MigrateToV14<Runtime>,
-    pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
     // move allocations to a separate storage item and remove pages_with_data field from program
     pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
     // Migrate Identity pallet for Usernames
     pallet_identity::migration::versioned::V0ToV1<Runtime, IDENTITY_MIGRATION_KEY_LIMIT>,
+    pallet_staking::migrations::v15::MigrateV14ToV15<Runtime>,
+    pallet_nomination_pools::migration::versioned::V7ToV8<Runtime>,
 );
-
-mod staking {
-    use frame_support::{
-        pallet_prelude::Weight,
-        traits::{GetStorageVersion, OnRuntimeUpgrade},
-    };
-    use pallet_staking::*;
-    use sp_core::Get;
-
-    #[cfg(feature = "try-runtime")]
-    use sp_std::vec::Vec;
-
-    #[cfg(feature = "try-runtime")]
-    use sp_runtime::TryRuntimeError;
-
-    pub struct MigrateToV14<T>(sp_std::marker::PhantomData<T>);
-    impl<T: Config> OnRuntimeUpgrade for MigrateToV14<T> {
-        fn on_runtime_upgrade() -> Weight {
-            let current = Pallet::<T>::in_code_storage_version();
-            let on_chain = Pallet::<T>::on_chain_storage_version();
-
-            if current == 14 && on_chain == 13 {
-                current.put::<Pallet<T>>();
-
-                log::info!("v14 applied successfully.");
-                T::DbWeight::get().reads_writes(1, 1)
-            } else {
-                log::warn!("v14 not applied.");
-                T::DbWeight::get().reads(1)
-            }
-        }
-
-        #[cfg(feature = "try-runtime")]
-        fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-            Ok(Default::default())
-        }
-
-        #[cfg(feature = "try-runtime")]
-        fn post_upgrade(_state: Vec<u8>) -> Result<(), TryRuntimeError> {
-            frame_support::ensure!(
-                Pallet::<T>::on_chain_storage_version() == 14,
-                "v14 not applied"
-            );
-            Ok(())
-        }
-    }
-}
