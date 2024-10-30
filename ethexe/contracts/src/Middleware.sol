@@ -16,7 +16,7 @@ import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
 // TODO: support slashing
 // TODO: implement election logic
-// TODO: implement fored operators removal
+// TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
