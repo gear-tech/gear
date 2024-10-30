@@ -54,6 +54,9 @@ contract MiddlewareTest is Test {
     function test_constructor() public view {
         assertEq(uint256(middleware.ERA_DURATION()), eraDuration);
         assertEq(uint256(middleware.GENESIS_TIMESTAMP()), Time.timestamp());
+        assertEq(uint256(middleware.OPERATOR_GRACE_PERIOD()), eraDuration * 2);
+        assertEq(uint256(middleware.VAULT_GRACE_PERIOD()), eraDuration * 2);,
+        assertEq(uint256(middleware.VAULT_MIN_EPOCH_DURATION()), eraDuration * 2);
         assertEq(middleware.VAULT_FACTORY(), address(sym.vaultFactory()));
         assertEq(middleware.DELEGATOR_FACTORY(), address(sym.delegatorFactory()));
         assertEq(middleware.SLASHER_FACTORY(), address(sym.slasherFactory()));
