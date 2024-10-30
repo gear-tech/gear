@@ -274,7 +274,8 @@ impl GearApi {
             .await
     }
 
-    /// Same as [`read_state_bytes_using_wasm`](Self::read_state_bytes_using_wasm), but reads the program's state at the block identified by its hash.
+    /// Same as [`read_state_bytes_using_wasm`](Self::read_state_bytes_using_wasm),
+    /// but reads the program's state at the block identified by its hash.
     pub async fn read_state_bytes_using_wasm_at(
         &self,
         program_id: ProgramId,
@@ -353,7 +354,8 @@ impl GearApi {
         .await
     }
 
-    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path), but reads the program's state at the block identified by its hash.
+    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path),
+    /// but reads the program's state at the block identified by its hash.
     pub async fn read_state_bytes_using_wasm_by_path_at(
         &self,
         program_id: ProgramId,
@@ -388,7 +390,8 @@ impl GearApi {
             .await
     }
 
-    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path), but reads the program's state at the block identified by its hash.
+    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path),
+    /// but reads the program's state at the block identified by its hash.
     pub async fn read_state_using_wasm_by_path_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
