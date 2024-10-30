@@ -174,14 +174,14 @@ contract Middleware {
         stake = _collectOperatorStakeFromVaultsAt(operator, ts);
     }
 
-    function getEnabledOperatorsStakeAt(uint48 ts)
+    function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
-        returns (address[] memory enabled_operators, uint256[] memory stakes)
+        returns (address[] memory active_operators, uint256[] memory stakes)
     {
         _checkTimestampInThePast(ts);
 
-        enabled_operators = new address[](operators.length());
+        active_operators = new address[](operators.length());
         stakes = new uint256[](operators.length());
 
         uint256 operatorIdx = 0;
@@ -193,13 +193,13 @@ contract Middleware {
                 continue;
             }
 
-            enabled_operators[operatorIdx] = operator;
+            active_operators[operatorIdx] = operator;
             stakes[operatorIdx] = _collectOperatorStakeFromVaultsAt(operator, ts);
             operatorIdx += 1;
         }
 
         assembly {
-            mstore(enabled_operators, operatorIdx)
+            mstore(active_operators, operatorIdx)
             mstore(stakes, operatorIdx)
         }
     }
