@@ -12,38 +12,38 @@ library MapWithTimeData {
     error NotEnabled();
     error AlreadyEnabled();
 
-    function toInner(uint256 value) private pure returns (uint48, uint48, address) {
-        return (uint48(value), uint48(value >> 48), address(uint160(value >> 96)));
+    function toInner(uint256 value) private pure returns (uint48, uint48, uint160) {
+        return (uint48(value), uint48(value >> 48), uint160(value >> 96));
     }
 
-    function toValue(uint48 enabledTime, uint48 disabledTime, address pinnedAddress) private pure returns (uint256) {
-        return uint256(enabledTime) | (uint256(disabledTime) << 48) | (uint256(uint160(pinnedAddress)) << 96);
+    function toValue(uint48 enabledTime, uint48 disabledTime, uint160 data) private pure returns (uint256) {
+        return uint256(enabledTime) | (uint256(disabledTime) << 48) | (uint256(data) << 96);
     }
 
-    function append(EnumerableMap.AddressToUintMap storage self, address addr, address pinnedAddress) internal {
-        if (!self.set(addr, toValue(Time.timestamp(), 0, pinnedAddress))) {
+    function append(EnumerableMap.AddressToUintMap storage self, address addr, uint160 data) internal {
+        if (!self.set(addr, toValue(Time.timestamp(), 0, data))) {
             revert AlreadyAdded();
         }
     }
 
     function enable(EnumerableMap.AddressToUintMap storage self, address addr) internal {
-        (uint48 enabledTime, uint48 disabledTime, address pinnedAddress) = toInner(self.get(addr));
+        (uint48 enabledTime, uint48 disabledTime, uint160 data) = toInner(self.get(addr));
 
         if (enabledTime != 0 && disabledTime == 0) {
             revert AlreadyEnabled();
         }
 
-        self.set(addr, toValue(Time.timestamp(), 0, pinnedAddress));
+        self.set(addr, toValue(Time.timestamp(), 0, data));
     }
 
     function disable(EnumerableMap.AddressToUintMap storage self, address addr) internal {
-        (uint48 enabledTime, uint48 disabledTime, address pinnedAddress) = toInner(self.get(addr));
+        (uint48 enabledTime, uint48 disabledTime, uint160 data) = toInner(self.get(addr));
 
         if (enabledTime == 0 || disabledTime != 0) {
             revert NotEnabled();
         }
 
-        self.set(addr, toValue(enabledTime, Time.timestamp(), pinnedAddress));
+        self.set(addr, toValue(enabledTime, Time.timestamp(), data));
     }
 
     function atWithTimes(EnumerableMap.AddressToUintMap storage self, uint256 idx)
@@ -64,11 +64,11 @@ library MapWithTimeData {
         (enabledTime, disabledTime,) = toInner(self.get(addr));
     }
 
-    function getPinnedAddress(EnumerableMap.AddressToUintMap storage self, address addr)
+    function getPinnedData(EnumerableMap.AddressToUintMap storage self, address addr)
         internal
         view
-        returns (address pinnedAddress)
+        returns (uint160 data)
     {
-        (,, pinnedAddress) = toInner(self.get(addr));
+        (,, data) = toInner(self.get(addr));
     }
 }

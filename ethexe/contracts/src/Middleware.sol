@@ -15,6 +15,9 @@ import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
 // TODO: support slashing
+// TODO: implement election logic
+// TODO: implement fored operators removal
+// TODO: implement forced vaults removal
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
@@ -84,7 +87,7 @@ contract Middleware {
         if (!IOptInService(NETWORK_OPT_IN).isOptedIn(msg.sender, address(this))) {
             revert OperatorDoesNotOptIn();
         }
-        operators.append(msg.sender, address(0));
+        operators.append(msg.sender, 0);
     }
 
     function disableOperator() external {
@@ -130,11 +133,11 @@ contract Middleware {
             IBaseDelegator(delegator).setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
         }
 
-        vaults.append(vault, msg.sender);
+        vaults.append(vault, uint160(msg.sender));
     }
 
     function disableVault(address vault) external {
-        address vault_owner = vaults.getPinnedAddress(vault);
+        address vault_owner = address(vaults.getPinnedData(vault));
 
         if (vault_owner != msg.sender) {
             revert NotVaultOwner();
@@ -144,7 +147,7 @@ contract Middleware {
     }
 
     function enableVault(address vault) external {
-        address vault_owner = vaults.getPinnedAddress(vault);
+        address vault_owner = address(vaults.getPinnedData(vault));
 
         if (vault_owner != msg.sender) {
             revert NotVaultOwner();
