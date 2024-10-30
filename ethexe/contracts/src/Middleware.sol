@@ -98,15 +98,14 @@ contract Middleware {
         operators.enable(msg.sender);
     }
 
-    // TODO: allow anybody to unregister operator
-    function unregisterOperator() external {
-        (, uint48 disabledTime) = operators.getTimes(msg.sender);
+    function unregisterOperator(address operator) external {
+        (, uint48 disabledTime) = operators.getTimes(operator);
 
         if (disabledTime == 0 || disabledTime + OPERATOR_GRACE_PERIOD > Time.timestamp()) {
             revert OperatorGracePeriodNotPassed();
         }
 
-        operators.remove(msg.sender);
+        operators.remove(operator);
     }
 
     // TODO: check vault has enough stake

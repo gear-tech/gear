@@ -103,11 +103,12 @@ contract MiddlewareTest is Test {
 
         // Try to unregister operator - failed because operator is not disabled for enough time
         vm.expectRevert(abi.encodeWithSelector(Middleware.OperatorGracePeriodNotPassed.selector));
-        middleware.unregisterOperator();
+        middleware.unregisterOperator(address(0x2));
 
-        // Wait for grace period and unregister operator
+        // Wait for grace period and unregister operator from other address
+        vm.startPrank(address(0x3));
         vm.warp(block.timestamp + eraDuration * 2);
-        middleware.unregisterOperator();
+        middleware.unregisterOperator(address(0x2));
     }
 
     function test_registerVault() public {
