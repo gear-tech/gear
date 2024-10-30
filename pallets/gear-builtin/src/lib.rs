@@ -289,6 +289,7 @@ impl<T: Config> BuiltinRegistry<T> {
 
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     type Error = BuiltinActorError;
+
     fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a ActorErrorHandleFn> {
         self.registry.get(id).map(|f| &**f)
     }
