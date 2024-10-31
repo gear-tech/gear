@@ -195,6 +195,7 @@ jobs:
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      OPENSSL_NO_VENDOR: 1
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
