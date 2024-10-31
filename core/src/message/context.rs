@@ -253,10 +253,7 @@ impl MessageContext {
     }
 
     fn check_reply_availability(&self) -> Result<(), ExecutionError> {
-        if !self
-            .kind
-            .intersects(DispatchKind::Init | DispatchKind::Handle)
-        {
+        if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
             return Err(ExecutionError::IncorrectEntryForReply);
         }
 

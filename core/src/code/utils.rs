@@ -20,7 +20,7 @@
 
 use crate::{
     code::{errors::*, GENERIC_OS_PAGE_SIZE},
-    message::{DispatchKind, WasmEntryPoint},
+    message::{DispatchKind, DispatchKindSet, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;
@@ -73,8 +73,8 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
     Ok(static_pages)
 }
 
-pub fn get_exports(module: &Module) -> DispatchKind {
-    let mut entries: DispatchKind = Default::default();
+pub fn get_exports(module: &Module) -> DispatchKindSet {
+    let mut entries = DispatchKindSet::empty().as_flags();
 
     for entry in module
         .export_section()
@@ -89,7 +89,7 @@ pub fn get_exports(module: &Module) -> DispatchKind {
         }
     }
 
-    entries
+    entries.into()
 }
 
 pub fn check_exports(module: &Module) -> Result<(), CodeError> {

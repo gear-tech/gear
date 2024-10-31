@@ -288,7 +288,7 @@ fn process_error(
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
-    if !dispatch.is_reply() && !dispatch.kind().contains(DispatchKind::Signal) {
+    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
         let (err, err_payload) = case.to_reason_and_payload();
 
         // Panic is impossible, unless error message is too large or [Payload] max size is too small.

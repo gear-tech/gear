@@ -23,7 +23,7 @@ use frame_support::{
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
-    message::DispatchKind,
+    message::{DispatchKind, DispatchKindSet},
 };
 use sp_std::marker::PhantomData;
 
@@ -67,7 +67,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
                 // 1 read for instrumented code, 1 write for instrumented code and 1 write for code metadata
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
 
-                let mut exports: DispatchKind = DispatchKind::empty();
+                let mut exports = DispatchKindSet::empty().as_flags();
 
                 instrumented_code.exports.iter().for_each(|export| {
                     let export = match *export {
@@ -83,7 +83,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
                 let code_metadata = CodeMetadata::new(
                     instrumented_code.original_code_len,
                     instrumented_code.code.len() as u32,
-                    exports,
+                    exports.into(),
                     instrumented_code.static_pages,
                     instrumented_code.stack_end,
                     InstrumentationStatus::Instrumented(instrumented_code.version),
@@ -286,7 +286,7 @@ mod test {
                 code_metadata.instrumented_code_len(),
                 instrumented_code.code.len() as u32
             );
-            assert_eq!(code_metadata.code_exports(), DispatchKind::Handle);
+            assert_eq!(code_metadata.code_exports().into(), DispatchKind::Handle);
             assert_eq!(code_metadata.static_pages(), instrumented_code.static_pages);
             assert_eq!(code_metadata.stack_end(), instrumented_code.stack_end);
             assert_eq!(

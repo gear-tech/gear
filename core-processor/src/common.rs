@@ -27,7 +27,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
+        ContextStore, Dispatch, DispatchKindSet, IncomingDispatch, MessageWaitedType,
+        StoredDispatch,
     },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
@@ -532,7 +533,7 @@ pub struct ExecutableActorData {
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.
-    pub code_exports: DispatchKind,
+    pub code_exports: DispatchKindSet,
     /// Count of static memory pages.
     pub static_pages: WasmPagesAmount,
     /// Gas reservation map.

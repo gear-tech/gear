@@ -4,7 +4,7 @@ use scale_info::{
 };
 
 use crate::{
-    message::DispatchKind,
+    message::DispatchKindSet,
     pages::{WasmPage, WasmPagesAmount},
 };
 
@@ -25,7 +25,7 @@ pub struct CodeMetadata {
     /// Instrumented code length.
     instrumented_code_len: u32,
     /// Exports of the wasm module.
-    code_exports: DispatchKind,
+    code_exports: DispatchKindSet,
     // Static pages count from memory import.
     static_pages: WasmPagesAmount,
     /// Stack end page.
@@ -39,7 +39,7 @@ impl CodeMetadata {
     pub fn new(
         original_code_len: u32,
         instrumented_code_len: u32,
-        code_exports: DispatchKind,
+        code_exports: DispatchKindSet,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         instrumentation_status: InstrumentationStatus,
@@ -65,7 +65,7 @@ impl CodeMetadata {
     }
 
     /// Returns the code exports.
-    pub fn code_exports(&self) -> DispatchKind {
+    pub fn code_exports(&self) -> DispatchKindSet {
         self.code_exports
     }
 

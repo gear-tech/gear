@@ -18,35 +18,79 @@
 
 use crate::message::WasmEntryPoint;
 use alloc::collections::BTreeSet;
-use bitflags::bitflags;
+use enumflags2::{bitflags, BitFlags};
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
 
-/// Bitflag contains entry points
+/// Bitflags contains entry points
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct DispatchKind(u8);
+pub struct DispatchKindSet(u8);
 
-bitflags! {
-    impl DispatchKind: u8 {
-        /// Initialization.
-        const Init = 0b0001;
-        /// Common handle.
-        const Handle = 0b0010;
-        /// Handle reply.
-        const Reply = 0b0100;
-        /// System signal.
-        const Signal = 0b1000;
+impl From<BitFlags<DispatchKind>> for DispatchKindSet {
+    fn from(flags: BitFlags<DispatchKind>) -> Self {
+        Self(flags.bits())
     }
 }
 
+impl DispatchKindSet {
+    /// Create empty flags.
+    pub fn empty() -> Self {
+        Self(0)
+    }
+
+    /// Convert to bitflags.
+    pub fn as_flags(self) -> BitFlags<DispatchKind> {
+        BitFlags::from_bits(self.0).unwrap()
+    }
+}
+
+/// Bitflags contains entry points
+#[bitflags(default = Handle)]
+#[repr(u8)]
+#[derive(
+    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+pub enum DispatchKind {
+    /// Initialization.
+    Init = 0b0001,
+    /// Common handle.
+    #[default]
+    Handle = 0b0010,
+    /// Handle reply.
+    Reply = 0b0100,
+    /// System signal.
+    Signal = 0b1000,
+}
+
 impl DispatchKind {
+    /// Check if kind is init.
+    pub fn is_init(&self) -> bool {
+        matches!(self, Self::Init)
+    }
+
+    /// Check if kind is handle.
+    pub fn is_handle(&self) -> bool {
+        matches!(self, Self::Handle)
+    }
+
+    /// Check if kind is reply.
+    pub fn is_reply(&self) -> bool {
+        matches!(self, Self::Reply)
+    }
+
+    /// Check if kind is signal.
+    pub fn is_signal(&self) -> bool {
+        matches!(self, Self::Signal)
+    }
+
     /// Syscalls that are not allowed to be called for the dispatch kind.
     pub fn forbidden_funcs(&self) -> BTreeSet<SyscallName> {
         match self {
-            s if s.contains(DispatchKind::Signal) => [
+            DispatchKind::Signal => [
                 SyscallName::Source,
                 SyscallName::Reply,
                 SyscallName::ReplyPush,
@@ -64,29 +108,22 @@ impl DispatchKind {
     }
 }
 
-impl Default for DispatchKind {
-    fn default() -> Self {
-        DispatchKind::Handle
-    }
-}
-
 impl WasmEntryPoint for DispatchKind {
     fn as_entry(&self) -> &str {
         match *self {
-            DispatchKind::Init => "init",
-            DispatchKind::Handle => "handle",
-            DispatchKind::Reply => "handle_reply",
-            DispatchKind::Signal => "handle_signal",
-            _ => unreachable!("Multiple dispatch kinds are not allowed"),
+            Self::Init => "init",
+            Self::Handle => "handle",
+            Self::Reply => "handle_reply",
+            Self::Signal => "handle_signal",
         }
     }
 
     fn try_from_entry(entry: &str) -> Option<Self> {
         let kind = match entry {
-            "init" => DispatchKind::Init,
-            "handle" => DispatchKind::Handle,
-            "handle_reply" => DispatchKind::Reply,
-            "handle_signal" => DispatchKind::Signal,
+            "init" => Self::Init,
+            "handle" => Self::Handle,
+            "handle_reply" => Self::Reply,
+            "handle_signal" => Self::Signal,
             _ => return None,
         };
 

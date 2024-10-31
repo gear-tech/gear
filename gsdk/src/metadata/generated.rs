@@ -657,7 +657,7 @@ pub mod runtime_types {
                         pub original_code_len: ::core::primitive::u32,
                         pub instrumented_code_len: ::core::primitive::u32,
                         pub code_exports:
-                            runtime_types::gear_core::message::dispatch_kind::DispatchKind,
+                            runtime_types::gear_core::message::dispatch_kind::DispatchKindSet,
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
                             ::core::option::Option<runtime_types::gear_core::pages::Page>,
@@ -747,13 +747,26 @@ pub mod runtime_types {
                 pub mod dispatch_kind {
                     use super::runtime_types;
                     #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub enum DispatchKind {
+                        #[codec(index = 1)]
+                        Init,
+                        #[codec(index = 2)]
+                        Handle,
+                        #[codec(index = 4)]
+                        Reply,
+                        #[codec(index = 8)]
+                        Signal,
+                    }
+                    #[derive(
                         ::subxt::ext ::subxt_core::ext::codec::CompactAs,
                         Debug,
                         crate::gp::Decode,
                         crate::gp::DecodeAsType,
                         crate::gp::Encode,
                     )]
-                    pub struct DispatchKind(pub ::core::primitive::u8);
+                    pub struct DispatchKindSet(pub ::core::primitive::u8);
                 }
                 pub mod stored {
                     use super::runtime_types;

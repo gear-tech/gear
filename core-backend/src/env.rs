@@ -34,7 +34,7 @@ use gear_core::{
     env::Externalities,
     gas::GasAmount,
     memory::HostPointer,
-    message::{DispatchKind, WasmEntryPoint},
+    message::{DispatchKind, DispatchKindSet, WasmEntryPoint},
     pages::WasmPagesAmount,
     str::LimitedStr,
 };
@@ -97,7 +97,7 @@ where
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
-    entries: DispatchKind,
+    entries: DispatchKindSet,
     entry_point: EntryPoint,
     store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     memory: BackendMemory<ExecutorMemory>,
@@ -265,7 +265,7 @@ where
         ext: EnvExt,
         binary: &[u8],
         entry_point: EntryPoint,
-        entries: DispatchKind,
+        entries: DispatchKindSet,
         mem_size: WasmPagesAmount,
     ) -> Result<Self, EnvironmentError> {
         use EnvironmentError::*;
@@ -392,7 +392,7 @@ where
 
         let needs_execution = entry_point
             .try_into_kind()
-            .map(|kind| entries.contains(kind))
+            .map(|kind| entries.as_flags().contains(kind))
             .unwrap_or(true);
 
         let res = if needs_execution {
