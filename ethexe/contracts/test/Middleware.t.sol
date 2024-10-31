@@ -110,7 +110,7 @@ contract MiddlewareTest is Test {
 
         // Wait for grace period and unregister operator from other address
         vm.startPrank(address(0x3));
-        vm.warp(block.timestamp + eraDuration * 2);
+        vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
         middleware.unregisterOperator(address(0x2));
     }
 
@@ -167,14 +167,14 @@ contract MiddlewareTest is Test {
         middleware.unregisterVault(vault);
 
         // Wait for grace period and unregister vault
-        vm.warp(block.timestamp + eraDuration * 2);
+        vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
         middleware.unregisterVault(vault);
 
         // Register vault again, disable and unregister it not by owner
         middleware.registerVault(vault);
         middleware.disableVault(vault);
         vm.startPrank(address(0x1));
-        vm.warp(block.timestamp + eraDuration * 2);
+        vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
         middleware.unregisterVault(vault);
         vm.stopPrank();
 
@@ -210,8 +210,8 @@ contract MiddlewareTest is Test {
 
         {
             // Check operator stake after depositing
-            uint48 ts = uint48(block.timestamp);
-            vm.warp(block.timestamp + 1);
+            uint48 ts = uint48(vm.getBlockTimestamp());
+            vm.warp(vm.getBlockTimestamp() + 1);
             assertEq(middleware.getOperatorStakeAt(operator1, ts), stake1);
             assertEq(middleware.getOperatorStakeAt(operator2, ts), stake2);
             (address[] memory active_operators, uint256[] memory stakes) = middleware.getActiveOperatorsStakeAt(ts);
@@ -228,16 +228,16 @@ contract MiddlewareTest is Test {
 
         {
             // Check that vault creation doesn't affect operator stake without deposit
-            uint48 ts = uint48(block.timestamp);
-            vm.warp(block.timestamp + 1);
+            uint48 ts = uint48(vm.getBlockTimestamp());
+            vm.warp(vm.getBlockTimestamp() + 1);
             assertEq(middleware.getOperatorStakeAt(operator1, ts), stake1);
         }
 
         {
             // Check after depositing to new vault
             _depositFromInVault(owner, vault3, stake3);
-            uint48 ts = uint48(block.timestamp);
-            vm.warp(block.timestamp + 1);
+            uint48 ts = uint48(vm.getBlockTimestamp());
+            vm.warp(vm.getBlockTimestamp() + 1);
             assertEq(middleware.getOperatorStakeAt(operator1, ts), stake1 + stake3);
         }
 
@@ -245,16 +245,16 @@ contract MiddlewareTest is Test {
             // Disable vault1 and check operator1 stake
             // Disable is not immediate, so we need to check for the next block ts
             _disableVault(operator1, vault1);
-            uint48 ts = uint48(block.timestamp) + 1;
-            vm.warp(block.timestamp + 2);
+            uint48 ts = uint48(vm.getBlockTimestamp()) + 1;
+            vm.warp(vm.getBlockTimestamp() + 2);
             assertEq(middleware.getOperatorStakeAt(operator1, ts), stake3);
         }
 
         {
             // Disable operator1 and check operator1 stake is 0
             _disableOperator(operator1);
-            uint48 ts = uint48(block.timestamp) + 1;
-            vm.warp(block.timestamp + 2);
+            uint48 ts = uint48(vm.getBlockTimestamp()) + 1;
+            vm.warp(vm.getBlockTimestamp() + 2);
             assertEq(middleware.getOperatorStakeAt(operator1, ts), 0);
 
             // Check that operator1 is not in active operators list
@@ -267,11 +267,11 @@ contract MiddlewareTest is Test {
 
         // Try to get stake for current timestamp
         vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
-        middleware.getOperatorStakeAt(operator2, uint48(block.timestamp));
+        middleware.getOperatorStakeAt(operator2, uint48(vm.getBlockTimestamp()));
 
         // Try to get stake for future timestamp
         vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
-        middleware.getOperatorStakeAt(operator2, uint48(block.timestamp + 1));
+        middleware.getOperatorStakeAt(operator2, uint48(vm.getBlockTimestamp() + 1));
     }
 
     function _disableOperator(address operator) private {
