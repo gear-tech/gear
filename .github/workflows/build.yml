@@ -230,7 +230,7 @@ jobs:
         run: |
           wget http://download.qt.io/official_releases/jom/jom.zip
           sudo unzip jom.zip -d /usr/local/bin/jom
-          sudo ln -sf /usr/local/bin/jom/jom.exe /usr/local/bin/jom/nmake.exe
+          sudo cp "$(pwd)/scripts/win-cross-nmake.sh" /usr/local/bin/jom/nmake.exe
           rm jom.zip
           echo "VCINSTALLDIR=/usr/local/bin/jom" >> $GITHUB_ENV
           echo "VSINSTALLDIR=" >> $GITHUB_ENV
