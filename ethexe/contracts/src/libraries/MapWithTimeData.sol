@@ -13,6 +13,7 @@ library MapWithTimeData {
     error AlreadyEnabled();
 
     function toInner(uint256 value) private pure returns (uint48, uint48, uint160) {
+        // casting to uint48 will truncate the value to 48 bits, so it's safe for this case
         return (uint48(value), uint48(value >> 48), uint160(value >> 96));
     }
 

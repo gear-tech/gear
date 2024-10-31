@@ -272,6 +272,12 @@ contract MiddlewareTest is Test {
         // Try to get stake for future timestamp
         vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
         middleware.getOperatorStakeAt(operator2, uint48(vm.getBlockTimestamp() + 1));
+
+        // Try to get stake for too old timestamp
+        uint48 ts = uint48(vm.getBlockTimestamp());
+        vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
+        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        middleware.getOperatorStakeAt(operator2, ts);
     }
 
     function _disableOperator(address operator) private {

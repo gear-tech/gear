@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
@@ -18,6 +19,7 @@ import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 // TODO: implement election logic
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
+// TODO: implement rewards distribution
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
@@ -99,7 +101,7 @@ contract Middleware {
     function unregisterOperator(address operator) external {
         (, uint48 disabledTime) = operators.getTimes(operator);
 
-        if (disabledTime == 0 || disabledTime + OPERATOR_GRACE_PERIOD > Time.timestamp()) {
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + OPERATOR_GRACE_PERIOD) {
             revert OperatorGracePeriodNotPassed();
         }
 
@@ -156,7 +158,7 @@ contract Middleware {
     function unregisterVault(address vault) external {
         (, uint48 disabledTime) = vaults.getTimes(vault);
 
-        if (disabledTime == 0 || disabledTime + VAULT_GRACE_PERIOD > Time.timestamp()) {
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + VAULT_GRACE_PERIOD) {
             revert VaultGracePeriodNotPassed();
         }
 
@@ -164,7 +166,7 @@ contract Middleware {
     }
 
     function getOperatorStakeAt(address operator, uint48 ts) external view returns (uint256 stake) {
-        _checkTimestampInThePast(ts);
+        _checkTimestamp(ts);
 
         (uint48 enabledTime, uint48 disabledTime) = operators.getTimes(operator);
         if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
@@ -179,7 +181,7 @@ contract Middleware {
         view
         returns (address[] memory active_operators, uint256[] memory stakes)
     {
-        _checkTimestampInThePast(ts);
+        _checkTimestamp(ts);
 
         active_operators = new address[](operators.length());
         stakes = new uint256[](operators.length());
@@ -220,9 +222,15 @@ contract Middleware {
         return enabledTime != 0 && enabledTime <= ts && (disabledTime == 0 || disabledTime >= ts);
     }
 
-    // Timestamp must be always in the past
-    function _checkTimestampInThePast(uint48 ts) private view {
+    // Timestamp must be always in the past, but not too far,
+    // so that some operators or vaults can be already unregistered.
+    function _checkTimestamp(uint48 ts) private view {
         if (ts >= Time.timestamp()) {
+            revert IncorrectTimestamp();
+        }
+
+        uint48 gracePeriod = OPERATOR_GRACE_PERIOD < VAULT_GRACE_PERIOD ? OPERATOR_GRACE_PERIOD : VAULT_GRACE_PERIOD;
+        if (ts + gracePeriod <= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
     }
