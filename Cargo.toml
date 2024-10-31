@@ -586,7 +586,7 @@ wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasm
 wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
-blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-ci-win-cross" }
+blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross-compilation-v1.5.4" }
 
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }

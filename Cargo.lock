@@ -1848,7 +1848,7 @@ dependencies = [
 [[package]]
 name = "blake3"
 version = "1.5.4"
-source = "git+https://github.com/gear-tech/BLAKE3?branch=fix-ci-win-cross#2d7c2fd6aa90fdf4b5b651a4acbd44840dd400e2"
+source = "git+https://github.com/gear-tech/BLAKE3?branch=clang-cl-cross-compilation-v1.5.4#1dd5c968e8f1bf47306edaef63144b13a1d0867b"
 dependencies = [
  "arrayref",
  "arrayvec 0.7.4",
