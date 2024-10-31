@@ -106,14 +106,19 @@ pub(crate) fn update_state_with_storage<S: Storage>(
     new_state_hash
 }
 
-pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
+pub fn process_next_message<S, RI>(
     program_id: ProgramId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
     code_id: CodeId,
     ri: &RI,
-) -> Vec<JournalNote> {
+) -> Vec<JournalNote>
+where
+    S: Storage,
+    RI: RuntimeInterface<S>,
+    <RI as RuntimeInterface<S>>::LazyPages: Send,
+{
     let block_info = ri.block_info();
 
     log::trace!("Processing next message for program {program_id}");
@@ -152,11 +157,8 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             // TBD about deprecation
             SyscallName::SignalCode,
             SyscallName::SignalFrom,
-            // TODO: refactor asap
-            SyscallName::GasAvailable,
             // Temporary forbidden (unimplemented)
             SyscallName::CreateProgram,
-            SyscallName::Exit,
             SyscallName::Random,
         ]
         .into(),

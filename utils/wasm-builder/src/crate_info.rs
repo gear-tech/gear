@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Result};
+use crate::{builder_error::BuilderError, multiple_crate_versions};
+use anyhow::{ensure, Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
-
-use crate::{builder_error::BuilderError, multiple_crate_versions};
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
 #[derive(Debug, Default)]
@@ -33,12 +32,14 @@ pub struct CrateInfo {
     pub version: String,
     /// Crate features.
     pub features: BTreeMap<String, Vec<String>>,
+    /// Crate custom profiles
+    pub profiles: BTreeMap<String, toml::Value>,
 }
 
 impl CrateInfo {
     /// Create a new `CrateInfo` from a path to the `Cargo.toml`.
     pub fn from_manifest(manifest_path: &Path) -> Result<Self> {
-        anyhow::ensure!(
+        ensure!(
             manifest_path.exists(),
             BuilderError::ManifestPathInvalid(manifest_path.to_path_buf())
         );
@@ -53,6 +54,16 @@ impl CrateInfo {
             .ok_or_else(|| BuilderError::RootPackageNotFound.into())
             .and_then(Self::check)?;
 
+        let manifest = cargo_toml::Manifest::from_path(metadata.workspace_root.join("Cargo.toml"))
+            .context("manifest parsing failed")?;
+        let profiles = manifest
+            .profile
+            .custom
+            .into_iter()
+            .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
+            .collect::<Result<_>>()
+            .context("failed to convert profile to `toml::Value`")?;
+
         multiple_crate_versions::check(&metadata, &root_package.id)?;
 
         let name = root_package.name.clone();
@@ -65,6 +76,7 @@ impl CrateInfo {
             snake_case_name,
             version,
             features,
+            profiles,
         })
     }
 

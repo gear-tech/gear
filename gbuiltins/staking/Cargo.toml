@@ -9,6 +9,6 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-gprimitives.workspace = true
-derive_more.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
+gprimitives = { workspace = true, features = ["codec"] }

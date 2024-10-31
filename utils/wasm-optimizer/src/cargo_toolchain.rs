@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use regex::Regex;
 use std::{borrow::Cow, process::Command, sync::LazyLock};
 
@@ -48,7 +48,7 @@ impl Toolchain {
             .output()
             .context("`rustup` command failed")?;
 
-        anyhow::ensure!(
+        ensure!(
             output.status.success(),
             "`rustup` exit code is not successful"
         );
@@ -90,7 +90,7 @@ impl Toolchain {
     /// Checks whether the toolchain is recommended.
     pub fn check_recommended_toolchain(&self) -> Result<()> {
         let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
-        anyhow::ensure!(
+        ensure!(
             self.raw_toolchain_str() == toolchain,
             anyhow!(
                 "recommended toolchain `{x}` not found, install it using the command:\n\

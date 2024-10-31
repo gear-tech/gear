@@ -52,7 +52,7 @@ pub fn process<Ext>(
     random_data: (Vec<u8>, u32),
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
-    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
     <Ext as Externalities>::AllocError:
         BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     RunFallibleError: From<Ext::FallibleError>,

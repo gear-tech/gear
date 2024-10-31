@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::anyhow;
+use anyhow::{anyhow, ensure};
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
 use std::{env, fs};
@@ -142,7 +142,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     if let Some(schedule_stack_height) = schedule.limits.stack_height {
-        anyhow::ensure!(
+        ensure!(
             schedule_stack_height <= stack_height,
             "Stack height in runtime schedule must be decreased"
         );

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     mirror::RequestEvent as MirrorEvent,
     router::{RequestEvent as RouterEvent, ValueClaim},
@@ -121,7 +121,10 @@ impl Processor {
                     self.handle_reply_queueing(state_hash, replied_to, source, payload, value)?
                 {
                     in_block_transitions
-                        .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
+                        .modify_transition(actor_id, |state_hash, transition| {
+                            *state_hash = new_state_hash;
+                            transition.claims.push(value_claim);
+                        })
                         .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
 
                     in_block_transitions.remove_task(
@@ -135,7 +138,10 @@ impl Processor {
                     self.handle_value_claiming(state_hash, claimed_id, source)?
                 {
                     in_block_transitions
-                        .modify_state_with(actor_id, new_state_hash, 0, vec![value_claim], vec![])
+                        .modify_transition(actor_id, |state_hash, transition| {
+                            *state_hash = new_state_hash;
+                            transition.claims.push(value_claim);
+                        })
                         .ok_or_else(|| anyhow!("failed to modify state of recognized program"))?;
 
                     in_block_transitions.remove_task(
@@ -272,12 +278,12 @@ impl Processor {
     }
 
     pub fn handle_new_program(&mut self, program_id: ProgramId, code_id: CodeId) -> Result<()> {
-        anyhow::ensure!(
+        ensure!(
             self.db.original_code(code_id).is_some(),
             "code existence must be checked on router"
         );
 
-        anyhow::ensure!(
+        ensure!(
             self.db.program_code_id(program_id).is_none(),
             "program duplicates must be checked on router"
         );

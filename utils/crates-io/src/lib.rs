@@ -49,6 +49,7 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
     "gsdk-codegen",
     "gsys",
     "numerated",
+    "gbuiltin-bls381",
 ];
 
 /// Required packages with local dependencies.
@@ -58,12 +59,15 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
 /// the order.
 pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gprimitives",
+    "gbuiltin-eth-bridge",
+    "gbuiltin-staking",
     "gstd-codegen",
     "gcore",
     "gmeta",
     "gear-core",
     "gear-utils",
     "gear-common",
+    "gear-wasmer-cache",
     "gear-sandbox-host",
     "gear-lazy-pages-common",
     "gear-lazy-pages",
