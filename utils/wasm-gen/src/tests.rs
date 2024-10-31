@@ -25,8 +25,8 @@ use gear_core::{
     ids::{prelude::*, CodeId, ProgramId},
     memory::Memory,
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
-        ReplyPacket,
+        ContextSettings, DispatchKind, DispatchKindSet, IncomingDispatch, IncomingMessage,
+        MessageContext, ReplyPacket,
     },
 };
 use gear_core_backend::{
@@ -1068,7 +1068,7 @@ fn execute_wasm_with_custom_configs(
         ext,
         code.instrumented_code().bytes(),
         DispatchKind::Init,
-        vec![DispatchKind::Init].into_iter().collect(),
+        DispatchKindSet::from_flag(DispatchKind::Init),
         (INITIAL_PAGES as u16).into(),
     )
     .expect("Failed to create environment");

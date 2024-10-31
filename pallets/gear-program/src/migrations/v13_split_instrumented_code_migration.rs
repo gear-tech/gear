@@ -286,7 +286,7 @@ mod test {
                 code_metadata.instrumented_code_len(),
                 instrumented_code.code.len() as u32
             );
-            assert_eq!(code_metadata.exports().into(), DispatchKind::Handle);
+            assert_eq!(code_metadata.exports().as_flags(), DispatchKind::Handle);
             assert_eq!(code_metadata.static_pages(), instrumented_code.static_pages);
             assert_eq!(code_metadata.stack_end(), instrumented_code.stack_end);
             assert_eq!(

@@ -122,11 +122,7 @@ where
             unreachable!("{err_msg}");
         });
 
-        if !code_metadata
-            .exports()
-            .as_flags()
-            .contains(dispatch_kind)
-        {
+        if !code_metadata.exports().as_flags().contains(dispatch_kind) {
             let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
             return core_processor::process_success(

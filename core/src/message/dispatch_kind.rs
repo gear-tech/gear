@@ -27,7 +27,9 @@ use scale_info::{
 
 /// Bitflags contains entry points
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
 pub struct DispatchKindSet(u8);
 
 impl From<BitFlags<DispatchKind>> for DispatchKindSet {
@@ -42,6 +44,11 @@ impl DispatchKindSet {
         Self(0)
     }
 
+    /// Construct from flag.
+    pub fn from_flag(flag: DispatchKind) -> Self {
+        BitFlags::from_flag(flag).into()
+    }
+
     /// Convert to bitflags.
     pub fn as_flags(self) -> BitFlags<DispatchKind> {
         BitFlags::from_bits(self.0).unwrap()
@@ -49,7 +56,7 @@ impl DispatchKindSet {
 }
 
 /// Bitflags contains entry points
-#[bitflags(default = Handle)]
+#[bitflags]
 #[repr(u8)]
 #[derive(
     Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,

@@ -26,10 +26,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
-    message::{
-        ContextStore, Dispatch, DispatchKindSet, IncomingDispatch, MessageWaitedType,
-        StoredDispatch,
-    },
+    message::{ContextStore, Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
