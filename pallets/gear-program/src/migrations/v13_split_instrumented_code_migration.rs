@@ -256,7 +256,7 @@ mod test {
             let mut btree_exports = BTreeSet::new();
             btree_exports.insert(v12::DispatchKind::Handle);
 
-            let section_sizes = unsafe { InstantiatedSectionSizes::zero() };
+            let section_sizes = InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0);
 
             let instrumented_code = v12::InstrumentedCode {
                 code: vec![1u8; 32],
@@ -286,7 +286,7 @@ mod test {
                 code_metadata.instrumented_code_len(),
                 instrumented_code.code.len() as u32
             );
-            assert_eq!(code_metadata.code_exports().into(), DispatchKind::Handle);
+            assert_eq!(code_metadata.exports().into(), DispatchKind::Handle);
             assert_eq!(code_metadata.static_pages(), instrumented_code.static_pages);
             assert_eq!(code_metadata.stack_end(), instrumented_code.stack_end);
             assert_eq!(
@@ -294,7 +294,7 @@ mod test {
                 InstrumentationStatus::Instrumented(instrumented_code.version)
             );
 
-            assert_eq!(new_instrumented_code.code(), &instrumented_code.code);
+            assert_eq!(new_instrumented_code.bytes(), &instrumented_code.code);
             assert_eq!(
                 new_instrumented_code.instantiated_section_sizes(),
                 &instrumented_code.instantiated_section_sizes

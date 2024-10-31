@@ -16,8 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core_processor::{common::SuccessfulDispatchResultKind, ContextCharged, ForProgram};
-use gear_core::{code::CodeMetadata, gas::GasCounter, str::LimitedStr};
+use core_processor::{
+    common::SuccessfulDispatchResultKind, ContextCharged, ForProgram, ProcessExecutionContext,
+};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCodeAndMetadata},
+    gas::GasCounter,
+    str::LimitedStr,
+};
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -400,7 +406,7 @@ impl ExtManager {
         };
 
         let context = match context
-            .charge_for_instrumented_code(block_config, instrumented_code.code().len() as u32)
+            .charge_for_instrumented_code(block_config, instrumented_code.bytes().len() as u32)
         {
             Ok(context) => context,
             Err(journal) => return journal,
@@ -418,6 +424,7 @@ impl ExtManager {
             block_config,
             actor_data,
             instrumented_code.instantiated_section_sizes(),
+            &code_metadata,
         ) {
             Ok(context) => context,
             Err(journal) => return journal,
@@ -425,7 +432,14 @@ impl ExtManager {
 
         core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
-            (context, instrumented_code, code_metadata, balance).into(),
+            ProcessExecutionContext::new(
+                context,
+                InstrumentedCodeAndMetadata {
+                    instrumented_code,
+                    metadata: code_metadata,
+                },
+                balance,
+            ),
             self.random_data.clone(),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))

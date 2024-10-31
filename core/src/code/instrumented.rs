@@ -65,21 +65,6 @@ impl InstantiatedSectionSizes {
         }
     }
 
-    /// Creates an empty instance of the section sizes.
-    ///
-    /// # Safety
-    /// This method is unsafe because it is used for testing purposes only.
-    pub const unsafe fn zero() -> Self {
-        Self {
-            code_section: 0,
-            data_section: 0,
-            global_section: 0,
-            table_section: 0,
-            element_section: 0,
-            type_section: 0,
-        }
-    }
-
     /// Returns the code section size in bytes.
     pub fn code_section(&self) -> u32 {
         self.code_section
@@ -115,23 +100,23 @@ impl InstantiatedSectionSizes {
 #[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq)]
 pub struct InstrumentedCode {
     /// Code instrumented with the latest schedule.
-    code: Vec<u8>,
+    bytes: Vec<u8>,
     /// Instantiated section sizes used for charging during module instantiation.
     instantiated_section_sizes: InstantiatedSectionSizes,
 }
 
 impl InstrumentedCode {
     /// Creates a new instance of the instrumented code.
-    pub fn new(code: Vec<u8>, instantiated_section_sizes: InstantiatedSectionSizes) -> Self {
+    pub fn new(bytes: Vec<u8>, instantiated_section_sizes: InstantiatedSectionSizes) -> Self {
         Self {
-            code,
+            bytes,
             instantiated_section_sizes,
         }
     }
 
     /// Returns reference to the instrumented binary code.
-    pub fn code(&self) -> &[u8] {
-        &self.code
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
     }
 
     /// Returns instantiated section sizes used for charging during module instantiation.
@@ -141,12 +126,12 @@ impl InstrumentedCode {
 
     /// Consumes the instance and returns the instrumented code.
     pub fn into_code(self) -> Vec<u8> {
-        self.code
+        self.bytes
     }
 }
 
 impl From<Code> for InstrumentedCode {
     fn from(code: Code) -> Self {
-        code.into_parts().0
+        code.into_parts().1
     }
 }

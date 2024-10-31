@@ -57,8 +57,6 @@ pub(crate) struct InstanceCreator {
 
 impl InstanceCreator {
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
-        gear_runtime_interface::sandbox_init();
-
         let engine = wasmtime::Engine::default();
 
         let module = wasmtime::Module::new(&engine, runtime)?;

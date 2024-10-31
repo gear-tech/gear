@@ -36,6 +36,7 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
+pub mod proxy;
 pub mod staking;
 pub mod weights;
 
@@ -60,6 +61,7 @@ use core_processor::{
     },
     process_execution_error, process_success, SystemReservationContext,
 };
+use frame_support::dispatch::extract_actual_weight;
 use gear_core::{
     gas::GasCounter,
     ids::{hash, ProgramId},
@@ -74,6 +76,8 @@ use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
 pub use pallet::*;
+
+type CallOf<T> = <T as Config>::RuntimeCall;
 
 const LOG_TARGET: &str = "gear::builtin";
 
@@ -174,6 +178,7 @@ impl<E> BuiltinCollection<E> for Tuple {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use common::Origin;
     use frame_support::{
         dispatch::{GetDispatchInfo, PostDispatchInfo},
         pallet_prelude::*,
@@ -213,6 +218,45 @@ pub mod pallet {
         /// a builtin actor registration.
         pub fn generate_actor_id(builtin_id: u64) -> ProgramId {
             hash((SEED, builtin_id).encode().as_slice()).into()
+        }
+
+        pub(crate) fn dispatch_call(
+            origin: ProgramId,
+            call: CallOf<T>,
+            gas_limit: u64,
+        ) -> (Result<(), BuiltinActorError>, u64)
+        where
+            T::AccountId: Origin,
+        {
+            let call_info = call.get_dispatch_info();
+
+            // Necessary upfront gas sufficiency check
+            if gas_limit < call_info.weight.ref_time() {
+                return (Err(BuiltinActorError::InsufficientGas), 0_u64);
+            }
+
+            // Execute call
+            let res = call.dispatch(frame_system::RawOrigin::Signed(origin.cast()).into());
+            let actual_gas = extract_actual_weight(&res, &call_info).ref_time();
+
+            match res {
+                Ok(_post_info) => {
+                    log::debug!(
+                        target: LOG_TARGET,
+                        "Call dispatched successfully",
+                    );
+                    (Ok(()), actual_gas)
+                }
+                Err(e) => {
+                    log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
+                    (
+                        Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                            e.into(),
+                        ))),
+                        actual_gas,
+                    )
+                }
+            }
         }
     }
 }

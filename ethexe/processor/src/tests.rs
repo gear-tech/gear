@@ -205,7 +205,7 @@ fn handle_new_code_valid() {
             .db
             .instrumented_code(ethexe_runtime::VERSION, code_id)
             .expect("failed to read original code")
-            .code()
+            .bytes()
             .len()
             > original_code_len
     );

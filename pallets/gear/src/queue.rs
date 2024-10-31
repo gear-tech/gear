@@ -19,9 +19,9 @@
 use super::*;
 use core_processor::{
     common::{DispatchResult, SuccessfulDispatchResultKind},
-    ContextCharged,
+    ContextCharged, ProcessExecutionContext,
 };
-use gear_core::program::ProgramState;
+use gear_core::{code::InstrumentedCodeAndMetadata, program::ProgramState};
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
@@ -123,7 +123,7 @@ where
         });
 
         if !code_metadata
-            .code_exports()
+            .exports()
             .as_flags()
             .contains(dispatch_kind)
         {
@@ -138,7 +138,7 @@ where
         let schedule = T::Schedule::get();
 
         // Check if the code needs to be reinstrumented.
-        let need_reinstrumentation = match code_metadata.instrumentation_status() {
+        let needs_reinstrumentation = match code_metadata.instrumentation_status() {
             InstrumentationStatus::Instrumented(weights_version) => {
                 weights_version != schedule.instruction_weights.version
             }
@@ -157,7 +157,7 @@ where
         };
 
         // Reinstrument the code if necessary.
-        let (instrumented_code, context) = if need_reinstrumentation {
+        let (instrumented_code, code_metadata, context) = if needs_reinstrumentation {
             log::debug!("Re-instrumenting code for program '{destination_id:?}'");
 
             let context = match context
@@ -191,15 +191,30 @@ where
                 context.gas_burned()
             );
 
-            let code = match Pallet::<T>::reinstrument_code(code_id, original_code, &schedule) {
-                Ok(code) => code,
-                Err(e) => {
-                    log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
-                    return core_processor::process_reinstrumentation_error(context);
-                }
-            };
+            let (instrumented_code, code_metadata) =
+                match Pallet::<T>::reinstrument_code(original_code, &schedule) {
+                    Ok(code_and_metadata) => {
+                        T::CodeStorage::update_instrumented_code_and_metadata(
+                            code_id,
+                            code_and_metadata.clone(),
+                        );
 
-            (code, context)
+                        code_and_metadata.into_parts()
+                    }
+                    Err(e) => {
+                        log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
+
+                        T::CodeStorage::update_code_metadata(
+                            code_id,
+                            code_metadata
+                                .into_failed_instrumentation(schedule.instruction_weights.version),
+                        );
+
+                        return core_processor::process_reinstrumentation_error(context);
+                    }
+                };
+
+            (instrumented_code, code_metadata, context)
         } else {
             // Adjust gas counters for fetching instrumented binary code.
             let context = match context
@@ -225,7 +240,7 @@ where
                 unreachable!("{err_msg}");
             });
 
-            (code, context)
+            (code, code_metadata, context)
         };
 
         let context =
@@ -247,9 +262,6 @@ where
 
         let actor_data = ExecutableActorData {
             allocations,
-            code_id: program.code_id,
-            code_exports: code_metadata.code_exports(),
-            static_pages: code_metadata.static_pages(),
             gas_reservation_map: program.gas_reservation_map,
             memory_infix: program.memory_infix,
         };
@@ -259,6 +271,7 @@ where
             block_config,
             actor_data,
             instrumented_code.instantiated_section_sizes(),
+            &code_metadata,
         ) {
             Ok(context) => context,
             Err(journal) => return journal,
@@ -275,7 +288,8 @@ where
 
         core_processor::process::<Ext>(
             block_config,
-            (context, instrumented_code, code_metadata, balance).into(),
+            ProcessExecutionContext::new
+            (context, InstrumentedCodeAndMetadata{instrumented_code, metadata: code_metadata}, balance),
             (random.encode(), bn.unique_saturated_into()),
         )
         .unwrap_or_else(|e| {

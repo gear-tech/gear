@@ -29,7 +29,7 @@ use crate::{
     BackendExternalities,
 };
 use alloc::{collections::BTreeSet, format, string::String};
-use core::{any::Any, fmt::Debug};
+use core::{any::Any, fmt::Debug, marker::Send};
 use gear_core::{
     env::Externalities,
     gas::GasAmount,
@@ -60,7 +60,7 @@ macro_rules! wrap_syscall {
     };
 }
 
-fn store_host_state_mut<Ext>(
+fn store_host_state_mut<Ext: Send + 'static>(
     store: &mut Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
 ) -> &mut State<Ext, BackendMemory<ExecutorMemory>> {
     store.data_mut().as_mut().unwrap_or_else(|| {
@@ -123,7 +123,7 @@ struct EnvBuilder<Ext: BackendExternalities> {
 
 impl<Ext> EnvBuilder<Ext>
 where
-    Ext: BackendExternalities + 'static,
+    Ext: BackendExternalities + Send + 'static,
     Ext::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
@@ -159,7 +159,7 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
 
 impl<Ext, EntryPoint> Environment<Ext, EntryPoint>
 where
-    Ext: BackendExternalities + 'static,
+    Ext: BackendExternalities + Send + 'static,
     Ext::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
@@ -232,9 +232,9 @@ struct GlobalsAccessProvider<Ext: Externalities> {
     store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
 }
 
-impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
-    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
-        let store = self.store.as_ref().ok_or(GlobalsAccessError)?;
+impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
+    fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
+        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
         self.instance
             .get_global_val(store, name.as_str())
             .and_then(i64::try_from_value)
@@ -255,7 +255,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
 
 impl<EnvExt, EntryPoint> Environment<EnvExt, EntryPoint>
 where
-    EnvExt: BackendExternalities + 'static,
+    EnvExt: BackendExternalities + Send + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
@@ -440,7 +440,7 @@ where
 
         // Fetching global value.
         let gas = instance
-            .get_global_val(&store, GLOBAL_NAME_GAS)
+            .get_global_val(&mut store, GLOBAL_NAME_GAS)
             .and_then(i64::try_from_value)
             .ok_or(System(WrongInjectedGas))? as u64;
 

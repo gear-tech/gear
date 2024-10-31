@@ -23,7 +23,7 @@ use crate::{
     precharge::{ContextCharged, ForModuleInstantiation},
 };
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
+    code::InstrumentedCodeAndMetadata,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::IncomingDispatch,
@@ -44,35 +44,12 @@ pub struct ProcessExecutionContext {
 }
 
 impl ProcessExecutionContext {
-    /// Returns program id.
-    pub fn program_id(&self) -> ProgramId {
-        self.program.id
-    }
-
-    /// Returns memory infix.
-    pub fn memory_infix(&self) -> MemoryInfix {
-        self.program.memory_infix
-    }
-}
-
-impl
-    From<(
-        ContextCharged<ForModuleInstantiation>,
-        InstrumentedCode,
-        CodeMetadata,
-        u128,
-    )> for ProcessExecutionContext
-{
-    fn from(
-        args: (
-            ContextCharged<ForModuleInstantiation>,
-            InstrumentedCode,
-            CodeMetadata,
-            u128,
-        ),
+    /// Creates a new instance of the process execution context.
+    pub fn new(
+        context: ContextCharged<ForModuleInstantiation>,
+        instrumented_code_and_metadata: InstrumentedCodeAndMetadata,
+        balance: u128,
     ) -> Self {
-        let (context, code, code_metadata, balance) = args;
-
         let (
             destination_id,
             dispatch,
@@ -85,8 +62,8 @@ impl
         let program = Program {
             id: destination_id,
             memory_infix: actor_data.memory_infix,
-            code,
-            code_metadata,
+            instrumented_code: instrumented_code_and_metadata.instrumented_code,
+            code_metadata: instrumented_code_and_metadata.metadata,
             allocations: actor_data.allocations,
         };
 
@@ -106,6 +83,16 @@ impl
             program,
             memory_size: allocations_data.memory_size,
         }
+    }
+
+    /// Returns program id.
+    pub fn program_id(&self) -> ProgramId {
+        self.program.id
+    }
+
+    /// Returns memory infix.
+    pub fn memory_infix(&self) -> MemoryInfix {
+        self.program.memory_infix
     }
 }
 

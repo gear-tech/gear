@@ -662,7 +662,7 @@ benchmarks! {
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code_id, original_code, &schedule).expect("Re-instrumentation  failed");
+        Gear::<T>::reinstrument_code(original_code, &schedule).expect("Re-instrumentation  failed");
     }
 
     load_allocations_per_interval {

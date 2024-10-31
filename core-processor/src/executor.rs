@@ -57,7 +57,7 @@ pub(crate) fn execute_wasm<Ext>(
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError>
 where
-    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
     <Ext as Externalities>::AllocError:
         BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     RunFallibleError: From<Ext::FallibleError>,
@@ -143,9 +143,9 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code.code(),
+            program.instrumented_code.bytes(),
             kind,
-            program.code_metadata.code_exports(),
+            program.code_metadata.exports(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -267,7 +267,7 @@ pub fn execute_for_reply<Ext, EP>(
     block_info: BlockInfo,
 ) -> Result<Vec<u8>, String>
 where
-    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
     <Ext as Externalities>::AllocError:
         BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     RunFallibleError: From<Ext::FallibleError>,
@@ -278,7 +278,7 @@ where
     let program = Program {
         id: program_id,
         memory_infix,
-        code: instrumented_code,
+        instrumented_code,
         code_metadata,
         allocations: allocations.unwrap_or_default(),
     };
@@ -344,9 +344,9 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code.code(),
+            program.instrumented_code.bytes(),
             function,
-            program.code_metadata.code_exports(),
+            program.code_metadata.exports(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {

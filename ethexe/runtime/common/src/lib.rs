@@ -52,6 +52,7 @@ use state::{
 };
 
 pub use core_processor::configs::BlockInfo;
+use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::Handler as JournalHandler;
 pub use schedule::Handler as ScheduleHandler;
 pub use transitions::{InBlockTransitions, NonFinalTransition};
@@ -105,14 +106,19 @@ pub(crate) fn update_state_with_storage<S: Storage>(
     new_state_hash
 }
 
-pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
+pub fn process_next_message<S, RI>(
     program_id: ProgramId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
     code_id: CodeId,
     ri: &RI,
-) -> Vec<JournalNote> {
+) -> Vec<JournalNote>
+where
+    S: Storage,
+    RI: RuntimeInterface<S>,
+    <RI as RuntimeInterface<S>>::LazyPages: Send,
+{
     let block_info = ri.block_info();
 
     log::trace!("Processing next message for program {program_id}");
@@ -151,11 +157,8 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             // TBD about deprecation
             SyscallName::SignalCode,
             SyscallName::SignalFrom,
-            // TODO: refactor asap
-            SyscallName::GasAvailable,
             // Temporary forbidden (unimplemented)
             SyscallName::CreateProgram,
-            SyscallName::Exit,
             SyscallName::Random,
         ]
         .into(),
@@ -232,7 +235,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     let code_metadata = code_metadata.expect("Code metadata must be provided if program is active");
 
     let context =
-        match context.charge_for_instrumented_code(&block_config, code.code().len() as u32) {
+        match context.charge_for_instrumented_code(&block_config, code.bytes().len() as u32) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
@@ -253,9 +256,6 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
 
     let actor_data = ExecutableActorData {
         allocations,
-        code_id,
-        code_exports: code_metadata.code_exports(),
-        static_pages: code_metadata.static_pages(),
         gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
         memory_infix: active_state.memory_infix,
     };
@@ -264,6 +264,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         &block_config,
         actor_data,
         code.instantiated_section_sizes(),
+        &code_metadata,
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
@@ -275,8 +276,14 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             .expect("Cannot get memory pages")
     });
 
-    let execution_context =
-        ProcessExecutionContext::from((context, code, code_metadata, program_state.balance));
+    let execution_context = ProcessExecutionContext::new(
+        context,
+        InstrumentedCodeAndMetadata {
+            instrumented_code: code,
+            metadata: code_metadata,
+        },
+        program_state.balance,
+    );
 
     let random_data = ri.random_data();
 

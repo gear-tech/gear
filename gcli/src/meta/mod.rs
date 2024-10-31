@@ -110,11 +110,11 @@ impl Meta {
         let code = Code::try_new_mock_const_or_no_rules(
             wasm.to_vec(),
             true,
-            TryNewCodeConfig::new_no_exports_check(),
+            TryNewCodeConfig::with_no_exports_check(),
         )?;
 
-        let instrumented_code = code.into_parts().0;
-        let result = executor::call_metadata(instrumented_code.code())?;
+        let instrumented_code = code.into_parts().1;
+        let result = executor::call_metadata(instrumented_code.bytes())?;
 
         Ok(Self::Wasm(MetawasmData::decode(&mut result.as_ref())?))
     }

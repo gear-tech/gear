@@ -52,7 +52,7 @@ const GENERIC_OS_PAGE_SIZE: u32 = 4096;
 pub struct Code {
     original_code: Vec<u8>,
     instrumented_code: InstrumentedCode,
-    code_metadata: CodeMetadata,
+    metadata: CodeMetadata,
 }
 
 impl Code {
@@ -144,9 +144,9 @@ impl Code {
 
         let instrumented_code = InstrumentedCode::new(code, instantiated_section_sizes);
 
-        let code_metadata = CodeMetadata::new(
+        let metadata = CodeMetadata::new(
             original_code.len() as u32,
-            instrumented_code.code().len() as u32,
+            instrumented_code.bytes().len() as u32,
             exports,
             static_pages,
             stack_end,
@@ -156,7 +156,7 @@ impl Code {
         Ok(Self {
             original_code,
             instrumented_code,
-            code_metadata,
+            metadata,
         })
     }
 
@@ -296,17 +296,13 @@ impl Code {
     }
 
     /// Returns the code metadata.
-    pub fn code_metadata(&self) -> &CodeMetadata {
-        &self.code_metadata
+    pub fn metadata(&self) -> &CodeMetadata {
+        &self.metadata
     }
 
     /// Consumes this instance and returns the instrumented and raw binary codes.
-    pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>, CodeMetadata) {
-        (
-            self.instrumented_code,
-            self.original_code,
-            self.code_metadata,
-        )
+    pub fn into_parts(self) -> (Vec<u8>, InstrumentedCode, CodeMetadata) {
+        (self.original_code, self.instrumented_code, self.metadata)
     }
 }
 
@@ -351,6 +347,32 @@ impl CodeAndId {
     /// Decomposes this instance.
     pub fn into_parts(self) -> (Code, CodeId) {
         (self.code, self.code_id)
+    }
+}
+
+/// The newtype contains the InstrumentedCode instance and the corresponding metadata.
+#[derive(Clone, Debug)]
+pub struct InstrumentedCodeAndMetadata {
+    /// Instrumented code.
+    pub instrumented_code: InstrumentedCode,
+    /// Code metadata.
+    pub metadata: CodeMetadata,
+}
+
+impl InstrumentedCodeAndMetadata {
+    /// Decomposes this instance into parts.
+    pub fn into_parts(self) -> (InstrumentedCode, CodeMetadata) {
+        (self.instrumented_code, self.metadata)
+    }
+}
+
+impl From<Code> for InstrumentedCodeAndMetadata {
+    fn from(code: Code) -> Self {
+        let (_, instrumented_code, metadata) = code.into_parts();
+        Self {
+            instrumented_code,
+            metadata,
+        }
     }
 }
 
@@ -642,7 +664,7 @@ mod tests {
         );
 
         let code = try_new_code_from_wat(wat.as_str(), None).expect("Must be ok");
-        assert_eq!(code.code_metadata().stack_end(), Some(1.into()));
+        assert_eq!(code.metadata().stack_end(), Some(1.into()));
     }
 
     #[test]

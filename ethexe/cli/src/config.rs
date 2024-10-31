@@ -19,8 +19,7 @@
 //! Application config in one place.
 
 use crate::args::Args;
-
-use anyhow::{Context as _, Result};
+use anyhow::{ensure, Context as _, Result};
 use directories::ProjectDirs;
 use ethexe_network::NetworkEventLoopConfig;
 use ethexe_prometheus_endpoint::Registry;
@@ -173,14 +172,14 @@ impl TryFrom<Args> for Config {
 
         let sequencer =
             ConfigPublicKey::new(&args.sequencer_key).context("invalid sequencer key")?;
-        anyhow::ensure!(
+        ensure!(
             args.tmp || sequencer != ConfigPublicKey::Random,
             "random key for sequencer is only allowed with `--tmp` flag"
         );
 
         let validator =
             ConfigPublicKey::new(&args.validator_key).context("invalid validator key")?;
-        anyhow::ensure!(
+        ensure!(
             args.tmp || validator != ConfigPublicKey::Random,
             "random key for validator is only allowed with `--tmp` flag"
         );

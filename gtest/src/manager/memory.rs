@@ -68,11 +68,11 @@ impl ExtManager {
         let mapping_code = Code::try_new_mock_const_or_no_rules(
             wasm,
             true,
-            TryNewCodeConfig::new_no_exports_check(),
+            TryNewCodeConfig::with_no_exports_check(),
         )
         .map_err(|_| TestError::Instrumentation)?;
 
-        let (mapping_code, _, code_metadata) =
+        let (_, mapping_code, code_metadata) =
             CodeAndId::new(mapping_code).into_parts().0.into_parts();
 
         let mut mapping_code_payload = args.unwrap_or_default();

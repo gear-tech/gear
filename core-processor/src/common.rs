@@ -530,12 +530,6 @@ pub struct ExecutableActorData {
     pub allocations: IntervalsTree<WasmPage>,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
-    /// Id of the program code.
-    pub code_id: CodeId,
-    /// Exported functions by the program code.
-    pub code_exports: DispatchKindSet,
-    /// Count of static memory pages.
-    pub static_pages: WasmPagesAmount,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
@@ -557,7 +551,7 @@ pub(crate) struct Program {
     /// Memory infix.
     pub memory_infix: MemoryInfix,
     /// Instrumented code.
-    pub code: InstrumentedCode,
+    pub instrumented_code: InstrumentedCode,
     /// Code metadata.
     pub code_metadata: CodeMetadata,
     /// Allocations.

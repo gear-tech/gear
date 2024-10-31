@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::anyhow;
+use anyhow::{anyhow, ensure};
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
 use std::{env, fs};
@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
 
     let compiler = Singlepass::default();
     let mut store = Store::new(compiler);
-    let module = Module::new(&store, code.instrumented_code().code())?;
+    let module = Module::new(&store, code.instrumented_code().bytes())?;
 
     let mut imports = Imports::new();
     let mut exports = Exports::new();
@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
         )
         .map_err(|e| anyhow!("{e}"))?;
 
-        let module = Module::new(&store, code.instrumented_code().code())?;
+        let module = Module::new(&store, code.instrumented_code().bytes())?;
         let instance = Instance::new(&mut store, &module, &imports)?;
         let init = instance.exports.get_function("init")?;
         let err = init.call(&mut store, &[]).unwrap_err();
@@ -142,7 +142,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     if let Some(schedule_stack_height) = schedule.limits.stack_height {
-        anyhow::ensure!(
+        ensure!(
             schedule_stack_height <= stack_height,
             "Stack height in runtime schedule must be decreased"
         );

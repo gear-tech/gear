@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use ethexe_db::CodesStorage;
 use ethexe_runtime_common::{
     state::{ComplexStorage as _, Dispatch},
@@ -65,7 +65,7 @@ impl Processor {
         }
 
         self.db.mutate_state(state_hash, |processor, state| {
-            anyhow::ensure!(state.program.is_active(), "program should be active");
+            ensure!(state.program.is_active(), "program should be active");
 
             state.queue_hash = processor
                 .modify_queue(state.queue_hash.clone(), |queue| queue.extend(dispatches))?;

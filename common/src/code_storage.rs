@@ -18,7 +18,9 @@
 
 use super::*;
 use crate::storage::MapStorage;
-use gear_core::code::{CodeAndId, CodeAttribution, CodeMetadata, InstrumentedCode};
+use gear_core::code::{
+    CodeAndId, CodeAttribution, CodeMetadata, InstrumentedCode, InstrumentedCodeAndMetadata,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
@@ -44,7 +46,7 @@ pub trait CodeStorage {
     /// Add the code to the storage.
     fn add_code(code_and_id: CodeAndId, code_attribution: CodeAttribution) -> Result<(), Error> {
         let (code, code_id) = code_and_id.into_parts();
-        let (instrumented_code, original_code, code_metadata) = code.into_parts();
+        let (original_code, instrumented_code, code_metadata) = code.into_parts();
 
         Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
             if maybe.is_some() {
@@ -60,9 +62,16 @@ pub trait CodeStorage {
         })
     }
 
-    /// Update the corresponding code in the storage.
-    fn update_instrumented_code(code_id: CodeId, instrumented_code: InstrumentedCode) {
-        Self::InstrumentedCodeStorage::insert(code_id, instrumented_code);
+    /// Update the corresponding code and metadata in the storage.
+    fn update_instrumented_code_and_metadata(
+        code_id: CodeId,
+        instrumented_code_and_metadata: InstrumentedCodeAndMetadata,
+    ) {
+        Self::InstrumentedCodeStorage::insert(
+            code_id,
+            instrumented_code_and_metadata.instrumented_code,
+        );
+        Self::CodeMetadataStorage::insert(code_id, instrumented_code_and_metadata.metadata);
     }
 
     /// Update the corresponding metadata in the storage.
