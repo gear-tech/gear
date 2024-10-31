@@ -195,7 +195,6 @@ jobs:
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-      OPENSSL_NO_VENDOR: 1
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -226,6 +225,15 @@ jobs:
           sudo unzip strawberry-perl-5.38.2.2-64bit-portable.zip "perl/*" -d /usr/local/bin/strawberry-perl
           rm strawberry-perl-5.38.2.2-64bit-portable.zip
           echo "OPENSSL_SRC_PERL=$(pwd)/scripts/win-cross-perl.sh" >> $GITHUB_ENV
+
+      - name: "Install: Jom (nmake)"
+        run: |
+          wget http://download.qt.io/official_releases/jom/jom.zip
+          sudo unzip jom.zip -d /usr/local/bin/jom
+          sudo ln -sf /usr/local/bin/jom/jom.exe /usr/local/bin/jom/nmake.exe
+          rm jom.zip
+          echo "VCINSTALLDIR=/usr/local/bin/jom" >> $GITHUB_ENV
+          echo "VSINSTALLDIR=" >> $GITHUB_ENV
 
       - name: "Install: LLVM"
         run: |
