@@ -219,6 +219,13 @@ jobs:
           wineboot
           winetricks win10
 
+      - name: "Install: Strawberry Perl"
+        run: |
+          wget https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_53822_64bit/strawberry-perl-5.38.2.2-64bit-portable.zip
+          unzip strawberry-perl-5.38.2.2-64bit-portable.zip "perl/*" -d /usr/local/bin/strawberry-perl
+          rm strawberry-perl-5.38.2.2-64bit-portable.zip
+          echo "OPENSSL_SRC_PERL=$(pwd)/scripts/win-cross-perl.sh" >> $GITHUB_ENV
+
       - name: "Install: LLVM"
         run: |
           sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
