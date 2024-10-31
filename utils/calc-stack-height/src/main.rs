@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
 
     let compiler = Singlepass::default();
     let mut store = Store::new(compiler);
-    let module = Module::new(&store, code.instrumented_code().code())?;
+    let module = Module::new(&store, code.instrumented_code().bytes())?;
 
     let mut imports = Imports::new();
     let mut exports = Exports::new();
@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
         )
         .map_err(|e| anyhow!("{e}"))?;
 
-        let module = Module::new(&store, code.instrumented_code().code())?;
+        let module = Module::new(&store, code.instrumented_code().bytes())?;
         let instance = Instance::new(&mut store, &module, &imports)?;
         let init = instance.exports.get_function("init")?;
         let err = init.call(&mut store, &[]).unwrap_err();

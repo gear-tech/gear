@@ -643,7 +643,7 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct InstrumentedCode {
-                        pub code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        pub bytes: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         pub instantiated_section_sizes:
                             runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
                     }
@@ -656,7 +656,7 @@ pub mod runtime_types {
                     pub struct CodeMetadata {
                         pub original_code_len: ::core::primitive::u32,
                         pub instrumented_code_len: ::core::primitive::u32,
-                        pub code_exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
+                        pub exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::gear_core::message::DispatchKind,
                         >,
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,

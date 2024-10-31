@@ -27,7 +27,7 @@ use crate::{
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 use gear_core::{
-    code::{InstantiatedSectionSizes, SectionName},
+    code::{CodeMetadata, InstantiatedSectionSizes, SectionName},
     costs::{BytesAmount, ProcessCosts},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
@@ -294,12 +294,13 @@ impl ContextCharged<ForAllocations> {
         block_config: &BlockConfig,
         actor_data: ExecutableActorData,
         section_sizes: &InstantiatedSectionSizes,
+        code_metadata: &CodeMetadata,
     ) -> PrechargeResult<ContextCharged<ForModuleInstantiation>> {
         // Calculates size of wasm memory buffer which must be created in execution environment
         let memory_size = if let Some(page) = actor_data.allocations.end() {
             page.inc()
         } else {
-            actor_data.static_pages
+            code_metadata.static_pages()
         };
 
         let allocations_data = ExecutableAllocationsData {

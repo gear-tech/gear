@@ -20,19 +20,13 @@
 
 use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation};
 use actor_system_error::actor_system_error;
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    string::String,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
-    message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
-    },
+    message::{ContextStore, Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
@@ -533,12 +527,6 @@ pub struct ExecutableActorData {
     pub allocations: IntervalsTree<WasmPage>,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
-    /// Id of the program code.
-    pub code_id: CodeId,
-    /// Exported functions by the program code.
-    pub code_exports: BTreeSet<DispatchKind>,
-    /// Count of static memory pages.
-    pub static_pages: WasmPagesAmount,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
@@ -560,7 +548,7 @@ pub(crate) struct Program {
     /// Memory infix.
     pub memory_infix: MemoryInfix,
     /// Instrumented code.
-    pub code: InstrumentedCode,
+    pub instrumented_code: InstrumentedCode,
     /// Code metadata.
     pub code_metadata: CodeMetadata,
     /// Allocations.

@@ -143,9 +143,9 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code.code(),
+            program.instrumented_code.bytes(),
             kind,
-            program.code_metadata.code_exports().clone(),
+            program.code_metadata.exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -278,7 +278,7 @@ where
     let program = Program {
         id: program_id,
         memory_infix,
-        code: instrumented_code,
+        instrumented_code,
         code_metadata,
         allocations: allocations.unwrap_or_default(),
     };
@@ -344,9 +344,9 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code.code(),
+            program.instrumented_code.bytes(),
             function,
-            program.code_metadata.code_exports().clone(),
+            program.code_metadata.exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {

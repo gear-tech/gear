@@ -27,7 +27,7 @@ pub struct CodeMetadata {
     /// Instrumented code length.
     instrumented_code_len: u32,
     /// Exports of the wasm module.
-    code_exports: BTreeSet<DispatchKind>,
+    exports: BTreeSet<DispatchKind>,
     // Static pages count from memory import.
     static_pages: WasmPagesAmount,
     /// Stack end page.
@@ -41,7 +41,7 @@ impl CodeMetadata {
     pub fn new(
         original_code_len: u32,
         instrumented_code_len: u32,
-        code_exports: BTreeSet<DispatchKind>,
+        exports: BTreeSet<DispatchKind>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         instrumentation_status: InstrumentationStatus,
@@ -49,10 +49,20 @@ impl CodeMetadata {
         Self {
             original_code_len,
             instrumented_code_len,
-            code_exports,
+            exports,
             static_pages,
             stack_end,
             instrumentation_status,
+        }
+    }
+
+    /// Converts the metadata into the failed instrumentation state.
+    pub fn into_failed_instrumentation(self, instruction_weights_version: u32) -> Self {
+        Self {
+            instrumentation_status: InstrumentationStatus::InstrumentationFailed(
+                instruction_weights_version,
+            ),
+            ..self
         }
     }
 
@@ -67,8 +77,8 @@ impl CodeMetadata {
     }
 
     /// Returns the code exports.
-    pub fn code_exports(&self) -> &BTreeSet<DispatchKind> {
-        &self.code_exports
+    pub fn exports(&self) -> &BTreeSet<DispatchKind> {
+        &self.exports
     }
 
     /// Returns the static pages count from memory import.

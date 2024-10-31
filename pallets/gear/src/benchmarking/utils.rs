@@ -28,10 +28,11 @@ use crate::{
 use common::{storage::*, CodeStorage, Origin, Program, ProgramStorage};
 use core_processor::{
     common::ExecutableActorData, configs::BlockConfig, precharge::ContextCharged,
+    ProcessExecutionContext,
 };
 use frame_support::traits::{Currency, Get};
 use gear_core::{
-    code::{Code, CodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
@@ -228,7 +229,7 @@ where
         _ => return Err("Program not found"),
     };
 
-    let balance = CurrencyOf::<T>::free_balance(&actor_id.cast()).unique_saturated_into();
+    let balance: u128 = CurrencyOf::<T>::free_balance(&actor_id.cast()).unique_saturated_into();
 
     let context = context
         .charge_for_code_metadata(&block_config)
@@ -252,9 +253,6 @@ where
 
     let actor_data = ExecutableActorData {
         allocations,
-        code_id: active.code_id,
-        code_exports: code_metadata.code_exports().clone(),
-        static_pages: code_metadata.static_pages(),
         gas_reservation_map: active.gas_reservation_map,
         memory_infix: active.memory_infix,
     };
@@ -264,13 +262,23 @@ where
             &block_config,
             actor_data,
             code.instantiated_section_sizes(),
+            &code_metadata,
         )
         .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
+
+    let process_exec_context = ProcessExecutionContext::new(
+        context,
+        InstrumentedCodeAndMetadata {
+            instrumented_code: code,
+            metadata: code_metadata,
+        },
+        balance,
+    );
 
     Ok(Exec {
         ext_manager,
         block_config,
-        context: (context, code, code_metadata, balance).into(),
+        context: process_exec_context,
         random_data: (vec![0u8; 32], 0),
     })
 }

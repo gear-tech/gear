@@ -52,6 +52,7 @@ use state::{
 };
 
 pub use core_processor::configs::BlockInfo;
+use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::Handler as JournalHandler;
 pub use schedule::Handler as ScheduleHandler;
 pub use transitions::{InBlockTransitions, NonFinalTransition};
@@ -232,7 +233,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
     let code_metadata = code_metadata.expect("Code metadata must be provided if program is active");
 
     let context =
-        match context.charge_for_instrumented_code(&block_config, code.code().len() as u32) {
+        match context.charge_for_instrumented_code(&block_config, code.bytes().len() as u32) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
@@ -253,9 +254,6 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
 
     let actor_data = ExecutableActorData {
         allocations,
-        code_id,
-        code_exports: code_metadata.code_exports().clone(),
-        static_pages: code_metadata.static_pages(),
         gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
         memory_infix: active_state.memory_infix,
     };
@@ -264,6 +262,7 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
         &block_config,
         actor_data,
         code.instantiated_section_sizes(),
+        &code_metadata,
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
@@ -275,8 +274,14 @@ pub fn process_next_message<S: Storage, RI: RuntimeInterface<S>>(
             .expect("Cannot get memory pages")
     });
 
-    let execution_context =
-        ProcessExecutionContext::from((context, code, code_metadata, program_state.balance));
+    let execution_context = ProcessExecutionContext::new(
+        context,
+        InstrumentedCodeAndMetadata {
+            instrumented_code: code,
+            metadata: code_metadata,
+        },
+        program_state.balance,
+    );
 
     let random_data = ri.random_data();
 

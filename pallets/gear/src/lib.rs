@@ -163,6 +163,7 @@ impl DebugInfo for () {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use gear_core::code::InstrumentedCodeAndMetadata;
 
     #[pallet::config]
     pub trait Config:
@@ -1120,12 +1121,9 @@ pub mod pallet {
         /// is removed. But this case is prevented by the Gear node protocol and checked in backwards compatibility
         /// test (`schedule::tests::instructions_backward_compatibility`)
         pub(crate) fn reinstrument_code(
-            code_id: CodeId,
             original_code: Vec<u8>,
             schedule: &Schedule<T>,
-        ) -> Result<InstrumentedCode, CodeError> {
-            debug_assert!(T::CodeStorage::get_instrumented_code(code_id).is_some());
-
+        ) -> Result<InstrumentedCodeAndMetadata, CodeError> {
             let code = Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
@@ -1135,12 +1133,7 @@ pub mod pallet {
                 schedule.limits.table_number.into(),
             )?;
 
-            let (instrumented_code, _, metadata) = code.into_parts();
-
-            T::CodeStorage::update_instrumented_code(code_id, instrumented_code.clone());
-            T::CodeStorage::update_code_metadata(code_id, metadata);
-
-            Ok(instrumented_code)
+            Ok(code.into())
         }
 
         pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
@@ -1165,7 +1158,7 @@ pub mod pallet {
             })?;
 
             ensure!(
-                (code.instrumented_code().code().len() as u32) <= schedule.limits.code_len,
+                (code.instrumented_code().bytes().len() as u32) <= schedule.limits.code_len,
                 Error::<T>::CodeTooLarge
             );
 

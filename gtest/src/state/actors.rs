@@ -21,7 +21,7 @@
 use std::{cell::RefCell, collections::BTreeMap, fmt};
 
 use core_processor::common::ExecutableActorData;
-use gear_common::{CodeId, GearPage, MessageId, PageBuf, ProgramId};
+use gear_common::{GearPage, MessageId, PageBuf, ProgramId};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     pages::{numerated::tree::IntervalsTree, WasmPage},
@@ -208,7 +208,6 @@ impl TestActor {
 
 #[derive(Debug, Clone)]
 pub(crate) struct GenuineProgram {
-    pub code_id: CodeId,
     pub code: InstrumentedCode,
     pub code_metadata: CodeMetadata,
     pub allocations: IntervalsTree<WasmPage>,
@@ -223,9 +222,6 @@ impl GenuineProgram {
         (
             ExecutableActorData {
                 allocations: self.allocations.clone(),
-                code_id: self.code_id,
-                code_exports: self.code_metadata.code_exports().clone(),
-                static_pages: self.code_metadata.static_pages(),
                 gas_reservation_map: self.gas_reservation_map.clone(),
                 memory_infix: Default::default(),
             },

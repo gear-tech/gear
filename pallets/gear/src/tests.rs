@@ -46,7 +46,8 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{
-        self, Code, CodeAttribution, CodeError, CodeMetadata, ExportError, MAX_WASM_PAGES_AMOUNT,
+        self, Code, CodeAttribution, CodeError, ExportError, InstrumentedCodeAndMetadata,
+        MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
@@ -236,22 +237,21 @@ fn state_rpc_calls_trigger_reinstrumentation() {
         )
         .expect("Failed to create dummy code");
 
-        let (instrumented_code, _, invalid_metadata) = code.into_parts();
+        let (_, instrumented_code, invalid_metadata) = code.into_parts();
 
         // Code metadata doesn't have to be completely wrong, just a version of instrumentation
         let old_code_metadata =
             <Test as Config>::CodeStorage::get_code_metadata(program.code_id).unwrap();
-        let code_metadata = CodeMetadata::new(
-            old_code_metadata.original_code_len(),
-            old_code_metadata.instrumented_code_len(),
-            old_code_metadata.code_exports().clone(),
-            old_code_metadata.static_pages(),
-            old_code_metadata.stack_end(),
-            invalid_metadata.instrumentation_status(), // invalid version
-        );
+        let code_metadata = old_code_metadata
+            .into_failed_instrumentation(invalid_metadata.instruction_weights_version());
 
-        <Test as Config>::CodeStorage::update_instrumented_code(program.code_id, instrumented_code);
-        <Test as Config>::CodeStorage::update_code_metadata(program.code_id, code_metadata);
+        <Test as Config>::CodeStorage::update_instrumented_code_and_metadata(
+            program.code_id,
+            InstrumentedCodeAndMetadata {
+                instrumented_code,
+                metadata: code_metadata,
+            },
+        );
         /* ends here */
 
         assert_ok!(Gear::read_metahash_impl(program_id, None));
@@ -5055,7 +5055,10 @@ fn test_code_submission_pass() {
             schedule.limits.table_number.into(),
         )
         .expect("Error creating Code");
-        assert_eq!(saved_code.unwrap().code(), code.instrumented_code().code());
+        assert_eq!(
+            saved_code.unwrap().bytes(),
+            code.instrumented_code().bytes()
+        );
 
         let expected_attribution = Some(CodeAttribution::new(USER_1.into_origin(), 1));
         let actual_attribution = <Test as Config>::CodeStorage::get_code_attribution(code_id);
@@ -6472,7 +6475,7 @@ fn terminated_locking_funds() {
         let code_id = get_last_code_id();
         let code = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
             .expect("code should be in the storage");
-        let code_length = code.code().len() as u64;
+        let code_length = code.bytes().len() as u64;
         let system_reservation = demo_init_fail_sender::system_reserve();
         let reply_duration = demo_init_fail_sender::reply_duration();
 
@@ -8008,7 +8011,7 @@ fn gas_spent_precalculated() {
             let schedule = <Test as Config>::Schedule::get();
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
             let instrumented_prog = get_program_code(pid);
-            let code_len = instrumented_prog.code().len() as u64;
+            let code_len = instrumented_prog.bytes().len() as u64;
             let gas_for_code_read = schedule
                 .db_weights
                 .read_per_byte
@@ -8054,7 +8057,7 @@ fn gas_spent_precalculated() {
         };
 
         let instrumented_code = get_program_code(pid);
-        let module = parity_wasm::deserialize_buffer::<Module>(instrumented_code.code())
+        let module = parity_wasm::deserialize_buffer::<Module>(instrumented_code.bytes())
             .expect("invalid wasm bytes");
 
         let (handle_export_func_body, gas_charge_func_body) = module
@@ -10445,7 +10448,8 @@ fn test_reinstrumentation_failure() {
 
         run_to_block(2, None);
 
-        let mut old_version = 0;
+        let new_weights_version = 0xdeadbeef;
+
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
             // Insert new original code to cause re-instrumentation failure.
             let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
@@ -10453,8 +10457,7 @@ fn test_reinstrumentation_failure() {
                 code_id, wasm,
             );
 
-            old_version = schedule.instruction_weights.version;
-            schedule.instruction_weights.version = 0xdeadbeef;
+            schedule.instruction_weights.version = new_weights_version;
         });
 
         assert_ok!(Gear::send_message(
@@ -10474,9 +10477,12 @@ fn test_reinstrumentation_failure() {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         assert!(program.is_active());
 
-        // After message processing the code must have the old instrumentation version.
+        // After message processing the code must have the new instrumentation version.
         let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
-        assert_eq!(code_metadata.instruction_weights_version(), old_version);
+        assert_eq!(
+            code_metadata.instruction_weights_version(),
+            new_weights_version
+        );
 
         // Error reply must be returned with the reason of re-instrumentation failure.
         assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
@@ -10491,7 +10497,8 @@ fn test_init_reinstrumentation_failure() {
         let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
         let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
 
-        let mut old_version = 0;
+        let new_weights_version = 0xdeadbeef;
+
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
             // Insert new original code to cause init re-instrumentation failure.
             let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
@@ -10499,8 +10506,7 @@ fn test_init_reinstrumentation_failure() {
                 code_id, wasm,
             );
 
-            old_version = schedule.instruction_weights.version;
-            schedule.instruction_weights.version = 0xdeadbeef;
+            schedule.instruction_weights.version = new_weights_version;
         });
 
         let mid = get_last_message_id();
@@ -10511,9 +10517,12 @@ fn test_init_reinstrumentation_failure() {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         assert!(program.is_terminated());
 
-        // After message processing the code must have the old instrumentation version.
+        // After message processing the code must have the new instrumentation version.
         let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
-        assert_eq!(code_metadata.instruction_weights_version(), old_version);
+        assert_eq!(
+            code_metadata.instruction_weights_version(),
+            new_weights_version
+        );
 
         // Error reply must be returned with the reason of re-instrumentation failure.
         assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);

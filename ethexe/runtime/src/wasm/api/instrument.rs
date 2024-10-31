@@ -48,9 +48,9 @@ pub fn instrument_code(original_code: Vec<u8>) -> Option<(InstrumentedCode, Code
     })
     .ok()?;
 
-    let (instrumented, _, metadata) = code.into_parts();
+    let (_, instrumented, metadata) = code.into_parts();
 
-    if instrumented.code().len() > schedule.limits.code_len as usize {
+    if instrumented.bytes().len() > schedule.limits.code_len as usize {
         log::debug!("Instrumented code exceeds size limit!");
         return None;
     }

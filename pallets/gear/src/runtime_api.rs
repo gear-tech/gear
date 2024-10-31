@@ -399,11 +399,11 @@ where
         let code = Code::try_new_mock_with_rules(
             wasm,
             |module| schedule.rules(module),
-            TryNewCodeConfig::new_no_exports_check(),
+            TryNewCodeConfig::with_no_exports_check(),
         )
         .map_err(|e| format!("Failed to construct program: {e:?}"))?;
 
-        if u32::try_from(code.instrumented_code().code().len()).unwrap_or(u32::MAX)
+        if u32::try_from(code.instrumented_code().bytes().len()).unwrap_or(u32::MAX)
             > schedule.limits.code_len
         {
             return Err("Wasm after instrumentation too big".into());
@@ -411,7 +411,7 @@ where
 
         let code_and_id = CodeAndId::new(code);
 
-        let (instrumented_code, _, code_metadata) = code_and_id.into_parts().0.into_parts();
+        let (_, instrumented_code, code_metadata) = code_and_id.into_parts().0.into_parts();
 
         let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
@@ -540,7 +540,7 @@ where
         let schedule = T::Schedule::get();
 
         // Check if the code needs to be reinstrumented.
-        let need_reinstrumentation = match code_metadata.instrumentation_status() {
+        let needs_reinstrumentation = match code_metadata.instrumentation_status() {
             InstrumentationStatus::Instrumented(weights_version) => {
                 weights_version != schedule.instruction_weights.version
             }
@@ -556,13 +556,14 @@ where
             }
         };
 
-        let instrumented_code = if need_reinstrumentation {
+        let instrumented_code = if needs_reinstrumentation {
             let original_code = T::CodeStorage::get_original_code(code_id).ok_or_else(|| {
                 format!("Code '{code_id:?}' not found for program '{program_id:?}'")
             })?;
 
-            Pallet::<T>::reinstrument_code(code_id, original_code, &schedule)
+            Pallet::<T>::reinstrument_code(original_code, &schedule)
                 .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?
+                .instrumented_code
         } else {
             T::CodeStorage::get_instrumented_code(code_id).ok_or_else(|| {
                 format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
