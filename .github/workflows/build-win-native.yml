@@ -41,15 +41,18 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
-      - name: "Install: Choco"
-        uses: crazy-max/ghaction-chocolatey@v3
-        with:
-          args: -h
-
-      - name: "Install: StrawberryPerl"
+      - name: "Install: Strawberry Perl"
         run: |
-          choco install strawberryperl
-          echo "C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin" >> $GITHUB_PATH
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'msi' } -PassThru
+          Invoke-WebRequest -OutFile $tmp "http://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.msi"
+          Start-Process msiexec.exe -ArgumentList '/i', $tmp.FullName, '/quiet', '/norestart' -Wait
+          Remove-Item $tmp.FullName
+
+          # Add Perl to PATH if needed (use the correct installation path)
+          $perlPath = "$Env:USERPROFILE\Strawberry\perl\bin"
+          $env:PATH += ";$perlPath"
+          Write-Host "Perl installed. Path added: $perlPath"
+        shell: powershell
 
       - name: "Install: Rustup"
         run: |
