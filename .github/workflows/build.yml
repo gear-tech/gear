@@ -221,10 +221,10 @@ jobs:
 
       - name: "Install: FireDaemon OpenSSL"
         run: |
-          wget -q https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.4.0.zip
+          wget https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.4.0.zip
           unzip openssl-3.4.0.zip "x64/*" -d openssl
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
-          echo "OPENSSL_DIR=$(pwd)/openssl/x64" >> $GIHUB_ENV
+          echo "OPENSSL_DIR=$(pwd)/openssl/x64" >> $GITHUB_ENV
 
       - name: "Install: LLVM"
         run: |
