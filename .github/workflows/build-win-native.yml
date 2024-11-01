@@ -33,6 +33,11 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
+      - name: "Set up Perl"
+        run: |
+          choco install strawberryperl
+          echo "C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin" >> $GITHUB_PATH
+
       - name: "Install: Setup MSYS2 environment"
         uses: msys2/setup-msys2@v2
         with:
