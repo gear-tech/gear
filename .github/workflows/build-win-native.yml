@@ -45,7 +45,7 @@ jobs:
         run: |
           $perlPath = "$Env:USERPROFILE\strawberry-perl"
           
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'msi' } -PassThru
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
           Invoke-WebRequest -OutFile $tmp "https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54001_64bit_UCRT/strawberry-perl-5.40.0.1-64bit-portable.zip"
           $tmp | Expand-Archive -DestinationPath $perlPath -Force
           $tmp | Remove-Item
