@@ -219,21 +219,12 @@ jobs:
           wineboot
           winetricks win10
 
-      - name: "Install: Strawberry Perl"
+      - name: "Install: FireDaemon OpenSSL"
         run: |
-          wget https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_53822_64bit/strawberry-perl-5.38.2.2-64bit-portable.zip
-          sudo unzip strawberry-perl-5.38.2.2-64bit-portable.zip "perl/*" -d /usr/local/bin/strawberry-perl
-          rm strawberry-perl-5.38.2.2-64bit-portable.zip
-          echo "OPENSSL_SRC_PERL=$(pwd)/scripts/win-cross-perl.sh" >> $GITHUB_ENV
-
-      - name: "Install: Jom (nmake)"
-        run: |
-          wget http://download.qt.io/official_releases/jom/jom.zip
-          sudo unzip jom.zip -d /usr/local/bin/jom
-          sudo cp "$(pwd)/scripts/win-cross-nmake.sh" /usr/local/bin/jom/nmake.exe
-          rm jom.zip
-          echo "VCINSTALLDIR=/usr/local/bin/jom" >> $GITHUB_ENV
-          echo "VSINSTALLDIR=" >> $GITHUB_ENV
+          wget -q https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.4.0.zip
+          unzip openssl-3.4.0.zip "x64/*" -d openssl
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=$(pwd)/openssl/x64" >> $GIHUB_ENV
 
       - name: "Install: LLVM"
         run: |
