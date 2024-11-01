@@ -41,16 +41,15 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
-      - name: "Set up Perl"
-        uses: shogo82148/actions-setup-perl@v1
+      - name: "Install: Choco"
+        uses: crazy-max/ghaction-chocolatey@v3
         with:
-          perl-version: "5.32"
-          distribution: strawberry
+          args: -h
 
-      - name: "Perl install deps"
+      - name: "Install: StrawberryPerl"
         run: |
-          cpanm --installdeps .
-          prove -lv t
+          choco install strawberryperl
+          echo "C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin" >> $GITHUB_PATH
 
       - name: "Install: Rustup"
         run: |
