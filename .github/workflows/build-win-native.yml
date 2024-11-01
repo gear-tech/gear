@@ -41,18 +41,17 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
-      # - name: "Install: Strawberry Perl"
-      #   run: |
-      #     $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'msi' } -PassThru
-      #     Invoke-WebRequest -OutFile $tmp "http://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.msi"
-      #     Start-Process msiexec.exe -ArgumentList '/i', $tmp.FullName, '/quiet', '/norestart' -Wait
-      #     Remove-Item $tmp.FullName
+      - name: "Install: Strawberry Perl"
+        run: |
+          $perlPath = "$Env:USERPROFILE\strawberry-perl"
+          
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'msi' } -PassThru
+          Invoke-WebRequest -OutFile $tmp "https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54001_64bit_UCRT/strawberry-perl-5.40.0.1-64bit.msi"
+          Start-Process msiexec.exe -ArgumentList "/i $tmp /quiet /norestart TARGETDIR=$Env:USERPROFILE\strawberry-perl" -Wait
+          $tmp | Remove-Item
 
-      #     # Add Perl to PATH if needed (use the correct installation path)
-      #     $perlPath = "$Env:USERPROFILE\Strawberry\perl\bin"
-      #     $env:PATH += ";$perlPath"
-      #     Write-Host "Perl installed. Path added: $perlPath"
-      #   shell: powershell
+          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSl_SRC_PERL=$perlPath/perl/bin/perl.exe"
+        shell: powershell
 
       - name: "Install: Rustup"
         run: |
