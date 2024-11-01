@@ -71,7 +71,7 @@ jobs:
 
       - name: "Install: cargo-nextest"
         run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          $tmp = "cargo-nextest.zip"
           Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
