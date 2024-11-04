@@ -79,7 +79,7 @@ use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
-    code::{Code, CodeAndId, CodeAttribution},
+    code::{Code, CodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     memory::Memory,
     message::DispatchKind,
@@ -647,22 +647,14 @@ benchmarks! {
         let max_table_size = T::Schedule::get().limits.code_len;
         // NOTE: We use a program filled with table/element sections here because it is the heaviest weight-wise.
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
-        let original_code = code.clone();
         let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
-        let code_id = code_and_id.code_id();
-
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        let code_attribution = {
-            let block_number = Pallet::<T>::block_number().unique_saturated_into();
-            CodeAttribution::new(caller.into_origin(), block_number)
-        };
-
-        T::CodeStorage::add_code(code_and_id, code_attribution).unwrap();
+        let (code, code_id) = code_and_id.into_parts();
+        let (_, _, code_metadata) = code.into_parts();
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(original_code, &schedule).expect("Re-instrumentation  failed");
+        Gear::<T>::reinstrument_code(code_id, code_metadata, &schedule).expect("Re-instrumentation  failed");
     }
 
     load_allocations_per_interval {

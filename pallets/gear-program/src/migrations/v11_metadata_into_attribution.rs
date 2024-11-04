@@ -16,14 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{CodeAttributionStorage, Config, Pallet};
+use crate::{Config, Pallet};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use sp_std::marker::PhantomData;
 
-use gear_core::code::CodeAttribution;
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::ensure,
@@ -44,7 +43,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateMetadataIntoAttribution<T> {
     fn on_runtime_upgrade() -> Weight {
         // 1 read for onchain storage version
         let mut weight = T::DbWeight::get().reads(1);
-        let mut counter = 0;
 
         let onchain = Pallet::<T>::on_chain_storage_version();
 
@@ -60,17 +58,8 @@ impl<T: Config> OnRuntimeUpgrade for MigrateMetadataIntoAttribution<T> {
 
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            v10::MetadataStorage::<T>::drain().for_each(|(code_id, metadata)| {
-                // 1 read for metadata, 1 write for attribution
-                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-
-                let attribution = CodeAttribution::new(metadata.author, metadata.block_number);
-                CodeAttributionStorage::<T>::insert(code_id, attribution);
-
-                counter += 1;
-            });
-
             v10::MetadataStorageNonce::<T>::kill();
+
             // killing a storage: one write
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
@@ -79,7 +68,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateMetadataIntoAttribution<T> {
 
             update_to.put::<Pallet<T>>();
 
-            log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
+            log::info!("✅ Successfully migrated storage.");
         } else {
             log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
@@ -108,11 +97,10 @@ impl<T: Config> OnRuntimeUpgrade for MigrateMetadataIntoAttribution<T> {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        if let Some(old_count) = Option::<u64>::decode(&mut state.as_ref())
+        if let Some(count) = Option::<u64>::decode(&mut state.as_ref())
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
-            let count = CodeAttributionStorage::<T>::iter_keys().count() as u64;
-            ensure!(old_count == count, "incorrect count of elements");
+            ensure!(count > 0, "incorrect count of elements");
         }
 
         Ok(())
@@ -138,12 +126,17 @@ mod v10 {
 
     use crate::{Config, Pallet};
     use frame_support::{
-        storage::types::{StorageMap, StorageValue},
+        storage::types::StorageValue,
         traits::{PalletInfo, StorageInstance},
-        Identity,
     };
-    use gear_core::ids::CodeId;
+
     use sp_std::marker::PhantomData;
+
+    #[cfg(feature = "try-runtime")]
+    use {
+        frame_support::{storage::types::StorageMap, Identity},
+        gear_core::ids::CodeId,
+    };
 
     pub type MetadataStorageNonce<T> = StorageValue<MetadataStoragePrefix<T>, u32>;
 
@@ -158,6 +151,7 @@ mod v10 {
         const STORAGE_PREFIX: &'static str = "MetadataStorage";
     }
 
+    #[cfg(feature = "try-runtime")]
     pub type MetadataStorage<T> =
         StorageMap<MetadataStoragePrefix<T>, Identity, CodeId, CodeMetadata>;
 }
@@ -168,8 +162,6 @@ mod test {
     use super::*;
     use crate::mock::*;
     use frame_support::traits::StorageVersion;
-    use gear_core::ids::CodeId;
-    use primitive_types::H256;
     use sp_runtime::traits::Zero;
 
     #[test]
@@ -179,24 +171,10 @@ mod test {
         new_test_ext().execute_with(|| {
             StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 
-            // add old code metadata
-            let code_id = CodeId::from(1u64);
-            let code_metadata = v10::CodeMetadata {
-                author: H256::from([1u8; 32]),
-                block_number: 1,
-            };
-
-            v10::MetadataStorage::<Test>::insert(code_id, code_metadata.clone());
-
             let state = MigrateMetadataIntoAttribution::<Test>::pre_upgrade().unwrap();
             let w = MigrateMetadataIntoAttribution::<Test>::on_runtime_upgrade();
             assert!(!w.is_zero());
             MigrateMetadataIntoAttribution::<Test>::post_upgrade(state).unwrap();
-
-            let code_attribution = CodeAttributionStorage::<Test>::get(code_id).unwrap();
-
-            assert_eq!(code_attribution.author, code_metadata.author);
-            assert_eq!(code_attribution.block_number, code_metadata.block_number);
 
             assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);
         })

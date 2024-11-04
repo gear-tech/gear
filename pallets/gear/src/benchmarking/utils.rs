@@ -102,7 +102,7 @@ where
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
-            let _ = Gear::<T>::set_code_with_attribution(code_and_id, source);
+            let _ = Gear::<T>::set_code(code_and_id);
 
             ext_manager.set_program(
                 program_id,

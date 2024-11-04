@@ -85,10 +85,7 @@ use frame_system::{
     Pallet as System, RawOrigin,
 };
 use gear_core::{
-    code::{
-        Code, CodeAndId, CodeAttribution, CodeError, CodeMetadata, InstrumentationStatus,
-        InstrumentedCode,
-    },
+    code::{Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
@@ -619,11 +616,9 @@ pub mod pallet {
             GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
             GearBank::<T>::deposit_value(&who, value, false)?;
 
-            let origin = who.clone().into_origin();
-
             // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_id) = Self::set_code_with_attribution(code_and_id, origin) {
+            if let Ok(code_id) = Self::set_code(code_and_id) {
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
                 // calculated one (issues #646 and #969).
@@ -632,6 +627,8 @@ pub mod pallet {
                     change: CodeChangeKind::Active { expiration: None },
                 });
             }
+
+            let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
@@ -668,16 +665,14 @@ pub mod pallet {
 
         /// Upload code to the chain without gas and stack limit injection.
         #[cfg(feature = "runtime-benchmarks")]
-        pub fn upload_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
+        pub fn upload_code_raw(code: Vec<u8>) -> DispatchResultWithPostInfo {
             let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
                 .map_err(|e| {
                     log::debug!("Code failed to load: {e:?}");
                     Error::<T>::ProgramConstructionFailed
                 })?;
 
-            let code_id = Self::set_code_with_attribution(CodeAndId::new(code), who.into_origin())?;
+            let code_id = Self::set_code(CodeAndId::new(code))?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -1087,26 +1082,14 @@ pub mod pallet {
             }
         }
 
-        /// Sets `code` and attribution, if code doesn't exist in storage.
+        /// Sets `code`, if code doesn't exist in storage.
         ///
         /// On success returns Blake256 hash of the `code`. If code already
         /// exists (*so, metadata exists as well*), returns unit `CodeAlreadyExists` error.
-        ///
-        /// # Note
-        /// Code existence in storage means that attribution is there too.
-        pub(crate) fn set_code_with_attribution(
-            code_and_id: CodeAndId,
-            who: H256,
-        ) -> Result<CodeId, Error<T>> {
+        pub(crate) fn set_code(code_and_id: CodeAndId) -> Result<CodeId, Error<T>> {
             let code_id = code_and_id.code_id();
 
-            let code_attribution = {
-                let block_number = Self::block_number().unique_saturated_into();
-                CodeAttribution::new(who, block_number)
-            };
-
-            T::CodeStorage::add_code(code_and_id, code_attribution)
-                .map_err(|_| Error::<T>::CodeAlreadyExists)?;
+            T::CodeStorage::add_code(code_and_id).map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
             Ok(code_id)
         }
@@ -1121,19 +1104,52 @@ pub mod pallet {
         /// is removed. But this case is prevented by the Gear node protocol and checked in backwards compatibility
         /// test (`schedule::tests::instructions_backward_compatibility`)
         pub(crate) fn reinstrument_code(
-            original_code: Vec<u8>,
+            code_id: CodeId,
+            code_metadata: CodeMetadata,
             schedule: &Schedule<T>,
         ) -> Result<InstrumentedCodeAndMetadata, CodeError> {
-            let code = Code::try_new(
+            // By the invariant set in CodeStorage trait, original code can't exist in storage
+            // without the instrumented code
+            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| {
+                let err_msg = format!(
+                    "reinstrument_code: failed to get original code for the existing program. \
+                    Code id - '{code_id:?}'."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
+
+            let instrumented_code_and_metadata = match Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
                 schedule.limits.table_number.into(),
-            )?;
+            ) {
+                Ok(code) => {
+                    let instrumented_code_and_metadata = code.into_instrumented_code_and_metadata();
 
-            Ok(code.into())
+                    T::CodeStorage::update_instrumented_code_and_metadata(
+                        code_id,
+                        instrumented_code_and_metadata.clone(),
+                    );
+
+                    instrumented_code_and_metadata
+                }
+                Err(e) => {
+                    T::CodeStorage::update_code_metadata(
+                        code_id,
+                        code_metadata
+                            .into_failed_instrumentation(schedule.instruction_weights.version),
+                    );
+
+                    return Err(e);
+                }
+            };
+
+            Ok(instrumented_code_and_metadata)
         }
 
         pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
@@ -1316,9 +1332,9 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::upload_code((code.len() as u32) / 1024))]
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
+            let _ = ensure_signed(origin)?;
 
-            Self::upload_code_impl(who, code)
+            Self::upload_code_impl(code)
         }
 
         /// Creates program initialization request (message), that is scheduled to be run in the same block.
@@ -1401,8 +1417,7 @@ pub mod pallet {
             if !T::CodeStorage::exists(code_id) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
                 // if there's code in storage, there's also metadata for it.
-                let code_hash =
-                    Self::set_code_with_attribution(code_and_id, who.clone().into_origin())?;
+                let code_hash = Self::set_code(code_and_id)?;
 
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
@@ -1942,12 +1957,8 @@ pub mod pallet {
         }
 
         /// Underlying implementation of `GearPallet::upload_code`.
-        pub fn upload_code_impl(
-            origin: AccountIdOf<T>,
-            code: Vec<u8>,
-        ) -> DispatchResultWithPostInfo {
-            let code_id =
-                Self::set_code_with_attribution(Self::try_new_code(code)?, origin.into_origin())?;
+        pub fn upload_code_impl(code: Vec<u8>) -> DispatchResultWithPostInfo {
+            let code_id = Self::set_code(Self::try_new_code(code)?)?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -2025,7 +2036,7 @@ pub mod pallet {
                     keep_alive,
                     Some(sponsor_id),
                 ),
-                PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(account_id, code),
+                PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(code),
                 PrepaidCall::DeclineVoucher => pallet_gear_voucher::Pallet::<T>::decline(
                     RawOrigin::Signed(account_id).into(),
                     voucher_id,

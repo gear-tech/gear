@@ -46,8 +46,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{
-        self, Code, CodeAttribution, CodeError, ExportError, InstrumentedCodeAndMetadata,
-        MAX_WASM_PAGES_AMOUNT,
+        self, Code, CodeError, ExportError, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
@@ -5060,10 +5059,6 @@ fn test_code_submission_pass() {
             code.instrumented_code().bytes()
         );
 
-        let expected_attribution = Some(CodeAttribution::new(USER_1.into_origin(), 1));
-        let actual_attribution = <Test as Config>::CodeStorage::get_code_attribution(code_id);
-        assert_eq!(expected_attribution, actual_attribution);
-
         // TODO: replace this temporary (`None`) value
         // for expiration block number with properly
         // calculated one (issues #646 and #969).
@@ -5143,7 +5138,6 @@ fn test_code_is_not_reset_within_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_id = CodeId::generate(&code);
 
         // First submit code
         assert_ok!(Gear::upload_code(
@@ -5151,8 +5145,6 @@ fn test_code_is_not_reset_within_program_submission() {
             code.clone()
         ));
         let expected_code_saved_events = 1;
-        let expected_attribution = <Test as Config>::CodeStorage::get_code_attribution(code_id);
-        assert!(expected_attribution.is_some());
 
         // Submit program from another origin. Should not change meta or code.
         assert_ok!(Gear::upload_program(
@@ -5164,7 +5156,7 @@ fn test_code_is_not_reset_within_program_submission() {
             0,
             false,
         ));
-        let actual_attribution = <Test as Config>::CodeStorage::get_code_attribution(code_id);
+
         let actual_code_saved_events = System::events()
             .iter()
             .filter(|e| {
@@ -5178,7 +5170,6 @@ fn test_code_is_not_reset_within_program_submission() {
             })
             .count();
 
-        assert_eq!(expected_attribution, actual_attribution);
         assert_eq!(expected_code_saved_events, actual_code_saved_events);
     })
 }

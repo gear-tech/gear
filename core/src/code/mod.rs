@@ -28,14 +28,12 @@ use gear_wasm_instrument::{
     InstrumentationBuilder,
 };
 
-mod attribution;
 mod config;
 mod errors;
 mod instrumented;
 mod metadata;
 mod utils;
 
-pub use attribution::*;
 pub use config::*;
 pub use errors::*;
 pub use instrumented::*;
@@ -303,6 +301,14 @@ impl Code {
     /// Consumes this instance and returns the instrumented and raw binary codes.
     pub fn into_parts(self) -> (Vec<u8>, InstrumentedCode, CodeMetadata) {
         (self.original_code, self.instrumented_code, self.metadata)
+    }
+
+    /// Consumes this instance and returns the instrumented code and metadata struct.
+    pub fn into_instrumented_code_and_metadata(self) -> InstrumentedCodeAndMetadata {
+        InstrumentedCodeAndMetadata {
+            instrumented_code: self.instrumented_code,
+            metadata: self.metadata,
+        }
     }
 }
 

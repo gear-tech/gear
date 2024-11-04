@@ -21,7 +21,7 @@ use crate::queue::QueueStep;
 use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
-    code::TryNewCodeConfig,
+    code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
     message::ReplyInfo,
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::{ActiveProgram, MemoryInfix},
@@ -556,25 +556,26 @@ where
             }
         };
 
-        let instrumented_code = if needs_reinstrumentation {
-            let original_code = T::CodeStorage::get_original_code(code_id).ok_or_else(|| {
-                format!("Code '{code_id:?}' not found for program '{program_id:?}'")
-            })?;
-
-            Pallet::<T>::reinstrument_code(original_code, &schedule)
+        let instrumented_code_and_metadata = if needs_reinstrumentation {
+            Pallet::<T>::reinstrument_code(code_id, code_metadata, &schedule)
                 .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?
-                .instrumented_code
         } else {
-            T::CodeStorage::get_instrumented_code(code_id).ok_or_else(|| {
-                format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
-            })?
+            let instrumented_code =
+                T::CodeStorage::get_instrumented_code(code_id).ok_or_else(|| {
+                    format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
+                })?;
+
+            InstrumentedCodeAndMetadata {
+                instrumented_code,
+                metadata: code_metadata,
+            }
         };
 
         let allocations = ProgramStorageOf::<T>::allocations(program_id).unwrap_or_default();
 
         Ok(CodeWithMemoryData {
-            instrumented_code,
-            code_metadata,
+            instrumented_code: instrumented_code_and_metadata.instrumented_code,
+            code_metadata: instrumented_code_and_metadata.metadata,
             allocations,
             memory_infix: program.memory_infix,
         })

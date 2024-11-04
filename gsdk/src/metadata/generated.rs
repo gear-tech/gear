@@ -615,17 +615,6 @@ pub mod runtime_types {
             }
             pub mod code {
                 use super::runtime_types;
-                pub mod attribution {
-                    use super::runtime_types;
-                    #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
-                    )]
-                    pub struct CodeAttribution {
-                        pub author: ::subxt::ext::subxt_core::utils::H256,
-                        #[codec(compact)]
-                        pub block_number: ::core::primitive::u32,
-                    }
-                }
                 pub mod instrumented {
                     use super::runtime_types;
                     #[derive(
@@ -9382,7 +9371,6 @@ pub mod storage {
         InstrumentedCodeStorage,
         OriginalCodeStorage,
         CodeMetadataStorage,
-        CodeAttributionStorage,
         AllocationsStorage,
         ProgramStorage,
         MemoryPages,
@@ -9394,7 +9382,6 @@ pub mod storage {
                 Self::InstrumentedCodeStorage => "InstrumentedCodeStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::CodeMetadataStorage => "CodeMetadataStorage",
-                Self::CodeAttributionStorage => "CodeAttributionStorage",
                 Self::AllocationsStorage => "AllocationsStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",

@@ -156,7 +156,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        code::{CodeAttribution, CodeMetadata, InstrumentedCode},
+        code::{CodeMetadata, InstrumentedCode},
         ids::{CodeId, ProgramId},
         memory::PageBuf,
         pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
@@ -251,18 +251,6 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type CodeAttributionStorage<T: Config> =
-        StorageMap<_, Identity, CodeId, CodeAttribution>;
-
-    common::wrap_storage_map!(
-        storage: CodeAttributionStorage,
-        name: CodeAttributionStorageWrap,
-        key: CodeId,
-        value: CodeAttribution
-    );
-
-    #[pallet::storage]
-    #[pallet::unbounded]
     pub(crate) type AllocationsStorage<T: Config> =
         StorageMap<_, Identity, ProgramId, IntervalsTree<WasmPage>>;
 
@@ -310,7 +298,6 @@ pub mod pallet {
         type InstrumentedCodeStorage = InstrumentedCodeStorageWrap<T>;
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
         type CodeMetadataStorage = CodeMetadataStorageWrap<T>;
-        type CodeAttributionStorage = CodeAttributionStorageWrap<T>;
     }
 
     impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {

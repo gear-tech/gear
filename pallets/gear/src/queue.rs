@@ -165,16 +165,6 @@ where
 
             log::debug!("Gas burned after Original Code {:?}", context.gas_burned());
 
-            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| {
-                let err_msg = format!(
-                    "run_queue_step: failed to get original code for the existing program. \
-                    Program id -'{destination_id:?}', Code id - '{code_id:?}'."
-                );
-
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}")
-            });
-
             let context = match context
                 .charge_for_instrumentation(block_config, code_metadata.original_code_len())
             {
@@ -187,30 +177,20 @@ where
                 context.gas_burned()
             );
 
-            let (instrumented_code, code_metadata) =
-                match Pallet::<T>::reinstrument_code(original_code, &schedule) {
-                    Ok(code_and_metadata) => {
-                        T::CodeStorage::update_instrumented_code_and_metadata(
-                            code_id,
-                            code_and_metadata.clone(),
-                        );
-
-                        code_and_metadata.into_parts()
-                    }
+            let instrumented_code_and_metadata =
+                match Pallet::<T>::reinstrument_code(code_id, code_metadata, &schedule) {
+                    Ok(code_and_metadata) => code_and_metadata,
                     Err(e) => {
                         log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
-
-                        T::CodeStorage::update_code_metadata(
-                            code_id,
-                            code_metadata
-                                .into_failed_instrumentation(schedule.instruction_weights.version),
-                        );
-
                         return core_processor::process_reinstrumentation_error(context);
                     }
                 };
 
-            (instrumented_code, code_metadata, context)
+            (
+                instrumented_code_and_metadata.instrumented_code,
+                instrumented_code_and_metadata.metadata,
+                context,
+            )
         } else {
             // Adjust gas counters for fetching instrumented binary code.
             let context = match context
