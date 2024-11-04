@@ -1330,13 +1330,13 @@ mod runtime {
     pub struct Runtime;
 
     #[runtime::pallet_index(0)]
-    pub type System = frame_system::Pallet<Runtime>;
+    pub type System = frame_system;
 
     #[runtime::pallet_index(1)]
-    pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
+    pub type Timestamp = pallet_timestamp;
 
     #[runtime::pallet_index(2)]
-    pub type Authorship = pallet_authorship::Pallet<Runtime>;
+    pub type Authorship = pallet_authorship;
 
     #[runtime::pallet_index(9)]
     pub type AuthorityDiscovery = pallet_authority_discovery;
@@ -1493,7 +1493,7 @@ mod runtime {
     pub type System = frame_system;
 
     #[runtime::pallet_index(1)]
-    pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
+    pub type Timestamp = pallet_timestamp;
 
     #[runtime::pallet_index(2)]
     pub type Authorship = pallet_authorship;

@@ -82,7 +82,6 @@ where
 
         fn map_err(error: impl ToString, desc: &'static str) -> ErrorObjectOwned {
             ErrorObject::owned(Error::RuntimeError.into(), desc, Some(error.to_string()))
-            // CallError::Custom(ErrorObject::owned(8000, desc, Some(format!("{err:?}")))).into()
         }
 
         api.query_actor_id(best_hash, builtin_id)

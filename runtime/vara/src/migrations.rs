@@ -20,8 +20,6 @@ use crate::*;
 
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
-    // move allocations to a separate storage item and remove pages_with_data field from program
-    pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
     // Migrate Identity pallet for Usernames
     pallet_identity::migration::versioned::V0ToV1<Runtime, { u64::MAX }>,
     pallet_staking::migrations::v15::MigrateV14ToV15<Runtime>,
