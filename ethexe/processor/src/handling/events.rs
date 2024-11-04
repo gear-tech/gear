@@ -33,12 +33,12 @@ impl ProcessingHandler {
             RouterEvent::ProgramCreated { actor_id, code_id } => {
                 ensure!(
                     self.db.original_code(code_id).is_some(),
-                    "code existence must be checked on router"
+                    "db corrupted: missing code [OR] code existence wasn't checked on Eth"
                 );
 
                 ensure!(
                     self.db.program_code_id(actor_id).is_none(),
-                    "program duplicates must be checked on router"
+                    "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth"
                 );
 
                 self.db.set_program_code_id(actor_id, code_id);
