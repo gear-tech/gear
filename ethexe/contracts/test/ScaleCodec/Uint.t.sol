@@ -20,7 +20,7 @@ contract TestUintScaleCodec is Test {
         assertEq(ScaleCodec.decodeUint8(hex"0145", 1), uint8(69));
     }
 
-    function test_uint16Encode() public {
+    function test_uint16Encode() public pure {
         assertEq(ScaleCodec.encodeUint16(uint16(42)), hex"2a00");
 
         // Encode to
@@ -137,7 +137,7 @@ contract TestUintScaleCodec is Test {
         assertEq(ScaleCodec.decodeCompactInt(hex"feff0300", 0).value, 65535);
         assertEq(ScaleCodec.decodeCompactInt(hex"0b00407a10f35a", 0).value, 100000000000000);
 
-        ScaleCodec.CompactInt memory value = ScaleCodec.decodeCompactInt(hex"010b00407a10f35a", 1);
+        ScaleCodec.CompactUint256 memory value = ScaleCodec.decodeCompactInt(hex"010b00407a10f35a", 1);
         assertEq(value.value, 100000000000000);
         assertEq(value.offset, 7);
 

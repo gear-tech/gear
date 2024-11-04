@@ -7,20 +7,15 @@ import "forge-std/Test.sol";
 contract TestResultScaleCodec is Test {
     struct ResultStringU8 {
         bool isOk;
-        bool isErr;
         string ok;
         uint8 err;
     }
 
     function encodeResultStringU8(ResultStringU8 memory _value) internal pure returns (bytes memory) {
         if (_value.isOk) {
-            return ScaleCodec.encodeResult(
-                ScaleCodec.Result({isOk: true, isErr: false, value: ScaleCodec.encodeString(_value.ok)})
-            );
+            return ScaleCodec.encodeResult(ScaleCodec.Result({isOk: true, value: ScaleCodec.encodeString(_value.ok)}));
         } else {
-            return ScaleCodec.encodeResult(
-                ScaleCodec.Result({isOk: false, isErr: true, value: ScaleCodec.encodeUint8(_value.err)})
-            );
+            return ScaleCodec.encodeResult(ScaleCodec.Result({isOk: false, value: ScaleCodec.encodeUint8(_value.err)}));
         }
     }
 
@@ -28,15 +23,14 @@ contract TestResultScaleCodec is Test {
         ScaleCodec.Result memory decoded = ScaleCodec.decodeResult(_value, 0);
 
         if (decoded.isOk) {
-            return
-                ResultStringU8({isOk: true, isErr: false, ok: ScaleCodec.decodeString(decoded.value, 0).value, err: 0});
+            return ResultStringU8({isOk: true, ok: ScaleCodec.decodeString(decoded.value, 0).value, err: 0});
         } else {
-            return ResultStringU8({isOk: false, isErr: true, ok: "", err: ScaleCodec.decodeUint8(decoded.value, 0)});
+            return ResultStringU8({isOk: false, ok: "", err: ScaleCodec.decodeUint8(decoded.value, 0)});
         }
     }
 
     function test_ResultOkEncodeDecode() public pure {
-        ResultStringU8 memory _result = ResultStringU8({isOk: true, isErr: false, ok: "Gear", err: 0});
+        ResultStringU8 memory _result = ResultStringU8({isOk: true, ok: "Gear", err: 0});
 
         assertEq(encodeResultStringU8(_result), hex"001047656172");
 
@@ -47,13 +41,13 @@ contract TestResultScaleCodec is Test {
     }
 
     function test_ResultErrEncodeDecode() public pure {
-        ResultStringU8 memory _result = ResultStringU8({isOk: false, isErr: true, ok: "", err: 1});
+        ResultStringU8 memory _result = ResultStringU8({isOk: false, ok: "", err: 1});
 
         assertEq(encodeResultStringU8(_result), hex"0101");
 
         ResultStringU8 memory _decoded = decodeResultStringU8(hex"0101");
 
-        assertEq(_decoded.isErr, true);
+        assertEq(_decoded.isOk, false);
         assertEq(_decoded.err, 1);
     }
 }

@@ -67,7 +67,7 @@ contract TestVecScaleCodec is Test {
     function test_decodeVecUint8() public pure {
         bytes memory data = hex"0c010203";
 
-        ScaleCodec.CompactInt memory vecLen = ScaleCodec.decodeCompactInt(data, 0);
+        ScaleCodec.CompactUint256 memory vecLen = ScaleCodec.decodeCompactInt(data, 0);
         uint256 offset = vecLen.offset;
 
         uint8[] memory vec = new uint8[](vecLen.value);
@@ -85,7 +85,7 @@ contract TestVecScaleCodec is Test {
     function test_decodeVecString() public pure {
         bytes memory data = hex"081468656c6c6f14776f726c64";
 
-        ScaleCodec.CompactInt memory vecLen = ScaleCodec.decodeCompactInt(data, 0);
+        ScaleCodec.CompactUint256 memory vecLen = ScaleCodec.decodeCompactInt(data, 0);
         uint256 offset = vecLen.offset;
 
         string[] memory vec = new string[](vecLen.value);

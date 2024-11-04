@@ -19,7 +19,7 @@ contract TestIntScaleCodec is Test {
         assertEq(ScaleCodec.decodeInt8(hex"01bb", 1), int8(-69));
     }
 
-    function test_int16EncodeDecode() public {
+    function test_int16EncodeDecode() public pure {
         assertEq(ScaleCodec.encodeInt16(int16(42)), hex"2a00");
         assertEq(ScaleCodec.decodeInt16(hex"2a00", 0), int16(42));
 

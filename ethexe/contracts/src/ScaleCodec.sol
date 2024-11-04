@@ -16,9 +16,9 @@ function bytesToUint(bytes memory data, uint256 byteLength, uint256 offset) pure
 }
 
 library ScaleCodec {
-    struct CompactInt {
+    struct CompactUint256 {
         uint256 value;
-        uint256 offset;
+        uint8 offset;
     }
 
     struct DecodedString {
@@ -26,14 +26,13 @@ library ScaleCodec {
         uint256 offset;
     }
 
-    struct Optional {
+    struct Option {
         bool isSome;
         bytes value;
     }
 
     struct Result {
         bool isOk;
-        bool isErr;
         bytes value;
     }
 
@@ -59,51 +58,6 @@ library ScaleCodec {
         }
 
         return res;
-    }
-
-    function bytes1Tobytes(bytes1 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(1);
-        result[0] = value;
-        return result;
-    }
-
-    function bytes2Tobytes(bytes2 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(2);
-        result[0] = value[0];
-        result[1] = value[1];
-        return result;
-    }
-
-    function bytes4Tobytes(bytes4 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(4);
-        for (uint256 i = 0; i < 4; i++) {
-            result[i] = value[i];
-        }
-        return result;
-    }
-
-    function bytes8Tobytes(bytes8 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(8);
-        for (uint256 i = 0; i < 8; i++) {
-            result[i] = value[i];
-        }
-        return result;
-    }
-
-    function bytes16Tobytes(bytes16 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(16);
-        for (uint256 i = 0; i < 16; i++) {
-            result[i] = value[i];
-        }
-        return result;
-    }
-
-    function bytes32Tobytes(bytes32 value) public pure returns (bytes memory) {
-        bytes memory result = new bytes(32);
-        for (uint256 i = 0; i < 32; i++) {
-            result[i] = value[i];
-        }
-        return result;
     }
 
     function bytesToBytes32(bytes memory value, uint256 offset) public pure returns (bytes32 result) {
@@ -378,11 +332,11 @@ library ScaleCodec {
         }
     }
 
-    function decodeCompactInt(bytes memory _bytes, uint256 offset) public pure returns (CompactInt memory) {
+    function decodeCompactInt(bytes memory _bytes, uint256 offset) public pure returns (CompactUint256 memory) {
         uint8 mode = uint8(_bytes[offset]) & 0x03;
 
         if (mode == 0x00) {
-            return CompactInt(uint8(_bytes[offset]) >> 2, 1);
+            return CompactUint256(uint8(_bytes[offset]) >> 2, 1);
         } else if (mode == 0x01) {
             uint16 value;
             assembly {
@@ -392,7 +346,7 @@ library ScaleCodec {
                 v := byte(0, mload(src_ptr))
                 value := shr(2, or(value, v))
             }
-            return CompactInt(value, 2);
+            return CompactUint256(value, 2);
         } else if (mode == 0x02) {
             uint32 value;
             assembly {
@@ -404,13 +358,13 @@ library ScaleCodec {
                 let v := byte(0, mload(src_ptr))
                 value := shr(2, or(value, v))
             }
-            return CompactInt(value, 4);
+            return CompactUint256(value, 4);
         } else {
             uint8 bytesLen = (uint8(_bytes[offset]) >> 2) + 4;
 
             uint256 value = bytesToUint(_bytes, bytesLen, offset + 1);
 
-            return CompactInt(value, bytesLen + 1);
+            return CompactUint256(value, bytesLen + 1);
         }
     }
 
@@ -442,7 +396,7 @@ library ScaleCodec {
     }
 
     function decodeString(bytes memory _bytes, uint256 offset) public pure returns (DecodedString memory) {
-        CompactInt memory len = decodeCompactInt(_bytes, offset);
+        CompactUint256 memory len = decodeCompactInt(_bytes, offset);
 
         offset += len.offset;
 
@@ -463,7 +417,7 @@ library ScaleCodec {
         return DecodedString(string(result), offset);
     }
 
-    function encodeOptional(Optional memory value) public pure returns (bytes memory) {
+    function encodeOption(Option memory value) public pure returns (bytes memory) {
         if (value.isSome) {
             bytes memory result = new bytes(value.value.length + 1);
             result[0] = 0x01;
@@ -481,11 +435,11 @@ library ScaleCodec {
         }
     }
 
-    function decodeOptional(bytes memory _bytes, uint256 offset) public pure returns (Optional memory) {
+    function decodeOption(bytes memory _bytes, uint256 offset) public pure returns (Option memory) {
         if (_bytes[offset] == 0x00) {
-            return Optional(false, new bytes(0));
+            return Option(false, new bytes(0));
         } else {
-            return Optional(true, sliceBytes(_bytes, 1 + offset, _bytes.length));
+            return Option(true, sliceBytes(_bytes, 1 + offset, _bytes.length));
         }
     }
 
@@ -500,9 +454,9 @@ library ScaleCodec {
     function decodeResult(bytes memory _bytes, uint256 offset) public pure returns (Result memory) {
         bytes memory value = sliceBytes(_bytes, 1 + offset, _bytes.length);
         if (_bytes[offset] == 0x00) {
-            return Result(true, false, value);
+            return Result(true, value);
         } else {
-            return Result(false, true, value);
+            return Result(false, value);
         }
     }
 }

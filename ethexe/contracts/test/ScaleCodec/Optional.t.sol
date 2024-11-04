@@ -11,8 +11,8 @@ contract TestOptionalScaleCodec is Test {
     }
 
     function encodeOptionalString(OptionalString memory _value) internal pure returns (bytes memory) {
-        return ScaleCodec.encodeOptional(
-            ScaleCodec.Optional({
+        return ScaleCodec.encodeOption(
+            ScaleCodec.Option({
                 isSome: _value.isSome,
                 value: _value.isSome ? ScaleCodec.encodeString(_value.value) : new bytes(0)
             })
@@ -20,7 +20,7 @@ contract TestOptionalScaleCodec is Test {
     }
 
     function decodeOptionalString(bytes memory _bytes) internal pure returns (OptionalString memory) {
-        ScaleCodec.Optional memory decoded = ScaleCodec.decodeOptional(_bytes, 0);
+        ScaleCodec.Option memory decoded = ScaleCodec.decodeOption(_bytes, 0);
 
         return OptionalString({
             isSome: decoded.isSome,
