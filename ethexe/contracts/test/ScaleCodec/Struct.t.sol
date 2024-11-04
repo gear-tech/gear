@@ -13,7 +13,7 @@ contract TestStructScaleCodec is Test {
     function encodeMyStruct(string memory _name, uint8 _age) internal pure returns (bytes memory) {
         MyStruct memory myStruct = MyStruct(_name, _age);
 
-        uint totalLen = 0;
+        uint256 totalLen = 0;
 
         uint256 __nameLen = ScaleCodec.stringLen(myStruct.name);
         uint8 __namePrefixLen = ScaleCodec.compactIntLen(__nameLen);
@@ -23,7 +23,7 @@ contract TestStructScaleCodec is Test {
 
         bytes memory _bytes = new bytes(totalLen);
 
-        uint offset = 0;
+        uint256 offset = 0;
         ScaleCodec.encodeCompactIntTo(__nameLen, __namePrefixLen, _bytes, 0);
         offset += __namePrefixLen;
         ScaleCodec.encodeStringTo(myStruct.name, __nameLen, _bytes, offset);
