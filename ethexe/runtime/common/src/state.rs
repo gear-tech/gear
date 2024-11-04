@@ -80,6 +80,12 @@ mod private {
     }
 }
 
+/// Represents payload provider (lookup).
+///
+/// Directly keeps payload inside of itself, or keeps hash of payload stored in database.
+///
+/// Motivation for usage: it's more optimized to held small payloads in place.
+/// Zero payload should always be stored directly.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum PayloadLookup {
     Direct(Payload),
