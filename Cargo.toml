@@ -162,7 +162,7 @@ rand = { version = "0.8", default-features = false }
 rayon = "1.10"
 regex = "^1.9"
 region = "3.0.2"
-reqwest = { version = "0.11.27", default-features = false }
+reqwest = { version = "0.12.8", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = { version = "^1", default-features = false }
 serde_json = "^1"
@@ -308,9 +308,7 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
-sandbox-wasmi = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = [
-    "virtual_memory",
-] }
+wasmi = { package = "wasmi", version = "0.38"}
 
 # Substrate deps
 binary-merkle-tree = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.4.0", default-features = false }
@@ -503,6 +501,7 @@ demo-wat = { path = "examples/wat" }
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 
+atomic_enum = "0.3.0"
 cfg-if = "1.0.0"                                             # gear-lazy-pages
 cargo-http-registry = "0.1.6"                                # crates-io
 errno = "0.3"                                                # gear-lazy-pages

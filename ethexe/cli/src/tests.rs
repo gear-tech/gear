@@ -828,8 +828,7 @@ mod utils {
                     (rpc_url, None)
                 }
                 Err(_) => {
-                    let mut anvil = Anvil::new().try_spawn().unwrap();
-                    drop(anvil.child_mut().stdout.take()); //temp fix for alloy#1078
+                    let anvil = Anvil::new().try_spawn().unwrap();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }

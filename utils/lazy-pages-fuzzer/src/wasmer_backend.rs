@@ -34,6 +34,12 @@ use crate::{
 #[derive(Clone)]
 struct InstanceBundle {
     instance: Instance,
+    // NOTE: Due to the implementation of lazy pages, which need to access the Store to retrieve globals,
+    // we have to use a second mutable reference to the Store in the form of a raw pointer
+    // to use it within the lazy pages' signal handler context.
+    //
+    // We consider it relatively safe because we rely on the fact that during an external function call,
+    // Wasmer does not access globals mutably, allowing us to access them mutably from the lazy pages' signal handler.
     store: *mut Store,
 }
 
