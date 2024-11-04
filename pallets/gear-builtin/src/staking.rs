@@ -21,13 +21,10 @@
 use super::*;
 use common::Origin;
 use core::marker::PhantomData;
-use frame_support::dispatch::{extract_actual_weight, GetDispatchInfo};
 use gbuiltin_staking::*;
 use pallet_staking::{Config as StakingConfig, NominationsQuota, RewardDestination};
 use parity_scale_codec::Decode;
-use sp_runtime::traits::{Dispatchable, StaticLookup, UniqueSaturatedInto};
-
-type CallOf<T> = <T as Config>::RuntimeCall;
+use sp_runtime::traits::{StaticLookup, UniqueSaturatedInto};
 
 pub struct Actor<T: Config + StakingConfig>(PhantomData<T>);
 
@@ -36,41 +33,6 @@ where
     T::AccountId: Origin,
     CallOf<T>: From<pallet_staking::Call<T>>,
 {
-    fn dispatch_call(
-        origin: T::AccountId,
-        call: CallOf<T>,
-        gas_limit: u64,
-    ) -> (Result<(), BuiltinActorError>, u64) {
-        let call_info = call.get_dispatch_info();
-
-        // Necessary upfront gas sufficiency check
-        if gas_limit < call_info.weight.ref_time() {
-            return (Err(BuiltinActorError::InsufficientGas), 0_u64);
-        }
-
-        // Execute call
-        let res = call.dispatch(frame_system::RawOrigin::Signed(origin).into());
-        let actual_gas = extract_actual_weight(&res, &call_info).ref_time();
-        match res {
-            Ok(_post_info) => {
-                log::debug!(
-                    target: LOG_TARGET,
-                    "Call dispatched successfully",
-                );
-                (Ok(()), actual_gas)
-            }
-            Err(e) => {
-                log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
-                (
-                    Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                        e.into(),
-                    ))),
-                    actual_gas,
-                )
-            }
-        }
-    }
-
     fn cast(request: Request) -> CallOf<T> {
         match request {
             Request::Bond { value, payee } => {
@@ -146,7 +108,7 @@ where
 
     fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
         let message = dispatch.message();
-        let origin: T::AccountId = dispatch.source().cast();
+        let origin = dispatch.source();
         let mut payload = message.payload_bytes();
 
         // Rule out payloads that exceed the largest reasonable size.
@@ -169,7 +131,7 @@ where
 
         // Handle staking requests
         let call = Self::cast(request);
-        let (result, gas_spent) = Self::dispatch_call(origin, call, gas_limit);
+        let (result, gas_spent) = Pallet::<T>::dispatch_call(origin, call, gas_limit);
 
         (result.map(|_| Default::default()), gas_spent)
     }

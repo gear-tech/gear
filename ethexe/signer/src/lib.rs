@@ -26,7 +26,7 @@ use secp256k1::hashes::hex::{Case, DisplayHex};
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -206,7 +206,7 @@ impl Signer {
             }
         }
 
-        anyhow::bail!("Address not found: {}", address);
+        bail!("Address not found: {}", address);
     }
 
     pub fn get_key_by_addr(&self, address: Address) -> Result<Option<PublicKey>> {
@@ -284,7 +284,7 @@ impl Signer {
         let bytes = fs::read(key_path)?;
 
         if bytes.len() != 32 {
-            anyhow::bail!("Invalid key length: {:?}", bytes);
+            bail!("Invalid key length: {:?}", bytes);
         }
 
         buf.copy_from_slice(&bytes);
@@ -295,11 +295,9 @@ impl Signer {
 
 #[cfg(test)]
 mod tests {
-    use std::env::temp_dir;
-
     use super::*;
-
-    use ethers::utils::keccak256;
+    use alloy::primitives::{keccak256, Signature};
+    use std::env::temp_dir;
 
     #[test]
     fn test_signer_with_known_vectors() {
@@ -328,10 +326,11 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
-            .expect("failed to parse sig");
+        let alloy_sig = Signature::try_from(signature.as_ref()).expect("failed to parse sig");
 
-        let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
+        let recovered_address = alloy_sig
+            .recover_address_from_prehash(&hash)
+            .expect("Failed to recover address");
 
         // Verify the recovered address matches the expected address
         assert_eq!(
@@ -365,11 +364,11 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        // TODO: remove the deprecated ethers crate in favor of alloy #4197
-        let ethers_sig = ethers::core::types::Signature::try_from(signature.as_ref())
-            .expect("failed to parse sig");
+        let alloy_sig = Signature::try_from(signature.as_ref()).expect("failed to parse sig");
 
-        let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
+        let recovered_address = alloy_sig
+            .recover_address_from_prehash(&hash)
+            .expect("Failed to recover address");
 
         // Verify the recovered address matches the expected address
         assert_eq!(
@@ -409,7 +408,7 @@ mod tests {
             .sign(public_key, message)
             .expect("Failed to sign message");
 
-        let hash = keccak256(message);
+        let hash = keccak256(message).0;
 
         let recovered_public_key = signature
             .recover_from_digest(hash.into())
