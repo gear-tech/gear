@@ -1611,6 +1611,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1181e1e0d1fce796a03db1ae795d67167da795f9cf4a39c37589e85ef57f26d3"
 
 [[package]]
+name = "atomic_enum"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99e1aca718ea7b89985790c94aad72d77533063fe00bc497bb79a7c2dae6a661"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.71",
+]
+
+[[package]]
 name = "attohttpc"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5955,6 +5966,7 @@ name = "gear-cli"
 version = "1.6.2"
 dependencies = [
  "clap 4.5.9",
+ "derive_more 0.99.18",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -6377,19 +6389,21 @@ dependencies = [
 name = "gear-sandbox-host"
 version = "1.6.2"
 dependencies = [
+ "atomic_enum",
  "defer",
  "environmental",
  "gear-sandbox-env",
  "gear-wasmer-cache",
  "log",
  "parity-scale-codec",
+ "region",
  "sp-allocator",
  "sp-wasm-interface-common",
  "tempfile",
  "thiserror",
  "wasmer",
  "wasmer-types",
- "wasmi 0.13.2",
+ "wasmi 0.38.0",
 ]
 
 [[package]]
@@ -8450,7 +8464,7 @@ dependencies = [
  "log",
  "region",
  "wasmer",
- "wasmi 0.13.2",
+ "wasmi 0.38.0",
  "wasmprinter",
  "wat",
 ]
@@ -9919,6 +9933,12 @@ name = "more-asserts"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7843ec2de400bcbc6a6328c958dc38e5359da6e93e72e37bc5246bf1ae776389"
+
+[[package]]
+name = "multi-stash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "685a9ac4b61f4e728e1d2c6a7844609c16527aeb5e6c865915c08e619c16410f"
 
 [[package]]
 name = "multiaddr"
@@ -16539,6 +16559,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e75b72ee54e2f93c3ea1354066162be893ee5e25773ab743de3e088cecbb4f31"
 
 [[package]]
+name = "string-interner"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c6a0d765f5807e98a091107bae0a56ea3799f66a5de47b2c84c94a39c09974e"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.14.5",
+ "serde",
+]
+
+[[package]]
 name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18605,6 +18636,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmi"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b07e84e3bcdab2f4301827623260ada2557596ca462f7470b60f5182a25270b1"
+dependencies = [
+ "arrayvec 0.7.4",
+ "multi-stash",
+ "smallvec",
+ "spin 0.9.8",
+ "wasmi_collections",
+ "wasmi_core 0.38.0",
+ "wasmi_ir",
+ "wasmparser-nostd",
+]
+
+[[package]]
 name = "wasmi-validation"
 version = "0.5.0"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
@@ -18617,6 +18664,17 @@ name = "wasmi_arena"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "104a7f73be44570cac297b3035d76b169d6599637631cf37a1703326a0727073"
+
+[[package]]
+name = "wasmi_collections"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d0fd5f4f2c4fe0c98554bb7293108ed2b1d0c124dce0974f999de7d517d37bc"
+dependencies = [
+ "ahash 0.8.11",
+ "hashbrown 0.14.5",
+ "string-interner",
+]
 
 [[package]]
 name = "wasmi_core"
@@ -18641,6 +18699,27 @@ dependencies = [
  "libm",
  "num-traits",
  "paste",
+]
+
+[[package]]
+name = "wasmi_core"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76a5f7bbd933a0fb3bac6c541f8bd90c0c8adcd91bb3ac088a2088995325b3d9"
+dependencies = [
+ "downcast-rs",
+ "libm",
+ "num-traits",
+ "paste",
+]
+
+[[package]]
+name = "wasmi_ir"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a3345445247388df2b5b35250a30c9209c27c8d2c6db1bf4c89b65636264bf9"
+dependencies = [
+ "wasmi_core 0.38.0",
 ]
 
 [[package]]

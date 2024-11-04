@@ -151,6 +151,8 @@ impl<'u> InjectMemoryAccesses<'u> {
 mod tests {
     use std::hash::{DefaultHasher, Hash, Hasher};
 
+    use crate::MODULE_ENV;
+
     use super::*;
 
     const TEST_PROGRAM_WAT: &str = r#"
@@ -161,20 +163,6 @@ mod tests {
             )
         )
     "#;
-
-    struct Resolver {
-        memory: sandbox_wasmi::MemoryRef,
-    }
-
-    impl sandbox_wasmi::ModuleImportResolver for Resolver {
-        fn resolve_memory(
-            &self,
-            _field_name: &str,
-            _memory_type: &sandbox_wasmi::MemoryDescriptor,
-        ) -> Result<sandbox_wasmi::MemoryRef, sandbox_wasmi::Error> {
-            Ok(self.memory.clone())
-        }
-    }
 
     fn calculate_slice_hash(slice: &[u8]) -> u64 {
         let mut s = DefaultHasher::new();
@@ -198,29 +186,34 @@ mod tests {
             .inject(module)
             .unwrap();
 
-        let memory =
-            sandbox_wasmi::MemoryInstance::alloc(sandbox_wasmi::memory_units::Pages(1), None)
-                .unwrap();
+        let engine = wasmi::Engine::default();
+        let mut store = wasmi::Store::new(&engine, ());
+        let module = wasmi::Module::new(&engine, &module.into_bytes().unwrap()).unwrap();
+
+        let ty = wasmi::MemoryType::new(1, None).unwrap();
+        let memory = wasmi::Memory::new(&mut store, ty).unwrap();
 
         let original_mem_hash = {
-            let mem_slice = memory.direct_access();
-            calculate_slice_hash(mem_slice.as_ref())
+            let mem_slice = memory.data(&store);
+            calculate_slice_hash(mem_slice)
         };
 
-        let resolver = Resolver { memory };
-        let imports = sandbox_wasmi::ImportsBuilder::new().with_resolver("env", &resolver);
+        let mut linker = <wasmi::Linker<()>>::new(&engine);
+        linker.define(MODULE_ENV, "memory", memory).unwrap();
 
-        let module = sandbox_wasmi::Module::from_buffer(module.into_bytes().unwrap()).unwrap();
-        let instance = sandbox_wasmi::ModuleInstance::new(&module, &imports)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .unwrap()
-            .assert_no_start();
-        let _ = instance
-            .invoke_export("main", &[], &mut sandbox_wasmi::NopExternals)
+            .ensure_no_start(&mut store)
+            .unwrap();
+        let func = instance.get_func(&store, "main").unwrap();
+
+        func.call(&mut store, &[], &mut [wasmi::Val::I32(0)])
             .unwrap();
 
         let mem_hash = {
-            let mem_slice = resolver.memory.direct_access();
-            calculate_slice_hash(mem_slice.as_ref())
+            let mem_slice = memory.data(&store);
+            calculate_slice_hash(mem_slice)
         };
 
         assert_ne!(original_mem_hash, mem_hash);
