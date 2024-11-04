@@ -47,9 +47,7 @@ fn fs_cache() -> PathBuf {
         .get_or_init(|| {
             let out_dir = PathBuf::from(env!("OUT_DIR"));
             let cache = out_dir.join("wasmer-cache");
-            if !cache.exists() {
-                fs::create_dir(&cache).unwrap();
-            }
+            fs::create_dir_all(&cache).unwrap();
             cache
         })
         .into()

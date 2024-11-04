@@ -6531,6 +6531,7 @@ dependencies = [
 name = "gear-wasmer-cache"
 version = "1.6.2"
 dependencies = [
+ "fs2",
  "log",
  "uluru",
  "wasmer",

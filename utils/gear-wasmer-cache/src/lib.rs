@@ -18,13 +18,13 @@
 
 //! Wasmer's module caches
 
+use fs2::FileExt;
 use std::{
     fs::{self, File},
-    io::{self, Write},
+    io::{self, Read, Write},
     path::PathBuf,
     sync::{Mutex, OnceLock},
 };
-
 use uluru::LRUCache;
 use wasmer::{CompileError, Engine, Module};
 use wasmer_cache::Hash;
@@ -167,7 +167,12 @@ impl FileSystemCache {
     fn load(&self, key: Hash) -> Result<Vec<u8>, io::Error> {
         let path = self.path.join(key.to_string());
 
-        fs::read(path)
+        let mut file = File::open(path)?;
+        file.lock_exclusive()?;
+
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents)?;
+        Ok(contents)
     }
 
     /// If an error occurs while deserializing then we can not trust it anymore
@@ -184,6 +189,7 @@ impl FileSystemCache {
         let path = self.path.join(key.to_string());
 
         let mut file = File::create(path)?;
+        file.lock_exclusive()?;
         file.write_all(serialized_module)?;
 
         Ok(())

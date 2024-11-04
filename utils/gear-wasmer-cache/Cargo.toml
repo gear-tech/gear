@@ -13,3 +13,4 @@ wasmer.workspace = true
 wasmer-cache.workspace = true
 log.workspace = true
 uluru.workspace = true
+fs2.workspace = true
