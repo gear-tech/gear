@@ -17,7 +17,11 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec.workspace = true
 log.workspace = true
-wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "gear-v0.30.0", default-features = false }
+wasmer = { workspace = true, optional = true }
+wasmer-types = { workspace = true, optional = true }
+wasmer-vm = { workspace = true, optional = true }
+wasmer-compiler = { workspace = true, optional = true }
+gear-wasmer-cache = { workspace = true, optional = true }
 sp-core.workspace = true
 sp-std.workspace = true
 sp-wasm-interface-common.workspace = true
@@ -38,7 +42,10 @@ std = [
 	"sp-wasm-interface-common/std",
 	"gear-sandbox-interface/std",
 	"gear-sandbox-env/std",
-	"wasmi/std",
-	"wasmi/virtual_memory",
+	"wasmer",
+	"wasmer-types",
+	"wasmer-vm",
+	"wasmer-compiler",
+	"gear-wasmer-cache",
 ]
 strict = []

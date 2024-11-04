@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::cell::RefCell;
+use core::{cell::RefCell, sync::atomic::Ordering};
 
 use codec::{Decode, Encode};
 use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
@@ -32,10 +32,10 @@ struct Sandboxes {
 }
 
 impl Sandboxes {
-    pub fn new() -> Self {
+    pub fn new(sandbox_backend: sandbox_env::SandboxBackend) -> Self {
         Self {
             store_data_key: 0,
-            store: sandbox_env::SandboxComponents::new(sandbox_env::SandboxBackend::Wasmer),
+            store: sandbox_env::SandboxComponents::new(sandbox_backend),
         }
     }
 
@@ -61,14 +61,21 @@ impl Sandboxes {
     }
 }
 
+// Global sandbox backend type selector
+static SANDBOX_BACKEND_TYPE: sandbox_env::AtomicSandboxBackend =
+    sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmer);
+
 thread_local! {
-    static SANDBOXES: RefCell<Sandboxes> = RefCell::new(Sandboxes::new());
+    static SANDBOXES: RefCell<Sandboxes> = {
+        let sandbox_backend = SANDBOX_BACKEND_TYPE.load(Ordering::SeqCst);
+        RefCell::new(Sandboxes::new(sandbox_backend))
+    }
 }
 
-pub fn init() {
-    SANDBOXES.with(|sandboxes| {
-        let _store = sandboxes.borrow_mut().get(0);
-    })
+/// Sets the global sandbox backend type.
+/// Buy default, it's set to `Wasmer`, so in case of `Wasmer` it's not necessary to call this function.
+pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
+    SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
 }
 
 struct SupervisorContext<'a, 'b> {
@@ -79,7 +86,6 @@ struct SupervisorContext<'a, 'b> {
 }
 
 impl<'a, 'b> sandbox_env::SupervisorContext for SupervisorContext<'a, 'b> {
-    #[allow(clippy::needless_borrows_for_generic_args)]
     fn invoke(
         &mut self,
         invoke_args_ptr: Pointer<u8>,
@@ -88,7 +94,7 @@ impl<'a, 'b> sandbox_env::SupervisorContext for SupervisorContext<'a, 'b> {
     ) -> gear_sandbox_host::error::Result<i64> {
         let mut ret_vals = [Val::null()];
         let result = self.dispatch_thunk.call(
-            &mut self.caller,
+            &mut *self.caller,
             &[
                 Val::I32(u32::from(invoke_args_ptr) as i32),
                 Val::I32(invoke_args_len as i32),
@@ -485,7 +491,6 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
     method_result
 }
 
-#[allow(clippy::needless_borrows_for_generic_args)]
 pub fn memory_set(
     context: &mut dyn FunctionContext,
     memory_idx: u32,
@@ -500,7 +505,7 @@ pub fn memory_set(
     sp_wasm_interface::with_caller_mut(context, |caller| {
         trace("memory_set", caller);
 
-        let Ok(buffer) = read_memory(&caller, val_ptr, val_len) else {
+        let Ok(buffer) = read_memory(&mut *caller, val_ptr, val_len) else {
             method_result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
             return;
         };

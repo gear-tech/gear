@@ -91,10 +91,10 @@ impl From<MemoryInterval> for (u32, u32) {
 
 impl Debug for MemoryInterval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&format!(
-            "[offset: {:#x}, size: {:#x}]",
-            self.offset, self.size
-        ))
+        f.debug_struct("MemoryInterval")
+            .field("offset", &format_args!("{:#x}", self.offset))
+            .field("size", &format_args!("{:#x}", self.size))
+            .finish()
     }
 }
 
