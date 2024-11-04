@@ -72,6 +72,8 @@ thread_local! {
     }
 }
 
+// Sets the global sandbox backend type.
+// Buy default, it's set to `Wasmer`, so in case of `Wasmer` it's not necessary to call this function.
 pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
     SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
 }
