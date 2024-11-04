@@ -19,7 +19,7 @@
 use crate::{CASDatabase, KVDatabase};
 use anyhow::Result;
 use gprimitives::H256;
-use rocksdb::{Options, DB};
+use rocksdb::{DBIteratorWithThreadMode, Options, DB};
 use std::{path::PathBuf, sync::Arc};
 
 /// Database for storing states and codes in memory.
@@ -85,13 +85,40 @@ impl KVDatabase for RocksDatabase {
             .expect("Failed to write data, database is not in valid state");
     }
 
-    fn iter_prefix(&self, prefix: &[u8]) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_> {
-        Box::new(
-            self.inner
-                .prefix_iterator(prefix)
-                .map(|kv| kv.expect("unexpected error during iteration"))
-                .map(|(k, v)| (<[u8]>::into_vec(k), <[u8]>::into_vec(v))),
-        )
+    fn iter_prefix<'a>(
+        &'a self,
+        prefix: &'a [u8],
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_> {
+        Box::new(PrefixIterator {
+            prefix,
+            prefix_iter: self.inner.prefix_iterator(prefix),
+            done: false,
+        })
+    }
+}
+
+pub struct PrefixIterator<'a> {
+    prefix: &'a [u8],
+    prefix_iter: DBIteratorWithThreadMode<'a, DB>,
+    done: bool,
+}
+
+impl<'a> Iterator for PrefixIterator<'a> {
+    type Item = (Vec<u8>, Vec<u8>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        match self.prefix_iter.next() {
+            Some(Ok((k, v))) if k.starts_with(self.prefix) => Some((k.to_vec(), v.to_vec())),
+            Some(Err(e)) => panic!("Failed to read data, database is not in valid state: {e:?}"),
+            _ => {
+                self.done = true;
+                None
+            }
+        }
     }
 }
 

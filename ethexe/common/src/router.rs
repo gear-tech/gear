@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
-use gear_core::message::ReplyDetails;
+use gear_core::message::{Message, ReplyDetails};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
@@ -51,6 +51,7 @@ pub struct BlockCommitment {
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
+    pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<OutgoingMessage>,
@@ -70,6 +71,19 @@ pub struct OutgoingMessage {
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: Option<ReplyDetails>,
+}
+
+impl From<Message> for OutgoingMessage {
+    fn from(value: Message) -> Self {
+        let (id, _source, destination, payload, _gas_limit, value, details) = value.into_parts();
+        Self {
+            id,
+            destination,
+            payload: payload.into_vec(),
+            value,
+            reply_details: details.and_then(|v| v.to_reply_details()),
+        }
+    }
 }
 
 /* Events section */

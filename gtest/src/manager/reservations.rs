@@ -19,12 +19,8 @@
 //! Various reservation related methods for ExtManager
 
 use super::ExtManager;
-use gear_common::{
-    scheduler::{ScheduledTask, StorageType},
-    storage::Interval,
-    ProgramId, ReservationId,
-};
-use gear_core::reservation::GasReservationSlot;
+use gear_common::{scheduler::StorageType, storage::Interval, ProgramId, ReservationId};
+use gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
 
 impl ExtManager {
     pub(crate) fn remove_gas_reservation_impl(

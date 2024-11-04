@@ -13,6 +13,7 @@ readme = "README.md"
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
+cargo_toml.workspace = true
 chrono = "0.4"
 thiserror.workspace = true
 regex.workspace = true
@@ -29,7 +30,6 @@ itertools.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true
-wasmi = { workspace = true, features = ["std"] }
 parity-wasm.workspace = true
 
 [features]

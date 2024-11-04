@@ -239,6 +239,7 @@ pub trait Packet {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyInfo {
     /// Payload of the reply.
+    #[cfg_attr(feature = "std", serde(with = "impl_serde::serialize"))]
     pub payload: Vec<u8>,
     /// Value sent with reply.
     pub value: u128,

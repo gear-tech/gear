@@ -65,6 +65,7 @@ use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
+use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_gear_builtin::ActorWithId;
@@ -176,7 +177,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1500,
+    spec_version: 1620,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1003,6 +1004,19 @@ impl Default for ProxyType {
     }
 }
 
+impl From<BuiltinProxyType> for ProxyType {
+    fn from(proxy_type: BuiltinProxyType) -> Self {
+        match proxy_type {
+            BuiltinProxyType::Any => ProxyType::Any,
+            BuiltinProxyType::NonTransfer => ProxyType::NonTransfer,
+            BuiltinProxyType::Governance => ProxyType::Governance,
+            BuiltinProxyType::Staking => ProxyType::Staking,
+            BuiltinProxyType::IdentityJudgement => ProxyType::IdentityJudgement,
+            BuiltinProxyType::CancelProxy => ProxyType::CancelProxy,
+        }
+    }
+}
+
 impl InstanceFilter<RuntimeCall> for ProxyType {
     fn filter(&self, c: &RuntimeCall) -> bool {
         match self {
@@ -1180,6 +1194,8 @@ impl pallet_gear_messenger::Config for Runtime {
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
+    // The ID = 3 is for the pallet_gear_eth_bridge::Actor.
+    ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
 /// Builtin actors arranged in a tuple.
@@ -1188,6 +1204,7 @@ pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
     ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
+    ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
 impl pallet_gear_builtin::Config for Runtime {

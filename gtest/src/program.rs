@@ -331,8 +331,9 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (code, code_id) = Self::build_instrumented_code_and_id(self.code);
+        let (code, code_id) = Self::build_instrumented_code_and_id(self.code.clone());
 
+        system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
             system
                 .0
@@ -368,8 +369,7 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        let c: InstrumentedCodeAndId = CodeAndId::new(code).into();
-        c.into_parts()
+        InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts()
     }
 }
 
@@ -1484,7 +1484,7 @@ mod tests {
     #[test]
     fn tests_unused_gas_value_not_transferred() {
         let sys = System::new();
-        sys.init_verbose_logger();
+        sys.init_logger();
 
         let user = 42;
         sys.mint_to(user, 2 * EXISTENTIAL_DEPOSIT);
@@ -1496,5 +1496,31 @@ mod tests {
         // Unspent gas is not returned to the user's balance when the sum of these is
         // lower than ED
         assert_eq!(sys.balance_of(user), 0)
+    }
+
+    #[test]
+    fn tests_self_sent_delayed_message() {
+        use demo_delayed_sender::DELAY;
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user = DEFAULT_USER_ALICE;
+        let program_id = 69;
+
+        let prog = Program::from_binary_with_id(&sys, program_id, demo_delayed_sender::WASM_BINARY);
+
+        // Init message starts sequence of self-sent messages
+        prog.send_bytes(user, "self".as_bytes());
+        let res = sys.run_next_block();
+        assert_eq!(res.succeed.len(), 1);
+
+        let mut target_block_nb = sys.block_height() + DELAY;
+        let res = sys.run_to_block(target_block_nb);
+        assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
+
+        target_block_nb += DELAY;
+        let res = sys.run_to_block(target_block_nb);
+        assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
     }
 }

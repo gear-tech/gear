@@ -20,7 +20,7 @@ use anyhow::{bail, Context, Result};
 
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
-use sandbox_wasmer::{
+use wasmer::{
     Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
     Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
 };

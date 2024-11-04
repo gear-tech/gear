@@ -11,8 +11,8 @@ repository.workspace = true
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 vara-runtime = { workspace = true, features = ["std", "dev"] }
-sandbox-wasmer.workspace = true
-sandbox-wasmer-types.workspace = true
+wasmer.workspace = true
+wasmer-types.workspace = true
 log.workspace = true
 env_logger.workspace = true
 wabt.workspace = true

@@ -102,7 +102,7 @@ extern "C" fn handle() {
             exec::wait();
         }
         HandleAction::Panic => {
-            exec::system_reserve_gas(8_000_000_000).unwrap();
+            exec::system_reserve_gas(10_000_000_000).unwrap();
             panic!();
         }
         HandleAction::WaitWithReserveAmountAndPanic(gas_amount) => {

@@ -9,6 +9,8 @@ repository.workspace = true
 
 
 [dependencies]
+ethexe-common.workspace = true
+
 gear-lazy-pages-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
@@ -16,9 +18,10 @@ gprimitives.workspace = true
 gsys.workspace = true
 gear-core-errors.workspace = true
 
+anyhow.workspace = true
 parity-scale-codec.workspace = true
 log.workspace = true
 
 [features]
 default = ["std"]
-std = ["core-processor/std", "log/std"]
+std = ["anyhow/std", "core-processor/std", "log/std"]

@@ -19,7 +19,7 @@
 use crate::{abi::IRouter, wvara::WVara, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{Address, Bytes, B256},
+    primitives::{Address, Bytes, B256, U256},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::Filter,
     transports::BoxTransport,
@@ -29,7 +29,7 @@ use ethexe_common::router::{BlockCommitment, CodeCommitment};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
-use gear_core::ids::prelude::CodeIdExt as _;
+use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
 use gprimitives::{ActorId, CodeId, H160, H256};
 use std::sync::Arc;
 
@@ -136,7 +136,7 @@ impl Router {
             }
         }
 
-        Err(anyhow::anyhow!("Failed to define if code is validated"))
+        Err(anyhow!("Failed to define if code is validated"))
     }
 
     pub async fn create_program(
@@ -274,5 +274,18 @@ impl RouterQuery {
             .await
             .map(|res| res._0.to())
             .map_err(Into::into)
+    }
+
+    pub async fn programs_count(&self) -> Result<U256> {
+        let count = self.instance.programsCount().call().await?;
+        Ok(count._0)
+    }
+
+    pub async fn program_code_id(&self, program_id: ProgramId) -> Result<Option<CodeId>> {
+        let program_id = LocalAddress::try_from(program_id).expect("infallible");
+        let program_id = Address::new(program_id.0);
+        let code_id = self.instance.programCodeId(program_id).call().await?;
+        let code_id = Some(CodeId::new(code_id._0.0)).filter(|&code_id| code_id != CodeId::zero());
+        Ok(code_id)
     }
 }

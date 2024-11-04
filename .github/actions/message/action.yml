@@ -16,6 +16,8 @@ outputs:
     description: If enable macOS build.
   validator:
     description: If enable validator checks.
+  check-node-sync:
+    description: If enable try full node sync.
   release:
     description: If enable release build.
   production:

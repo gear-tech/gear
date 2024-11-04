@@ -21,13 +21,14 @@
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
+    program::ProgramBuilder,
     state::{accounts::Accounts, actors::Actors},
     Value, EXISTENTIAL_DEPOSIT,
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     event::{MessageWaitedRuntimeReason, RuntimeReason},
-    scheduler::{ScheduledTask, StorageType, TaskHandler},
+    scheduler::StorageType,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -39,6 +40,7 @@ use gear_core::{
         GearPage, WasmPage,
     },
     reservation::GasReserver,
+    tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::SignalCode;
 use std::collections::BTreeMap;
@@ -163,15 +165,15 @@ impl JournalHandler for ExtManager {
             match (gas_limit, reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
-                    .split_with_value(false, message_id, dispatch.id(), gas_limit)
+                    .split_with_value(dispatch.is_reply(), message_id, dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
                 (None, None) => self
                     .gas_tree
-                    .split(false, message_id, dispatch.id())
+                    .split(dispatch.is_reply(), message_id, dispatch.id())
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)),
                 (None, Some(reservation)) => {
                     self.gas_tree
-                        .split(false, reservation, dispatch.id())
+                        .split(dispatch.is_reply(), reservation, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
                     self.remove_gas_reservation_with_task(dispatch.source(), reservation);
                 }
@@ -294,10 +296,12 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !Actors::contains_key(candidate_id) {
+                    let (instrumented, _) =
+                        ProgramBuilder::build_instrumented_code_and_id(code.clone());
                     self.store_new_actor(
                         candidate_id,
                         Program::Genuine(GenuineProgram {
-                            code: code.clone(),
+                            code: instrumented,
                             code_id,
                             allocations: Default::default(),
                             pages_data: Default::default(),
@@ -406,7 +410,11 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         expiration: u32,
     ) {
-        <Self as TaskHandler<ProgramId>>::remove_gas_reservation(self, program_id, reservation_id);
+        <Self as TaskHandler<ProgramId, MessageId, bool>>::remove_gas_reservation(
+            self,
+            program_id,
+            reservation_id,
+        );
 
         let _ = self
             .task_pool

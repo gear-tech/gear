@@ -1,6 +1,27 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use anyhow::anyhow;
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
+use ethexe_processor::Processor;
 use futures::FutureExt;
-use gprimitives::H256;
+use gear_core::message::ReplyInfo;
+use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -8,9 +29,10 @@ use jsonrpsee::{
         serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
         TowerServiceBuilder,
     },
-    types::{ErrorCode, ErrorObject},
+    types::ErrorObject,
     Methods,
 };
+use sp_core::Bytes;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower::Service;
@@ -25,7 +47,17 @@ struct PerConnection<RpcMiddleware, HttpMiddleware> {
 #[rpc(server)]
 pub trait RpcApi {
     #[method(name = "blockHeader")]
-    async fn block_header(&self, hash: H256) -> RpcResult<BlockHeader>;
+    async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;
+
+    #[method(name = "calculateReplyForHandle")]
+    async fn calculate_reply_for_handle(
+        &self,
+        at: Option<H256>,
+        source: H160,
+        program_id: H160,
+        payload: Bytes,
+        value: u128,
+    ) -> RpcResult<ReplyInfo>;
 }
 
 pub struct RpcModule {
@@ -36,16 +68,68 @@ impl RpcModule {
     pub fn new(db: Database) -> Self {
         Self { db }
     }
+
+    pub fn block_header_at_or_latest(
+        &self,
+        at: impl Into<Option<H256>>,
+    ) -> RpcResult<(H256, BlockHeader)> {
+        if let Some(hash) = at.into() {
+            self.db
+                .block_header(hash)
+                .map(|header| (hash, header))
+                .ok_or_else(|| db_err("Block header for requested hash wasn't found"))
+        } else {
+            self.db
+                .latest_valid_block()
+                .ok_or_else(|| db_err("Latest block header wasn't found"))
+        }
+    }
 }
 
 #[async_trait]
 impl RpcApiServer for RpcModule {
-    async fn block_header(&self, hash: H256) -> RpcResult<BlockHeader> {
-        // let db = db.lock().await;
-        self.db.block_header(hash).ok_or_else(|| {
-            ErrorObject::borrowed(ErrorCode::InvalidParams.code(), "Block not found", None)
-        })
+    async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)> {
+        self.block_header_at_or_latest(hash)
     }
+
+    async fn calculate_reply_for_handle(
+        &self,
+        at: Option<H256>,
+        source: H160,
+        program_id: H160,
+        payload: Bytes,
+        value: u128,
+    ) -> RpcResult<ReplyInfo> {
+        let block_hash = self.block_header_at_or_latest(at)?.0;
+
+        // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
+        // TODO (breathx): optimize here instantiation if matches actual runtime.
+        let processor = Processor::new(self.db.clone()).map_err(|_| internal())?;
+
+        let mut overlaid_processor = processor.overlaid();
+
+        overlaid_processor
+            .execute_for_reply(
+                block_hash,
+                source.into(),
+                program_id.into(),
+                payload.0,
+                value,
+            )
+            .map_err(runtime_err)
+    }
+}
+
+fn db_err(err: &'static str) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Database error", Some(err))
+}
+
+fn runtime_err(err: anyhow::Error) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
+}
+
+fn internal() -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Internal error", None::<&str>)
 }
 
 pub struct RpcConfig {
@@ -121,18 +205,12 @@ impl RpcService {
                         async move {
                             log::info!("WebSocket connection accepted");
 
-                            svc.call(req)
-                                .await
-                                .map_err(|e| anyhow::anyhow!("Error: {:?}", e))
+                            svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e))
                         }
                         .boxed()
                     } else {
-                        async move {
-                            svc.call(req)
-                                .await
-                                .map_err(|e| anyhow::anyhow!("Error: {:?}", e))
-                        }
-                        .boxed()
+                        async move { svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e)) }
+                            .boxed()
                     }
                 });
 

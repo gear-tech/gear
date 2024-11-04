@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
+//!
 use crate::{meta::Meta, result::Result, App};
+use anyhow::anyhow;
 use clap::Parser;
 use gclient::{ext::sp_core::H256, GearApi};
 use std::{fs, path::PathBuf};
@@ -143,7 +145,7 @@ impl Program {
     fn resolve_meta(path: &PathBuf) -> Result<Meta> {
         let ext = path
             .extension()
-            .ok_or_else(|| anyhow::anyhow!("Invalid file extension"))?;
+            .ok_or_else(|| anyhow!("Invalid file extension"))?;
         let data = fs::read(path)?;
 
         // parse from hex if end with `txt`.
@@ -153,7 +155,7 @@ impl Program {
             // parse from wasm if end with `wasm`.
             Meta::decode_wasm(&data)?
         } else {
-            return Err(anyhow::anyhow!(format!("Unsupported file extension {:?}", ext)).into());
+            return Err(anyhow!(format!("Unsupported file extension {:?}", ext)).into());
         };
 
         Ok(meta)

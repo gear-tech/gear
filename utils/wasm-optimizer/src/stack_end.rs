@@ -386,7 +386,7 @@ mod test {
     };
     use pwasm_utils::parity_wasm;
     use wabt::Wat2Wasm;
-    use wasmi::{core::Value, Engine, Linker, Memory, MemoryType, Store};
+    use wasmer::{Imports, Instance, Memory, MemoryType, Module, Store, Value};
 
     #[test]
     fn assembly_script_stack_pointer() {
@@ -452,20 +452,15 @@ mod test {
             .expect("failed to parse module");
 
         let check = |binary, expected| {
-            let mut store: Store<()> = Store::new(&Engine::default(), ());
-            let mut linker: Linker<()> = Linker::new();
-            let module = wasmi::Module::new(store.engine(), binary).unwrap();
-            let mut outputs = [Value::I32(-1)];
-            linker
-                .instantiate(&mut store, &module)
+            let mut store: Store = Store::default();
+            let module = Module::new(store.engine(), binary).unwrap();
+            let instance = Instance::new(&mut store, &module, &Imports::new()).unwrap();
+
+            let outputs = instance
+                .exports
+                .get_function("handle")
                 .unwrap()
-                .ensure_no_start(&mut store)
-                .unwrap()
-                .get_export(&store, "handle")
-                .unwrap()
-                .into_func()
-                .unwrap()
-                .call(&mut store, &[Value::I32(1)], &mut outputs)
+                .call(&mut store, &[Value::I32(1)])
                 .unwrap();
             assert_eq!(outputs[0], Value::I32(expected));
         };
@@ -509,41 +504,33 @@ mod test {
             .expect("failed to parse module");
 
         let check = |binary, expected1, expected2| {
-            let mut store: Store<()> = Store::new(&Engine::default(), ());
-            let module = wasmi::Module::new(store.engine(), binary).unwrap();
-            let memory = Memory::new(&mut store, MemoryType::new(1, None)).unwrap();
+            let mut store: Store = Store::default();
+            let module = Module::new(store.engine(), binary).unwrap();
+            let memory = Memory::new(&mut store, MemoryType::new(1, None, false)).unwrap();
+            let imports = wasmer::imports! {
+                "env" => {
+                    "memory" => memory.clone(),
+                }
+            };
+            let instance = Instance::new(&mut store, &module, &imports).unwrap();
 
-            let mut linker: Linker<()> = Linker::new();
-            linker.define("env", "memory", memory).unwrap();
-
-            let mut outputs = [Value::I32(-1)];
-            linker
-                .instantiate(&mut store, &module)
+            let outputs = instance
+                .exports
+                .get_function("handle")
                 .unwrap()
-                .ensure_no_start(&mut store)
-                .unwrap()
-                .get_export(&store, "handle")
-                .unwrap()
-                .into_func()
-                .unwrap()
-                .call(&mut store, &[Value::I32(1)], &mut outputs)
+                .call(&mut store, &[Value::I32(1)])
                 .unwrap();
             assert_eq!(outputs[0], Value::I32(expected1));
 
             let mut data = vec![0u8; 0x10000];
-            memory.read(&store, 0, data.as_mut_slice()).unwrap();
-            let instance = linker
-                .instantiate(&mut store, &module)
+            memory.view(&store).read(0, data.as_mut_slice()).unwrap();
+            let instance = Instance::new(&mut store, &module, &imports).unwrap();
+            memory.view(&store).write(0, &data).unwrap();
+            let outputs = instance
+                .exports
+                .get_function("handle")
                 .unwrap()
-                .ensure_no_start(&mut store)
-                .unwrap();
-            memory.write(&mut store, 0, &data).unwrap();
-            instance
-                .get_export(&store, "handle")
-                .unwrap()
-                .into_func()
-                .unwrap()
-                .call(&mut store, &[Value::I32(1)], &mut outputs)
+                .call(&mut store, &[Value::I32(1)])
                 .unwrap();
             assert_eq!(outputs[0], Value::I32(expected2));
         };

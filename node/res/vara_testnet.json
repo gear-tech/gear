@@ -3,8 +3,8 @@
   "id": "vara_network_testnet",
   "chainType": "Live",
   "bootNodes": [
-    "/dns4/testnet-connect-1.vara-network.io/tcp/30333/p2p/12D3KooWPosEb8NoKNswzrU79YFcjD6FSVjubbawNbG9gEHEg5vn",
-    "/dns4/testnet-connect-2.vara-network.io/tcp/30333/p2p/12D3KooWAWEPAd5AD6TSYizF4FWc34rCvUhDKvyCNqQSkSRCLfMn"
+    "/dns4/testnet-connect-1.vara-network.io/tcp/30333/p2p/12D3KooWN13WbLwnFB9V9oZftpo49EvA5cABFi8CJVuczf1Py5wP",
+    "/dns4/testnet-connect-2.vara-network.io/tcp/30333/p2p/12D3KooWBExHKKuDq5nktbHHVhmwimfrbvmez2xd5UaEPhgQjVqu"
   ],
   "telemetryEndpoints": null,
   "protocolId": null,

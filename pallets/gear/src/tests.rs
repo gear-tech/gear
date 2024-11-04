@@ -60,6 +60,7 @@ use gear_core::{
         WasmPage,
     },
     program::ActiveProgram,
+    tasks::ScheduledTask,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -77,10 +78,7 @@ use sp_runtime::{
     SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
-use std::{
-    collections::BTreeSet,
-    num::{NonZeroU32, NonZeroUsize},
-};
+use std::{collections::BTreeSet, num::NonZero};
 pub use utils::init_logger;
 use utils::*;
 
@@ -6338,7 +6336,7 @@ fn exit_locking_funds() {
         assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            NonZeroU32::MAX,
+            NonZero::<u32>::MAX,
         ));
 
         run_to_next_block(None);
@@ -6652,7 +6650,7 @@ fn terminated_locking_funds() {
         assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            NonZeroU32::MAX,
+            NonZero::<u32>::MAX,
         ));
 
         run_to_next_block(None);
@@ -6684,7 +6682,11 @@ fn claim_value_to_inheritor() {
 
         // also, noop cases are in `*_locking_funds` tests
         assert_noop!(
-            Gear::claim_value_to_inheritor(RuntimeOrigin::signed(USER_1), pid1, NonZeroU32::MAX),
+            Gear::claim_value_to_inheritor(
+                RuntimeOrigin::signed(USER_1),
+                pid1,
+                NonZero::<u32>::MAX
+            ),
             Error::<Test>::ActiveProgram
         );
 
@@ -6785,7 +6787,7 @@ fn claim_value_to_inheritor() {
         assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             pid1,
-            NonZeroU32::MAX,
+            NonZero::<u32>::MAX,
         ));
 
         run_to_next_block(None);
@@ -6848,13 +6850,13 @@ fn test_sequence_inheritor_of() {
             holders
         };
         let inheritor_for = |id, max_depth| {
-            let max_depth = NonZeroUsize::new(max_depth).unwrap();
+            let max_depth = NonZero::<usize>::new(max_depth).unwrap();
             let (inheritor, holders) = Gear::inheritor_for(id, max_depth).unwrap();
             let holders = convert_holders(holders);
             (inheritor, holders)
         };
 
-        let res = Gear::inheritor_for(USER_1.into(), NonZeroUsize::MAX);
+        let res = Gear::inheritor_for(USER_1.into(), NonZero::<usize>::MAX);
         assert_eq!(res, Err(InheritorForError::NotFound));
 
         let (inheritor, holders) = inheritor_for(programs[99], usize::MAX);
@@ -6937,7 +6939,7 @@ fn test_cyclic_inheritor_of() {
 
         let cyclic_programs: BTreeSet<ProgramId> = cyclic_programs.into_iter().collect();
 
-        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::MAX);
+        let res = Gear::inheritor_for(2000.into(), NonZero::<usize>::MAX);
         assert_eq!(
             res,
             Err(InheritorForError::Cyclic {
@@ -6945,7 +6947,7 @@ fn test_cyclic_inheritor_of() {
             })
         );
 
-        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::new(101).unwrap());
+        let res = Gear::inheritor_for(2000.into(), NonZero::<usize>::new(101).unwrap());
         assert_eq!(
             res,
             Err(InheritorForError::Cyclic {
@@ -6954,11 +6956,11 @@ fn test_cyclic_inheritor_of() {
         );
 
         let (inheritor, _holders) =
-            Gear::inheritor_for(2000.into(), NonZeroUsize::new(100).unwrap()).unwrap();
+            Gear::inheritor_for(2000.into(), NonZero::<usize>::new(100).unwrap()).unwrap();
         assert_eq!(inheritor, 2000.into());
 
         let (inheritor, _holders) =
-            Gear::inheritor_for(2000.into(), NonZeroUsize::new(99).unwrap()).unwrap();
+            Gear::inheritor_for(2000.into(), NonZero::<usize>::new(99).unwrap()).unwrap();
         assert_eq!(inheritor, 2001.into());
     });
 }
@@ -11411,7 +11413,7 @@ fn system_reservation_panic_works() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -11424,7 +11426,7 @@ fn system_reservation_panic_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Panic.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -15028,7 +15030,7 @@ fn critical_hook_with_panic() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             vec![],
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -15043,7 +15045,7 @@ fn critical_hook_with_panic() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Panic.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -15059,7 +15061,7 @@ fn critical_hook_with_panic() {
             RuntimeOrigin::signed(USER_1),
             msg.id(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -16837,7 +16839,7 @@ pub(crate) mod utils {
         use crate::tests::new_test_ext;
         use demo_signal_entry::{HandleAction, WASM_BINARY};
 
-        const GAS_LIMIT: u64 = 10_000_000_000;
+        const GAS_LIMIT: u64 = 12_000_000_000;
 
         init_logger();
         new_test_ext().execute_with(|| {

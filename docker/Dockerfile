@@ -1,54 +1,52 @@
+# ===== BUILD STAGE ======
 FROM amazonlinux:2023 as builder
-LABEL description="This is the build stage for Gear. Here we create the binary."
 
 ARG PROFILE=production
-WORKDIR /gear
+ARG TOOLCHAIN=nightly-2023-04-25
+
+RUN yum update -y && \
+    yum install -y clang gcc git gzip make tar wget unzip && \
+    yum clean all && \
+    rm -rf /var/cache/yum
+
+RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.14.0/protoc-3.14.0-linux-x86_64.zip && \
+    unzip -o protoc-3.14.0-linux-x86_64.zip -d /usr/local bin/protoc && \
+    unzip -o protoc-3.14.0-linux-x86_64.zip -d /usr/local 'include/*' && \
+    rm -f protoc-3.14.0-linux-x86_64.zip
+
+RUN wget https://cmake.org/files/v3.24/cmake-3.24.0-linux-x86_64.sh && \
+    chmod +x cmake-3.24.0-linux-x86_64.sh && \
+    ./cmake-3.24.0-linux-x86_64.sh --skip-license --prefix=/usr/local && \
+    rm cmake-3.24.0-linux-x86_64.sh && \
+    cmake --version
+
+RUN wget https://sh.rustup.rs/rustup-init.sh && \
+    chmod +x rustup-init.sh && \
+    ./rustup-init.sh -y && \
+    rm rustup-init.sh
+
+ENV PATH="/root/.cargo/bin:$PATH"
 
 COPY . /gear
 
-# Install dependencies
-RUN yum update -y && yum install -y clang gcc git gzip make tar wget unzip
+WORKDIR /gear
 
-ARG PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip
-RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.14.0/$PROTOC_ZIP
-RUN unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
-RUN unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
-RUN rm -f $PROTOC_ZIP
+RUN rustup toolchain install $TOOLCHAIN && \
+    rustup target add wasm32-unknown-unknown --toolchain $TOOLCHAIN
 
-# Install CMake v3
-RUN wget https://cmake.org/files/v3.24/cmake-3.24.0-linux-x86_64.sh
-RUN chmod +x cmake-3.24.0-linux-x86_64.sh
-RUN ./cmake-3.24.0-linux-x86_64.sh --skip-license --prefix=/usr/local
-RUN rm cmake-3.24.0-linux-x86_64.sh
-RUN cmake --version
-
-# Install Rust and toolchains
-RUN  wget https://sh.rustup.rs/rustup-init.sh
-RUN chmod +x rustup-init.sh
-RUN ./rustup-init.sh -y
-ENV PATH="/root/.cargo/bin:$PATH"
-#RUN rustup default stable
-RUN rustup toolchain install nightly-2023-04-25
-RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2023-04-25
-#RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain
-
-# Build
 RUN cargo build -p gear-cli --profile $PROFILE
 
-# ===== SECOND STAGE ======
 
-FROM ubuntu:22.04
-MAINTAINER GEAR
-LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
+# ===== FINAL STAGE ======
+FROM debian:12-slim
+
 ARG PROFILE=production
+
+RUN apt-get update && apt-get upgrade -y && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /gear/target/$PROFILE/gear /usr/local/bin
-RUN apt-get update && apt-get install -y openssl
-RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
-	mkdir -p /gear/.local/share && \
-	mkdir /data && \
-	chown -R gear:gear /data && \
-	ln -s /data /gear/.local/share/gear
 
-USER root
+RUN gear --version
 
-CMD ["/usr/local/bin/gear"]
+CMD ["gear"]

@@ -22,16 +22,16 @@ use crate::{
     config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{anyhow, Result};
 use ethexe_common::{
     router::{
         BlockCommitment, CodeCommitment, RequestEvent as RouterRequestEvent, StateTransition,
     },
     BlockRequestEvent,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, Database};
-use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::NetworkReceiverEvent;
+use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_ethereum::{primitives::U256, router::RouterQuery};
+use ethexe_network::{db_sync, NetworkReceiverEvent};
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::LocalOutcome;
 use ethexe_sequencer::agro::AggregatedCommitments;
@@ -53,6 +53,7 @@ pub struct Service {
     db: Database,
     observer: ethexe_observer::Observer,
     query: ethexe_observer::Query,
+    router_query: RouterQuery,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
@@ -186,6 +187,7 @@ impl Service {
             network,
             observer,
             query,
+            router_query,
             processor,
             sequencer,
             signer,
@@ -210,6 +212,7 @@ impl Service {
         db: Database,
         observer: ethexe_observer::Observer,
         query: ethexe_observer::Query,
+        router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
         block_time: Duration,
@@ -223,6 +226,7 @@ impl Service {
             db,
             observer,
             query,
+            router_query,
             processor,
             signer,
             block_time,
@@ -322,7 +326,7 @@ impl Service {
         db.set_block_end_state_is_valid(block_hash, true);
 
         let header = db.block_header(block_hash).expect("must be set; qed");
-        db.set_latest_valid_block_height(header.height);
+        db.set_latest_valid_block(block_hash, header);
 
         Ok(transition_outcomes)
     }
@@ -333,20 +337,11 @@ impl Service {
         processor: &mut ethexe_processor::Processor,
         block_data: RequestBlockData,
     ) -> Result<Vec<BlockCommitment>> {
-        db.set_block_events(block_data.block_hash, block_data.events);
-        db.set_block_header(
-            block_data.block_hash,
-            BlockHeader {
-                height: block_data.block_number.try_into()?,
-                timestamp: block_data.block_timestamp,
-                parent_hash: block_data.parent_hash,
-            },
-        );
+        db.set_block_events(block_data.hash, block_data.events);
+        db.set_block_header(block_data.hash, block_data.header);
 
         let mut commitments = vec![];
-        let last_committed_chain = query
-            .get_last_committed_chain(block_data.block_hash)
-            .await?;
+        let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
 
@@ -357,7 +352,7 @@ impl Service {
 
             commitments.push(BlockCommitment {
                 block_hash,
-                pred_block_hash: block_data.block_hash,
+                pred_block_hash: block_data.hash,
                 prev_commitment_hash: db
                     .block_prev_commitment(block_hash)
                     .ok_or_else(|| anyhow!("Prev commitment not found"))?,
@@ -383,9 +378,9 @@ impl Service {
             RequestEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
-                    block_data.block_number,
-                    block_data.block_hash,
-                    block_data.parent_hash
+                    block_data.header.height,
+                    block_data.hash,
+                    block_data.header.parent_hash
                 );
 
                 let commitments =
@@ -413,6 +408,7 @@ impl Service {
             network,
             mut observer,
             mut query,
+            mut router_query,
             mut processor,
             mut sequencer,
             signer: _signer,
@@ -514,25 +510,39 @@ impl Service {
 
                     validation_round_timer.stop();
                 }
-                event = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
-                    let Some(NetworkReceiverEvent::Message { source, data }) = event else {
-                        continue;
-                    };
+                Some(event) = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
+                    match event {
+                        NetworkReceiverEvent::Message { source, data } => {
+                            log::debug!("Received a network message from peer {source:?}");
 
-                    log::debug!("Received a network message from peer {source:?}");
+                            let result = Self::process_network_message(
+                                data.as_slice(),
+                                &db,
+                                validator.as_mut(),
+                                sequencer.as_mut(),
+                                network_sender.as_mut(),
+                            );
 
-                    let result = Self::process_network_message(
-                        data.as_slice(),
-                        &db,
-                        validator.as_mut(),
-                        sequencer.as_mut(),
-                        network_sender.as_mut(),
-                    );
+                            if let Err(err) = result {
+                                // TODO: slash peer/validator in case of error #4175
+                                // TODO: consider error log as temporary solution #4175
+                                log::warn!("Failed to process network message: {err}");
+                            }
+                        }
+                        NetworkReceiverEvent::ExternalValidation(validating_response) => {
+                            let validated = Self::process_response_validation(&validating_response, &mut router_query).await?;
+                            let res = if validated {
+                                Ok(validating_response)
+                            } else {
+                                Err(validating_response)
+                            };
 
-                    if let Err(err) = result {
-                        // TODO: slash peer/validator in case of error #4175
-                        // TODO: consider error log as temporary solution #4175
-                        log::warn!("Failed to process network message: {err}");
+                            network_sender
+                                .as_mut()
+                                .expect("if network receiver is `Some()` so does sender")
+                                .request_validated(res);
+                        }
+                        _ => {}
                     }
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
@@ -666,6 +676,10 @@ impl Service {
             .map(BlockCommitmentValidationRequest::from)
             .collect();
 
+        if block_requests.is_empty() && code_requests.is_empty() {
+            return Ok(());
+        }
+
         if let Some(network_sender) = maybe_network_sender {
             log::debug!("Request validation of aggregated commitments...");
 
@@ -785,6 +799,30 @@ impl Service {
                 Ok(())
             }
         }
+    }
+
+    async fn process_response_validation(
+        validating_response: &db_sync::ValidatingResponse,
+        router_query: &mut RouterQuery,
+    ) -> Result<bool> {
+        let response = validating_response.response();
+
+        if let db_sync::Response::ProgramIds(ids) = response {
+            let ethereum_programs = router_query.programs_count().await?;
+            if ethereum_programs != U256::from(ids.len()) {
+                return Ok(false);
+            }
+
+            // TODO: #4309
+            for &id in ids {
+                let code_id = router_query.program_code_id(id).await?;
+                if code_id.is_none() {
+                    return Ok(false);
+                }
+            }
+        }
+
+        Ok(true)
     }
 }
 

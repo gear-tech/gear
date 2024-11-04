@@ -40,8 +40,8 @@ etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }
 toml.workspace = true
-# TODO: use wasmi from workspace (#3214)
-wasmi = { version = "0.30.0", features = ["std"] }
+wasmer.workspace = true
+wasmer-types.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

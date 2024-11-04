@@ -1,11 +1,30 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use anyhow::{anyhow, ensure};
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
-use sandbox_wasmer::{
+use std::{env, fs};
+use wasmer::{
     Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,
     RuntimeError, Singlepass, Store,
 };
-use sandbox_wasmer_types::{FunctionType, TrapCode, Type};
-use std::{env, fs};
+use wasmer_types::{FunctionType, TrapCode, Type};
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -24,7 +43,7 @@ fn main() -> anyhow::Result<()> {
             ..Default::default()
         },
     )
-    .map_err(|e| anyhow::anyhow!("{e}"))?;
+    .map_err(|e| anyhow!("{e}"))?;
 
     let compiler = Singlepass::default();
     let mut store = Store::new(compiler);
@@ -91,7 +110,7 @@ fn main() -> anyhow::Result<()> {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.table_number.into(),
         )
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+        .map_err(|e| anyhow!("{e}"))?;
 
         let module = Module::new(&store, code.code())?;
         let instance = Instance::new(&mut store, &module, &imports)?;
@@ -123,7 +142,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     if let Some(schedule_stack_height) = schedule.limits.stack_height {
-        anyhow::ensure!(
+        ensure!(
             schedule_stack_height <= stack_height,
             "Stack height in runtime schedule must be decreased"
         );

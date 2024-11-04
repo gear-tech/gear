@@ -13,6 +13,7 @@ use ethexe_common::{
     router::{Event as RouterEvent, RequestEvent as RouterRequestEvent},
     BlockEvent, BlockRequestEvent,
 };
+use ethexe_db::BlockHeader;
 use ethexe_ethereum::{
     mirror,
     router::{self, RouterQuery},
@@ -144,10 +145,12 @@ impl Observer {
                         });
 
                         let block_data = BlockData {
-                            block_hash,
-                            parent_hash,
-                            block_number,
-                            block_timestamp,
+                            hash: block_hash,
+                            header: BlockHeader {
+                                height: block_number as u32,
+                                timestamp: block_timestamp,
+                                parent_hash,
+                            },
                             events,
                         };
 
@@ -233,10 +236,12 @@ impl Observer {
                         });
 
                         let block_data = RequestBlockData {
-                            block_hash,
-                            parent_hash,
-                            block_number,
-                            block_timestamp,
+                            hash: block_hash,
+                            header: BlockHeader {
+                                height: block_number as u32,
+                                timestamp: block_timestamp,
+                                parent_hash,
+                            },
                             events,
                         };
 

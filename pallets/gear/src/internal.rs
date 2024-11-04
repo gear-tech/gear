@@ -36,7 +36,7 @@ use common::{
 };
 use core::{
     cmp::{Ord, Ordering},
-    num::NonZeroUsize,
+    num::NonZero,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -45,6 +45,7 @@ use gear_core::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,
     },
+    tasks::ScheduledTask,
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
@@ -1282,7 +1283,7 @@ where
 
     pub(crate) fn inheritor_for(
         program_id: ProgramId,
-        max_depth: NonZeroUsize,
+        max_depth: NonZero<usize>,
     ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
         let max_depth = max_depth.get();
 
