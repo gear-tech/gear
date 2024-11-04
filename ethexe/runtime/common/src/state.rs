@@ -133,7 +133,7 @@ impl PayloadLookup {
             Self::Direct(payload) => Ok(payload),
             Self::Stored(hash) => storage
                 .read_payload(hash)
-                .ok_or(anyhow!("failed to read ['Payload'] from storage by hash")),
+                .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash")),
         }
     }
 }
@@ -368,7 +368,7 @@ impl MaybeHashOf<Payload> {
         self.with_hash_or_default_fallible(|hash| {
             storage
                 .read_payload(hash)
-                .ok_or(anyhow!("failed to read ['Payload'] from storage by hash"))
+                .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash"))
         })
     }
 
