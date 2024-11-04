@@ -36,6 +36,7 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
+pub mod proxy;
 pub mod staking;
 pub mod weights;
 
@@ -58,6 +59,7 @@ use core_processor::{
     process_execution_error, process_success, SuccessfulDispatchResultKind,
     SystemReservationContext,
 };
+use frame_support::dispatch::extract_actual_weight;
 use gear_core::{
     gas::GasCounter,
     ids::{hash, ProgramId},
@@ -73,7 +75,11 @@ use sp_std::prelude::*;
 
 pub use pallet::*;
 
+type CallOf<T> = <T as Config>::RuntimeCall;
+
 const LOG_TARGET: &str = "gear::builtin";
+
+pub type ActorErrorHandleFn = HandleFn<BuiltinActorError>;
 
 /// Built-in actor error type
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
@@ -109,10 +115,11 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
 /// A trait representing an interface of a builtin actor that can handle a message
 /// from message queue (a `StoredDispatch`) to produce an outcome and gas spent.
 pub trait BuiltinActor {
-    type Error;
-
     /// Handles a message and returns a result and the actual gas spent.
-    fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64);
+    fn handle(
+        dispatch: &StoredDispatch,
+        gas_limit: u64,
+    ) -> (Result<Payload, BuiltinActorError>, u64);
 }
 
 /// A marker struct to associate a builtin actor with its unique ID.
@@ -121,33 +128,29 @@ pub struct ActorWithId<const ID: u64, A: BuiltinActor>(PhantomData<A>);
 /// Glue trait to implement `BuiltinCollection` for a tuple of `ActorWithId`.
 trait BuiltinActorWithId {
     const ID: u64;
-
-    type Error;
-    type Actor: BuiltinActor<Error = Self::Error>;
+    type Actor: BuiltinActor;
 }
 
 impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
     const ID: u64 = ID;
-
-    type Error = A::Error;
     type Actor = A;
 }
 
 /// A trait defining a method to convert a tuple of `BuiltinActor` types into
 /// a in-memory collection of builtin actors.
-pub trait BuiltinCollection<E> {
+pub trait BuiltinCollection {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
+        registry: &mut BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
         id_converter: &dyn Fn(u64) -> ProgramId,
     );
 }
 
 // Assuming as many as 16 builtin actors for the meantime
 #[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(BuiltinActorWithId<Error = E> + 'static)]
-impl<E> BuiltinCollection<E> for Tuple {
+#[tuple_types_custom_trait_bound(BuiltinActorWithId + 'static)]
+impl BuiltinCollection for Tuple {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
+        registry: &mut BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
         id_converter: &dyn Fn(u64) -> ProgramId,
     ) {
         for_tuples!(
@@ -172,6 +175,7 @@ impl<E> BuiltinCollection<E> for Tuple {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use common::Origin;
     use frame_support::{
         dispatch::{GetDispatchInfo, PostDispatchInfo},
         pallet_prelude::*,
@@ -194,7 +198,7 @@ pub mod pallet {
             + GetDispatchInfo;
 
         /// The builtin actor type.
-        type Builtins: BuiltinCollection<BuiltinActorError>;
+        type Builtins: BuiltinCollection;
 
         /// Weight cost incurred by builtin actors calls.
         type WeightInfo: WeightInfo;
@@ -212,11 +216,51 @@ pub mod pallet {
         pub fn generate_actor_id(builtin_id: u64) -> ProgramId {
             hash((SEED, builtin_id).encode().as_slice()).into()
         }
+
+        pub(crate) fn dispatch_call(
+            origin: ProgramId,
+            call: CallOf<T>,
+            gas_limit: u64,
+        ) -> (Result<(), BuiltinActorError>, u64)
+        where
+            T::AccountId: Origin,
+        {
+            let call_info = call.get_dispatch_info();
+
+            // Necessary upfront gas sufficiency check
+            if gas_limit < call_info.weight.ref_time() {
+                return (Err(BuiltinActorError::InsufficientGas), 0_u64);
+            }
+
+            // Execute call
+            let res = call.dispatch(frame_system::RawOrigin::Signed(origin.cast()).into());
+            let actual_gas = extract_actual_weight(&res, &call_info).ref_time();
+
+            match res {
+                Ok(_post_info) => {
+                    log::debug!(
+                        target: LOG_TARGET,
+                        "Call dispatched successfully",
+                    );
+                    (Ok(()), actual_gas)
+                }
+                Err(e) => {
+                    log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
+                    (
+                        Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                            e.into(),
+                        ))),
+                        actual_gas,
+                    )
+                }
+            }
+        }
     }
 }
 
 impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
     type Error = BuiltinActorError;
+
     type Output = BuiltinRegistry<T>;
 
     fn create() -> (BuiltinRegistry<T>, u64) {
@@ -228,7 +272,7 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
 }
 
 pub struct BuiltinRegistry<T: Config> {
-    pub registry: BTreeMap<ProgramId, Box<HandleFn<BuiltinActorError>>>,
+    pub registry: BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
 impl<T: Config> BuiltinRegistry<T> {
@@ -246,13 +290,13 @@ impl<T: Config> BuiltinRegistry<T> {
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     type Error = BuiltinActorError;
 
-    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a HandleFn<Self::Error>> {
+    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a ActorErrorHandleFn> {
         self.registry.get(id).map(|f| &**f)
     }
 
     fn run(
         &self,
-        f: &HandleFn<Self::Error>,
+        f: &ActorErrorHandleFn,
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote> {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use derive_more::Display;
-use wasmi::core::HostError;
-
-#[derive(Debug, Display)]
-#[display(fmt = "{message}")]
-pub struct CustomHostError {
-    message: String,
-}
-
-impl HostError for CustomHostError {}
-
-impl<T> From<T> for CustomHostError
-where
-    T: Into<String>,
-{
-    fn from(s: T) -> CustomHostError {
-        Self { message: s.into() }
-    }
+fn main() {
+    gear_wasm_builder::build();
 }
