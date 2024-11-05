@@ -192,7 +192,11 @@ impl<S: Sealed> HashOf<S> {
     derive_more::DebugCustom,
     derive_more::Display,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "std",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound = "")
+)]
 #[debug(
     fmt = "MaybeHashOf<{}>({})",
     "private::shortname::<S>()",
@@ -626,7 +630,8 @@ impl Dispatch {
     }
 }
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueWithExpiry<T> {
     pub value: T,
     pub expiry: u32,
@@ -638,7 +643,8 @@ impl<T> From<(T, u32)> for ValueWithExpiry<T> {
     }
 }
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueue(VecDeque<Dispatch>);
 
 impl MessageQueue {
@@ -659,7 +665,8 @@ impl MessageQueue {
     }
 }
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
     inner: BTreeMap<MessageId, ValueWithExpiry<Dispatch>>,
     #[into(ignore)]
@@ -697,7 +704,7 @@ impl Waitlist {
     }
 }
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 pub struct DispatchStash(BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>);
 
 impl DispatchStash {
@@ -766,7 +773,8 @@ impl DispatchStash {
 }
 
 // TODO (breathx): consider here LocalMailbox for each user.
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
     inner: BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>,
     #[into(ignore)]
@@ -813,7 +821,8 @@ impl Mailbox {
     }
 }
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryPages(BTreeMap<GearPage, HashOf<PageBuf>>);
 
 impl MemoryPages {
