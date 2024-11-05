@@ -1,5 +1,8 @@
 use crate::{
-    state::{Dispatch, MaybeHashOf, ProgramState, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{
+        Dispatch, MaybeHashOf, PayloadLookup, ProgramState, Storage, ValueWithExpiry,
+        MAILBOX_VALIDITY,
+    },
     InBlockTransitions, TransitionOperator,
 };
 use alloc::vec;
@@ -42,7 +45,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
             let reply = Dispatch::reply(
                 message_id,
                 user_id,
-                MaybeHashOf::empty(),
+                PayloadLookup::empty(),
                 0,
                 SuccessReplyReason::Auto,
             );

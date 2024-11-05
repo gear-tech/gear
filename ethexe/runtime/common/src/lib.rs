@@ -185,7 +185,7 @@ where
         id: dispatch_id,
         kind,
         source,
-        payload_hash,
+        payload,
         value,
         details,
         context,
@@ -206,8 +206,7 @@ where
         todo!("Process messages to uninitialized program");
     }
 
-    let payload = payload_hash
-        .with_hash_or_default(|hash| ri.storage().read_payload(hash).expect("Cannot get payload"));
+    let payload = payload.query(ri.storage()).expect("failed to get payload");
 
     let gas_limit = block_config
         .gas_multiplier

@@ -28,6 +28,7 @@ use anyhow::{anyhow, Result};
 use core::{
     any::Any,
     marker::PhantomData,
+    mem,
     num::NonZero,
     ops::{Deref, DerefMut},
 };
@@ -76,6 +77,70 @@ mod private {
             .split("::")
             .last()
             .expect("name is empty")
+    }
+}
+
+/// Represents payload provider (lookup).
+///
+/// Directly keeps payload inside of itself, or keeps hash of payload stored in database.
+///
+/// Motivation for usage: it's more optimized to held small payloads in place.
+/// Zero payload should always be stored directly.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum PayloadLookup {
+    Direct(Payload),
+    Stored(HashOf<Payload>),
+}
+
+impl Default for PayloadLookup {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl From<HashOf<Payload>> for PayloadLookup {
+    fn from(value: HashOf<Payload>) -> Self {
+        Self::Stored(value)
+    }
+}
+
+impl PayloadLookup {
+    /// Lower len to be stored in storage instead of holding value itself; 1 KB.
+    pub const STORING_THRESHOLD: usize = 1024;
+
+    pub const fn empty() -> Self {
+        Self::Direct(Payload::new())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        if let Self::Direct(payload) = self {
+            payload.inner().is_empty()
+        } else {
+            false
+        }
+    }
+
+    pub fn force_stored<S: Storage>(&mut self, storage: &S) -> HashOf<Payload> {
+        let hash = match self {
+            Self::Direct(payload) => {
+                let payload = mem::replace(payload, Payload::new());
+                storage.write_payload(payload)
+            }
+            Self::Stored(hash) => *hash,
+        };
+
+        *self = hash.into();
+
+        hash
+    }
+
+    pub fn query<S: Storage>(self, storage: &S) -> Result<Payload> {
+        match self {
+            Self::Direct(payload) => Ok(payload),
+            Self::Stored(hash) => storage
+                .read_payload(hash)
+                .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash")),
+        }
     }
 }
 
@@ -309,7 +374,7 @@ impl MaybeHashOf<Payload> {
         self.with_hash_or_default_fallible(|hash| {
             storage
                 .read_payload(hash)
-                .ok_or(anyhow!("failed to read ['Payload'] from storage by hash"))
+                .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash"))
         })
     }
 
@@ -440,7 +505,7 @@ pub struct Dispatch {
     /// Message source.
     pub source: ProgramId,
     /// Message payload.
-    pub payload_hash: MaybeHashOf<Payload>,
+    pub payload: PayloadLookup,
     /// Message value.
     pub value: Value,
     /// Message details like reply message ID, status code, etc.
@@ -458,7 +523,7 @@ impl Dispatch {
         value: u128,
         is_init: bool,
     ) -> Result<Self> {
-        let payload_hash = storage.write_payload_raw(payload)?;
+        let payload = storage.write_payload_raw(payload)?;
 
         let kind = if is_init {
             DispatchKind::Init
@@ -470,7 +535,7 @@ impl Dispatch {
             id,
             kind,
             source,
-            payload_hash,
+            payload,
             value,
             details: None,
             context: None,
@@ -498,7 +563,7 @@ impl Dispatch {
     pub fn reply(
         reply_to: MessageId,
         source: ActorId,
-        payload_hash: MaybeHashOf<Payload>,
+        payload: PayloadLookup,
         value: u128,
         reply_code: impl Into<ReplyCode>,
     ) -> Self {
@@ -506,7 +571,7 @@ impl Dispatch {
             id: MessageId::generate_reply(reply_to),
             kind: DispatchKind::Reply,
             source,
-            payload_hash,
+            payload,
             value,
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
@@ -517,7 +582,7 @@ impl Dispatch {
         let (kind, message, context) = value.into_parts();
         let (id, source, destination, payload, value, details) = message.into_parts();
 
-        let payload_hash = storage
+        let payload = storage
             .write_payload_raw(payload.into_vec())
             .expect("infallible due to recasts (only panics on len)");
 
@@ -525,7 +590,7 @@ impl Dispatch {
             id,
             kind,
             source,
-            payload_hash,
+            payload,
             value,
             details,
             context,
@@ -535,18 +600,13 @@ impl Dispatch {
     pub fn into_outgoing<S: Storage>(self, storage: &S, destination: ActorId) -> OutgoingMessage {
         let Self {
             id,
-            payload_hash,
+            payload,
             value,
             details,
             ..
         } = self;
 
-        let payload = payload_hash.with_hash_or_default(|payload_hash| {
-            storage
-                .read_payload(payload_hash)
-                .expect("must be found")
-                .into_vec()
-        });
+        let payload = payload.query(storage).expect("must be found").into_vec();
 
         OutgoingMessage {
             id,
@@ -857,13 +917,18 @@ pub trait Storage {
     /// Writes payload and returns its hash.
     fn write_payload(&self, payload: Payload) -> HashOf<Payload>;
 
-    /// Writes payload if it doesnt exceed limits.
-    fn write_payload_raw(&self, payload: Vec<u8>) -> Result<MaybeHashOf<Payload>> {
-        Payload::try_from(payload)
-            .map(|payload| {
-                MaybeHashOf((!payload.inner().is_empty()).then(|| self.write_payload(payload)))
-            })
-            .map_err(|_| anyhow!("payload exceeds size limit"))
+    /// Writes payload if it doesnt exceed limits, returning lookup.
+    fn write_payload_raw(&self, payload: Vec<u8>) -> Result<PayloadLookup> {
+        let payload =
+            Payload::try_from(payload).map_err(|_| anyhow!("payload exceeds size limit"))?;
+
+        let res = if payload.inner().len() < PayloadLookup::STORING_THRESHOLD {
+            PayloadLookup::Direct(payload)
+        } else {
+            PayloadLookup::Stored(self.write_payload(payload))
+        };
+
+        Ok(res)
     }
 
     /// Reads page data by page data hash.
