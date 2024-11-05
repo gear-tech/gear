@@ -24,7 +24,7 @@ pub type Migrations = (
     staking::MigrateToV14<Runtime>,
     pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
     // move metadata into attribution
-    pallet_gear_program::migrations::v11_metadata_into_attribution::MigrateMetadataIntoAttribution<Runtime>,
+    pallet_gear_program::migrations::v11_code_metadata_delete_migration::MigrateRemoveCodeMetadata<Runtime>,
     // migrate program code hash to code id and remove code_exports and static_pages
     pallet_gear_program::migrations::v12_program_code_id_migration::MigrateProgramCodeHashToCodeId<Runtime>,
     // split instrumented code into separate storage items

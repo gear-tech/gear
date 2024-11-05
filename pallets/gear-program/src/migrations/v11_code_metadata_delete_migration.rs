@@ -37,9 +37,9 @@ const MIGRATE_FROM_VERSION: u16 = 10;
 const MIGRATE_TO_VERSION: u16 = 11;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 13;
 
-pub struct MigrateMetadataIntoAttribution<T: Config>(PhantomData<T>);
+pub struct MigrateRemoveCodeMetadata<T: Config>(PhantomData<T>);
 
-impl<T: Config> OnRuntimeUpgrade for MigrateMetadataIntoAttribution<T> {
+impl<T: Config> OnRuntimeUpgrade for MigrateRemoveCodeMetadata<T> {
     fn on_runtime_upgrade() -> Weight {
         // 1 read for onchain storage version
         let mut weight = T::DbWeight::get().reads(1);
@@ -97,11 +97,8 @@ impl<T: Config> OnRuntimeUpgrade for MigrateMetadataIntoAttribution<T> {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        if let Some(count) = Option::<u64>::decode(&mut state.as_ref())
-            .map_err(|_| "`pre_upgrade` provided an invalid state")?
-        {
-            ensure!(count > 0, "incorrect count of elements");
-        }
+        Option::<u64>::decode(&mut state.as_ref())
+            .map_err(|_| "`pre_upgrade` provided an invalid state")?;
 
         Ok(())
     }
@@ -171,10 +168,10 @@ mod test {
         new_test_ext().execute_with(|| {
             StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 
-            let state = MigrateMetadataIntoAttribution::<Test>::pre_upgrade().unwrap();
-            let w = MigrateMetadataIntoAttribution::<Test>::on_runtime_upgrade();
+            let state = MigrateRemoveCodeMetadata::<Test>::pre_upgrade().unwrap();
+            let w = MigrateRemoveCodeMetadata::<Test>::on_runtime_upgrade();
             assert!(!w.is_zero());
-            MigrateMetadataIntoAttribution::<Test>::post_upgrade(state).unwrap();
+            MigrateRemoveCodeMetadata::<Test>::post_upgrade(state).unwrap();
 
             assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);
         })
