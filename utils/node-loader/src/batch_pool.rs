@@ -59,7 +59,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     /// Consume `BatchPool` and spawn tasks.
     ///
     /// - `run_pool_task` - the main task for sending and processing batches.
-    /// - `inpect_crash_task` - background task monitors when message processing stops.
+    /// - `inspect_crash_task` - background task monitors when message processing stops.
     /// - `renew_balance_task` - periodically setting a new balance for the user account.
     ///
     /// Wait for any task to return result with `tokio::select!`.
