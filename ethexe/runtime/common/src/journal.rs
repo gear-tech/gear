@@ -3,7 +3,7 @@ use crate::{
         self, ActiveProgram, Dispatch, MaybeHashOf, Program, ProgramState, Storage,
         ValueWithExpiry, MAILBOX_VALIDITY,
     },
-    InBlockTransitions, TransitionOperator,
+    InBlockTransitions, TransitionController,
 };
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use anyhow::{bail, Result};
@@ -32,7 +32,7 @@ pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
     #[deref]
     #[deref_mut]
-    pub operator: TransitionOperator<'a, S>,
+    pub controller: TransitionController<'a, S>,
 }
 
 impl<S: Storage> Handler<'_, S> {

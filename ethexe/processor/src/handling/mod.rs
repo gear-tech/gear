@@ -20,7 +20,7 @@ use crate::Processor;
 use anyhow::{anyhow, Result};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::{
-    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionOperator,
+    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
 };
 use gprimitives::{ActorId, CodeId, H256};
 
@@ -33,8 +33,8 @@ pub struct ProcessingHandler {
 }
 
 impl ProcessingHandler {
-    pub fn operator(&mut self) -> TransitionOperator<'_, Database> {
-        TransitionOperator {
+    pub fn controller(&mut self) -> TransitionController<'_, Database> {
+        TransitionController {
             storage: &self.db,
             transitions: &mut self.transitions,
         }
@@ -45,7 +45,7 @@ impl ProcessingHandler {
         program_id: ActorId,
         f: impl FnOnce(&mut ProgramState, &Database, &mut InBlockTransitions) -> T,
     ) -> T {
-        self.operator().update_state(program_id, f)
+        self.controller().update_state(program_id, f)
     }
 }
 
@@ -110,7 +110,7 @@ impl ProcessingHandler {
         );
 
         let mut handler = ScheduleHandler {
-            operator: self.operator(),
+            controller: self.adapter(),
         };
 
         for task in tasks {

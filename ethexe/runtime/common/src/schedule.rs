@@ -3,7 +3,7 @@ use crate::{
         Dispatch, MaybeHashOf, PayloadLookup, ProgramState, Storage, ValueWithExpiry,
         MAILBOX_VALIDITY,
     },
-    InBlockTransitions, TransitionOperator,
+    InBlockTransitions, TransitionController,
 };
 use alloc::vec;
 use anyhow::{anyhow, Result};
@@ -17,7 +17,7 @@ use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
-    pub operator: TransitionOperator<'a, S>,
+    pub controller: TransitionController<'a, S>,
 }
 
 impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {

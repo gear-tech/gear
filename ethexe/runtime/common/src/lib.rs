@@ -76,12 +76,12 @@ pub trait RuntimeInterface<S: Storage> {
     fn storage(&self) -> &S;
 }
 
-pub struct TransitionOperator<'a, S: Storage> {
+pub struct TransitionController<'a, S: Storage> {
     pub storage: &'a S,
     pub transitions: &'a mut InBlockTransitions,
 }
 
-impl<'a, S: Storage> TransitionOperator<'a, S> {
+impl<'a, S: Storage> TransitionController<'a, S> {
     pub fn update_state<T>(
         &mut self,
         program_id: ProgramId,
