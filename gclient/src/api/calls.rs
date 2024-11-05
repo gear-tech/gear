@@ -19,12 +19,7 @@
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use anyhow::anyhow;
-use gear_core::{
-    gas::LockId,
-    ids::*,
-    memory::PageBuf,
-    pages::{GearPage, WasmPage},
-};
+use gear_core::{gas::LockId, ids::*, memory::PageBuf, pages::GearPage};
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
     config::GearConfig,
@@ -636,16 +631,6 @@ impl GearApi {
         file_path: P,
     ) -> Result {
         let program = self.0.api().gprog_at(program_id, block_hash).await?;
-        let code_metadata = self
-            .0
-            .api()
-            .code_metadata_storage_at(program.code_id.0.into(), block_hash)
-            .await?;
-
-        assert!(code_metadata.static_pages.0 > 0);
-        // TODO: consider to remove `-1` may be it's a bug #3893
-        let static_page_count =
-            (code_metadata.static_pages.0 - 1) * WasmPage::SIZE / GearPage::SIZE;
 
         let program_pages = self
             .0
@@ -653,17 +638,12 @@ impl GearApi {
             .gpages_at(program_id, Some(program.memory_infix.0), block_hash)
             .await?
             .into_iter()
-            .filter_map(|(page_number, page_data)| {
-                if page_number < static_page_count {
-                    None
-                } else {
-                    Some(MemoryPageDump::new(
-                        GearPage::try_from(page_number).unwrap_or_else(|_| {
-                            panic!("Couldn't decode GearPage from u32: {}", page_number)
-                        }),
-                        PageBuf::decode(&mut &*page_data).expect("Couldn't decode PageBuf"),
-                    ))
-                }
+            .map(|(page, data)| {
+                MemoryPageDump::new(
+                    GearPage::try_from(page)
+                        .unwrap_or_else(|_| panic!("Couldn't decode GearPage from u32: {}", page)),
+                    PageBuf::decode(&mut &*data).expect("Couldn't decode PageBuf"),
+                )
             })
             .collect();
 
