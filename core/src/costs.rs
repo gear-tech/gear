@@ -519,6 +519,16 @@ pub struct LazyPagesCosts {
     pub host_func_write_after_read: CostOf<GearPagesAmount>,
     /// Loading page data from storage cost.
     pub load_page_storage_data: CostOf<GearPagesAmount>,
+    /// Loading from storage and moving it in program memory cost.
+    pub load_page_data: CostOf<GearPagesAmount>,
+    /// Uploading page data to storage cost.
+    pub upload_page_data: CostOf<GearPagesAmount>,
+    /// Memory grow cost.
+    pub mem_grow: CostOf<GearPagesAmount>,
+    /// Memory grow per page cost.
+    pub mem_grow_per_page: CostOf<GearPagesAmount>,
+    /// Parachain read heuristic cost.
+    pub parachain_read_heuristic: CostOf<GearPagesAmount>,
 }
 
 /// Holding in storages rent costs.

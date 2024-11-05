@@ -18,15 +18,16 @@
 
 use super::*;
 use crate::Runtime;
-use frame_support::{dispatch::GetDispatchInfo, traits::StorageInstance};
+
+use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
-use gear_core::{
-    costs::{CostOf, LazyPagesCosts},
-    pages::GearPagesAmount,
-};
+use gear_core::costs::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
+
+#[cfg(feature = "dev")]
+use frame_support::traits::StorageInstance;
 
 const INSTRUCTIONS_SPREAD: u8 = 50;
 const SYSCALL_SPREAD: u8 = 10;
@@ -62,7 +63,7 @@ impl WeightExpectation {
     }
 }
 
-fn check_expectations(expectations: &[WeightExpectation]) -> Result<(), Vec<String>> {
+fn check_expectations(expectations: &[WeightExpectation]) -> Result<usize, Vec<String>> {
     let errors = expectations
         .iter()
         .filter_map(|expectation| {
@@ -75,38 +76,237 @@ fn check_expectations(expectations: &[WeightExpectation]) -> Result<(), Vec<Stri
         .collect::<Vec<String>>();
 
     if errors.is_empty() {
-        Ok(())
+        Ok(expectations.iter().count())
     } else {
         Err(errors)
     }
 }
 
-/// Memory pages access costs.
-struct PagesCosts {
-    pub load_page_data: CostOf<GearPagesAmount>,
-    pub upload_page_data: CostOf<GearPagesAmount>,
-    pub mem_grow: CostOf<GearPagesAmount>,
-    pub mem_grow_per_page: CostOf<GearPagesAmount>,
-    pub parachain_read_heuristic: CostOf<GearPagesAmount>,
+fn expected_instructions_weights_count() -> usize {
+    let InstructionWeights {
+        i64const: _,
+        i64load: _,
+        i32load: _,
+        i64store: _,
+        i32store: _,
+        select: _,
+        r#if: _,
+        br: _,
+        br_if: _,
+        br_table: _,
+        br_table_per_entry: _,
+        call: _,
+        call_indirect: _,
+        call_indirect_per_param: _,
+        call_per_local: _,
+        local_get: _,
+        local_set: _,
+        local_tee: _,
+        global_get: _,
+        global_set: _,
+        memory_current: _,
+        i64clz: _,
+        i32clz: _,
+        i64ctz: _,
+        i32ctz: _,
+        i64popcnt: _,
+        i32popcnt: _,
+        i64eqz: _,
+        i32eqz: _,
+        i32extend8s: _,
+        i32extend16s: _,
+        i64extend8s: _,
+        i64extend16s: _,
+        i64extend32s: _,
+        i64extendsi32: _,
+        i64extendui32: _,
+        i32wrapi64: _,
+        i64eq: _,
+        i32eq: _,
+        i64ne: _,
+        i32ne: _,
+        i64lts: _,
+        i32lts: _,
+        i64ltu: _,
+        i32ltu: _,
+        i64gts: _,
+        i32gts: _,
+        i64gtu: _,
+        i32gtu: _,
+        i64les: _,
+        i32les: _,
+        i64leu: _,
+        i32leu: _,
+        i64ges: _,
+        i32ges: _,
+        i64geu: _,
+        i32geu: _,
+        i64add: _,
+        i32add: _,
+        i64sub: _,
+        i32sub: _,
+        i64mul: _,
+        i32mul: _,
+        i64divs: _,
+        i32divs: _,
+        i64divu: _,
+        i32divu: _,
+        i64rems: _,
+        i32rems: _,
+        i64remu: _,
+        i32remu: _,
+        i64and: _,
+        i32and: _,
+        i64or: _,
+        i32or: _,
+        i64xor: _,
+        i32xor: _,
+        i64shl: _,
+        i32shl: _,
+        i64shrs: _,
+        i32shrs: _,
+        i64shru: _,
+        i32shru: _,
+        i64rotl: _,
+        i32rotl: _,
+        i64rotr: _,
+        i32rotr: _,
+        version: _,
+        _phantom: _,
+    } = InstructionWeights::<Runtime>::default();
+
+    // total number of instructions
+    87
 }
 
-impl<T: pallet_gear::Config> From<MemoryWeights<T>> for PagesCosts {
-    fn from(val: MemoryWeights<T>) -> Self {
-        Self {
-            load_page_data: val.load_page_data.ref_time().into(),
-            upload_page_data: val.upload_page_data.ref_time().into(),
-            mem_grow: val.mem_grow.ref_time().into(),
-            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
-            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
-        }
-    }
+fn expected_syscall_weights_count() -> usize {
+    let SyscallWeights {
+        alloc: _,
+        free: _,
+        free_range: _,
+        free_range_per_page: _,
+        gr_reserve_gas: _,
+        gr_unreserve_gas: _,
+        gr_system_reserve_gas: _,
+        gr_gas_available: _,
+        gr_message_id: _,
+        gr_program_id: _,
+        gr_source: _,
+        gr_value: _,
+        gr_value_available: _,
+        gr_size: _,
+        gr_read: _,
+        gr_read_per_byte: _,
+        gr_env_vars: _,
+        gr_block_height: _,
+        gr_block_timestamp: _,
+        gr_random: _,
+        gr_reply_deposit: _,
+        gr_send: _,
+        gr_send_per_byte: _,
+        gr_send_wgas: _,
+        gr_send_wgas_per_byte: _,
+        gr_send_init: _,
+        gr_send_push: _,
+        gr_send_push_per_byte: _,
+        gr_send_commit: _,
+        gr_send_commit_wgas: _,
+        gr_reservation_send: _,
+        gr_reservation_send_per_byte: _,
+        gr_reservation_send_commit: _,
+        gr_reply_commit: _,
+        gr_reply_commit_wgas: _,
+        gr_reservation_reply: _,
+        gr_reservation_reply_per_byte: _,
+        gr_reservation_reply_commit: _,
+        gr_reply_push: _,
+        gr_reply: _,
+        gr_reply_per_byte: _,
+        gr_reply_wgas: _,
+        gr_reply_wgas_per_byte: _,
+        gr_reply_push_per_byte: _,
+        gr_reply_to: _,
+        gr_signal_code: _,
+        gr_signal_from: _,
+        gr_reply_input: _,
+        gr_reply_input_wgas: _,
+        gr_reply_push_input: _,
+        gr_reply_push_input_per_byte: _,
+        gr_send_input: _,
+        gr_send_input_wgas: _,
+        gr_send_push_input: _,
+        gr_send_push_input_per_byte: _,
+        gr_debug: _,
+        gr_debug_per_byte: _,
+        gr_reply_code: _,
+        gr_exit: _,
+        gr_leave: _,
+        gr_wait: _,
+        gr_wait_for: _,
+        gr_wait_up_to: _,
+        gr_wake: _,
+        gr_create_program: _,
+        gr_create_program_payload_per_byte: _,
+        gr_create_program_salt_per_byte: _,
+        gr_create_program_wgas: _,
+        gr_create_program_wgas_payload_per_byte: _,
+        gr_create_program_wgas_salt_per_byte: _,
+        _phantom: __phantom,
+    } = SyscallWeights::<Runtime>::default();
+
+    // total number of syscalls
+    70
+}
+
+fn expected_pages_costs_count() -> usize {
+    let LazyPagesCosts {
+        // Fields for lazy pages costs
+        signal_read: _,
+        signal_write: _,
+        signal_write_after_read: _,
+        host_func_read: _,
+        host_func_write: _,
+        host_func_write_after_read: _,
+        load_page_storage_data: _,
+        // Fields for pages costs
+        load_page_data: _,
+        upload_page_data: _,
+        mem_grow: _,
+        mem_grow_per_page: _,
+        parachain_read_heuristic: _,
+    } = MemoryWeights::<Runtime>::default().into();
+
+    // total number of lazy pages costs
+    5
+}
+
+fn expected_lazy_pages_costs_count() -> usize {
+    let LazyPagesCosts {
+        // Fields for lazy pages costs
+        signal_read: _,
+        signal_write: _,
+        signal_write_after_read: _,
+        host_func_read: _,
+        host_func_write: _,
+        host_func_write_after_read: _,
+        load_page_storage_data: _,
+        // Fields for pages costs
+        load_page_data: _,
+        upload_page_data: _,
+        mem_grow: _,
+        mem_grow_per_page: _,
+        parachain_read_heuristic: _,
+    } = MemoryWeights::<Runtime>::default().into();
+
+    // total number of lazy pages costs
+    7
 }
 
 /// Check that the weights of instructions are within the expected range
 fn check_instructions_weights<T: pallet_gear::Config>(
     weights: InstructionWeights<T>,
     expected: InstructionWeights<T>,
-) -> Result<(), Vec<String>> {
+) -> Result<usize, Vec<String>> {
     macro_rules! expectation {
         ($inst_name:ident) => {
             WeightExpectation::new(
@@ -215,7 +415,7 @@ fn check_instructions_weights<T: pallet_gear::Config>(
 fn check_syscall_weights<T: pallet_gear::Config>(
     weights: SyscallWeights<T>,
     expected: SyscallWeights<T>,
-) -> Result<(), Vec<String>> {
+) -> Result<usize, Vec<String>> {
     macro_rules! expectation {
         ($inst_name:ident) => {
             WeightExpectation::new(
@@ -307,7 +507,7 @@ fn check_syscall_weights<T: pallet_gear::Config>(
 fn check_lazy_pages_costs(
     lazy_pages_costs: LazyPagesCosts,
     expected_lazy_pages_costs: LazyPagesCosts,
-) -> Result<(), Vec<String>> {
+) -> Result<usize, Vec<String>> {
     macro_rules! expectation {
         ($inst_name:ident) => {
             WeightExpectation::new(
@@ -334,9 +534,9 @@ fn check_lazy_pages_costs(
 
 /// Check that the pages costs are within the expected range
 fn check_pages_costs(
-    page_costs: PagesCosts,
-    expected_page_costs: PagesCosts,
-) -> Result<(), Vec<String>> {
+    page_costs: LazyPagesCosts,
+    expected_page_costs: LazyPagesCosts,
+) -> Result<usize, Vec<String>> {
     macro_rules! expectation {
         ($inst_name:ident) => {
             WeightExpectation::new(
@@ -557,6 +757,7 @@ fn instruction_weights_heuristics_test() {
     let result = check_instructions_weights(weights, expected_weights);
 
     assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_instructions_weights_count());
 }
 
 #[test]
@@ -640,23 +841,26 @@ fn syscall_weights_test() {
     let result = check_syscall_weights(weights, expected);
 
     assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_syscall_weights_count());
 }
 
 #[test]
 fn page_costs_heuristic_test() {
-    let page_costs: PagesCosts = MemoryWeights::<Runtime>::default().into();
+    let page_costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
 
-    let expected_page_costs = PagesCosts {
+    let expected_page_costs = LazyPagesCosts {
         load_page_data: 9_000_000.into(),
         upload_page_data: 105_000_000.into(),
         mem_grow: 800_000.into(),
         mem_grow_per_page: 0.into(),
         parachain_read_heuristic: 0.into(),
+        ..Default::default()
     };
 
     let result = check_pages_costs(page_costs, expected_page_costs);
 
     assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_pages_costs_count());
 }
 
 #[test]
@@ -671,11 +875,13 @@ fn lazy_page_costs_heuristic_test() {
         host_func_write: 137_000_000.into(),
         host_func_write_after_read: 112_000_000.into(),
         load_page_storage_data: 9_000_000.into(),
+        ..Default::default()
     };
 
     let result = check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
 
     assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_lazy_pages_costs_count());
 }
 
 /// Check that it is not possible to write/change memory pages too cheaply,
