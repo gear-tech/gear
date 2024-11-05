@@ -87,6 +87,7 @@ mod private {
 /// Motivation for usage: it's more optimized to held small payloads in place.
 /// Zero payload should always be stored directly.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PayloadLookup {
     Direct(Payload),
     Stored(HashOf<Payload>),
@@ -147,12 +148,14 @@ impl PayloadLookup {
 #[derive(
     Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::DebugCustom, derive_more::Display,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[debug(fmt = "HashOf<{}>({hash:?})", "private::shortname::<S>()")]
 #[display(fmt = "{hash}")]
 pub struct HashOf<S: Sealed + 'static> {
     hash: H256,
     #[into(ignore)]
     #[codec(skip)]
+    #[serde(skip)]
     _phantom: PhantomData<S>,
 }
 
@@ -189,6 +192,7 @@ impl<S: Sealed> HashOf<S> {
     derive_more::DebugCustom,
     derive_more::Display,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[debug(
     fmt = "MaybeHashOf<{}>({})",
     "private::shortname::<S>()",
@@ -406,6 +410,7 @@ impl MaybeHashOf<Waitlist> {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ActiveProgram {
     /// Hash of wasm memory pages allocations, see [`Allocations`].
     pub allocations_hash: MaybeHashOf<Allocations>,
@@ -418,6 +423,7 @@ pub struct ActiveProgram {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Program {
     Active(ActiveProgram),
     Exited(ProgramId),
@@ -442,6 +448,7 @@ impl Program {
 
 /// ethexe program state.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
@@ -497,6 +504,7 @@ impl ProgramState {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Dispatch {
     /// Message id.
     pub id: MessageId,
