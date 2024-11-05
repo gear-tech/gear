@@ -155,7 +155,7 @@ pub struct HashOf<S: Sealed + 'static> {
     hash: H256,
     #[into(ignore)]
     #[codec(skip)]
-    #[serde(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<S>,
 }
 
