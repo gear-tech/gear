@@ -8,7 +8,7 @@ import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {Router} from "../src/Router.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
-contract RouterScript is Script {
+contract DeploymentScript is Script {
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
