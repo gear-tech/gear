@@ -649,6 +649,9 @@ benchmarks! {
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
+
+        T::CodeStorage::add_code(code_and_id.clone()).unwrap();
+
         let (code, code_id) = code_and_id.into_parts();
         let (_, _, code_metadata) = code.into_parts();
 
