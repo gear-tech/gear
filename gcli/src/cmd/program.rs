@@ -50,15 +50,6 @@ pub enum Program {
     State {
         /// Program id.
         pid: H256,
-        /// Method of reading state from wasm (hex encoding).
-        #[arg(short, long)]
-        method: Option<String>,
-        /// The path of "*.meta.wasm".
-        #[arg(short, long)]
-        wasm: Option<Vec<u8>>,
-        /// Method arguments (hex encoding).
-        #[arg(short, long)]
-        args: Option<Vec<u8>>,
         /// The block hash for reading state.
         #[arg(long)]
         at: Option<H256>,
@@ -78,21 +69,9 @@ impl Program {
     /// Run command program.
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         match self {
-            Program::State {
-                pid,
-                method,
-                wasm,
-                args,
-                at,
-            } => {
+            Program::State { pid, at } => {
                 let api = app.signer().await?;
-                if let (Some(wasm), Some(method)) = (wasm, method) {
-                    // read state from wasm.
-                    Self::wasm_state(&api, *pid, wasm.to_vec(), method, args.clone(), *at).await?;
-                } else {
-                    // read full state
-                    Self::full_state(&api, *pid, *at).await?;
-                }
+                Self::full_state(&api, *pid, *at).await?;
             }
             Program::Meta {
                 meta,
@@ -109,28 +88,6 @@ impl Program {
             }
         }
 
-        Ok(())
-    }
-
-    async fn wasm_state(
-        api: &GearApi,
-        pid: H256,
-        wasm: Vec<u8>,
-        method: &str,
-        args: Option<Vec<u8>>,
-        at: Option<H256>,
-    ) -> Result<()> {
-        let state = api
-            .read_state_bytes_using_wasm_at(
-                pid.0.into(),
-                Default::default(),
-                method,
-                wasm,
-                args,
-                at,
-            )
-            .await?;
-        println!("0x{}", hex::encode(state));
         Ok(())
     }
 

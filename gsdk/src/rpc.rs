@@ -155,32 +155,6 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// gear_readStateUsingWasm
-    pub async fn read_state_using_wasm(
-        &self,
-        pid: H256,
-        payload: Vec<u8>,
-        method: &str,
-        wasm: Vec<u8>,
-        args: Option<Vec<u8>>,
-        at: Option<H256>,
-    ) -> Result<String> {
-        self.rpc()
-            .request(
-                "gear_readStateUsingWasm",
-                rpc_params![
-                    pid,
-                    hex::encode(payload),
-                    hex::encode(method),
-                    hex::encode(wasm),
-                    args.map(hex::encode),
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
-    }
-
     /// runtime_wasmBlobVersion
     pub async fn runtime_wasm_blob_version(&self, at: Option<H256>) -> Result<String> {
         self.rpc()
