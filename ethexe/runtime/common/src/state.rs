@@ -48,6 +48,7 @@ pub use gear_core::program::ProgramState as InitStatus;
 pub const MAILBOX_VALIDITY: u32 = 54_000;
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HashAndLen {
     pub hash: H256,
     pub len: NonZero<u32>,
@@ -64,6 +65,7 @@ impl From<H256> for HashAndLen {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MaybeHash {
     Hash(HashAndLen),
     Empty,
@@ -102,6 +104,7 @@ impl MaybeHash {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ActiveProgram {
     /// Hash of wasm memory pages allocations, see [`Allocations`].
     pub allocations_hash: MaybeHash,
@@ -114,6 +117,7 @@ pub struct ActiveProgram {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Program {
     Active(ActiveProgram),
     Exited(ProgramId),
@@ -138,6 +142,7 @@ impl Program {
 
 /// ethexe program state.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
@@ -193,6 +198,7 @@ impl ProgramState {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Dispatch {
     /// Message id.
     pub id: MessageId,

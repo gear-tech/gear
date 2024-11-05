@@ -179,6 +179,7 @@ impl Message {
     TypeInfo,
     derive_more::From,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageDetails {
     /// Reply details.
     Reply(ReplyDetails),
@@ -228,6 +229,7 @@ impl MessageDetails {
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyDetails {
     /// Message id, this message replies on.
     to: MessageId,
@@ -261,6 +263,7 @@ impl ReplyDetails {
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct SignalDetails {
     /// Message id, which issues signal.
     to: MessageId,

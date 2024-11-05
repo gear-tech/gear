@@ -4779,6 +4779,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
+ "ethexe-runtime-common",
  "futures",
  "gear-core",
  "gprimitives",
@@ -4787,6 +4788,7 @@ dependencies = [
  "jsonrpsee 0.24.0",
  "log",
  "parity-scale-codec",
+ "serde",
  "sp-core",
  "tokio",
  "tower 0.4.13",
@@ -4821,6 +4823,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "serde",
 ]
 
 [[package]]
