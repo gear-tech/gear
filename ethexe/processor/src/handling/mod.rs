@@ -110,7 +110,7 @@ impl ProcessingHandler {
         );
 
         let mut handler = ScheduleHandler {
-            controller: self.adapter(),
+            controller: self.controller(),
         };
 
         for task in tasks {
