@@ -121,9 +121,17 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
             let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
             let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
+            let code_metadata = db.code_metadata(code_id);
 
             let journal = executor
-                .run(db, program_id, code_id, state_hash, instrumented_code)
+                .run(
+                    db,
+                    program_id,
+                    code_id,
+                    state_hash,
+                    instrumented_code,
+                    code_metadata,
+                )
                 .expect("Some error occurs while running program in instance");
 
             result_sender.send(journal).unwrap();
