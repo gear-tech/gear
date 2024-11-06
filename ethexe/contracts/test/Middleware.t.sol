@@ -5,14 +5,17 @@ import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-
 import {Test, console} from "forge-std/Test.sol";
+import "forge-std/Vm.sol";
+
 import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
 import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
+import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
+import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
@@ -21,6 +24,9 @@ import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 contract MiddlewareTest is Test {
     using MessageHashUtils for address;
 
+    bytes32 public constant REQUEST_SLASH_EVENT_SIGNATURE =
+        keccak256("RequestSlash(uint256,bytes32,address,uint256,uint48,uint48)");
+
     uint48 eraDuration = 1000;
     address public owner;
     POCBaseTest public sym;
@@ -28,6 +34,9 @@ contract MiddlewareTest is Test {
     WrappedVara public wrappedVara;
 
     function setUp() public {
+        // For correct simbiotic work with time artitmeticks
+        vm.warp(eraDuration * 100);
+
         sym = new POCBaseTest();
         sym.setUp();
 
@@ -39,16 +48,20 @@ contract MiddlewareTest is Test {
 
         wrappedVara.mint(owner, 1_000_000);
 
-        middleware = new Middleware(
-            eraDuration,
-            address(sym.vaultFactory()),
-            address(sym.delegatorFactory()),
-            address(sym.slasherFactory()),
-            address(sym.operatorRegistry()),
-            address(sym.networkRegistry()),
-            address(sym.operatorNetworkOptInService()),
-            address(wrappedVara)
-        );
+        Middleware.MiddlewareConfig memory cfg = Middleware.MiddlewareConfig({
+            eraDuration: eraDuration,
+            minVetoDuration: eraDuration / 3,
+            vaultRegistry: address(sym.vaultFactory()),
+            allowedVaultImplVersion: sym.vaultFactory().lastVersion(),
+            vetoSlasherImplType: 1,
+            operatorRegistry: address(sym.operatorRegistry()),
+            networkRegistry: address(sym.networkRegistry()),
+            networkOptIn: address(sym.operatorNetworkOptInService()),
+            middlewareService: address(sym.networkMiddlewareService()),
+            collateral: address(wrappedVara)
+        });
+
+        middleware = new Middleware(cfg);
     }
 
     function test_constructor() public view {
@@ -57,9 +70,6 @@ contract MiddlewareTest is Test {
         assertEq(uint256(middleware.OPERATOR_GRACE_PERIOD()), eraDuration * 2);
         assertEq(uint256(middleware.VAULT_GRACE_PERIOD()), eraDuration * 2);
         assertEq(uint256(middleware.VAULT_MIN_EPOCH_DURATION()), eraDuration * 2);
-        assertEq(middleware.VAULT_FACTORY(), address(sym.vaultFactory()));
-        assertEq(middleware.DELEGATOR_FACTORY(), address(sym.delegatorFactory()));
-        assertEq(middleware.SLASHER_FACTORY(), address(sym.slasherFactory()));
         assertEq(middleware.OPERATOR_REGISTRY(), address(sym.operatorRegistry()));
         assertEq(middleware.COLLATERAL(), address(wrappedVara));
 
@@ -274,9 +284,115 @@ contract MiddlewareTest is Test {
         middleware.getOperatorStakeAt(operator2, uint48(vm.getBlockTimestamp() + 1));
 
         // Try to get stake for too old timestamp
-        vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
-        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
-        middleware.getOperatorStakeAt(operator2, uint48(vm.getBlockTimestamp()));
+        {
+            uint48 ts = uint48(vm.getBlockTimestamp());
+            vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
+            vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+            middleware.getOperatorStakeAt(operator2, ts);
+        }
+    }
+
+    function test_slash() external {
+        address operator1 = address(0x1);
+        address operator2 = address(0x2);
+
+        _registerOperator(operator1);
+        _registerOperator(operator2);
+
+        address vault1 = _createVaultForOperator(operator1);
+        address vault2 = _createVaultForOperator(operator2);
+
+        uint256 stake1 = 1_000;
+        uint256 stake2 = 2_000;
+
+        _depositFromInVault(owner, vault1, stake1);
+        _depositFromInVault(owner, vault2, stake2);
+
+        uint256 depositionTS = vm.getBlockTimestamp();
+        vm.warp(depositionTS + 1);
+
+        // Try to request slash from unknown operator
+        _requestSlash(address(0xdead), uint48(depositionTS), vault1, 100, Middleware.NotRegistredOperator.selector);
+
+        // Try to request slash from unknown vault
+        _requestSlash(operator1, uint48(depositionTS), address(0xdead), 100, Middleware.NotRegistredVault.selector);
+
+        // Try to request slash on vault where it has no stake
+        _requestSlash(operator1, uint48(depositionTS), vault2, 10, IVetoSlasher.InsufficientSlash.selector);
+
+        {
+            // Make slash request for operator1 in vault1
+            uint256 slashIndex = _requestSlash(operator1, uint48(depositionTS), vault1, 100, 0);
+            uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
+            assertEq(vetoDeadline, uint48(vm.getBlockTimestamp() + eraDuration / 2));
+
+            // Check it is not possible to execute slash before veto deadline
+            vm.warp(vetoDeadline - 1);
+            vm.expectRevert(IVetoSlasher.VetoPeriodNotEnded.selector);
+            middleware.executeSlash(vault1, slashIndex);
+
+            // Check it is possible to execute slash when ready
+            vm.warp(vetoDeadline);
+            middleware.executeSlash(vault1, slashIndex);
+
+            // Check that operator1 stake is decreased
+            vm.warp(vetoDeadline + 1);
+            assertEq(middleware.getOperatorStakeAt(operator1, vetoDeadline), stake1 - 100);
+
+            // Try to execute slash twice
+            vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
+            middleware.executeSlash(vault1, slashIndex);
+        }
+
+        {
+            // Make slash request for operator1 in vault1
+            uint256 slashIndex = _requestSlash(operator1, uint48(depositionTS), vault1, 100, 0);
+
+            // Try to slash after slash period
+            vm.warp(depositionTS + IVault(vault1).epochDuration() + 1);
+            vm.expectRevert(IVetoSlasher.SlashPeriodEnded.selector);
+            middleware.executeSlash(vault1, slashIndex);
+        }
+    }
+
+    function _vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
+        (,,,, uint48 vetoDeadline,) = IVetoSlasher(slasher).slashRequests(slash_index);
+        return vetoDeadline;
+    }
+
+    function _requestSlash(address operator, uint48 ts, address vault, uint256 amount, bytes4 err)
+        private
+        returns (uint256)
+    {
+        Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](1);
+        vaults[0] = Middleware.VaultSlashData({vault: vault, amount: amount});
+
+        Middleware.SlashData[] memory slashings = new Middleware.SlashData[](1);
+        slashings[0] = Middleware.SlashData({operator: operator, ts: ts, vaults: vaults});
+
+        vm.recordLogs();
+        if (err != 0) {
+            vm.expectRevert(err);
+            middleware.requestSlash(slashings);
+            return type(uint256).max;
+        } else {
+            middleware.requestSlash(slashings);
+        }
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        address slasher = IVault(vault).slasher();
+        uint256 slashIndex = type(uint256).max;
+        for (uint256 i = 0; i < logs.length; i++) {
+            Vm.Log memory log = logs[i];
+            bytes32 eventSignature = log.topics[0];
+            if (eventSignature == REQUEST_SLASH_EVENT_SIGNATURE && log.emitter == slasher) {
+                slashIndex = uint256(log.topics[1]);
+            }
+        }
+
+        assertNotEq(slashIndex, type(uint256).max);
+
+        return slashIndex;
     }
 
     function _disableOperator(address operator) private {
@@ -368,9 +484,15 @@ contract MiddlewareTest is Test {
                         operator: operator
                     })
                 ),
-                withSlasher: false,
-                slasherIndex: 0,
-                slasherParams: bytes("")
+                withSlasher: true,
+                slasherIndex: 1,
+                slasherParams: abi.encode(
+                    IVetoSlasher.InitParams({
+                        baseParams: IBaseSlasher.BaseParams({isBurnerHook: false}),
+                        vetoDuration: eraDuration / 2,
+                        resolverSetEpochsDelay: 3
+                    })
+                )
             })
         );
     }

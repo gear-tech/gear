@@ -15,7 +15,7 @@ ignored_warnings_from = [
     "lib/",
 ]
 # Enable new EVM codegen
-via_ir = true
+via_ir = false
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
