@@ -17,8 +17,8 @@ gprimitives = { workspace = true, features = ["serde"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
 jsonrpsee = { version = "0.24", features = ["server", "macros"] }
-tower = { version = "0.4.13", features = ["full"] }
-hyper = { version = "1.4.1", features = ["server"] }
+tower = { version = "0.5.1", features = ["full"] }
+hyper = { version = "1.5.0", features = ["server"] }
 log.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true
