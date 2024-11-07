@@ -299,6 +299,7 @@ contract Middleware {
     }
 
     // TODO: only slashes executor
+    // TODO: consider to use hints
     function executeSlash(address vault, uint256 index) external {
         if (!vaults.contains(vault)) {
             revert NotRegistredVault();
@@ -306,6 +307,17 @@ contract Middleware {
 
         address slasher = IVault(vault).slasher();
         IVetoSlasher(slasher).executeSlash(index, new bytes(0));
+    }
+
+    // TODO: only veto admin
+    // TODO: consider to use hints
+    function vetoShash(address vault, uint256 index) external {
+        if (!vaults.contains(vault)) {
+            revert NotRegistredVault();
+        }
+
+        address slasher = IVault(vault).slasher();
+        IVetoSlasher(slasher).vetoSlash(index, new bytes(0));
     }
 
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {

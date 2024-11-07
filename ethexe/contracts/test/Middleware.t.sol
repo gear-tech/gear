@@ -326,12 +326,12 @@ contract MiddlewareTest is Test {
             uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
             assertEq(vetoDeadline, uint48(vm.getBlockTimestamp() + eraDuration / 2));
 
-            // Check it is not possible to execute slash before veto deadline
+            // Try to execute slash before veto deadline
             vm.warp(vetoDeadline - 1);
             vm.expectRevert(IVetoSlasher.VetoPeriodNotEnded.selector);
             middleware.executeSlash(vault1, slashIndex);
 
-            // Check it is possible to execute slash when ready
+            // Execute slash when ready
             vm.warp(vetoDeadline);
             middleware.executeSlash(vault1, slashIndex);
 
@@ -353,6 +353,29 @@ contract MiddlewareTest is Test {
             vm.expectRevert(IVetoSlasher.SlashPeriodEnded.selector);
             middleware.executeSlash(vault1, slashIndex);
         }
+
+        {
+            // Make slash request for operator1 in vault1
+            uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
+            uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
+
+            // Try to execute slash after veto deadline
+            vm.warp(vetoDeadline);
+            vm.expectRevert(IVetoSlasher.VetoPeriodEnded.selector);
+            middleware.vetoShash(vault1, slashIndex);
+
+            // Veto slash
+            vm.warp(vetoDeadline - 1);
+            middleware.vetoShash(vault1, slashIndex);
+
+            // Try to execute slash after veto
+            vm.warp(vetoDeadline);
+            vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
+            middleware.executeSlash(vault1, slashIndex);
+        }
+
+        // TODO: test many slashes
+        // TODO: test out of funds
     }
 
     function _vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
