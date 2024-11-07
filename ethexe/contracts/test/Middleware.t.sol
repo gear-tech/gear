@@ -355,6 +355,42 @@ contract MiddlewareTest is Test {
         }
 
         {
+            // Try request slashes for one operator, but 2 vaults
+            Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](2);
+            vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
+            vaults[1] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+
+            Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
+            slashes[0] =
+                Middleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
+
+            _requestSlash(slashes, IVetoSlasher.InsufficientSlash.selector);
+        }
+
+        {
+            // Request slases for 2 operators with corresponding vaults
+            Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
+            operator1_vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
+
+            Middleware.VaultSlashData[] memory operator2_vaults = new Middleware.VaultSlashData[](1);
+            operator2_vaults[0] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+
+            Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
+            slashes[0] = Middleware.SlashData({
+                operator: operator1,
+                ts: uint48(vm.getBlockTimestamp() - 1),
+                vaults: operator1_vaults
+            });
+            slashes[1] = Middleware.SlashData({
+                operator: operator2,
+                ts: uint48(vm.getBlockTimestamp() - 1),
+                vaults: operator2_vaults
+            });
+
+            _requestSlash(slashes, 0);
+        }
+
+        {
             // Make slash request for operator1 in vault1
             uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
             uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
@@ -374,8 +410,19 @@ contract MiddlewareTest is Test {
             middleware.executeSlash(vault1, slashIndex);
         }
 
-        // TODO: test many slashes
-        // TODO: test out of funds
+        {
+            // Slash all operator1 stake
+            uint256 slashIndex =
+                _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, type(uint256).max, 0);
+            uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
+
+            vm.warp(vetoDeadline);
+            middleware.executeSlash(vault1, slashIndex);
+
+            // Check that operator1 stake is 0
+            vm.warp(vetoDeadline + 1);
+            assertEq(middleware.getOperatorStakeAt(operator1, vetoDeadline), 0);
+        }
     }
 
     function _vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
@@ -385,37 +432,42 @@ contract MiddlewareTest is Test {
 
     function _requestSlash(address operator, uint48 ts, address vault, uint256 amount, bytes4 err)
         private
-        returns (uint256)
+        returns (uint256 slashIndex)
     {
         Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](1);
         vaults[0] = Middleware.VaultSlashData({vault: vault, amount: amount});
 
-        Middleware.SlashData[] memory slashings = new Middleware.SlashData[](1);
-        slashings[0] = Middleware.SlashData({operator: operator, ts: ts, vaults: vaults});
+        Middleware.SlashData[] memory slashes = new Middleware.SlashData[](1);
+        slashes[0] = Middleware.SlashData({operator: operator, ts: ts, vaults: vaults});
+
+        slashIndex = _requestSlash(slashes, err)[0];
+        assertNotEq(slashIndex, type(uint256).max);
+    }
+
+    function _requestSlash(Middleware.SlashData[] memory slashes, bytes4 err)
+        private
+        returns (uint256[] memory slashIndexes)
+    {
+        slashIndexes = new uint256[](slashes.length);
 
         vm.recordLogs();
         if (err != 0) {
             vm.expectRevert(err);
-            middleware.requestSlash(slashings);
-            return type(uint256).max;
+            middleware.requestSlash(slashes);
+            return slashIndexes;
         } else {
-            middleware.requestSlash(slashings);
+            middleware.requestSlash(slashes);
         }
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        address slasher = IVault(vault).slasher();
-        uint256 slashIndex = type(uint256).max;
+        uint16 k = 0;
         for (uint256 i = 0; i < logs.length; i++) {
             Vm.Log memory log = logs[i];
             bytes32 eventSignature = log.topics[0];
-            if (eventSignature == REQUEST_SLASH_EVENT_SIGNATURE && log.emitter == slasher) {
-                slashIndex = uint256(log.topics[1]);
+            if (eventSignature == REQUEST_SLASH_EVENT_SIGNATURE) {
+                slashIndexes[k++] = uint256(log.topics[1]);
             }
         }
-
-        assertNotEq(slashIndex, type(uint256).max);
-
-        return slashIndex;
     }
 
     function _disableOperator(address operator) private {

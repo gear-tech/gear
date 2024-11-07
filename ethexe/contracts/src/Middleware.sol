@@ -283,7 +283,7 @@ contract Middleware {
                 revert NotRegistredOperator();
             }
 
-            for (uint256 j; j < data.length; ++j) {
+            for (uint256 j; j < slash_data.vaults.length; ++j) {
                 VaultSlashData calldata vault_data = slash_data.vaults[j];
 
                 if (!vaults.contains(vault_data.vault)) {
