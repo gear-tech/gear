@@ -18,7 +18,6 @@ import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratabl
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
-// TODO: support slashing
 // TODO: use camelCase for immutable variables
 // TODO: implement election logic
 // TODO: implement forced operators removal
@@ -148,6 +147,7 @@ contract Middleware {
 
     // TODO: check vault has enough stake
     // TODO: support and check slasher
+    // TODO: consider to use hints
     function registerVault(address vault) external {
         if (vault == address(0)) {
             revert ZeroVaultAddress();
@@ -191,10 +191,11 @@ contract Middleware {
         if (IVetoSlasher(slasher).vetoDuration() < MIN_VETO_DURATION) {
             revert VetoDurationTooShort();
         }
+        if (IVetoSlasher(slasher).resolver(SUBNETWORK, new bytes(0)) != address(this)) {
+            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, address(this), new bytes(0));
+        }
 
         _burnerCheck(IVault(vault).burner());
-
-        IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, address(this), new bytes(0));
 
         vaults.append(vault, uint160(msg.sender));
     }

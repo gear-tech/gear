@@ -101,7 +101,7 @@ contract MiddlewareTest is Test {
         sym.operatorNetworkOptInService().optIn(address(middleware));
         middleware.registerOperator();
 
-        // Disable operator and the enable it
+        // Disable operator and then enable it
         middleware.disableOperator();
         middleware.enableOperator();
 
@@ -293,136 +293,163 @@ contract MiddlewareTest is Test {
     }
 
     function test_slash() external {
-        address operator1 = address(0x1);
-        address operator2 = address(0x2);
+        (address operator1,, address vault1,, uint256 stake1,) = _prepareTwoOperators();
+
+        // Make slash request for operator1 in vault1
+        uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
+        uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
+        assertEq(vetoDeadline, uint48(vm.getBlockTimestamp() + eraDuration / 2));
+
+        // Try to execute slash before veto deadline
+        vm.warp(vetoDeadline - 1);
+        vm.expectRevert(IVetoSlasher.VetoPeriodNotEnded.selector);
+        middleware.executeSlash(vault1, slashIndex);
+
+        // Execute slash when ready
+        vm.warp(vetoDeadline);
+        middleware.executeSlash(vault1, slashIndex);
+
+        // Check that operator1 stake is decreased
+        vm.warp(vetoDeadline + 1);
+        assertEq(middleware.getOperatorStakeAt(operator1, vetoDeadline), stake1 - 100);
+
+        // Try to execute slash twice
+        vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
+        middleware.executeSlash(vault1, slashIndex);
+    }
+
+    function test_slashRequestUnknownOperator() external {
+        (,, address vault1,,,) = _prepareTwoOperators();
+
+        // Try to request slash from unknown operator
+        vm.warp(vm.getBlockTimestamp() + 1);
+        _requestSlash(
+            address(0xdead), uint48(vm.getBlockTimestamp() - 1), vault1, 100, Middleware.NotRegistredOperator.selector
+        );
+    }
+
+    function test_slashRequestUnknownVault() external {
+        (address operator1,,,,,) = _prepareTwoOperators();
+
+        // Try to request slash from unknown vault
+        _requestSlash(
+            operator1, uint48(vm.getBlockTimestamp() - 1), address(0xdead), 100, Middleware.NotRegistredVault.selector
+        );
+    }
+
+    function test_slashRequestOnVaultWithNoStake() external {
+        (address operator1,,, address vault2,,) = _prepareTwoOperators();
+
+        // Try to request slash on vault where it has no stake
+        _requestSlash(
+            operator1, uint48(vm.getBlockTimestamp() - 1), vault2, 10, IVetoSlasher.InsufficientSlash.selector
+        );
+    }
+
+    function test_slashAfterSlashPeriod() external {
+        (address operator1,, address vault1,,,) = _prepareTwoOperators();
+
+        // Make slash request for operator1 in vault1
+        uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
+
+        // Try to slash after slash period
+        vm.warp(uint48(vm.getBlockTimestamp()) + IVault(vault1).epochDuration());
+        vm.expectRevert(IVetoSlasher.SlashPeriodEnded.selector);
+        middleware.executeSlash(vault1, slashIndex);
+    }
+
+    function test_slashOneOperatorTwoVaults() external {
+        (address operator1,, address vault1, address vault2,,) = _prepareTwoOperators();
+
+        // Try request slashes for one operator, but 2 vaults
+        Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](2);
+        vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
+        vaults[1] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+
+        Middleware.SlashData[] memory slashes = new Middleware.SlashData[](1);
+        slashes[0] = Middleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
+
+        _requestSlash(slashes, IVetoSlasher.InsufficientSlash.selector);
+    }
+
+    function test_slashTwoOperatorsTwoVaults() external {
+        (address operator1, address operator2, address vault1, address vault2,,) = _prepareTwoOperators();
+
+        // Request slases for 2 operators with corresponding vaults
+        Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
+        operator1_vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
+
+        Middleware.VaultSlashData[] memory operator2_vaults = new Middleware.VaultSlashData[](1);
+        operator2_vaults[0] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+
+        Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
+        slashes[0] = Middleware.SlashData({
+            operator: operator1,
+            ts: uint48(vm.getBlockTimestamp() - 1),
+            vaults: operator1_vaults
+        });
+        slashes[1] = Middleware.SlashData({
+            operator: operator2,
+            ts: uint48(vm.getBlockTimestamp() - 1),
+            vaults: operator2_vaults
+        });
+
+        _requestSlash(slashes, 0);
+    }
+
+    function test_slashVeto() external {
+        (address operator1,, address vault1,,,) = _prepareTwoOperators();
+
+        // Make slash request for operator1 in vault1
+        uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
+        uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
+
+        // Try to execute slash after veto deadline
+        vm.warp(vetoDeadline);
+        vm.expectRevert(IVetoSlasher.VetoPeriodEnded.selector);
+        middleware.vetoShash(vault1, slashIndex);
+
+        // Veto slash
+        vm.warp(vetoDeadline - 1);
+        middleware.vetoShash(vault1, slashIndex);
+
+        // Try to execute slash after veto
+        vm.warp(vetoDeadline);
+        vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
+        middleware.executeSlash(vault1, slashIndex);
+    }
+
+    function test_slashExecutionUnregistredVault() external {
+        (address operator1,, address vault1,,,) = _prepareTwoOperators();
+
+        // Make slash request for operator1 in vault1
+        uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
+
+        // Try to execute slash for unknown vault
+        vm.expectRevert(Middleware.NotRegistredVault.selector);
+        middleware.executeSlash(address(0xdead), slashIndex);
+    }
+
+    function _prepareTwoOperators()
+        private
+        returns (address operator1, address operator2, address vault1, address vault2, uint256 stake1, uint256 stake2)
+    {
+        operator1 = address(0x1);
+        operator2 = address(0x2);
 
         _registerOperator(operator1);
         _registerOperator(operator2);
 
-        address vault1 = _createVaultForOperator(operator1);
-        address vault2 = _createVaultForOperator(operator2);
+        vault1 = _createVaultForOperator(operator1);
+        vault2 = _createVaultForOperator(operator2);
 
-        uint256 stake1 = 1_000;
-        uint256 stake2 = 2_000;
+        stake1 = 1_000;
+        stake2 = 2_000;
 
         _depositFromInVault(owner, vault1, stake1);
         _depositFromInVault(owner, vault2, stake2);
 
-        uint256 depositionTS = vm.getBlockTimestamp();
-        vm.warp(depositionTS + 1);
-
-        // Try to request slash from unknown operator
-        _requestSlash(address(0xdead), uint48(depositionTS), vault1, 100, Middleware.NotRegistredOperator.selector);
-
-        // Try to request slash from unknown vault
-        _requestSlash(operator1, uint48(depositionTS), address(0xdead), 100, Middleware.NotRegistredVault.selector);
-
-        // Try to request slash on vault where it has no stake
-        _requestSlash(operator1, uint48(depositionTS), vault2, 10, IVetoSlasher.InsufficientSlash.selector);
-
-        {
-            // Make slash request for operator1 in vault1
-            uint256 slashIndex = _requestSlash(operator1, uint48(depositionTS), vault1, 100, 0);
-            uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
-            assertEq(vetoDeadline, uint48(vm.getBlockTimestamp() + eraDuration / 2));
-
-            // Try to execute slash before veto deadline
-            vm.warp(vetoDeadline - 1);
-            vm.expectRevert(IVetoSlasher.VetoPeriodNotEnded.selector);
-            middleware.executeSlash(vault1, slashIndex);
-
-            // Execute slash when ready
-            vm.warp(vetoDeadline);
-            middleware.executeSlash(vault1, slashIndex);
-
-            // Check that operator1 stake is decreased
-            vm.warp(vetoDeadline + 1);
-            assertEq(middleware.getOperatorStakeAt(operator1, vetoDeadline), stake1 - 100);
-
-            // Try to execute slash twice
-            vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
-            middleware.executeSlash(vault1, slashIndex);
-        }
-
-        {
-            // Make slash request for operator1 in vault1
-            uint256 slashIndex = _requestSlash(operator1, uint48(depositionTS), vault1, 100, 0);
-
-            // Try to slash after slash period
-            vm.warp(depositionTS + IVault(vault1).epochDuration() + 1);
-            vm.expectRevert(IVetoSlasher.SlashPeriodEnded.selector);
-            middleware.executeSlash(vault1, slashIndex);
-        }
-
-        {
-            // Try request slashes for one operator, but 2 vaults
-            Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](2);
-            vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
-            vaults[1] = Middleware.VaultSlashData({vault: vault2, amount: 20});
-
-            Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
-            slashes[0] =
-                Middleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
-
-            _requestSlash(slashes, IVetoSlasher.InsufficientSlash.selector);
-        }
-
-        {
-            // Request slases for 2 operators with corresponding vaults
-            Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
-            operator1_vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
-
-            Middleware.VaultSlashData[] memory operator2_vaults = new Middleware.VaultSlashData[](1);
-            operator2_vaults[0] = Middleware.VaultSlashData({vault: vault2, amount: 20});
-
-            Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
-            slashes[0] = Middleware.SlashData({
-                operator: operator1,
-                ts: uint48(vm.getBlockTimestamp() - 1),
-                vaults: operator1_vaults
-            });
-            slashes[1] = Middleware.SlashData({
-                operator: operator2,
-                ts: uint48(vm.getBlockTimestamp() - 1),
-                vaults: operator2_vaults
-            });
-
-            _requestSlash(slashes, 0);
-        }
-
-        {
-            // Make slash request for operator1 in vault1
-            uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
-            uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
-
-            // Try to execute slash after veto deadline
-            vm.warp(vetoDeadline);
-            vm.expectRevert(IVetoSlasher.VetoPeriodEnded.selector);
-            middleware.vetoShash(vault1, slashIndex);
-
-            // Veto slash
-            vm.warp(vetoDeadline - 1);
-            middleware.vetoShash(vault1, slashIndex);
-
-            // Try to execute slash after veto
-            vm.warp(vetoDeadline);
-            vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
-            middleware.executeSlash(vault1, slashIndex);
-        }
-
-        {
-            // Slash all operator1 stake
-            uint256 slashIndex =
-                _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, type(uint256).max, 0);
-            uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
-
-            vm.warp(vetoDeadline);
-            middleware.executeSlash(vault1, slashIndex);
-
-            // Check that operator1 stake is 0
-            vm.warp(vetoDeadline + 1);
-            assertEq(middleware.getOperatorStakeAt(operator1, vetoDeadline), 0);
-        }
+        vm.warp(vm.getBlockTimestamp() + 1);
     }
 
     function _vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
