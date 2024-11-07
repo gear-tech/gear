@@ -150,6 +150,7 @@ pub struct TmpStore {
 
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
     initialized: BTreeSet<ProgramId>,
     reservation_nonce: ReservationNonce,

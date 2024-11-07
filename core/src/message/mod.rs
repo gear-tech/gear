@@ -60,6 +60,7 @@ const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct PayloadSizeError;
 
 impl From<PayloadSizeError> for &str {
@@ -113,6 +114,7 @@ pub enum MessageWaitedType {
 #[derive(
     Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum DispatchKind {
     /// Initialization.
     Init,
