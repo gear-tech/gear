@@ -58,7 +58,9 @@ contract MiddlewareTest is Test {
             networkRegistry: address(sym.networkRegistry()),
             networkOptIn: address(sym.operatorNetworkOptInService()),
             middlewareService: address(sym.networkMiddlewareService()),
-            collateral: address(wrappedVara)
+            collateral: address(wrappedVara),
+            roleSlashRequester: owner,
+            roleSlashExecutor: owner
         });
 
         middleware = new Middleware(cfg);

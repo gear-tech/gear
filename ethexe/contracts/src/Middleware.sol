@@ -19,6 +19,7 @@ import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratabl
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
 // TODO: use camelCase for immutable variables
+// TODO: document all functions and variables
 // TODO: implement election logic
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
@@ -48,6 +49,7 @@ contract Middleware {
     error IncompatibleVaultVersion();
     error NotRegistredVault();
     error NotRegistredOperator();
+    error RoleMismatch();
 
     struct VaultSlashData {
         address vault;
@@ -71,6 +73,8 @@ contract Middleware {
         address networkOptIn;
         address middlewareService;
         address collateral;
+        address roleSlashRequester;
+        address roleSlashExecutor;
     }
 
     uint96 public constant NETWORK_IDENTIFIER = 0;
@@ -93,6 +97,9 @@ contract Middleware {
     address public immutable COLLATERAL;
     bytes32 public immutable SUBNETWORK;
 
+    address public immutable ROLE_SLASH_REQUESTER;
+    address public immutable ROLE_SLASH_EXECUTOR;
+
     EnumerableMap.AddressToUintMap private operators;
     EnumerableMap.AddressToUintMap private vaults;
 
@@ -110,6 +117,9 @@ contract Middleware {
         NETWORK_OPT_IN = cfg.networkOptIn;
         COLLATERAL = cfg.collateral;
         SUBNETWORK = address(this).subnetwork(NETWORK_IDENTIFIER);
+
+        ROLE_SLASH_REQUESTER = cfg.roleSlashRequester;
+        ROLE_SLASH_EXECUTOR = cfg.roleSlashExecutor;
 
         // Presently network and middleware are the same address
         INetworkRegistry(cfg.networkRegistry).registerNetwork();
@@ -275,9 +285,8 @@ contract Middleware {
         }
     }
 
-    // TODO: Only router can call this function
     // TODO: consider to use hints
-    function requestSlash(SlashData[] calldata data) external {
+    function requestSlash(SlashData[] calldata data) external _onlyRole(ROLE_SLASH_REQUESTER) {
         for (uint256 i; i < data.length; ++i) {
             SlashData calldata slash_data = data[i];
             if (!operators.contains(slash_data.operator)) {
@@ -299,9 +308,8 @@ contract Middleware {
         }
     }
 
-    // TODO: only slashes executor
     // TODO: consider to use hints
-    function executeSlash(address vault, uint256 index) external {
+    function executeSlash(address vault, uint256 index) external _onlyRole(ROLE_SLASH_EXECUTOR) {
         if (!vaults.contains(vault)) {
             revert NotRegistredVault();
         }
@@ -364,5 +372,12 @@ contract Middleware {
         if (burner == address(0)) {
             revert UnsupportedBurner();
         }
+    }
+
+    modifier _onlyRole(address role) {
+        if (msg.sender != role) {
+            revert RoleMismatch();
+        }
+        _;
     }
 }
