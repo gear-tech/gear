@@ -23,6 +23,7 @@ use anyhow::{ensure, Context as _, Result};
 use directories::ProjectDirs;
 use ethexe_network::NetworkEventLoopConfig;
 use ethexe_prometheus_endpoint::Registry;
+use ethexe_rpc::RpcConfig;
 use ethexe_signer::{Address, PublicKey};
 use std::{iter, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 use tempfile::TempDir;
@@ -116,14 +117,14 @@ pub struct Config {
     /// Sender address to send Ethereum transaction.
     pub sender_address: Option<String>,
 
-    // Network configuration
+    /// Network configuration.
     pub net_config: Option<NetworkEventLoopConfig>,
 
-    // Prometheus configuration
+    /// Prometheus configuration/
     pub prometheus_config: Option<PrometheusConfig>,
 
-    /// RPC port
-    pub rpc_port: Option<u16>,
+    /// Rpc endpoint configuration.
+    pub rpc_config: Option<RpcConfig>,
 }
 
 impl TryFrom<Args> for Config {
@@ -204,7 +205,7 @@ impl TryFrom<Args> for Config {
             prometheus_config: args.prometheus_params.and_then(|params| {
                 params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
             }),
-            rpc_port: args.rpc_port,
+            rpc_config: args.rpc_params.as_config(),
         })
     }
 }

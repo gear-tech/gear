@@ -179,8 +179,9 @@ impl Service {
             .transpose()?;
 
         let rpc = config
-            .rpc_port
-            .map(|port| ethexe_rpc::RpcService::new(port, db.clone()));
+            .rpc_config
+            .as_ref()
+            .map(|config| ethexe_rpc::RpcService::new(config.clone(), db.clone()));
 
         Ok(Self {
             db,
@@ -440,8 +441,10 @@ impl Service {
             };
 
         let mut rpc_handle = if let Some(rpc) = rpc {
-            let (rpc_run, rpc_port) = rpc.run_server().await?;
-            log::info!("🌐 Rpc server started at: {}", rpc_port);
+            log::info!("🌐 Rpc server starting at: {}", rpc.port());
+
+            let rpc_run = rpc.run_server().await?;
+
             Some(tokio::spawn(rpc_run.stopped()))
         } else {
             None
@@ -879,6 +882,7 @@ mod utils {
 mod tests {
     use super::Service;
     use crate::config::{Config, PrometheusConfig};
+    use ethexe_rpc::RpcConfig;
     use std::{
         net::{Ipv4Addr, SocketAddr},
         time::Duration,
@@ -914,7 +918,9 @@ mod tests {
                 SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
                 "dev".to_string(),
             )),
-            rpc_port: Some(9090),
+            rpc_config: Some(RpcConfig {
+                listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+            }),
         })
         .await
         .unwrap();
@@ -936,7 +942,7 @@ mod tests {
             sender_address: Default::default(),
             net_config: None,
             prometheus_config: None,
-            rpc_port: None,
+            rpc_config: None,
         })
         .await
         .unwrap();

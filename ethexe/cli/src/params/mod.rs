@@ -18,6 +18,8 @@
 
 mod network;
 mod prometheus;
+mod rpc;
 
 pub use network::NetworkParams;
 pub use prometheus::PrometheusParams;
+pub use rpc::RpcParams;

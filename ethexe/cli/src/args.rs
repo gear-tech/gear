@@ -20,7 +20,7 @@
 
 use crate::{
     config,
-    params::{NetworkParams, PrometheusParams},
+    params::{NetworkParams, PrometheusParams, RpcParams},
 };
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
@@ -77,9 +77,6 @@ pub struct Args {
     #[arg(long = "validator-address")]
     pub sender_address: Option<String>,
 
-    #[arg(long = "rpc-port")]
-    pub rpc_port: Option<u16>,
-
     /// Max depth to discover last commitment.
     #[arg(long = "max-depth")]
     pub max_commitment_depth: Option<u32>,
@@ -107,6 +104,10 @@ pub struct Args {
     #[allow(missing_docs)]
     #[clap(flatten)]
     pub prometheus_params: Option<PrometheusParams>,
+
+    #[allow(missing_docs)]
+    #[clap(flatten)]
+    pub rpc_params: RpcParams,
 
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,

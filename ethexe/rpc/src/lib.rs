@@ -42,32 +42,34 @@ struct PerConnection<RpcMiddleware, HttpMiddleware> {
     svc_builder: TowerServiceBuilder<RpcMiddleware, HttpMiddleware>,
 }
 
+/// Configuration of the RPC endpoint.
+#[derive(Debug, Clone)]
 pub struct RpcConfig {
-    port: u16,
-    db: Database,
+    /// Listen address.
+    pub listen_addr: SocketAddr,
 }
 
 pub struct RpcService {
     config: RpcConfig,
+    db: Database,
 }
 
 impl RpcService {
-    pub fn new(port: u16, db: Database) -> Self {
-        Self {
-            config: RpcConfig { port, db },
-        }
+    pub fn new(config: RpcConfig, db: Database) -> Self {
+        Self { config, db }
     }
 
-    pub async fn run_server(self) -> anyhow::Result<(ServerHandle, u16)> {
-        let listener =
-            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], self.config.port))).await?;
+    pub const fn port(&self) -> u16 {
+        self.config.listen_addr.port()
+    }
+
+    pub async fn run_server(self) -> anyhow::Result<ServerHandle> {
+        let listener = TcpListener::bind(self.config.listen_addr).await?;
 
         let service_builder = Server::builder().to_service_builder();
         let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApi::new(
-            self.config.db.clone(),
-        )))?;
-        module.merge(BlockServer::into_rpc(BlockApi::new(self.config.db.clone())))?;
+        module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
+        module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
 
         let (stop_handle, server_handle) = stop_channel();
 
@@ -136,6 +138,6 @@ impl RpcService {
             }
         });
 
-        Ok((server_handle, self.config.port))
+        Ok(server_handle)
     }
 }
