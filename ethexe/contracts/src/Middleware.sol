@@ -81,8 +81,6 @@ contract Middleware {
     uint96 public constant NETWORK_IDENTIFIER = 0;
     uint256 public constant MAX_RESOLVER_SET_EPOCHS_DELAY = 10;
 
-    uint96 public constant NETWORK_IDENTIFIER = 0;
-
     uint48 public immutable ERA_DURATION;
     uint48 public immutable MIN_VETO_DURATION;
     uint48 public immutable GENESIS_TIMESTAMP;
