@@ -16,6 +16,7 @@ import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
 // TODO: support slashing
+// TODO: use camelCase for immutable variables
 // TODO: implement election logic
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
@@ -36,6 +37,8 @@ contract Middleware {
     error OperatorDoesNotExist();
     error OperatorDoesNotOptIn();
 
+    uint96 public constant NETWORK_IDENTIFIER = 0;
+
     uint48 public immutable ERA_DURATION;
     uint48 public immutable GENESIS_TIMESTAMP;
     uint48 public immutable OPERATOR_GRACE_PERIOD;
@@ -48,7 +51,6 @@ contract Middleware {
     address public immutable NETWORK_OPT_IN;
     address public immutable COLLATERAL;
     bytes32 public immutable SUBNETWORK;
-    uint96 public immutable NETWORK_IDENTIFIER = 0;
 
     EnumerableMap.AddressToUintMap private operators;
     EnumerableMap.AddressToUintMap private vaults;
@@ -127,9 +129,9 @@ contract Middleware {
             revert UnknownCollateral();
         }
 
-        address delegator = IVault(vault).delegator();
-        if (IBaseDelegator(delegator).maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
-            IBaseDelegator(delegator).setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
+        IBaseDelegator delegator = IBaseDelegator(IVault(vault).delegator());
+        if (delegator.maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
+            delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
         }
 
         vaults.append(vault, uint160(msg.sender));
@@ -165,9 +167,12 @@ contract Middleware {
         vaults.remove(vault);
     }
 
-    function getOperatorStakeAt(address operator, uint48 ts) external view returns (uint256 stake) {
-        _checkTimestamp(ts);
-
+    function getOperatorStakeAt(address operator, uint48 ts)
+        external
+        view
+        _validTimestamp(ts)
+        returns (uint256 stake)
+    {
         (uint48 enabledTime, uint48 disabledTime) = operators.getTimes(operator);
         if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
             return 0;
@@ -179,11 +184,10 @@ contract Middleware {
     function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
-        returns (address[] memory active_operators, uint256[] memory stakes)
+        _validTimestamp(ts)
+        returns (address[] memory activeOperators, uint256[] memory stakes)
     {
-        _checkTimestamp(ts);
-
-        active_operators = new address[](operators.length());
+        activeOperators = new address[](operators.length());
         stakes = new uint256[](operators.length());
 
         uint256 operatorIdx = 0;
@@ -195,13 +199,13 @@ contract Middleware {
                 continue;
             }
 
-            active_operators[operatorIdx] = operator;
+            activeOperators[operatorIdx] = operator;
             stakes[operatorIdx] = _collectOperatorStakeFromVaultsAt(operator, ts);
             operatorIdx += 1;
         }
 
         assembly {
-            mstore(active_operators, operatorIdx)
+            mstore(activeOperators, operatorIdx)
             mstore(stakes, operatorIdx)
         }
     }
@@ -224,7 +228,7 @@ contract Middleware {
 
     // Timestamp must be always in the past, but not too far,
     // so that some operators or vaults can be already unregistered.
-    function _checkTimestamp(uint48 ts) private view {
+    modifier _validTimestamp(uint48 ts) {
         if (ts >= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
@@ -233,5 +237,7 @@ contract Middleware {
         if (ts + gracePeriod <= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
+
+        _;
     }
 }
