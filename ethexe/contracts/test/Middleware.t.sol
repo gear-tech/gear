@@ -21,11 +21,11 @@ import {Middleware} from "../src/Middleware.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 
+bytes32 constant REQUEST_SLASH_EVENT_SIGNATURE =
+    keccak256("RequestSlash(uint256,bytes32,address,uint256,uint48,uint48)");
+
 contract MiddlewareTest is Test {
     using MessageHashUtils for address;
-
-    bytes32 public constant REQUEST_SLASH_EVENT_SIGNATURE =
-        keccak256("RequestSlash(uint256,bytes32,address,uint256,uint48,uint48)");
 
     uint48 eraDuration = 1000;
     address public owner;
@@ -139,13 +139,9 @@ contract MiddlewareTest is Test {
         // Register vault
         middleware.registerVault(vault);
 
-        // Try to register vault with zero address
-        vm.expectRevert(abi.encodeWithSelector(Middleware.ZeroVaultAddress.selector));
-        middleware.registerVault(address(0x0));
-
         // Try to register unknown vault
         vm.expectRevert(abi.encodeWithSelector(Middleware.NotKnownVault.selector));
-        middleware.registerVault(address(0x1));
+        middleware.registerVault(address(0xdead));
 
         // Try to register vault with wrong epoch duration
         address vault2 = _newVault(eraDuration, owner);
@@ -568,12 +564,6 @@ contract MiddlewareTest is Test {
         }
     }
 
-    function _setNetworkLimit(address vault, address operator, uint256 limit) private {
-        vm.startPrank(address(operator));
-        IOperatorSpecificDelegator(IVault(vault).delegator()).setNetworkLimit(middleware.SUBNETWORK(), limit);
-        vm.stopPrank();
-    }
-
     function _newVault(uint48 epochDuration, address operator) private returns (address vault) {
         address[] memory networkLimitSetRoleHolders = new address[](1);
         networkLimitSetRoleHolders[0] = operator;
@@ -581,7 +571,7 @@ contract MiddlewareTest is Test {
         (vault,,) = sym.vaultConfigurator().create(
             IVaultConfigurator.InitParams({
                 version: sym.vaultFactory().lastVersion(),
-                owner: owner,
+                owner: operator,
                 vaultParams: abi.encode(
                     IVault.InitParams({
                         collateral: address(wrappedVara),
@@ -590,11 +580,11 @@ contract MiddlewareTest is Test {
                         depositWhitelist: false,
                         isDepositLimit: false,
                         depositLimit: 0,
-                        defaultAdminRoleHolder: owner,
-                        depositWhitelistSetRoleHolder: owner,
-                        depositorWhitelistRoleHolder: owner,
-                        isDepositLimitSetRoleHolder: owner,
-                        depositLimitSetRoleHolder: owner
+                        defaultAdminRoleHolder: operator,
+                        depositWhitelistSetRoleHolder: operator,
+                        depositorWhitelistRoleHolder: operator,
+                        isDepositLimitSetRoleHolder: operator,
+                        depositLimitSetRoleHolder: operator
                     })
                 ),
                 delegatorIndex: 2,

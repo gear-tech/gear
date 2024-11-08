@@ -29,7 +29,6 @@ contract Middleware {
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
     using Subnetwork for address;
 
-    error ZeroVaultAddress();
     error NotKnownVault();
     error VaultWrongEpochDuration();
     error UnknownCollateral();
@@ -165,10 +164,6 @@ contract Middleware {
     // TODO: support and check slasher
     // TODO: consider to use hints
     function registerVault(address vault) external {
-        if (vault == address(0)) {
-            revert ZeroVaultAddress();
-        }
-
         if (!IRegistry(VAULT_REGISTRY).isEntity(vault)) {
             revert NotKnownVault();
         }
@@ -319,6 +314,7 @@ contract Middleware {
     }
 
     // TODO: consider to use hints
+    // TODO: array of slashes
     function executeSlash(address vault, uint256 index) external _onlyRole(ROLE_SLASH_EXECUTOR) {
         if (!vaults.contains(vault)) {
             revert NotRegistredVault();
