@@ -359,6 +359,9 @@ async fn incoming_transfers() {
     let ping_id = res.program_id;
 
     let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
     let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
 
     let on_eth_balance = wvara
