@@ -60,6 +60,16 @@ library ScaleCodec {
         return res;
     }
 
+    // This function is supposed to be used for checking if the data is prefixed with the given prefix.
+    function isBytesPrefixedWith(bytes memory prefix, bytes memory data, uint256 dataOffset) public pure returns (bool) {
+        for (uint256 i = 0; i < prefix.length; i++) {
+            if (prefix[i] != data[i + dataOffset]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     function bytesToBytes32(bytes memory value, uint256 offset) public pure returns (bytes32 result) {
         assembly {
             result := mload(add(add(value, 0x20), offset))
