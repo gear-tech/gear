@@ -33,7 +33,7 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
 use ethexe_network::{db_sync, NetworkReceiverEvent};
 use ethexe_observer::{RequestBlockData, RequestEvent};
-use ethexe_processor::LocalOutcome;
+use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
@@ -126,7 +126,13 @@ impl Service {
         )
         .await?;
 
-        let processor = ethexe_processor::Processor::new(db.clone())?;
+        let processor = ethexe_processor::Processor::with_config(
+            ProcessorConfig {
+                num_workers: config.num_workers,
+            },
+            db.clone(),
+        )?;
+        log::info!("⚙️ Num workers: {}", processor.nuw_workers());
 
         let signer = ethexe_signer::Signer::new(config.key_path.clone())?;
 
@@ -908,6 +914,7 @@ mod tests {
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            num_workers: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
@@ -935,6 +942,7 @@ mod tests {
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            num_workers: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),

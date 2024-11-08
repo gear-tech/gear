@@ -86,6 +86,10 @@ pub struct Args {
     #[arg(long, default_value = "12")]
     pub block_time: u64,
 
+    /// Amount of threads to be used.
+    #[arg(long, default_value = "16")]
+    pub num_workers: u8,
+
     /// Run a temporary node.
     ///
     /// A temporary directory will be created to store the configuration and will be deleted

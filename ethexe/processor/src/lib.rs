@@ -37,8 +37,14 @@ mod handling;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone, Debug)]
+pub struct ProcessorConfig {
+    pub num_workers: usize,
+}
+
 #[derive(Clone)]
 pub struct Processor {
+    config: ProcessorConfig,
     db: Database,
     creator: InstanceCreator,
 }
@@ -46,9 +52,22 @@ pub struct Processor {
 /// TODO: consider avoiding re-instantiations on processing events.
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
+    /// Creates processor with 1 worker.
     pub fn new(db: Database) -> Result<Self> {
+        Self::with_config(ProcessorConfig { num_workers: 1 }, db)
+    }
+
+    pub fn with_config(config: ProcessorConfig, db: Database) -> Result<Self> {
         let creator = InstanceCreator::new(host::runtime())?;
-        Ok(Self { db, creator })
+        Ok(Self {
+            config,
+            db,
+            creator,
+        })
+    }
+
+    pub fn nuw_workers(&self) -> usize {
+        self.config.num_workers
     }
 
     pub fn overlaid(mut self) -> OverlaidProcessor {
@@ -113,7 +132,7 @@ impl Processor {
         self.creator.set_chain_head(chain_head);
 
         run::run(
-            8,
+            self.nuw_workers(),
             self.db.clone(),
             self.creator.clone(),
             in_block_transitions,

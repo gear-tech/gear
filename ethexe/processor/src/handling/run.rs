@@ -34,31 +34,32 @@ enum Task {
 }
 
 pub fn run(
-    threads_amount: usize,
+    num_workers: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
     tokio::task::block_in_place(|| {
         let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(threads_amount)
+            .worker_threads(num_workers)
             .enable_all()
             .build()
             .unwrap();
 
-        rt.block_on(async { run_in_async(db, instance_creator, in_block_transitions).await })
+        rt.block_on(async {
+            run_in_async(num_workers, db, instance_creator, in_block_transitions).await
+        })
     })
 }
 
 // TODO: Returning Vec<LocalOutcome> is a temporary solution.
 // In future need to send all messages to users and all state hashes changes to sequencer.
 async fn run_in_async(
+    num_workers: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
-    let num_workers = 4;
-
     let mut task_senders = vec![];
     let mut handles = vec![];
 

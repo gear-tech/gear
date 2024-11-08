@@ -102,6 +102,9 @@ pub struct Config {
     /// Block production time.
     pub block_time: Duration,
 
+    /// Amount of threads.
+    pub num_workers: usize,
+
     /// Path of the state database
     pub database_path: PathBuf,
 
@@ -196,6 +199,7 @@ impl TryFrom<Args> for Config {
                 .context("failed to parse router address")?,
             max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
             block_time: Duration::from_secs(args.block_time),
+            num_workers: args.num_workers.into(),
             database_path: base_path.join("db"),
             key_path: base_path.join("key"),
             sequencer,
