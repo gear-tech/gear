@@ -50,6 +50,7 @@ contract Middleware {
     error NotRegistredVault();
     error NotRegistredOperator();
     error RoleMismatch();
+    error ResolverMismatch(address resolver);
 
     struct VaultSlashData {
         address vault;
@@ -75,6 +76,7 @@ contract Middleware {
         address collateral;
         address roleSlashRequester;
         address roleSlashExecutor;
+        address vetoResolver;
     }
 
     uint96 public constant NETWORK_IDENTIFIER = 0;
@@ -100,6 +102,9 @@ contract Middleware {
     address public immutable ROLE_SLASH_REQUESTER;
     address public immutable ROLE_SLASH_EXECUTOR;
 
+    /// @notice Resolver address for the veto slasher.
+    address public immutable VETO_RESOLVER;
+
     EnumerableMap.AddressToUintMap private operators;
     EnumerableMap.AddressToUintMap private vaults;
 
@@ -120,6 +125,7 @@ contract Middleware {
 
         ROLE_SLASH_REQUESTER = cfg.roleSlashRequester;
         ROLE_SLASH_EXECUTOR = cfg.roleSlashExecutor;
+        VETO_RESOLVER = cfg.vetoResolver;
 
         // Presently network and middleware are the same address
         INetworkRegistry(cfg.networkRegistry).registerNetwork();
@@ -201,8 +207,12 @@ contract Middleware {
         if (IVetoSlasher(slasher).vetoDuration() < MIN_VETO_DURATION) {
             revert VetoDurationTooShort();
         }
-        if (IVetoSlasher(slasher).resolver(SUBNETWORK, new bytes(0)) != address(this)) {
-            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, address(this), new bytes(0));
+        address resolver = IVetoSlasher(slasher).resolver(SUBNETWORK, new bytes(0));
+        if (resolver == address(0)) {
+            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, VETO_RESOLVER, new bytes(0));
+        } else if (resolver != VETO_RESOLVER) {
+            // TODO: consider how to support this case
+            revert ResolverMismatch(resolver);
         }
 
         _burnerCheck(IVault(vault).burner());
@@ -316,17 +326,6 @@ contract Middleware {
 
         address slasher = IVault(vault).slasher();
         IVetoSlasher(slasher).executeSlash(index, new bytes(0));
-    }
-
-    // TODO: only veto admin
-    // TODO: consider to use hints
-    function vetoShash(address vault, uint256 index) external {
-        if (!vaults.contains(vault)) {
-            revert NotRegistredVault();
-        }
-
-        address slasher = IVault(vault).slasher();
-        IVetoSlasher(slasher).vetoSlash(index, new bytes(0));
     }
 
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {

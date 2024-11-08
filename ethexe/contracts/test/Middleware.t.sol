@@ -60,7 +60,8 @@ contract MiddlewareTest is Test {
             middlewareService: address(sym.networkMiddlewareService()),
             collateral: address(wrappedVara),
             roleSlashRequester: owner,
-            roleSlashExecutor: owner
+            roleSlashExecutor: owner,
+            vetoResolver: owner
         });
 
         middleware = new Middleware(cfg);
@@ -129,6 +130,8 @@ contract MiddlewareTest is Test {
     }
 
     // TODO: split to multiple tests
+    // TODO: check vault has valid network params
+    // TODO: test when vault has incorrect network params
     function test_registerVault() public {
         sym.operatorRegistry().registerOperator();
         address vault = _newVault(eraDuration * 2, owner);
@@ -418,19 +421,20 @@ contract MiddlewareTest is Test {
         uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
         uint48 vetoDeadline = _vetoDeadline(IVault(vault1).slasher(), slashIndex);
 
+        address slasher = IVault(vault1).slasher();
+
         // Try to execute slash after veto deadline
         vm.warp(vetoDeadline);
         vm.expectRevert(IVetoSlasher.VetoPeriodEnded.selector);
-        middleware.vetoShash(vault1, slashIndex);
+        IVetoSlasher(slasher).vetoSlash(slashIndex, new bytes(0));
 
         // Veto slash
         vm.warp(vetoDeadline - 1);
-        middleware.vetoShash(vault1, slashIndex);
+        IVetoSlasher(slasher).vetoSlash(slashIndex, new bytes(0));
 
-        // Try to execute slash after veto
-        vm.warp(vetoDeadline);
+        // Try to execute slash after veto is done
         vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
-        middleware.executeSlash(vault1, slashIndex);
+        IVetoSlasher(slasher).vetoSlash(slashIndex, new bytes(0));
     }
 
     function test_slashExecutionUnregistredVault() external {
