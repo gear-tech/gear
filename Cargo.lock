@@ -4646,6 +4646,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
+ "ethexe-runtime-common",
  "futures",
  "gear-core",
  "gprimitives",
@@ -4654,6 +4655,7 @@ dependencies = [
  "jsonrpsee 0.24.7",
  "log",
  "parity-scale-codec",
+ "serde",
  "sp-core 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "tokio",
  "tower 0.4.13",
@@ -4679,6 +4681,7 @@ name = "ethexe-runtime-common"
 version = "1.6.2"
 dependencies = [
  "anyhow",
+ "derive_more 0.99.18",
  "ethexe-common",
  "gear-core",
  "gear-core-errors",
@@ -4688,6 +4691,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "serde",
 ]
 
 [[package]]
@@ -5662,8 +5666,8 @@ dependencies = [
 name = "gbuiltin-proxy"
 version = "1.6.2"
 dependencies = [
- "derive_more 0.99.18",
  "gprimitives",
+ "parity-scale-codec",
  "scale-info",
 ]
 
@@ -13165,7 +13169,6 @@ checksum = "a77c62af46e79de0a562e1a9849205ffcb7fc1238876e9bd743357570e04046f"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "futures-channel",
  "futures-core",
  "futures-util",
  "http 1.1.0",
