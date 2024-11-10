@@ -38,8 +38,8 @@ pub fn crates_io_name(pkg: &str) -> &str {
 }
 
 /// Patch specified manifest by provided name.
-pub fn patch(pkg: &Package) -> Result<Manifest> {
-    let mut manifest = Manifest::new(pkg)?;
+pub fn patch(pkg: &Package, is_published: bool) -> Result<Manifest> {
+    let mut manifest = Manifest::new(pkg, is_published)?;
     let doc = &mut manifest.mutable_manifest;
 
     match manifest.name.as_str() {

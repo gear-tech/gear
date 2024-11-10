@@ -6,7 +6,7 @@ This is an internal product that is used to find panics that may occur in our ru
 
 Pre-requirements:
 
-- llvm-tools: `rustup component add llvm-tools-preview`
+- llvm-tools: `rustup component add llvm-tools`
 - [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz): `cargo install cargo-fuzz`
 - [cargo-binutils](https://github.com/rust-embedded/cargo-binutils): `cargo install cargo-binutils`
 - [rustfilt](https://github.com/luser/rustfilt): `cargo install rustfilt`

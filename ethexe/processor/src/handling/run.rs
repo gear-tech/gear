@@ -19,7 +19,7 @@
 use crate::host::{InstanceCreator, InstanceWrapper};
 use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::{InBlockTransitions, JournalHandler};
+use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
@@ -94,8 +94,10 @@ async fn run_in_async(
             for (program_id, journal) in super_journal {
                 let mut handler = JournalHandler {
                     program_id,
-                    in_block_transitions,
-                    storage: &db,
+                    controller: TransitionController {
+                        transitions: in_block_transitions,
+                        storage: &db,
+                    },
                 };
                 core_processor::handle_journal(journal, &mut handler);
             }
