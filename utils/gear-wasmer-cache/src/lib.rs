@@ -18,180 +18,109 @@
 
 //! Wasmer's module caches
 
-use fs2::FileExt;
+use bytes::Bytes;
+use fs4::fs_std::FileExt;
 use std::{
-    fs::{self, File},
-    io::{self, Read, Write},
-    path::PathBuf,
+    fs::File,
+    io,
+    io::{Read, Write},
+    path::Path,
     sync::{Mutex, OnceLock},
 };
 use uluru::LRUCache;
-use wasmer::{CompileError, Engine, Module};
+use wasmer::{CompileError, Engine, Module, SerializeError};
 use wasmer_cache::Hash;
 
-pub struct CacheMissErr {
-    pub fs_cache: FileSystemCache,
-    pub code_hash: Hash,
-}
-
-// CachedModules holds a mutex-protected LRU cache of compiled wasm modules.
-// This allows for efficient reuse of modules across invocations.
 type CachedModules = Mutex<LRUCache<CachedModule, 1024>>;
 
 struct CachedModule {
-    wasm: Vec<u8>,
-    // Serialized module (Wasmer's custom binary format)
-    serialized_module: Vec<u8>,
+    hash: Hash,
+    serialized_module: Bytes,
 }
 
-// The cached_modules function provides thread-safe access to the CACHED_MODULES static.
-fn lru_cache() -> &'static CachedModules {
-    static CACHED_MODULES: OnceLock<CachedModules> = OnceLock::new();
-    CACHED_MODULES.get_or_init(|| Mutex::new(LRUCache::default()))
-}
-
-pub fn get_cached_module(
-    wasm: &[u8],
-    engine: &Engine,
-    fs_cache: impl FnOnce() -> PathBuf,
-) -> Result<Module, CacheMissErr> {
-    let mut lru_lock = lru_cache().lock().expect("CACHED_MODULES lock fail");
-
-    let maybe_module = lru_lock.find(|x| x.wasm == wasm);
-
-    // Try to load from LRU cache first
-    if let Some(CachedModule {
-        serialized_module, ..
-    }) = maybe_module
-    {
-        // SAFETY: Module inside LRU cache cannot be corrupted.
-        let module = unsafe {
-            Module::deserialize_unchecked(engine, serialized_module.as_slice())
-                .expect("module in LRU cache is valid")
-        };
-        Ok(module)
-    } else {
-        let code_hash = Hash::generate(wasm);
-
-        let fs_cache = FileSystemCache::new(fs_cache());
-        let serialized_module = fs_cache.load(code_hash).map_err(|_| CacheMissErr {
-            fs_cache: fs_cache.clone(),
-            code_hash,
-        })?;
-
-        lru_lock.insert(CachedModule {
-            wasm: wasm.to_vec(),
-            serialized_module: serialized_module.clone(),
-        });
-
-        // SAFETY: We trust the module in FS cache.
-        let module = unsafe {
-            Module::deserialize(engine, serialized_module).map_err(|_| {
-                log::debug!("Module in FS cache is corrupted, remove it");
-                fs_cache.remove_key(code_hash);
-                CacheMissErr {
-                    fs_cache,
-                    code_hash,
-                }
-            })?
-        };
-
-        Ok(module)
+impl CachedModule {
+    fn static_modules() -> &'static CachedModules {
+        static MODULES: OnceLock<CachedModules> = OnceLock::new();
+        MODULES.get_or_init(CachedModules::default)
     }
 }
 
-pub fn try_to_store_module_in_cache(
-    mut fs_cache: FileSystemCache,
-    code_hash: Hash,
-    wasm: &[u8],
-    module: &Module,
-) {
-    // NOTE: `From<Bytes> to Vec<u8>` is zero cost.
-    let serialized_module: Vec<_> = module
-        .serialize()
-        .expect("module should be serializable")
-        .into();
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum Error {
+    #[display(fmt = "Compilation error: {_0}")]
+    Compile(CompileError),
+    #[display(fmt = "IO error: {_0}")]
+    Io(io::Error),
+    #[display(fmt = "Serialization error: {_0}")]
+    Serialize(SerializeError),
+}
 
-    // Store module in LRU cache
-    let _ = lru_cache()
+pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<Module, Error> {
+    let mut modules = CachedModule::static_modules()
         .lock()
-        .expect("CACHED_MODULES lock fail")
-        .insert(CachedModule {
-            wasm: wasm.to_vec(),
-            serialized_module: serialized_module.clone(),
+        .expect("failed to lock modules");
+
+    let hash = Hash::generate(code);
+    let module = if let Some(module) = modules.find(|x| x.hash == hash) {
+        log::trace!("load module from LRU cache");
+
+        // SAFETY: we deserialize module we serialized earlier in the same code
+        unsafe {
+            Module::deserialize_unchecked(engine, &*module.serialized_module)
+                .expect("corrupted in-memory cache")
+        }
+    } else {
+        let path = base_path.as_ref().join(hash.to_string());
+        // open file with all options to lock the file and
+        // retrieve metadata without concurrency issues
+        let mut file = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)?;
+        file.lock_exclusive()?;
+        let metadata = file.metadata()?;
+
+        // if length of the file is not zero, it means the module was cached before
+        let (serialized_module, module) = if metadata.len() != 0 {
+            log::trace!("load module from file cache");
+
+            let mut serialized_module = Vec::new();
+
+            // downgrade the lock so other threads & processes can read the file
+            file.lock_shared()?;
+            file.read_to_end(&mut serialized_module)?;
+
+            // SAFETY: we deserialize module we serialized earlier in the same code
+            let module = unsafe {
+                Module::deserialize_unchecked(engine, &serialized_module)
+                    .expect("corrupted file cache")
+            };
+
+            (serialized_module.into(), module)
+        } else {
+            log::trace!("compile module because of missed cache");
+
+            let module = Module::new(engine, code)?;
+            let serialized_module = module.serialize()?;
+
+            file.write_all(&serialized_module)?;
+            file.flush()?;
+
+            (serialized_module, module)
+        };
+
+        // explicitly drop the lock to
+        // allow other threads & processes to read the file
+        file.unlock()?;
+
+        modules.insert(CachedModule {
+            hash,
+            serialized_module,
         });
-    log::trace!("Store module in LRU cache");
 
-    let res = fs_cache.store(code_hash, &serialized_module);
-    log::trace!("Store module in FS cache with result: {:?}", res);
-}
+        module
+    };
 
-pub fn get_or_compile_with_cache(
-    wasm: &[u8],
-    engine: &Engine,
-    fs_cache: impl FnOnce() -> PathBuf,
-) -> Result<Module, CompileError> {
-    match get_cached_module(wasm, engine, fs_cache) {
-        Ok(module) => {
-            log::trace!("Found cached module for current program");
-            Ok(module)
-        }
-        Err(CacheMissErr {
-            fs_cache,
-            code_hash,
-        }) => {
-            log::trace!("Cache for program has not been found, so compile it now");
-            let module = Module::new(engine, wasm)?;
-
-            try_to_store_module_in_cache(fs_cache, code_hash, wasm, &module);
-
-            Ok(module)
-        }
-    }
-}
-
-/// Altered copy of the `FileSystemCache` struct from `wasmer_cache` crate.
-#[derive(Debug, Clone)]
-pub struct FileSystemCache {
-    path: PathBuf,
-}
-
-impl FileSystemCache {
-    /// Construct a new `FileSystemCache` around the specified directory.
-    /// The directory should exist and be readable/writable.
-    fn new<P: Into<PathBuf>>(path: P) -> Self {
-        Self { path: path.into() }
-    }
-
-    /// Load the serialized module from the cache.
-    fn load(&self, key: Hash) -> Result<Vec<u8>, io::Error> {
-        let path = self.path.join(key.to_string());
-
-        let mut file = File::open(path)?;
-        file.lock_exclusive()?;
-
-        let mut contents = Vec::new();
-        file.read_to_end(&mut contents)?;
-        Ok(contents)
-    }
-
-    /// If an error occurs while deserializing then we can not trust it anymore
-    /// so delete the cache file
-    fn remove_key(&self, key: Hash) {
-        let path = self.path.join(key.to_string());
-
-        let res = fs::remove_file(path);
-        log::trace!("Remove module from FS cache with result: {:?}", res);
-    }
-
-    /// Store the serialized module in the cache.
-    fn store(&mut self, key: Hash, serialized_module: &[u8]) -> Result<(), io::Error> {
-        let path = self.path.join(key.to_string());
-
-        let mut file = File::create(path)?;
-        file.lock_exclusive()?;
-        file.write_all(serialized_module)?;
-
-        Ok(())
-    }
+    Ok(module)
 }
