@@ -31,7 +31,7 @@ on:
           - false
         default: 'false'
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -73,7 +73,7 @@ jobs:
           cp -vf target/release/wasm-proc ./
 
       - name: "Build: Production `vara-runtime`"
-        run: cargo build -p vara-runtime --profile production --no-default-features --features std
+        run: cargo build -p vara-runtime --profile production --no-default-features --features std,metadata-hash
 
       - name: "Test: Production `vara-runtime`"
         run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev false target/production/wbuild/vara-runtime/vara_runtime.compact.wasm

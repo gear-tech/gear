@@ -111,7 +111,7 @@ where
         State::Snap(snap_state) => {
             let ext = State::Snap(snap_state).to_ext(None).await?;
 
-            let header_previous = fetch_header::<Block>(&rpc, Some(ext.block_hash)).await?;
+            let header_previous = fetch_header::<Block>(&rpc, Some(ext.header.hash())).await?;
             let expected = *block.header().number() - One::one();
             if *header_previous.number() != expected {
                 let message = format!(

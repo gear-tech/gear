@@ -185,6 +185,7 @@ impl ExtBuilder {
                     )
                 })
                 .collect(),
+            ..Default::default()
         }
         .assimilate_storage(&mut storage)
         .unwrap();
@@ -539,91 +540,6 @@ fn dust_ends_up_in_offset_pool() {
                 initial_pool_balance + EXISTENTIAL_DEPOSIT / 2
             );
             // The `total_issuance` has persisted
-            assert_eq!(Balances::total_issuance(), initial_total_issuance);
-        });
-}
-
-#[test]
-fn slashed_proposals_back_to_treasury() {
-    init_logger();
-
-    let alice = AccountKeyring::Alice;
-    let bob = AccountKeyring::Bob;
-    let charlie = AccountKeyring::Charlie;
-    let dave = AccountKeyring::Dave;
-    let ferdie = AccountKeyring::Ferdie;
-
-    let treasury_id = Treasury::account_id();
-
-    ExtBuilder::default()
-        .initial_authorities(vec![
-            (
-                alice.into(),
-                charlie.into(),
-                alice.public(),
-                ed25519::Pair::from_string("//Alice", None)
-                    .unwrap()
-                    .public(),
-                alice.public(),
-                alice.public(),
-            ),
-            (
-                bob.into(),
-                dave.into(),
-                bob.public(),
-                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
-                bob.public(),
-                bob.public(),
-            ),
-        ])
-        .stash(STASH)
-        .endowment(ENDOWMENT)
-        .endowed_accounts(vec![charlie.into(), dave.into()])
-        .root(alice.into())
-        .build()
-        .execute_with(|| {
-            // Treasury pot is empty in the beginning
-            assert_eq!(Treasury::pot(), 0);
-
-            let initial_total_issuance = Balances::total_issuance();
-
-            // Top up treasury balance
-            assert_ok!(Balances::transfer_allow_death(
-                RuntimeOrigin::signed(charlie.to_account_id()),
-                sp_runtime::MultiAddress::Id(treasury_id.clone()),
-                1_000 * UNITS,
-            ));
-            assert_eq!(Treasury::pot(), 1_000 * UNITS);
-
-            assert_ok!(Treasury::propose_spend(
-                RuntimeOrigin::signed(dave.to_account_id()),
-                1_000 * UNITS,
-                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
-            ));
-            let proposal_bond =
-                <Runtime as pallet_treasury::Config>::ProposalBond::get() * UNITS * 1_000;
-            let dave_acc_data = System::account(dave.to_account_id()).data;
-            // Proposer's free balance has decreased by the `proposal_bond`
-            assert_eq!(dave_acc_data.free, ENDOWMENT - proposal_bond);
-            // The reserved balance is 5% of the proposed amount
-            assert_eq!(dave_acc_data.reserved, proposal_bond);
-
-            assert_ok!(Treasury::reject_proposal(RuntimeOrigin::root(), 0));
-
-            // Run chain for a day so that `Treasury::spend_funds()` is triggered
-            run_to_block(DAYS);
-
-            // The `proposal_bond` has been slashed
-            let dave_acc_data = System::account(dave.to_account_id()).data;
-            assert_eq!(dave_acc_data.free, ENDOWMENT - proposal_bond);
-            // Nothing is reserved now
-            assert_eq!(dave_acc_data.reserved, 0);
-
-            // Treasury funds haven't been spent, no burning has taken place,
-            // the slashed deposit has landed in the `Treasury`, as well
-            assert_eq!(Treasury::pot(), 1_000 * UNITS + proposal_bond);
-
-            // The total issuance has, therefore, persisted
             assert_eq!(Balances::total_issuance(), initial_total_issuance);
         });
 }

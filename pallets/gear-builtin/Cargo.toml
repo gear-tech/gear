@@ -102,6 +102,7 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"pallet-staking/runtime-benchmarks",
 	"ark-bls12-381",
 	"ark-ec",
 	"ark-ff",

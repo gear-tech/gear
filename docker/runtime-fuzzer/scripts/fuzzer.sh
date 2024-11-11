@@ -67,8 +67,8 @@ function start_container_post {
      	--workdir /gear/utils/runtime-fuzzer \
      	--name ${CONTAINER_NAME_GEAR} ${IMAGE} \
      	-c "cargo install cargo-binutils && \
-		rustup component add llvm-tools-preview && \
-		rustup component add --toolchain nightly llvm-tools-preview && \
+		rustup component add llvm-tools && \
+		rustup component add --toolchain nightly llvm-tools && \
 		cargo fuzz coverage --release --sanitizer=none main /corpus/main -- \
         -rss_limit_mb=8192 -max_len=450000 -len_control=0 && \
 		cargo cov -- show target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \

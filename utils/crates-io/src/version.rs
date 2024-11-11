@@ -18,26 +18,27 @@
 
 //! Crate verifier
 
-use crate::{handler, Simulator};
+use crate::{handler, Simulator, EXPECTED_OWNERS};
 use anyhow::{anyhow, Result};
+use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::process::Command;
 
 #[derive(Debug, Deserialize)]
-struct Resp {
-    pub versions: Vec<Version>,
+struct VersionsResponse {
+    versions: Vec<Version>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Version {
-    pub num: String,
+    num: String,
 }
 
 /// Verify if the package has already been published.
-pub fn verify(name: &str, version: &str, simulator: Option<&Simulator>) -> Result<bool> {
+pub async fn verify(name: &str, version: &str, simulator: Option<&Simulator>) -> Result<bool> {
     println!("Verifying {name}@{version} ...");
 
-    let client = reqwest::blocking::Client::builder()
+    let client = Client::builder()
         .user_agent("gear-crates-io-manager")
         .build()?;
 
@@ -48,24 +49,82 @@ pub fn verify(name: &str, version: &str, simulator: Option<&Simulator>) -> Resul
                 simulator.addr(),
                 handler::crates_io_name(name)
             ))
-            .send()?
+            .send()
+            .await?
             .error_for_status()
             .is_ok()
         {
             return Ok(true);
         }
-    } else if let Ok(resp) = client
+    } else if let Ok(response) = client
         .get(format!(
             "https://crates.io/api/v1/crates/{}/versions",
             handler::crates_io_name(name)
         ))
-        .send()?
-        .json::<Resp>()
+        .send()
+        .await?
+        .json::<VersionsResponse>()
+        .await
     {
-        return Ok(resp.versions.into_iter().any(|v| v.num == version));
+        return Ok(response.versions.into_iter().any(|v| v.num == version));
     }
 
     Ok(false)
+}
+
+#[derive(Debug, Deserialize)]
+struct OwnersResponse {
+    users: Vec<User>,
+}
+
+#[derive(Debug, Deserialize)]
+struct User {
+    login: String,
+}
+
+/// Package status.
+#[derive(Debug, PartialEq)]
+pub enum PackageStatus {
+    /// Package has not been published.
+    NotPublished,
+    /// Package has invalid owners.
+    InvalidOwners,
+    /// Package has valid owners.
+    ValidOwners,
+}
+
+/// Verify if the package has valid owners.
+pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
+    println!("Verifying {name} owners ...");
+
+    let client = Client::builder()
+        .user_agent("gear-crates-io-manager")
+        .build()?;
+
+    let response = client
+        .get(format!(
+            "https://crates.io/api/v1/crates/{}/owners",
+            handler::crates_io_name(name)
+        ))
+        .send()
+        .await?;
+
+    if response.status() == StatusCode::NOT_FOUND {
+        return Ok(PackageStatus::NotPublished);
+    }
+
+    let response = response.json::<OwnersResponse>().await?;
+    let package_status = if response.users.len() == EXPECTED_OWNERS.len()
+        && EXPECTED_OWNERS
+            .into_iter()
+            .all(|owner| response.users.iter().any(|u| u.login == owner))
+    {
+        PackageStatus::ValidOwners
+    } else {
+        PackageStatus::InvalidOwners
+    };
+
+    Ok(package_status)
 }
 
 /// Get the short hash of the current commit.

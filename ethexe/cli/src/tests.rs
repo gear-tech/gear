@@ -32,7 +32,7 @@ use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
-use ethexe_runtime_common::state::Storage;
+use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
@@ -250,10 +250,11 @@ async fn mailbox() {
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
         BTreeMap::from_iter([
-            (mid_expected_message, (0, expiry)),
-            (ping_expected_message, (0, expiry)),
+            (mid_expected_message, ValueWithExpiry { value: 0, expiry }),
+            (ping_expected_message, ValueWithExpiry { value: 0, expiry }),
         ]),
     )]);
+
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
 
@@ -263,7 +264,7 @@ async fn mailbox() {
         .mailbox_hash
         .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
-    assert_eq!(mailbox, expected_mailbox);
+    assert_eq!(mailbox.into_inner(), expected_mailbox);
 
     mirror
         .send_reply(ping_expected_message, "PONG", 0)
@@ -288,10 +289,10 @@ async fn mailbox() {
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, (0, expiry))]),
+        BTreeMap::from_iter([(mid_expected_message, ValueWithExpiry { value: 0, expiry })]),
     )]);
 
-    assert_eq!(mailbox, expected_mailbox);
+    assert_eq!(mailbox.into_inner(), expected_mailbox);
 
     mirror.claim_value(mid_expected_message).await.unwrap();
 
@@ -358,6 +359,9 @@ async fn incoming_transfers() {
     let ping_id = res.program_id;
 
     let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
     let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
 
     let on_eth_balance = wvara
