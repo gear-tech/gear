@@ -303,11 +303,11 @@ contract MiddlewareTest is Test {
         // Try to execute slash before veto deadline
         vm.warp(vetoDeadline - 1);
         vm.expectRevert(IVetoSlasher.VetoPeriodNotEnded.selector);
-        middleware.executeSlash(vault1, slashIndex);
+        _executeSlash(vault1, slashIndex);
 
         // Execute slash when ready
         vm.warp(vetoDeadline);
-        middleware.executeSlash(vault1, slashIndex);
+        _executeSlash(vault1, slashIndex);
 
         // Check that operator1 stake is decreased
         vm.warp(vetoDeadline + 1);
@@ -315,7 +315,7 @@ contract MiddlewareTest is Test {
 
         // Try to execute slash twice
         vm.expectRevert(IVetoSlasher.SlashRequestCompleted.selector);
-        middleware.executeSlash(vault1, slashIndex);
+        _executeSlash(vault1, slashIndex);
     }
 
     function test_slashRequestUnknownOperator() external {
@@ -355,7 +355,7 @@ contract MiddlewareTest is Test {
         // Try to slash after slash period
         vm.warp(uint48(vm.getBlockTimestamp()) + IVault(vault1).epochDuration());
         vm.expectRevert(IVetoSlasher.SlashPeriodEnded.selector);
-        middleware.executeSlash(vault1, slashIndex);
+        _executeSlash(vault1, slashIndex);
     }
 
     function test_slashOneOperatorTwoVaults() external {
@@ -439,7 +439,13 @@ contract MiddlewareTest is Test {
 
         // Try to execute slash for unknown vault
         vm.expectRevert(Middleware.NotRegistredVault.selector);
-        middleware.executeSlash(address(0xdead), slashIndex);
+        _executeSlash(address(0xdead), slashIndex);
+    }
+
+    function _executeSlash(address vault, uint256 index) private {
+        Middleware.SlashIdentifier[] memory slashes = new Middleware.SlashIdentifier[](1);
+        slashes[0] = Middleware.SlashIdentifier({vault: vault, index: index});
+        middleware.executeSlash(slashes);
     }
 
     function _prepareTwoOperators()

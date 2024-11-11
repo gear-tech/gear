@@ -18,12 +18,12 @@ import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratabl
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
-// TODO: use camelCase for immutable variables
 // TODO: document all functions and variables
 // TODO: implement election logic
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: implement rewards distribution
+// TODO: use hints for simbiotic calls
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
@@ -62,6 +62,11 @@ contract Middleware {
         address operator;
         uint48 ts;
         VaultSlashData[] vaults;
+    }
+
+    struct SlashIdentifier {
+        address vault;
+        uint256 index;
     }
 
     struct Config {
@@ -169,8 +174,6 @@ contract Middleware {
     }
 
     // TODO: check vault has enough stake
-    // TODO: support and check slasher
-    // TODO: consider to use hints
     function registerVault(address vault) external {
         if (!IRegistry(vaultRegistry).isEntity(vault)) {
             revert NotKnownVault();
@@ -264,7 +267,6 @@ contract Middleware {
         vaults.remove(vault);
     }
 
-    // TODO: consider to append ability to use hints
     function getOperatorStakeAt(address operator, uint48 ts)
         external
         view
@@ -279,7 +281,7 @@ contract Middleware {
         stake = _collectOperatorStakeFromVaultsAt(operator, ts);
     }
 
-    // TODO: consider to append ability to use hints
+    // TODO: change return siggnature
     function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
@@ -309,7 +311,6 @@ contract Middleware {
         }
     }
 
-    // TODO: consider to use hints
     function requestSlash(SlashData[] calldata data) external _onlyRole(roleSlashRequester) {
         for (uint256 i; i < data.length; ++i) {
             SlashData calldata slash_data = data[i];
@@ -332,15 +333,16 @@ contract Middleware {
         }
     }
 
-    // TODO: consider to use hints
-    // TODO: array of slashes
-    function executeSlash(address vault, uint256 index) external _onlyRole(roleSlashExecutor) {
-        if (!vaults.contains(vault)) {
-            revert NotRegistredVault();
-        }
+    function executeSlash(SlashIdentifier[] calldata slashes) external _onlyRole(roleSlashExecutor) {
+        for (uint256 i; i < slashes.length; ++i) {
+            SlashIdentifier calldata slash = slashes[i];
 
-        address slasher = IVault(vault).slasher();
-        IVetoSlasher(slasher).executeSlash(index, new bytes(0));
+            if (!vaults.contains(slash.vault)) {
+                revert NotRegistredVault();
+            }
+
+            IVetoSlasher(IVault(slash.vault).slasher()).executeSlash(slash.index, new bytes(0));
+        }
     }
 
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
