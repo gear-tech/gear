@@ -9398,9 +9398,7 @@ dependencies = [
  "glob 0.3.1",
  "libc",
  "libz-sys",
- "lz4-sys",
  "tikv-jemalloc-sys",
- "zstd-sys",
 ]
 
 [[package]]

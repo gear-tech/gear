@@ -101,7 +101,8 @@ impl Clone for Database {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
+#[cfg_attr(test, derive(serde::Serialize))]
+#[derive(Debug, Clone, Default, Encode, Decode)]
 struct BlockSmallMetaInfo {
     block_end_state_is_valid: bool,
     is_empty: Option<bool>,
