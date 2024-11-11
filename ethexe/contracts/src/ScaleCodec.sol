@@ -119,6 +119,7 @@ library ScaleCodec {
     }
 
     function decodeBool(bytes memory _bytes, uint256 offset) public pure returns (bool) {
+        require(_bytes[offset] == 0x01 || _bytes[offset] == 0x00, "Invalid bool value");
         return _bytes[offset] == 0x01;
     }
 
@@ -450,6 +451,7 @@ library ScaleCodec {
     }
 
     function decodeOption(bytes memory _bytes, uint256 offset) public pure returns (Option memory) {
+        require(_bytes[offset] == 0x00 || _bytes[offset] == 0x01, "Invalid Option value");
         if (_bytes[offset] == 0x00) {
             return Option(false, new bytes(0));
         } else {
@@ -466,6 +468,7 @@ library ScaleCodec {
     }
 
     function decodeResult(bytes memory _bytes, uint256 offset) public pure returns (Result memory) {
+        require(_bytes[offset] == 0x00 || _bytes[offset] == 0x01, "Invalid Result value");
         bytes memory value = sliceBytes(_bytes, 1 + offset, _bytes.length);
         if (_bytes[offset] == 0x00) {
             return Result(true, value);
