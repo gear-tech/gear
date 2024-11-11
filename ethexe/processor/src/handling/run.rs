@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{InstanceCreator, InstanceWrapper};
+use crate::{
+    host::{InstanceCreator, InstanceWrapper},
+    ProcessorConfig,
+};
 use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
@@ -34,20 +37,30 @@ enum Task {
 }
 
 pub fn run(
-    num_workers: usize,
+    config: &ProcessorConfig,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
     tokio::task::block_in_place(|| {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(num_workers)
-            .enable_all()
-            .build()
-            .unwrap();
+        let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
+
+        if let Some(worker_threads) = config.worker_threads_override {
+            rt_builder.worker_threads(worker_threads);
+        };
+
+        rt_builder.enable_all();
+
+        let rt = rt_builder.build().unwrap();
 
         rt.block_on(async {
-            run_in_async(num_workers, db, instance_creator, in_block_transitions).await
+            run_in_async(
+                config.virtual_threads,
+                db,
+                instance_creator,
+                in_block_transitions,
+            )
+            .await
         })
     })
 }
@@ -55,7 +68,7 @@ pub fn run(
 // TODO: Returning Vec<LocalOutcome> is a temporary solution.
 // In future need to send all messages to users and all state hashes changes to sequencer.
 async fn run_in_async(
-    num_workers: usize,
+    virtual_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
@@ -64,7 +77,7 @@ async fn run_in_async(
     let mut handles = vec![];
 
     // create workers
-    for id in 0..num_workers {
+    for id in 0..virtual_threads {
         let (task_sender, task_receiver) = mpsc::channel(100);
         task_senders.push(task_sender);
         let handle = tokio::spawn(worker(
@@ -80,7 +93,7 @@ async fn run_in_async(
         // Send tasks to process programs in workers, until all queues are empty.
 
         let mut no_more_to_do = true;
-        for index in (0..in_block_transitions.states_amount()).step_by(num_workers) {
+        for index in (0..in_block_transitions.states_amount()).step_by(virtual_threads) {
             let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
 
             let mut super_journal = vec![];

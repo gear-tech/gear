@@ -21,10 +21,10 @@
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{mirror::RequestEvent as MirrorEvent, BlockRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::{state::Storage, InBlockTransitions};
+use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use handling::run;
+use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
@@ -39,7 +39,17 @@ mod tests;
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
-    pub num_workers: usize,
+    pub worker_threads_override: Option<usize>,
+    pub virtual_threads: usize,
+}
+
+impl Default for ProcessorConfig {
+    fn default() -> Self {
+        Self {
+            worker_threads_override: None,
+            virtual_threads: 16,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -52,9 +62,9 @@ pub struct Processor {
 /// TODO: consider avoiding re-instantiations on processing events.
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
-    /// Creates processor with 1 worker.
+    /// Creates processor with default config.
     pub fn new(db: Database) -> Result<Self> {
-        Self::with_config(ProcessorConfig { num_workers: 1 }, db)
+        Self::with_config(Default::default(), db)
     }
 
     pub fn with_config(config: ProcessorConfig, db: Database) -> Result<Self> {
@@ -66,8 +76,8 @@ impl Processor {
         })
     }
 
-    pub fn nuw_workers(&self) -> usize {
-        self.config.num_workers
+    pub fn config(&self) -> &ProcessorConfig {
+        &self.config
     }
 
     pub fn overlaid(mut self) -> OverlaidProcessor {
@@ -113,7 +123,7 @@ impl Processor {
         }
 
         handler.run_schedule();
-        self.run(block_hash, &mut handler.transitions);
+        self.process_queue(&mut handler);
 
         let (transitions, states, schedule) = handler.transitions.finalize();
 
@@ -128,14 +138,14 @@ impl Processor {
         Ok(outcomes)
     }
 
-    pub fn run(&mut self, chain_head: H256, in_block_transitions: &mut InBlockTransitions) {
-        self.creator.set_chain_head(chain_head);
+    pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {
+        self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            self.nuw_workers(),
+            self.config(),
             self.db.clone(),
             self.creator.clone(),
-            in_block_transitions,
+            &mut handler.transitions,
         );
     }
 }
@@ -182,12 +192,7 @@ impl OverlaidProcessor {
             },
         )?;
 
-        run::run(
-            8,
-            self.0.db.clone(),
-            self.0.creator.clone(),
-            &mut handler.transitions,
-        );
+        self.0.process_queue(&mut handler);
 
         let res = handler
             .transitions

@@ -128,11 +128,20 @@ impl Service {
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
-                num_workers: config.num_workers,
+                worker_threads_override: config.worker_threads_override,
+                virtual_threads: config.virtual_threads,
             },
             db.clone(),
         )?;
-        log::info!("⚙️ Num workers: {}", processor.nuw_workers());
+
+        if let Some(worker_threads) = processor.config().worker_threads_override {
+            log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
+        }
+
+        log::info!(
+            "🔧 Amount of virtual threads for programs processing: {}",
+            processor.config().virtual_threads
+        );
 
         let signer = ethexe_signer::Signer::new(config.key_path.clone())?;
 
@@ -914,7 +923,8 @@ mod tests {
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
-            num_workers: 1,
+            worker_threads_override: None,
+            virtual_threads: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
@@ -942,7 +952,8 @@ mod tests {
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
-            num_workers: 1,
+            worker_threads_override: None,
+            virtual_threads: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),

@@ -28,6 +28,7 @@ pub(crate) mod events;
 pub(crate) mod run;
 
 pub struct ProcessingHandler {
+    pub block_hash: H256,
     pub db: Database,
     pub transitions: InBlockTransitions,
 }
@@ -70,6 +71,7 @@ impl Processor {
         let transitions = InBlockTransitions::new(header, states, schedule);
 
         Ok(ProcessingHandler {
+            block_hash,
             db: self.db.clone(),
             transitions,
         })

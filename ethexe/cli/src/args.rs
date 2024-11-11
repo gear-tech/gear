@@ -28,7 +28,7 @@ use ethexe_ethereum::Ethereum;
 use ethexe_signer::Address;
 use gprimitives::CodeId;
 use serde::Deserialize;
-use std::{fs, path::PathBuf};
+use std::{fs, num::NonZero, path::PathBuf};
 
 #[derive(Clone, Debug, Parser, Deserialize)]
 #[command(version, about, long_about = None)]
@@ -86,9 +86,15 @@ pub struct Args {
     #[arg(long, default_value = "12")]
     pub block_time: u64,
 
-    /// Amount of threads to be used.
+    /// Amount of physical threads tokio runtime will use for program processing.
+    ///
+    /// The default value is the number of cores available to the system.
+    #[arg(long = "worker-threads")]
+    pub worker_threads_override: Option<NonZero<u8>>,
+
+    /// Amount of virtual threads (workers) for programs processing.
     #[arg(long, default_value = "16")]
-    pub num_workers: u8,
+    pub virtual_threads: NonZero<u8>,
 
     /// Run a temporary node.
     ///
