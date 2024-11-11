@@ -61,7 +61,11 @@ library ScaleCodec {
     }
 
     // This function is supposed to be used for checking if the data is prefixed with the given prefix.
-    function isBytesPrefixedWith(bytes memory prefix, bytes memory data, uint256 dataOffset) public pure returns (bool) {
+    function isBytesPrefixedWith(bytes memory prefix, bytes memory data, uint256 dataOffset)
+        public
+        pure
+        returns (bool)
+    {
         for (uint256 i = 0; i < prefix.length; i++) {
             if (prefix[i] != data[i + dataOffset]) {
                 return false;
