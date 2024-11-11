@@ -126,7 +126,7 @@ jobs:
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profiles.flags }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
