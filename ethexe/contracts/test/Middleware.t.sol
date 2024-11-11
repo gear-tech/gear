@@ -48,9 +48,14 @@ contract MiddlewareTest is Test {
 
         wrappedVara.mint(owner, 1_000_000);
 
-        Middleware.MiddlewareConfig memory cfg = Middleware.MiddlewareConfig({
+        Middleware.Config memory cfg = Middleware.Config({
             eraDuration: eraDuration,
+            minVaultEpochDuration: eraDuration * 2,
+            operatoraGracePeriod: eraDuration * 2,
+            vaultGracePeriod: eraDuration * 2,
             minVetoDuration: eraDuration / 3,
+            minSlashExecutionDelay: eraDuration / 3,
+            maxResolverSetEpochsDelay: type(uint256).max,
             vaultRegistry: address(sym.vaultFactory()),
             allowedVaultImplVersion: sym.vaultFactory().lastVersion(),
             vetoSlasherImplType: 1,
@@ -69,15 +74,8 @@ contract MiddlewareTest is Test {
 
     // TODO: sync with the latest version of the middleware
     function test_constructor() public view {
-        assertEq(uint256(middleware.ERA_DURATION()), eraDuration);
-        assertEq(uint256(middleware.GENESIS_TIMESTAMP()), Time.timestamp());
-        assertEq(uint256(middleware.OPERATOR_GRACE_PERIOD()), eraDuration * 2);
-        assertEq(uint256(middleware.VAULT_GRACE_PERIOD()), eraDuration * 2);
-        assertEq(uint256(middleware.VAULT_MIN_EPOCH_DURATION()), eraDuration * 2);
-        assertEq(middleware.OPERATOR_REGISTRY(), address(sym.operatorRegistry()));
-        assertEq(middleware.COLLATERAL(), address(wrappedVara));
-
         sym.networkRegistry().isEntity(address(middleware));
+        assertEq(sym.networkMiddlewareService().middleware(address(middleware)), address(middleware));
     }
 
     // TODO: split to multiple tests
@@ -557,7 +555,7 @@ contract MiddlewareTest is Test {
 
             // Set initial network limit
             IOperatorSpecificDelegator(IVault(vault).delegator()).setNetworkLimit(
-                middleware.SUBNETWORK(), type(uint256).max
+                middleware.subnetwork(), type(uint256).max
             );
 
             vm.stopPrank();
