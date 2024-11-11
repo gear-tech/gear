@@ -291,12 +291,7 @@ fn ping_pong() {
         )
         .expect("failed to send message");
 
-    run::run(
-        8,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut handler.transitions,
-    );
+    processor.process_queue(&mut handler);
 
     let to_users = handler.transitions.current_messages();
 
@@ -412,12 +407,7 @@ fn async_and_ping() {
         )
         .expect("failed to send message");
 
-    run::run(
-        8,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut handler.transitions,
-    );
+    processor.process_queue(&mut handler);
 
     let to_users = handler.transitions.current_messages();
 
@@ -439,8 +429,6 @@ fn async_and_ping() {
 #[test]
 fn many_waits() {
     init_logger();
-
-    let threads_amount = 8;
 
     let wat = r#"
         (module
@@ -519,12 +507,8 @@ fn many_waits() {
     }
 
     handler.run_schedule();
-    run::run(
-        threads_amount,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut handler.transitions,
-    );
+    processor.process_queue(&mut handler);
+
     assert_eq!(
         handler.transitions.current_messages().len(),
         amount as usize
@@ -544,12 +528,8 @@ fn many_waits() {
             .expect("failed to send message");
     }
 
-    run::run(
-        threads_amount,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut handler.transitions,
-    );
+    processor.process_queue(&mut handler);
+
     // unchanged
     assert_eq!(
         handler.transitions.current_messages().len(),
@@ -604,14 +584,8 @@ fn many_waits() {
     }
 
     let mut handler = processor.handler(ch11).unwrap();
-
     handler.run_schedule();
-    run::run(
-        threads_amount,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut handler.transitions,
-    );
+    processor.process_queue(&mut handler);
 
     assert_eq!(
         handler.transitions.current_messages().len(),
