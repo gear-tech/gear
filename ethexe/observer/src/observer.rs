@@ -108,6 +108,7 @@ macro_rules! define_event_stream_method {
             async_stream::stream! {
                 let blocks_subscription = match maybe_subscription {
                     Some(subscription) => subscription,
+                    // TODO #4335: always subscribe blocks when Observer is created.
                     None => observer
                         .subscribe_blocks()
                         .await
