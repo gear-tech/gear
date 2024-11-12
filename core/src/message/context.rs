@@ -144,8 +144,9 @@ impl ContextOutcome {
 /// Store of current temporary message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct OutgoingPayloads {
-    outgoing: BTreeMap<u32, Option<Payload>>,
+    handles: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
+    bytes_counter: u32,
 }
 
 /// Store of previous message execution context.
@@ -216,7 +217,6 @@ pub struct MessageContext {
     store: ContextStore,
     outgoing_payloads: OutgoingPayloads,
     settings: ContextSettings,
-    outgoing_bytes_counter: u32,
 }
 
 impl MessageContext {
@@ -236,9 +236,6 @@ impl MessageContext {
             store: store.unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
             settings,
-            // message context *always* starts with zero bytes outgoing. Before it could be non-zero and eventually
-            // overflow the current limit but now we do not save state between executions
-            outgoing_bytes_counter: 0,
         })
     }
 
@@ -291,7 +288,7 @@ impl MessageContext {
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
         let message = InitMessage::from_packet(message_id, packet);
         self.store.local_nonce += 1;
-        self.outgoing_payloads.outgoing.insert(last, None);
+        self.outgoing_payloads.handles.insert(last, None);
         self.store.initialized.insert(program_id);
         self.outcome.init.push((message, delay, None));
 
@@ -311,14 +308,14 @@ impl MessageContext {
     ) -> Result<MessageId, Error> {
         let outgoing = self
             .outgoing_payloads
-            .outgoing
+            .handles
             .get_mut(&handle)
             .ok_or(Error::OutOfBounds)?;
         let data = outgoing.take().ok_or(Error::LateAccess)?;
 
         let do_send_commit = || {
             let Some(new_outgoing_bytes) = Self::increase_counter(
-                self.outgoing_bytes_counter,
+                self.outgoing_payloads.bytes_counter,
                 packet.payload_len(),
                 self.settings.outgoing_bytes_limit,
             ) else {
@@ -341,7 +338,7 @@ impl MessageContext {
             // store outgoing messages (see `Self::new`),
             // so committed during this execution messages won't be taken into account
             // during next executions.
-            self.outgoing_bytes_counter = new_outgoing_bytes;
+            self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
 
             Ok(message_id)
         };
@@ -360,7 +357,7 @@ impl MessageContext {
         if last < self.settings.outgoing_limit {
             self.store.local_nonce += 1;
             self.outgoing_payloads
-                .outgoing
+                .handles
                 .insert(last, Some(Default::default()));
 
             Ok(last)
@@ -371,14 +368,14 @@ impl MessageContext {
 
     /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
-        let data = match self.outgoing_payloads.outgoing.get_mut(&handle) {
+        let data = match self.outgoing_payloads.handles.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
             None => return Err(Error::OutOfBounds),
         };
 
         let new_outgoing_bytes = Self::increase_counter(
-            self.outgoing_bytes_counter,
+            self.outgoing_payloads.bytes_counter,
             buffer.len(),
             self.settings.outgoing_bytes_limit,
         )
@@ -387,14 +384,14 @@ impl MessageContext {
         data.try_extend_from_slice(buffer)
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
-        self.outgoing_bytes_counter = new_outgoing_bytes;
+        self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
 
         Ok(())
     }
 
     /// Pushes the incoming buffer/payload into stored payload by handle.
     pub fn send_push_input(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
-        let data = match self.outgoing_payloads.outgoing.get_mut(&handle) {
+        let data = match self.outgoing_payloads.handles.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
             None => return Err(Error::OutOfBounds),
@@ -407,7 +404,7 @@ impl MessageContext {
         } = range;
 
         let new_outgoing_bytes = Self::increase_counter(
-            self.outgoing_bytes_counter,
+            self.outgoing_payloads.bytes_counter,
             bytes_amount,
             self.settings.outgoing_bytes_limit,
         )
@@ -416,7 +413,7 @@ impl MessageContext {
         data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
-        self.outgoing_bytes_counter = new_outgoing_bytes;
+        self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
 
         Ok(())
     }
@@ -1003,7 +1000,7 @@ mod tests {
         // And checking that it is not formed
         assert!(context
             .outgoing_payloads
-            .outgoing
+            .handles
             .get(&expected_handle)
             .expect("This key should be")
             .is_some());
