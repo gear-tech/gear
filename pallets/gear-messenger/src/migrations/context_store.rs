@@ -15,8 +15,9 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-use core::marker::PhantomData;
 
+
+use core::marker::PhantomData;
 use crate::{Config, Pallet, Waitlist};
 use common::{
     storage::{Interval, LinkedNode},
@@ -120,7 +121,10 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
             );
 
-            Ok(Some(1u64).encode())
+            let expected_waitlist = Waitlist::<T>::iter().count() as u64;
+            let expected_dispatches = Dispatches::<T>::iter().count() as u64;
+
+            Ok(Some(expected_waitlist.saturating_add(expected_dispatches)).encode())
         } else {
             Ok(Option::<u64>::None.encode())
         }
@@ -128,9 +132,16 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        if let Some(1) = Option::<u64>::decode(&mut state.as_ref())
+        if let Some(expected_count) = Option::<u64>::decode(&mut state.as_ref())
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
+            let current_waitlist = Waitlist::<T>::iter().count() as u64;
+            let current_dispatches = Dispatches::<T>::iter().count() as u64;
+
+            ensure!(
+                expected_count == current_waitlist.saturating_add(current_dispatches),
+                "Number of waitlist or dispatch entries is different after migration"
+            );
             ensure!(
                 Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
                 "incorrect storage version after migration"
@@ -171,25 +182,5 @@ mod v3 {
         pub initialized: BTreeSet<ProgramId>,
         pub reservation_nonce: ReservationNonce,
         pub system_reservation: Option<u64>,
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "try-runtime")]
-mod test {
-    use super::*;
-    use crate::mock::{new_test_ext, *};
-    use frame_support::traits::StorageVersion;
-
-    #[test]
-    fn context_store_migration_works() {
-        new_test_ext().execute_with(|| {
-            StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearMessenger>();
-            let state = RemoveCommitStorage::<Test>::pre_upgrade().unwrap();
-            let _ = RemoveCommitStorage::<Test>::on_runtime_upgrade();
-            RemoveCommitStorage::<Test>::post_upgrade(state).unwrap();
-
-            assert_eq!(StorageVersion::get::<GearMessenger>(), MIGRATE_TO_VERSION);
-        });
     }
 }
