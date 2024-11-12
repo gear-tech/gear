@@ -28,6 +28,7 @@ use {
         codec::{Decode, Encode},
         TryRuntimeError,
     },
+    sp_std::vec,
     sp_std::vec::Vec,
 };
 
