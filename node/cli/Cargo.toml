@@ -33,7 +33,7 @@ pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
 
 # Gear Runtimes
-vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
+vara-runtime = { workspace = true, optional = true, features = ["std", "dev", "metadata-hash"] }
 
 # Substrate client
 sc-cli.workspace = true
@@ -51,6 +51,7 @@ sp-timestamp = { workspace = true, features = ["std"] }
 
 # Substrate other (benchmarking etc)
 frame-system = { workspace = true, features = ["std"] }
+frame-metadata-hash-extension = { workspace = true, features = ["std"] }
 frame-benchmarking = { workspace = true, optional = true, features = ["std"] }
 frame-benchmarking-cli = { workspace = true, optional = true }
 
