@@ -824,7 +824,10 @@ mod utils {
                     (rpc_url, None)
                 }
                 Err(_) => {
-                    let anvil = Anvil::new().try_spawn().unwrap();
+                    let anvil = Anvil::new()
+                        .block_time(block_time.as_secs())
+                        .try_spawn()
+                        .unwrap();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
@@ -1334,9 +1337,6 @@ mod utils {
             let service_pending_run = service.pending_run().await;
             let handle = task::spawn(service_pending_run.complete_run());
             self.running_service_handle = Some(handle);
-
-            // Sleep to wait for the new service to start
-            tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
         pub async fn stop_service(&mut self) {
