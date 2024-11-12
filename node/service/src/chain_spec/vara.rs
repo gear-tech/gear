@@ -34,7 +34,7 @@ use vara_runtime::{
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
-pub type ChainSpec = sc_service::GenericChainSpec<(), Extensions>;
+pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
 
 /// Returns the [`Properties`] for the Vara network.
 pub fn vara_properties() -> Properties {

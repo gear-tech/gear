@@ -18,10 +18,7 @@
 
 //! This module is used to add custom runtime irrelevant RPC endpoints to the node.
 
-use jsonrpsee::{
-    core::{Error as RpcError, RpcResult},
-    proc_macros::rpc,
-};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, types::ErrorObjectOwned};
 use sc_client_api::StorageProvider;
 use sc_executor_common::runtime_blob::RuntimeBlob;
 use sp_blockchain::HeaderBackend;
@@ -92,12 +89,12 @@ where
     }
 }
 
-fn map_err_into_rpc_err(err: impl std::fmt::Debug) -> RpcError {
+fn map_err_into_rpc_err(err: impl std::fmt::Debug) -> ErrorObjectOwned {
     rpc_err("Runtime info error", Some(format!("{err:?}")))
 }
 
-fn rpc_err(message: &str, data: Option<String>) -> RpcError {
-    use jsonrpsee::types::error::{CallError, ErrorObject};
+fn rpc_err(message: &str, data: Option<String>) -> ErrorObjectOwned {
+    use jsonrpsee::types::error::ErrorObject;
 
-    CallError::Custom(ErrorObject::owned(9000, message, data)).into()
+    ErrorObject::owned(9000, message, data)
 }

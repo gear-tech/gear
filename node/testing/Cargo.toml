@@ -51,7 +51,7 @@ sp-std.workspace = true
 # Substrate Other
 frame-system.workspace = true
 frame-support.workspace = true
-frame-benchmarking.workspace = true
+frame-metadata-hash-extension.workspace = true
 
 [features]
 default = ["std"]
@@ -69,6 +69,5 @@ std = [
     "sp-std/std",
     "frame-system/std",
     "frame-support/std",
-    "frame-benchmarking/std",
     "vara-runtime/std",
 ]

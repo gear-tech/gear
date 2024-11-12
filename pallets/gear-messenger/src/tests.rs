@@ -244,7 +244,7 @@ fn queue_works() {
         assert_eq!(DequeuedOf::get(), 2);
         assert_eq!(QueueOf::len(), 2);
 
-        // Push front used only for requeueing element,
+        // Push front used only for requeuing element,
         // which was already in queue in current block,
         // because it decreased dequeued amount.
         assert!(QueueProcessingOf::allowed());
