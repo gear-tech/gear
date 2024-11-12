@@ -104,7 +104,7 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let current = Pallet::<T>::current_storage_version();
+        let current = Pallet::<T>::in_code_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
         if onchain == MIGRATE_FROM_VERSION {
