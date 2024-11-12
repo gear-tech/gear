@@ -65,7 +65,7 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
         let mut counter = 0;
 
         if onchain == MIGRATE_FROM_VERSION {
-            let current = Pallet::<T>::current_storage_version();
+            let current = Pallet::<T>::in_code_storage_version();
             if current != ALLOWED_CURRENT_STORAGE_VERSION {
                 log::error!("❌ Migration is not allowed for current storage version {current:?}.");
                 return weight;

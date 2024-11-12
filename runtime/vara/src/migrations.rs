@@ -25,6 +25,7 @@ pub type Migrations = (
     pallet_staking::migrations::v15::MigrateV14ToV15<Runtime>,
     pallet_nomination_pools::migration::versioned::V7ToV8<Runtime>,
     CleanupFellowshipIndex<Runtime>,
+    pallet_gear_messenger::migrations::context_store::RemoveCommitStorage<Runtime>,
 );
 
 pub struct CleanupFellowshipIndex<

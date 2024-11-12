@@ -143,7 +143,7 @@ impl ContextOutcome {
 }
 /// Store of current temporary message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct TmpStore {
+pub struct OutgoingPayloads {
     outgoing: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
 }
@@ -156,7 +156,7 @@ pub struct ContextStore {
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
     /// Used to prevent creating messages with the same ID in DB. Before this was achieved by using `outgoing.len()`
-    /// but now it is moved to [TmpStore] thus we need to keep nonce here. Now to calculate nonce we do `local_nonce + tmp_store.outgoing.len()`
+    /// but now it is moved to [OutgoingPayloads] thus we need to keep nonce here. Now to calculate nonce we do `local_nonce + tmp_store.outgoing.len()`
     /// and we update `local_nonce` once message context is drained.
     local_nonce: u32,
 }
@@ -214,7 +214,7 @@ pub struct MessageContext {
     current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
-    tmp_store: TmpStore,
+    tmp_store: OutgoingPayloads,
     settings: ContextSettings,
     outgoing_bytes_counter: u32,
 }
@@ -234,7 +234,7 @@ impl MessageContext {
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
-            tmp_store: TmpStore::default(),
+            tmp_store: OutgoingPayloads::default(),
             settings,
             // message context *always* starts with zero bytes outgoing. Before it could be non-zero and eventually
             // overflow the current limit but now we do not save state between executions
@@ -374,10 +374,7 @@ impl MessageContext {
         let data = match self.tmp_store.outgoing.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
-            None => {
-                //            debug!("OOB: {:#?}", backtrace::Backtrace::new().frames());
-                return Err(Error::OutOfBounds);
-            }
+            None => return Err(Error::OutOfBounds),
         };
 
         let new_outgoing_bytes = Self::increase_counter(
@@ -815,31 +812,6 @@ mod tests {
             Error::OutgoingMessagesBytesLimitExceeded,
         );
     }
-    /*     #[test]
-    fn create_wrong_context() {
-        let context_store = ContextStore {
-            initialized: BTreeSet::new(),
-            reservation_nonce: ReservationNonce::default(),
-            system_reservation: None,
-            local_nonce: 0,
-        };
-
-        let incoming_dispatch = IncomingDispatch::new(
-            DispatchKind::Handle,
-            Default::default(),
-            Some(context_store),
-        );
-
-        let ctx = MessageContext::new(
-            incoming_dispatch,
-            Default::default(),
-            ContextSettings::with_outgoing_limits(1024, 1),
-        );
-
-        // Creating a message context must return None,
-        // because of the outgoing messages bytes limit exceeded.
-        assert!(ctx.is_none(), "Expect None, got {:?}", ctx);
-    }*/
 
     #[test]
     fn outgoing_limit_exceeded() {
