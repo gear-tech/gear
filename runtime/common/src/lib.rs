@@ -113,7 +113,7 @@ where
     <R as frame_system::Config>::AccountId: From<AccountId>,
     <R as frame_system::Config>::AccountId: Into<AccountId>,
 {
-    fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
+    fn on_unbalanceds(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
         use pallet_treasury::Pallet as Treasury;
 
         if let Some(fees) = fees_then_tips.next() {

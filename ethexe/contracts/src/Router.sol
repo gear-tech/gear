@@ -11,6 +11,7 @@ import {IRouter} from "./IRouter.sol";
 import {IMirror} from "./IMirror.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     using ECDSA for bytes32;
@@ -297,7 +298,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(router.codes[codeId] == CodeState.Validated, "code must be validated before program creation");
 
         uint128 baseFeeValue = baseFee();
-        uint128 executableBalance = baseFeeValue * 10;
+
+        // By default get 10 WVara for executable balance.
+        uint128 executableBalance = uint128(10 ** IERC20Metadata(router.wrappedVara).decimals());
 
         uint128 totalValue = baseFeeValue + executableBalance + _value;
 

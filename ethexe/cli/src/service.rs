@@ -33,7 +33,7 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
 use ethexe_network::{db_sync, NetworkReceiverEvent};
 use ethexe_observer::{EventsStreamProducer, RequestBlockData, RequestEvent};
-use ethexe_processor::LocalOutcome;
+use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
@@ -128,7 +128,22 @@ impl Service {
         )
         .await?;
 
-        let processor = ethexe_processor::Processor::new(db.clone())?;
+        let processor = ethexe_processor::Processor::with_config(
+            ProcessorConfig {
+                worker_threads_override: config.worker_threads_override,
+                virtual_threads: config.virtual_threads,
+            },
+            db.clone(),
+        )?;
+
+        if let Some(worker_threads) = processor.config().worker_threads_override {
+            log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
+        }
+
+        log::info!(
+            "🔧 Amount of virtual threads for programs processing: {}",
+            processor.config().virtual_threads
+        );
 
         let signer = ethexe_signer::Signer::new(config.key_path.clone())?;
 
@@ -181,8 +196,9 @@ impl Service {
             .transpose()?;
 
         let rpc = config
-            .rpc_port
-            .map(|port| ethexe_rpc::RpcService::new(port, db.clone()));
+            .rpc_config
+            .as_ref()
+            .map(|config| ethexe_rpc::RpcService::new(config.clone(), db.clone()));
 
         Ok(Self {
             db,
@@ -458,8 +474,10 @@ impl Service {
             };
 
         let mut rpc_handle = if let Some(rpc) = rpc {
-            let (rpc_run, rpc_port) = rpc.run_server().await?;
-            log::info!("🌐 Rpc server started at: {}", rpc_port);
+            log::info!("🌐 Rpc server starting at: {}", rpc.port());
+
+            let rpc_run = rpc.run_server().await?;
+
             Some(tokio::spawn(rpc_run.stopped()))
         } else {
             None
@@ -946,6 +964,7 @@ mod utils {
 mod tests {
     use super::Service;
     use crate::config::{Config, PrometheusConfig};
+    use ethexe_rpc::RpcConfig;
     use std::{
         net::{Ipv4Addr, SocketAddr},
         time::Duration,
@@ -971,6 +990,8 @@ mod tests {
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            worker_threads_override: None,
+            virtual_threads: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
@@ -981,7 +1002,9 @@ mod tests {
                 SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
                 "dev".to_string(),
             )),
-            rpc_port: Some(9090),
+            rpc_config: Some(RpcConfig {
+                listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+            }),
         })
         .await
         .unwrap();
@@ -996,6 +1019,8 @@ mod tests {
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            worker_threads_override: None,
+            virtual_threads: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
@@ -1003,7 +1028,7 @@ mod tests {
             sender_address: Default::default(),
             net_config: None,
             prometheus_config: None,
-            rpc_port: None,
+            rpc_config: None,
         })
         .await
         .unwrap();

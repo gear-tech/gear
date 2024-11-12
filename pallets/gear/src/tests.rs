@@ -16047,7 +16047,7 @@ pub(crate) mod utils {
     ) where
         B: Into<BalanceOf<Test>> + Copy,
     {
-        let account_id = origin.cast();
+        let account_id: u64 = origin.cast();
         let available = available.into();
         let locked = locked.into();
         let reserved = reserved.into();
@@ -16059,7 +16059,7 @@ pub(crate) mod utils {
             "Free balance of {available} + {locked} (available + locked)"
         );
         assert_eq!(account_data.frozen, locked, "Frozen balance");
-        let maybe_ed = Balances::locks(account_id)
+        let maybe_ed = Balances::locks(&account_id)
             .into_iter()
             .filter_map(|lock| {
                 if lock.id == EXISTENTIAL_DEPOSIT_LOCK_ID {

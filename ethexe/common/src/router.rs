@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
-use gear_core::message::{Message, ReplyDetails};
+use gear_core::message::{ReplyDetails, StoredMessage};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 
 /* Storage related structures */
 
@@ -73,9 +74,9 @@ pub struct OutgoingMessage {
     pub reply_details: Option<ReplyDetails>,
 }
 
-impl From<Message> for OutgoingMessage {
-    fn from(value: Message) -> Self {
-        let (id, _source, destination, payload, _gas_limit, value, details) = value.into_parts();
+impl From<StoredMessage> for OutgoingMessage {
+    fn from(value: StoredMessage) -> Self {
+        let (id, _source, destination, payload, value, details) = value.into_parts();
         Self {
             id,
             destination,
@@ -142,7 +143,7 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RequestEvent {
     BaseWeightChanged {
         base_weight: u64,
