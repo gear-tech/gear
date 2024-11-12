@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
-use core::marker::PhantomData;
 use crate::{Config, Pallet, Waitlist};
 use common::{
     storage::{Interval, LinkedNode},
     MessageId,
 };
+use core::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
