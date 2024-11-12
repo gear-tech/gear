@@ -1334,6 +1334,9 @@ mod utils {
             let service_pending_run = service.pending_run().await;
             let handle = task::spawn(service_pending_run.complete_run());
             self.running_service_handle = Some(handle);
+
+            // Sleep to wait for the new service to start
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
         pub async fn stop_service(&mut self) {
