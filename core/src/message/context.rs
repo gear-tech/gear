@@ -156,8 +156,8 @@ pub struct ContextStore {
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
     /// Used to prevent creating messages with the same ID in DB. Before this was achieved by using `outgoing.len()`
-    /// but now it is moved to [OutgoingPayloads] thus we need to keep nonce here. Now to calculate nonce we do `local_nonce + tmp_store.outgoing.len()`
-    /// and we update `local_nonce` once message context is drained.
+    /// but now it is moved to [OutgoingPayloads] thus we need to keep nonce here. Now to calculate nonce we simple increment `local_nonce`
+    /// in each `init` call.
     local_nonce: u32,
 }
 
@@ -214,7 +214,7 @@ pub struct MessageContext {
     current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
-    tmp_store: OutgoingPayloads,
+    outgoing_payloads: OutgoingPayloads,
     settings: ContextSettings,
     outgoing_bytes_counter: u32,
 }
@@ -234,7 +234,7 @@ impl MessageContext {
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
-            tmp_store: OutgoingPayloads::default(),
+            outgoing_payloads: OutgoingPayloads::default(),
             settings,
             // message context *always* starts with zero bytes outgoing. Before it could be non-zero and eventually
             // overflow the current limit but now we do not save state between executions
@@ -282,7 +282,7 @@ impl MessageContext {
             return Err(Error::DuplicateInit);
         }
 
-        let last = self.store.local_nonce + self.tmp_store.outgoing.len() as u32;
+        let last = self.store.local_nonce;
 
         if last >= self.settings.outgoing_limit {
             return Err(Error::OutgoingMessagesAmountLimitExceeded);
@@ -290,8 +290,8 @@ impl MessageContext {
 
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
         let message = InitMessage::from_packet(message_id, packet);
-
-        self.tmp_store.outgoing.insert(last, None);
+        self.store.local_nonce += 1;
+        self.outgoing_payloads.outgoing.insert(last, None);
         self.store.initialized.insert(program_id);
         self.outcome.init.push((message, delay, None));
 
@@ -310,7 +310,7 @@ impl MessageContext {
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
         let outgoing = self
-            .tmp_store
+            .outgoing_payloads
             .outgoing
             .get_mut(&handle)
             .ok_or(Error::OutOfBounds)?;
@@ -356,10 +356,10 @@ impl MessageContext {
     ///
     /// Returns it's handle.
     pub fn send_init(&mut self) -> Result<u32, Error> {
-        let last = self.store.local_nonce + self.tmp_store.outgoing.len() as u32;
-
+        let last = self.store.local_nonce;
         if last < self.settings.outgoing_limit {
-            self.tmp_store
+            self.store.local_nonce += 1;
+            self.outgoing_payloads
                 .outgoing
                 .insert(last, Some(Default::default()));
 
@@ -371,7 +371,7 @@ impl MessageContext {
 
     /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
-        let data = match self.tmp_store.outgoing.get_mut(&handle) {
+        let data = match self.outgoing_payloads.outgoing.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
             None => return Err(Error::OutOfBounds),
@@ -394,7 +394,7 @@ impl MessageContext {
 
     /// Pushes the incoming buffer/payload into stored payload by handle.
     pub fn send_push_input(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
-        let data = match self.tmp_store.outgoing.get_mut(&handle) {
+        let data = match self.outgoing_payloads.outgoing.get_mut(&handle) {
             Some(Some(data)) => data,
             Some(None) => return Err(Error::LateAccess),
             None => return Err(Error::OutOfBounds),
@@ -463,10 +463,10 @@ impl MessageContext {
             return Err(Error::DuplicateReply.into());
         }
 
-        let data = self.tmp_store.reply.take().unwrap_or_default();
+        let data = self.outgoing_payloads.reply.take().unwrap_or_default();
 
         if let Err(data) = packet.try_prepend(data) {
-            self.tmp_store.reply = Some(data);
+            self.outgoing_payloads.reply = Some(data);
             return Err(Error::MaxMessageSizeExceed.into());
         }
 
@@ -487,7 +487,7 @@ impl MessageContext {
         }
 
         // NOTE: it's normal to not undone `get_or_insert_with` in case of error
-        self.tmp_store
+        self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
             .try_extend_from_slice(buffer)
@@ -513,7 +513,7 @@ impl MessageContext {
         } = range;
 
         // NOTE: it's normal to not undone `get_or_insert_with` in case of error
-        self.tmp_store
+        self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
             .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
@@ -580,8 +580,7 @@ impl MessageContext {
     }
 
     /// Destructs context after execution and returns provided outcome and store.
-    pub fn drain(mut self) -> (ContextOutcome, ContextStore) {
-        self.store.local_nonce += self.tmp_store.outgoing.len() as u32;
+    pub fn drain(self) -> (ContextOutcome, ContextStore) {
         let Self { outcome, store, .. } = self;
 
         (outcome, store)
@@ -1003,7 +1002,7 @@ mod tests {
 
         // And checking that it is not formed
         assert!(context
-            .tmp_store
+            .outgoing_payloads
             .outgoing
             .get(&expected_handle)
             .expect("This key should be")
