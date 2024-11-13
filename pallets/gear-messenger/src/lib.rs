@@ -145,6 +145,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migrations;
 pub mod pallet_tests;
 
 // Public exports from pallet.
@@ -166,7 +167,7 @@ pub mod pallet {
     use sp_std::{convert::TryInto, marker::PhantomData};
 
     /// The current storage version.
-    pub(crate) const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+    pub(crate) const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
     // Gear Messenger Pallet's `Config`.
     #[pallet::config]
