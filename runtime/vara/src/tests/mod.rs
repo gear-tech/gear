@@ -23,7 +23,7 @@ use crate::Runtime;
 
 use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
-use gear_core::costs::LazyPagesCosts;
+use gear_core::costs::{IoCosts, LazyPagesCosts, PagesCosts};
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
@@ -321,18 +321,17 @@ fn syscall_weights_test() {
 
 #[test]
 fn page_costs_heuristic_test() {
-    let page_costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let io_costs: IoCosts = MemoryWeights::<Runtime>::default().into();
 
-    let expected_page_costs = LazyPagesCosts {
+    let expected_page_costs = PagesCosts {
         load_page_data: 9_000_000.into(),
         upload_page_data: 105_000_000.into(),
         mem_grow: 800_000.into(),
         mem_grow_per_page: 0.into(),
         parachain_read_heuristic: 0.into(),
-        ..Default::default()
     };
 
-    let result = check_pages_costs(page_costs, expected_page_costs);
+    let result = check_pages_costs(io_costs.common, expected_page_costs);
 
     assert!(result.is_ok(), "{:#?}", result.err().unwrap());
     assert_eq!(result.unwrap(), expected_pages_costs_count());
@@ -340,7 +339,7 @@ fn page_costs_heuristic_test() {
 
 #[test]
 fn lazy_page_costs_heuristic_test() {
-    let lazy_pages_costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let io_costs: IoCosts = MemoryWeights::<Runtime>::default().into();
 
     let expected_lazy_pages_costs = LazyPagesCosts {
         signal_read: 28_000_000.into(),
@@ -350,10 +349,9 @@ fn lazy_page_costs_heuristic_test() {
         host_func_write: 137_000_000.into(),
         host_func_write_after_read: 112_000_000.into(),
         load_page_storage_data: 9_000_000.into(),
-        ..Default::default()
     };
 
-    let result = check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
+    let result = check_lazy_pages_costs(io_costs.lazy_pages, expected_lazy_pages_costs);
 
     assert!(result.is_ok(), "{:#?}", result.err().unwrap());
     assert_eq!(result.unwrap(), expected_lazy_pages_costs_count());
@@ -363,14 +361,21 @@ fn lazy_page_costs_heuristic_test() {
 /// because this may cause runtime heap memory overflow.
 #[test]
 fn write_is_not_too_cheap() {
-    let costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let costs: IoCosts = MemoryWeights::<Runtime>::default().into();
     let cheapest_write = u64::MAX
-        .min(costs.signal_write.cost_for_one())
-        .min(costs.signal_read.cost_for_one() + costs.signal_write_after_read.cost_for_one())
-        .min(costs.host_func_write.cost_for_one())
-        .min(costs.host_func_read.cost_for_one() + costs.host_func_write_after_read.cost_for_one());
+        .min(costs.lazy_pages.signal_write.cost_for_one())
+        .min(
+            costs.lazy_pages.signal_read.cost_for_one()
+                + costs.lazy_pages.signal_write_after_read.cost_for_one(),
+        )
+        .min(costs.lazy_pages.host_func_write.cost_for_one())
+        .min(
+            costs.lazy_pages.host_func_read.cost_for_one()
+                + costs.lazy_pages.host_func_write_after_read.cost_for_one(),
+        );
 
     let block_max_gas = 3 * 10 ^ 12; // 3 seconds
     let runtime_heap_size_in_wasm_pages = 0x4000; // 1GB
+
     assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }

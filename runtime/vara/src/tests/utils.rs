@@ -19,7 +19,7 @@
 use super::*;
 use crate::Runtime;
 
-use gear_core::costs::LazyPagesCosts;
+use gear_core::costs::{IoCosts, LazyPagesCosts, PagesCosts};
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 
 const INSTRUCTIONS_SPREAD: u8 = 50;
@@ -252,21 +252,16 @@ pub(super) fn expected_syscall_weights_count() -> usize {
 }
 
 pub(super) fn expected_pages_costs_count() -> usize {
-    let LazyPagesCosts {
-        // Fields for lazy pages costs
-        signal_read: _,
-        signal_write: _,
-        signal_write_after_read: _,
-        host_func_read: _,
-        host_func_write: _,
-        host_func_write_after_read: _,
-        load_page_storage_data: _,
-        // Fields for pages costs
-        load_page_data: _,
-        upload_page_data: _,
-        mem_grow: _,
-        mem_grow_per_page: _,
-        parachain_read_heuristic: _,
+    let IoCosts {
+        lazy_pages: _,
+        common:
+            PagesCosts {
+                load_page_data: _,
+                upload_page_data: _,
+                mem_grow: _,
+                mem_grow_per_page: _,
+                parachain_read_heuristic: _,
+            },
     } = MemoryWeights::<Runtime>::default().into();
 
     // total number of lazy pages costs
@@ -274,21 +269,18 @@ pub(super) fn expected_pages_costs_count() -> usize {
 }
 
 pub(super) fn expected_lazy_pages_costs_count() -> usize {
-    let LazyPagesCosts {
-        // Fields for lazy pages costs
-        signal_read: _,
-        signal_write: _,
-        signal_write_after_read: _,
-        host_func_read: _,
-        host_func_write: _,
-        host_func_write_after_read: _,
-        load_page_storage_data: _,
-        // Fields for pages costs
-        load_page_data: _,
-        upload_page_data: _,
-        mem_grow: _,
-        mem_grow_per_page: _,
-        parachain_read_heuristic: _,
+    let IoCosts {
+        common: _,
+        lazy_pages:
+            LazyPagesCosts {
+                signal_read: _,
+                signal_write: _,
+                signal_write_after_read: _,
+                host_func_read: _,
+                host_func_write: _,
+                host_func_write_after_read: _,
+                load_page_storage_data: _,
+            },
     } = MemoryWeights::<Runtime>::default().into();
 
     // total number of lazy pages costs
@@ -527,8 +519,8 @@ pub(super) fn check_lazy_pages_costs(
 
 /// Check that the pages costs are within the expected range
 pub(super) fn check_pages_costs(
-    page_costs: LazyPagesCosts,
-    expected_page_costs: LazyPagesCosts,
+    page_costs: PagesCosts,
+    expected_page_costs: PagesCosts,
 ) -> Result<usize, Vec<String>> {
     macro_rules! expectation {
         ($inst_name:ident) => {
