@@ -125,9 +125,8 @@ fn get_impl(
         // retrieve metadata without concurrency issues
         let mut file = File::options()
             .read(true)
-            .write(true)
-            .create(true)
             .append(true)
+            .create(true)
             .open(path)?;
         file.lock_exclusive()?;
 
