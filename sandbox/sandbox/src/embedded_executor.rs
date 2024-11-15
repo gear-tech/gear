@@ -429,11 +429,9 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module =
-            gear_wasmer_cache::get(store.engine(), code, cache_base_path()).map_err(|e| {
-                log::trace!(target: TARGET, "Failed to create module: {e}");
-                Error::Module
-            })?;
+        let module = gear_wasmer_cache::get(store.engine(), code, cache_base_path())
+            .inspect_err(|e| log::trace!(target: TARGET, "Failed to create module: {e}"))
+            .map_err(|_e| Error::Module)?;
         let mut imports = Imports::new();
 
         for import in module.imports() {

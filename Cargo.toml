@@ -548,6 +548,7 @@ glob = "0.3.1"                                               # cargo-gbuild
 smallvec = "1.13.2"                                          # utils/node-wrapper
 fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
+loom = "0.7.2"                                               # utils/gear-wasmer-cache
 
 [profile.dev.package.corosensei]
 opt-level = 3

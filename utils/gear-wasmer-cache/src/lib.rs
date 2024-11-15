@@ -25,11 +25,18 @@ use std::{
     io,
     io::{Read, Write},
     path::Path,
-    sync::{Mutex, OnceLock},
 };
 use uluru::LRUCache;
 use wasmer::{CompileError, Engine, Module, SerializeError};
 use wasmer_cache::Hash;
+
+cfg_if::cfg_if! {
+    if #[cfg(all(loom, test))] {
+        use loom::sync::Mutex;
+    } else {
+        use std::sync::Mutex;
+    }
+}
 
 type CachedModules = Mutex<LRUCache<CachedModule, 1024>>;
 
@@ -40,8 +47,17 @@ struct CachedModule {
 
 impl CachedModule {
     fn static_modules() -> &'static CachedModules {
-        static MODULES: OnceLock<CachedModules> = OnceLock::new();
-        MODULES.get_or_init(CachedModules::default)
+        cfg_if::cfg_if! {
+            if #[cfg(all(loom, test))] {
+                loom::lazy_static! {
+                    static ref MODULES: CachedModules = CachedModules::default();
+                }
+                &*MODULES
+            } else {
+                static MODULES: std::sync::OnceLock<CachedModules> = std::sync::OnceLock::new();
+                MODULES.get_or_init(CachedModules::default)
+            }
+        }
     }
 }
 
@@ -123,4 +139,40 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
     };
 
     Ok(module)
+}
+
+#[cfg(loom)]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use demo_constructor::WASM_BINARY;
+    use loom::thread;
+
+    #[test]
+    fn loom_environment() {
+        loom::model(|| {
+            let engine = Engine::default();
+            let temp_dir = tempfile::tempdir().unwrap();
+            let temp_dir = temp_dir.path();
+            let mut threads = Vec::new();
+
+            for i in 1..loom::MAX_THREADS {
+                let engine = engine.clone();
+                let temp_dir = temp_dir.to_path_buf();
+
+                let handle = thread::Builder::new()
+                    .stack_size(4 * 1024 * 1024)
+                    .name(format!("test-thread-{i}"))
+                    .spawn(move || {
+                        let _module = crate::get(&engine, WASM_BINARY, &temp_dir).unwrap();
+                    })
+                    .unwrap();
+                threads.push(handle);
+            }
+
+            for handle in threads {
+                handle.join().unwrap();
+            }
+        });
+    }
 }
