@@ -109,36 +109,43 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
             .create(true)
             .open(path)?;
         file.lock_exclusive()?;
-        let metadata = file.metadata()?;
 
-        // if length of the file is not zero, it means the module was cached before
-        let (serialized_module, module) = if metadata.len() != 0 {
-            log::trace!("load module from file cache");
+        let mut f = || {
+            let metadata = file.metadata()?;
 
-            let mut serialized_module = Vec::new();
-            file.read_to_end(&mut serialized_module)?;
+            // if length of the file is not zero, it means the module was cached before
+            if metadata.len() != 0 {
+                log::trace!("load module from file cache");
 
-            // SAFETY: we deserialize module we serialized earlier in the same code
-            // but use `deserialize` instead of `deserialize_unchecked` to prevent issues
-            // if wasmer changes its format
-            unsafe {
-                match Module::deserialize(engine, &serialized_module) {
-                    Ok(module) => (serialized_module.into(), module),
-                    Err(e) => {
-                        log::trace!("recompile module because file cache corrupted: {e}");
-                        compile_and_write_module(engine, code, &mut file)?
+                let mut serialized_module = Vec::new();
+                file.read_to_end(&mut serialized_module)?;
+
+                // SAFETY: we deserialize module we serialized earlier in the same code
+                // but use `deserialize` instead of `deserialize_unchecked` to prevent issues
+                // if wasmer changes its format
+                unsafe {
+                    match Module::deserialize(engine, &serialized_module) {
+                        Ok(module) => Ok((serialized_module.into(), module)),
+                        Err(e) => {
+                            log::trace!("recompile module because file cache corrupted: {e}");
+                            compile_and_write_module(engine, code, &mut file)
+                        }
                     }
                 }
+            } else {
+                log::trace!("compile module because of missed cache");
+                compile_and_write_module(engine, code, &mut file)
             }
-        } else {
-            log::trace!("compile module because of missed cache");
-            compile_and_write_module(engine, code, &mut file)?
         };
 
-        // explicitly drop the lock to
+        let res = f();
+
+        // explicitly drop the lock even on error to
         // allow other threads & processes to read the file
         // because some OS only unlock on process exit
         file.unlock()?;
+
+        let (serialized_module, module) = res?;
 
         modules.insert(CachedModule {
             hash,
