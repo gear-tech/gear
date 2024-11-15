@@ -71,6 +71,20 @@ pub enum Error {
     Serialize(SerializeError),
 }
 
+fn compile_and_write_module(
+    engine: &Engine,
+    code: &[u8],
+    file: &mut File,
+) -> Result<(Bytes, Module), Error> {
+    let module = Module::new(engine, code)?;
+    let serialized_module = module.serialize()?;
+
+    file.write_all(&serialized_module)?;
+    file.flush()?;
+
+    Ok((serialized_module, module))
+}
+
 pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<Module, Error> {
     let mut modules = CachedModule::static_modules()
         .lock()
@@ -102,28 +116,23 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
             log::trace!("load module from file cache");
 
             let mut serialized_module = Vec::new();
-
-            // downgrade the lock so other threads & processes can read the file
-            file.lock_shared()?;
             file.read_to_end(&mut serialized_module)?;
 
             // SAFETY: we deserialize module we serialized earlier in the same code
-            let module = unsafe {
-                Module::deserialize_unchecked(engine, &serialized_module)
-                    .expect("corrupted file cache")
-            };
-
-            (serialized_module.into(), module)
+            // but use `deserialize` instead of `deserialize_unchecked` to prevent issues
+            // if wasmer changes its format
+            unsafe {
+                match Module::deserialize(engine, &serialized_module) {
+                    Ok(module) => (serialized_module.into(), module),
+                    Err(e) => {
+                        log::trace!("recompile module because file cache corrupted: {e}");
+                        compile_and_write_module(engine, code, &mut file)?
+                    }
+                }
+            }
         } else {
             log::trace!("compile module because of missed cache");
-
-            let module = Module::new(engine, code)?;
-            let serialized_module = module.serialize()?;
-
-            file.write_all(&serialized_module)?;
-            file.flush()?;
-
-            (serialized_module, module)
+            compile_and_write_module(engine, code, &mut file)?
         };
 
         // explicitly drop the lock to
