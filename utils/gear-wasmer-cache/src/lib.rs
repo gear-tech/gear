@@ -23,7 +23,7 @@ use fs4::fs_std::FileExt;
 use std::{
     fs::File,
     io,
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
 use uluru::LRUCache;
@@ -114,6 +114,7 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
             .read(true)
             .write(true)
             .create(true)
+            .append(true)
             .open(path)?;
         file.lock_exclusive()?;
 
@@ -135,6 +136,8 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
                         Ok(module) => Ok((serialized_module.into(), module)),
                         Err(e) => {
                             log::trace!("recompile module because file cache corrupted: {e}");
+                            file.seek(SeekFrom::Start(0))?;
+                            file.set_len(0)?;
                             compile_and_write_module(engine, code, &mut file)
                         }
                     }
