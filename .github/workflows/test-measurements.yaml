@@ -55,14 +55,15 @@ jobs:
           --output-file ./target/action-pallet-output.json
 
       - name: "Collect: pallet-gear benches"
-        run: >-
+        run: |
+          touch ./target/weights.json
           ./target/release/gear benchmark pallet --pallet=pallet_gear
           --steps=50
           --repeat=20
           --chain=dev
           --extrinsic=*
           --heap-pages=4096
-          --json-file ./target/weights.json
+          --output ./target/weights.json
           --template ./.maintain/regression-analysis-weight-template.hbs
 
       - name: "Generate report: pallet-gear benches"
