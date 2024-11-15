@@ -62,7 +62,7 @@ jobs:
           --chain=dev
           --extrinsic=*
           --heap-pages=4096
-          --output ./target/weights.json
+          --json-file ./target/weights.json
           --template ./.maintain/regression-analysis-weight-template.hbs
 
       - name: "Generate report: pallet-gear benches"
