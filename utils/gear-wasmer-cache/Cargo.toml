@@ -19,10 +19,11 @@ uluru.workspace = true
 fs4.workspace = true
 derive_more.workspace = true
 bytes.workspace = true
-cfg-if.workspace = true
 
 [dev-dependencies]
-loom.workspace = true
 tempfile.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 env_logger.workspace = true
+
+[target.'cfg(loom)'.dev-dependencies]
+loom.workspace = true

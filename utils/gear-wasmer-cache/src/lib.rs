@@ -30,13 +30,10 @@ use uluru::LRUCache;
 use wasmer::{CompileError, Engine, Module, SerializeError};
 use wasmer_cache::Hash;
 
-cfg_if::cfg_if! {
-    if #[cfg(all(loom, test))] {
-        use loom::sync::Mutex;
-    } else {
-        use std::sync::Mutex;
-    }
-}
+#[cfg(all(loom, test))]
+use loom::sync::Mutex;
+#[cfg(not(all(loom, test)))]
+use std::sync::Mutex;
 
 type CachedModules = Mutex<LRUCache<CachedModule, 1024>>;
 
@@ -46,18 +43,26 @@ struct CachedModule {
 }
 
 impl CachedModule {
-    fn static_modules() -> &'static CachedModules {
-        cfg_if::cfg_if! {
-            if #[cfg(all(loom, test))] {
-                loom::lazy_static! {
-                    static ref MODULES: CachedModules = CachedModules::default();
-                }
-                &*MODULES
-            } else {
-                static MODULES: std::sync::OnceLock<CachedModules> = std::sync::OnceLock::new();
-                MODULES.get_or_init(CachedModules::default)
+    fn with_static_modules<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut LRUCache<CachedModule, 1024>) -> R,
+    {
+        #[cfg(all(loom, test))]
+        let modules = {
+            loom::lazy_static! {
+                static ref MODULES: CachedModules = CachedModules::default();
             }
-        }
+            &*MODULES
+        };
+
+        #[cfg(not(all(loom, test)))]
+        let modules = {
+            static MODULES: std::sync::OnceLock<CachedModules> = std::sync::OnceLock::new();
+            MODULES.get_or_init(CachedModules::default)
+        };
+
+        let mut modules = modules.lock().expect("failed to lock modules");
+        f(&mut modules)
     }
 }
 
@@ -86,17 +91,19 @@ fn compile_and_write_module(
 }
 
 pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<Module, Error> {
-    let mut modules = CachedModule::static_modules()
-        .lock()
-        .expect("failed to lock modules");
-
     let hash = Hash::generate(code);
-    let module = if let Some(module) = modules.find(|x| x.hash == hash) {
+    let serialized_module = CachedModule::with_static_modules(|modules| {
+        modules
+            .find(|x| x.hash == hash)
+            .map(|module| module.serialized_module.clone())
+    });
+
+    let module = if let Some(serialized_module) = serialized_module {
         log::trace!("load module from LRU cache");
 
         // SAFETY: we deserialize module we serialized earlier in the same code
         unsafe {
-            Module::deserialize_unchecked(engine, &*module.serialized_module)
+            Module::deserialize_unchecked(engine, &*serialized_module)
                 .expect("corrupted in-memory cache")
         }
     } else {
@@ -147,9 +154,11 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
 
         let (serialized_module, module) = res?;
 
-        modules.insert(CachedModule {
-            hash,
-            serialized_module,
+        CachedModule::with_static_modules(|modules| {
+            modules.insert(CachedModule {
+                hash,
+                serialized_module,
+            })
         });
 
         module

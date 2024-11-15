@@ -6542,7 +6542,6 @@ name = "gear-wasmer-cache"
 version = "1.6.2"
 dependencies = [
  "bytes",
- "cfg-if",
  "demo-constructor",
  "derive_more 0.99.18",
  "env_logger",
