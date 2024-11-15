@@ -196,6 +196,7 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
     }
 }
 
+#[cfg(not(loom))]
 #[cfg(test)]
 mod tests {
     use super::*;
