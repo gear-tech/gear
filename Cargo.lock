@@ -4730,6 +4730,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-tx-pool"
+version = "1.6.2"
+
+[[package]]
 name = "ethexe-utils"
 version = "1.6.2"
 dependencies = [
