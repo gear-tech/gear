@@ -128,6 +128,7 @@ pub fn get(engine: &Engine, code: &[u8], base_path: impl AsRef<Path>) -> Result<
 
         // explicitly drop the lock to
         // allow other threads & processes to read the file
+        // because some OS only unlock on process exit
         file.unlock()?;
 
         modules.insert(CachedModule {
