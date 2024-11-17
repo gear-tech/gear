@@ -683,18 +683,21 @@ mod tests {
 
         let commitment1 = BlockCommitment {
             block_hash: H256::random(),
+            block_timestamp: rand::random(),
             prev_commitment_hash: H256::random(),
             pred_block_hash: H256::random(),
             transitions: Default::default(),
         };
         let commitment2 = BlockCommitment {
             block_hash: H256::random(),
+            block_timestamp: rand::random(),
             prev_commitment_hash: commitment1.block_hash,
             pred_block_hash: H256::random(),
             transitions: Default::default(),
         };
         let commitment3 = BlockCommitment {
             block_hash: H256::random(),
+            block_timestamp: rand::random(),
             prev_commitment_hash: commitment1.block_hash,
             pred_block_hash: H256::random(),
             transitions: Default::default(),

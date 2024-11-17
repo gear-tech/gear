@@ -357,7 +357,9 @@ impl Service {
         db.set_block_header(block_data.hash, block_data.header);
 
         let mut commitments = vec![];
+
         let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
+
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
 
@@ -366,8 +368,13 @@ impl Service {
                 continue;
             }
 
+            let header = db
+                .block_header(block_hash)
+                .ok_or_else(|| anyhow!("header not found, but most exist"))?;
+
             commitments.push(BlockCommitment {
                 block_hash,
+                block_timestamp: header.timestamp,
                 pred_block_hash: block_data.hash,
                 prev_commitment_hash: db
                     .block_prev_commitment(block_hash)

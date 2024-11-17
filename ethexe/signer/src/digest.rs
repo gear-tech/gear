@@ -179,12 +179,14 @@ impl ToDigest for BlockCommitment {
         // To avoid missing incorrect hashing while developing.
         let Self {
             block_hash,
+            block_timestamp,
             prev_commitment_hash,
             pred_block_hash,
             transitions,
         } = self;
 
         hasher.update(block_hash.as_bytes());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
         hasher.update(prev_commitment_hash.as_bytes());
         hasher.update(pred_block_hash.as_bytes());
         hasher.update(transitions.to_digest().as_ref());
@@ -225,6 +227,7 @@ mod tests {
 
         let block_commitment = BlockCommitment {
             block_hash: H256::from([0; 32]),
+            block_timestamp: 0,
             pred_block_hash: H256::from([1; 32]),
             prev_commitment_hash: H256::from([2; 32]),
             transitions: transitions.clone(),
