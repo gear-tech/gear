@@ -5,6 +5,7 @@ pragma solidity ^0.8.26;
 interface IRouter {
     /* Storage related structures */
 
+    // TODO (breathx): should we store here something about commitment and timestamp?
     /// @custom:storage-location erc7201:router.storage.Router
     struct Storage {
         bytes32 genesisBlockHash;
@@ -38,6 +39,7 @@ interface IRouter {
 
     struct BlockCommitment {
         bytes32 blockHash;
+        uint48 blockTimestamp;
         bytes32 prevCommitmentHash;
         bytes32 predBlockHash;
         StateTransition[] transitions;
