@@ -5,7 +5,6 @@ pragma solidity ^0.8.26;
 interface IRouter {
     /* Storage related structures */
 
-    // TODO (breathx): should we store here something about commitment and timestamp?
     /// @custom:storage-location erc7201:router.storage.Router
     struct Storage {
         bytes32 genesisBlockHash;
@@ -13,6 +12,7 @@ interface IRouter {
         address mirrorProxy;
         address wrappedVara;
         bytes32 lastBlockCommitmentHash;
+        uint48 lastBlockCommitmentTimestamp;
         uint256 signingThresholdPercentage;
         uint64 baseWeight;
         uint128 valuePerWeight;
@@ -166,6 +166,8 @@ interface IRouter {
     function genesisBlockHash() external view returns (bytes32);
 
     function lastBlockCommitmentHash() external view returns (bytes32);
+
+    function lastBlockCommitmentTimestamp() external view returns (uint48);
 
     function wrappedVara() external view returns (address);
 
