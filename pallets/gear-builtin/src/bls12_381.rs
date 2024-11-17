@@ -72,69 +72,66 @@ impl<T: Config> BuiltinActor for Actor<T> {
 }
 
 fn decode_vec<T: Config, I: Input>(
-    gas_limit: u64,
-    mut gas_spent: u64,
+    gas_limit: &mut u64,
     input: &mut I,
-) -> (u64, Option<Result<Vec<u8>, BuiltinActorError>>) {
+) -> Result<Vec<u8>, BuiltinActorError> {
     let Ok(len) = Compact::<u32>::decode(input).map(u32::from) else {
         log::debug!(
             target: LOG_TARGET,
             "Failed to scale-decode vector length"
         );
-        return (gas_spent, Some(Err(BuiltinActorError::DecodingError)));
+        return Err(BuiltinActorError::DecodingError);
     };
 
     let to_spend = <T as Config>::WeightInfo::decode_bytes(len).ref_time();
-    if gas_limit < gas_spent + to_spend {
-        return (gas_spent, None);
+    if *gas_limit < to_spend {
+        return Err(BuiltinActorError::InsufficientGas);
     }
 
-    gas_spent += to_spend;
+    *gas_limit = gas_limit.saturating_sub(to_spend);
 
     let mut items = vec![0u8; len as usize];
     let bytes_slice = items.as_mut_slice();
-    let result = input.read(bytes_slice).map(|_| items).map_err(|_| {
+    input.read(bytes_slice).map(|_| items).map_err(|_| {
         log::debug!(
             target: LOG_TARGET,
             "Failed to scale-decode vector data",
         );
 
         BuiltinActorError::DecodingError
-    });
-
-    (gas_spent, Some(result))
+    })
 }
 
 fn multi_miller_loop<T: Config>(
     mut payload: &[u8],
     gas_limit: u64,
 ) -> (Result<Response, BuiltinActorError>, u64) {
-    // TODO: consider to refactor #3841
-    let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
-    let a = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let mut gas_left: u64 = gas_limit;
+
+    // TODO: do we need further refactorig here as per #3841?
+    let a = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
-    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, gas_spent, &mut payload);
-    let b = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let b = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
-    // decode the count of items
-
+    // decode the items count
     let mut slice = a.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
     let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
         log::debug!(
             target: LOG_TARGET,
-            "Failed to decode item count in a",
+            "Failed to decode items count in a",
         );
 
-        return (Err(BuiltinActorError::DecodingError), gas_spent);
+        return (
+            Err(BuiltinActorError::DecodingError),
+            gas_limit.saturating_sub(gas_left),
+        );
     };
 
     let mut slice = b.as_slice();
@@ -143,29 +140,40 @@ fn multi_miller_loop<T: Config>(
         Ok(count_b) if count_b != count => {
             return (
                 Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                    "Multi Miller loop: non equal item count",
+                    "Multi Miller loop: uneven item count",
                 ))),
-                gas_spent,
+                gas_limit.saturating_sub(gas_left),
             )
         }
-        Err(_) => return (Err(BuiltinActorError::DecodingError), gas_spent),
+        Err(_) => {
+            return (
+                Err(BuiltinActorError::DecodingError),
+                gas_limit.saturating_sub(gas_left),
+            )
+        }
         Ok(_) => (),
     }
 
     let to_spend = <T as Config>::WeightInfo::bls12_381_multi_miller_loop(count as u32).ref_time();
-    if gas_limit < gas_spent + to_spend {
-        return (Err(BuiltinActorError::InsufficientGas), gas_spent);
+    if gas_left < to_spend {
+        return (
+            Err(BuiltinActorError::InsufficientGas),
+            gas_limit.saturating_sub(gas_left),
+        );
     }
 
-    gas_spent += to_spend;
+    gas_left -= to_spend;
 
     match bls12_381::host_calls::bls12_381_multi_miller_loop(a, b) {
-        Ok(result) => (Ok(Response::MultiMillerLoop(result)), gas_spent),
+        Ok(result) => (
+            Ok(Response::MultiMillerLoop(result)),
+            gas_limit.saturating_sub(gas_left),
+        ),
         Err(_) => (
             Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Multi Miller loop: computation error",
             ))),
-            gas_spent,
+            gas_limit.saturating_sub(gas_left),
         ),
     }
 }
@@ -174,27 +182,32 @@ fn final_exponentiation<T: Config>(
     mut payload: &[u8],
     gas_limit: u64,
 ) -> (Result<Response, BuiltinActorError>, u64) {
-    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
-    let f = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let mut gas_left: u64 = gas_limit;
+    let f = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
     let to_spend = <T as Config>::WeightInfo::bls12_381_final_exponentiation().ref_time();
-    if gas_limit < gas_spent + to_spend {
-        return (Err(BuiltinActorError::InsufficientGas), gas_spent);
+    if gas_left < to_spend {
+        return (
+            Err(BuiltinActorError::InsufficientGas),
+            gas_limit.saturating_sub(gas_left),
+        );
     }
 
-    gas_spent += to_spend;
+    gas_left -= to_spend;
 
     match bls12_381::host_calls::bls12_381_final_exponentiation(f) {
-        Ok(result) => (Ok(Response::FinalExponentiation(result)), gas_spent),
+        Ok(result) => (
+            Ok(Response::FinalExponentiation(result)),
+            gas_limit.saturating_sub(gas_left),
+        ),
         Err(_) => (
             Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Final exponentiation: computation error",
             ))),
-            gas_spent,
+            gas_limit.saturating_sub(gas_left),
         ),
     }
 }
@@ -205,31 +218,31 @@ fn msm<T: Config>(
     gas_to_spend: impl FnOnce(u32) -> u64,
     call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Response, ()>,
 ) -> (Result<Response, BuiltinActorError>, u64) {
-    let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
-    let bases = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let mut gas_left: u64 = gas_limit;
+
+    let bases = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
-    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, gas_spent, &mut payload);
-    let scalars = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let scalars = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
     // decode the count of items
-
     let mut slice = bases.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
     let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
         log::debug!(
             target: LOG_TARGET,
-            "Failed to decode item count in bases",
+            "Failed to decode items count in bases",
         );
 
-        return (Err(BuiltinActorError::DecodingError), gas_spent);
+        return (
+            Err(BuiltinActorError::DecodingError),
+            gas_limit.saturating_sub(gas_left),
+        );
     };
 
     let mut slice = scalars.as_slice();
@@ -238,36 +251,42 @@ fn msm<T: Config>(
         Ok(count_b) if count_b != count => {
             return (
                 Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                    "Multi scalar multiplication: non equal item count",
+                    "Multi scalar multiplication: uneven item count",
                 ))),
-                gas_spent,
+                gas_limit.saturating_sub(gas_left),
             )
         }
         Err(_) => {
             log::debug!(
                 target: LOG_TARGET,
-                "Failed to decode item count in scalars",
+                "Failed to decode items count in scalars",
             );
 
-            return (Err(BuiltinActorError::DecodingError), gas_spent);
+            return (
+                Err(BuiltinActorError::DecodingError),
+                gas_limit.saturating_sub(gas_left),
+            );
         }
         Ok(_) => (),
     }
 
     let to_spend = gas_to_spend(count as u32);
-    if gas_limit < gas_spent + to_spend {
-        return (Err(BuiltinActorError::InsufficientGas), gas_spent);
+    if gas_left < to_spend {
+        return (
+            Err(BuiltinActorError::InsufficientGas),
+            gas_limit.saturating_sub(gas_left),
+        );
     }
 
-    gas_spent += to_spend;
+    gas_left -= to_spend;
 
     match call(bases, scalars) {
-        Ok(result) => (Ok(result), gas_spent),
+        Ok(result) => (Ok(result), gas_limit.saturating_sub(gas_left)),
         Err(_) => (
             Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Multi scalar multiplication: computation error",
             ))),
-            gas_spent,
+            gas_limit.saturating_sub(gas_left),
         ),
     }
 }
@@ -302,47 +321,50 @@ fn projective_multiplication<T: Config>(
     gas_to_spend: impl FnOnce(u32) -> u64,
     call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Response, ()>,
 ) -> (Result<Response, BuiltinActorError>, u64) {
-    let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
-    let base = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let mut gas_left: u64 = gas_limit;
+
+    let base = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
-    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, gas_spent, &mut payload);
-    let scalar = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let scalar = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
     // decode the count of items
-
     let mut slice = scalar.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
     let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
         log::debug!(
             target: LOG_TARGET,
-            "Failed to decode item count in scalar",
+            "Failed to decode items count in scalar",
         );
 
-        return (Err(BuiltinActorError::DecodingError), gas_spent);
+        return (
+            Err(BuiltinActorError::DecodingError),
+            gas_limit.saturating_sub(gas_left),
+        );
     };
 
     let to_spend = gas_to_spend(count as u32);
-    if gas_limit < gas_spent + to_spend {
-        return (Err(BuiltinActorError::InsufficientGas), gas_spent);
+    if gas_limit < to_spend {
+        return (
+            Err(BuiltinActorError::InsufficientGas),
+            gas_limit.saturating_sub(gas_left),
+        );
     }
 
-    gas_spent += to_spend;
+    gas_left -= to_spend;
 
     match call(base, scalar) {
-        Ok(result) => (Ok(result), gas_spent),
+        Ok(result) => (Ok(result), gas_limit.saturating_sub(gas_left)),
         Err(_) => (
             Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Projective multiplication: computation error",
             ))),
-            gas_spent,
+            gas_limit.saturating_sub(gas_left),
         ),
     }
 }
@@ -381,32 +403,37 @@ fn aggregate_g1<T: Config>(
     mut payload: &[u8],
     gas_limit: u64,
 ) -> (Result<Response, BuiltinActorError>, u64) {
-    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
-    let points = match result {
-        Some(Ok(array)) => array,
-        Some(Err(e)) => return (Err(e), gas_spent),
-        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    let mut gas_left: u64 = gas_limit;
+
+    let points = match decode_vec::<T, _>(&mut gas_left, &mut payload) {
+        Ok(array) => array,
+        Err(e) => return (Err(e), gas_limit.saturating_sub(gas_left)),
     };
 
     // decode the count of items
-
     let mut slice = points.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
     let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
         log::debug!(
             target: LOG_TARGET,
-            "Failed to decode item count in points",
+            "Failed to decode items count in points",
         );
 
-        return (Err(BuiltinActorError::DecodingError), gas_spent);
+        return (
+            Err(BuiltinActorError::DecodingError),
+            gas_limit.saturating_sub(gas_left),
+        );
     };
 
     let to_spend = <T as Config>::WeightInfo::bls12_381_aggregate_g1(count as u32).ref_time();
-    if gas_limit < gas_spent + to_spend {
-        return (Err(BuiltinActorError::InsufficientGas), gas_spent);
+    if gas_limit < to_spend {
+        return (
+            Err(BuiltinActorError::InsufficientGas),
+            gas_limit.saturating_sub(gas_left),
+        );
     }
 
-    gas_spent += to_spend;
+    gas_left -= to_spend;
 
     (
         gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points)
@@ -421,7 +448,7 @@ fn aggregate_g1<T: Config>(
                     "Aggregate G1-points: computation error",
                 ))
             }),
-        gas_spent,
+        gas_limit.saturating_sub(gas_left),
     )
 }
 
@@ -451,8 +478,6 @@ fn map_to_g2affine<T: Config>(
         return (Err(BuiltinActorError::InsufficientGas), 0);
     }
 
-    let gas_spent = to_spend;
-
     (
         gear_runtime_interface::gear_bls_12_381::map_to_g2affine(payload)
             .map(Response::MapToG2Affine)
@@ -466,6 +491,6 @@ fn map_to_g2affine<T: Config>(
                     "Mapping message: computation error",
                 ))
             }),
-        gas_spent,
+        to_spend,
     )
 }
