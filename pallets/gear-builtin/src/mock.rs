@@ -18,15 +18,20 @@
 
 use crate::{
     self as pallet_gear_builtin, bls12_381, proxy, ActorWithId, BuiltinActor, BuiltinActorError,
+    GasAllowanceOf,
 };
-use common::{GasProvider, GasTree};
+use common::{storage::Limiter, GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
-    construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, InstanceFilter, OnFinalize, OnInitialize},
+    construct_runtime,
+    pallet_prelude::{DispatchClass, Weight},
+    parameter_types,
+    traits::{
+        ConstBool, ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize,
+    },
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use gear_core::{
     ids::ProgramId,
@@ -44,6 +49,7 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 type Block = frame_system::mocking::MockBlock<Test>;
+type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
 pub(crate) type QueueOf<T> = pallet_gear_messenger::Dispatches<T>;
 pub(crate) type GasHandlerOf<T> = <<T as pallet_gear::Config>::GasProvider as GasProvider>::GasTree;
@@ -316,6 +322,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<1, bls12_381::Actor<Self>>,
         ActorWithId<3, proxy::Actor<Self>>,
     );
+    type BlockLimiter = GearGas;
     type WeightInfo = ();
 }
 
@@ -401,14 +408,26 @@ pub(crate) fn run_to_block(n: u64) {
 }
 
 pub(crate) fn run_to_next_block() {
-    run_for_n_blocks(1)
+    run_for_n_blocks(1, None)
 }
 
-pub(crate) fn run_for_n_blocks(n: u64) {
+pub(crate) fn run_for_n_blocks(n: u64, remaining_weight: Option<u64>) {
     let now = System::block_number();
     let until = now + n;
     for current_blk in now..until {
+        if let Some(remaining_weight) = remaining_weight {
+            GasAllowanceOf::<Test>::put(remaining_weight);
+            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+            System::register_extra_weight_unchecked(
+                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
+                DispatchClass::Normal,
+            );
+        }
+
+        let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+        System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
         Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
+
         on_finalize(current_blk);
 
         let new_block_number = current_blk + 1;

@@ -53,11 +53,12 @@ use alloc::{
     format,
     string::ToString,
 };
+use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
 use core_processor::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
-    process_execution_error, process_success, SuccessfulDispatchResultKind,
-    SystemReservationContext,
+    process_allowance_exceed, process_execution_error, process_success,
+    SuccessfulDispatchResultKind, SystemReservationContext,
 };
 use frame_support::dispatch::extract_actual_weight;
 use gear_core::{
@@ -76,6 +77,7 @@ use sp_std::prelude::*;
 pub use pallet::*;
 
 type CallOf<T> = <T as Config>::RuntimeCall;
+pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
 const LOG_TARGET: &str = "gear::builtin";
 
@@ -93,6 +95,9 @@ pub enum BuiltinActorError {
     /// Actor's inner error encoded as a String.
     #[display(fmt = "Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
+    /// Occurs if a builtin actor execution does not fit in the current block.
+    #[display(fmt = "Block gas allowance exceeded")]
+    GasAllowanceExceeded,
 }
 
 impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
@@ -107,6 +112,9 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
             ),
             BuiltinActorError::Custom(e) => {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
+            }
+            BuiltinActorError::GasAllowanceExceeded => {
+                unreachable!("Never supposed to be converted to error reply reason")
             }
         }
     }
@@ -200,6 +208,9 @@ pub mod pallet {
         /// The builtin actor type.
         type Builtins: BuiltinCollection;
 
+        /// Block limits.
+        type BlockLimiter: BlockLimiter<Balance = u64>;
+
         /// Weight cost incurred by builtin actors calls.
         type WeightInfo: WeightInfo;
     }
@@ -227,9 +238,13 @@ pub mod pallet {
         {
             let call_info = call.get_dispatch_info();
 
-            // Necessary upfront gas sufficiency check
-            if gas_limit < call_info.weight.ref_time() {
+            // Necessary upfront gas sufficiency checks
+            let gas_cost = call_info.weight.ref_time();
+            if gas_limit < gas_cost {
                 return (Err(BuiltinActorError::InsufficientGas), 0_u64);
+            }
+            if GasAllowanceOf::<T>::get() < gas_cost {
+                return (Err(BuiltinActorError::GasAllowanceExceeded), 0_u64);
             }
 
             // Execute call
@@ -375,6 +390,9 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
                 process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
+            }
+            Err(BuiltinActorError::GasAllowanceExceeded) => {
+                process_allowance_exceed(dispatch, actor_id, gas_spent)
             }
             Err(err) => {
                 // Builtin actor call failed.

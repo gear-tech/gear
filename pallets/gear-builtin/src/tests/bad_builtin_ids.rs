@@ -117,6 +117,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<3, SomeBuiltinActor>,
         ActorWithId<2, SomeBuiltinActor>, // 2 already exists
     );
+    type BlockLimiter = GearGas;
     type WeightInfo = ();
 }
 
