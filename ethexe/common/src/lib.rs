@@ -89,3 +89,9 @@ impl From<wvara::RequestEvent> for BlockRequestEvent {
         Self::WVara(value)
     }
 }
+
+pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
+    let b = val.to_be_bytes();
+
+    [b[2], b[3], b[4], b[5], b[6], b[7]]
+}

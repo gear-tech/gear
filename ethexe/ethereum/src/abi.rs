@@ -16,11 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::{primitives::U256 as AlloyU256, sol};
+use alloy::{primitives::Uint, sol};
 use ethexe_common::{mirror, router, wvara};
 use gear_core::message::ReplyDetails;
 use gear_core_errors::ReplyCode;
 use gprimitives::U256;
+
+pub(crate) type Uint256 = Uint<256, 4>;
+pub(crate) type Uint48 = Uint<48, 1>;
 
 sol!(
     #[sol(rpc)]
@@ -53,10 +56,14 @@ sol!(
     "WrappedVara.json"
 );
 
-pub(crate) fn uint256_to_u128_lossy(value: AlloyU256) -> u128 {
+pub(crate) fn uint256_to_u128_lossy(value: Uint256) -> u128 {
     let [low, high, ..] = value.into_limbs();
 
     ((high as u128) << 64) | (low as u128)
+}
+
+pub(crate) fn u64_to_uint48_lossy(value: u64) -> Uint48 {
+    Uint48::try_from(value).unwrap_or(Uint48::MAX)
 }
 
 /* From common types to alloy */
@@ -74,6 +81,7 @@ impl From<router::BlockCommitment> for IRouter::BlockCommitment {
     fn from(
         router::BlockCommitment {
             block_hash,
+            block_timestamp,
             prev_commitment_hash,
             pred_block_hash,
             transitions,
@@ -81,6 +89,7 @@ impl From<router::BlockCommitment> for IRouter::BlockCommitment {
     ) -> Self {
         Self {
             blockHash: block_hash.to_fixed_bytes().into(),
+            blockTimestamp: u64_to_uint48_lossy(block_timestamp),
             prevCommitmentHash: prev_commitment_hash.to_fixed_bytes().into(),
             predBlockHash: pred_block_hash.to_fixed_bytes().into(),
             transitions: transitions.into_iter().map(Into::into).collect(),
@@ -326,8 +335,32 @@ impl From<IWrappedVara::Approval> for wvara::Event {
 
 #[test]
 fn cast_is_correct() {
+    use rand::Rng;
+
+    let mut rng = rand::thread_rng();
+
+    // uint256 -> u128
+    assert_eq!(uint256_to_u128_lossy(Uint256::MAX), u128::MAX);
+
     for _ in 0..10 {
-        let res: u128 = rand::random();
-        assert_eq!(uint256_to_u128_lossy(AlloyU256::from(res)), res);
+        let val: u128 = rng.gen();
+        let uint256 = Uint256::from(val);
+
+        assert_eq!(uint256_to_u128_lossy(uint256), val);
+    }
+
+    // u64 -> uint48
+    assert_eq!(u64_to_uint48_lossy(u64::MAX), Uint48::MAX);
+
+    for _ in 0..10 {
+        let val = rng.gen_range(0..=Uint48::MAX.into_limbs()[0]);
+        let uint48 = Uint48::from(val);
+
+        assert_eq!(u64_to_uint48_lossy(val), uint48);
+
+        assert_eq!(
+            ethexe_common::u64_into_uint48_be_bytes_lossy(val),
+            uint48.to_be_bytes()
+        );
     }
 }
