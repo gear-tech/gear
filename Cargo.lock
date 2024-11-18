@@ -3485,7 +3485,6 @@ dependencies = [
  "gclient",
  "gear-core",
  "gear-wasm-builder",
- "gmeta",
  "gstd",
  "hashbrown 0.14.5",
  "rand 0.8.5",
@@ -3556,46 +3555,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-meta-io"
-version = "0.1.0"
-dependencies = [
- "gmeta",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "demo-meta-state-v1"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "gear-wasm-builder",
- "gmeta",
- "gstd",
-]
-
-[[package]]
-name = "demo-meta-state-v2"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "gear-wasm-builder",
- "gmeta",
- "gstd",
-]
-
-[[package]]
-name = "demo-meta-state-v3"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "gear-wasm-builder",
- "gmeta",
- "gstd",
-]
-
-[[package]]
 name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
@@ -3611,20 +3570,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hex",
-]
-
-[[package]]
-name = "demo-new-meta"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "demo-meta-state-v1",
- "demo-meta-state-v2",
- "demo-meta-state-v3",
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -3898,6 +3843,26 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
+]
+
+[[package]]
+name = "demo-wallets"
+version = "0.1.0"
+dependencies = [
+ "demo-wallets-io",
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-wallets-io"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -5537,7 +5502,6 @@ dependencies = [
 name = "ft-io"
 version = "0.1.4"
 dependencies = [
- "gmeta",
  "gstd",
 ]
 
@@ -5786,8 +5750,8 @@ dependencies = [
  "color-eyre",
  "colored",
  "demo-messenger",
- "demo-new-meta",
  "demo-waiter",
+ "demo-wallets",
  "dirs",
  "env_logger",
  "etc",
@@ -5796,7 +5760,6 @@ dependencies = [
  "gear-core-errors",
  "gear-node-wrapper",
  "gear-runtime-primitives",
- "gmeta",
  "gring",
  "gsdk",
  "hex",
@@ -5836,14 +5799,14 @@ dependencies = [
  "demo-constructor",
  "demo-custom",
  "demo-distributor",
- "demo-meta-io",
  "demo-mul-by-const",
- "demo-new-meta",
  "demo-node",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
  "demo-reserve-gas",
+ "demo-wallets",
+ "demo-wallets-io",
  "demo-wat",
  "env_logger",
  "futures",
@@ -5851,7 +5814,6 @@ dependencies = [
  "gear-core-errors",
  "gear-node-wrapper",
  "gear-utils",
- "gmeta",
  "gsdk",
  "gstd",
  "hex",
@@ -6549,7 +6511,6 @@ dependencies = [
  "gear-pwasm-utils",
  "gear-wasm-instrument",
  "gear-wasm-optimizer",
- "gmeta",
  "itertools 0.13.0",
  "log",
  "parity-wasm",
@@ -6814,33 +6775,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gmeta"
-version = "1.6.2"
-dependencies = [
- "blake2 0.10.6",
- "derive_more 0.99.18",
- "gear-wasm-builder",
- "gmeta-codegen",
- "gstd",
- "hex",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "gmeta-codegen"
-version = "1.6.2"
-dependencies = [
- "gmeta",
- "gstd",
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "scale-info",
- "syn 2.0.71",
-]
-
-[[package]]
 name = "gprimitives"
 version = "1.6.2"
 dependencies = [
@@ -6892,9 +6826,9 @@ dependencies = [
  "base64 0.21.7",
  "colored",
  "demo-messenger",
- "demo-new-meta",
  "demo-vec",
  "demo-waiter",
+ "demo-wallets",
  "futures",
  "futures-util",
  "gear-core",
@@ -10820,7 +10754,6 @@ dependencies = [
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-mul-by-const",
- "demo-new-meta",
  "demo-out-of-memory",
  "demo-ping",
  "demo-program-factory",
@@ -10842,6 +10775,7 @@ dependencies = [
  "demo-wait-wake",
  "demo-waiter",
  "demo-waiting-proxy",
+ "demo-wallets",
  "derive_more 0.99.18",
  "env_logger",
  "frame-benchmarking",
@@ -10858,7 +10792,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",
- "gmeta",
  "gstd",
  "gsys",
  "hex",

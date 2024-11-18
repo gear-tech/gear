@@ -1,4 +1,4 @@
-use crate::{MessageIn, MessageInitIn, MessageInitOut, MessageOut, Wallet};
+use demo_wallets_io::{MessageIn, MessageInitIn, MessageInitOut, MessageOut, Wallet};
 use gstd::{msg, prelude::*};
 
 // State

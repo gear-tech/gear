@@ -48,9 +48,6 @@ const OUT_SUFFIX_LENGTH: usize = 17;
 pub struct Artifact {
     /// The optitmized WASM binary.
     pub opt: Vec<u8>,
-
-    /// The metadata WASM binary if any.
-    pub meta: Vec<u8>,
 }
 
 impl Artifact {
@@ -79,7 +76,6 @@ impl Artifact {
 
         Some(Self {
             opt: fs::read(bin.join(stem.with_extension("wasm"))).ok()?,
-            meta: fs::read(bin.join(stem.with_extension("meta.wasm"))).unwrap_or_default(),
         })
     }
 }

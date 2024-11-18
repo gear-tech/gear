@@ -9,4 +9,3 @@ repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
-gmeta.workspace = true

@@ -19,19 +19,7 @@
 #![no_std]
 
 use core::ops::Range;
-use gmeta::{In, InOut, Metadata, Out};
 use gstd::{prelude::*, ActorId};
-
-pub struct FungibleTokenMetadata;
-
-impl Metadata for FungibleTokenMetadata {
-    type Init = In<InitConfig>;
-    type Handle = InOut<FTAction, FTEvent>;
-    type Others = ();
-    type Reply = ();
-    type Signal = ();
-    type State = Out<IoFungibleToken>;
-}
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
 #[codec(crate = gstd::codec)]

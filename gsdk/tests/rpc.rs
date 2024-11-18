@@ -361,10 +361,12 @@ async fn test_program_counters() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_for_handle() -> Result<()> {
+    use demo_wallets::{Id, MessageIn, MessageOut, Wallet, WASM_BINARY};
+
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_new_meta::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
@@ -373,13 +375,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 
     signer
         .calls
-        .upload_program(
-            demo_new_meta::WASM_BINARY.to_vec(),
-            salt,
-            vec![],
-            100_000_000_000,
-            0,
-        )
+        .upload_program(WASM_BINARY.to_vec(), salt, vec![], 100_000_000_000, 0)
         .await?;
 
     assert!(
@@ -387,15 +383,15 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
         "Program not exists on chain."
     );
 
-    let message_in = demo_new_meta::MessageIn {
-        id: demo_new_meta::Id {
+    let message_in = MessageIn {
+        id: Id {
             decimal: 1,
             hex: [1].to_vec(),
         },
     };
 
-    let message_out = demo_new_meta::MessageOut {
-        res: demo_new_meta::Wallet::test_sequence()
+    let message_out = MessageOut {
+        res: Wallet::test_sequence()
             .iter()
             .find(|w| w.id.decimal == message_in.id.decimal)
             .cloned(),

@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use demo_meta_io::ProgramMetadata;
-
 fn main() {
-    gear_wasm_builder::build_with_metadata::<ProgramMetadata>();
+    gear_wasm_builder::build();
 }

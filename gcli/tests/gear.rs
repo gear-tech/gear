@@ -27,8 +27,7 @@ fn paths() {
     [
         env::node_bin(),
         env::bin("gcli"),
-        env::wasm_bin("demo_new_meta.opt.wasm"),
-        env::wasm_bin("demo_new_meta.meta.txt"),
+        env::wasm_bin("demo_wallets.opt.wasm"),
     ]
     .into_iter()
     .for_each(|path| {

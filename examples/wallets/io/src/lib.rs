@@ -3,20 +3,8 @@
 extern crate alloc;
 
 use alloc::{string::String, vec, vec::Vec};
-use gmeta::{InOut, Metadata, Out};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-
-pub struct ProgramMetadata;
-
-impl Metadata for ProgramMetadata {
-    type Init = InOut<MessageInitIn, MessageInitOut>;
-    type Handle = InOut<MessageIn, MessageOut>;
-    type Others = InOut<MessageAsyncIn, Option<u8>>;
-    type Reply = String;
-    type Signal = ();
-    type State = Out<Vec<Wallet>>;
-}
 
 // Metatypes for input and output
 #[derive(TypeInfo, Default, Decode, Encode)]

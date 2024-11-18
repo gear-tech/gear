@@ -19,7 +19,6 @@
 //! Shared node.
 
 use crate::common::{Args, Output, Result};
-use anyhow::anyhow;
 
 /// Convert self into `String`.
 pub trait Convert<T> {
@@ -42,22 +41,10 @@ pub trait NodeExec {
     /// let node = Node::new();
     /// let args = Args::new("upload")
     ///              .flag("--code-only")
-    ///              .program(env::wasm_bin("demo_new_meta.opt.wasm"));
+    ///              .program(env::wasm_bin("demo_wallets.opt.wasm"));
     /// let output = node.run(args)
     ///
     /// // ...
     /// ```
     fn run(&self, args: Args) -> Result<Output>;
-
-    /// Execute command gcli with Node instance
-    /// and return stdout.
-    fn stdout(&self, args: Args) -> Result<String> {
-        let output = self.run(args)?;
-
-        if output.stdout.is_empty() {
-            return Err(anyhow!("stdout is empty, stderr: {}", output.stderr.convert()).into());
-        }
-
-        Ok(output.stdout.convert())
-    }
 }

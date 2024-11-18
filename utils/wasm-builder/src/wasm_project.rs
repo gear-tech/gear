@@ -20,8 +20,6 @@ use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
-use gmeta::MetadataRepr;
-use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -29,25 +27,6 @@ use std::{
 use toml::value::Table;
 
 const OPT_LEVEL: &str = "z";
-
-/// Enum defining type of binary compiling: production program or metawasm.
-pub enum ProjectType {
-    Program(Option<MetadataRepr>),
-    Metawasm,
-}
-
-impl ProjectType {
-    pub fn is_metawasm(&self) -> bool {
-        matches!(self, ProjectType::Metawasm)
-    }
-
-    pub fn metadata(&self) -> Option<&MetadataRepr> {
-        match self {
-            ProjectType::Program(metadata) => metadata.as_ref(),
-            _ => None,
-        }
-    }
-}
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -59,7 +38,6 @@ pub struct WasmProject {
     wasm_target_dir: PathBuf,
     file_base_name: Option<String>,
     profile: String,
-    project_type: ProjectType,
     features: Option<Vec<String>>,
     pre_processors: Vec<Box<dyn PreProcessor>>,
 }
@@ -96,7 +74,7 @@ pub trait PreProcessor {
 
 impl WasmProject {
     /// Create a new `WasmProject`.
-    pub fn new(project_type: ProjectType) -> Self {
+    pub fn new() -> Self {
         let original_dir: PathBuf = env::var("CARGO_MANIFEST_DIR")
             .expect("`CARGO_MANIFEST_DIR` is always set in build scripts")
             .into();
@@ -140,7 +118,6 @@ impl WasmProject {
             wasm_target_dir,
             file_base_name: None,
             profile,
-            project_type,
             features: None,
             pre_processors: vec![],
         }
@@ -243,7 +220,7 @@ impl WasmProject {
         let to_lock = self.out_dir.join("Cargo.lock");
         drop(fs::copy(from_lock, to_lock));
 
-        let mut source_code =
+        let source_code =
             "#![no_std]\n#[allow(unused_imports)]\npub use orig_project::*;\n".to_owned();
 
         fs::create_dir_all(&self.wasm_target_dir).with_context(|| {
@@ -253,89 +230,11 @@ impl WasmProject {
             )
         })?;
 
-        // Write metadata
-        if let Some(metadata) = &self.project_type.metadata() {
-            let file_base_name = self
-                .file_base_name
-                .as_ref()
-                .expect("Run `WasmProject::create_project()` first");
-
-            let wasm_meta_path = self
-                .wasm_target_dir
-                .join([file_base_name, ".meta.txt"].concat());
-
-            smart_fs::write_metadata(wasm_meta_path, metadata)
-                .context("unable to write `*.meta.txt`")?;
-
-            source_code = format!(
-                r#"{source_code}
-#[allow(improper_ctypes)]
-mod fake_gsys {{
-    extern "C" {{
-        pub fn gr_reply(
-            payload: *const u8,
-            len: u32,
-            value: *const u128,
-            err_mid: *mut [u8; 36],
-        );
-    }}
-}}
-
-#[no_mangle]
-extern "C" fn metahash() {{
-    const METAHASH: [u8; 32] = {:?};
-    let mut res: [u8; 36] = [0; 36];
-    unsafe {{
-        fake_gsys::gr_reply(
-            METAHASH.as_ptr(),
-            METAHASH.len() as _,
-            u32::MAX as _,
-            &mut res as _,
-        );
-    }}
-}}
-"#,
-                metadata.hash(),
-            );
-        }
-
         let src_dir = self.out_dir.join("src");
         fs::create_dir_all(&src_dir).context("Failed to create `src` directory")?;
         smart_fs::write(src_dir.join("lib.rs"), source_code)?;
 
         Ok(())
-    }
-
-    /// Generate output wasm meta file and wasm binary informational file.
-    pub fn postprocess_meta(
-        &self,
-        original_wasm_path: &PathBuf,
-        file_base_name: &String,
-    ) -> Result<()> {
-        let meta_wasm_path = self
-            .wasm_target_dir
-            .join([file_base_name, ".meta.wasm"].concat());
-
-        if smart_fs::check_if_newer(original_wasm_path, &meta_wasm_path)? {
-            fs::write(
-                meta_wasm_path.clone(),
-                Optimizer::new(original_wasm_path.clone())?.optimize(OptType::Meta)?,
-            )?;
-        }
-
-        smart_fs::write(
-            self.out_dir.join("wasm_binary.rs"),
-            format!(
-                r#"#[allow(unused)]
-                       pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-                       #[allow(unused)]
-                       pub const WASM_EXPORTS: &[&str] = &{:?};"#,
-                display_path(meta_wasm_path.as_path()),
-                Self::get_exports(&meta_wasm_path)?,
-            ),
-        )
-        .context("unable to write `wasm_binary.rs`")
-        .map_err(Into::into)
     }
 
     fn generate_bin_path(&self, file_base_name: &String) -> Result<()> {
@@ -400,27 +299,15 @@ extern "C" fn metahash() {{
         }
 
         // Create `wasm_binary.rs`
-        let metadata = self
-            .project_type
-            .metadata()
-            .map(|m| {
-                format!(
-                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
-                    m.bytes()
-                )
-            })
-            .unwrap_or_default();
         smart_fs::write(
             self.out_dir.join("wasm_binary.rs"),
             format!(
                 r#"#[allow(unused)]
-                       pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-                       #[allow(unused)]
-                       pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-                       {}"#,
+pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+#[allow(unused)]
+pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
                 display_path(original_copy_wasm_path.as_path()),
                 display_path(opt_wasm_path.as_path()),
-                metadata,
             ),
         )
         .context("unable to write `wasm_binary.rs`")?;
@@ -502,50 +389,21 @@ extern "C" fn metahash() {{
         // Tuple with PathBuf last wasm & opt.wasm
         let mut wasm_paths: Option<(PathBuf, PathBuf)> = None;
         for (wasm_path, file_base_name) in &wasm_files {
-            if self.project_type.is_metawasm() {
-                self.postprocess_meta(wasm_path, file_base_name)?;
-            } else {
-                let wasm_opt = self.postprocess_opt(wasm_path, file_base_name)?;
-                wasm_paths = Some((wasm_path.clone(), wasm_opt));
-            }
+            let wasm_opt = self.postprocess_opt(wasm_path, file_base_name)?;
+            wasm_paths = Some((wasm_path.clone(), wasm_opt));
         }
 
         for (wasm_path, _) in &wasm_files {
             let code = fs::read(wasm_path)?;
             let validator = CodeValidator::try_from(code)?;
 
-            if self.project_type.is_metawasm() {
-                validator.validate_metawasm()?;
-            } else {
-                validator.validate_program()?;
-            }
+            validator.validate_program()?;
         }
 
         if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").is_err() {
             self.force_rerun_on_next_run(&original_wasm_path)?;
         }
         Ok(wasm_paths)
-    }
-
-    fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
-        let module =
-            parity_wasm::deserialize_file(file).with_context(|| format!("File path: {file:?}"))?;
-
-        let exports = module
-            .export_section()
-            .ok_or_else(|| anyhow!("Export section not found"))?
-            .entries()
-            .iter()
-            .flat_map(|entry| {
-                if let Internal::Function(_) = entry.internal() {
-                    Some(entry.field().to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        Ok(exports)
     }
 
     // Force cargo to re-run the build script next time it is invoked.
@@ -565,20 +423,11 @@ extern "C" fn metahash() {{
             return wasm_binary_rs;
         }
 
-        let content = if !self.project_type.is_metawasm() {
-            r#"#[allow(unused)]
+        let content = r#"#[allow(unused)]
     pub const WASM_BINARY: &[u8] = &[];
     #[allow(unused)]
     pub const WASM_BINARY_OPT: &[u8] = &[];
-    #[allow(unused)] pub const WASM_METADATA: &[u8] = &[];
-    "#
-        } else {
-            r#"#[allow(unused)]
-    pub const WASM_BINARY: &[u8] = &[];
-    #[allow(unused)]
-    pub const WASM_EXPORTS: &[&str] = &[];
-    "#
-        };
+    "#;
         let path = wasm_binary_rs.as_path();
         fs::write(path, content)
             .unwrap_or_else(|_| panic!("Writing `{}` should not fail!", display_path(path)));

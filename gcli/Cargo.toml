@@ -21,21 +21,20 @@ colored.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
 env_logger.workspace = true
-gmeta.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gring = { workspace = true, features = [ "cli" ] }
+gring = { workspace = true, features = ["cli"] }
 hex.workspace = true
-jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
+jsonrpsee = { workspace = true, features = ["http-client", "ws-client"] }
 keyring.workspace = true
 log.workspace = true
 scale-info.workspace = true
 serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
 thiserror.workspace = true
-tokio = { workspace = true, features = [ "full" ] }
+tokio = { workspace = true, features = ["full"] }
 whoami.workspace = true
-reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
 etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }
@@ -46,7 +45,7 @@ wasmer-types.workspace = true
 [dev-dependencies]
 rand.workspace = true
 demo-messenger.workspace = true
-demo-new-meta.workspace = true
+demo-wallets.workspace = true
 demo-waiter.workspace = true
 gear-node-wrapper.workspace = true
 

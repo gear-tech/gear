@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+// Reexport of types.
+pub use demo_wallets_io::*;
 
 #[cfg(feature = "std")]
 mod code {
@@ -24,10 +27,10 @@ mod code {
 }
 
 #[cfg(feature = "std")]
-pub use code::WASM_BINARY as META_WASM_V1;
-
-#[cfg(feature = "std")]
-pub use code::WASM_EXPORTS as META_EXPORTS_V1;
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
-mod wasm;
+pub const WASM_BINARY: &[u8] = &[];
+
+#[cfg(not(feature = "std"))]
+pub mod wasm;

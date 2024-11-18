@@ -1,5 +1,5 @@
 [package]
-name = "demo-meta-state-v3"
+name = "demo-wallets"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -9,12 +9,17 @@ repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
-gmeta = { workspace = true, features = ["codegen"] }
-demo-meta-io = { path = "../io" }
+parity-scale-codec.workspace = true
+demo-wallets-io = { path = "io" }
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true, features = ["metawasm"] }
+demo-wallets-io = { path = "io" }
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
 
 [features]
+debug = ["gstd/debug"]
 default = ["std"]
 std = []
