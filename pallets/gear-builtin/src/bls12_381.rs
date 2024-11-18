@@ -87,11 +87,15 @@ fn decode_vec<T: Config, I: Input>(
     if *gas_limit < to_spend {
         return Err(BuiltinActorError::InsufficientGas);
     }
+    if GasAllowanceOf::<T>::get() < to_spend {
+        return Err(BuiltinActorError::GasAllowanceExceeded);
+    }
 
     *gas_limit = gas_limit.saturating_sub(to_spend);
 
     let mut items = vec![0u8; len as usize];
     let bytes_slice = items.as_mut_slice();
+
     input.read(bytes_slice).map(|_| items).map_err(|_| {
         log::debug!(
             target: LOG_TARGET,
@@ -161,6 +165,12 @@ fn multi_miller_loop<T: Config>(
             gas_limit.saturating_sub(gas_left),
         );
     }
+    if GasAllowanceOf::<T>::get() < to_spend {
+        return (
+            Err(BuiltinActorError::GasAllowanceExceeded),
+            gas_limit.saturating_sub(gas_left),
+        );
+    }
 
     gas_left -= to_spend;
 
@@ -192,6 +202,12 @@ fn final_exponentiation<T: Config>(
     if gas_left < to_spend {
         return (
             Err(BuiltinActorError::InsufficientGas),
+            gas_limit.saturating_sub(gas_left),
+        );
+    }
+    if GasAllowanceOf::<T>::get() < to_spend {
+        return (
+            Err(BuiltinActorError::GasAllowanceExceeded),
             gas_limit.saturating_sub(gas_left),
         );
     }
@@ -277,6 +293,12 @@ fn msm<T: Config>(
             gas_limit.saturating_sub(gas_left),
         );
     }
+    if GasAllowanceOf::<T>::get() < to_spend {
+        return (
+            Err(BuiltinActorError::GasAllowanceExceeded),
+            gas_limit.saturating_sub(gas_left),
+        );
+    }
 
     gas_left -= to_spend;
 
@@ -352,6 +374,12 @@ fn projective_multiplication<T: Config>(
     if gas_limit < to_spend {
         return (
             Err(BuiltinActorError::InsufficientGas),
+            gas_limit.saturating_sub(gas_left),
+        );
+    }
+    if GasAllowanceOf::<T>::get() < to_spend {
+        return (
+            Err(BuiltinActorError::GasAllowanceExceeded),
             gas_limit.saturating_sub(gas_left),
         );
     }
@@ -432,6 +460,12 @@ fn aggregate_g1<T: Config>(
             gas_limit.saturating_sub(gas_left),
         );
     }
+    if GasAllowanceOf::<T>::get() < to_spend {
+        return (
+            Err(BuiltinActorError::GasAllowanceExceeded),
+            gas_limit.saturating_sub(gas_left),
+        );
+    }
 
     gas_left -= to_spend;
 
@@ -476,6 +510,9 @@ fn map_to_g2affine<T: Config>(
     let to_spend = <T as Config>::WeightInfo::bls12_381_map_to_g2affine(len).ref_time();
     if gas_limit < to_spend {
         return (Err(BuiltinActorError::InsufficientGas), 0);
+    }
+    if GasAllowanceOf::<T>::get() < to_spend {
+        return (Err(BuiltinActorError::GasAllowanceExceeded), 0);
     }
 
     (
