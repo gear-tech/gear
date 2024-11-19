@@ -19,7 +19,7 @@
 use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
-use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
+use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -294,7 +294,7 @@ impl WasmProject {
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
             optimizer.strip_custom_sections();
-            fs::write(&opt_wasm_path, optimizer.optimize(OptType::Opt)?)
+            fs::write(&opt_wasm_path, optimizer.optimize()?)
                 .context("Failed to write optimized WASM binary")?;
         }
 

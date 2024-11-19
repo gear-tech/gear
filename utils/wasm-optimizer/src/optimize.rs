@@ -23,7 +23,7 @@ use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
+    parity_wasm::elements::{Module, Section, Serialize},
 };
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
@@ -46,20 +46,6 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     "metahash",
     STACK_END_EXPORT_NAME,
 ];
-
-/// Type of the output wasm.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptType {
-    Meta,
-    Opt,
-}
-
-impl OptType {
-    /// If the optimization type if meta
-    pub fn is_meta(&self) -> bool {
-        self.eq(&OptType::Meta)
-    }
-}
 
 pub struct Optimizer {
     module: Module,
@@ -101,27 +87,10 @@ impl Optimizer {
     }
 
     /// Process optimization.
-    pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
+    pub fn optimize(&self) -> Result<Vec<u8>> {
         let mut module = self.module.clone();
 
-        let exports = if ty == OptType::Opt {
-            OPTIMIZED_EXPORTS.to_vec()
-        } else {
-            self.module
-                .export_section()
-                .ok_or_else(|| anyhow!("Export section not found"))?
-                .entries()
-                .iter()
-                .flat_map(|entry| {
-                    if let Internal::Function(_) = entry.internal() {
-                        let entry = entry.field();
-                        (!OPTIMIZED_EXPORTS.contains(&entry)).then_some(entry)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        };
+        let exports = OPTIMIZED_EXPORTS.to_vec();
 
         pwasm_utils::optimize(&mut module, exports)
             .map_err(|e| anyhow!("{e:?}"))
