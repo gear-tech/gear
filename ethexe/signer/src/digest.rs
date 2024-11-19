@@ -19,9 +19,7 @@
 //! Keccak256 digest type. Implements AsDigest hashing for ethexe common types.
 
 use core::fmt;
-use ethexe_common::router::{
-    BlockCommitment, CodeCommitment, OutgoingMessage, StateTransition, ValueClaim,
-};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -152,7 +150,7 @@ impl ToDigest for StateTransition {
     }
 }
 
-impl ToDigest for OutgoingMessage {
+impl ToDigest for Message {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
         let Self {
@@ -178,17 +176,17 @@ impl ToDigest for BlockCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
         let Self {
-            block_hash,
-            block_timestamp,
-            prev_commitment_hash,
-            pred_block_hash,
+            hash,
+            timestamp,
+            previous_committed_block,
+            predecessor_block,
             transitions,
         } = self;
 
-        hasher.update(block_hash.as_bytes());
-        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
-        hasher.update(prev_commitment_hash.as_bytes());
-        hasher.update(pred_block_hash.as_bytes());
+        hasher.update(hash.as_bytes());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+        hasher.update(previous_committed_block.as_bytes());
+        hasher.update(predecessor_block.as_bytes());
         hasher.update(transitions.to_digest().as_ref());
     }
 }
@@ -213,7 +211,7 @@ mod tests {
             inheritor: ActorId::from(0),
             value_to_receive: 0,
             value_claims: vec![],
-            messages: vec![OutgoingMessage {
+            messages: vec![Message {
                 id: MessageId::from(0),
                 destination: ActorId::from(0),
                 payload: b"Hello, World!".to_vec(),
@@ -226,10 +224,10 @@ mod tests {
         let transitions = vec![state_transition.clone(), state_transition];
 
         let block_commitment = BlockCommitment {
-            block_hash: H256::from([0; 32]),
-            block_timestamp: 0,
-            pred_block_hash: H256::from([1; 32]),
-            prev_commitment_hash: H256::from([2; 32]),
+            hash: H256::from([0; 32]),
+            timestamp: 0,
+            previous_committed_block: H256::from([2; 32]),
+            predecessor_block: H256::from([1; 32]),
             transitions: transitions.clone(),
         };
         let _digest = block_commitment.to_digest();

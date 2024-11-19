@@ -19,8 +19,7 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
-    router::Event as RouterEvent,
-    BlockEvent, BlockRequestEvent,
+    events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };
 use ethexe_signer::Address;
 use gprimitives::{CodeId, H256};
@@ -89,7 +88,7 @@ impl Query {
             .await?
             .into_iter()
             .filter_map(|event| match event {
-                BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => Some(block_hash),
+                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => Some(hash),
                 _ => None,
             })
             .collect())

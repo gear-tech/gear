@@ -70,7 +70,7 @@ pub struct CodeUploadInfo {
 
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
-// TODO (breathx): WITHIN THE BLOCK
+// TODO (breathx): WITHIN THE PR
 pub trait BlockMetaStorage: Send + Sync {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);

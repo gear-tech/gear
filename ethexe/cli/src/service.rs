@@ -22,12 +22,10 @@ use crate::{
     config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
-    router::{
-        BlockCommitment, CodeCommitment, RequestEvent as RouterRequestEvent, StateTransition,
-    },
-    BlockRequestEvent,
+    events::{BlockRequestEvent, RouterRequestEvent},
+    gear::{BlockCommitment, CodeCommitment, StateTransition},
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
@@ -108,9 +106,18 @@ impl Service {
         let router_query = RouterQuery::new(&config.ethereum_rpc, ethereum_router_address).await?;
 
         let genesis_block_hash = router_query.genesis_block_hash().await?;
-        log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
 
-        let validators = router_query.validators().await?;
+        if genesis_block_hash.is_zero() {
+            log::error!(
+                "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
+            );
+
+            bail!("Failed to query valid genesis hash");
+        } else {
+            log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
+        }
+
+        let validators = router_query.validators_keys().await?;
         log::info!("👥 Validators set: {validators:?}");
 
         let threshold = router_query.threshold().await?;
@@ -267,7 +274,7 @@ impl Service {
         for event in events {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
-                    code_id,
+                    id: code_id,
                     blob_tx_hash,
                 }) => {
                     db.set_code_blob_tx(code_id, blob_tx_hash);
@@ -373,12 +380,12 @@ impl Service {
                 .ok_or_else(|| anyhow!("header not found, but most exist"))?;
 
             commitments.push(BlockCommitment {
-                block_hash,
-                block_timestamp: header.timestamp,
-                pred_block_hash: block_data.hash,
-                prev_commitment_hash: db
+                hash: block_hash,
+                timestamp: header.timestamp,
+                previous_committed_block: db
                     .block_prev_commitment(block_hash)
                     .ok_or_else(|| anyhow!("Prev commitment not found"))?,
+                predecessor_block: block_data.hash,
                 transitions,
             });
         }
@@ -925,7 +932,7 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "ws://54.67.75.1:8546".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0xa9e7B594e18e28b1Cc0FA4000D92ded887CB356F"
+            ethereum_router_address: "0x520ecEe5Eb8fE561290DE0A987a295f9634f8aa3"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,
@@ -954,7 +961,7 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0xa9e7B594e18e28b1Cc0FA4000D92ded887CB356F"
+            ethereum_router_address: "0x520ecEe5Eb8fE561290DE0A987a295f9634f8aa3"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,

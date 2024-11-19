@@ -24,8 +24,8 @@ use crate::{
 };
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
-    router::StateTransition,
-    BlockRequestEvent,
+    events::BlockRequestEvent,
+    gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage,

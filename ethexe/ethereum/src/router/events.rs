@@ -33,7 +33,7 @@ pub mod signatures {
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
         PROGRAM_CREATED: ProgramCreated,
         STORAGE_SLOT_CHANGED: StorageSlotChanged,
-        VALIDATORS_SET_CHANGED: ValidatorsSetChanged,
+        VALIDATORS_CHANGED: ValidatorsChanged,
     }
 
     pub const REQUESTS: &[B256] = &[
@@ -41,7 +41,7 @@ pub mod signatures {
         COMPUTATION_SETTINGS_CHANGED,
         PROGRAM_CREATED,
         STORAGE_SLOT_CHANGED,
-        VALIDATORS_SET_CHANGED,
+        VALIDATORS_CHANGED,
     ];
 }
 
@@ -66,10 +66,12 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
 
             event.into()
         }
-        COMPUTATION_SETTINGS_CHANGED => decode_log::<IRouter::ComputationSettingsChanged>(log)?.into(),
+        COMPUTATION_SETTINGS_CHANGED => {
+            decode_log::<IRouter::ComputationSettingsChanged>(log)?.into()
+        }
         PROGRAM_CREATED => decode_log::<IRouter::ProgramCreated>(log)?.into(),
         STORAGE_SLOT_CHANGED => decode_log::<IRouter::StorageSlotChanged>(log)?.into(),
-        VALIDATORS_SET_CHANGED => decode_log::<IRouter::ValidatorsSetChanged>(log)?.into(),
+        VALIDATORS_CHANGED => decode_log::<IRouter::ValidatorsChanged>(log)?.into(),
         _ => unreachable!("filtered above"),
     };
 

@@ -12,7 +12,7 @@ use core_processor::{
     common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
 };
-use ethexe_common::{db::ScheduledTask, router::OutgoingMessage};
+use ethexe_common::db::ScheduledTask;
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,

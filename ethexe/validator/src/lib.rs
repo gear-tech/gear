@@ -19,7 +19,7 @@
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
-    router::{BlockCommitment, CodeCommitment},
+    gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
 use ethexe_signer::{
@@ -44,8 +44,8 @@ pub struct Config {
 pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
     pub block_timestamp: u64,
-    pub prev_commitment_hash: H256,
-    pub pred_block_hash: H256,
+    pub previous_committed_block: H256,
+    pub predecessor_block: H256,
     pub transitions_digest: Digest,
 }
 
@@ -53,18 +53,18 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
     fn from(commitment: &BlockCommitment) -> Self {
         // To avoid missing incorrect hashing while developing.
         let BlockCommitment {
-            block_hash,
-            block_timestamp,
-            prev_commitment_hash,
-            pred_block_hash,
+            hash,
+            timestamp,
+            previous_committed_block,
+            predecessor_block,
             transitions,
         } = commitment;
 
         Self {
-            block_hash: *block_hash,
-            block_timestamp: *block_timestamp,
-            prev_commitment_hash: *prev_commitment_hash,
-            pred_block_hash: *pred_block_hash,
+            block_hash: *hash,
+            block_timestamp: *timestamp,
+            previous_committed_block: *previous_committed_block,
+            predecessor_block: *predecessor_block,
             transitions_digest: transitions.to_digest(),
         }
     }
@@ -76,15 +76,15 @@ impl ToDigest for BlockCommitmentValidationRequest {
         let Self {
             block_hash,
             block_timestamp,
-            prev_commitment_hash,
-            pred_block_hash,
+            previous_committed_block,
+            predecessor_block,
             transitions_digest,
         } = self;
 
         hasher.update(block_hash.as_bytes());
         hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
-        hasher.update(prev_commitment_hash.as_bytes());
-        hasher.update(pred_block_hash.as_bytes());
+        hasher.update(previous_committed_block.as_bytes());
+        hasher.update(predecessor_block.as_bytes());
         hasher.update(transitions_digest.as_ref());
     }
 }
@@ -180,8 +180,8 @@ impl Validator {
         let BlockCommitmentValidationRequest {
             block_hash,
             block_timestamp,
-            pred_block_hash: allowed_pred_block_hash,
-            prev_commitment_hash: allowed_prev_commitment_hash,
+            previous_committed_block: allowed_previous_committed_block,
+            predecessor_block: allowed_predecessor_block,
             transitions_digest,
         } = request;
 
@@ -209,16 +209,16 @@ impl Validator {
 
         if db.block_prev_commitment(block_hash).ok_or_else(|| {
             anyhow!("Cannot get from db previous commitment for block {block_hash}")
-        })? != allowed_prev_commitment_hash
+        })? != allowed_previous_committed_block
         {
             return Err(anyhow!(
                 "Requested and local previous commitment block hash mismatch"
             ));
         }
 
-        if !Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)? {
+        if !Self::verify_is_predecessor(db, allowed_predecessor_block, block_hash, None)? {
             return Err(anyhow!(
-                "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
+                "{block_hash} is not a predecessor of {allowed_predecessor_block}"
             ));
         }
 
@@ -272,7 +272,7 @@ impl Validator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::router::StateTransition;
+    use ethexe_common::gear::StateTransition;
     use ethexe_db::BlockHeader;
     use gprimitives::CodeId;
 
@@ -288,10 +288,10 @@ mod tests {
         };
 
         let commitment = BlockCommitment {
-            block_hash: H256::random(),
-            block_timestamp: rand::random(),
-            prev_commitment_hash: H256::random(),
-            pred_block_hash: H256::random(),
+            hash: H256::random(),
+            timestamp: rand::random(),
+            previous_committed_block: H256::random(),
+            predecessor_block: H256::random(),
             transitions: vec![transition.clone(), transition],
         };
 
@@ -343,13 +343,13 @@ mod tests {
         let block_hash = H256::random();
         let block_timestamp = rand::random::<u32>() as u64;
         let pred_block_hash = H256::random();
-        let prev_commitment_hash = H256::random();
+        let previous_committed_block = H256::random();
         let transitions = vec![];
         let transitions_digest = transitions.to_digest();
 
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);
-        db.set_block_prev_commitment(block_hash, prev_commitment_hash);
+        db.set_block_prev_commitment(block_hash, previous_committed_block);
         db.set_block_header(
             block_hash,
             BlockHeader {
@@ -364,8 +364,8 @@ mod tests {
             BlockCommitmentValidationRequest {
                 block_hash,
                 block_timestamp,
-                pred_block_hash: block_hash,
-                prev_commitment_hash,
+                previous_committed_block,
+                predecessor_block: block_hash,
                 transitions_digest,
             },
         )
@@ -376,8 +376,8 @@ mod tests {
             BlockCommitmentValidationRequest {
                 block_hash,
                 block_timestamp: block_timestamp + 1,
-                pred_block_hash: block_hash,
-                prev_commitment_hash,
+                previous_committed_block,
+                predecessor_block: block_hash,
                 transitions_digest,
             },
         )
@@ -388,8 +388,8 @@ mod tests {
             BlockCommitmentValidationRequest {
                 block_hash,
                 block_timestamp,
-                pred_block_hash: H256::random(),
-                prev_commitment_hash,
+                previous_committed_block,
+                predecessor_block: H256::random(),
                 transitions_digest,
             },
         )
@@ -400,8 +400,8 @@ mod tests {
             BlockCommitmentValidationRequest {
                 block_hash,
                 block_timestamp,
-                pred_block_hash: block_hash,
-                prev_commitment_hash: H256::random(),
+                previous_committed_block: H256::random(),
+                predecessor_block: block_hash,
                 transitions_digest,
             },
         )
@@ -412,8 +412,8 @@ mod tests {
             BlockCommitmentValidationRequest {
                 block_hash,
                 block_timestamp,
-                pred_block_hash: block_hash,
-                prev_commitment_hash,
+                previous_committed_block,
+                predecessor_block: block_hash,
                 transitions_digest: Digest::from([2; 32]),
             },
         )
@@ -424,8 +424,8 @@ mod tests {
             BlockCommitmentValidationRequest {
                 block_hash: H256::random(),
                 block_timestamp,
-                pred_block_hash: block_hash,
-                prev_commitment_hash,
+                previous_committed_block,
+                predecessor_block: block_hash,
                 transitions_digest,
             },
         )
