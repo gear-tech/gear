@@ -18,7 +18,7 @@
 
 //! ethexe common db types and traits.
 
-use crate::{router::StateTransition, BlockRequestEvent};
+use crate::{events::BlockRequestEvent, gear::StateTransition};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
@@ -70,6 +70,7 @@ pub struct CodeUploadInfo {
 
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
+// TODO (breathx): WITHIN THE BLOCK
 pub trait BlockMetaStorage: Send + Sync {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);

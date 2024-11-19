@@ -19,7 +19,7 @@
 use crate::{decode_log, IRouter};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::{anyhow, Result};
-use ethexe_common::router;
+use ethexe_common::events::{RouterEvent, RouterRequestEvent};
 use signatures::*;
 
 pub mod signatures {
@@ -27,33 +27,30 @@ pub mod signatures {
 
     crate::signatures_consts! {
         IRouter;
-        BASE_WEIGHT_CHANGED: BaseWeightChanged,
         BLOCK_COMMITTED: BlockCommitted,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
+        COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
         PROGRAM_CREATED: ProgramCreated,
         STORAGE_SLOT_CHANGED: StorageSlotChanged,
         VALIDATORS_SET_CHANGED: ValidatorsSetChanged,
-        VALUE_PER_WEIGHT_CHANGED: ValuePerWeightChanged,
     }
 
     pub const REQUESTS: &[B256] = &[
-        BASE_WEIGHT_CHANGED,
         CODE_VALIDATION_REQUESTED,
+        COMPUTATION_SETTINGS_CHANGED,
         PROGRAM_CREATED,
         STORAGE_SLOT_CHANGED,
         VALIDATORS_SET_CHANGED,
-        VALUE_PER_WEIGHT_CHANGED,
     ];
 }
 
-pub fn try_extract_event(log: &Log) -> Result<Option<router::Event>> {
+pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
     let Some(topic0) = log.topic0().filter(|&v| ALL.contains(v)) else {
         return Ok(None);
     };
 
     let event = match *topic0 {
-        BASE_WEIGHT_CHANGED => decode_log::<IRouter::BaseWeightChanged>(log)?.into(),
         BLOCK_COMMITTED => decode_log::<IRouter::BlockCommitted>(log)?.into(),
         CODE_GOT_VALIDATED => decode_log::<IRouter::CodeGotValidated>(log)?.into(),
         CODE_VALIDATION_REQUESTED => {
@@ -69,17 +66,17 @@ pub fn try_extract_event(log: &Log) -> Result<Option<router::Event>> {
 
             event.into()
         }
+        COMPUTATION_SETTINGS_CHANGED => decode_log::<IRouter::ComputationSettingsChanged>(log)?.into(),
         PROGRAM_CREATED => decode_log::<IRouter::ProgramCreated>(log)?.into(),
         STORAGE_SLOT_CHANGED => decode_log::<IRouter::StorageSlotChanged>(log)?.into(),
         VALIDATORS_SET_CHANGED => decode_log::<IRouter::ValidatorsSetChanged>(log)?.into(),
-        VALUE_PER_WEIGHT_CHANGED => decode_log::<IRouter::ValuePerWeightChanged>(log)?.into(),
         _ => unreachable!("filtered above"),
     };
 
     Ok(Some(event))
 }
 
-pub fn try_extract_request_event(log: &Log) -> Result<Option<router::RequestEvent>> {
+pub fn try_extract_request_event(log: &Log) -> Result<Option<RouterRequestEvent>> {
     if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
         return Ok(None);
     }
