@@ -18,6 +18,9 @@
 
 //! Ethexe transaction pool.
 
+use anyhow::Result;
+use ethexe_signer::{Signature, ToDigest};
+
 pub struct TranscationPool<Tx> {
     transactions: Vec<Tx>,
 }
@@ -32,31 +35,36 @@ impl<Tx> TranscationPool<Tx> {
 
 impl<Tx: Transaction> TranscationPool<Tx> {
     pub fn add_new_transaction(&mut self, tx: Tx) -> Result<(), Tx::Error> {
-        tx
-            .validate()
-            .map(|_| self.transactions.push(tx))
+        tx.validate().map(|_| self.transactions.push(tx))
     }
 }
 
-pub trait Transaction {   
+pub trait Transaction {
     type Error;
     fn validate(&self) -> Result<(), Self::Error>;
 }
 
 pub enum EthexeTransaction {
     Message {
-        pub_key: Vec<u8>,
         raw_message: Vec<u8>,
-        signed_message: Vec<u8>, 
-    }
+        signature: Vec<u8>,
+    },
 }
 
 impl Transaction for EthexeTransaction {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn validate(&self) -> Result<(), Self::Error> {
         match self {
-            EthexeTransaction::Message { pub_key, raw_message, signed_message } => todo!(),
+            EthexeTransaction::Message {
+                raw_message,
+                signature,
+            } => {
+                let message_digest = raw_message.to_digest();
+                let signature = Signature::try_from(signature.as_ref())?;
+
+                signature.verify(message_digest)
+            }
         }
     }
 }

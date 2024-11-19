@@ -4732,6 +4732,10 @@ dependencies = [
 [[package]]
 name = "ethexe-tx-pool"
 version = "1.6.2"
+dependencies = [
+ "anyhow",
+ "ethexe-signer",
+]
 
 [[package]]
 name = "ethexe-utils"

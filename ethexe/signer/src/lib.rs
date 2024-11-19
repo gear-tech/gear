@@ -21,14 +21,15 @@
 mod digest;
 mod signature;
 
+// Exports
 pub use digest::{Digest, ToDigest};
-use secp256k1::hashes::hex::{Case, DisplayHex};
 pub use sha3;
 pub use signature::Signature;
 
 use anyhow::{anyhow, bail, Result};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
+use secp256k1::hashes::hex::{Case, DisplayHex};
 use sha3::Digest as _;
 use signature::RawSignature;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
@@ -119,6 +120,16 @@ impl PublicKey {
         address.0[..20].copy_from_slice(&hash[12..]);
 
         address
+    }
+}
+
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = anyhow::Error;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let bytes = <[u8; 33]>::try_from(data)?;
+
+        Ok(Self::from_bytes(bytes))
     }
 }
 

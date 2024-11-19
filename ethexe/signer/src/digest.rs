@@ -39,7 +39,7 @@ use sha3::Digest as _;
     derive_more::Into,
     derive_more::AsRef,
 )]
-pub struct Digest([u8; 32]);
+pub struct Digest(pub(crate) [u8; 32]);
 
 impl fmt::Debug for Digest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
