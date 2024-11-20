@@ -19,7 +19,7 @@
 //! Secp256k1 signature types and utilities.
 
 use crate::{Digest, PrivateKey, PublicKey};
-use anyhow::{Context, Error, Result};
+use anyhow::{Error, Result};
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
@@ -27,34 +27,29 @@ use secp256k1::{
 };
 use std::fmt;
 
+/// A recoverable ECDSA signature with `v` value in an `Electrum` notation.
+///
+/// 'Electrum' notation signatures define `v` to be from the `{0; 1}` set.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct RawSignature([u8; 65]);
 
 impl RawSignature {
+    /// Create a recoverable signature for the provided digest using the private key.
     pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<RawSignature> {
-        let secp_secret_key = secp256k1::SecretKey::from_slice(&private_key.0)
-            .with_context(|| "Invalid secret key format for {:?}")?;
-
+        let secp_secret_key = private_key.into();
         let message = Message::from_digest(digest.into());
 
         let recoverable =
             secp256k1::global::SECP256K1.sign_ecdsa_recoverable(&message, &secp_secret_key);
-
         let (id, signature) = recoverable.serialize_compact();
-        let mut bytes = [0u8; 65];
-        bytes[..64].copy_from_slice(signature.as_ref());
-        bytes[64] = i32::from(id) as u8;
-        Ok(RawSignature(bytes))
-    }
-}
 
-impl TryFrom<&[u8]> for RawSignature {
-    type Error = Error;
+        let mut ret = [0u8; 65];
+        ret[..64].copy_from_slice(signature.as_ref());
+        ret[64] = i32::from(id)
+            .try_into()
+            .expect("recovery id is within u8 range");
 
-    fn try_from(data: &[u8]) -> Result<Self> {
-        let bytes = <[u8; 65]>::try_from(data)?;
-
-        Ok(RawSignature(bytes))
+        Ok(RawSignature(ret))
     }
 }
 
@@ -72,66 +67,61 @@ impl AsRef<[u8]> for RawSignature {
 
 impl From<Signature> for RawSignature {
     fn from(mut sig: Signature) -> RawSignature {
-        // TODO: Include chain id, as that's for transaction of pre-EIP-155 (!)
+        // TODO [sab]: Define parity in accordance to pre-EIP-155 and post-EIP-155 standards.
         sig.0[64] -= 27;
         RawSignature(sig.0)
     }
 }
 
+/// A recoverable ECDSA signature type with any possible `v`.
+///
+/// The signature can be in 'Electrum' notation, pre- or post- EIP-155 notations.
 #[derive(Clone, Copy, Encode, Decode, PartialEq, Eq)]
 pub struct Signature([u8; 65]);
 
 impl Signature {
+    /// Create a recoverable signature for the provided digest using the private key.
     pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<Self> {
         let raw_signature = RawSignature::create_for_digest(private_key, digest)?;
         Ok(raw_signature.into())
     }
 
+    /// Covert signature to hex string.
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
     }
 
-    pub fn verify(&self, digest: Digest) -> Result<()> {
-        let signature = (*self).try_into()?;
-        let public_key = self.recover_from_digest_with_signature(Some(signature), digest)?;
-        let secp256k1_pub_key = secp256k1::PublicKey::from_byte_array_compressed(&public_key.0)?;
-        let message = Message::from_digest(digest.0);
-
-        secp256k1::global::SECP256K1
-            .verify_ecdsa(&message, &signature.to_standard(), &secp256k1_pub_key)
-            .map_err(Into::into)
+    /// Verify the signature with public key recovery from the signature.
+    pub fn verify_with_public_key_recover(&self, digest: Digest) -> Result<()> {
+        let public_key = self.recover_from_digest(digest)?;
+        self.verify(public_key, digest)
     }
 
+    /// Recovers public key which was used to create the signature for the signed digest.
     pub fn recover_from_digest(&self, digest: Digest) -> Result<PublicKey> {
-        self.recover_from_digest_with_signature(None, digest)
-    }
-
-    fn recover_from_digest_with_signature(
-        &self,
-        signature: Option<RecoverableSignature>,
-        digest: Digest,
-    ) -> Result<PublicKey> {
-        let signature = signature.unwrap_or((*self).try_into()?);
+        let signature: RecoverableSignature = (*self).try_into()?;
         signature
             .recover(&Message::from_digest(digest.0))
-            .map(|pub_key| PublicKey::from_bytes(pub_key.serialize()))
+            .map(PublicKey::from)
             .map_err(Into::into)
     }
-}
 
-impl TryFrom<&[u8]> for Signature {
-    type Error = Error;
+    /// Verifies the signature using the public key and digest possibly signed with
+    /// the public key.
+    pub fn verify(&self, public_key: PublicKey, digest: Digest) -> Result<()> {
+        let signature: RecoverableSignature = (*self).try_into()?;
+        let message = Message::from_digest(digest.0);
+        let secp256k1_public_key = public_key.into();
 
-    fn try_from(data: &[u8]) -> Result<Self> {
-        let raw_signature = RawSignature::try_from(data)?;
-
-        Ok(raw_signature.into())
+        secp256k1::global::SECP256K1
+            .verify_ecdsa(&message, &signature.to_standard(), &secp256k1_public_key)
+            .map_err(Into::into)
     }
 }
 
 impl From<RawSignature> for Signature {
     fn from(mut sig: RawSignature) -> Self {
-        // TODO: Include chain id, as that's for transaction of pre-EIP-155 (!)
+        // TODO [sab]: Include chain id, as that's for transaction of pre-EIP-155 (!)
         sig.0[64] += 27;
         Signature(sig.0)
     }
@@ -140,6 +130,16 @@ impl From<RawSignature> for Signature {
 impl From<Signature> for [u8; 65] {
     fn from(sig: Signature) -> [u8; 65] {
         sig.0
+    }
+}
+
+impl TryFrom<&[u8]> for Signature {
+    type Error = Error;
+
+    fn try_from(data: &[u8]) -> Result<Self> {
+        <[u8; 65]>::try_from(data)
+            .map(Signature)
+            .map_err(Into::into)
     }
 }
 

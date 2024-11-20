@@ -22,6 +22,7 @@ use anyhow::Result;
 use ethexe_signer::{Signature, ToDigest};
 
 pub struct TranscationPool<Tx> {
+    /// Txs store
     transactions: Vec<Tx>,
 }
 
@@ -63,7 +64,7 @@ impl Transaction for EthexeTransaction {
                 let message_digest = raw_message.to_digest();
                 let signature = Signature::try_from(signature.as_ref())?;
 
-                signature.verify(message_digest)
+                signature.verify_with_public_key_recover(message_digest)
             }
         }
     }
