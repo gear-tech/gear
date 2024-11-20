@@ -79,7 +79,7 @@ impl From<StateTransition> for Gear::StateTransition {
         Self {
             actorId: actor_id_to_address_lossy(value.actor_id),
             newStateHash: h256_to_bytes32(value.new_state_hash),
-            inheritor: actor_id_to_address_lossy(value.actor_id),
+            inheritor: actor_id_to_address_lossy(value.inheritor),
             valueToReceive: value.value_to_receive,
             valueClaims: value.value_claims.into_iter().map(Into::into).collect(),
             messages: value.messages.into_iter().map(Into::into).collect(),
