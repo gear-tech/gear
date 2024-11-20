@@ -43,6 +43,8 @@ pub struct CodeCommitment {
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct BlockCommitment {
     pub block_hash: H256,
+    /// represented as u48 in router contract
+    pub block_timestamp: u64,
     pub prev_commitment_hash: H256,
     pub pred_block_hash: H256,
     pub transitions: Vec<StateTransition>,

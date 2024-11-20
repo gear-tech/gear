@@ -97,7 +97,7 @@ contract RouterTest is Test {
         transitionsArray[0] =
             IRouter.StateTransition(actorId, bytes32(uint256(1)), address(0), 0, valueClaims, outgoingMessages);
         blockCommitmentsArray[0] = IRouter.BlockCommitment(
-            bytes32(uint256(1)), bytes32(uint256(0)), blockhash(block.number - 1), transitionsArray
+            bytes32(uint256(1)), uint48(0), bytes32(uint256(0)), blockhash(block.number - 1), transitionsArray
         );
 
         commitBlocks(blockCommitmentsArray);
@@ -188,6 +188,7 @@ contract RouterTest is Test {
         return keccak256(
             abi.encodePacked(
                 commitment.blockHash,
+                commitment.blockTimestamp,
                 commitment.prevCommitmentHash,
                 commitment.predBlockHash,
                 keccak256(transitionsHashesBytes)

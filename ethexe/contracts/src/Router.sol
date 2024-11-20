@@ -89,6 +89,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return router.lastBlockCommitmentHash;
     }
 
+    function lastBlockCommitmentTimestamp() public view returns (uint48) {
+        Storage storage router = _getStorage();
+        return router.lastBlockCommitmentTimestamp;
+    }
+
     function wrappedVara() public view returns (address) {
         Storage storage router = _getStorage();
         return router.wrappedVara;
@@ -355,6 +360,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
          * @dev SECURITY: this settlement should be performed before any other calls to avoid reentrancy.
          */
         router.lastBlockCommitmentHash = blockCommitment.blockHash;
+        router.lastBlockCommitmentTimestamp = blockCommitment.blockTimestamp;
 
         bytes memory transitionsHashes;
 
@@ -370,6 +376,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         return _blockCommitmentHash(
             blockCommitment.blockHash,
+            blockCommitment.blockTimestamp,
             blockCommitment.prevCommitmentHash,
             blockCommitment.predBlockHash,
             keccak256(transitionsHashes)
@@ -450,11 +457,14 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function _blockCommitmentHash(
         bytes32 blockHash,
+        uint48 blockTimestamp,
         bytes32 prevCommitmentHash,
         bytes32 predBlockHash,
         bytes32 transitionsHashesHash
     ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(blockHash, prevCommitmentHash, predBlockHash, transitionsHashesHash));
+        return keccak256(
+            abi.encodePacked(blockHash, blockTimestamp, prevCommitmentHash, predBlockHash, transitionsHashesHash)
+        );
     }
 
     function _stateTransitionHash(

@@ -12,6 +12,7 @@ interface IRouter {
         address mirrorProxy;
         address wrappedVara;
         bytes32 lastBlockCommitmentHash;
+        uint48 lastBlockCommitmentTimestamp;
         uint256 signingThresholdPercentage;
         uint64 baseWeight;
         uint128 valuePerWeight;
@@ -38,6 +39,7 @@ interface IRouter {
 
     struct BlockCommitment {
         bytes32 blockHash;
+        uint48 blockTimestamp;
         bytes32 prevCommitmentHash;
         bytes32 predBlockHash;
         StateTransition[] transitions;
@@ -164,6 +166,8 @@ interface IRouter {
     function genesisBlockHash() external view returns (bytes32);
 
     function lastBlockCommitmentHash() external view returns (bytes32);
+
+    function lastBlockCommitmentTimestamp() external view returns (uint48);
 
     function wrappedVara() external view returns (address);
 

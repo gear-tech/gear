@@ -16,13 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     router::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
-use ethexe_signer::{sha3, Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use ethexe_signer::{
+    sha3::{self, Digest as _},
+    Address, Digest, PublicKey, Signature, Signer, ToDigest,
+};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
@@ -40,6 +43,7 @@ pub struct Config {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
+    pub block_timestamp: u64,
     pub prev_commitment_hash: H256,
     pub pred_block_hash: H256,
     pub transitions_digest: Digest,
@@ -47,21 +51,41 @@ pub struct BlockCommitmentValidationRequest {
 
 impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
     fn from(commitment: &BlockCommitment) -> Self {
+        // To avoid missing incorrect hashing while developing.
+        let BlockCommitment {
+            block_hash,
+            block_timestamp,
+            prev_commitment_hash,
+            pred_block_hash,
+            transitions,
+        } = commitment;
+
         Self {
-            block_hash: commitment.block_hash,
-            prev_commitment_hash: commitment.prev_commitment_hash,
-            pred_block_hash: commitment.pred_block_hash,
-            transitions_digest: commitment.transitions.to_digest(),
+            block_hash: *block_hash,
+            block_timestamp: *block_timestamp,
+            prev_commitment_hash: *prev_commitment_hash,
+            pred_block_hash: *pred_block_hash,
+            transitions_digest: transitions.to_digest(),
         }
     }
 }
 
 impl ToDigest for BlockCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        sha3::Digest::update(hasher, self.block_hash.as_bytes());
-        sha3::Digest::update(hasher, self.prev_commitment_hash.as_bytes());
-        sha3::Digest::update(hasher, self.pred_block_hash.as_bytes());
-        sha3::Digest::update(hasher, self.transitions_digest.as_ref());
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            block_hash,
+            block_timestamp,
+            prev_commitment_hash,
+            pred_block_hash,
+            transitions_digest,
+        } = self;
+
+        hasher.update(block_hash.as_bytes());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
+        hasher.update(prev_commitment_hash.as_bytes());
+        hasher.update(pred_block_hash.as_bytes());
+        hasher.update(transitions_digest.as_ref());
     }
 }
 
@@ -155,6 +179,7 @@ impl Validator {
     ) -> Result<()> {
         let BlockCommitmentValidationRequest {
             block_hash,
+            block_timestamp,
             pred_block_hash: allowed_pred_block_hash,
             prev_commitment_hash: allowed_prev_commitment_hash,
             transitions_digest,
@@ -165,6 +190,12 @@ impl Validator {
                 "Requested block {block_hash} is not processed by this node"
             ));
         }
+
+        let header = db.block_header(block_hash).ok_or_else(|| {
+            anyhow!("Requested block {block_hash} header wasn't found in storage")
+        })?;
+
+        ensure!(header.timestamp == block_timestamp, "Timestamps mismatch");
 
         if db
             .block_outcome(block_hash)
@@ -258,6 +289,7 @@ mod tests {
 
         let commitment = BlockCommitment {
             block_hash: H256::random(),
+            block_timestamp: rand::random(),
             prev_commitment_hash: H256::random(),
             pred_block_hash: H256::random(),
             transitions: vec![transition.clone(), transition],
@@ -309,6 +341,7 @@ mod tests {
         let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let block_hash = H256::random();
+        let block_timestamp = rand::random::<u32>() as u64;
         let pred_block_hash = H256::random();
         let prev_commitment_hash = H256::random();
         let transitions = vec![];
@@ -321,7 +354,7 @@ mod tests {
             block_hash,
             BlockHeader {
                 height: 100,
-                timestamp: 100,
+                timestamp: block_timestamp,
                 parent_hash: pred_block_hash,
             },
         );
@@ -330,6 +363,7 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
+                block_timestamp,
                 pred_block_hash: block_hash,
                 prev_commitment_hash,
                 transitions_digest,
@@ -341,6 +375,19 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
+                block_timestamp: block_timestamp + 1,
+                pred_block_hash: block_hash,
+                prev_commitment_hash,
+                transitions_digest,
+            },
+        )
+        .expect_err("Timestamps mismatch");
+
+        Validator::validate_block_commitment(
+            &db,
+            BlockCommitmentValidationRequest {
+                block_hash,
+                block_timestamp,
                 pred_block_hash: H256::random(),
                 prev_commitment_hash,
                 transitions_digest,
@@ -352,6 +399,7 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
+                block_timestamp,
                 pred_block_hash: block_hash,
                 prev_commitment_hash: H256::random(),
                 transitions_digest,
@@ -363,6 +411,7 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
+                block_timestamp,
                 pred_block_hash: block_hash,
                 prev_commitment_hash,
                 transitions_digest: Digest::from([2; 32]),
@@ -374,6 +423,7 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash: H256::random(),
+                block_timestamp,
                 pred_block_hash: block_hash,
                 prev_commitment_hash,
                 transitions_digest,
