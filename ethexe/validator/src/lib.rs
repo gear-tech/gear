@@ -207,7 +207,7 @@ impl Validator {
             return Err(anyhow!("Requested and local transitions digest mismatch"));
         }
 
-        if db.block_prev_commitment(block_hash).ok_or_else(|| {
+        if db.previous_committed_block(block_hash).ok_or_else(|| {
             anyhow!("Cannot get from db previous commitment for block {block_hash}")
         })? != allowed_previous_committed_block
         {
@@ -349,7 +349,7 @@ mod tests {
 
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);
-        db.set_block_prev_commitment(block_hash, previous_committed_block);
+        db.set_previous_committed_block(block_hash, previous_committed_block);
         db.set_block_header(
             block_hash,
             BlockHeader {

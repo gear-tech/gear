@@ -383,7 +383,7 @@ impl Service {
                 hash: block_hash,
                 timestamp: header.timestamp,
                 previous_committed_block: db
-                    .block_prev_commitment(block_hash)
+                    .previous_committed_block(block_hash)
                     .ok_or_else(|| anyhow!("Prev commitment not found"))?,
                 predecessor_block: block_data.hash,
                 transitions,
@@ -682,7 +682,7 @@ impl Service {
         };
 
         let last_not_empty_block = match block_is_empty {
-            true => match db.block_prev_commitment(chain_head) {
+            true => match db.previous_committed_block(chain_head) {
                 Some(prev_commitment) => prev_commitment,
                 None => {
                     log::warn!("Failed to get previous commitment for {chain_head}");

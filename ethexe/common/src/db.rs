@@ -70,7 +70,6 @@ pub struct CodeUploadInfo {
 
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
-// TODO (breathx): WITHIN THE PR
 pub trait BlockMetaStorage: Send + Sync {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
@@ -84,8 +83,8 @@ pub trait BlockMetaStorage: Send + Sync {
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
 
-    fn block_prev_commitment(&self, block_hash: H256) -> Option<H256>;
-    fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256);
+    fn previous_committed_block(&self, block_hash: H256) -> Option<H256>;
+    fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256);
 
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
