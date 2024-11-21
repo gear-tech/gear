@@ -26,11 +26,11 @@ pub enum Event {
         hash: H256,
     },
     CodeGotValidated {
-        id: CodeId,
+        code_id: CodeId,
         valid: bool,
     },
     CodeValidationRequested {
-        id: CodeId,
+        code_id: CodeId,
         /// This field is replaced with tx hash in case of zero.
         blob_tx_hash: H256,
     },
@@ -39,7 +39,7 @@ pub enum Event {
         wvara_per_second: u128,
     },
     ProgramCreated {
-        actor: ActorId,
+        actor_id: ActorId,
         code_id: CodeId,
     },
     StorageSlotChanged,
@@ -49,9 +49,13 @@ pub enum Event {
 impl Event {
     pub fn as_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::CodeValidationRequested { id, blob_tx_hash } => {
-                RequestEvent::CodeValidationRequested { id, blob_tx_hash }
-            }
+            Self::CodeValidationRequested {
+                code_id,
+                blob_tx_hash,
+            } => RequestEvent::CodeValidationRequested {
+                code_id,
+                blob_tx_hash,
+            },
             Self::ComputationSettingsChanged {
                 threshold,
                 wvara_per_second,
@@ -59,8 +63,8 @@ impl Event {
                 threshold,
                 wvara_per_second,
             },
-            Self::ProgramCreated { actor, code_id } => {
-                RequestEvent::ProgramCreated { actor, code_id }
+            Self::ProgramCreated { actor_id, code_id } => {
+                RequestEvent::ProgramCreated { actor_id, code_id }
             }
             Self::StorageSlotChanged => RequestEvent::StorageSlotChanged,
             Self::ValidatorsChanged => RequestEvent::ValidatorsChanged,
@@ -72,7 +76,7 @@ impl Event {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RequestEvent {
     CodeValidationRequested {
-        id: CodeId,
+        code_id: CodeId,
         // TODO (breathx): replace with `code: Vec<u8>`
         /// This field is replaced with tx hash in case of zero.
         blob_tx_hash: H256,
@@ -82,7 +86,7 @@ pub enum RequestEvent {
         wvara_per_second: u128,
     },
     ProgramCreated {
-        actor: ActorId,
+        actor_id: ActorId,
         code_id: CodeId,
     },
     StorageSlotChanged,
