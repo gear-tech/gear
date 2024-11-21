@@ -305,7 +305,7 @@ contract Middleware {
             operatorIdx += 1;
         }
 
-        assembly {
+        assembly ("memory-safe") {
             mstore(activeOperators, operatorIdx)
             mstore(stakes, operatorIdx)
         }

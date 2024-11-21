@@ -19,7 +19,7 @@
 use crate::{decode_log, IMirror};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::Result;
-use ethexe_common::mirror;
+use ethexe_common::events::{MirrorEvent, MirrorRequestEvent};
 use signatures::*;
 
 pub mod signatures {
@@ -45,7 +45,7 @@ pub mod signatures {
     ];
 }
 
-pub fn try_extract_event(log: &Log) -> Result<Option<mirror::Event>> {
+pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
     let Some(topic0) = log.topic0().filter(|&v| ALL.contains(v)) else {
         return Ok(None);
     };
@@ -67,7 +67,7 @@ pub fn try_extract_event(log: &Log) -> Result<Option<mirror::Event>> {
     Ok(Some(event))
 }
 
-pub fn try_extract_request_event(log: &Log) -> Result<Option<mirror::RequestEvent>> {
+pub fn try_extract_request_event(log: &Log) -> Result<Option<MirrorRequestEvent>> {
     if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
         return Ok(None);
     }

@@ -25,12 +25,12 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::router::{BlockCommitment, CodeCommitment};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
-use gprimitives::{ActorId, CodeId, H160, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use std::sync::Arc;
 
 pub mod events;
@@ -72,18 +72,6 @@ impl Router {
 
     pub fn wvara(&self) -> WVara {
         WVara::new(self.wvara_address, self.instance.provider().clone())
-    }
-
-    pub async fn update_validators(&self, validators: Vec<H160>) -> Result<H256> {
-        let validators = validators
-            .into_iter()
-            .map(|v| v.to_fixed_bytes().into())
-            .collect();
-
-        let builder = self.instance.updateValidators(validators);
-        let receipt = builder.send().await?.try_get_receipt().await?;
-
-        Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn request_code_validation(
@@ -161,7 +149,7 @@ impl Router {
             if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
                 let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
 
-                actor_id = Some((*event.actorId.into_word()).into());
+                actor_id = Some((*event.actor.into_word()).into());
 
                 break;
             }
@@ -240,9 +228,9 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn last_commitment_block_hash(&self) -> Result<H256> {
+    pub async fn latest_committed_block_hash(&self) -> Result<H256> {
         self.instance
-            .lastBlockCommitmentHash()
+            .latestCommittedBlockHash()
             .call()
             .await
             .map(|res| H256(*res._0))
@@ -258,9 +246,9 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validators(&self) -> Result<Vec<LocalAddress>> {
+    pub async fn validators_keys(&self) -> Result<Vec<LocalAddress>> {
         self.instance
-            .validators()
+            .validatorsKeys()
             .call()
             .await
             .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())

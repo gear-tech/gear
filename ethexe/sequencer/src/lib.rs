@@ -22,7 +22,7 @@ pub mod agro;
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
 use anyhow::{anyhow, Result};
-use ethexe_common::router::{BlockCommitment, CodeCommitment};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
@@ -281,7 +281,7 @@ impl Sequencer {
             .iter()
             .filter_map(|(digest, c)| {
                 (c.origins.len() as u64 >= threshold)
-                    .then_some((c.commitment.block_hash, (digest, &c.commitment)))
+                    .then_some((c.commitment.hash, (digest, &c.commitment)))
             })
             .collect();
 
@@ -294,7 +294,7 @@ impl Sequencer {
 
             candidate.push_front(**digest);
 
-            block_hash = commitment.prev_commitment_hash;
+            block_hash = commitment.previous_committed_block;
         }
 
         if candidate.is_empty() {
@@ -682,28 +682,31 @@ mod tests {
         let mut commitments = BTreeMap::new();
 
         let commitment1 = BlockCommitment {
-            block_hash: H256::random(),
-            prev_commitment_hash: H256::random(),
-            pred_block_hash: H256::random(),
+            hash: H256::random(),
+            timestamp: rand::random(),
+            previous_committed_block: H256::random(),
+            predecessor_block: H256::random(),
             transitions: Default::default(),
         };
         let commitment2 = BlockCommitment {
-            block_hash: H256::random(),
-            prev_commitment_hash: commitment1.block_hash,
-            pred_block_hash: H256::random(),
+            hash: H256::random(),
+            timestamp: rand::random(),
+            previous_committed_block: commitment1.hash,
+            predecessor_block: H256::random(),
             transitions: Default::default(),
         };
         let commitment3 = BlockCommitment {
-            block_hash: H256::random(),
-            prev_commitment_hash: commitment1.block_hash,
-            pred_block_hash: H256::random(),
+            hash: H256::random(),
+            timestamp: rand::random(),
+            previous_committed_block: commitment1.hash,
+            predecessor_block: H256::random(),
             transitions: Default::default(),
         };
 
         let mut expected_digests = IndexSet::new();
 
         let candidate =
-            Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, threshold);
+            Sequencer::block_commitments_candidate(&commitments, commitment1.hash, threshold);
         assert!(candidate.is_none());
 
         commitments.insert(
@@ -717,9 +720,8 @@ mod tests {
             Sequencer::block_commitments_candidate(&commitments, H256::random(), threshold);
         assert!(candidate.is_none());
 
-        let candidate =
-            Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, 0)
-                .expect("Must have candidate");
+        let candidate = Sequencer::block_commitments_candidate(&commitments, commitment1.hash, 0)
+            .expect("Must have candidate");
         expected_digests.insert(commitment1.to_digest());
         assert_eq!(candidate.digests(), &expected_digests);
 
@@ -744,18 +746,18 @@ mod tests {
         );
 
         let candidate =
-            Sequencer::block_commitments_candidate(&commitments, commitment1.block_hash, threshold)
+            Sequencer::block_commitments_candidate(&commitments, commitment1.hash, threshold)
                 .expect("Must have candidate");
         assert_eq!(candidate.digests(), &expected_digests);
 
         let candidate =
-            Sequencer::block_commitments_candidate(&commitments, commitment2.block_hash, threshold)
+            Sequencer::block_commitments_candidate(&commitments, commitment2.hash, threshold)
                 .expect("Must have candidate");
         expected_digests.insert(commitment2.to_digest());
         assert_eq!(candidate.digests(), &expected_digests);
 
         let candidate =
-            Sequencer::block_commitments_candidate(&commitments, commitment3.block_hash, threshold)
+            Sequencer::block_commitments_candidate(&commitments, commitment3.hash, threshold)
                 .expect("Must have candidate");
         expected_digests.pop();
         expected_digests.insert(commitment3.to_digest());

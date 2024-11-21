@@ -26,7 +26,8 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::CodesStorage, mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent,
+    db::CodesStorage,
+    events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
@@ -1442,8 +1443,8 @@ mod utils {
             self.listener
                 .apply_until_block_event(|event| {
                     match event {
-                        BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
-                            if actor_id == self.program_id =>
+                        BlockEvent::Router(RouterEvent::ProgramCreated { actor, code_id })
+                            if actor == self.program_id =>
                         {
                             code_id_info = Some(code_id);
                         }

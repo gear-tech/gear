@@ -19,7 +19,7 @@
 //! Program's execution service for eGPU.
 
 use anyhow::{anyhow, ensure, Result};
-use ethexe_common::{mirror::RequestEvent as MirrorEvent, BlockRequestEvent};
+use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
@@ -184,7 +184,7 @@ impl OverlaidProcessor {
 
         handler.handle_mirror_event(
             program_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: MessageId::zero(),
                 source,
                 payload,
