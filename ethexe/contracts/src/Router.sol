@@ -26,7 +26,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
-        address[] calldata _validatorsKeys
+        address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
 
@@ -36,7 +36,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.genesisBlock = Gear.newGenesis();
         router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
-        _setValidators(router, _validatorsKeys);
+        _setValidators(router, _validators);
         router.computeSettings = Gear.defaultComputationSettings();
     }
 
@@ -51,7 +51,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         newRouter.validationSettings.signingThresholdPercentage =
             oldRouter.validationSettings.signingThresholdPercentage;
-        _setValidators(newRouter, oldRouter.validationSettings.validatorsKeys);
+        _setValidators(newRouter, oldRouter.validationSettings.validators);
 
         newRouter.computeSettings = oldRouter.computeSettings;
     }
@@ -81,7 +81,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
 
         for (uint256 i = 0; i < _validators.length; i++) {
-            if (!router.validationSettings.validators[_validators[i]]) {
+            if (!router.validationSettings.validatorsKeyMap[_validators[i]]) {
                 return false;
             }
         }
@@ -90,19 +90,19 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function isValidator(address _validator) public view returns (bool) {
-        return _router().validationSettings.validators[_validator];
+        return _router().validationSettings.validatorsKeyMap[_validator];
     }
 
     function signingThresholdPercentage() public view returns (uint16) {
         return _router().validationSettings.signingThresholdPercentage;
     }
 
-    function validatorsCount() public view returns (uint256) {
-        return _router().validationSettings.validatorsKeys.length;
+    function validators() public view returns (address[] memory) {
+        return _router().validationSettings.validators;
     }
 
-    function validatorsKeys() public view returns (address[] memory) {
-        return _router().validationSettings.validatorsKeys;
+    function validatorsCount() public view returns (uint256) {
+        return _router().validationSettings.validators.length;
     }
 
     function validatorsThreshold() public view returns (uint256) {
@@ -401,22 +401,22 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(success, "failed to retrieve WVara");
     }
 
-    function _setValidators(Storage storage router, address[] memory _validatorsKeys) private {
-        require(router.validationSettings.validatorsKeys.length == 0, "remove previous validators first");
+    function _setValidators(Storage storage router, address[] memory _validators) private {
+        require(router.validationSettings.validators.length == 0, "remove previous validators first");
 
-        for (uint256 i = 0; i < _validatorsKeys.length; i++) {
-            router.validationSettings.validators[_validatorsKeys[i]] = true;
+        for (uint256 i = 0; i < _validators.length; i++) {
+            router.validationSettings.validatorsKeyMap[_validators[i]] = true;
         }
 
-        router.validationSettings.validatorsKeys = _validatorsKeys;
+        router.validationSettings.validators = _validators;
     }
 
     function _removeValidators(Storage storage router) private {
-        for (uint256 i = 0; i < router.validationSettings.validatorsKeys.length; i++) {
-            delete router.validationSettings.validators[router.validationSettings.validatorsKeys[i]];
+        for (uint256 i = 0; i < router.validationSettings.validators.length; i++) {
+            delete router.validationSettings.validatorsKeyMap[router.validationSettings.validators[i]];
         }
 
-        delete router.validationSettings.validatorsKeys;
+        delete router.validationSettings.validators;
     }
 
     function _router() private view returns (Storage storage router) {

@@ -117,7 +117,7 @@ impl Service {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
 
-        let validators = router_query.validators_keys().await?;
+        let validators = router_query.validators().await?;
         log::info!("👥 Validators set: {validators:?}");
 
         let threshold = router_query.threshold().await?;

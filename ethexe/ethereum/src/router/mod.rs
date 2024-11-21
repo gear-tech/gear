@@ -246,9 +246,9 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validators_keys(&self) -> Result<Vec<LocalAddress>> {
+    pub async fn validators(&self) -> Result<Vec<LocalAddress>> {
         self.instance
-            .validatorsKeys()
+            .validators()
             .call()
             .await
             .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
