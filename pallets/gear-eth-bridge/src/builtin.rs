@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Error, Pallet, WeightInfo};
-use common::Origin;
+use common::{storage::Limiter, BlockLimiter, Origin};
 use core::marker::PhantomData;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
@@ -29,6 +29,8 @@ use pallet_gear_builtin::{BuiltinActor, BuiltinActorError};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::Zero;
 use sp_std::vec::Vec;
+
+pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
 /// Gear builtin actor providing functionality of `pallet-gear-eth-bridge`.
 ///
@@ -78,6 +80,9 @@ where
 
     if gas_limit < gas_cost {
         return (Err(BuiltinActorError::InsufficientGas), 0);
+    }
+    if GasAllowanceOf::<T>::get() < gas_cost {
+        return (Err(BuiltinActorError::GasAllowanceExceeded), 0);
     }
 
     let res = Pallet::<T>::queue_message(source, destination, payload)
