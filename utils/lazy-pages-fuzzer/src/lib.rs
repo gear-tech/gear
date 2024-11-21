@@ -18,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use gear_wasm_instrument::parity_wasm::elements::Module;
 
 mod config;
@@ -60,8 +60,8 @@ pub fn run(generated_module: GeneratedModule) -> Result<()> {
         }
     };
 
-    let wasmer_res = unwrap_error_chain(WasmerRunner::run(&module));
-    let wasmi_res = unwrap_error_chain(WasmiRunner::run(&module));
+    let wasmer_res = unwrap_error_chain(WasmerRunner::run(&module).context("wasmer"));
+    let wasmi_res = unwrap_error_chain(WasmiRunner::run(&module).context("wasmi"));
 
     RunResult::verify_equality(wasmer_res, wasmi_res);
 
