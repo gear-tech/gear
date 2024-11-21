@@ -592,9 +592,6 @@ debug = true
 [patch.crates-io]
 # sp-io = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
 # sp-application-crypto = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
-parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
-# wasm-instrument = { version = "0.3.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.3.0-sign-ext" }
-wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
 blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross-compilation-v1.5.4" }
