@@ -18932,8 +18932,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.35.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
+version = "0.220.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebf48234b389415b226a4daef6562933d38c7b28a8b8f64c5c4130dad1561ab7"
 dependencies = [
  "leb128",
 ]
@@ -19008,15 +19009,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-smith"
-version = "0.12.21"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
+version = "0.220.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f7d273cf1df3c10f9067cb48796d1a6d1daa3ceb99c3f07d822e5bdeefb34f9"
 dependencies = [
+ "anyhow",
  "arbitrary",
  "flagset",
  "indexmap 2.6.0",
  "leb128",
- "wasm-encoder 0.35.0",
- "wasmparser 0.115.0",
+ "wasm-encoder 0.220.0",
 ]
 
 [[package]]
@@ -19323,15 +19325,6 @@ checksum = "48134de3d7598219ab9eaf6b91b15d8e50d31da76b8519fe4ecfcec2cf35104b"
 dependencies = [
  "indexmap 1.9.3",
  "url",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.115.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
-dependencies = [
- "indexmap 2.6.0",
- "semver 1.0.18",
 ]
 
 [[package]]
