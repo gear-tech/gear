@@ -270,16 +270,21 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
 }
 
 fn get_global_index(module_bytes: &[u8], name_predicate: impl Fn(&str) -> bool) -> Option<u32> {
-    use wasmparser::{Name, NameSectionReader, Parser, Payload};
+    use wasmparser::{KnownCustom, Name, Parser, Payload};
 
     Parser::new(0)
         .parse_all(module_bytes)
         .filter_map(|p| p.ok())
         .filter_map(|section| match section {
-            Payload::CustomSection(r) if r.name() == "name" => {
-                Some(NameSectionReader::new(r.data(), r.data_offset()))
-            }
+            Payload::CustomSection(r) => Some(r),
             _ => None,
+        })
+        .filter_map(|r| {
+            if let KnownCustom::Name(r) = r.as_known() {
+                Some(r)
+            } else {
+                None
+            }
         })
         .flatten()
         .filter_map(|name| match name {
