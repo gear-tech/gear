@@ -48,7 +48,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::Origin;
+    use common::{BlockLimiter, Origin};
     use frame_support::{
         pallet_prelude::*,
         traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
@@ -92,6 +92,9 @@ pub mod pallet {
         /// Similar to `pallet_staking::SessionsPerEra`.
         #[pallet::constant]
         type SessionsPerEra: Get<u32>;
+
+        /// Block limits.
+        type BlockLimiter: BlockLimiter<Balance = u64>;
 
         /// Weight cost incurred by pallet calls.
         type WeightInfo: WeightInfo;
