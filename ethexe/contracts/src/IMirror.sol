@@ -101,6 +101,8 @@ interface IMirror {
 
     function updateState(bytes32 newStateHash) external;
 
+    function setCreator(address creator) external;
+
     function setInheritor(address inheritor) external;
 
     function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external;

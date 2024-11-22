@@ -10,11 +10,14 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 // TODO: handle ETH sent in each contract.
 contract Mirror is IMirror {
+    // TODO (breathx) consider these being `private`?
     bytes32 public stateHash;
     address public inheritor;
     // NOTE: Nonce 0 is used for init message in current implementation
     uint256 public nonce; /* = 1 */
     address public decoder;
+
+    address public creator;
 
     /* Operational functions */
 
@@ -45,6 +48,7 @@ contract Mirror is IMirror {
         emit ReplyQueueingRequested(_repliedTo, _source(), _payload, _value);
     }
 
+    // TODO (breathx): fix inability to claim value from terminated program.
     function claimValue(bytes32 _claimedId) external {
         require(inheritor == address(0), "program is terminated");
 
@@ -74,6 +78,10 @@ contract Mirror is IMirror {
 
             emit StateChanged(stateHash);
         }
+    }
+
+    function setCreator(address _creator) external onlyRouter {
+        creator = _creator;
     }
 
     // TODO (breathx): handle after-all transfers to program on wvara event properly.
