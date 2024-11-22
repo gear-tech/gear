@@ -19,6 +19,6 @@ contract MirrorProxy is IMirrorProxy, Proxy {
     }
 
     function _implementation() internal view virtual override returns (address) {
-        return IRouter(router).mirror();
+        return IRouter(router).mirrorImpl();
     }
 }
