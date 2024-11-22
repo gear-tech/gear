@@ -118,7 +118,7 @@ impl WVaraQuery {
             .totalSupply()
             .call()
             .await
-            .map(|res| abi::uint256_to_u128_lossy(res._0))
+            .map(|res| abi::utils::uint256_to_u128_lossy(res._0))
             .map_err(Into::into)
     }
 
@@ -127,7 +127,7 @@ impl WVaraQuery {
             .balanceOf(address)
             .call()
             .await
-            .map(|res| abi::uint256_to_u128_lossy(res._0))
+            .map(|res| abi::utils::uint256_to_u128_lossy(res._0))
             .map_err(Into::into)
     }
 

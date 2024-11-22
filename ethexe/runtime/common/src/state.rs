@@ -32,7 +32,7 @@ use core::{
     num::NonZero,
     ops::{Deref, DerefMut},
 };
-use ethexe_common::router::OutgoingMessage;
+use ethexe_common::gear::Message;
 use gear_core::{
     code::InstrumentedCode,
     ids::{prelude::MessageIdExt as _, ProgramId},
@@ -609,7 +609,7 @@ impl Dispatch {
         }
     }
 
-    pub fn into_outgoing<S: Storage>(self, storage: &S, destination: ActorId) -> OutgoingMessage {
+    pub fn into_message<S: Storage>(self, storage: &S, destination: ActorId) -> Message {
         let Self {
             id,
             payload,
@@ -620,7 +620,7 @@ impl Dispatch {
 
         let payload = payload.query(storage).expect("must be found").into_vec();
 
-        OutgoingMessage {
+        Message {
             id,
             destination,
             payload,

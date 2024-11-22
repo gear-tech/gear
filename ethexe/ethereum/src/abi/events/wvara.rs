@@ -16,18 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::gear::StateTransition;
-use gprimitives::CodeId;
-use parity_scale_codec::{Decode, Encode};
+use crate::abi::{utils::*, IWrappedVara};
+use ethexe_common::events::WVaraEvent;
+use gprimitives::U256;
 
-/// Local changes that can be committed to the network or local signer.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum LocalOutcome {
-    /// Produced when code with specific id is recorded and validated.
-    CodeValidated {
-        id: CodeId,
-        valid: bool,
-    },
+impl From<IWrappedVara::Approval> for WVaraEvent {
+    fn from(value: IWrappedVara::Approval) -> Self {
+        Self::Approval {
+            owner: address_to_actor_id(value.owner),
+            spender: address_to_actor_id(value.spender),
+            value: U256(value.value.into_limbs()),
+        }
+    }
+}
 
-    Transition(StateTransition),
+impl From<IWrappedVara::Transfer> for WVaraEvent {
+    fn from(value: IWrappedVara::Transfer) -> Self {
+        Self::Transfer {
+            from: address_to_actor_id(value.from),
+            to: address_to_actor_id(value.to),
+            value: uint256_to_u128_lossy(value.value),
+        }
+    }
 }

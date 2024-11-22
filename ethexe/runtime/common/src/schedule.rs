@@ -9,7 +9,7 @@ use alloc::vec;
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{Rfm, ScheduledTask, Sd, Sum},
-    router::{OutgoingMessage, ValueClaim},
+    gear::{Message, ValueClaim},
 };
 use gear_core::{ids::ProgramId, message::ReplyMessage, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
@@ -90,7 +90,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
             transitions.modify_transition(program_id, |transition| {
                 transition
                     .messages
-                    .push(dispatch.into_outgoing(storage, user_id))
+                    .push(dispatch.into_message(storage, user_id))
             })
         });
 
