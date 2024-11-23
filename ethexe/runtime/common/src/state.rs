@@ -25,29 +25,19 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{anyhow, Result};
-use core::{
-    any::Any,
-    marker::PhantomData,
-    mem,
-    num::NonZero,
-    ops::{Deref, DerefMut},
-};
+use core::{any::Any, marker::PhantomData, mem};
 use ethexe_common::gear::Message;
 use gear_core::{
-    code::InstrumentedCode,
     ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
     message::{
-        ContextStore, DispatchKind, GasLimit, MessageDetails, Payload, ReplyDetails,
-        StoredDispatch, Value, MAX_PAYLOAD_SIZE,
+        ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, StoredDispatch, Value,
     },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
-    reservation::GasReservationMap,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gprimitives::{ActorId, CodeId, MessageId, H256};
-use gsys::BlockNumber;
+use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
@@ -592,7 +582,7 @@ impl Dispatch {
 
     pub fn from_stored<S: Storage>(storage: &S, value: StoredDispatch) -> Self {
         let (kind, message, context) = value.into_parts();
-        let (id, source, destination, payload, value, details) = message.into_parts();
+        let (id, source, _destination, payload, value, details) = message.into_parts();
 
         let payload = storage
             .write_payload_raw(payload.into_vec())
@@ -739,7 +729,7 @@ impl DispatchStash {
     pub fn remove_to_program(&mut self, message_id: &MessageId) -> Dispatch {
         let ValueWithExpiry {
             value: (dispatch, user_id),
-            expiry,
+            ..
         } = self
             .0
             .remove(message_id)
@@ -755,7 +745,7 @@ impl DispatchStash {
     pub fn remove_to_user(&mut self, message_id: &MessageId) -> (Dispatch, ActorId) {
         let ValueWithExpiry {
             value: (dispatch, user_id),
-            expiry,
+            ..
         } = self
             .0
             .remove(message_id)
@@ -857,8 +847,6 @@ impl Allocations {
     }
 
     pub fn update(&mut self, allocations: IntervalsTree<WasmPage>) -> Vec<GearPage> {
-        let len = self.tree_len();
-
         let removed_pages: Vec<_> = self
             .inner
             .difference(&allocations)

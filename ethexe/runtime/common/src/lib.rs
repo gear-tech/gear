@@ -19,16 +19,10 @@
 //! Runtime common implementation.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(unused)]
 
 extern crate alloc;
 
-use alloc::{
-    collections::{BTreeMap, VecDeque},
-    vec::Vec,
-};
-use anyhow::Result;
-use core::{marker::PhantomData, mem::swap};
+use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
@@ -38,19 +32,13 @@ use gear_core::{
     code::InstrumentedCode,
     ids::ProgramId,
     memory::PageBuf,
-    message::{DispatchKind, IncomingDispatch, IncomingMessage, Value},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
-    program::MemoryInfix,
-    reservation::GasReservationMap,
+    message::{DispatchKind, IncomingDispatch, IncomingMessage},
+    pages::GearPage,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 use gsys::{GasMultiplier, Percent};
-use parity_scale_codec::{Decode, Encode};
-use state::{
-    ActiveProgram, Dispatch, HashOf, InitStatus, MaybeHashOf, MessageQueue, ProgramState, Storage,
-    Waitlist,
-};
+use state::{Dispatch, HashOf, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
 pub use journal::Handler as JournalHandler;
@@ -65,7 +53,7 @@ mod transitions;
 
 pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
-const RUNTIME_ID: u32 = 0;
+pub const RUNTIME_ID: u32 = 0;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
