@@ -152,7 +152,7 @@ pub mod ext {
 
 /// Add a debug message to the log.
 ///
-/// Same as [`gstd::debug`] but uses a stack-allocated buffer.
+/// Same as `gstd::debug!()` but uses a stack-allocated buffer.
 ///
 /// # Examples
 ///
