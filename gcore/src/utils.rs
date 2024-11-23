@@ -39,7 +39,10 @@ impl AsRawPtr for ReservationId {}
 /// Extensions for additional features.
 pub mod ext {
     use crate::stack_buffer;
-    use core::{fmt, fmt::Write as _, mem::MaybeUninit};
+    use core::{
+        fmt::{self, Write as _},
+        mem::MaybeUninit,
+    };
     use gear_stack_buffer::MAX_BUFFER_SIZE;
 
     /// Add a `data` string to the debug log.
@@ -63,6 +66,7 @@ pub mod ext {
     ///
     /// Note: message size is limited to
     /// [`MAX_BUFFER_SIZE`](crate::stack_buffer::MAX_BUFFER_SIZE).
+    /// Message is truncated if it exceeds maximum buffer size.
     #[cfg(any(feature = "debug", debug_assertions))]
     pub fn stack_debug(args: fmt::Arguments<'_>) {
         struct StackFmtWriter<'a> {
@@ -152,7 +156,11 @@ pub mod ext {
 
 /// Add a debug message to the log.
 ///
-/// Same as `gstd::debug!()` but uses a stack-allocated buffer.
+/// Same as `gstd::debug!()` but uses [`ext::stack_debug`] underneath.
+///
+/// Note: message size is limited to
+/// [`MAX_BUFFER_SIZE`](crate::stack_buffer::MAX_BUFFER_SIZE).
+/// Message is truncated if it exceeds maximum buffer size.
 ///
 /// # Examples
 ///
