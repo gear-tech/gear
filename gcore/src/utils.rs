@@ -61,7 +61,8 @@ pub mod ext {
 
     /// Same as [`debug`] but uses a stack-allocated buffer.
     ///
-    /// Note: message size is limited to [`MAX_BUFFER_SIZE`](crate::stack_buffer::MAX_BUFFER_SIZE).
+    /// Note: message size is limited to
+    /// [`MAX_BUFFER_SIZE`](crate::stack_buffer::MAX_BUFFER_SIZE).
     #[cfg(any(feature = "debug", debug_assertions))]
     pub fn stack_debug(args: fmt::Arguments<'_>) {
         struct StackFmtWriter<'a> {
