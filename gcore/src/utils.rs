@@ -149,6 +149,25 @@ pub mod ext {
     }
 }
 
+/// Add a debug message to the log.
+///
+/// Same as [`gstd::debug`] but uses a stack-allocated buffer.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::stack_debug;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     stack_debug!("String literal");
+///
+///     let value = 42;
+///     stack_debug!("{value}");
+///
+///     stack_debug!("Formatted: value = {value}");
+/// }
+/// ```
 #[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! stack_debug {
