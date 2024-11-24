@@ -124,7 +124,6 @@ where
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
         block_info,
-        performance_multiplier: Percent::new(100),
         forbidden_funcs: [
             // Deprecated
             SyscallName::CreateProgramWGas,
@@ -150,15 +149,18 @@ where
             SyscallName::Random,
         ]
         .into(),
-        reserve_for: 125_000_000,
-        gas_multiplier: GasMultiplier::one(), // TODO
-        costs: Default::default(),            // TODO
-        existential_deposit: 0,               // TODO
-        mailbox_threshold: 3000,
-        max_reservations: 50,
+        gas_multiplier: GasMultiplier::one(),
+        costs: Default::default(),
         max_pages: MAX_WASM_PAGES_AMOUNT.into(),
         outgoing_limit: 1024,
         outgoing_bytes_limit: 64 * 1024 * 1024,
+        // TBD about deprecation
+        performance_multiplier: Percent::new(100),
+        // Deprecated
+        existential_deposit: 0,
+        mailbox_threshold: 0,
+        max_reservations: 0,
+        reserve_for: 0,
     };
 
     let active_state = match program_state.program {
