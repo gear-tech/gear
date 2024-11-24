@@ -29,7 +29,7 @@ use core_processor::{
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     ids::ProgramId,
     memory::PageBuf,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
@@ -156,7 +156,7 @@ where
         existential_deposit: 0,               // TODO
         mailbox_threshold: 3000,
         max_reservations: 50,
-        max_pages: 512.into(),
+        max_pages: MAX_WASM_PAGES_AMOUNT.into(),
         outgoing_limit: 1024,
         outgoing_bytes_limit: 64 * 1024 * 1024,
     };
