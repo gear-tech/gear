@@ -115,6 +115,7 @@ jobs:
   benchmarks:
     needs: provision-runner
     runs-on: [bench]
+    timeout-minutes: 720
     permissions:
       contents: write
       pull-requests: write
