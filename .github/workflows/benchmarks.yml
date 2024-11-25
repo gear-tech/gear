@@ -177,8 +177,8 @@ jobs:
         with:
           name: weights-vara
           path: |
+            core/src/gas_metering/
             runtime/vara/src/weights/
-            utils/wasm-instrument/src/gas_metering/
 
       - name: "TIP: download the artifacts and use `./scripts/unpack-weights.sh`"
         run: |
@@ -190,17 +190,17 @@ jobs:
         with:
           commit_message: >-
             chore(runtime): update weights
-          file_pattern: "pallets/gear/src/ pallets/gear-builtin/src/ runtime/vara/src/weights/ utils/wasm-instrument/src/gas_metering/"
+          file_pattern: "core/src/gas_metering/ pallets/gear/src/ pallets/gear-builtin/src/ runtime/vara/src/weights/"
 
       - name: Create Pull Request
         if: ${{ inputs.change-type == 'pull_request' }}
         uses: peter-evans/create-pull-request@v7
         with:
           add-paths: |
+            core/src/gas_metering/
             pallets/gear/src/
             pallets/gear-builtin/src/
             runtime/vara/src/weights/
-            utils/wasm-instrument/src/gas_metering/
           commit-message: update weights
           branch: weights/patch
           branch-suffix: short-commit-hash
