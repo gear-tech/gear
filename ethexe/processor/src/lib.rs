@@ -113,8 +113,8 @@ impl Processor {
                 BlockRequestEvent::Router(event) => {
                     handler.handle_router_event(event)?;
                 }
-                BlockRequestEvent::Mirror { address, event } => {
-                    handler.handle_mirror_event(address, event)?;
+                BlockRequestEvent::Mirror { actor_id, event } => {
+                    handler.handle_mirror_event(actor_id, event)?;
                 }
                 BlockRequestEvent::WVara(event) => {
                     handler.handle_wvara_event(event);

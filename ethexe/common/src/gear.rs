@@ -115,8 +115,8 @@ pub struct StateTransition {
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct ValidationSettings {
     pub signing_threshold_percentage: u16,
+    pub validators: Vec<ActorId>,
     // flatten mapping of validators ActorId => bool
-    pub validators_keys: Vec<ActorId>,
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]

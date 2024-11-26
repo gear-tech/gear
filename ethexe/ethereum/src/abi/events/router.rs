@@ -30,7 +30,7 @@ impl From<IRouter::BlockCommitted> for RouterEvent {
 impl From<IRouter::CodeGotValidated> for RouterEvent {
     fn from(value: IRouter::CodeGotValidated) -> Self {
         Self::CodeGotValidated {
-            id: bytes32_to_code_id(value.id),
+            code_id: bytes32_to_code_id(value.codeId),
             valid: value.valid,
         }
     }
@@ -39,7 +39,7 @@ impl From<IRouter::CodeGotValidated> for RouterEvent {
 impl From<IRouter::CodeValidationRequested> for RouterEvent {
     fn from(value: IRouter::CodeValidationRequested) -> Self {
         Self::CodeValidationRequested {
-            id: bytes32_to_code_id(value.id),
+            code_id: bytes32_to_code_id(value.codeId),
             blob_tx_hash: bytes32_to_h256(value.blobTxHash),
         }
     }
@@ -57,7 +57,7 @@ impl From<IRouter::ComputationSettingsChanged> for RouterEvent {
 impl From<IRouter::ProgramCreated> for RouterEvent {
     fn from(value: IRouter::ProgramCreated) -> Self {
         Self::ProgramCreated {
-            actor: address_to_actor_id(value.actor),
+            actor_id: address_to_actor_id(value.actorId),
             code_id: bytes32_to_code_id(value.codeId),
         }
     }

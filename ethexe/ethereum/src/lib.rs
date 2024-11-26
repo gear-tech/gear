@@ -154,7 +154,7 @@ impl Ethereum {
                     _mirror: mirror_address,
                     _mirrorProxy: mirror_proxy_address,
                     _wrappedVara: wvara_address,
-                    _validatorsKeys: validators,
+                    _validators: validators,
                 }
                 .abi_encode(),
             ),

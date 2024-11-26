@@ -117,5 +117,5 @@ Here the state is loaded from the file `./vara-1200@1999999` that is the state c
 
 Since execution strategies have been deprecated in Substrate, it's not possible to use native version of the runtime anymore. However, it seems to be desirable in certain cases in order to introspect and debug issues related to messages processing in Gear.
 In theory, we could maintain a custom version of the `sp-state-machine::StateMachine` that'd still accept native runtime for state evolution.
-For that purpose we keep the respective artifacts (`NativeElseWasmExector` etc.) until we either decide to always stick to wasm runtime only, or have implemented
+For that purpose we keep the respective artifacts (`NativeElseWasmExecutor` etc.) until we either decide to always stick to wasm runtime only, or have implemented
 and tested the necessary parts to switch to native execution. Using `NativeElseWasmExecutor` as opposed to just `WasmExecutor` doesn't do any harm even if the tool is compiled with the `vara-native` feature as it is backward=compatible and will boil down to the `StateMachine::execute()` call which explicitly forces wasm execution.

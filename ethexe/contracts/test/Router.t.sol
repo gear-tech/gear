@@ -24,15 +24,15 @@ contract RouterTest is Test {
     address immutable charliePublic = 0x84de3f115eC548A32CcC9464D14376f888ab49e1;
     uint256 immutable charliePrivate = 0xa3f79c90a74fd984fd9c2a9c4286c53ad5ac38e32123e06720e9211566378bc4;
 
-    address[] public validatorsPublicKeys;
+    address[] public validators;
     uint256[] public validatorsPrivateKeys;
 
     Router public router;
 
     function setUp() public {
-        validatorsPublicKeys.push(alicePublic);
-        validatorsPublicKeys.push(bobPublic);
-        validatorsPublicKeys.push(charliePublic);
+        validators.push(alicePublic);
+        validators.push(bobPublic);
+        validators.push(charliePublic);
 
         validatorsPrivateKeys.push(alicePrivate);
         validatorsPrivateKeys.push(bobPrivate);
@@ -54,13 +54,12 @@ contract RouterTest is Test {
                 "Router.sol",
                 deployer,
                 abi.encodeCall(
-                    Router.initialize,
-                    (deployer, mirrorAddress, mirrorProxyAddress, address(wrappedVara), validatorsPublicKeys)
+                    Router.initialize, (deployer, mirrorAddress, mirrorProxyAddress, address(wrappedVara), validators)
                 )
             )
         );
 
-        vm.roll(block.number + 1);
+        vm.roll(vm.getBlockNumber() + 1);
 
         router.lookupGenesisHash();
 
@@ -73,10 +72,10 @@ contract RouterTest is Test {
 
         assertEq(router.mirrorImpl(), address(mirror));
         assertEq(router.mirrorProxyImpl(), address(mirrorProxy));
-        assertEq(router.validatorsKeys(), validatorsPublicKeys);
+        assertEq(router.validators(), validators);
         assertEq(router.signingThresholdPercentage(), 6666);
 
-        assert(router.areValidators(validatorsPublicKeys));
+        assert(router.areValidators(validators));
     }
 
     function test_ping() public {
@@ -90,7 +89,7 @@ contract RouterTest is Test {
         Gear.CodeCommitment[] memory codeCommitments = new Gear.CodeCommitment[](1);
         codeCommitments[0] = Gear.CodeCommitment(codeId, true);
 
-        assertEq(router.validatorsKeys().length, 3);
+        assertEq(router.validators().length, 3);
         assertEq(router.validatorsThreshold(), 2);
 
         router.commitCodes(codeCommitments, _signCodeCommitments(codeCommitments));
@@ -102,7 +101,7 @@ contract RouterTest is Test {
         assertEq(actor.stateHash(), 0);
         assertEq(actor.inheritor(), address(0));
 
-        vm.roll(block.number + 1);
+        vm.roll(vm.getBlockNumber() + 1);
 
         Gear.Message[] memory messages = new Gear.Message[](1);
         messages[0] = Gear.Message(

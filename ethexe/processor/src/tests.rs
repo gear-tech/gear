@@ -116,10 +116,7 @@ fn process_observer_event() {
     let actor_id = ActorId::from(42);
 
     let create_program_events = vec![
-        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
-            actor: actor_id,
-            code_id,
-        }),
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated { actor_id, code_id }),
         BlockRequestEvent::mirror(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
@@ -256,10 +253,7 @@ fn ping_pong() {
     let mut handler = processor.handler(ch0).unwrap();
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated {
-            actor: actor_id,
-            code_id,
-        })
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
         .expect("failed to create new program");
 
     handler
@@ -343,7 +337,7 @@ fn async_and_ping() {
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated {
-            actor: ping_id,
+            actor_id: ping_id,
             code_id: ping_code_id,
         })
         .expect("failed to create new program");
@@ -371,7 +365,7 @@ fn async_and_ping() {
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated {
-            actor: async_id,
+            actor_id: async_id,
             code_id: upload_code_id,
         })
         .expect("failed to create new program");
@@ -483,7 +477,7 @@ fn many_waits() {
 
         handler
             .handle_router_event(RouterRequestEvent::ProgramCreated {
-                actor: program_id,
+                actor_id: program_id,
                 code_id,
             })
             .expect("failed to create new program");

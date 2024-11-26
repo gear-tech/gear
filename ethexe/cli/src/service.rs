@@ -117,6 +117,16 @@ impl Service {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
 
+        if genesis_block_hash.is_zero() {
+            log::error!(
+                "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
+            );
+
+            bail!("Failed to query valid genesis hash");
+        } else {
+            log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
+        }
+
         let validators = router_query.validators_keys().await?;
         log::info!("👥 Validators set: {validators:?}");
 
@@ -932,7 +942,7 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "ws://54.67.75.1:8546".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x520ecEe5Eb8fE561290DE0A987a295f9634f8aa3"
+            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,
@@ -961,7 +971,7 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x520ecEe5Eb8fE561290DE0A987a295f9634f8aa3"
+            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,

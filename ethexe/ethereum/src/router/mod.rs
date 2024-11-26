@@ -118,7 +118,7 @@ impl Router {
             if let Some(signatures::CODE_GOT_VALIDATED) = log.topic0().cloned() {
                 let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
 
-                if event.id == code_id {
+                if event.codeId == code_id {
                     return Ok(event.valid);
                 }
             }

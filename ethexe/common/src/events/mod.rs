@@ -31,7 +31,7 @@ pub use wvara::{Event as WVaraEvent, RequestEvent as WVaraRequestEvent};
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum BlockEvent {
     Mirror {
-        address: ActorId,
+        actor_id: ActorId,
         event: MirrorEvent,
     },
     Router(RouterEvent),
@@ -39,14 +39,14 @@ pub enum BlockEvent {
 }
 
 impl BlockEvent {
-    pub fn mirror(address: ActorId, event: MirrorEvent) -> Self {
-        Self::Mirror { address, event }
+    pub fn mirror(actor_id: ActorId, event: MirrorEvent) -> Self {
+        Self::Mirror { actor_id, event }
     }
 }
 
 impl From<(ActorId, MirrorEvent)> for BlockEvent {
-    fn from((address, event): (ActorId, MirrorEvent)) -> Self {
-        Self::mirror(address, event)
+    fn from((actor_id, event): (ActorId, MirrorEvent)) -> Self {
+        Self::mirror(actor_id, event)
     }
 }
 
@@ -66,21 +66,21 @@ impl From<WVaraEvent> for BlockEvent {
 pub enum BlockRequestEvent {
     Router(RouterRequestEvent),
     Mirror {
-        address: ActorId,
+        actor_id: ActorId,
         event: MirrorRequestEvent,
     },
     WVara(WVaraRequestEvent),
 }
 
 impl BlockRequestEvent {
-    pub fn mirror(address: ActorId, event: MirrorRequestEvent) -> Self {
-        Self::Mirror { address, event }
+    pub fn mirror(actor_id: ActorId, event: MirrorRequestEvent) -> Self {
+        Self::Mirror { actor_id, event }
     }
 }
 
 impl From<(ActorId, MirrorRequestEvent)> for BlockRequestEvent {
-    fn from((address, event): (ActorId, MirrorRequestEvent)) -> Self {
-        Self::mirror(address, event)
+    fn from((actor_id, event): (ActorId, MirrorRequestEvent)) -> Self {
+        Self::mirror(actor_id, event)
     }
 }
 

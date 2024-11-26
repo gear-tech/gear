@@ -44,7 +44,7 @@ struct GlobalsAccessWasmRuntime<'a> {
     pub instance: &'a mut SandboxInstance,
 }
 
-impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
+impl GlobalsAccessor for GlobalsAccessWasmRuntime<'_> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         // SAFETY: this is safe because this method is called only from signal handler context
         unsafe {
@@ -80,7 +80,7 @@ struct GlobalsAccessNativeRuntime<'a, 'b> {
     pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccessor,
 }
 
-impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
+impl GlobalsAccessor for GlobalsAccessNativeRuntime<'_, '_> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.inner_access_provider.get_i64(name)
     }

@@ -35,15 +35,15 @@ interface IRouter {
 
     /// @notice Emitted when a code, previously requested for validation, receives validation results, so its CodeStatus changed.
     /// @dev This is an *informational* event, signaling the results of code validation.
-    /// @param id The ID of the code that was validated.
+    /// @param codeId The ID of the code that was validated.
     /// @param valid The result of the validation: indicates whether the code ID can be used for program creation.
-    event CodeGotValidated(bytes32 id, bool indexed valid);
+    event CodeGotValidated(bytes32 codeId, bool indexed valid);
 
     /// @notice Emitted when a new code validation request is submitted.
     /// @dev This is a *requesting* event, signaling that validators need to download and validate the code from the transaction blob.
-    /// @param id The expected code ID of the applied WASM blob, represented as a Blake2 hash.
+    /// @param codeId The expected code ID of the applied WASM blob, represented as a Blake2 hash.
     /// @param blobTxHash The transaction hash that contains the WASM blob. Set to zero if applied to the current transaction.
-    event CodeValidationRequested(bytes32 id, bytes32 blobTxHash);
+    event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
 
     /// @notice Emitted when the computation settings have been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.
@@ -53,9 +53,9 @@ interface IRouter {
 
     /// @notice Emitted when a new program within the co-processor is created and is now available on-chain.
     /// @dev This is both an *informational* and *requesting* event, signaling the creation of a new program and its Ethereum mirror. Validators need to initialize it with a zeroed hash state internally.
-    /// @param actor ID of the actor that was created. It is accessible inside the co-processor and on Ethereum by this identifier.
+    /// @param actorId ID of the actor that was created. It is accessible inside the co-processor and on Ethereum by this identifier.
     /// @param codeId The code ID of the WASM implementation of the created program.
-    event ProgramCreated(address actor, bytes32 indexed codeId);
+    event ProgramCreated(address actorId, bytes32 indexed codeId);
 
     /// @notice Emitted when the router's storage slot has been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
@@ -76,8 +76,8 @@ interface IRouter {
     function areValidators(address[] calldata validators) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
     function signingThresholdPercentage() external view returns (uint16);
+    function validators() external view returns (address[] memory);
     function validatorsCount() external view returns (uint256);
-    function validatorsKeys() external view returns (address[] memory);
     function validatorsThreshold() external view returns (uint256);
 
     function computeSettings() external view returns (Gear.ComputationSettings memory);

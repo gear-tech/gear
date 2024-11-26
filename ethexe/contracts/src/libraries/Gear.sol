@@ -90,9 +90,9 @@ library Gear {
 
     struct ValidationSettings {
         uint16 signingThresholdPercentage;
+        address[] validators;
         // TODO: replace with one single pubkey and validators amount.
-        mapping(address => bool) validators;
-        address[] validatorsKeys;
+        mapping(address => bool) validatorsKeyMap;
     }
 
     struct ValueClaim {
@@ -179,7 +179,7 @@ library Gear {
 
             address validator = msgHash.recover(signature);
 
-            if (router.validationSettings.validators[validator]) {
+            if (router.validationSettings.validatorsKeyMap[validator]) {
                 if (++validSignatures == threshold) {
                     return true;
                 }
@@ -191,7 +191,7 @@ library Gear {
 
     function validatorsThresholdOf(ValidationSettings storage settings) internal view returns (uint256) {
         // Dividing by 10000 to adjust for percentage
-        return (settings.validatorsKeys.length * uint256(settings.signingThresholdPercentage) + 9999) / 10000;
+        return (settings.validators.length * uint256(settings.signingThresholdPercentage) + 9999) / 10000;
     }
 
     function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
