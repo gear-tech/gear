@@ -37,9 +37,6 @@ use crate::{
 
 pub type StoreRefCell = store_refcell::StoreRefCell<wasmer::Store>;
 
-#[cfg(feature = "gear-wasmer-cache")]
-use gear_wasmer_cache::*;
-
 environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
 mod store_refcell_ctx {
@@ -156,7 +153,7 @@ pub fn invoke(
 }
 
 #[cfg(feature = "gear-wasmer-cache")]
-fn fs_cache() -> PathBuf {
+fn cache_base_path() -> PathBuf {
     use std::sync::OnceLock;
     use tempfile::TempDir;
 
@@ -178,7 +175,7 @@ pub fn instantiate(
     supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     #[cfg(feature = "gear-wasmer-cache")]
-    let module = get_or_compile_with_cache(wasm, context.store().borrow().engine(), fs_cache)
+    let module = gear_wasmer_cache::get(context.store().borrow().engine(), wasm, cache_base_path())
         .map_err(|_| InstantiationError::ModuleDecoding)?;
 
     #[cfg(not(feature = "gear-wasmer-cache"))]

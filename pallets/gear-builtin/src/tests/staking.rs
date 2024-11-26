@@ -382,7 +382,7 @@ fn set_payee_works() {
         // Assert the `payee` is set to contract's stash
         let payee =
             pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
-        assert_eq!(payee, pallet_staking::RewardDestination::Stash);
+        assert_eq!(payee, Some(pallet_staking::RewardDestination::Stash));
 
         // Set the `payee` to SIGNER
         assert_ok!(Gear::send_message(
@@ -404,7 +404,7 @@ fn set_payee_works() {
             pallet_staking::Pallet::<Test>::payee(StakingAccount::Stash(contract_account_id));
         assert_eq!(
             payee,
-            pallet_staking::RewardDestination::Account(REWARD_PAYEE)
+            Some(pallet_staking::RewardDestination::Account(REWARD_PAYEE))
         );
     });
 }
@@ -812,6 +812,7 @@ mod util {
                     .iter()
                     .map(|x| (x.0, x.0, x.1.clone()))
                     .collect(),
+                ..Default::default()
             }
             .assimilate_storage(&mut storage)
             .unwrap();

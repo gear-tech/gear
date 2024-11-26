@@ -8,102 +8,138 @@ import {IMirror, Mirror} from "../src/Mirror.sol";
 import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {IRouter, Router} from "../src/Router.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
+import {Gear} from "../src/libraries/Gear.sol";
 
 contract RouterTest is Test {
     using MessageHashUtils for address;
 
-    address immutable deployerAddress = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
+    address immutable deployer = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
 
-    address immutable validatorPublicKey_1 = 0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1;
-    uint256 immutable validatorPrivateKey_1 = 0x32816f851b9cc71c4eb956214ded8cf481f7af66c125d1fb9deae366ae4f13a6;
+    address immutable alicePublic = 0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1;
+    uint256 immutable alicePrivate = 0x32816f851b9cc71c4eb956214ded8cf481f7af66c125d1fb9deae366ae4f13a6;
 
-    address[] public validatorsArray;
+    address immutable bobPublic = 0xeFDa593324697918773069E0226dAD49d702f4D8;
+    uint256 immutable bobPrivate = 0x068cc4910d9f5aae82f66d926757fde55a7d2e72b25b2a243606e5147712a450;
+
+    address immutable charliePublic = 0x84de3f115eC548A32CcC9464D14376f888ab49e1;
+    uint256 immutable charliePrivate = 0xa3f79c90a74fd984fd9c2a9c4286c53ad5ac38e32123e06720e9211566378bc4;
+
+    address[] public validators;
     uint256[] public validatorsPrivateKeys;
 
-    WrappedVara public wrappedVara;
     Router public router;
-    Mirror public mirror;
-    MirrorProxy public mirrorProxy;
 
     function setUp() public {
-        validatorsArray.push(validatorPublicKey_1);
-        validatorsPrivateKeys.push(validatorPrivateKey_1);
+        validators.push(alicePublic);
+        validators.push(bobPublic);
+        validators.push(charliePublic);
 
-        startPrank(deployerAddress);
+        validatorsPrivateKeys.push(alicePrivate);
+        validatorsPrivateKeys.push(bobPrivate);
+        validatorsPrivateKeys.push(charliePrivate);
 
-        wrappedVara = WrappedVara(
+        startPrank(deployer);
+
+        WrappedVara wrappedVara = WrappedVara(
             Upgrades.deployTransparentProxy(
-                "WrappedVara.sol", deployerAddress, abi.encodeCall(WrappedVara.initialize, (deployerAddress))
+                "WrappedVara.sol", deployer, abi.encodeCall(WrappedVara.initialize, (deployer))
             )
         );
 
-        address wrappedVaraAddress = address(wrappedVara);
-        address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        address mirrorProxyAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+        address mirrorAddress = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 2);
+        address mirrorProxyAddress = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 3);
 
         router = Router(
             Upgrades.deployTransparentProxy(
                 "Router.sol",
-                deployerAddress,
+                deployer,
                 abi.encodeCall(
-                    Router.initialize,
-                    (deployerAddress, mirrorAddress, mirrorProxyAddress, wrappedVaraAddress, validatorsArray)
+                    Router.initialize, (deployer, mirrorAddress, mirrorProxyAddress, address(wrappedVara), validators)
                 )
             )
         );
-        mirror = new Mirror();
-        mirrorProxy = new MirrorProxy(address(router));
+
+        vm.roll(vm.getBlockNumber() + 1);
+
+        router.lookupGenesisHash();
 
         wrappedVara.approve(address(router), type(uint256).max);
 
-        assertEq(router.mirror(), address(mirror));
-        assertEq(router.mirrorProxy(), address(mirrorProxy));
+        Mirror mirror = new Mirror();
+
+        MirrorProxy mirrorProxy = new MirrorProxy(address(router));
         assertEq(mirrorProxy.router(), address(router));
 
-        assertEq(router.validators(), validatorsArray);
-        assert(router.validatorExists(validatorPublicKey_1));
+        assertEq(router.mirrorImpl(), address(mirror));
+        assertEq(router.mirrorProxyImpl(), address(mirrorProxy));
+        assertEq(router.validators(), validators);
+        assertEq(router.signingThresholdPercentage(), 6666);
+
+        assert(router.areValidators(validators));
     }
 
     function test_ping() public {
-        startPrank(deployerAddress);
+        startPrank(deployer);
 
         bytes32 codeId = bytes32(uint256(1));
         bytes32 blobTxHash = bytes32(uint256(2));
 
         router.requestCodeValidation(codeId, blobTxHash);
 
-        IRouter.CodeCommitment[] memory codeCommitmentsArray = new IRouter.CodeCommitment[](1);
-        codeCommitmentsArray[0] = IRouter.CodeCommitment(codeId, true);
+        Gear.CodeCommitment[] memory codeCommitments = new Gear.CodeCommitment[](1);
+        codeCommitments[0] = Gear.CodeCommitment(codeId, true);
 
-        commitCodes(codeCommitmentsArray);
+        assertEq(router.validators().length, 3);
+        assertEq(router.validatorsThreshold(), 2);
+
+        router.commitCodes(codeCommitments, _signCodeCommitments(codeCommitments));
 
         address actorId = router.createProgram(codeId, "salt", "PING", 1_000_000_000);
-        IMirror deployedProgram = IMirror(actorId);
+        IMirror actor = IMirror(actorId);
 
-        assertEq(deployedProgram.router(), address(router));
-        assertEq(deployedProgram.stateHash(), 0);
-        assertEq(deployedProgram.inheritor(), address(0));
+        assertEq(actor.router(), address(router));
+        assertEq(actor.stateHash(), 0);
+        assertEq(actor.inheritor(), address(0));
 
-        vm.roll(100);
+        vm.roll(vm.getBlockNumber() + 1);
 
-        // TODO (breathx): add test on this.
-        IRouter.ValueClaim[] memory valueClaims = new IRouter.ValueClaim[](0);
-
-        IRouter.OutgoingMessage[] memory outgoingMessages = new IRouter.OutgoingMessage[](1);
-        outgoingMessages[0] = IRouter.OutgoingMessage(0, deployerAddress, "PONG", 0, IRouter.ReplyDetails(0, 0));
-
-        IRouter.StateTransition[] memory transitionsArray = new IRouter.StateTransition[](1);
-        IRouter.BlockCommitment[] memory blockCommitmentsArray = new IRouter.BlockCommitment[](1);
-        transitionsArray[0] =
-            IRouter.StateTransition(actorId, bytes32(uint256(1)), address(0), 0, valueClaims, outgoingMessages);
-        blockCommitmentsArray[0] = IRouter.BlockCommitment(
-            bytes32(uint256(1)), bytes32(uint256(0)), blockhash(block.number - 1), transitionsArray
+        Gear.Message[] memory messages = new Gear.Message[](1);
+        messages[0] = Gear.Message(
+            0, // message id
+            deployer, // destination
+            "PONG", // payload
+            0, // value
+            Gear.ReplyDetails(
+                0, // reply to
+                0 // reply code
+            )
         );
 
-        commitBlocks(blockCommitmentsArray);
+        Gear.StateTransition[] memory transitions = new Gear.StateTransition[](1);
+        transitions[0] = Gear.StateTransition(
+            actorId, // actor id
+            bytes32(uint256(42)), // new state hash
+            address(0), // inheritor
+            uint128(0), // value to receive
+            new Gear.ValueClaim[](0), // value claims
+            messages // messages
+        );
 
-        assertEq(deployedProgram.stateHash(), bytes32(uint256(1)));
-        assertEq(deployedProgram.nonce(), 1);
+        Gear.BlockCommitment[] memory blockCommitments = new Gear.BlockCommitment[](1);
+        blockCommitments[0] = Gear.BlockCommitment(
+            bytes32(uint256(1)), // block hash
+            uint48(0), // block timestamp
+            bytes32(uint256(0)), // previous committed block
+            blockhash(block.number - 1), // predecessor block
+            transitions // transitions
+        );
+
+        router.commitBlocks(blockCommitments, _signBlockCommitments(blockCommitments));
+
+        assertEq(router.latestCommittedBlockHash(), bytes32(uint256(1)));
+
+        assertEq(actor.stateHash(), bytes32(uint256(42)));
+        assertEq(actor.nonce(), uint256(1));
     }
 
     /* helper functions */
@@ -112,68 +148,36 @@ contract RouterTest is Test {
         vm.startPrank(msgSender, msgSender);
     }
 
-    function commitCodes(IRouter.CodeCommitment[] memory codeCommitmentsArray) private {
-        bytes memory codesBytes;
+    function _signBlockCommitments(Gear.BlockCommitment[] memory blockCommitments)
+        private
+        view
+        returns (bytes[] memory)
+    {
+        bytes memory blockCommitmentsBytes;
 
-        for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
-            IRouter.CodeCommitment memory codeCommitment = codeCommitmentsArray[i];
-            codesBytes = bytes.concat(codesBytes, keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid)));
-        }
+        for (uint256 i = 0; i < blockCommitments.length; i++) {
+            Gear.BlockCommitment memory blockCommitment = blockCommitments[i];
 
-        router.commitCodes(codeCommitmentsArray, createSignatures(codesBytes));
-    }
+            bytes memory transitionsHashesBytes;
 
-    function commitBlocks(IRouter.BlockCommitment[] memory commitments) private {
-        bytes memory message;
+            for (uint256 j = 0; j < blockCommitment.transitions.length; j++) {
+                Gear.StateTransition memory transition = blockCommitment.transitions[j];
 
-        for (uint256 i = 0; i < commitments.length; i++) {
-            IRouter.BlockCommitment memory commitment = commitments[i];
-            message = bytes.concat(message, commitBlock(commitment));
-        }
+                bytes memory valueClaimsBytes;
+                for (uint256 k = 0; k < transition.valueClaims.length; k++) {
+                    Gear.ValueClaim memory claim = transition.valueClaims[k];
+                    valueClaimsBytes = bytes.concat(valueClaimsBytes, Gear.valueClaimBytes(claim));
+                }
 
-        router.commitBlocks(commitments, createSignatures(message));
-    }
+                bytes memory messagesHashesBytes;
+                for (uint256 k = 0; k < transition.messages.length; k++) {
+                    Gear.Message memory message = transition.messages[k];
+                    messagesHashesBytes = bytes.concat(messagesHashesBytes, Gear.messageHash(message));
+                }
 
-    function commitBlock(IRouter.BlockCommitment memory commitment) private pure returns (bytes32) {
-        bytes memory transitionsHashesBytes;
-
-        for (uint256 i = 0; i < commitment.transitions.length; i++) {
-            IRouter.StateTransition memory transition = commitment.transitions[i];
-
-            bytes memory valueClaimsBytes;
-
-            for (uint256 j = 0; j < transition.valueClaims.length; j++) {
-                IRouter.ValueClaim memory valueClaim = transition.valueClaims[j];
-
-                valueClaimsBytes = bytes.concat(
-                    valueClaimsBytes, abi.encodePacked(valueClaim.messageId, valueClaim.destination, valueClaim.value)
-                );
-            }
-
-            bytes memory messagesHashesBytes;
-
-            for (uint256 j = 0; j < transition.messages.length; j++) {
-                IRouter.OutgoingMessage memory outgoingMessage = transition.messages[j];
-
-                messagesHashesBytes = bytes.concat(
-                    messagesHashesBytes,
-                    keccak256(
-                        abi.encodePacked(
-                            outgoingMessage.id,
-                            outgoingMessage.destination,
-                            outgoingMessage.payload,
-                            outgoingMessage.value,
-                            outgoingMessage.replyDetails.to,
-                            outgoingMessage.replyDetails.code
-                        )
-                    )
-                );
-            }
-
-            transitionsHashesBytes = bytes.concat(
-                transitionsHashesBytes,
-                keccak256(
-                    abi.encodePacked(
+                transitionsHashesBytes = bytes.concat(
+                    transitionsHashesBytes,
+                    Gear.stateTransitionHash(
                         transition.actorId,
                         transition.newStateHash,
                         transition.inheritor,
@@ -181,27 +185,47 @@ contract RouterTest is Test {
                         keccak256(valueClaimsBytes),
                         keccak256(messagesHashesBytes)
                     )
+                );
+            }
+
+            blockCommitmentsBytes = bytes.concat(
+                blockCommitmentsBytes,
+                Gear.blockCommitmentHash(
+                    blockCommitment.hash,
+                    blockCommitment.timestamp,
+                    blockCommitment.previousCommittedBlock,
+                    blockCommitment.predecessorBlock,
+                    keccak256(transitionsHashesBytes)
                 )
             );
         }
 
-        return keccak256(
-            abi.encodePacked(
-                commitment.blockHash,
-                commitment.prevCommitmentHash,
-                commitment.predBlockHash,
-                keccak256(transitionsHashesBytes)
-            )
-        );
+        return _signBytes(blockCommitmentsBytes);
     }
 
-    function createSignatures(bytes memory message) private view returns (bytes[] memory) {
+    function _signCodeCommitments(Gear.CodeCommitment[] memory codeCommitments) private view returns (bytes[] memory) {
+        bytes memory codeCommitmentsBytes;
+
+        for (uint256 i = 0; i < codeCommitments.length; i++) {
+            Gear.CodeCommitment memory codeCommitment = codeCommitments[i];
+
+            codeCommitmentsBytes =
+                bytes.concat(codeCommitmentsBytes, keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid)));
+        }
+
+        return _signBytes(codeCommitmentsBytes);
+    }
+
+    function _signBytes(bytes memory message) private view returns (bytes[] memory) {
         bytes[] memory signatures = new bytes[](validatorsPrivateKeys.length);
-        bytes32 messageHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(message)));
+
+        bytes32 msgHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(message)));
 
         for (uint256 i = 0; i < validatorsPrivateKeys.length; i++) {
             uint256 validatorPrivateKey = validatorsPrivateKeys[i];
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(validatorPrivateKey, messageHash);
+
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(validatorPrivateKey, msgHash);
+
             signatures[i] = abi.encodePacked(r, s, v);
         }
 

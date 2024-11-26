@@ -14,6 +14,10 @@ variable "instance_type" {
   type    = string
   default = "t3.micro"
 }
+variable "max_cpu_frequency" {
+  type    = string
+  default = 6000000
+}
 variable "instance_disk_size" {
   type    = string
   default = 30
@@ -75,6 +79,8 @@ resource "aws_instance" "bench_runner" {
 
   user_data = <<-EOF
                 #!/bin/bash
+                cpupower frequency-set --governor performance
+                cpupower frequency-set --max ${var.max_cpu_frequency}
                 echo never > /sys/kernel/mm/transparent_hugepage/enabled
                 echo never > /sys/kernel/mm/transparent_hugepage/defrag
                 echo 0 > /proc/sys/vm/nr_hugepages
@@ -84,6 +90,12 @@ resource "aws_instance" "bench_runner" {
                 apt install -y jq docker.io
                 systemctl enable --now docker
                 usermod -aG docker ubuntu
+
+                mkdir -p /home/ubuntu/.ssh
+                chmod 700 /home/ubuntu/.ssh
+                echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGd8nO78hzAVTjGaW6IJgFnI32qY/vCpQRpO8lW97eXA root" >> /home/ubuntu/.ssh/authorized_keys
+                chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+                chmod 600 /home/ubuntu/.ssh/authorized_keys
 
                 sudo -u ubuntu -i bash -c "
                 cd /runner &&
@@ -103,4 +115,20 @@ resource "aws_instance" "bench_runner" {
     create = "30m"
     delete = "60m"
   }
+}
+
+output "instance_region" {
+  value       = var.aws_region
+}
+output "instance_name" {
+  value       = aws_instance.bench_runner.tags["Name"]
+}
+output "instance_type" {
+  value       = var.instance_type
+}
+output "max_cpu_frequency" {
+  value       = "${var.max_cpu_frequency} MHz"
+}
+output "instance_public_ip" {
+  value       = aws_instance.bench_runner.public_ip
 }

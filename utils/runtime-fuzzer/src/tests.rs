@@ -98,8 +98,8 @@ proptest! {
         let ext2 = run_impl(FuzzerInput::new(&buf));
 
         match (ext1, ext2) {
-            (Ok(ext1), Ok(ext2)) => {
-                assert!(ext1.eq(&ext2), "Both test-exts must be equal");
+            (Ok(mut ext1), Ok(mut ext2)) => {
+                assert!(ext1.eq(&mut ext2), "Both test-exts must be equal");
             }
             (ext1, ext2) => {
                 ext1.expect("One or both of fuzzer runs failed");

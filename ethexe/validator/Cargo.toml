@@ -24,3 +24,4 @@ static_init = "1.0.3"
 
 [dev-dependencies]
 ethexe-db.workspace = true
+rand.workspace = true

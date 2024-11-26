@@ -76,7 +76,8 @@ fn config() -> Config {
     let register_len = size_of::<UntypedVal>();
 
     const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
-    const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
+    // Fuzzer requires bigger stack size
+    const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT * 16;
     const DEFAULT_MAX_RECURSION_DEPTH: usize = 16384;
 
     let mut config = Config::default();

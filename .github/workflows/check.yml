@@ -34,7 +34,7 @@ jobs:
       - name: "Install: Node.js"
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
 
       - name: "Show: Versioning"
         run: |
@@ -43,6 +43,10 @@ jobs:
 
       - name: "Check: ethexe contracts"
         run: |
+          npm cache clean --force
+          # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
+          npx @openzeppelin/upgrades-core@^1.32.3
+
           cd ethexe/contracts
           forge fmt --check
           forge build --sizes

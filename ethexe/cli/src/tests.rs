@@ -26,13 +26,14 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::CodesStorage, mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent,
+    db::CodesStorage,
+    events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
-use ethexe_runtime_common::state::Storage;
+use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
@@ -194,7 +195,7 @@ async fn mailbox() {
     let mut listener = env.events_publisher().subscribe().await;
     let block_data = listener
         .apply_until_block_event_with_header(|event, block_data| match event {
-            BlockEvent::Mirror { address, event } if address == pid => {
+            BlockEvent::Mirror { actor_id, event } if actor_id == pid => {
                 if let MirrorEvent::Message {
                     id,
                     destination,
@@ -250,10 +251,11 @@ async fn mailbox() {
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
         BTreeMap::from_iter([
-            (mid_expected_message, (0, expiry)),
-            (ping_expected_message, (0, expiry)),
+            (mid_expected_message, ValueWithExpiry { value: 0, expiry }),
+            (ping_expected_message, ValueWithExpiry { value: 0, expiry }),
         ]),
     )]);
+
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
 
@@ -263,7 +265,7 @@ async fn mailbox() {
         .mailbox_hash
         .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
-    assert_eq!(mailbox, expected_mailbox);
+    assert_eq!(mailbox.into_inner(), expected_mailbox);
 
     mirror
         .send_reply(ping_expected_message, "PONG", 0)
@@ -288,16 +290,16 @@ async fn mailbox() {
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, (0, expiry))]),
+        BTreeMap::from_iter([(mid_expected_message, ValueWithExpiry { value: 0, expiry })]),
     )]);
 
-    assert_eq!(mailbox, expected_mailbox);
+    assert_eq!(mailbox.into_inner(), expected_mailbox);
 
     mirror.claim_value(mid_expected_message).await.unwrap();
 
     let block_data = listener
         .apply_until_block_event_with_header(|event, block_data| match event {
-            BlockEvent::Mirror { address, event } if address == pid => match event {
+            BlockEvent::Mirror { actor_id, event } if actor_id == pid => match event {
                 MirrorEvent::ValueClaimed { claimed_id, .. }
                     if claimed_id == mid_expected_message =>
                 {
@@ -358,6 +360,9 @@ async fn incoming_transfers() {
     let ping_id = res.program_id;
 
     let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
     let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
 
     let on_eth_balance = wvara
@@ -1389,8 +1394,8 @@ mod utils {
 
             self.listener
                 .apply_until_block_event(|event| match event {
-                    BlockEvent::Router(RouterEvent::CodeGotValidated { id, valid })
-                        if id == self.code_id =>
+                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
+                        if code_id == self.code_id =>
                     {
                         valid_info = Some(valid);
                         Ok(Some(()))
@@ -1443,7 +1448,7 @@ mod utils {
                         {
                             code_id_info = Some(code_id);
                         }
-                        BlockEvent::Mirror { address, event } if address == self.program_id => {
+                        BlockEvent::Mirror { actor_id, event } if actor_id == self.program_id => {
                             match event {
                                 MirrorEvent::MessageQueueingRequested {
                                     id,
@@ -1517,7 +1522,7 @@ mod utils {
             self.listener
                 .apply_until_block_event(|event| match event {
                     BlockEvent::Mirror {
-                        address,
+                        actor_id,
                         event:
                             MirrorEvent::Reply {
                                 reply_to,
@@ -1528,7 +1533,7 @@ mod utils {
                     } if reply_to == self.message_id => {
                         info = Some(ReplyInfo {
                             message_id: reply_to,
-                            program_id: address,
+                            program_id: actor_id,
                             reply_payload: payload,
                             reply_code,
                             reply_value: value,
