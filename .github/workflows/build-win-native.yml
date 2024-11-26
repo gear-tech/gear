@@ -49,7 +49,7 @@ jobs:
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
-          $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin"
+          $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin\perl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_SRC_PERL=$perl"
         shell: powershell
 
