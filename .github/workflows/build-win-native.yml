@@ -47,6 +47,12 @@ jobs:
         with:
           apps: perl
 
+      - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
+        run: |
+          $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin"
+          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_SRC_PERL=$perl"
+        shell: powershell
+
       - name: "Install: Rustup"
         run: |
           Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
