@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::Runtime;
-use frame_support::{dispatch::GetDispatchInfo, traits::StorageInstance};
+use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
 use gear_core::costs::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
@@ -32,6 +32,8 @@ use sp_runtime::AccountId32;
 #[cfg(feature = "dev")]
 #[test]
 fn bridge_storages_have_correct_prefixes() {
+    use frame_support::traits::StorageInstance;
+
     // # SAFETY: Do not change storage prefixes without total bridge re-deploy.
     const PALLET_PREFIX: &str = "GearEthBridge";
 
@@ -268,7 +270,7 @@ fn syscall_weights_test() {
         gr_reply_commit: 13_000_000.into(),
         gr_reply_commit_wgas: 12_000_000.into(),
         gr_reservation_reply: 9_500_000.into(),
-        gr_reservation_reply_per_byte: 800_000.into(),
+        gr_reservation_reply_per_byte: 800.into(),
         gr_reservation_reply_commit: 9_000_000.into(),
         gr_reply_push: 2_000_000.into(),
         gr_reply: 14_500_000.into(),
