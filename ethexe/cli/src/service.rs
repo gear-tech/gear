@@ -117,17 +117,7 @@ impl Service {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
 
-        if genesis_block_hash.is_zero() {
-            log::error!(
-                "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
-            );
-
-            bail!("Failed to query valid genesis hash");
-        } else {
-            log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
-        }
-
-        let validators = router_query.validators_keys().await?;
+        let validators = router_query.validators().await?;
         log::info!("👥 Validators set: {validators:?}");
 
         let threshold = router_query.threshold().await?;
@@ -284,7 +274,7 @@ impl Service {
         for event in events {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
-                    id: code_id,
+                    code_id,
                     blob_tx_hash,
                 }) => {
                     db.set_code_blob_tx(code_id, blob_tx_hash);
