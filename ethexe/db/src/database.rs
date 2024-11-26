@@ -58,6 +58,7 @@ enum KeyPrefix {
     CodeValid = 10,
     BlockStartSchedule = 11,
     BlockEndSchedule = 12,
+    Transaction = 13,
 }
 
 impl KeyPrefix {
@@ -442,6 +443,16 @@ impl Database {
     // TODO: temporary solution for MVP runtime-interfaces db access.
     pub fn write(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
+    }
+
+    // TODO [sab]:
+    // 1. Maybe concrete transaction type and encode it?
+    pub fn validated_transaction(&self, tx_hash: H256) -> Option<Vec<u8>> {
+        self.kv.get(&KeyPrefix::Transaction.one(tx_hash))
+    }
+
+    pub fn set_validated_transaction(&self, tx_hash: H256, tx: Vec<u8>) {
+        self.kv.put(&KeyPrefix::Transaction.one(tx_hash), tx);
     }
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {

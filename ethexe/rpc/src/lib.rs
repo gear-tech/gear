@@ -17,8 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::anyhow;
-use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
+use apis::{
+    BlockApi, BlockServer, ProgramApi, ProgramServer, TransactionPoolApi, TransactionPoolServer,
+};
 use ethexe_db::Database;
+use ethexe_tx_pool::{EthexeTransaction, TxPoolInputTaskSender};
 use futures::FutureExt;
 use jsonrpsee::{
     server::{
@@ -52,11 +55,20 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
+    tx_pool_task_sender: TxPoolInputTaskSender<EthexeTransaction>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database) -> Self {
-        Self { config, db }
+    pub fn new(
+        config: RpcConfig,
+        db: Database,
+        tx_pool_task_sender: TxPoolInputTaskSender<EthexeTransaction>,
+    ) -> Self {
+        Self {
+            config,
+            db,
+            tx_pool_task_sender,
+        }
     }
 
     pub const fn port(&self) -> u16 {
@@ -70,6 +82,9 @@ impl RpcService {
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
+        module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
+            self.tx_pool_task_sender,
+        )))?;
 
         let (stop_handle, server_handle) = stop_channel();
 

@@ -18,6 +18,8 @@
 
 mod block;
 mod program;
+mod tx_pool;
 
 pub use block::{BlockApi, BlockServer};
 pub use program::{ProgramApi, ProgramServer};
+pub use tx_pool::{TransactionPoolApi, TransactionPoolServer};

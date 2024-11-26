@@ -4484,6 +4484,7 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-sequencer",
  "ethexe-signer",
+ "ethexe-tx-pool",
  "ethexe-utils",
  "ethexe-validator",
  "futures",
@@ -4648,6 +4649,7 @@ dependencies = [
  "ethexe-db",
  "ethexe-processor",
  "ethexe-runtime-common",
+ "ethexe-tx-pool",
  "futures",
  "gear-core",
  "gprimitives",
@@ -4735,7 +4737,12 @@ name = "ethexe-tx-pool"
 version = "1.6.2"
 dependencies = [
  "anyhow",
+ "ethexe-db",
  "ethexe-signer",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "tokio",
 ]
 
 [[package]]

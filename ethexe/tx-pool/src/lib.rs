@@ -18,54 +18,81 @@
 
 //! Ethexe transaction pool.
 
-use anyhow::Result;
-use ethexe_signer::{Signature, ToDigest};
+mod service;
+mod transaction;
 
-pub struct TranscationPool<Tx> {
-    /// Txs store
-    transactions: Vec<Tx>,
+#[cfg(test)]
+mod tests;
+
+pub use service::{InputTask, TxPoolInputTaskSender, TxPoolService};
+pub use transaction::{EthexeTransaction, Transaction};
+
+// TODO [sab] decide on tx pool channel size
+
+use anyhow::{anyhow, Result};
+use ethexe_db::{Database, MemDb};
+use ethexe_signer::ToDigest;
+use parity_scale_codec::Encode;
+use std::{fmt::Debug, marker::PhantomData};
+use tokio::sync::{mpsc, oneshot};
+
+/// Transaction pool trait.
+// TODO [sab] define type of hashes and signatures for the tx pool
+pub trait TxPoolTrait {
+    /// Transaction type.
+    type Transaction: Transaction;
+
+    /// Add transaction to the pool.
+    // TODO [sab] maybe take error from Transaction?
+    fn add_transaction(&self, transaction: Self::Transaction) -> Result<()>;
 }
 
-impl<Tx> TranscationPool<Tx> {
-    pub fn new() -> Self {
+impl TxPoolTrait for () {
+    type Transaction = ();
+
+    fn add_transaction(&self, _transaction: Self::Transaction) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub struct TxPoolCore<Tx> {
+    // TODO [sab] trait for tx pool db?
+    db: Database,
+    _phantom: PhantomData<Tx>,
+}
+
+impl<Tx> TxPoolCore<Tx> {
+    pub fn new(db: Database) -> Self {
         Self {
-            transactions: Vec::new(),
+            db,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<Tx: Transaction> TranscationPool<Tx> {
-    pub fn add_new_transaction(&mut self, tx: Tx) -> Result<(), Tx::Error> {
-        tx.validate().map(|_| self.transactions.push(tx))
+impl<Tx> TxPoolTrait for TxPoolCore<Tx>
+where
+    Tx: Transaction + Encode,
+    Tx::Error: Into<anyhow::Error>,
+{
+    type Transaction = Tx;
+
+    fn add_transaction(&self, transaction: Self::Transaction) -> Result<()> {
+        let tx_bytes = transaction.encode();
+        let tx_hash = transaction.tx_hash();
+
+        // TODO [sab] if transactione exists - send info, that already exists to ban the spammer
+        if self.db.validated_transaction(tx_hash).is_none() {
+            transaction.validate().map_err(Into::into)?;
+            self.db.set_validated_transaction(tx_hash, tx_bytes);
+        }
+
+        Ok(())
     }
 }
 
-pub trait Transaction {
-    type Error;
-    fn validate(&self) -> Result<(), Self::Error>;
-}
-
-pub enum EthexeTransaction {
-    Message {
-        raw_message: Vec<u8>,
-        signature: Vec<u8>,
-    },
-}
-
-impl Transaction for EthexeTransaction {
-    type Error = anyhow::Error;
-
-    fn validate(&self) -> Result<(), Self::Error> {
-        match self {
-            EthexeTransaction::Message {
-                raw_message,
-                signature,
-            } => {
-                let message_digest = raw_message.to_digest();
-                let signature = Signature::try_from(signature.as_ref())?;
-
-                signature.verify_with_public_key_recover(message_digest)
-            }
-        }
+impl<Tx> From<(Database,)> for TxPoolCore<Tx> {
+    fn from((db,): (Database,)) -> Self {
+        TxPoolCore::new(db)
     }
 }

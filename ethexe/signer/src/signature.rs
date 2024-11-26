@@ -136,10 +136,8 @@ impl From<Signature> for [u8; 65] {
 impl TryFrom<&[u8]> for Signature {
     type Error = Error;
 
-    fn try_from(data: &[u8]) -> Result<Self> {
-        <[u8; 65]>::try_from(data)
-            .map(Signature)
-            .map_err(Into::into)
+    fn try_from(mut data: &[u8]) -> Result<Self> {
+        Decode::decode(&mut data).map_err(Into::into)
     }
 }
 

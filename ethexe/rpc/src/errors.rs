@@ -29,3 +29,7 @@ pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
 pub fn internal() -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Internal error", None::<&str>)
 }
+
+pub fn tx_pool(err: anyhow::Error) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Transaction pool error", Some(format!("{err}")))
+}

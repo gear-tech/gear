@@ -36,6 +36,7 @@ use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
+use ethexe_tx_pool::{EthexeTransaction, TxPoolCore, TxPoolInputTaskSender, TxPoolService};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
@@ -64,6 +65,10 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
     rpc: Option<ethexe_rpc::RpcService>,
+    tx_pool_service: Option<(
+        TxPoolService<EthexeTransaction, TxPoolCore<EthexeTransaction>>,
+        TxPoolInputTaskSender<EthexeTransaction>,
+    )>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -97,6 +102,8 @@ impl Service {
         let ethereum_router_address = config.ethereum_router_address;
         let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
         let db = ethexe_db::Database::from_one(&rocks_db, ethereum_router_address.0);
+
+        let tx_pool_artifacts = TxPoolService::new((db.clone(),));
 
         let observer = ethexe_observer::Observer::new(
             &config.ethereum_rpc,
@@ -193,10 +200,9 @@ impl Service {
             })
             .transpose()?;
 
-        let rpc = config
-            .rpc_config
-            .as_ref()
-            .map(|config| ethexe_rpc::RpcService::new(config.clone(), db.clone()));
+        let rpc = config.rpc_config.as_ref().map(|config| {
+            ethexe_rpc::RpcService::new(config.clone(), db.clone(), tx_pool_artifacts.1.clone())
+        });
 
         Ok(Self {
             db,
@@ -211,6 +217,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.block_time,
+            tx_pool_service: Some(tx_pool_artifacts),
         })
     }
 
@@ -237,6 +244,10 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
+        tx_pool_service: Option<(
+            TxPoolService<EthexeTransaction, TxPoolCore>,
+            TxPoolInputTaskSender<EthexeTransaction>,
+        )>,
     ) -> Self {
         Self {
             db,
@@ -251,6 +262,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
+            tx_pool_service,
         }
     }
 
@@ -431,6 +443,7 @@ impl Service {
             mut validator,
             metrics_service,
             rpc,
+            tx_pool_service,
             block_time,
         } = self;
 
@@ -464,6 +477,18 @@ impl Service {
         } else {
             None
         };
+
+        let (mut tx_pool_handle, mut tx_pool_input_task_sender) =
+            if let Some((tx_pool_service, tx_pool_input_task_sender)) = tx_pool_service {
+                log::info!("🚅 Tx pool service starting...");
+
+                (
+                    Some(tokio::spawn(tx_pool_service.run())),
+                    Some(tx_pool_input_task_sender),
+                )
+            } else {
+                (None, None)
+            };
 
         let mut roles = "Observer".to_string();
         if let Some(seq) = sequencer.as_ref() {
@@ -539,6 +564,7 @@ impl Service {
                                 validator.as_mut(),
                                 sequencer.as_mut(),
                                 network_sender.as_mut(),
+                                tx_pool_input_task_sender.as_mut(),
                             );
 
                             if let Err(err) = result {
@@ -569,6 +595,10 @@ impl Service {
                 }
                 _ = maybe_await(rpc_handle.as_mut()) => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
+                    break;
+                }
+                _ = maybe_await(tx_pool_handle.as_mut()) => {
+                    log::info!("`TxPoolService` has terminated, shutting down...");
                     break;
                 }
             }
@@ -761,6 +791,8 @@ impl Service {
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
+        // TODO [sab]:
+        _maybe_tx_pool_input_task_sender: Option<&mut TxPoolInputTaskSender<EthexeTransaction>>,
     ) -> Result<()> {
         let message = NetworkMessage::decode(&mut data)?;
         match message {
