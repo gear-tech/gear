@@ -1193,6 +1193,27 @@ impl From<SyscallWeights> for SyscallCosts {
     }
 }
 
+impl From<MemoryWeights> for IoCosts {
+    fn from(val: MemoryWeights) -> Self {
+        Self {
+            common: PagesCosts::from(val.clone()),
+            lazy_pages: LazyPagesCosts::from(val),
+        }
+    }
+}
+
+impl From<MemoryWeights> for PagesCosts {
+    fn from(val: MemoryWeights) -> Self {
+        Self {
+            load_page_data: val.load_page_data.ref_time().into(),
+            upload_page_data: val.upload_page_data.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
+            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
+        }
+    }
+}
+
 impl From<MemoryWeights> for LazyPagesCosts {
     fn from(val: MemoryWeights) -> Self {
         Self {
