@@ -675,7 +675,7 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_reservation_reply_per_byte: Weight {
-                ref_time: 800,
+                ref_time: 784,
                 proof_size: 0,
             },
             gr_reservation_reply_commit: Weight {
