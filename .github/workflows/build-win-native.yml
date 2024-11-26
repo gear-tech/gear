@@ -36,16 +36,17 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           path-type: inherit
-          install: >-
-            procps
-            mingw-w64-x86_64-protobuf
-            mingw-w64-x86_64-wabt
-            mingw-w64-x86_64-binaryen
+          install: procps
 
       - name: "Install: Packages from Scoop"
         uses: MinoruSekine/setup-scoop@v4.0.1
         with:
-          apps: perl
+          apps: >-
+            perl
+            binaryen
+            wabt
+            protobuf
+          buckets: extras
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
