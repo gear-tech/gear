@@ -6,7 +6,7 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Test, console} from "forge-std/Test.sol";
-import "forge-std/Vm.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
@@ -21,11 +21,11 @@ import {Middleware} from "../src/Middleware.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 
-bytes32 constant REQUEST_SLASH_EVENT_SIGNATURE =
-    keccak256("RequestSlash(uint256,bytes32,address,uint256,uint48,uint48)");
-
 contract MiddlewareTest is Test {
     using MessageHashUtils for address;
+
+    bytes32 public constant REQUEST_SLASH_EVENT_SIGNATURE =
+        keccak256("RequestSlash(uint256,bytes32,address,uint256,uint48,uint48)");
 
     uint48 eraDuration = 1000;
     address public owner;

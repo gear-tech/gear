@@ -313,21 +313,21 @@ contract Middleware {
 
     function requestSlash(SlashData[] calldata data) external _onlyRole(roleSlashRequester) {
         for (uint256 i; i < data.length; ++i) {
-            SlashData calldata slash_data = data[i];
-            if (!operators.contains(slash_data.operator)) {
+            SlashData calldata slashData = data[i];
+            if (!operators.contains(slashData.operator)) {
                 revert NotRegistredOperator();
             }
 
-            for (uint256 j; j < slash_data.vaults.length; ++j) {
-                VaultSlashData calldata vault_data = slash_data.vaults[j];
+            for (uint256 j; j < slashData.vaults.length; ++j) {
+                VaultSlashData calldata vaultData = slashData.vaults[j];
 
-                if (!vaults.contains(vault_data.vault)) {
+                if (!vaults.contains(vaultData.vault)) {
                     revert NotRegistredVault();
                 }
 
-                address slasher = IVault(vault_data.vault).slasher();
+                address slasher = IVault(vaultData.vault).slasher();
                 IVetoSlasher(slasher).requestSlash(
-                    subnetwork, slash_data.operator, vault_data.amount, slash_data.ts, new bytes(0)
+                    subnetwork, slashData.operator, vaultData.amount, slashData.ts, new bytes(0)
                 );
             }
         }
