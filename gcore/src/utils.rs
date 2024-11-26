@@ -156,30 +156,42 @@ pub mod ext {
 
 /// Add a debug message to the log.
 ///
-/// Same as `gstd::debug!()` but uses [`ext::stack_debug`] underneath.
+/// Debug messages are available only if the program is compiled
+/// in debug mode.
+///
+/// ```shell
+/// cargo build --debug
+/// cargo build --features=debug
+/// ```
+///
+/// You can see the debug messages when running the program using the `gtest`
+/// crate. To see these messages when executing the program on the node, you
+/// should run the node with the `RUST_LOG="gwasm=debug"` environment variable.
 ///
 /// Note: message size is limited to
 /// [`MAX_BUFFER_SIZE`](crate::stack_buffer::MAX_BUFFER_SIZE).
 /// Message is truncated if it exceeds maximum buffer size.
 ///
+/// If you need bigger message size, consider using `gstd::heap_debug!()` macro.
+///
 /// # Examples
 ///
 /// ```
-/// use gcore::stack_debug;
+/// use gcore::debug;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     stack_debug!("String literal");
+///     debug!("String literal");
 ///
 ///     let value = 42;
-///     stack_debug!("{value}");
+///     debug!("{value}");
 ///
-///     stack_debug!("Formatted: value = {value}");
+///     debug!("Formatted: value = {value}");
 /// }
 /// ```
 #[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
-macro_rules! stack_debug {
+macro_rules! debug {
     ($fmt:expr) => {
         $crate::ext::stack_debug(format_args!($fmt))
     };
@@ -191,6 +203,7 @@ macro_rules! stack_debug {
 #[cfg(not(any(feature = "debug", debug_assertions)))]
 #[allow(missing_docs)]
 #[macro_export]
-macro_rules! stack_debug {
-    ($($arg:tt)*) => {};
+macro_rules! debug {
+    ($fmt:expr) => {};
+    ($fmt:expr, $($args:tt)*) => {};
 }

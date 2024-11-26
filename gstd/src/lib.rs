@@ -165,8 +165,8 @@ pub use async_runtime::{handle_reply_with_hook, message_loop};
 pub use common::errors;
 pub use config::{Config, SYSTEM_RESERVE};
 pub use gcore::{
-    ext, stack_debug, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier,
-    MessageId, Percent, Ss58Address, Value,
+    debug, ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId,
+    Percent, Ss58Address, Value,
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
