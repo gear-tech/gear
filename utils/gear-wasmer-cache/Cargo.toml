@@ -1,5 +1,6 @@
 [package]
 name = "gear-wasmer-cache"
+description = "Wasmer executor's module caches used by Gear nodes"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
