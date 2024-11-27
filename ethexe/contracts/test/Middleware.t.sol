@@ -24,9 +24,6 @@ import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 contract MiddlewareTest is Test {
     using MessageHashUtils for address;
 
-    bytes32 public constant REQUEST_SLASH_EVENT_SIGNATURE =
-        keccak256("RequestSlash(uint256,bytes32,address,uint256,uint48,uint48)");
-
     uint48 eraDuration = 1000;
     address public owner;
     POCBaseTest public sym;
@@ -514,7 +511,7 @@ contract MiddlewareTest is Test {
         for (uint256 i = 0; i < logs.length; i++) {
             Vm.Log memory log = logs[i];
             bytes32 eventSignature = log.topics[0];
-            if (eventSignature == REQUEST_SLASH_EVENT_SIGNATURE) {
+            if (eventSignature == IVetoSlasher.RequestSlash.selector) {
                 slashIndexes[k++] = uint256(log.topics[1]);
             }
         }
