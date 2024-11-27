@@ -71,6 +71,15 @@ impl Publisher {
 
             let mut is_published = false;
 
+            if pkg
+                .description
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
+            {
+                bail!("Package {name} has empty description!");
+            }
+
             if verify {
                 match crate::verify_owners(name).await? {
                     PackageStatus::InvalidOwners => bail!("Package {name} has invalid owners!"),
