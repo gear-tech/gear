@@ -30,7 +30,7 @@ contract MiddlewareTest is Test, POCBaseTest {
     WrappedVara public wrappedVara;
 
     function setUp() public override {
-        // For correct symbiotic work with time artitmeticks
+        // For correct symbiotic work with time arithmetics
         vm.warp(eraDuration * 100);
 
         // set up the symbiotic ecosystem
@@ -51,7 +51,7 @@ contract MiddlewareTest is Test, POCBaseTest {
         Middleware.Config memory cfg = Middleware.Config({
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
-            operatoraGracePeriod: eraDuration * 2,
+            operatorGracePeriod: eraDuration * 2,
             vaultGracePeriod: eraDuration * 2,
             minVetoDuration: eraDuration / 3,
             minSlashExecutionDelay: eraDuration / 3,
@@ -163,7 +163,7 @@ contract MiddlewareTest is Test, POCBaseTest {
         vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyAdded.selector));
         middleware.registerOperator();
 
-        // Try to register abother operator without registering it in symbiotic
+        // Try to register another operator without registering it in symbiotic
         vm.startPrank(address(0x2));
         vm.expectRevert(abi.encodeWithSelector(Middleware.OperatorDoesNotExist.selector));
         middleware.registerOperator();
@@ -397,7 +397,7 @@ contract MiddlewareTest is Test, POCBaseTest {
         // Try to request slash from unknown operator
         vm.warp(vm.getBlockTimestamp() + 1);
         _requestSlash(
-            address(0xdead), uint48(vm.getBlockTimestamp() - 1), vault1, 100, Middleware.NotRegistredOperator.selector
+            address(0xdead), uint48(vm.getBlockTimestamp() - 1), vault1, 100, Middleware.NotRegisteredOperator.selector
         );
     }
 
@@ -406,7 +406,7 @@ contract MiddlewareTest is Test, POCBaseTest {
 
         // Try to request slash from unknown vault
         _requestSlash(
-            operator1, uint48(vm.getBlockTimestamp() - 1), address(0xdead), 100, Middleware.NotRegistredVault.selector
+            operator1, uint48(vm.getBlockTimestamp() - 1), address(0xdead), 100, Middleware.NotRegisteredVault.selector
         );
     }
 
@@ -459,7 +459,7 @@ contract MiddlewareTest is Test, POCBaseTest {
     function test_slashTwoOperatorsTwoVaults() external {
         (address operator1, address operator2, address vault1, address vault2,,) = _prepareTwoOperators();
 
-        // Request slases for 2 operators with corresponding vaults
+        // Request slashes for 2 operators with corresponding vaults
         Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
         operator1_vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
 
@@ -504,14 +504,14 @@ contract MiddlewareTest is Test, POCBaseTest {
         IVetoSlasher(slasher).vetoSlash(slashIndex, new bytes(0));
     }
 
-    function test_slashExecutionUnregistredVault() external {
+    function test_slashExecutionUnregisteredVault() external {
         (address operator1,, address vault1,,,) = _prepareTwoOperators();
 
         // Make slash request for operator1 in vault1
         uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
 
         // Try to execute slash for unknown vault
-        vm.expectRevert(Middleware.NotRegistredVault.selector);
+        vm.expectRevert(Middleware.NotRegisteredVault.selector);
         _executeSlash(address(0xdead), slashIndex);
     }
 

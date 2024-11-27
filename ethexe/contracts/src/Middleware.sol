@@ -20,10 +20,10 @@ import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
 // TODO (asap): document all functions and variables
 // TODO (asap): implement rewards distribution
-// TODO (asap): add vaidators commission
+// TODO (asap): add validators commission
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
-// TODO: use hints for simbiotic calls
+// TODO: use hints for symbiotic calls
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
@@ -47,8 +47,8 @@ contract Middleware {
     error VetoDurationTooShort();
     error VetoDurationTooLong();
     error IncompatibleVaultVersion();
-    error NotRegistredVault();
-    error NotRegistredOperator();
+    error NotRegisteredVault();
+    error NotRegisteredOperator();
     error RoleMismatch();
     error ResolverMismatch();
     error ResolverSetDelayTooLong();
@@ -72,7 +72,7 @@ contract Middleware {
     struct Config {
         uint48 eraDuration;
         uint48 minVaultEpochDuration;
-        uint48 operatoraGracePeriod;
+        uint48 operatorGracePeriod;
         uint48 vaultGracePeriod;
         uint48 minVetoDuration;
         uint48 minSlashExecutionDelay;
@@ -94,7 +94,7 @@ contract Middleware {
 
     uint48 public immutable eraDuration;
     uint48 public immutable minVaultEpochDuration;
-    uint48 public immutable operatoraGracePeriod;
+    uint48 public immutable operatorGracePeriod;
     uint48 public immutable vaultGracePeriod;
     uint48 public immutable minVetoDuration;
     uint48 public immutable minSlashExecutionDelay;
@@ -121,7 +121,7 @@ contract Middleware {
 
         eraDuration = cfg.eraDuration;
         minVaultEpochDuration = cfg.minVaultEpochDuration;
-        operatoraGracePeriod = cfg.operatoraGracePeriod;
+        operatorGracePeriod = cfg.operatorGracePeriod;
         vaultGracePeriod = cfg.vaultGracePeriod;
         minVetoDuration = cfg.minVetoDuration;
         minSlashExecutionDelay = cfg.minSlashExecutionDelay;
@@ -175,7 +175,7 @@ contract Middleware {
     function unregisterOperator(address operator) external {
         (, uint48 disabledTime) = operators.getTimes(operator);
 
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + operatoraGracePeriod) {
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + operatorGracePeriod) {
             revert OperatorGracePeriodNotPassed();
         }
 
@@ -328,7 +328,7 @@ contract Middleware {
         stake = _collectOperatorStakeFromVaultsAt(operator, ts);
     }
 
-    // TODO: change return siggnature
+    // TODO: change return signature
     function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
@@ -362,14 +362,14 @@ contract Middleware {
         for (uint256 i; i < data.length; ++i) {
             SlashData calldata slashData = data[i];
             if (!operators.contains(slashData.operator)) {
-                revert NotRegistredOperator();
+                revert NotRegisteredOperator();
             }
 
             for (uint256 j; j < slashData.vaults.length; ++j) {
                 VaultSlashData calldata vaultData = slashData.vaults[j];
 
                 if (!vaults.contains(vaultData.vault)) {
-                    revert NotRegistredVault();
+                    revert NotRegisteredVault();
                 }
 
                 address slasher = IVault(vaultData.vault).slasher();
@@ -385,7 +385,7 @@ contract Middleware {
             SlashIdentifier calldata slash = slashes[i];
 
             if (!vaults.contains(slash.vault)) {
-                revert NotRegistredVault();
+                revert NotRegisteredVault();
             }
 
             IVetoSlasher(IVault(slash.vault).slasher()).executeSlash(slash.index, new bytes(0));
@@ -435,7 +435,7 @@ contract Middleware {
         // Operator grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            cfg.operatoraGracePeriod >= cfg.minVaultEpochDuration,
+            cfg.operatorGracePeriod >= cfg.minVaultEpochDuration,
             "Operator grace period must be bigger than min vaults epoch duration"
         );
 
@@ -449,8 +449,8 @@ contract Middleware {
         // Give some time for the resolvers to veto slashes.
         require(cfg.minVetoDuration > 0, "Veto duration cannot be zero");
 
-        // Simbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
-        // But we also want to guaratie that there is some time to execute the slash.
+        // Symbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
+        // But we also want to guarantee that there is some time to execute the slash.
         require(cfg.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
         require(
             cfg.minVetoDuration + cfg.minSlashExecutionDelay <= cfg.minVaultEpochDuration,
@@ -458,7 +458,7 @@ contract Middleware {
         );
 
         // In order to be able to change resolver, we need to limit max delay in epochs.
-        // `3` - is minimal number of epochs, which is simbiotic veto slasher impl restrictions.
+        // `3` - is minimal number of epochs, which is symbiotic veto slasher impl restrictions.
         require(cfg.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
     }
 
@@ -469,7 +469,7 @@ contract Middleware {
             revert IncorrectTimestamp();
         }
 
-        uint48 gracePeriod = operatoraGracePeriod < vaultGracePeriod ? operatoraGracePeriod : vaultGracePeriod;
+        uint48 gracePeriod = operatorGracePeriod < vaultGracePeriod ? operatorGracePeriod : vaultGracePeriod;
         if (ts + gracePeriod <= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
