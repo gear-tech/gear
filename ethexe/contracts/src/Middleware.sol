@@ -18,11 +18,11 @@ import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratabl
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
-// TODO: document all functions and variables
-// TODO: implement election logic
+// TODO (asap): document all functions and variables
+// TODO (asap): implement rewards distribution
+// TODO (asap): add vaidators commission
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
-// TODO: implement rewards distribution
 // TODO: use hints for simbiotic calls
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -107,10 +107,11 @@ contract Middleware {
     address public immutable networkOptIn;
     address public immutable middlewareService;
     address public immutable collateral;
-    address public immutable roleSlashRequester;
-    address public immutable roleSlashExecutor;
     address public immutable vetoResolver;
     bytes32 public immutable subnetwork;
+
+    address public roleSlashRequester;
+    address public roleSlashExecutor;
 
     EnumerableMap.AddressToUintMap private operators;
     EnumerableMap.AddressToUintMap private vaults;
@@ -142,6 +143,14 @@ contract Middleware {
         // Presently network and middleware are the same address
         INetworkRegistry(networkRegistry).registerNetwork();
         INetworkMiddlewareService(middlewareService).setMiddleware(address(this));
+    }
+
+    function changeSlashRequester(address newRole) external _onlyRole(roleSlashRequester) {
+        roleSlashRequester = newRole;
+    }
+
+    function changeSlashExecutor(address newRole) external _onlyRole(roleSlashExecutor) {
+        roleSlashExecutor = newRole;
     }
 
     // TODO: Check that total stake is big enough
@@ -267,12 +276,50 @@ contract Middleware {
         vaults.remove(vault);
     }
 
-    function getOperatorStakeAt(address operator, uint48 ts)
-        external
-        view
-        _validTimestamp(ts)
-        returns (uint256 stake)
-    {
+    function makeElectionAt(uint48 ts, uint256 maxValidators) public view returns (address[] memory) {
+        require(maxValidators > 0, "Max validators must be greater than zero");
+
+        (address[] memory activeOperators, uint256[] memory stakes) = getActiveOperatorsStakeAt(ts);
+
+        if (activeOperators.length <= maxValidators) {
+            return activeOperators;
+        }
+
+        // Bubble sort descending
+        uint256 n = activeOperators.length;
+        for (uint256 i = 0; i < n; i++) {
+            for (uint256 j = 0; j < n - 1 - i; j++) {
+                if (stakes[j] < stakes[j + 1]) {
+                    (stakes[j], stakes[j + 1]) = (stakes[j + 1], stakes[j]);
+                    (activeOperators[j], activeOperators[j + 1]) = (activeOperators[j + 1], activeOperators[j]);
+                }
+            }
+        }
+
+        // Choose between validators with the same stake
+        uint256 sameStakeCount = 1;
+        uint256 lastStake = stakes[maxValidators - 1];
+        for (uint256 i = maxValidators; i < activeOperators.length; i++) {
+            if (stakes[i] != lastStake) {
+                break;
+            }
+            sameStakeCount += 1;
+        }
+
+        if (sameStakeCount > 1) {
+            // If there are multiple validators with the same stake, choose one randomly
+            uint256 randomIndex = uint256(keccak256(abi.encodePacked(ts))) % sameStakeCount;
+            activeOperators[maxValidators - 1] = activeOperators[maxValidators + randomIndex - 1];
+        }
+
+        assembly {
+            mstore(activeOperators, maxValidators)
+        }
+
+        return activeOperators;
+    }
+
+    function getOperatorStakeAt(address operator, uint48 ts) public view _validTimestamp(ts) returns (uint256 stake) {
         (uint48 enabledTime, uint48 disabledTime) = operators.getTimes(operator);
         if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
             return 0;
