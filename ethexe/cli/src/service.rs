@@ -36,7 +36,10 @@ use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
-use ethexe_tx_pool::{EthexeTransaction, TxPoolCore, TxPoolInputTaskSender, TxPoolService};
+use ethexe_tx_pool::{
+    EthexeTransaction, InputTask, OutputTask, TxPoolCore, TxPoolInputTaskSender, TxPoolService,
+    TxPoolServiceArtifacts,
+};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
@@ -65,10 +68,8 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     metrics_service: Option<MetricsService>,
     rpc: Option<ethexe_rpc::RpcService>,
-    tx_pool_service: Option<(
-        TxPoolService<EthexeTransaction, TxPoolCore<EthexeTransaction>>,
-        TxPoolInputTaskSender<EthexeTransaction>,
-    )>,
+    tx_pool_service:
+        Option<TxPoolServiceArtifacts<EthexeTransaction, TxPoolCore<EthexeTransaction>>>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -85,6 +86,9 @@ pub enum NetworkMessage {
     ApproveCommitments {
         codes: Option<(Digest, Signature)>,
         blocks: Option<(Digest, Signature)>,
+    },
+    Transaction {
+        transaction: EthexeTransaction,
     },
 }
 
@@ -244,10 +248,9 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        tx_pool_service: Option<(
-            TxPoolService<EthexeTransaction, TxPoolCore>,
-            TxPoolInputTaskSender<EthexeTransaction>,
-        )>,
+        tx_pool_service: Option<
+            TxPoolServiceArtifacts<EthexeTransaction, TxPoolCore<EthexeTransaction>>,
+        >,
     ) -> Self {
         Self {
             db,
@@ -478,16 +481,19 @@ impl Service {
             None
         };
 
-        let (mut tx_pool_handle, mut tx_pool_input_task_sender) =
-            if let Some((tx_pool_service, tx_pool_input_task_sender)) = tx_pool_service {
+        let (mut tx_pool_handle, mut tx_pool_input_task_sender, mut tx_pool_ouput_task_receiver) =
+            if let Some((tx_pool_service, tx_pool_input_task_sender, tx_pool_ouput_task_receiver)) =
+                tx_pool_service
+            {
                 log::info!("🚅 Tx pool service starting...");
 
                 (
                     Some(tokio::spawn(tx_pool_service.run())),
                     Some(tx_pool_input_task_sender),
+                    Some(tx_pool_ouput_task_receiver),
                 )
             } else {
-                (None, None)
+                (None, None, None)
             };
 
         let mut roles = "Observer".to_string();
@@ -589,6 +595,9 @@ impl Service {
                         _ => {}
                     }
                 }
+                Some(task) = maybe_await(tx_pool_ouput_task_receiver.as_mut().map(|rx| rx.recv())) => {
+                    Self::process_tx_pool_output_task(task, network_sender.as_mut());
+                }
                 _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
                     break;
@@ -646,7 +655,7 @@ impl Service {
 
         if let Some(network_sender) = maybe_network_sender {
             log::debug!("Publishing commitments to network...");
-            network_sender.publish_message(
+            network_sender.publish_commitment(
                 NetworkMessage::PublishCommitments {
                     codes: aggregated_codes.clone(),
                     blocks: aggregated_blocks.clone(),
@@ -735,7 +744,7 @@ impl Service {
                 codes: code_requests.clone(),
                 blocks: block_requests.clone(),
             };
-            network_sender.publish_message(message.encode());
+            network_sender.publish_commitment(message.encode());
         }
 
         if let Some(validator) = maybe_validator {
@@ -791,8 +800,7 @@ impl Service {
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
-        // TODO [sab]:
-        _maybe_tx_pool_input_task_sender: Option<&mut TxPoolInputTaskSender<EthexeTransaction>>,
+        maybe_tx_pool_input_task_sender: Option<&mut TxPoolInputTaskSender<EthexeTransaction>>,
     ) -> Result<()> {
         let message = NetworkMessage::decode(&mut data)?;
         match message {
@@ -829,7 +837,7 @@ impl Service {
                     .transpose()?;
 
                 let message = NetworkMessage::ApproveCommitments { codes, blocks };
-                network_sender.publish_message(message.encode());
+                network_sender.publish_commitment(message.encode());
 
                 Ok(())
             }
@@ -845,6 +853,20 @@ impl Service {
                 if let Some((digest, signature)) = blocks {
                     sequencer.receive_blocks_signature(digest, signature)?;
                 }
+
+                Ok(())
+            }
+            NetworkMessage::Transaction { transaction } => {
+                // TODO [sab] check if it should be unwrapped
+                let Some(tx_pool_input_task_sender) = maybe_tx_pool_input_task_sender else {
+                    return Ok(());
+                };
+
+                // TODO [sab] handle result
+                let _ = tx_pool_input_task_sender.send(InputTask::AddTransaction {
+                    transaction: transaction,
+                    response_sender: None,
+                });
 
                 Ok(())
             }
@@ -873,6 +895,24 @@ impl Service {
         }
 
         Ok(true)
+    }
+
+    fn process_tx_pool_output_task(
+        task: Option<OutputTask<EthexeTransaction>>,
+        mut maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
+    ) {
+        let Some(task) = task else {
+            
+        };
+        match task {
+            OutputTask::PropogateTransaction { transaction } => {
+                if let Some(network_sender) = maybe_network_sender.as_mut() {
+                    log::debug!("Publishing transaction to network...");
+                    network_sender
+                        .publish_transaction(NetworkMessage::Transaction { transaction }.encode());
+                }
+            }
+        }
     }
 }
 

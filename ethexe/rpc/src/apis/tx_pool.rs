@@ -53,7 +53,7 @@ transactionPool_sendMessage {"raw_message": [104, 101, 108, 108, 111, 95, 119, 1
 #[async_trait]
 impl TransactionPoolServer for TransactionPoolApi {
     async fn send_message(&self, raw_message: Vec<u8>, signature: Vec<u8>) -> RpcResult<()> {
-        log::debug!("Called send_transaction with vars: raw_message - {raw_message:?}, signature - {signature:?}");
+        log::debug!("Called send_message with vars: raw_message - {raw_message:?}, signature - {signature:?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
         let input_task = InputTask::AddTransaction {
@@ -61,7 +61,7 @@ impl TransactionPoolServer for TransactionPoolApi {
                 raw_message,
                 signature,
             },
-            response_sender,
+            response_sender: Some(response_sender),
         };
 
         self.tx_pool_task_sender.send(input_task).map_err(|e| {

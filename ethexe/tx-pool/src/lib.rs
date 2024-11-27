@@ -24,7 +24,10 @@ mod transaction;
 #[cfg(test)]
 mod tests;
 
-pub use service::{InputTask, TxPoolInputTaskSender, TxPoolService};
+pub use service::{
+    InputTask, OutputTask, TxPoolInputTaskSender, TxPoolOutputTaskReceiver, TxPoolService,
+    TxPoolServiceArtifacts,
+};
 pub use transaction::{EthexeTransaction, Transaction};
 
 // TODO [sab] decide on tx pool channel size
@@ -44,6 +47,7 @@ pub trait TxPoolTrait {
 
     /// Add transaction to the pool.
     // TODO [sab] maybe take error from Transaction?
+    // TODO [sab] maybe return a "validated transaction"?
     fn add_transaction(&self, transaction: Self::Transaction) -> Result<()>;
 }
 
@@ -81,7 +85,7 @@ where
         let tx_bytes = transaction.encode();
         let tx_hash = transaction.tx_hash();
 
-        // TODO [sab] if transactione exists - send info, that already exists to ban the spammer
+        // TODO [sab] handle duplicates
         if self.db.validated_transaction(tx_hash).is_none() {
             transaction.validate().map_err(Into::into)?;
             self.db.set_validated_transaction(tx_hash, tx_bytes);

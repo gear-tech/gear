@@ -19,10 +19,18 @@
 //! Transaction pool io.
 
 pub use input::{InputTask, TxPoolInputTaskSender};
+pub use output::{OutputTask, TxPoolOutputTaskReceiver};
 
 use crate::{Transaction, TxPoolTrait};
 use input::TxPoolInputTaskReceiver;
+use output::TxPoolOutputTaskSender;
 use tokio::sync::mpsc;
+
+pub type TxPoolServiceArtifacts<Tx, TxPool> = (
+    TxPoolService<Tx, TxPool>,
+    TxPoolInputTaskSender<Tx>,
+    TxPoolOutputTaskReceiver<Tx>,
+);
 
 /// Transaction pool service.
 ///
@@ -30,19 +38,26 @@ use tokio::sync::mpsc;
 pub struct TxPoolService<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>> {
     core: TxPool,
     input_interface: TxPoolInputTaskReceiver<Tx>,
+    output_inteface: TxPoolOutputTaskSender<Tx>,
 }
 
-impl<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolService<Tx, TxPool> {
-    pub fn new(tx_pool_core: impl Into<TxPool>) -> (Self, TxPoolInputTaskSender<Tx>) {
+impl<Tx: Transaction + Clone, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolService<Tx, TxPool> {
+    pub fn new(tx_pool_core: impl Into<TxPool>) -> TxPoolServiceArtifacts<Tx, TxPool> {
         let tx_pool_core = tx_pool_core.into();
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx_in, rx_in) = mpsc::unbounded_channel();
+        let (tx_out, rx_out) = mpsc::unbounded_channel();
 
         let tx_pool_interface = Self {
             core: tx_pool_core,
-            input_interface: TxPoolInputTaskReceiver { receiver: rx },
+            input_interface: TxPoolInputTaskReceiver { receiver: rx_in },
+            output_inteface: TxPoolOutputTaskSender { sender: tx_out },
         };
 
-        (tx_pool_interface, TxPoolInputTaskSender { sender: tx })
+        (
+            tx_pool_interface,
+            TxPoolInputTaskSender { sender: tx_in },
+            TxPoolOutputTaskReceiver { receiver: rx_out },
+        )
     }
 
     /// Runs transaction pool service expecting to receive tasks from the
@@ -54,11 +69,18 @@ impl<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolService<Tx, T
                     transaction,
                     response_sender,
                 } => {
-                    if response_sender
-                        .send(self.core.add_transaction(transaction))
-                        .is_err()
+                    let res = self.core.add_transaction(transaction.clone());
+                    if let Some(response_sender) = response_sender {
+                        let _ = response_sender.send(res).inspect_err(|err| {
+                            log::error!("`AddTransaction` task receiver dropped - {err:?}")
+                        });
+                    }
+
+                    if let Err(err) = self
+                        .output_inteface
+                        .send(OutputTask::PropogateTransaction { transaction })
                     {
-                        log::debug!("`AddTransaction` task receiver dropped.")
+                        log::error!("Failed to send `PropogateTransaction` task: {err:?}");
                     }
                 }
             }
@@ -78,13 +100,18 @@ mod input {
     /// the [`crate::TxPool`] implementation.
     pub enum InputTask<Tx> {
         /// Request for adding the transaction to the transaction pool.
-        /// Sends the response back to the task sender.
+        /// Sends the response back to the task sender, if there's receiver,
+        /// that expects the response.
         AddTransaction {
             transaction: Tx,
-            response_sender: oneshot::Sender<Result<()>>,
+            response_sender: Option<oneshot::Sender<Result<()>>>,
         },
     }
 
+    /// Transaction pool input task sender.
+    ///
+    /// Used as a sending end to communicate with the transaction pool service
+    /// to run some action on the transaction pool.
     #[derive(Debug, Clone)]
     pub struct TxPoolInputTaskSender<Tx> {
         pub(crate) sender: mpsc::UnboundedSender<InputTask<Tx>>,
@@ -104,6 +131,7 @@ mod input {
         }
     }
 
+    /// Transaction pool input task receiver.
     pub(crate) struct TxPoolInputTaskReceiver<Tx> {
         pub(crate) receiver: mpsc::UnboundedReceiver<InputTask<Tx>>,
     }
@@ -117,6 +145,62 @@ mod input {
     }
 
     impl<Tx> DerefMut for TxPoolInputTaskReceiver<Tx> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.receiver
+        }
+    }
+}
+
+mod output {
+    use anyhow::Result;
+    use std::ops::{Deref, DerefMut};
+    use tokio::sync::mpsc;
+
+    /// Output task sent from the transaction pool service.
+    ///
+    /// The task is not obligatory to be anyhow handled,
+    /// but is a way to communicate with an external service.
+    pub enum OutputTask<Tx> {
+        /// Signals to the external service to propogate the transaction
+        PropogateTransaction { transaction: Tx },
+    }
+
+    /// Transaction pool output task sender.
+    pub(crate) struct TxPoolOutputTaskSender<Tx> {
+        pub(crate) sender: mpsc::UnboundedSender<OutputTask<Tx>>,
+    }
+
+    impl<Tx> Deref for TxPoolOutputTaskSender<Tx> {
+        type Target = mpsc::UnboundedSender<OutputTask<Tx>>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.sender
+        }
+    }
+
+    impl<Tx> DerefMut for TxPoolOutputTaskSender<Tx> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.sender
+        }
+    }
+
+    /// Transaction pool output task receiver.
+    ///
+    /// Used as a receiving end to transaction pool service
+    /// external communication channel.
+    pub struct TxPoolOutputTaskReceiver<Tx> {
+        pub(crate) receiver: mpsc::UnboundedReceiver<OutputTask<Tx>>,
+    }
+
+    impl<Tx> Deref for TxPoolOutputTaskReceiver<Tx> {
+        type Target = mpsc::UnboundedReceiver<OutputTask<Tx>>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.receiver
+        }
+    }
+
+    impl<Tx> DerefMut for TxPoolOutputTaskReceiver<Tx> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.receiver
         }
