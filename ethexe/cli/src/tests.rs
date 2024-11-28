@@ -820,7 +820,8 @@ async fn tx_pool_gossip() {
 
     // Prepare tx data
     let raw_message = b"hello world".to_vec();
-    let signature = env.signer
+    let signature = env
+        .signer
         .sign(env.validators[2], &raw_message)
         .expect("failed signing message");
     let signature_bytes = signature.encode();
@@ -840,39 +841,44 @@ async fn tx_pool_gossip() {
     })
     .await
     .expect("failed sending request");
-    
+
     assert!(resp.status().is_success());
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     // Check that node0 received the message
-    let tx = EthexeTransaction::Message { raw_message, signature: signature_bytes };
+    let tx = EthexeTransaction::Message {
+        raw_message,
+        signature: signature_bytes,
+    };
     let tx_hash = tx.tx_hash();
-    
-    let tx_data = node0.db.validated_transaction(tx_hash).expect("tx not found");
-    let node0_db_tx: EthexeTransaction = Decode::decode(&mut &tx_data[..]).expect("failed to decode tx");
+
+    let tx_data = node0
+        .db
+        .validated_transaction(tx_hash)
+        .expect("tx not found");
+    let node0_db_tx: EthexeTransaction =
+        Decode::decode(&mut &tx_data[..]).expect("failed to decode tx");
     assert_eq!(node0_db_tx, tx);
 }
 
-async fn send_json_request(rpc_server_url: String, create_request: impl Fn() -> serde_json::Value) -> Result<reqwest::Response, reqwest::Error> {
+async fn send_json_request(
+    rpc_server_url: String,
+    create_request: impl Fn() -> serde_json::Value,
+) -> Result<reqwest::Response, reqwest::Error> {
     let client = reqwest::Client::new();
     let req_body = create_request();
 
-    client
-        .post(rpc_server_url)
-        .json(&req_body)
-        .send()
-        .await
+    client.post(rpc_server_url).json(&req_body).send().await
 }
 
 mod utils {
-    use std::net::SocketAddr;
     use super::*;
     use ethexe_observer::SimpleBlockData;
     use ethexe_rpc::{RpcConfig, RpcService};
-    use ethexe_tx_pool::TxPoolService;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
+    use std::net::SocketAddr;
     use tokio::sync::{broadcast::Sender, Mutex};
 
     pub struct TestEnv {
@@ -1208,10 +1214,7 @@ mod utils {
 
         pub fn service_rpc(mut self, rpc_port: u16) -> Self {
             let service_rpc_config = RpcConfig {
-                listen_addr: SocketAddr::new(
-                    "127.0.0.1".parse().unwrap(),
-                    rpc_port
-                )
+                listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             };
             self.service_rpc_config = Some(service_rpc_config);
 
@@ -1421,13 +1424,15 @@ mod utils {
                 None => None,
             };
 
-            let tx_pool_artifacts = TxPoolService::new((self.db.clone(),));
+            let tx_pool_artifacts = ethexe_tx_pool::new((self.db.clone(),));
 
-            let rpc = self.service_rpc_config
-                .as_ref()
-                .map(|service_rpc_config| {
-                    RpcService::new(service_rpc_config.clone(), self.db.clone(), tx_pool_artifacts.input_sender.clone())
-                });
+            let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
+                RpcService::new(
+                    service_rpc_config.clone(),
+                    self.db.clone(),
+                    tx_pool_artifacts.input_sender.clone(),
+                )
+            });
 
             let service = Service::new_from_parts(
                 self.db.clone(),
@@ -1442,7 +1447,7 @@ mod utils {
                 validator,
                 None,
                 rpc,
-                tx_pool_artifacts
+                tx_pool_artifacts,
             );
 
             let handle = task::spawn(service.run());
@@ -1461,11 +1466,11 @@ mod utils {
             let _ = handle.await;
             self.multiaddr = None;
         }
-    
+
         pub fn service_rpc_url(&self) -> Option<String> {
-            self.service_rpc_config.as_ref().map(|rpc| 
-                format!("http://{}", rpc.listen_addr.to_string())
-            )
+            self.service_rpc_config
+                .as_ref()
+                .map(|rpc| format!("http://{}", rpc.listen_addr))
         }
     }
 

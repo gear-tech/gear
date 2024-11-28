@@ -35,7 +35,8 @@ use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{
-    EthexeTransaction, InputTask, OutputTask, StandardInputTaskSender, StandardTxPoolInstantiationArtifacts, TxPoolService
+    EthexeTransaction, InputTask, OutputTask, StandardInputTaskSender,
+    StandardTxPoolInstantiationArtifacts,
 };
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
@@ -208,10 +209,14 @@ impl Service {
             .transpose()?;
 
         log::info!("🚅 Tx pool service starting...");
-        let tx_pool_artifacts = TxPoolService::new((db.clone(),));
+        let tx_pool_artifacts = ethexe_tx_pool::new((db.clone(),));
 
         let rpc = config.rpc_config.as_ref().map(|config| {
-            ethexe_rpc::RpcService::new(config.clone(), db.clone(), tx_pool_artifacts.input_sender.clone())
+            ethexe_rpc::RpcService::new(
+                config.clone(),
+                db.clone(),
+                tx_pool_artifacts.input_sender.clone(),
+            )
         });
 
         Ok(Self {
@@ -492,9 +497,8 @@ impl Service {
             None
         };
 
-
-        let StandardTxPoolInstantiationArtifacts { 
-            service: tx_pool_service, 
+        let StandardTxPoolInstantiationArtifacts {
+            service: tx_pool_service,
             input_sender: tx_pool_input_task_sender,
             output_receiver: mut tx_pool_ouput_task_receiver,
         } = tx_pool_artifacts;
@@ -864,7 +868,7 @@ impl Service {
             NetworkMessage::Transaction { transaction } => {
                 let _ = tx_pool_input_task_sender
                     .send(InputTask::AddTransaction {
-                        transaction: transaction,
+                        transaction,
                         response_sender: None,
                     })
                     .inspect_err(|e| {

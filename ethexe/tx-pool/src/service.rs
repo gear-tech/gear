@@ -26,6 +26,29 @@ use input::TxPoolInputTaskReceiver;
 use output::TxPoolOutputTaskSender;
 use tokio::sync::mpsc;
 
+/// Creates a new transaction pool service.
+pub fn new<Tx, TxPool>(tx_pool_core: impl Into<TxPool>) -> TxPoolInstantiationArtifacts<Tx, TxPool>
+where
+    Tx: Transaction + Clone,
+    TxPool: TxPoolTrait<Transaction = Tx>,
+{
+    let tx_pool_core = tx_pool_core.into();
+    let (tx_in, rx_in) = mpsc::unbounded_channel();
+    let (tx_out, rx_out) = mpsc::unbounded_channel();
+
+    let service = TxPoolService {
+        core: tx_pool_core,
+        input_interface: TxPoolInputTaskReceiver { receiver: rx_in },
+        output_inteface: TxPoolOutputTaskSender { sender: tx_out },
+    };
+
+    TxPoolInstantiationArtifacts {
+        service,
+        input_sender: TxPoolInputTaskSender { sender: tx_in },
+        output_receiver: TxPoolOutputTaskReceiver { receiver: rx_out },
+    }
+}
+
 /// Transaction pool instantiation artifacts carrier.
 pub struct TxPoolInstantiationArtifacts<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>> {
     pub service: TxPoolService<Tx, TxPool>,
@@ -43,24 +66,6 @@ pub struct TxPoolService<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>>
 }
 
 impl<Tx: Transaction + Clone, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolService<Tx, TxPool> {
-    pub fn new(tx_pool_core: impl Into<TxPool>) -> TxPoolInstantiationArtifacts<Tx, TxPool> {
-        let tx_pool_core = tx_pool_core.into();
-        let (tx_in, rx_in) = mpsc::unbounded_channel();
-        let (tx_out, rx_out) = mpsc::unbounded_channel();
-
-        let service = Self {
-            core: tx_pool_core,
-            input_interface: TxPoolInputTaskReceiver { receiver: rx_in },
-            output_inteface: TxPoolOutputTaskSender { sender: tx_out },
-        };
-
-        TxPoolInstantiationArtifacts {
-            service,
-            input_sender: TxPoolInputTaskSender { sender: tx_in },
-            output_receiver: TxPoolOutputTaskReceiver { receiver: rx_out },
-        }
-    }
-
     /// Runs transaction pool service expecting to receive tasks from the
     /// tx pool input task sender.
     pub async fn run(mut self) {

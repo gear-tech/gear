@@ -25,8 +25,8 @@ mod transaction;
 mod tests;
 
 pub use service::{
-    InputTask, OutputTask, TxPoolInputTaskSender, TxPoolOutputTaskReceiver, TxPoolService,
-    TxPoolInstantiationArtifacts,
+    new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolInstantiationArtifacts,
+    TxPoolOutputTaskReceiver, TxPoolService,
 };
 pub use transaction::{EthexeTransaction, Transaction};
 
