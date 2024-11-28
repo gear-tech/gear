@@ -11,6 +11,9 @@ build = "build.rs"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
+[lints]
+workspace = true
+
 [dependencies]
 const-str.workspace = true
 log.workspace = true
@@ -281,6 +284,5 @@ try-runtime = [
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
-fuzz = ["common/fuzz", "pallet-gear/fuzz", "pallet-gear-gas/fuzz"]
 dev = ["pallet-gear-debug", "pallet-gear-eth-bridge", "pallet-sudo"]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]
