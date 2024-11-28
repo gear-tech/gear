@@ -15865,11 +15865,10 @@ fn multi_value() {
         )
         .map(|_| get_last_program_id())
         .unwrap();
-        let mid = get_last_message_id();
 
         run_to_next_block(None);
 
-        assert!(Gear::is_terminated(pid));
+        assert!(!Gear::is_terminated(pid));
     });
 }
 
