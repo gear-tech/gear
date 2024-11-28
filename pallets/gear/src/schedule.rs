@@ -190,6 +190,9 @@ pub struct Limits {
     /// the costs of the instructions that cause them (call, call_indirect).
     pub parameters: u32,
 
+    /// Maximum numbers of parameters a function can have.
+    pub results: u32,
+
     /// Maximum number of memory pages allowed for a program.
     pub memory_pages: u16,
 
@@ -275,6 +278,7 @@ pub struct InstructionWeights<T: Config> {
     pub call: u32,
     pub call_indirect: u32,
     pub call_indirect_per_param: u32,
+    pub call_indirect_per_result: u32,
     pub call_per_local: u32,
     pub local_get: u32,
     pub local_set: u32,
@@ -831,6 +835,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
+            results: 128,
             memory_pages: MAX_WASM_PAGES_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
@@ -878,6 +883,7 @@ impl<T: Config> Default for InstructionWeights<T> {
             call: cost_instr::<T>(W::<T>::instr_call, 2),
             call_indirect: cost_instr::<T>(W::<T>::instr_call_indirect, 1),
             call_indirect_per_param: cost_instr::<T>(W::<T>::instr_call_indirect_per_param, 1),
+            call_indirect_per_result: cost_instr::<T>(W::<T>::instr_call_indirect_per_result, 1),
             call_per_local: cost_instr::<T>(W::<T>::instr_call_per_local, 1),
             local_get: cost_instr::<T>(W::<T>::instr_local_get, 0),
             local_set: cost_instr::<T>(W::<T>::instr_local_set, 1),
@@ -1401,7 +1407,7 @@ impl<T: Config> From<InstantiationWeights<T>> for InstantiationCosts {
 
 struct ScheduleRules<'a, T: Config> {
     schedule: &'a Schedule<T>,
-    params: Vec<u32>,
+    funcs: Vec<(u32, u32)>,
 }
 
 impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
@@ -1411,6 +1417,7 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
 
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
+        let max_results = self.schedule.limits.results;
 
         let weight = match *instruction {
             End | Unreachable | Return | Else | Block(_) | Loop(_) | Nop | Drop => 0,
@@ -1440,7 +1447,16 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
             GetGlobal(_) => w.global_get,
             SetGlobal(_) => w.global_set,
             CurrentMemory(_) => w.memory_current,
-            CallIndirect(idx, _) => *self.params.get(idx as usize).unwrap_or(&max_params),
+            CallIndirect(idx, _) => {
+                let (params, results) = self
+                    .funcs
+                    .get(idx as usize)
+                    .copied()
+                    .unwrap_or((max_params, max_results));
+                w.call_indirect
+                    .saturating_add(w.call_indirect_per_param.saturating_sub(params))
+                    .saturating_add(w.call_indirect_per_result.saturating_sub(results))
+            }
             BrTable(ref data) => w
                 .br_table
                 .saturating_add(w.br_table_per_entry.saturating_mul(data.table.len() as u32)),
@@ -1532,13 +1548,13 @@ impl<T: Config> Schedule<T> {
     pub fn rules(&self, module: &Module) -> impl Rules + '_ {
         ScheduleRules {
             schedule: self,
-            params: module
+            funcs: module
                 .type_section()
                 .iter()
                 .flat_map(|section| section.types())
                 .map(|func| {
                     let Type::Function(func) = func;
-                    func.params().len() as u32
+                    (func.params().len() as u32, func.results().len() as u32)
                 })
                 .collect(),
         }

@@ -399,6 +399,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     call,
                     call_indirect,
                     call_indirect_per_param,
+                    call_indirect_per_result,
                     call_per_local,
                     local_get,
                     local_set,

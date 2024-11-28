@@ -634,6 +634,8 @@ pub mod body {
         /// Insert a SetGlobal with a random offset in [low, high).
         /// (low, high)
         RandomSetGlobal(u32, u32),
+        /// Insert the specified amount of Drop.
+        DropRepeated(usize),
     }
 
     pub fn write_access_all_pages_instrs(
@@ -726,6 +728,7 @@ pub mod body {
                 DynInstr::RandomSetGlobal(low, high) => {
                     vec![Instruction::SetGlobal(rng.gen_range(*low..*high))]
                 }
+                DynInstr::DropRepeated(num) => vec![Instruction::Drop; *num],
             });
         head.extend(instr_iter);
         head
