@@ -121,6 +121,8 @@ fn get_impl(
         }
     } else {
         let path = base_path.as_ref().join(hash.to_string());
+        log::trace!("module path: {}", path.display());
+
         // open file with all options to lock the file and
         // retrieve metadata without concurrency issues
         let mut file = File::options()

@@ -1,2 +1,5 @@
+[env]
+CARGO_WORKSPACE_DIR = { value = "", relative = true }
+
 [alias]
 gbuild = "run -p cargo-gbuild --"
