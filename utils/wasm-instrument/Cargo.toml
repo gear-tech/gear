@@ -18,7 +18,9 @@ derive_more.workspace = true
 enum-iterator.workspace = true
 
 # TODO: move in a proper place
+# parity-wasm
 parity-wasm = { workspace = true, features = ["sign_ext", "multi_value"] }
+# parity-wasm
 gear-wasm = { version = "0.45.1", default-features = false, features = ["sign_ext", "multi_value"] }
 
 [dev-dependencies]
