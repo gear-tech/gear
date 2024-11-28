@@ -90,7 +90,7 @@ pub struct ModuleDefinition {
     pub aux_body: Option<FuncBody>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
-    pub aux_res: Option<ValueType>,
+    pub aux_res: Vec<ValueType>,
     /// Create a table containing function pointers.
     pub table: Option<TableSegment>,
     /// Create a type section with the specified amount of types.
@@ -231,8 +231,8 @@ where
             for _ in 0..def.aux_arg_num {
                 signature = signature.with_param(ValueType::I64);
             }
-            if let Some(res) = def.aux_res {
-                signature = signature.with_result(res);
+            for ty in def.aux_res {
+                signature = signature.with_result(ty);
             }
             program = signature.build().with_body(body).build();
         }
