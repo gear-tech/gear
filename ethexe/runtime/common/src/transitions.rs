@@ -26,8 +26,7 @@ use ethexe_common::{
     db::{BlockHeader, Schedule, ScheduledTask},
     gear::{Message, StateTransition, ValueClaim},
 };
-use gprimitives::{ActorId, CodeId, H256};
-use parity_scale_codec::{Decode, Encode};
+use gprimitives::{ActorId, H256};
 
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
