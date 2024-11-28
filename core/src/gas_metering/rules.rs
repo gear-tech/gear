@@ -183,7 +183,7 @@ impl Rules for CustomConstantCostRules {
 /// This type provides real gas cost of instructions on pallet-gear.
 pub struct ScheduleRules<'a> {
     schedule: &'a Schedule,
-    params: Vec<u32>,
+    funcs: Vec<(u32, u32)>,
 }
 
 impl Schedule {
@@ -191,13 +191,13 @@ impl Schedule {
     pub fn rules(&self, module: &Module) -> impl Rules + '_ {
         ScheduleRules {
             schedule: self,
-            params: module
+            funcs: module
                 .type_section()
                 .iter()
                 .flat_map(|section| section.types())
                 .map(|func| {
                     let Type::Function(func) = func;
-                    func.params().len() as u32
+                    (func.params().len() as u32, func.results().len() as u32)
                 })
                 .collect(),
         }
@@ -211,6 +211,7 @@ impl<'a> Rules for ScheduleRules<'a> {
 
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
+        let max_results = self.schedule.limits.results;
 
         let weight = match *instruction {
             End | Unreachable | Return | Else | Block(_) | Loop(_) | Nop | Drop => 0,
@@ -240,8 +241,16 @@ impl<'a> Rules for ScheduleRules<'a> {
             GetGlobal(_) => w.global_get,
             SetGlobal(_) => w.global_set,
             CurrentMemory(_) => w.memory_current,
-            // TODO: update
-            CallIndirect(idx, _) => *self.params.get(idx as usize).unwrap_or(&max_params),
+            CallIndirect(idx, _) => {
+                let (params, results) = self
+                    .funcs
+                    .get(idx as usize)
+                    .copied()
+                    .unwrap_or((max_params, max_results));
+                w.call_indirect
+                    .saturating_add(w.call_indirect_per_param.saturating_sub(params))
+                    .saturating_add(w.call_indirect_per_result.saturating_sub(results))
+            }
             BrTable(ref data) => w
                 .br_table
                 .saturating_add(w.br_table_per_entry.saturating_mul(data.table.len() as u32)),
