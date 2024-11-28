@@ -14,6 +14,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(feature = "compile-alloca")]
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=alloca/alloca.c");
+
     let alloca_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("alloca");
 
     let mut builder = cc::Build::new();
@@ -21,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "stack-clash-protection")]
     builder.flag_if_supported("-fstack-clash-protection");
 
-    if option_env!("CC") == Some("clang") {
+    if builder.get_compiler().is_like_clang() {
         builder.flag("-flto");
     }
 
