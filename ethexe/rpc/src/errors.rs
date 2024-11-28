@@ -18,7 +18,7 @@
 
 use jsonrpsee::types::ErrorObject;
 
-// Todo [sab]
+// TODO #4364: https://github.com/gear-tech/gear/issues/4364
 
 pub fn db(err: &'static str) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Database error", Some(err))

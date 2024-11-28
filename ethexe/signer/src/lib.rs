@@ -77,7 +77,7 @@ impl Signer {
     }
 
     /// Create a ECDSA recoverable signature with pre or post EIP-155 `v` value notation.
-    // TODO [sab] change docs after introducing a parity
+    // TODO #4365
     pub fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
 

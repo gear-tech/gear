@@ -67,7 +67,7 @@ impl AsRef<[u8]> for RawSignature {
 
 impl From<Signature> for RawSignature {
     fn from(mut sig: Signature) -> RawSignature {
-        // TODO [sab]: Define parity in accordance to pre-EIP-155 and post-EIP-155 standards.
+        // TODO #4365: https://github.com/gear-tech/gear/issues/4365
         sig.0[64] -= 27;
         RawSignature(sig.0)
     }
@@ -121,7 +121,7 @@ impl Signature {
 
 impl From<RawSignature> for Signature {
     fn from(mut sig: RawSignature) -> Self {
-        // TODO [sab]: Include chain id, as that's for transaction of pre-EIP-155 (!)
+        // TODO #4365: https://github.com/gear-tech/gear/issues/4365
         sig.0[64] += 27;
         Signature(sig.0)
     }
