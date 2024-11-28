@@ -18,7 +18,7 @@
 
 use crate::{EthexeTransaction, Transaction, TxPoolCore, TxPoolTrait};
 use ethexe_db::{Database, MemDb};
-use ethexe_signer::{PrivateKey, PublicKey, Signature, Signer, ToDigest};
+use ethexe_signer::{PrivateKey, PublicKey, Signer, ToDigest};
 use parity_scale_codec::{Decode, Encode};
 use std::str::FromStr;
 

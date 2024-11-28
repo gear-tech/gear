@@ -76,7 +76,7 @@ impl Signer {
         RawSignature::create_for_digest(private_key, digest)
     }
 
-    /// Create a ECDSA recoverable signature with pre or post EIP-155 `v` value notation.
+    /// Create a ECDSA recoverable signature.
     // TODO #4365
     pub fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
