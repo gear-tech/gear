@@ -327,6 +327,11 @@ benchmarks! {
     }: {}
 
     #[extra]
+    check_wasm_proposals {
+        tests::wasm_multivalue_proposal::<T>();
+    }: {}
+
+    #[extra]
     check_lazy_pages_all {
         tests::lazy_pages::lazy_pages_charging::<T>();
         tests::lazy_pages::lazy_pages_charging_special::<T>();
@@ -1769,7 +1774,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(body::from_instructions(vec![Instruction::I64Const(0x7ffffffff3ffffff)])),
-            aux_res: Some(ValueType::I64),
+            aux_res: vec![ValueType::I64],
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(OFFSET_AUX),
                 Instruction::Drop,
