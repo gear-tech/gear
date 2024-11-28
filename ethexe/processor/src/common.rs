@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::router::StateTransition;
+use ethexe_common::gear::StateTransition;
 use gprimitives::CodeId;
 use parity_scale_codec::{Decode, Encode};
 

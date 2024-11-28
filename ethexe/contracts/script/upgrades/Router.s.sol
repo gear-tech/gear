@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Script, console} from "forge-std/Script.sol";
+import {IRouter} from "../../src/IRouter.sol";
 import {Router} from "../../src/Router.sol";
 
 contract RouterScript is Script {
@@ -18,6 +19,11 @@ contract RouterScript is Script {
         bytes memory data =
             reinitialize ? abi.encodeCall(Router.reinitialize, () /*Router.reinitialize arguments*/ ) : new bytes(0);
         Upgrades.upgradeProxy(routerAddress, "Router.sol", data);
+
+        if (reinitialize) {
+            vm.roll(vm.getBlockNumber() + 1);
+            IRouter(routerAddress).lookupGenesisHash();
+        }
 
         vm.stopBroadcast();
     }

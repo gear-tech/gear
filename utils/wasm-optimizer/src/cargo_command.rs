@@ -32,7 +32,7 @@ pub struct CargoCommand {
     toolchain: Toolchain,
     check_recommended_toolchain: bool,
     force_recommended_toolchain: bool,
-    force_wasm_mvp: bool,
+    reduce_wasm_proposals: bool,
 }
 
 impl CargoCommand {
@@ -40,7 +40,7 @@ impl CargoCommand {
     pub fn new() -> CargoCommand {
         let toolchain = Toolchain::try_from_rustup().expect("Failed to get toolchain from rustup");
         let rustc_version = rustc_version::version().expect("Failed to get rustc version");
-        let force_wasm_mvp = toolchain != Toolchain::recommended_nightly()
+        let reduce_wasm_proposals = toolchain != Toolchain::recommended_nightly()
             && rustc_version.major == 1
             && rustc_version.minor >= 82;
 
@@ -48,7 +48,7 @@ impl CargoCommand {
             path: "rustup".to_string(),
             manifest_path: "Cargo.toml".into(),
             profile: "dev".to_string(),
-            rustc_flags: if force_wasm_mvp {
+            rustc_flags: if reduce_wasm_proposals {
                 // -C linker-plugin-lto causes conflict: https://github.com/rust-lang/rust/issues/130604
                 vec!["-C", "link-arg=--import-memory"]
             } else {
@@ -59,7 +59,7 @@ impl CargoCommand {
             toolchain,
             check_recommended_toolchain: false,
             force_recommended_toolchain: false,
-            force_wasm_mvp,
+            reduce_wasm_proposals,
         }
     }
 }
@@ -130,7 +130,7 @@ impl CargoCommand {
             .arg("--profile")
             .arg(&self.profile);
 
-        if self.force_wasm_mvp {
+        if self.reduce_wasm_proposals {
             cargo.arg("-Zbuild-std=core,alloc,panic_abort");
         }
 
@@ -147,8 +147,11 @@ impl CargoCommand {
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
 
-        if self.force_wasm_mvp {
-            cargo.env("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=mvp");
+        if self.reduce_wasm_proposals {
+            cargo.env(
+                "CARGO_ENCODED_RUSTFLAGS",
+                "-Ctarget-feature=-multivalue,-reference-types",
+            );
             if !self.toolchain.is_nightly() {
                 cargo.env("RUSTC_BOOTSTRAP", "1");
             }

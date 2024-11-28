@@ -19,18 +19,17 @@
 use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
-    mirror::RequestEvent as MirrorEvent,
-    router::{RequestEvent as RouterEvent, ValueClaim},
-    wvara::RequestEvent as WVaraEvent,
+    events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
+    gear::ValueClaim,
 };
 use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::state::{Dispatch, PayloadLookup, ValueWithExpiry};
 use gear_core::{ids::ProgramId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
-    pub(crate) fn handle_router_event(&mut self, event: RouterEvent) -> Result<()> {
+    pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
-            RouterEvent::ProgramCreated { actor_id, code_id } => {
+            RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
                 ensure!(
                     self.db.original_code(code_id).is_some(),
                     "db corrupted: missing code [OR] code existence wasn't checked on Eth"
@@ -45,11 +44,10 @@ impl ProcessingHandler {
 
                 self.transitions.register_new(actor_id);
             }
-            RouterEvent::CodeValidationRequested { .. }
-            | RouterEvent::BaseWeightChanged { .. }
-            | RouterEvent::StorageSlotChanged
-            | RouterEvent::ValidatorsSetChanged
-            | RouterEvent::ValuePerWeightChanged { .. } => {
+            RouterRequestEvent::CodeValidationRequested { .. }
+            | RouterRequestEvent::ComputationSettingsChanged { .. }
+            | RouterRequestEvent::StorageSlotChanged
+            | RouterRequestEvent::ValidatorsChanged => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };
@@ -60,7 +58,7 @@ impl ProcessingHandler {
     pub(crate) fn handle_mirror_event(
         &mut self,
         actor_id: ProgramId,
-        event: MirrorEvent,
+        event: MirrorRequestEvent,
     ) -> Result<()> {
         if !self.transitions.is_program(&actor_id) {
             log::debug!("Received event from unrecognized mirror ({actor_id}): {event:?}");
@@ -69,12 +67,12 @@ impl ProcessingHandler {
         }
 
         match event {
-            MirrorEvent::ExecutableBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
                     state.executable_balance += value;
                 });
             }
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id,
                 source,
                 payload,
@@ -92,7 +90,7 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorEvent::ReplyQueueingRequested {
+            MirrorRequestEvent::ReplyQueueingRequested {
                 replied_to,
                 source,
                 payload,
@@ -131,7 +129,7 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorEvent::ValueClaimingRequested { claimed_id, source } => {
+            MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(ValueWithExpiry { value, expiry }) = state
                         .mailbox_hash
@@ -172,9 +170,9 @@ impl ProcessingHandler {
         Ok(())
     }
 
-    pub(crate) fn handle_wvara_event(&mut self, event: WVaraEvent) {
+    pub(crate) fn handle_wvara_event(&mut self, event: WVaraRequestEvent) {
         match event {
-            WVaraEvent::Transfer { from, to, value } => {
+            WVaraRequestEvent::Transfer { from, to, value } => {
                 if self.transitions.is_program(&to) && !self.transitions.is_program(&from) {
                     self.update_state(to, |state, _, _| state.balance += value);
                 }

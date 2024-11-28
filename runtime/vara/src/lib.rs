@@ -183,7 +183,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1620,
+    spec_version: 1700,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1036,21 +1036,26 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
         match self {
             ProxyType::Any => true,
             ProxyType::NonTransfer => {
+                // Dev pallets.
                 #[cfg(feature = "dev")]
-                return !matches!(
+                if matches!(
                     c,
-                    RuntimeCall::Balances(..)
+                    RuntimeCall::GearDebug(..)
+                        | RuntimeCall::GearEthBridge(..)
                         | RuntimeCall::Sudo(..)
-                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
-                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
-                );
-                #[cfg(not(feature = "dev"))]
-                return !matches!(
+                ) {
+                    return false;
+                }
+
+                !matches!(
                     c,
-                    RuntimeCall::Balances(..)
-                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
-                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
-                );
+                    // Classic pallets.
+                    RuntimeCall::Balances(..) | RuntimeCall::Vesting(..)
+                    // Gear pallets.
+                    | RuntimeCall::Gear(..)
+                    | RuntimeCall::GearVoucher(..)
+                    | RuntimeCall::StakingRewards(..)
+                )
             }
             ProxyType::Governance => matches!(
                 c,
@@ -1428,6 +1433,7 @@ mod runtime {
     pub type NominationPools = pallet_nomination_pools;
 
     // Gear
+    // NOTE (!): if adding new pallet, don't forget to extend non payable proxy filter.
 
     #[runtime::pallet_index(100)]
     pub type GearProgram = pallet_gear_program;

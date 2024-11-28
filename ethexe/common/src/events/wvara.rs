@@ -20,8 +20,6 @@ use gprimitives::{ActorId, U256};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-/* Events section */
-
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum Event {
     Transfer {

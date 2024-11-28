@@ -26,7 +26,8 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::CodesStorage, mirror::Event as MirrorEvent, router::Event as RouterEvent, BlockEvent,
+    db::CodesStorage,
+    events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
@@ -194,7 +195,7 @@ async fn mailbox() {
     let mut listener = env.events_publisher().subscribe().await;
     let block_data = listener
         .apply_until_block_event_with_header(|event, block_data| match event {
-            BlockEvent::Mirror { address, event } if address == pid => {
+            BlockEvent::Mirror { actor_id, event } if actor_id == pid => {
                 if let MirrorEvent::Message {
                     id,
                     destination,
@@ -298,7 +299,7 @@ async fn mailbox() {
 
     let block_data = listener
         .apply_until_block_event_with_header(|event, block_data| match event {
-            BlockEvent::Mirror { address, event } if address == pid => match event {
+            BlockEvent::Mirror { actor_id, event } if actor_id == pid => match event {
                 MirrorEvent::ValueClaimed { claimed_id, .. }
                     if claimed_id == mid_expected_message =>
                 {
@@ -1385,8 +1386,8 @@ mod utils {
 
             self.listener
                 .apply_until_block_event(|event| match event {
-                    BlockEvent::Router(RouterEvent::CodeGotValidated { id, valid })
-                        if id == self.code_id =>
+                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
+                        if code_id == self.code_id =>
                     {
                         valid_info = Some(valid);
                         Ok(Some(()))
@@ -1439,7 +1440,7 @@ mod utils {
                         {
                             code_id_info = Some(code_id);
                         }
-                        BlockEvent::Mirror { address, event } if address == self.program_id => {
+                        BlockEvent::Mirror { actor_id, event } if actor_id == self.program_id => {
                             match event {
                                 MirrorEvent::MessageQueueingRequested {
                                     id,
@@ -1513,7 +1514,7 @@ mod utils {
             self.listener
                 .apply_until_block_event(|event| match event {
                     BlockEvent::Mirror {
-                        address,
+                        actor_id,
                         event:
                             MirrorEvent::Reply {
                                 reply_to,
@@ -1524,7 +1525,7 @@ mod utils {
                     } if reply_to == self.message_id => {
                         info = Some(ReplyInfo {
                             message_id: reply_to,
-                            program_id: address,
+                            program_id: actor_id,
                             reply_payload: payload,
                             reply_code,
                             reply_value: value,

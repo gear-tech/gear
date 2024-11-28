@@ -28,8 +28,7 @@ contract Mirror is IMirror {
     function sendMessage(bytes calldata _payload, uint128 _value) external payable returns (bytes32) {
         require(inheritor == address(0), "program is terminated");
 
-        uint128 baseFee = IRouter(router()).baseFee();
-        _retrieveValueToRouter(baseFee + _value);
+        _retrieveValueToRouter(_value);
 
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
@@ -41,8 +40,7 @@ contract Mirror is IMirror {
     function sendReply(bytes32 _repliedTo, bytes calldata _payload, uint128 _value) external payable {
         require(inheritor == address(0), "program is terminated");
 
-        uint128 baseFee = IRouter(router()).baseFee();
-        _retrieveValueToRouter(baseFee + _value);
+        _retrieveValueToRouter(_value);
 
         emit ReplyQueueingRequested(_repliedTo, _source(), _payload, _value);
     }
@@ -176,13 +174,15 @@ contract Mirror is IMirror {
     }
 
     function _retrieveValueToRouter(uint128 _value) private {
-        address routerAddress = router();
+        if (_value != 0) {
+            address routerAddress = router();
 
-        IWrappedVara wrappedVara = IWrappedVara(IRouter(routerAddress).wrappedVara());
+            IWrappedVara wrappedVara = IWrappedVara(IRouter(routerAddress).wrappedVara());
 
-        bool success = wrappedVara.transferFrom(_source(), routerAddress, _value);
+            bool success = wrappedVara.transferFrom(_source(), routerAddress, _value);
 
-        require(success, "failed to retrieve WVara");
+            require(success, "failed to retrieve WVara");
+        }
     }
 
     function _sendValueTo(address destination, uint128 value) private {

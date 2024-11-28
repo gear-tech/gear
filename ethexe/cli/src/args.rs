@@ -22,7 +22,7 @@ use crate::{
     config,
     params::{NetworkParams, PrometheusParams, RpcParams},
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail};
 use clap::{Parser, Subcommand};
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Address;
@@ -145,7 +145,6 @@ pub enum ExtraCommands {
     ClearKeys,
     InsertKey(InsertKeyArgs),
     Sign(SigningArgs),
-    UpdateValidators(UpdateValidatorsArgs),
     UploadCode(UploadCodeArgs),
     CreateProgram(CreateProgramArgs),
 }
@@ -158,11 +157,6 @@ pub struct SigningArgs {
 #[derive(Clone, Debug, Deserialize, Parser)]
 pub struct InsertKeyArgs {
     key_uri: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Parser)]
-pub struct UpdateValidatorsArgs {
-    validators: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -256,33 +250,6 @@ impl ExtraCommands {
 
                 println!("Key inserted: {}", pub_key);
                 println!("Ethereum address: {}", pub_key.to_address());
-            }
-
-            ExtraCommands::UpdateValidators(ref update_validators_args) => {
-                let validator_addresses = update_validators_args
-                    .validators
-                    .iter()
-                    .map(|validator| validator.parse::<Address>())
-                    .collect::<Result<Vec<_>>>()?;
-
-                let validators = validator_addresses
-                    .into_iter()
-                    .map(|address| address.0.into())
-                    .collect();
-
-                let Some((sender_address, ethexe_ethereum)) =
-                    maybe_sender_address.zip(maybe_ethereum)
-                else {
-                    bail!("please provide signer address");
-                };
-
-                println!("Updating validators for Router from {sender_address}...");
-
-                let tx = ethexe_ethereum
-                    .router()
-                    .update_validators(validators)
-                    .await?;
-                println!("Completed in transaction {tx:?}");
             }
 
             ExtraCommands::UploadCode(ref upload_code_args) => {

@@ -109,8 +109,8 @@ pub struct StoreRefCell<S> {
 
 trait GenericAsStoreMut {}
 
-impl<'r, 's> GenericAsStoreMut for &'r mut wasmer::StoreMut<'s> {}
-impl<'s, T> GenericAsStoreMut for wasmi::StoreContextMut<'s, T> {}
+impl GenericAsStoreMut for &mut wasmer::StoreMut<'_> {}
+impl<T> GenericAsStoreMut for wasmi::StoreContextMut<'_, T> {}
 
 #[derive(Debug)]
 pub struct BorrowScopeError;
@@ -236,7 +236,7 @@ pub struct RefMut<'b, S> {
     state: &'b Cell<BorrowState>,
 }
 
-impl<'a, S> Deref for RefMut<'a, S> {
+impl<S> Deref for RefMut<'_, S> {
     type Target = S;
 
     #[inline]

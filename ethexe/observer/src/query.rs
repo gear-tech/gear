@@ -19,8 +19,7 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
-    router::Event as RouterEvent,
-    BlockEvent, BlockRequestEvent,
+    events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };
 use ethexe_signer::Address;
 use gprimitives::{CodeId, H256};
@@ -65,7 +64,8 @@ impl Query {
         let hash = self.genesis_block_hash;
         self.database
             .set_block_commitment_queue(hash, Default::default());
-        self.database.set_block_prev_commitment(hash, H256::zero());
+        self.database
+            .set_previous_committed_block(hash, H256::zero());
         self.database.set_block_end_state_is_valid(hash, true);
         self.database.set_block_is_empty(hash, true);
         self.database
@@ -89,7 +89,7 @@ impl Query {
             .await?
             .into_iter()
             .filter_map(|event| match event {
-                BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => Some(block_hash),
+                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => Some(hash),
                 _ => None,
             })
             .collect())
@@ -305,12 +305,13 @@ impl Query {
         {
             let parent_prev_commitment = self
                 .database
-                .block_prev_commitment(parent)
+                .previous_committed_block(parent)
                 .ok_or_else(|| anyhow!("parent block prev commitment not found"))?;
             self.database
-                .set_block_prev_commitment(block_hash, parent_prev_commitment);
+                .set_previous_committed_block(block_hash, parent_prev_commitment);
         } else {
-            self.database.set_block_prev_commitment(block_hash, parent);
+            self.database
+                .set_previous_committed_block(block_hash, parent);
         }
 
         Ok(())

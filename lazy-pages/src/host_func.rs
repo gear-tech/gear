@@ -34,7 +34,7 @@ pub(crate) struct HostFuncAccessHandler<'a> {
     pub gas_charger: GasCharger,
 }
 
-impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
+impl AccessHandler for HostFuncAccessHandler<'_> {
     type Pages = BTreeSet<GearPage>;
     type Output = Status;
 
@@ -107,7 +107,7 @@ fn accesses_pages(
             let last_byte = access
                 .offset
                 .checked_add(access.size.saturating_sub(1))
-                .ok_or_else(|| Error::OutOfWasmMemoryAccess)?;
+                .ok_or(Error::OutOfWasmMemoryAccess)?;
 
             let start = (access.offset / page_size) * page_size;
             let end = (last_byte / page_size) * page_size;
