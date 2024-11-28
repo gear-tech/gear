@@ -176,14 +176,13 @@ thiserror = "1.0.62"
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
-# wasmer 4.3.4 for some reason have wat's version "=1.0.71" nailed down, so we have to do the same
 wat = "1.0.71"
 wabt = "0.10.0"
-wasmer = { version = "4.3.4", default-features = false, features = ["singlepass"] }
-wasmer-cache = "4.3.4"
-wasmer-types = "4.3.4"
-wasmer-vm = "4.3.4"
-wasmer-compiler = "4.3.4"
+wasmer = { version = "5.0.2", default-features = false, features = ["singlepass"] }
+wasmer-cache = "5.0.2"
+wasmer-types = "5.0.2"
+wasmer-vm = "5.0.2"
+wasmer-compiler = "5.0.2"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
 wasmparser = { version = "0.220", default-features = false, features = ["validate"] }

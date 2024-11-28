@@ -36,9 +36,10 @@ use wasmer::{
         VMTableDefinition,
     },
     Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
+    Value as RuntimeValue,
 };
-use wasmer_types::{ExternType, Target};
+use wasmer_types::ExternType;
 
 fn cache_base_path() -> PathBuf {
     static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
