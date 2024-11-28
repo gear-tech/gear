@@ -204,7 +204,7 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let mut engine = Engine::from(wasmer::Singlepass::new());
+        let mut engine = Engine::from(wasmer::Cranelift::new());
         let tunables = CustomTunables::for_target(engine.target())
             // make stack size bigger for fuzzer
             .with_wasm_stack_size(16 * 1024 * 1024);
