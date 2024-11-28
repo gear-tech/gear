@@ -240,6 +240,7 @@ impl<'a> Rules for ScheduleRules<'a> {
             GetGlobal(_) => w.global_get,
             SetGlobal(_) => w.global_set,
             CurrentMemory(_) => w.memory_current,
+            // TODO: update
             CallIndirect(idx, _) => *self.params.get(idx as usize).unwrap_or(&max_params),
             BrTable(ref data) => w
                 .br_table
