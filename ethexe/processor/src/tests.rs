@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
-use ethexe_common::{
-    mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
-};
+use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
 use ethexe_runtime_common::state::ValueWithExpiry;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
@@ -118,16 +116,16 @@ fn process_observer_event() {
     let actor_id = ActorId::from(42);
 
     let create_program_events = vec![
-        BlockRequestEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated { actor_id, code_id }),
         BlockRequestEvent::mirror(
             actor_id,
-            MirrorEvent::ExecutableBalanceTopUpRequested {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
         ),
         BlockRequestEvent::mirror(
             actor_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: H256::random().0.into(),
                 source: H256::random().0.into(),
                 payload: b"PING".to_vec(),
@@ -146,7 +144,7 @@ fn process_observer_event() {
 
     let send_message_event = BlockRequestEvent::mirror(
         actor_id,
-        MirrorEvent::MessageQueueingRequested {
+        MirrorRequestEvent::MessageQueueingRequested {
             id: H256::random().0.into(),
             source: H256::random().0.into(),
             payload: b"PING".to_vec(),
@@ -255,13 +253,13 @@ fn ping_pong() {
     let mut handler = processor.handler(ch0).unwrap();
 
     handler
-        .handle_router_event(RouterEvent::ProgramCreated { actor_id, code_id })
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorEvent::ExecutableBalanceTopUpRequested {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
         )
@@ -270,7 +268,7 @@ fn ping_pong() {
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: MessageId::from(1),
                 source: user_id,
                 payload: b"PING".to_vec(),
@@ -282,7 +280,7 @@ fn ping_pong() {
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: MessageId::from(2),
                 source: user_id,
                 payload: b"PING".to_vec(),
@@ -338,7 +336,7 @@ fn async_and_ping() {
     let mut handler = processor.handler(ch0).unwrap();
 
     handler
-        .handle_router_event(RouterEvent::ProgramCreated {
+        .handle_router_event(RouterRequestEvent::ProgramCreated {
             actor_id: ping_id,
             code_id: ping_code_id,
         })
@@ -347,7 +345,7 @@ fn async_and_ping() {
     handler
         .handle_mirror_event(
             ping_id,
-            MirrorEvent::ExecutableBalanceTopUpRequested {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
         )
@@ -356,7 +354,7 @@ fn async_and_ping() {
     handler
         .handle_mirror_event(
             ping_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: get_next_message_id(),
                 source: user_id,
                 payload: b"PING".to_vec(),
@@ -366,7 +364,7 @@ fn async_and_ping() {
         .expect("failed to send message");
 
     handler
-        .handle_router_event(RouterEvent::ProgramCreated {
+        .handle_router_event(RouterRequestEvent::ProgramCreated {
             actor_id: async_id,
             code_id: upload_code_id,
         })
@@ -375,7 +373,7 @@ fn async_and_ping() {
     handler
         .handle_mirror_event(
             async_id,
-            MirrorEvent::ExecutableBalanceTopUpRequested {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
         )
@@ -384,7 +382,7 @@ fn async_and_ping() {
     handler
         .handle_mirror_event(
             async_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: get_next_message_id(),
                 source: user_id,
                 payload: ping_id.encode(),
@@ -398,7 +396,7 @@ fn async_and_ping() {
     handler
         .handle_mirror_event(
             async_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: wait_for_reply_to,
                 source: user_id,
                 payload: demo_async::Command::Common.encode(),
@@ -478,7 +476,7 @@ fn many_waits() {
         let program_id = ProgramId::from(i);
 
         handler
-            .handle_router_event(RouterEvent::ProgramCreated {
+            .handle_router_event(RouterRequestEvent::ProgramCreated {
                 actor_id: program_id,
                 code_id,
             })
@@ -487,7 +485,7 @@ fn many_waits() {
         handler
             .handle_mirror_event(
                 program_id,
-                MirrorEvent::ExecutableBalanceTopUpRequested {
+                MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                     value: 10_000_000_000,
                 },
             )
@@ -496,7 +494,7 @@ fn many_waits() {
         handler
             .handle_mirror_event(
                 program_id,
-                MirrorEvent::MessageQueueingRequested {
+                MirrorRequestEvent::MessageQueueingRequested {
                     id: H256::random().0.into(),
                     source: H256::random().0.into(),
                     payload: Default::default(),
@@ -518,7 +516,7 @@ fn many_waits() {
         handler
             .handle_mirror_event(
                 pid,
-                MirrorEvent::MessageQueueingRequested {
+                MirrorRequestEvent::MessageQueueingRequested {
                     id: H256::random().0.into(),
                     source: H256::random().0.into(),
                     payload: Default::default(),

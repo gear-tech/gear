@@ -9,10 +9,7 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::{
-    router::{Event as RouterEvent, RequestEvent as RouterRequestEvent},
-    BlockEvent, BlockRequestEvent,
-};
+use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent, RouterRequestEvent};
 use ethexe_db::BlockHeader;
 use ethexe_ethereum::{
     mirror,

@@ -22,8 +22,6 @@ use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-/* Events section */
-
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum Event {
     ExecutableBalanceTopUpRequested {

@@ -12584,73 +12584,6 @@ fn state_rollback() {
 }
 
 #[test]
-fn incomplete_async_payloads_kept() {
-    use demo_incomplete_async_payloads::{Command, WASM_BINARY};
-    use demo_ping::WASM_BINARY as PING_BINARY;
-
-    init_logger();
-
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            Default::default(),
-            BlockGasLimitOf::<Test>::get(),
-            0,
-            false,
-        ));
-
-        let ping = get_last_program_id();
-
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            ping.encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0,
-            false,
-        ));
-
-        let incomplete = get_last_program_id();
-
-        run_to_next_block(None);
-
-        System::reset_events();
-
-        let to_send = [
-            Command::Handle,
-            Command::Reply,
-            Command::HandleStore,
-            Command::ReplyStore,
-        ]
-        .iter()
-        .map(Encode::encode)
-        .collect();
-        send_payloads(USER_1, incomplete, to_send);
-        run_to_next_block(None);
-
-        // "None" are auto-replies.
-        let to_assert = [
-            None,
-            Some("OK PING"),
-            Some("OK REPLY"),
-            None,
-            Some("STORED COMMON"),
-            Some("STORED REPLY"),
-        ]
-        .iter()
-        .map(|v| {
-            v.map(|s| Assertion::Payload(s.as_bytes().to_vec()))
-                .unwrap_or_else(|| Assertion::ReplyCode(SuccessReplyReason::Auto.into()))
-        })
-        .collect::<Vec<_>>();
-        assert_responses_to_user(USER_1, to_assert);
-    })
-}
-
-#[test]
 fn rw_lock_works() {
     use demo_ping::WASM_BINARY as PING_BINARY;
     use demo_rwlock::{Command, WASM_BINARY};
@@ -15484,8 +15417,8 @@ fn incorrect_store_context() {
         QueueOf::<Test>::queue(dispatch).unwrap();
 
         run_to_next_block(None);
-
-        assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
+        // does not fail anymore, context does not keep state between executions
+        assert_succeed(mid);
     });
 }
 
@@ -16809,7 +16742,7 @@ pub(crate) mod utils {
 
         if messages.len() != assertions.len() {
             panic!(
-                "Expected {} messages, you assert only {} of them\n{:?}",
+                "Expected {} messages, you assert only {} of them\n{:#?}",
                 messages.len(),
                 assertions.len(),
                 messages

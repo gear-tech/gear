@@ -18,46 +18,24 @@
 
 /// Add a debug message to the log.
 ///
-/// Note that debug messages are available only if the program is compiled
-/// in debug mode.
-///
-/// ```shell
-/// cargo build --debug
-/// cargo build --features=debug
-/// ```
-///
-/// You can see the debug messages when running the program using the `gtest`
-/// crate. To see these messages when executing the program on the node, you
-/// should run the node with the `RUST_LOG="gwasm=debug"` environment variable.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::debug;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     debug!("String literal");
-///
-///     let value = 42;
-///     debug!("{value}");
-///
-///     debug!("Formatted: value = {value}");
-/// }
-/// ```
+/// Same as [`gcore::debug`] but uses heap instead of stack for formatting.
 #[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
-macro_rules! debug {
-    ($($arg:tt)*) => {
-        $crate::ext::debug(&$crate::format!($($arg)*)).unwrap()
+macro_rules! heap_debug {
+    ($fmt:expr) => {
+        $crate::ext::debug(&$crate::format!($fmt))
+    };
+    ($fmt:expr, $($args:tt)*) => {
+        $crate::ext::debug(&$crate::format!($fmt, $($args)*))
     };
 }
 
 #[cfg(not(any(feature = "debug", debug_assertions)))]
 #[allow(missing_docs)]
 #[macro_export]
-macro_rules! debug {
-    ($($arg:tt)*) => {};
+macro_rules! heap_debug {
+    ($fmt:expr) => {};
+    ($fmt:expr, $($args:tt)*) => {};
 }
 
 /// Prints and returns the value of a given expression for quick and dirty

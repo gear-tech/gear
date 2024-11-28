@@ -24,8 +24,8 @@ use crate::{
 };
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
-    router::StateTransition,
-    BlockRequestEvent,
+    events::BlockRequestEvent,
+    gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage,
@@ -178,12 +178,12 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_prev_commitment(&self, block_hash: H256) -> Option<H256> {
+    fn previous_committed_block(&self, block_hash: H256) -> Option<H256> {
         self.block_small_meta(block_hash)
             .and_then(|meta| meta.prev_commitment)
     }
 
-    fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256) {
+    fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set prev commitment: {prev_commitment}");
         let meta = self.block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(

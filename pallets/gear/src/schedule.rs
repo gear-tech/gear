@@ -863,7 +863,7 @@ impl<T: Config> Default for InstructionWeights<T> {
         // See below for the assembly listings of the mentioned instructions.
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1620,
+            version: 1700,
             i64const: cost_i64const::<T>(),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
@@ -1077,7 +1077,7 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_reply_commit: cost(W::<T>::gr_reply_commit),
             gr_reply_commit_wgas: cost(W::<T>::gr_reply_commit_wgas),
             gr_reservation_reply: cost(W::<T>::gr_reservation_reply),
-            gr_reservation_reply_per_byte: cost(W::<T>::gr_reservation_reply_per_kb),
+            gr_reservation_reply_per_byte: cost_byte(W::<T>::gr_reservation_reply_per_kb),
             gr_reservation_reply_commit: cost(W::<T>::gr_reservation_reply_commit),
             gr_reply_input: cost(W::<T>::gr_reply_input),
             gr_reply_input_wgas: cost(W::<T>::gr_reply_input_wgas),
