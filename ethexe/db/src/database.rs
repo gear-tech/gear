@@ -445,8 +445,6 @@ impl Database {
         self.cas.write(data)
     }
 
-    // TODO [sab]:
-    // 1. Maybe concrete transaction type and encode it?
     pub fn validated_transaction(&self, tx_hash: H256) -> Option<Vec<u8>> {
         self.kv.get(&KeyPrefix::Transaction.one(tx_hash))
     }

@@ -26,28 +26,33 @@ mod tests;
 
 pub use service::{
     InputTask, OutputTask, TxPoolInputTaskSender, TxPoolOutputTaskReceiver, TxPoolService,
-    TxPoolServiceArtifacts,
+    TxPoolInstantiationArtifacts,
 };
 pub use transaction::{EthexeTransaction, Transaction};
 
-// TODO [sab] decide on tx pool channel size
-
-use anyhow::{anyhow, Result};
-use ethexe_db::{Database, MemDb};
-use ethexe_signer::ToDigest;
+use anyhow::Result;
+use ethexe_db::Database;
 use parity_scale_codec::Encode;
-use std::{fmt::Debug, marker::PhantomData};
-use tokio::sync::{mpsc, oneshot};
+use std::marker::PhantomData;
+
+/// Transaction pool with a [`EthexeTransaction`] transaction type.
+pub type StandardTxPool = TxPoolCore<EthexeTransaction>;
+/// Transaction pool service with a [`EthexeTransaction`] transaction type and a [`StandardTxPool`] as a transaction pool.
+pub type StandardTxPoolService = TxPoolService<EthexeTransaction, StandardTxPool>;
+/// Transaction pool input task sender with a [`EthexeTransaction`] transaction type.
+pub type StandardInputTaskSender = TxPoolInputTaskSender<EthexeTransaction>;
+/// Transaction pool output task receiver with a [`EthexeTransaction`] transaction type.
+pub type StandardOutputTaskReceiver = TxPoolOutputTaskReceiver<EthexeTransaction>;
+/// Transaction pool instantiation artifacts with a [`EthexeTransaction`] transaction type and a [`StandardTxPool`] as a transaction pool.
+pub type StandardTxPoolInstantiationArtifacts =
+    TxPoolInstantiationArtifacts<EthexeTransaction, StandardTxPool>;
 
 /// Transaction pool trait.
-// TODO [sab] define type of hashes and signatures for the tx pool
 pub trait TxPoolTrait {
     /// Transaction type.
     type Transaction: Transaction;
 
     /// Add transaction to the pool.
-    // TODO [sab] maybe take error from Transaction?
-    // TODO [sab] maybe return a "validated transaction"?
     fn add_transaction(&self, transaction: Self::Transaction) -> Result<()>;
 }
 
@@ -60,7 +65,6 @@ impl TxPoolTrait for () {
 }
 
 pub struct TxPoolCore<Tx> {
-    // TODO [sab] trait for tx pool db?
     db: Database,
     _phantom: PhantomData<Tx>,
 }
@@ -85,7 +89,6 @@ where
         let tx_bytes = transaction.encode();
         let tx_hash = transaction.tx_hash();
 
-        // TODO [sab] handle duplicates
         if self.db.validated_transaction(tx_hash).is_none() {
             transaction.validate().map_err(Into::into)?;
             self.db.set_validated_transaction(tx_hash, tx_bytes);

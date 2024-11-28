@@ -26,11 +26,12 @@ use input::TxPoolInputTaskReceiver;
 use output::TxPoolOutputTaskSender;
 use tokio::sync::mpsc;
 
-pub type TxPoolServiceArtifacts<Tx, TxPool> = (
-    TxPoolService<Tx, TxPool>,
-    TxPoolInputTaskSender<Tx>,
-    TxPoolOutputTaskReceiver<Tx>,
-);
+/// Transaction pool instantiation artifacts carrier.
+pub struct TxPoolInstantiationArtifacts<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>> {
+    pub service: TxPoolService<Tx, TxPool>,
+    pub input_sender: TxPoolInputTaskSender<Tx>,
+    pub output_receiver: TxPoolOutputTaskReceiver<Tx>,
+}
 
 /// Transaction pool service.
 ///
@@ -42,22 +43,22 @@ pub struct TxPoolService<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>>
 }
 
 impl<Tx: Transaction + Clone, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolService<Tx, TxPool> {
-    pub fn new(tx_pool_core: impl Into<TxPool>) -> TxPoolServiceArtifacts<Tx, TxPool> {
+    pub fn new(tx_pool_core: impl Into<TxPool>) -> TxPoolInstantiationArtifacts<Tx, TxPool> {
         let tx_pool_core = tx_pool_core.into();
         let (tx_in, rx_in) = mpsc::unbounded_channel();
         let (tx_out, rx_out) = mpsc::unbounded_channel();
 
-        let tx_pool_interface = Self {
+        let service = Self {
             core: tx_pool_core,
             input_interface: TxPoolInputTaskReceiver { receiver: rx_in },
             output_inteface: TxPoolOutputTaskSender { sender: tx_out },
         };
 
-        (
-            tx_pool_interface,
-            TxPoolInputTaskSender { sender: tx_in },
-            TxPoolOutputTaskReceiver { receiver: rx_out },
-        )
+        TxPoolInstantiationArtifacts {
+            service,
+            input_sender: TxPoolInputTaskSender { sender: tx_in },
+            output_receiver: TxPoolOutputTaskReceiver { receiver: rx_out },
+        }
     }
 
     /// Runs transaction pool service expecting to receive tasks from the
@@ -88,7 +89,6 @@ impl<Tx: Transaction + Clone, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolServi
     }
 }
 
-// TODO [sab] move I\O to the other crate so ethexe-rpc is lighter
 mod input {
     use anyhow::Result;
     use std::ops::{Deref, DerefMut};
@@ -152,7 +152,6 @@ mod input {
 }
 
 mod output {
-    use anyhow::Result;
     use std::ops::{Deref, DerefMut};
     use tokio::sync::mpsc;
 
@@ -160,6 +159,7 @@ mod output {
     ///
     /// The task is not obligatory to be anyhow handled,
     /// but is a way to communicate with an external service.
+    #[derive(Debug)]
     pub enum OutputTask<Tx> {
         /// Signals to the external service to propogate the transaction
         PropogateTransaction { transaction: Tx },

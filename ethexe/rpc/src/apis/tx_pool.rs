@@ -45,11 +45,6 @@ impl TransactionPoolApi {
     }
 }
 
-/*
-Test case for raw rpc call with websocat:
-transactionPool_sendMessage {"raw_message": [104, 101, 108, 108, 111, 95, 119, 111, 114, 108, 100], "signature": [89, 105, 98, 73, 40, 32, 213, 19, 244, 171, 227, 144, 199, 56, 94, 1, 223, 229, 208, 245, 103, 132, 35, 75, 99, 195, 70, 169, 1, 48, 250, 219, 100, 79, 7, 240, 253, 122, 22, 12, 87, 45, 173, 191, 36, 72, 136, 222, 57, 6, 55, 244, 196, 125, 135, 250, 237, 70, 116, 65, 46, 175, 75, 37, 27]}
-*/
-
 #[async_trait]
 impl TransactionPoolServer for TransactionPoolApi {
     async fn send_message(&self, raw_message: Vec<u8>, signature: Vec<u8>) -> RpcResult<()> {

@@ -805,8 +805,6 @@ async fn tx_pool_gossip() {
     let mut node0 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[0])
-            // TODO [sab] run only pool, but not network
-            .service_rpc(9506)
             .network(None, None),
     );
     node0.start_service().await;
@@ -829,7 +827,7 @@ async fn tx_pool_gossip() {
 
     // Send request
     log::info!("Sending tx pool request");
-    send_json_request(node1.service_rpc_url().expect("rpc server is set"), || {
+    let resp = send_json_request(node1.service_rpc_url().expect("rpc server is set"), || {
         serde_json::json!({
             "jsonrpc": "2.0",
             "method": "transactionPool_sendMessage",
@@ -839,7 +837,11 @@ async fn tx_pool_gossip() {
             },
             "id": 1,
         })
-    }).await;
+    })
+    .await
+    .expect("failed sending request");
+    
+    assert!(resp.status().is_success());
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -852,23 +854,19 @@ async fn tx_pool_gossip() {
     assert_eq!(node0_db_tx, tx);
 }
 
-async fn send_json_request(rpc_server_url: String, create_request: impl Fn() -> serde_json::Value) -> Result<> {
+async fn send_json_request(rpc_server_url: String, create_request: impl Fn() -> serde_json::Value) -> Result<reqwest::Response, reqwest::Error> {
     let client = reqwest::Client::new();
     let req_body = create_request();
 
-    let resp = client
+    client
         .post(rpc_server_url)
         .json(&req_body)
         .send()
         .await
-        .unwrap_or_else(|err| panic!("Failed to send request: {err:?}"));
-
-    assert!(resp.status().is_success())
 }
 
 mod utils {
     use std::net::SocketAddr;
-
     use super::*;
     use ethexe_observer::SimpleBlockData;
     use ethexe_rpc::{RpcConfig, RpcService};
@@ -1012,7 +1010,7 @@ mod utils {
                 sequencer_public_key,
                 validator_public_key,
                 network,
-                service_rpc,
+                service_rpc_config,
             } = config;
 
             let db =
@@ -1044,7 +1042,7 @@ mod utils {
                 validator_public_key,
                 network_address,
                 network_bootstrap_address,
-                service_rpc,
+                service_rpc_config,
             }
         }
 
@@ -1177,7 +1175,7 @@ mod utils {
         /// Network configuration, if provided then new node starts with network.
         pub network: Option<NodeNetworkConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
-        pub service_rpc: Option<RpcConfig>,
+        pub service_rpc_config: Option<RpcConfig>,
     }
 
     impl NodeConfig {
@@ -1209,13 +1207,13 @@ mod utils {
         }
 
         pub fn service_rpc(mut self, rpc_port: u16) -> Self {
-            let service_rpc = RpcConfig {
+            let service_rpc_config = RpcConfig {
                 listen_addr: SocketAddr::new(
                     "127.0.0.1".parse().unwrap(),
                     rpc_port
                 )
             };
-            self.service_rpc = Some(service_rpc);
+            self.service_rpc_config = Some(service_rpc_config);
 
             self
         }
@@ -1352,7 +1350,7 @@ mod utils {
         validator_public_key: Option<ethexe_signer::PublicKey>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
-        service_rpc: Option<RpcConfig>,
+        service_rpc_config: Option<RpcConfig>,
     }
 
     impl Node {
@@ -1423,18 +1421,13 @@ mod utils {
                 None => None,
             };
 
-            let (rpc, tx_pool) = {
-                match self.service_rpc.as_ref() {
-                    Some(rpc_config) => {
-                        let tx_pool_artifacts = TxPoolService::new((self.db.clone(),));
+            let tx_pool_artifacts = TxPoolService::new((self.db.clone(),));
 
-                        let rpc = RpcService::new(rpc_config.clone(), self.db.clone(), tx_pool_artifacts.1.clone());
-                        
-                        (Some(rpc), Some(tx_pool_artifacts))
-                    },
-                    None => (None, None)
-                }
-            };
+            let rpc = self.service_rpc_config
+                .as_ref()
+                .map(|service_rpc_config| {
+                    RpcService::new(service_rpc_config.clone(), self.db.clone(), tx_pool_artifacts.input_sender.clone())
+                });
 
             let service = Service::new_from_parts(
                 self.db.clone(),
@@ -1449,7 +1442,7 @@ mod utils {
                 validator,
                 None,
                 rpc,
-                tx_pool
+                tx_pool_artifacts
             );
 
             let handle = task::spawn(service.run());
@@ -1470,7 +1463,7 @@ mod utils {
         }
     
         pub fn service_rpc_url(&self) -> Option<String> {
-            self.service_rpc.as_ref().map(|rpc| 
+            self.service_rpc_config.as_ref().map(|rpc| 
                 format!("http://{}", rpc.listen_addr.to_string())
             )
         }

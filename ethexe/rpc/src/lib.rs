@@ -21,7 +21,6 @@ use apis::{
     BlockApi, BlockServer, ProgramApi, ProgramServer, TransactionPoolApi, TransactionPoolServer,
 };
 use ethexe_db::Database;
-use ethexe_tx_pool::{EthexeTransaction, TxPoolInputTaskSender};
 use futures::FutureExt;
 use jsonrpsee::{
     server::{
@@ -55,14 +54,14 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    tx_pool_task_sender: TxPoolInputTaskSender<EthexeTransaction>,
+    tx_pool_task_sender: ethexe_tx_pool::StandardInputTaskSender,
 }
 
 impl RpcService {
     pub fn new(
         config: RpcConfig,
         db: Database,
-        tx_pool_task_sender: TxPoolInputTaskSender<EthexeTransaction>,
+        tx_pool_task_sender: ethexe_tx_pool::StandardInputTaskSender,
     ) -> Self {
         Self {
             config,
